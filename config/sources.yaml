@@ -1,4 +1,21 @@
 # Watson Source Monitoring List
+#
+# ── Daily Briefing Feeds ───────────────────────────────────────────────────
+# Fetched by briefing/builder.py — 2 latest items per feed, delivered via Telegram.
+
+briefing_feeds:
+  - name: "Bible Gateway"
+    rss: "https://www.biblegateway.com/reading-plans/rss"
+  - name: "The Gospel Coalition"
+    rss: "https://www.thegospelcoalition.org/feed"
+  - name: "Desiring God"
+    rss: "https://www.desiringgod.org/interviews/feed"
+  - name: "Christianity Today"
+    rss: "https://www.christianitytoday.com/ct/rss.xml"
+  - name: "Apologetics315"
+    rss: "https://apologetics315.com/feed"
+
+
 # source_type: article | podcast | publication | journal
 # Entries with scrape: true use BeautifulSoup on the URL.
 # Entries with rss: use feedparser.

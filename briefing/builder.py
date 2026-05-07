@@ -4,6 +4,8 @@ import re
 from datetime import datetime
 from pathlib import Path
 
+import feedparser
+import yaml
 from jinja2 import Environment, FileSystemLoader
 
 from config.settings import BASE_DIR, DEPLOY_DIR
@@ -107,6 +109,44 @@ def build():
         log.info("Marked %d item(s) as featured", len(items))
 
     return OUTPUT_PATH
+
+
+def build_telegram_briefing():
+    """Fetch the 2 latest items from each briefing feed and return a plain-text Telegram message."""
+    sources_path = BASE_DIR / "config" / "sources.yaml"
+    with open(sources_path, encoding="utf-8") as f:
+        config = yaml.safe_load(f)
+
+    feeds = config.get("briefing_feeds", [])
+    dt = datetime.now()
+    date_str = dt.strftime("%A, %B") + f" {dt.day}, {dt.year}"
+
+    lines = [f"Watson Briefing — {date_str}", ""]
+
+    for feed in feeds:
+        url = feed.get("rss", "")
+        name = feed.get("name", url)
+        if not url:
+            continue
+        try:
+            parsed = feedparser.parse(url)
+            entries = parsed.entries[:2]
+            if not entries:
+                lines += [f"[ {name} ]", "(no items found)", ""]
+                continue
+            lines.append(f"[ {name} ]")
+            for entry in entries:
+                title = (entry.get("title") or "(no title)").strip()
+                link = (entry.get("link") or "").strip()
+                lines.append(title)
+                if link:
+                    lines.append(link)
+            lines.append("")
+        except Exception as exc:
+            log.warning("Feed error for %s: %s", name, exc)
+            lines += [f"[ {name} ]", "(feed unavailable)", ""]
+
+    return "\n".join(lines).strip()
 
 
 if __name__ == "__main__":

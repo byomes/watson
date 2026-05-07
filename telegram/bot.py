@@ -4,8 +4,9 @@ from pathlib import Path
 
 import whisper
 from telegram import Update
-from telegram.ext import Application, MessageHandler, filters, ContextTypes
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
+from briefing.builder import build_telegram_briefing
 from config.settings import ARCHIVE_DIR, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 from core.database import get_connection, init_db
 
@@ -71,6 +72,31 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
             log.debug("Deleted temp file %s", audio_path)
 
 
+async def handle_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not _is_authorized(update):
+        return
+    text = (
+        "Watson commands:\n"
+        "/briefing — fetch and send today's research briefing\n"
+        "/help — show this message\n\n"
+        "Send a voice message to transcribe and save it.\n"
+        "Send a text message to save it as a note."
+    )
+    await update.message.reply_text(text)
+
+
+async def handle_briefing(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not _is_authorized(update):
+        return
+    await update.message.reply_text("Fetching briefing...")
+    try:
+        briefing = build_telegram_briefing()
+        await update.message.reply_text(briefing)
+    except Exception as exc:
+        log.error("Briefing failed: %s", exc)
+        await update.message.reply_text(f"Briefing failed: {exc}")
+
+
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not _is_authorized(update):
         return
@@ -96,6 +122,8 @@ def main():
     _get_whisper_model()  # warm up at startup rather than on first message
 
     app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
+    app.add_handler(CommandHandler("help", handle_help))
+    app.add_handler(CommandHandler("briefing", handle_briefing))
     app.add_handler(MessageHandler(filters.VOICE, handle_voice))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
 
