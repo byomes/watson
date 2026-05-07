@@ -12,24 +12,29 @@ authors:
     url: "https://garyhabermas.com"
     scrape: true
     source_type: article
+    priority: 1
 
   - name: "Mike Licona"
     url: "https://risenjesus.com"
     scrape: true
     source_type: article
+    priority: 1
 
   - name: "Sean McDowell"
     rss: "https://seanmcdowell.org/feed"
     source_type: article
+    priority: 1
 
   - name: "Sean McDowell (Podcast)"
     rss: "https://feeds.buzzsprout.com/1987617.rss"
     source_type: podcast
+    priority: 1
 
   - name: "Josh McDowell"
     url: "https://joshmcdowell.org"
     scrape: true
     source_type: article
+    priority: 3
     active: false
     # Site consistently times out — re-enable when connectivity confirmed
 
@@ -38,10 +43,12 @@ authors:
   - name: "Frank Turek"
     rss: "https://crossexamined.org/feed/"
     source_type: article
+    priority: 2
 
   - name: "Frank Turek (Podcast)"
     rss: "https://feeds.buzzsprout.com/1743725.rss"
     source_type: podcast
+    priority: 2
     active: false
     # Buzzsprout feed ID 1743725 returns 404 — verify correct feed ID
 
@@ -49,16 +56,19 @@ authors:
     url: "https://johnlennox.org"
     scrape: true
     source_type: article
+    priority: 2
 
   - name: "John MacArthur"
     rss: "https://gty.org/library/rss/"
     url: "https://www.gty.org/library/blog"
     source_type: article
+    priority: 2
 
   - name: "William Lane Craig"
     rss: "https://www.reasonablefaith.org/feeds/writings"
     url: "https://www.reasonablefaith.org"
     source_type: article
+    priority: 1
     active: false
     # reasonablefaith.org returns 403 on both RSS and scrape — site blocks bots
 
@@ -66,11 +76,13 @@ authors:
     rss: "http://feeds.feedburner.com/ReasonableFaithPodcast"
     url: "https://www.reasonablefaith.org"
     source_type: podcast
+    priority: 1
 
   - name: "J.P. Moreland"
     url: "https://www.jpmoreland.com/jps-library/library/"
     scrape: true
     source_type: article
+    priority: 3
     active: false
     # 404 on library path — verify correct URL
 
@@ -78,32 +90,38 @@ authors:
     rss: "https://feed.podbean.com/strweekly/feed.xml"
     url: "https://str.org"
     source_type: podcast
+    priority: 1
 
   - name: "Justin Brierley"
     url: "https://justinbrierley.com"
     scrape: true
     source_type: article
+    priority: 1
 
   - name: "Tim Keller"
     url: "https://www.timothykeller.com"
     scrape: true
     source_type: article
+    priority: 2
     # Note: deceased — monitoring estate site for posthumous releases
 
   - name: "N.T. Wright"
     url: "https://www.ntwrightonline.org/from-the-desk-of-n-t-wright/"
     scrape: true
     source_type: article
+    priority: 2
 
   - name: "Rebecca McLaughlin"
     url: "https://rebeccamclaughlin.com"
     scrape: true
     source_type: article
+    priority: 2
 
   - name: "Nancy Pearcey"
     url: "https://nancypearcey.com"
     scrape: true
     source_type: article
+    priority: 2
 
   # Justin W. Bass — no RSS; monitor via publisher and social manually
   # Mark Middleburg — site/feed unverified; add when confirmed
@@ -119,24 +137,29 @@ organizations:
     rss: "https://answersingenesis.org/blogs/feed/"
     url: "https://answersingenesis.org"
     source_type: publication
+    priority: 3
 
   - name: "Answers in Genesis (Podcast)"
     rss: "https://answersingenesis.org/feeds/answers-magazine-audio/"
     source_type: podcast
+    priority: 3
 
   - name: "Reasons to Believe"
     rss: "https://reasons.org/feed"
     source_type: publication
+    priority: 2
 
   - name: "Stand to Reason"
     rss: "https://str.org/w/articles-feed"
     url: "https://str.org"
     source_type: publication
+    priority: 3
 
   - name: "Stand to Reason (Podcast)"
     rss: "https://feed.podbean.com/strweekly/feed.xml"
     url: "https://str.org"
     source_type: podcast
+    priority: 3
 
 
 # ── Journals ───────────────────────────────────────────────────────────────
@@ -147,21 +170,25 @@ journals:
     url: "https://www.etsjets.org"
     scrape: true
     source_type: journal
+    priority: 3
 
   - name: "Tyndale Bulletin"
     url: "https://www.tyndalebulletin.org"
     scrape: true
     source_type: journal
+    priority: 3
 
   - name: "Trinity Journal"
     url: "https://www.tiu.edu/trinity-journal/"
     scrape: true
     source_type: journal
+    priority: 3
 
   - name: "Southeastern Theological Review"
     url: "https://www.southeasternreview.org"
     scrape: true
     source_type: journal
+    priority: 3
     active: false
     # Domain does not resolve — dead link; re-enable when a working URL is found
 
@@ -169,6 +196,7 @@ journals:
     url: "https://www.epsociety.org/philosophia-christi"
     scrape: true
     source_type: journal
+    priority: 3
 
   # The Journal of Classical Theology — URL unverified; add when confirmed
 
@@ -176,14 +204,17 @@ journals:
     url: "https://www.cambridge.org/core/journals/religious-studies"
     scrape: true
     source_type: journal
+    priority: 3
 
   - name: "Modern Theology"
     rss: "https://onlinelibrary.wiley.com/feed/14680025/most-recent"
     source_type: journal
+    priority: 3
 
   - name: "International Journal of Systematic Theology"
     rss: "https://onlinelibrary.wiley.com/feed/14685895/most-recent"
     source_type: journal
+    priority: 3
     active: false
     # Wiley feed 14685895 returns 404 — IJST ISSN may have changed
 

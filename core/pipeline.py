@@ -23,6 +23,7 @@ def _step(name, fn):
 def run():
     from core.fetcher import fetch_all
     from core.summarizer import summarize_items
+    from core.scorer import score_items
     from core.database import get_connection
     from briefing.builder import build
     from briefing.publisher import push
@@ -36,6 +37,8 @@ def run():
     summarized, err = _step("summarize", summarize_items)
     if err:
         summarized = 0
+
+    _step("score", score_items)
 
     def index_to_library():
         with get_connection() as conn:

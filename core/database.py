@@ -8,6 +8,15 @@ def get_connection():
     return conn
 
 
+def _migrate():
+    with get_connection() as conn:
+        existing = {row[1] for row in conn.execute("PRAGMA table_info(items)").fetchall()}
+        if "score" not in existing:
+            conn.execute("ALTER TABLE items ADD COLUMN score INTEGER")
+        if "featured_date" not in existing:
+            conn.execute("ALTER TABLE items ADD COLUMN featured_date TEXT")
+
+
 def init_db():
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     with get_connection() as conn:
@@ -22,7 +31,9 @@ def init_db():
                 published_date TEXT,
                 fetched_date  TEXT NOT NULL DEFAULT (datetime('now')),
                 status        TEXT NOT NULL DEFAULT 'new'
-                                  CHECK(status IN ('new', 'sent_to_broadcaster', 'archived', 'dismissed'))
+                                  CHECK(status IN ('new', 'sent_to_broadcaster', 'archived', 'dismissed')),
+                score         INTEGER,
+                featured_date TEXT
             );
 
             CREATE TABLE IF NOT EXISTS thought_library (
@@ -74,4 +85,5 @@ def init_db():
 
 if __name__ == "__main__":
     init_db()
+    _migrate()
     print(f"Database initialized at {DB_PATH}")

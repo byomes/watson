@@ -28,17 +28,27 @@ SECTION_ORDER = [
 ]
 
 
-def _fetch_new_items():
+def _fetch_top_items():
     with get_connection() as conn:
         rows = conn.execute(
             """
-            SELECT id, source_name, source_type, title, url, summary, published_date
+            SELECT id, source_name, source_type, title, url, summary, published_date, score
             FROM items
-            WHERE status = 'new'
-            ORDER BY source_type, source_name, published_date DESC
+            WHERE status = 'new' AND featured_date IS NULL
+            ORDER BY score DESC NULLS LAST, published_date DESC
+            LIMIT 20
             """
         ).fetchall()
     return [dict(row) for row in rows]
+
+
+def _mark_featured(item_ids):
+    today = datetime.now().date().isoformat()
+    with get_connection() as conn:
+        conn.executemany(
+            "UPDATE items SET featured_date = ? WHERE id = ?",
+            [(today, id_) for id_ in item_ids],
+        )
 
 
 def _group_by_type(items):
@@ -51,7 +61,7 @@ def _group_by_type(items):
 
 
 def build():
-    items = _fetch_new_items()
+    items = _fetch_top_items()
     groups = _group_by_type(items)
 
     total = sum(len(v) for v in groups.values())
@@ -76,6 +86,11 @@ def build():
     DEPLOY_DIR.mkdir(parents=True, exist_ok=True)
     OUTPUT_PATH.write_text(html, encoding="utf-8")
     log.info("Briefing written to %s", OUTPUT_PATH)
+
+    if items:
+        _mark_featured([item["id"] for item in items])
+        log.info("Marked %d item(s) as featured", len(items))
+
     return OUTPUT_PATH
 
 
