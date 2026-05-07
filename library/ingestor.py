@@ -7,10 +7,10 @@ from core.database import get_connection
 log = logging.getLogger(__name__)
 
 
-def _insert_library(conn, content_type, title, body, bible_passage=None):
+def _insert_thought(conn, content_type, title, body, bible_passage=None):
     conn.execute(
         """
-        INSERT INTO library (content_type, title, body, bible_passage)
+        INSERT INTO thought_library (content_type, title, body, bible_passage)
         VALUES (?, ?, ?, ?)
         """,
         (content_type, title, body, bible_passage),
@@ -35,7 +35,7 @@ def ingest_sermon(file_path):
     body = path.read_text(encoding="utf-8", errors="replace").strip()
 
     with get_connection() as conn:
-        _insert_library(conn, "transcript", title, body)
+        _insert_thought(conn, "transcript", title, body)
 
     log.info("[transcript]  %s", title)
     return title
@@ -64,7 +64,7 @@ def ingest_voice_notes():
             title = f"Voice Note #{note_id}"
 
         with get_connection() as conn:
-            _insert_library(conn, "voice_note", title, transcript)
+            _insert_thought(conn, "voice_note", title, transcript)
             conn.execute(
                 "UPDATE voice_notes SET status = 'reviewed' WHERE id = ?",
                 (note_id,),
@@ -111,7 +111,7 @@ def ingest_bible_study(file_path):
             title = passage
             body = str(notes).strip()
 
-            _insert_library(conn, "bible_study", title, body, bible_passage=passage)
+            _insert_thought(conn, "bible_study", title, body, bible_passage=passage)
             log.info("[bible_study]  %s", title)
             count += 1
 

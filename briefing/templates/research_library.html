@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Watson — Research Library</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0f1117;
+      --surface:   #1a1d27;
+      --border:    #2a2d3a;
+      --text:      #e2e4ed;
+      --muted:     #8b8fa8;
+      --accent:    #4f8ef7;
+      --green:     #3ecf8e;
+      --amber:     #f59e0b;
+      --radius:    10px;
+      --font:      -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 16px;
+      line-height: 1.6;
+      padding: 0 0 60px;
+    }
+
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 20px 20px 16px;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .header-top {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    header h1 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+    .nav-links { font-size: 0.75rem; }
+    .nav-links a { color: var(--accent); text-decoration: none; margin-left: 12px; }
+    .nav-links a:hover { text-decoration: underline; }
+
+    .search-form { display: flex; gap: 8px; }
+    .search-input {
+      flex: 1; min-width: 0;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 0.95rem;
+      padding: 8px 12px;
+      outline: none;
+    }
+    .search-input:focus { border-color: var(--accent); }
+    .search-input::placeholder { color: var(--muted); }
+    .search-btn {
+      background: var(--accent); border: none; border-radius: 8px;
+      color: #fff; cursor: pointer; font-size: 0.85rem; font-weight: 600;
+      padding: 8px 18px; white-space: nowrap;
+    }
+    .search-btn:active { opacity: 0.8; }
+
+    .meta {
+      padding: 16px 20px 6px;
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+    .meta a { color: var(--accent); text-decoration: none; }
+    .meta a:hover { text-decoration: underline; }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin: 0 12px 10px;
+      padding: 16px;
+    }
+    .card-meta {
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 8px; flex-wrap: wrap;
+    }
+    .badge {
+      display: inline-block;
+      font-size: 0.65rem; font-weight: 700;
+      letter-spacing: 0.08em; text-transform: uppercase;
+      padding: 2px 8px; border-radius: 99px;
+      background: #1e3a5f; color: var(--accent);
+    }
+    .card-source {
+      font-size: 0.72rem; font-weight: 600;
+      letter-spacing: 0.06em; text-transform: uppercase;
+      color: var(--muted);
+    }
+    .card-author {
+      font-size: 0.72rem;
+      color: var(--amber);
+    }
+    .card-date {
+      font-size: 0.72rem; color: var(--muted); margin-left: auto;
+    }
+    .card-title {
+      font-size: 1rem; font-weight: 600; line-height: 1.35; margin-bottom: 6px;
+    }
+    .card-title a { color: var(--text); text-decoration: none; }
+    .card-title a:hover { text-decoration: underline; }
+    .card-snippet {
+      font-size: 0.87rem; color: #b0b3c6; line-height: 1.55;
+    }
+
+    .empty {
+      text-align: center; padding: 60px 20px;
+      color: var(--muted); font-size: 0.9rem;
+    }
+    .empty strong { display: block; font-size: 1.4rem; margin-bottom: 8px; color: var(--text); }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="header-top">
+    <h1>Research Library</h1>
+    <nav class="nav-links">
+      <a href="/">Briefing</a>
+      <a href="/thought-library">Thought Library</a>
+      <a href="/reading-list">Reading List</a>
+    </nav>
+  </div>
+  <form class="search-form" method="POST" action="/search">
+    <input type="hidden" name="type" value="research">
+    <input class="search-input" type="text" name="query"
+           placeholder="Search articles, podcasts, publications…"
+           value="{{ query | e }}" autocomplete="off">
+    <button class="search-btn" type="submit">Search</button>
+  </form>
+</header>
+
+<div class="meta">
+  {% if query %}
+    {{ total }} result{{ 's' if total != 1 else '' }} for &ldquo;{{ query }}&rdquo;
+    &mdash; <a href="/research-library">clear</a>
+  {% else %}
+    {{ total }} item{{ 's' if total != 1 else '' }} in Research Library
+  {% endif %}
+</div>
+
+{% if results %}
+  {% for item in results %}
+  <div class="card">
+    <div class="card-meta">
+      <span class="badge">{{ item.content_type | replace('_', ' ') }}</span>
+      {% if item.source_name %}
+        <span class="card-source">{{ item.source_name }}</span>
+      {% endif %}
+      {% if item.author %}
+        <span class="card-author">{{ item.author }}</span>
+      {% endif %}
+      {% if item.date_indexed %}
+        <span class="card-date">{{ item.date_indexed[:10] }}</span>
+      {% endif %}
+    </div>
+
+    <div class="card-title">
+      {% if item.url %}
+        <a href="{{ item.url }}" target="_blank" rel="noopener">{{ item.title }}</a>
+      {% else %}
+        {{ item.title }}
+      {% endif %}
+    </div>
+
+    {% if item.summary %}
+      <div class="card-snippet">
+        {{ item.summary[:300] }}{% if item.summary | length > 300 %}&hellip;{% endif %}
+      </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+{% else %}
+  <div class="empty">
+    {% if query %}
+      <strong>No results</strong>
+      Nothing matched &ldquo;{{ query }}&rdquo;.
+    {% else %}
+      <strong>Research Library is empty</strong>
+      Run the pipeline to populate it.
+    {% endif %}
+  </div>
+{% endif %}
+
+</body>
+</html>

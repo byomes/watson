@@ -1,6 +1,5 @@
 import logging
 from datetime import datetime
-from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader
 
@@ -10,19 +9,24 @@ from core.database import get_connection
 log = logging.getLogger(__name__)
 
 TEMPLATE_DIR = BASE_DIR / "briefing" / "templates"
-LIBRARY_HTML = DEPLOY_DIR / "library.html"
 
 
-def search(query, content_type=None, bible_passage=None, date_from=None, date_to=None):
-    conditions = []
-    params = []
+def _build_query(table, text_fields, filters):
+    query, content_type, bible_passage, date_from, date_to = (
+        filters.get("query", ""),
+        filters.get("content_type"),
+        filters.get("bible_passage"),
+        filters.get("date_from"),
+        filters.get("date_to"),
+    )
+
+    conditions, params = [], []
 
     if query:
         pattern = f"%{query}%"
-        conditions.append(
-            "(title LIKE ? OR body LIKE ? OR tags LIKE ? OR bible_passage LIKE ?)"
-        )
-        params.extend([pattern, pattern, pattern, pattern])
+        like_clause = " OR ".join(f"{f} LIKE ?" for f in text_fields)
+        conditions.append(f"({like_clause})")
+        params.extend([pattern] * len(text_fields))
 
     if content_type:
         conditions.append("content_type = ?")
@@ -41,24 +45,47 @@ def search(query, content_type=None, bible_passage=None, date_from=None, date_to
         params.append(date_to)
 
     where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
-    sql = f"""
-        SELECT id, content_type, title, body, tags, bible_passage, date_created, date_indexed
-        FROM library
-        {where}
-        ORDER BY date_indexed DESC
-    """
+    return f"SELECT * FROM {table} {where} ORDER BY date_indexed DESC", params
 
+
+def search_thought_library(query="", **filters):
+    filters["query"] = query
+    sql, params = _build_query(
+        "thought_library",
+        ["title", "body", "tags", "bible_passage"],
+        filters,
+    )
     with get_connection() as conn:
         rows = conn.execute(sql, params).fetchall()
-
-    results = [dict(row) for row in rows]
-    log.info("Search '%s' → %d result(s)", query or "(all)", len(results))
+    results = [dict(r) for r in rows]
+    log.info("Thought Library search '%s' → %d result(s)", query or "(all)", len(results))
     return results
 
 
-def search_to_html(results, query=""):
+def search_research_library(query="", **filters):
+    filters["query"] = query
+    sql, params = _build_query(
+        "research_library",
+        ["title", "summary", "author", "source_name", "tags"],
+        filters,
+    )
+    with get_connection() as conn:
+        rows = conn.execute(sql, params).fetchall()
+    results = [dict(r) for r in rows]
+    log.info("Research Library search '%s' → %d result(s)", query or "(all)", len(results))
+    return results
+
+
+def search_to_html(results, query="", library_type="research"):
+    if library_type == "thought":
+        template_name = "thought_library.html"
+        output_path = DEPLOY_DIR / "thought-library.html"
+    else:
+        template_name = "research_library.html"
+        output_path = DEPLOY_DIR / "research-library.html"
+
     env = Environment(loader=FileSystemLoader(str(TEMPLATE_DIR)), autoescape=True)
-    template = env.get_template("library.html")
+    template = env.get_template(template_name)
 
     html = template.render(
         results=results,
@@ -68,6 +95,6 @@ def search_to_html(results, query=""):
     )
 
     DEPLOY_DIR.mkdir(parents=True, exist_ok=True)
-    LIBRARY_HTML.write_text(html, encoding="utf-8")
-    log.info("Library page written to %s", LIBRARY_HTML)
-    return LIBRARY_HTML
+    output_path.write_text(html, encoding="utf-8")
+    log.info("%s written to %s", template_name, output_path)
+    return output_path

@@ -10,7 +10,8 @@ log = logging.getLogger(__name__)
 app = Flask(__name__)
 
 INDEX_HTML = DEPLOY_DIR / "index.html"
-LIBRARY_HTML = DEPLOY_DIR / "library.html"
+THOUGHT_LIBRARY_HTML = DEPLOY_DIR / "thought-library.html"
+RESEARCH_LIBRARY_HTML = DEPLOY_DIR / "research-library.html"
 READING_LIST_HTML = DEPLOY_DIR / "reading-list.html"
 
 
@@ -127,20 +128,41 @@ def reading_list_update():
 
 @app.route("/library")
 def library():
-    if not LIBRARY_HTML.exists():
-        from library.search import search, search_to_html
-        results = search("")
-        search_to_html(results, query="")
-    return send_file(LIBRARY_HTML)
+    return redirect(url_for("research_library"))
+
+
+@app.route("/research-library")
+def research_library():
+    from library.search import search_research_library, search_to_html
+    if not RESEARCH_LIBRARY_HTML.exists():
+        search_to_html(search_research_library(), library_type="research")
+    return send_file(RESEARCH_LIBRARY_HTML)
+
+
+@app.route("/thought-library")
+def thought_library():
+    from library.search import search_thought_library, search_to_html
+    if not THOUGHT_LIBRARY_HTML.exists():
+        search_to_html(search_thought_library(), library_type="thought")
+    return send_file(THOUGHT_LIBRARY_HTML)
 
 
 @app.route("/search", methods=["POST"])
 def search_library():
-    from library.search import search, search_to_html
+    from library.search import (
+        search_research_library, search_thought_library, search_to_html,
+    )
     query = request.form.get("query", "").strip()
-    results = search(query)
-    search_to_html(results, query=query)
-    return redirect(url_for("library"))
+    library_type = request.form.get("type", "research")
+
+    if library_type == "thought":
+        results = search_thought_library(query)
+        search_to_html(results, query=query, library_type="thought")
+        return redirect(url_for("thought_library"))
+    else:
+        results = search_research_library(query)
+        search_to_html(results, query=query, library_type="research")
+        return redirect(url_for("research_library"))
 
 
 # ── Manual pipeline trigger ────────────────────────────────────────────────

@@ -40,19 +40,22 @@ def run():
     def index_to_library():
         with get_connection() as conn:
             rows = conn.execute(
-                "SELECT id, source_name, source_type, title, url, summary "
+                "SELECT source_name, source_type, title, url, summary "
                 "FROM items WHERE status = 'new'"
             ).fetchall()
             count = 0
             for row in rows:
                 existing = conn.execute(
-                    "SELECT 1 FROM library WHERE title = ? AND content_type = 'research'",
-                    (row["title"],),
+                    "SELECT 1 FROM research_library WHERE title = ? AND source_name = ?",
+                    (row["title"], row["source_name"]),
                 ).fetchone()
                 if not existing:
                     conn.execute(
-                        "INSERT INTO library (content_type, title, body) VALUES ('research', ?, ?)",
-                        (row["title"], row["summary"] or ""),
+                        "INSERT INTO research_library "
+                        "(content_type, title, url, summary, source_name) "
+                        "VALUES (?, ?, ?, ?, ?)",
+                        (row["source_type"], row["title"], row["url"],
+                         row["summary"] or "", row["source_name"]),
                     )
                     count += 1
         return count

@@ -25,14 +25,27 @@ def init_db():
                                   CHECK(status IN ('new', 'sent_to_broadcaster', 'archived', 'dismissed'))
             );
 
-            CREATE TABLE IF NOT EXISTS library (
+            CREATE TABLE IF NOT EXISTS thought_library (
                 id            INTEGER PRIMARY KEY AUTOINCREMENT,
-                content_type  TEXT NOT NULL CHECK(content_type IN ('sermon', 'bible_study', 'voice_note', 'transcript', 'research')),
+                content_type  TEXT NOT NULL CHECK(content_type IN ('transcript', 'voice_note', 'bible_study', 'sermon')),
                 title         TEXT NOT NULL,
                 body          TEXT,
                 tags          TEXT,
                 bible_passage TEXT,
                 date_created  TEXT,
+                date_indexed  TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+
+            CREATE TABLE IF NOT EXISTS research_library (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                content_type  TEXT NOT NULL CHECK(content_type IN ('article', 'podcast', 'publication', 'journal', 'book_physical', 'book_digital')),
+                title         TEXT NOT NULL,
+                url           TEXT,
+                author        TEXT,
+                summary       TEXT,
+                source_name   TEXT,
+                tags          TEXT,
+                date_published TEXT,
                 date_indexed  TEXT NOT NULL DEFAULT (datetime('now'))
             );
 
