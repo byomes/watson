@@ -1,10 +1,16 @@
 import logging
+import re as _re
 import threading
 
+import yaml
 from flask import Flask, redirect, request, send_file, url_for
+from jinja2 import Environment, FileSystemLoader
 
-from config.settings import DEPLOY_DIR
+from config.settings import BASE_DIR, DEPLOY_DIR
 from core.database import get_connection
+
+SOURCES_PATH = BASE_DIR / "config" / "sources.yaml"
+TEMPLATE_DIR = BASE_DIR / "briefing" / "templates"
 
 log = logging.getLogger(__name__)
 app = Flask(__name__)
@@ -61,18 +67,13 @@ def dismiss():
 # ── Reading list ───────────────────────────────────────────────────────────
 
 def _render_reading_list():
-    from jinja2 import Environment, FileSystemLoader
-    from config.settings import BASE_DIR
     with get_connection() as conn:
         rows = conn.execute(
             "SELECT id, title, url, source_name, source_type, summary, date_added, status "
             "FROM reading_list WHERE status != 'finished' ORDER BY date_added DESC"
         ).fetchall()
     items = [dict(r) for r in rows]
-    env = Environment(
-        loader=FileSystemLoader(str(BASE_DIR / "briefing" / "templates")),
-        autoescape=True,
-    )
+    env = Environment(loader=FileSystemLoader(str(TEMPLATE_DIR)), autoescape=True)
     html = env.get_template("reading-list.html").render(items=items, total=len(items))
     READING_LIST_HTML.parent.mkdir(parents=True, exist_ok=True)
     READING_LIST_HTML.write_text(html, encoding="utf-8")
@@ -163,6 +164,119 @@ def search_library():
         results = search_research_library(query)
         search_to_html(results, query=query, library_type="research")
         return redirect(url_for("research_library"))
+
+
+# ── Sources management ─────────────────────────────────────────────────────
+
+def _update_source_in_yaml(source_name, priority, active):
+    """Update priority and active for one source in sources.yaml, preserving comments."""
+    lines = SOURCES_PATH.read_text(encoding="utf-8").splitlines(keepends=True)
+
+    # Locate the block start: line matching "  - name: "SOURCE_NAME""
+    start = None
+    for i, line in enumerate(lines):
+        m = _re.match(r'^\s+-\s+name:\s+"?(.+?)"?\s*$', line)
+        if m and m.group(1) == source_name:
+            start = i
+            break
+    if start is None:
+        log.warning("Source '%s' not found in sources.yaml", source_name)
+        return
+
+    # Locate block end: next entry at same indent level, or section header
+    end = len(lines)
+    for i in range(start + 1, len(lines)):
+        if _re.match(r'\s+-\s+name:', lines[i]):
+            end = i
+            break
+        if _re.match(r'^[a-z]', lines[i]) and ':' in lines[i]:
+            end = i
+            break
+
+    block = list(lines[start:end])
+
+    # Update or insert priority field
+    priority_set = False
+    for j, bline in enumerate(block):
+        if _re.match(r'\s+priority:', bline):
+            block[j] = _re.sub(r'(\s+priority:\s*)\d+', rf'\g<1>{priority}', bline)
+            priority_set = True
+            break
+    if not priority_set:
+        for j, bline in enumerate(block):
+            if _re.match(r'\s+source_type:', bline):
+                indent = _re.match(r'^(\s+)', bline).group(1)
+                block.insert(j + 1, f'{indent}priority: {priority}\n')
+                break
+
+    # Update or insert/remove active field
+    active_idx = None
+    for j, bline in enumerate(block):
+        if _re.match(r'\s+active:', bline):
+            active_idx = j
+            break
+
+    if not active:
+        if active_idx is not None:
+            block[active_idx] = _re.sub(r'(\s+active:\s*)\w+', r'\g<1>false', block[active_idx])
+        else:
+            # Insert before trailing comment lines
+            insert_at = len(block)
+            for j in range(len(block) - 1, 0, -1):
+                stripped = block[j].strip()
+                if stripped and not stripped.startswith('#'):
+                    insert_at = j + 1
+                    break
+            indent = '    '
+            block.insert(insert_at, f'{indent}active: false\n')
+    else:
+        # active=True is the default; remove the explicit line
+        if active_idx is not None:
+            del block[active_idx]
+
+    lines[start:end] = block
+    SOURCES_PATH.write_text(''.join(lines), encoding="utf-8")
+    log.info("Updated source '%s': priority=%s active=%s", source_name, priority, active)
+
+
+@app.route("/sources")
+def sources():
+    with open(SOURCES_PATH) as f:
+        data = yaml.safe_load(f) or {}
+
+    category_meta = [
+        ("authors",       "author",       "Authors"),
+        ("organizations", "organization", "Organizations"),
+        ("journals",      "journal",      "Journals"),
+    ]
+    sections = []
+    for key, cat, label in category_meta:
+        rows = []
+        for entry in data.get(key, []) or []:
+            rows.append({
+                "name":     entry["name"],
+                "category": cat,
+                "priority": int(entry.get("priority", 3)),
+                "active":   entry.get("active", True) is not False,
+            })
+        sections.append({"label": label, "category": cat, "sources": rows})
+
+    env = Environment(loader=FileSystemLoader(str(TEMPLATE_DIR)), autoescape=True)
+    html = env.get_template("sources.html").render(sections=sections)
+    return html, 200, {"Content-Type": "text/html; charset=utf-8"}
+
+
+@app.route("/sources/update", methods=["POST"])
+def sources_update():
+    name     = request.form.get("name", "").strip()
+    priority = request.form.get("priority", "3")
+    active   = request.form.get("active") == "1"
+
+    if not name or priority not in ("1", "2", "3"):
+        return redirect(url_for("sources"))
+
+    _update_source_in_yaml(name, int(priority), active)
+    return redirect(url_for("sources"))
 
 
 # ── Manual pipeline trigger ────────────────────────────────────────────────

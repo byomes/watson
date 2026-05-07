@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Watson — Sources</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:      #0f1117;
+      --surface: #1a1d27;
+      --border:  #2a2d3a;
+      --text:    #e2e4ed;
+      --muted:   #8b8fa8;
+      --accent:  #4f8ef7;
+      --green:   #3ecf8e;
+      --amber:   #f59e0b;
+      --purple:  #a78bfa;
+      --radius:  10px;
+      --font:    -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 16px;
+      line-height: 1.6;
+      padding: 0 0 60px;
+    }
+
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 20px;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    header h1 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+    .nav-links { font-size: 0.75rem; }
+    .nav-links a { color: var(--accent); text-decoration: none; margin-left: 14px; }
+    .nav-links a:hover { text-decoration: underline; }
+
+    .section-header {
+      padding: 28px 20px 10px;
+    }
+    .section-header h2 {
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .count {
+      display: inline-block;
+      margin-left: 8px;
+      background: var(--border);
+      color: var(--muted);
+      font-size: 0.65rem;
+      font-weight: 600;
+      padding: 1px 7px;
+      border-radius: 99px;
+      vertical-align: middle;
+    }
+
+    .source-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin: 0 12px 6px;
+      padding: 11px 14px;
+    }
+    .source-row.inactive { opacity: 0.5; }
+
+    .source-name {
+      flex: 1;
+      font-size: 0.92rem;
+      font-weight: 500;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .cat-badge {
+      flex-shrink: 0;
+      font-size: 0.62rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 2px 8px;
+      border-radius: 99px;
+    }
+    .cat-author       { background: #1e3a5f; color: var(--accent); }
+    .cat-organization { background: #1a3326; color: var(--green); }
+    .cat-journal      { background: #2d1f4e; color: var(--purple); }
+
+    .priority-select {
+      flex-shrink: 0;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-size: 0.8rem;
+      font-weight: 700;
+      padding: 4px 8px;
+      cursor: pointer;
+      outline: none;
+    }
+    .priority-select:focus { border-color: var(--accent); }
+    .priority-1 { border-color: var(--accent) !important; color: var(--accent) !important; }
+    .priority-2 { border-color: var(--amber)  !important; color: var(--amber)  !important; }
+    .priority-3 { border-color: var(--border);             color: var(--muted); }
+
+    /* Toggle switch */
+    .toggle-wrap {
+      position: relative;
+      flex-shrink: 0;
+      width: 40px;
+      height: 22px;
+    }
+    .toggle-wrap input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+      position: absolute;
+    }
+    .toggle-track {
+      position: absolute;
+      inset: 0;
+      background: var(--border);
+      border-radius: 22px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .toggle-track::before {
+      content: '';
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      left: 3px;
+      top: 3px;
+      background: var(--muted);
+      border-radius: 50%;
+      transition: transform 0.2s, background 0.2s;
+    }
+    .toggle-wrap input:checked + .toggle-track { background: #1a3326; }
+    .toggle-wrap input:checked + .toggle-track::before {
+      transform: translateX(18px);
+      background: var(--green);
+    }
+
+    .active-label {
+      flex-shrink: 0;
+      font-size: 0.72rem;
+      width: 52px;
+      color: var(--muted);
+    }
+    .source-row:not(.inactive) .active-label { color: var(--green); }
+
+    .save-btn {
+      flex-shrink: 0;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 4px 14px;
+      white-space: nowrap;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .save-btn:hover  { border-color: var(--accent); color: var(--accent); }
+    .save-btn:active { opacity: 0.7; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Sources</h1>
+  <nav class="nav-links">
+    <a href="/">Briefing</a>
+    <a href="/research-library">Research Library</a>
+    <a href="/thought-library">Thought Library</a>
+    <a href="/reading-list">Reading List</a>
+  </nav>
+</header>
+
+{% for section in sections %}
+<div class="section-header">
+  <h2>{{ section.label }}<span class="count">{{ section.sources | length }}</span></h2>
+</div>
+
+{% for src in section.sources %}
+<form method="POST" action="/sources/update"
+      class="source-row{% if not src.active %} inactive{% endif %}">
+  <input type="hidden" name="name" value="{{ src.name }}">
+  <div class="source-name">{{ src.name }}</div>
+  <span class="cat-badge cat-{{ src.category }}">{{ src.category }}</span>
+  <select name="priority"
+          class="priority-select priority-{{ src.priority }}"
+          onchange="this.className='priority-select priority-'+this.value">
+    <option value="1"{% if src.priority == 1 %} selected{% endif %}>T1</option>
+    <option value="2"{% if src.priority == 2 %} selected{% endif %}>T2</option>
+    <option value="3"{% if src.priority == 3 %} selected{% endif %}>T3</option>
+  </select>
+  <label class="toggle-wrap" title="Toggle active">
+    <input type="checkbox" name="active" value="1"{% if src.active %} checked{% endif %}>
+    <span class="toggle-track"></span>
+  </label>
+  <span class="active-label">{{ 'Active' if src.active else 'Inactive' }}</span>
+  <button type="submit" class="save-btn">Save</button>
+</form>
+{% endfor %}
+
+{% endfor %}
+
+</body>
+</html>

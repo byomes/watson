@@ -34,10 +34,16 @@
     header {
       background: var(--surface);
       border-bottom: 1px solid var(--border);
-      padding: 20px 20px 16px;
+      padding: 20px 20px 14px;
       position: sticky;
       top: 0;
       z-index: 10;
+    }
+    .header-top {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      margin-bottom: 4px;
     }
     header h1 {
       font-size: 1.1rem;
@@ -46,10 +52,12 @@
       text-transform: uppercase;
       color: var(--accent);
     }
+    .nav-links { font-size: 0.75rem; }
+    .nav-links a { color: var(--accent); text-decoration: none; margin-left: 14px; }
+    .nav-links a:hover { text-decoration: underline; }
     header p {
       font-size: 0.78rem;
       color: var(--muted);
-      margin-top: 2px;
     }
 
     /* ── Section headings ── */
@@ -152,7 +160,15 @@
 <body>
 
 <header>
-  <h1>Watson Briefing</h1>
+  <div class="header-top">
+    <h1>Watson Briefing</h1>
+    <nav class="nav-links">
+      <a href="/research-library">Research Library</a>
+      <a href="/thought-library">Thought Library</a>
+      <a href="/reading-list">Reading List</a>
+      <a href="/sources">Sources</a>
+    </nav>
+  </div>
   <p>{{ generated_at }} &mdash; {{ total }} item{{ 's' if total != 1 else '' }}</p>
 </header>
 
