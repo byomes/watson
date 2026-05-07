@@ -1,1 +1,15 @@
-feeds: []
+authors: []
+#  - name: "Author Name"
+#    rss: "https://example.com/feed"
+#    source_type: article   # article | podcast | publication | journal
+
+organizations: []
+#  - name: "Org Name"
+#    rss: "https://example.com/feed"
+#    source_type: publication
+
+journals: []
+#  - name: "Journal Name"
+#    url: "https://example.com"
+#    scrape: true
+#    source_type: journal
