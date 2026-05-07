@@ -72,7 +72,7 @@ def build():
     template = env.get_template("briefing.html")
 
     sections = [
-        {"type": stype, "label": label, "items": groups[stype]}
+        {"type": stype, "label": label, "cards": groups[stype]}
         for stype, label in SECTION_ORDER
         if groups[stype]
     ]

@@ -175,10 +175,10 @@
 {% if sections %}
   {% for section in sections %}
   <div class="section-header">
-    <h2>{{ section.label }}<span class="count">{{ section.items | length }}</span></h2>
+    <h2>{{ section.label }}<span class="count">{{ section.cards | length }}</span></h2>
   </div>
 
-  {% for item in section.items %}
+  {% for item in section.cards %}
   <div class="card">
     <div class="card-source">{{ item.source_name }}</div>
 
