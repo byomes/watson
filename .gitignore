@@ -1,0 +1,5 @@
+.env
+data/watson.db
+data/archive/
+__pycache__/
+*.pyc
