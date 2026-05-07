@@ -22,6 +22,9 @@ VERCEL_DEPLOY_HOOK = os.getenv("VERCEL_DEPLOY_HOOK")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
+# Kit (ConvertKit)
+KIT_API_KEY = os.getenv("KIT_API_KEY")
+
 # Briefing schedule
 BRIEFING_HOUR = int(os.getenv("BRIEFING_HOUR", "6"))
 
@@ -32,6 +35,7 @@ _REQUIRED = {
     "VERCEL_DEPLOY_HOOK": VERCEL_DEPLOY_HOOK,
     "TELEGRAM_BOT_TOKEN": TELEGRAM_BOT_TOKEN,
     "TELEGRAM_CHAT_ID": TELEGRAM_CHAT_ID,
+    "KIT_API_KEY": KIT_API_KEY,
 }
 
 _missing = [name for name, val in _REQUIRED.items() if not val]
