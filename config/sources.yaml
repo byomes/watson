@@ -23,15 +23,15 @@ authors:
     source_type: article
 
   - name: "Sean McDowell (Podcast)"
-    rss: "https://seanmcdowell.org/podcast/feed"
+    rss: "https://feeds.buzzsprout.com/1987617.rss"
     source_type: podcast
-    active: false
-    # Simplecast feed requires authentication — revisit when public feed URL confirmed
 
   - name: "Josh McDowell"
     url: "https://joshmcdowell.org"
     scrape: true
     source_type: article
+    active: false
+    # Site consistently times out — re-enable when connectivity confirmed
 
   # Wesley Huff — no RSS or scrapeable site; monitor via YouTube and social manually
 
@@ -40,8 +40,10 @@ authors:
     source_type: article
 
   - name: "Frank Turek (Podcast)"
-    rss: "https://feeds.megaphone.fm/crossexamined"
+    rss: "https://feeds.buzzsprout.com/1743725.rss"
     source_type: podcast
+    active: false
+    # Buzzsprout feed ID 1743725 returns 404 — verify correct feed ID
 
   - name: "John Lennox"
     url: "https://johnlennox.org"
@@ -50,26 +52,30 @@ authors:
 
   - name: "John MacArthur"
     rss: "https://gty.org/library/rss/"
-    url: "https://gty.org"
+    url: "https://www.gty.org/library/blog"
     source_type: article
 
   - name: "William Lane Craig"
     rss: "https://www.reasonablefaith.org/feeds/writings"
     url: "https://www.reasonablefaith.org"
     source_type: article
+    active: false
+    # reasonablefaith.org returns 403 on both RSS and scrape — site blocks bots
 
   - name: "William Lane Craig (Podcast)"
-    rss: "https://www.reasonablefaith.org/feeds/podcast"
+    rss: "http://feeds.feedburner.com/ReasonableFaithPodcast"
     url: "https://www.reasonablefaith.org"
     source_type: podcast
 
   - name: "J.P. Moreland"
-    url: "https://www.jpmoreland.com"
+    url: "https://www.jpmoreland.com/jps-library/library/"
     scrape: true
     source_type: article
+    active: false
+    # 404 on library path — verify correct URL
 
   - name: "Greg Koukl"
-    rss: "https://www.str.org/w/podcast-feed"
+    rss: "https://feed.podbean.com/strweekly/feed.xml"
     url: "https://str.org"
     source_type: podcast
 
@@ -85,7 +91,7 @@ authors:
     # Note: deceased — monitoring estate site for posthumous releases
 
   - name: "N.T. Wright"
-    url: "https://www.ntwrightpage.com"
+    url: "https://www.ntwrightonline.org/from-the-desk-of-n-t-wright/"
     scrape: true
     source_type: article
 
@@ -114,6 +120,10 @@ organizations:
     url: "https://answersingenesis.org"
     source_type: publication
 
+  - name: "Answers in Genesis (Podcast)"
+    rss: "https://answersingenesis.org/feeds/answers-magazine-audio/"
+    source_type: podcast
+
   - name: "Reasons to Believe"
     rss: "https://reasons.org/feed"
     source_type: publication
@@ -124,7 +134,7 @@ organizations:
     source_type: publication
 
   - name: "Stand to Reason (Podcast)"
-    rss: "https://www.str.org/w/podcast-feed"
+    rss: "https://feed.podbean.com/strweekly/feed.xml"
     url: "https://str.org"
     source_type: podcast
 
@@ -174,5 +184,7 @@ journals:
   - name: "International Journal of Systematic Theology"
     rss: "https://onlinelibrary.wiley.com/feed/14685895/most-recent"
     source_type: journal
+    active: false
+    # Wiley feed 14685895 returns 404 — IJST ISSN may have changed
 
   # Evangelical Quarterly — URL unverified; add when confirmed

@@ -1,11 +1,16 @@
 import logging
 import re
+import urllib3
 from datetime import datetime, timezone
 
 import feedparser
 import requests
 import yaml
 from bs4 import BeautifulSoup
+
+# SSL verification is disabled globally — acceptable for a personal tool
+# fetching public content. Avoids failures on sites with misconfigured certs.
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 from config.settings import BASE_DIR
 from core.database import get_connection
@@ -72,7 +77,7 @@ def _fetch_rss(source):
     # Fetch raw bytes, sanitize invalid XML chars, then let feedparser parse the string.
     # On HTTP 4xx/5xx, fall back to scraping the site URL if one is configured.
     try:
-        resp = requests.get(feed_url, headers=RSS_HEADERS, timeout=SCRAPE_TIMEOUT)
+        resp = requests.get(feed_url, headers=RSS_HEADERS, timeout=SCRAPE_TIMEOUT, verify=False)
         resp.raise_for_status()
     except requests.HTTPError as exc:
         url_field = source.get("url")
@@ -124,7 +129,7 @@ def _fetch_scrape(source):
     new_count = 0
 
     log.info("Scraping: %s (%s)", name, url)
-    resp = requests.get(url, headers=SCRAPE_HEADERS, timeout=SCRAPE_TIMEOUT)
+    resp = requests.get(url, headers=SCRAPE_HEADERS, timeout=SCRAPE_TIMEOUT, verify=False)
     resp.raise_for_status()
 
     soup = BeautifulSoup(resp.text, "html.parser")
