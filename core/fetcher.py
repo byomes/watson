@@ -1,7 +1,9 @@
+import html
 import logging
 import re
 import urllib3
 from datetime import datetime, timezone
+from html.parser import HTMLParser
 
 import feedparser
 import requests
@@ -33,6 +35,30 @@ SCRAPE_TIMEOUT = 15
 
 # Characters invalid in XML 1.0 (excluding tab \x09, LF \x0A, CR \x0D)
 _XML_INVALID = re.compile(r"[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]")
+
+_HTML_TAGS = re.compile(r"<[^>]+>")
+_DATE_IN_URL = re.compile(r"/\d{4}/\d{2}|/\d{4}/")
+
+
+def _strip_html(text):
+    if not text:
+        return ""
+    stripped = _HTML_TAGS.sub(" ", text)
+    unescaped = html.unescape(stripped)
+    return " ".join(_HTML_TAGS.sub(" ", unescaped).split())
+
+
+def _is_scrape_content(title, url, source_name):
+    """Return False for nav links, category pages, and menu items."""
+    if title.strip() == source_name.strip():
+        return False
+    if len(title.split()) <= 3:
+        return False
+    if _DATE_IN_URL.search(url):
+        return True
+    path = url.split("?")[0].split("#")[0].rstrip("/")
+    last_seg = path.rsplit("/", 1)[-1] if "/" in path else path
+    return len(last_seg.split("-")) >= 3
 
 
 def _sanitize_feed(raw: bytes) -> str:
@@ -108,7 +134,7 @@ def _fetch_rss(source):
                 continue
 
             title = entry.get("title", "Untitled").strip()
-            summary = entry.get("summary", "") or entry.get("description", "")
+            summary = _strip_html(entry.get("summary", "") or entry.get("description", ""))
             # feedparser gives time_struct tuples; convert to ISO string
             pub_struct = entry.get("published_parsed") or entry.get("updated_parsed")
             published_date = None
@@ -160,7 +186,10 @@ def _fetch_scrape(source):
                 continue
 
             title = a.get_text(strip=True)
-            if not title or len(title) < 5:
+            if not title:
+                continue
+            if not _is_scrape_content(title, article_url, name):
+                log.debug("  skip (nav): %s", title)
                 continue
 
             _insert_item(conn, name, source_type, title, article_url, None, None)

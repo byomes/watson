@@ -1,4 +1,6 @@
+import html
 import logging
+import re
 from datetime import datetime
 from pathlib import Path
 
@@ -6,6 +8,16 @@ from jinja2 import Environment, FileSystemLoader
 
 from config.settings import BASE_DIR, DEPLOY_DIR
 from core.database import get_connection
+
+_HTML_TAGS = re.compile(r"<[^>]+>")
+
+
+def _strip_html(text):
+    if not text:
+        return ""
+    stripped = _HTML_TAGS.sub(" ", text)
+    unescaped = html.unescape(stripped)
+    return " ".join(_HTML_TAGS.sub(" ", unescaped).split())
 
 log = logging.getLogger(__name__)
 
@@ -39,7 +51,10 @@ def _fetch_top_items():
             LIMIT 20
             """
         ).fetchall()
-    return [dict(row) for row in rows]
+    items = [dict(row) for row in rows]
+    for item in items:
+        item["summary"] = _strip_html(item.get("summary") or "")
+    return items
 
 
 def _mark_featured(item_ids):
