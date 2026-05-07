@@ -1,4 +1,7 @@
+import base64
 import logging
+import os
+import subprocess
 from datetime import datetime
 
 import requests
@@ -45,18 +48,26 @@ def _stage_and_push():
     repo.index.commit(msg)
     log.info("Committed: %s", msg)
 
-    # Build authenticated remote URL
-    push_url = repo.remotes.origin.url
-    if GITHUB_TOKEN and "github.com" in push_url:
-        # Inject token into HTTPS URL: https://TOKEN@github.com/...
-        push_url = push_url.replace("https://", f"https://{GITHUB_TOKEN}@")
-
-    # Build authenticated push URL (token never written to git config)
-    if GITHUB_TOKEN and "github.com" in push_url and "https://" in push_url:
-        push_url = push_url.replace("https://", f"https://{GITHUB_TOKEN}@")
-
     log.info("Pushing to main...")
-    repo.git.push(push_url, "main:main")
+    # Use base64 basic-auth header — bypasses Windows credential manager entirely.
+    # GIT_TERMINAL_PROMPT=0 prevents git from falling back to interactive prompts.
+    env = os.environ.copy()
+    env["GIT_TERMINAL_PROMPT"] = "0"
+
+    cmd = ["git"]
+    if GITHUB_TOKEN:
+        auth = base64.b64encode(f"token:{GITHUB_TOKEN}".encode()).decode()
+        cmd += [
+            "-c", "credential.helper=",
+            "-c", f"http.extraheader=Authorization: Basic {auth}",
+        ]
+    cmd += ["push", "origin", "main:main"]
+
+    result = subprocess.run(
+        cmd, cwd=str(BASE_DIR), capture_output=True, text=True, timeout=60, env=env
+    )
+    if result.returncode != 0:
+        raise GitCommandError("git push", result.returncode, result.stderr.strip())
     log.info("Push successful")
     return True
 

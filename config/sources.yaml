@@ -1,15 +1,169 @@
-authors: []
-#  - name: "Author Name"
-#    rss: "https://example.com/feed"
-#    source_type: article   # article | podcast | publication | journal
+# Watson Source Monitoring List
+# source_type: article | podcast | publication | journal
+# Entries with scrape: true use BeautifulSoup on the URL.
+# Entries with rss: use feedparser.
+# Entries marked monitor_only have no auto-fetch — track manually.
 
-organizations: []
-#  - name: "Org Name"
-#    rss: "https://example.com/feed"
-#    source_type: publication
+# ── Authors ────────────────────────────────────────────────────────────────
 
-journals: []
-#  - name: "Journal Name"
-#    url: "https://example.com"
-#    scrape: true
-#    source_type: journal
+authors:
+
+  - name: "Gary Habermas"
+    url: "https://garyhabermas.com"
+    scrape: true
+    source_type: article
+
+  - name: "Mike Licona"
+    url: "https://risenjesus.com"
+    scrape: true
+    source_type: article
+
+  - name: "Sean McDowell"
+    rss: "https://seanmcdowell.org/feed"
+    source_type: article
+
+  - name: "Sean McDowell (Podcast)"
+    rss: "https://feeds.simplecast.com/aeGMgFGH"
+    source_type: podcast
+
+  - name: "Josh McDowell"
+    url: "https://joshmcdowell.org"
+    scrape: true
+    source_type: article
+
+  # Wesley Huff — no RSS or scrapeable site; monitor via YouTube and social manually
+
+  - name: "Frank Turek"
+    rss: "https://crossexamined.org/feed/"
+    source_type: article
+
+  - name: "Frank Turek (Podcast)"
+    rss: "https://feeds.megaphone.fm/crossexamined"
+    source_type: podcast
+
+  - name: "John Lennox"
+    url: "https://johnlennox.org"
+    scrape: true
+    source_type: article
+
+  - name: "John MacArthur"
+    rss: "https://gty.org/library/rss/"
+    source_type: article
+
+  - name: "William Lane Craig"
+    rss: "https://www.reasonablefaith.org/feeds/writings"
+    source_type: article
+
+  - name: "William Lane Craig (Podcast)"
+    rss: "https://www.reasonablefaith.org/feeds/podcast"
+    source_type: podcast
+
+  - name: "J.P. Moreland"
+    url: "https://www.jpmoreland.com"
+    scrape: true
+    source_type: article
+
+  - name: "Greg Koukl"
+    rss: "https://www.str.org/feeds/podcast"
+    source_type: podcast
+
+  - name: "Justin Brierley"
+    url: "https://justinbrierley.com"
+    scrape: true
+    source_type: article
+
+  - name: "Tim Keller"
+    url: "https://www.timothykeller.com"
+    scrape: true
+    source_type: article
+    # Note: deceased — monitoring estate site for posthumous releases
+
+  - name: "N.T. Wright"
+    url: "https://ntwrightonline.org"
+    scrape: true
+    source_type: article
+
+  - name: "Rebecca McLaughlin"
+    url: "https://rebeccamclaughlin.com"
+    scrape: true
+    source_type: article
+
+  - name: "Nancy Pearcey"
+    url: "https://nancypearcey.com"
+    scrape: true
+    source_type: article
+
+  # Justin W. Bass — no RSS; monitor via publisher and social manually
+  # Mark Middleburg — site/feed unverified; add when confirmed
+  # Douglas McDowell — site/feed unverified; add when confirmed
+  # Dr. Douglas Taylor — site/feed unverified; add when confirmed
+
+
+# ── Organizations ──────────────────────────────────────────────────────────
+
+organizations:
+
+  - name: "Answers in Genesis"
+    rss: "https://answersingenesis.org/feed/"
+    source_type: publication
+
+  - name: "Reasons to Believe"
+    rss: "https://reasons.org/feed"
+    source_type: publication
+
+  - name: "Stand to Reason"
+    rss: "https://www.str.org/feeds/articles"
+    source_type: publication
+
+  - name: "Stand to Reason (Podcast)"
+    rss: "https://www.str.org/feeds/podcast"
+    source_type: podcast
+
+
+# ── Journals ───────────────────────────────────────────────────────────────
+
+journals:
+
+  - name: "Journal of the Evangelical Theological Society"
+    url: "https://www.etsjets.org"
+    scrape: true
+    source_type: journal
+
+  - name: "Tyndale Bulletin"
+    url: "https://www.tyndalebulletin.org"
+    scrape: true
+    source_type: journal
+
+  - name: "Trinity Journal"
+    url: "https://tiu.edu/trinityjournal"
+    scrape: true
+    source_type: journal
+
+  - name: "Southeastern Theological Review"
+    url: "https://www.southeasternreview.org"
+    scrape: true
+    source_type: journal
+
+  - name: "Philosophia Christi"
+    url: "https://www.epsociety.org/philosophia-christi"
+    scrape: true
+    source_type: journal
+
+  # The Journal of Classical Theology — URL unverified; add when confirmed
+
+  - name: "Religious Studies"
+    url: "https://www.cambridge.org/core/journals/religious-studies"
+    scrape: true
+    source_type: journal
+
+  - name: "Modern Theology"
+    url: "https://onlinelibrary.wiley.com/journal/14680025"
+    scrape: true
+    source_type: journal
+
+  - name: "International Journal of Systematic Theology"
+    url: "https://onlinelibrary.wiley.com/journal/14685895"
+    scrape: true
+    source_type: journal
+
+  # Evangelical Quarterly — URL unverified; add when confirmed
