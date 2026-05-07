@@ -25,6 +25,8 @@ authors:
   - name: "Sean McDowell (Podcast)"
     rss: "https://seanmcdowell.org/podcast/feed"
     source_type: podcast
+    active: false
+    # Simplecast feed requires authentication — revisit when public feed URL confirmed
 
   - name: "Josh McDowell"
     url: "https://joshmcdowell.org"
@@ -48,14 +50,17 @@ authors:
 
   - name: "John MacArthur"
     rss: "https://gty.org/library/rss/"
+    url: "https://gty.org"
     source_type: article
 
   - name: "William Lane Craig"
     rss: "https://www.reasonablefaith.org/feeds/writings"
+    url: "https://www.reasonablefaith.org"
     source_type: article
 
   - name: "William Lane Craig (Podcast)"
     rss: "https://www.reasonablefaith.org/feeds/podcast"
+    url: "https://www.reasonablefaith.org"
     source_type: podcast
 
   - name: "J.P. Moreland"
@@ -65,6 +70,7 @@ authors:
 
   - name: "Greg Koukl"
     rss: "https://www.str.org/w/podcast-feed"
+    url: "https://str.org"
     source_type: podcast
 
   - name: "Justin Brierley"
@@ -79,7 +85,7 @@ authors:
     # Note: deceased — monitoring estate site for posthumous releases
 
   - name: "N.T. Wright"
-    url: "https://ntwrightonline.org"
+    url: "https://www.ntwrightpage.com"
     scrape: true
     source_type: article
 
@@ -105,6 +111,7 @@ organizations:
 
   - name: "Answers in Genesis"
     rss: "https://answersingenesis.org/blogs/feed/"
+    url: "https://answersingenesis.org"
     source_type: publication
 
   - name: "Reasons to Believe"
@@ -113,10 +120,12 @@ organizations:
 
   - name: "Stand to Reason"
     rss: "https://str.org/w/articles-feed"
+    url: "https://str.org"
     source_type: publication
 
   - name: "Stand to Reason (Podcast)"
     rss: "https://www.str.org/w/podcast-feed"
+    url: "https://str.org"
     source_type: podcast
 
 

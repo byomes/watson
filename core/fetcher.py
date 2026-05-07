@@ -1,6 +1,6 @@
 import logging
+import re
 from datetime import datetime, timezone
-from pathlib import Path
 
 import feedparser
 import requests
@@ -20,7 +20,19 @@ SCRAPE_HEADERS = {
         "Chrome/124.0.0.0 Safari/537.36"
     )
 }
+RSS_HEADERS = {
+    **SCRAPE_HEADERS,
+    "Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml, */*",
+}
 SCRAPE_TIMEOUT = 15
+
+# Characters invalid in XML 1.0 (excluding tab \x09, LF \x0A, CR \x0D)
+_XML_INVALID = re.compile(r"[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]")
+
+
+def _sanitize_feed(raw: bytes) -> str:
+    text = raw.decode("utf-8", errors="replace")
+    return _XML_INVALID.sub("", text)
 
 
 def _load_sources():
@@ -56,16 +68,24 @@ def _fetch_rss(source):
     new_count = 0
 
     log.info("Fetching RSS: %s (%s)", name, feed_url)
-    # Pass browser headers so feeds behind CDN checks don't block us
-    parsed = feedparser.parse(
-        feed_url,
-        request_headers=SCRAPE_HEADERS,
-        sanitize_html=False,
-    )
+
+    # Fetch raw bytes, sanitize invalid XML chars, then let feedparser parse the string.
+    # On HTTP 4xx/5xx, fall back to scraping the site URL if one is configured.
+    try:
+        resp = requests.get(feed_url, headers=RSS_HEADERS, timeout=SCRAPE_TIMEOUT)
+        resp.raise_for_status()
+    except requests.HTTPError as exc:
+        url_field = source.get("url")
+        if url_field:
+            log.warning("RSS HTTP %s for '%s' — falling back to scrape", exc.response.status_code, name)
+            return _fetch_scrape({**source, "scrape": True})
+        raise
+
+    clean_xml = _sanitize_feed(resp.content)
+    parsed = feedparser.parse(clean_xml, sanitize_html=False)
 
     if parsed.get("bozo") and not parsed.entries:
         bozo_exc = parsed.get("bozo_exception")
-        # If the feed is truly empty/unparseable, fall back to scraping the URL
         url_field = source.get("url")
         if url_field:
             log.warning("RSS bozo for '%s' (%s) — falling back to scrape", name, bozo_exc)
