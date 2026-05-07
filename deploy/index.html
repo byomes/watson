@@ -34,10 +34,16 @@
     header {
       background: var(--surface);
       border-bottom: 1px solid var(--border);
-      padding: 20px 20px 16px;
+      padding: 20px 20px 14px;
       position: sticky;
       top: 0;
       z-index: 10;
+    }
+    .header-top {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      margin-bottom: 4px;
     }
     header h1 {
       font-size: 1.1rem;
@@ -46,10 +52,12 @@
       text-transform: uppercase;
       color: var(--accent);
     }
+    .nav-links { font-size: 0.75rem; }
+    .nav-links a { color: var(--accent); text-decoration: none; margin-left: 14px; }
+    .nav-links a:hover { text-decoration: underline; }
     header p {
       font-size: 0.78rem;
       color: var(--muted);
-      margin-top: 2px;
     }
 
     /* ── Section headings ── */
@@ -152,15 +160,694 @@
 <body>
 
 <header>
-  <h1>Watson Briefing</h1>
-  <p>Thursday, May 7, 2026 at 12:10 PM &mdash; 0 items</p>
+  <div class="header-top">
+    <h1>Watson Briefing</h1>
+    <nav class="nav-links">
+      <a href="/research-library">Research Library</a>
+      <a href="/thought-library">Thought Library</a>
+      <a href="/reading-list">Reading List</a>
+      <a href="/sources">Sources</a>
+    </nav>
+  </div>
+  <p>Thursday, May 7, 2026 at 12:51 PM &mdash; 20 items</p>
 </header>
 
 
-  <div class="empty">
-    <strong>All clear</strong>
-    No new items in the queue.
+  
+  <div class="section-header">
+    <h2>Articles<span class="count">3</span></h2>
   </div>
+
+  
+  <div class="card">
+    <div class="card-source">Sean McDowell</div>
+
+    <div class="card-title">
+      
+        <a href="https://seanmcdowell.org/podcasts/episode/the-gospel-and-my-black-skin-with-jp-foster" target="_blank" rel="noopener">Podcast: The Gospel and My Black Skin (With JP Foster)</a>
+      
+    </div>
+
+    
+    <div class="card-summary">How has Christianity been weaponized to harm black people? How is the gospel being distorted today to harm black people? How does the hope of the gospel lead to racial reconciliation? We’ll look at th</div>
+    
+
+    <div class="actions">
+      <form method="POST" action="/approve">
+        <input type="hidden" name="item_id" value="38">
+        <button class="btn btn-approve" type="submit">Send to Broadcaster</button>
+      </form>
+      <form method="POST" action="/reading-list/add">
+        <input type="hidden" name="item_id" value="38">
+        <button class="btn btn-reading" type="submit">Add to Reading List</button>
+      </form>
+      <form method="POST" action="/archive">
+        <input type="hidden" name="item_id" value="38">
+        <button class="btn btn-archive" type="submit">Archive</button>
+      </form>
+      <form method="POST" action="/dismiss">
+        <input type="hidden" name="item_id" value="38">
+        <button class="btn btn-dismiss" type="submit">Dismiss</button>
+      </form>
+    </div>
+  </div>
+  
+  <div class="card">
+    <div class="card-source">Sean McDowell</div>
+
+    <div class="card-title">
+      
+        <a href="https://seanmcdowell.org/blog/pick-your-poison-naturalisms-cosmological-dilemma" target="_blank" rel="noopener">“Pick your Poison”: Naturalism’s Cosmological Dilemma</a>
+      
+    </div>
+
+    
+    <div class="card-summary">Dr. Stephen Meyer is back to set the record straight &amp;amp; unpack the bigger argument his critics keep missing. This is part one of a response to Sir Roger Penrose.</div>
+    
+
+    <div class="actions">
+      <form method="POST" action="/approve">
+        <input type="hidden" name="item_id" value="39">
+        <button class="btn btn-approve" type="submit">Send to Broadcaster</button>
+      </form>
+      <form method="POST" action="/reading-list/add">
+        <input type="hidden" name="item_id" value="39">
+        <button class="btn btn-reading" type="submit">Add to Reading List</button>
+      </form>
+      <form method="POST" action="/archive">
+        <input type="hidden" name="item_id" value="39">
+        <button class="btn btn-archive" type="submit">Archive</button>
+      </form>
+      <form method="POST" action="/dismiss">
+        <input type="hidden" name="item_id" value="39">
+        <button class="btn btn-dismiss" type="submit">Dismiss</button>
+      </form>
+    </div>
+  </div>
+  
+  <div class="card">
+    <div class="card-source">Sean McDowell</div>
+
+    <div class="card-title">
+      
+        <a href="https://seanmcdowell.org/podcasts/episode/cultural-update-silicon-valley-and-the-catholic-church-the-ethics-of-microlooting-high-iq-political-attackers-rising-belief-in-the-afterlife" target="_blank" rel="noopener">Podcast: Cultural Update: Silicon Valley and the Catholic Church; The Ethics of Microlooting; High IQ Political Attackers; Rising Belief in the Afterlife</a>
+      
+    </div>
+
+    
+    <div class="card-summary">The Ethics of AI and the Catholic Church: Silicon Valley is increasingly consulting the Catholic Church to address complex AI ethics through the &amp;amp;quot;Minerva Dialogues,&amp;amp;quot; a partnership th</div>
+    
+
+    <div class="actions">
+      <form method="POST" action="/approve">
+        <input type="hidden" name="item_id" value="40">
+        <button class="btn btn-approve" type="submit">Send to Broadcaster</button>
+      </form>
+      <form method="POST" action="/reading-list/add">
+        <input type="hidden" name="item_id" value="40">
+        <button class="btn btn-reading" type="submit">Add to Reading List</button>
+      </form>
+      <form method="POST" action="/archive">
+        <input type="hidden" name="item_id" value="40">
+        <button class="btn btn-archive" type="submit">Archive</button>
+      </form>
+      <form method="POST" action="/dismiss">
+        <input type="hidden" name="item_id" value="40">
+        <button class="btn btn-dismiss" type="submit">Dismiss</button>
+      </form>
+    </div>
+  </div>
+  
+
+  
+  <div class="section-header">
+    <h2>Podcasts<span class="count">17</span></h2>
+  </div>
+
+  
+  <div class="card">
+    <div class="card-source">William Lane Craig (Podcast)</div>
+
+    <div class="card-title">
+      
+        <a href="https://blubrry.com/reasonable_faith/153866841/question-of-the-week-986-why-cant-i-just-die/" target="_blank" rel="noopener">Question of the Week #986: Why Can’t I Just Die?</a>
+      
+    </div>
+
+    
+    <div class="card-summary">&lt;p&gt;Read this Question of the Week Here: https://www.reasonablefaith.org/writings/question-answer/why-cant-i-just-die&lt;/p&gt;</div>
+    
+
+    <div class="actions">
+      <form method="POST" action="/approve">
+        <input type="hidden" name="item_id" value="1460">
+        <button class="btn btn-approve" type="submit">Send to Broadcaster</button>
+      </form>
+      <form method="POST" action="/reading-list/add">
+        <input type="hidden" name="item_id" value="1460">
+        <button class="btn btn-reading" type="submit">Add to Reading List</button>
+      </form>
+      <form method="POST" action="/archive">
+        <input type="hidden" name="item_id" value="1460">
+        <button class="btn btn-archive" type="submit">Archive</button>
+      </form>
+      <form method="POST" action="/dismiss">
+        <input type="hidden" name="item_id" value="1460">
+        <button class="btn btn-dismiss" type="submit">Dismiss</button>
+      </form>
+    </div>
+  </div>
+  
+  <div class="card">
+    <div class="card-source">Greg Koukl</div>
+
+    <div class="card-title">
+      
+        <a href="https://strweekly.podbean.com/e/will-we-be-held-responsible-for-not-warning-non-believers-of-the-coming-judgment/" target="_blank" rel="noopener">Will We Be Held Responsible for Not Warning Non-Believers of the Coming Judgment?</a>
+      
+    </div>
+
+    
+    <div class="card-summary">Greg answers questions about relationships between former offenders and the offended on the new earth, applying Ezekiel 33:1–9 to Christians, handling a Sunday school situation, reading enough to get </div>
+    
+
+    <div class="actions">
+      <form method="POST" action="/approve">
+        <input type="hidden" name="item_id" value="1760">
+        <button class="btn btn-approve" type="submit">Send to Broadcaster</button>
+      </form>
+      <form method="POST" action="/reading-list/add">
+        <input type="hidden" name="item_id" value="1760">
+        <button class="btn btn-reading" type="submit">Add to Reading List</button>
+      </form>
+      <form method="POST" action="/archive">
+        <input type="hidden" name="item_id" value="1760">
+        <button class="btn btn-archive" type="submit">Archive</button>
+      </form>
+      <form method="POST" action="/dismiss">
+        <input type="hidden" name="item_id" value="1760">
+        <button class="btn btn-dismiss" type="submit">Dismiss</button>
+      </form>
+    </div>
+  </div>
+  
+  <div class="card">
+    <div class="card-source">William Lane Craig (Podcast)</div>
+
+    <div class="card-title">
+      
+        <a href="https://blubrry.com/reasonable_faith/153858407/are-you-full-of-bulverism/" target="_blank" rel="noopener">Are You Full of Bulverism?</a>
+      
+    </div>
+
+    
+    <div class="card-summary">&lt;p&gt;What is the connection between what C.S. Lewis called &#39;Bulverism&#39; and today&#39;s Critical Race Theory?&lt;/p&gt;</div>
+    
+
+    <div class="actions">
+      <form method="POST" action="/approve">
+        <input type="hidden" name="item_id" value="1461">
+        <button class="btn btn-approve" type="submit">Send to Broadcaster</button>
+      </form>
+      <form method="POST" action="/reading-list/add">
+        <input type="hidden" name="item_id" value="1461">
+        <button class="btn btn-reading" type="submit">Add to Reading List</button>
+      </form>
+      <form method="POST" action="/archive">
+        <input type="hidden" name="item_id" value="1461">
+        <button class="btn btn-archive" type="submit">Archive</button>
+      </form>
+      <form method="POST" action="/dismiss">
+        <input type="hidden" name="item_id" value="1461">
+        <button class="btn btn-dismiss" type="submit">Dismiss</button>
+      </form>
+    </div>
+  </div>
+  
+  <div class="card">
+    <div class="card-source">William Lane Craig (Podcast)</div>
+
+    <div class="card-title">
+      
+        <a href="https://blubrry.com/reasonable_faith/153849140/question-of-the-week-985-picturing-jesus/" target="_blank" rel="noopener">Question of the Week #985: Picturing Jesus</a>
+      
+    </div>
+
+    
+    <div class="card-summary">&lt;p&gt;Read this Question of the Week Here: https://www.reasonablefaith.org/writings/question-answer/picturing-jesus&lt;/p&gt;</div>
+    
+
+    <div class="actions">
+      <form method="POST" action="/approve">
+        <input type="hidden" name="item_id" value="1462">
+        <button class="btn btn-approve" type="submit">Send to Broadcaster</button>
+      </form>
+      <form method="POST" action="/reading-list/add">
+        <input type="hidden" name="item_id" value="1462">
+        <button class="btn btn-reading" type="submit">Add to Reading List</button>
+      </form>
+      <form method="POST" action="/archive">
+        <input type="hidden" name="item_id" value="1462">
+        <button class="btn btn-archive" type="submit">Archive</button>
+      </form>
+      <form method="POST" action="/dismiss">
+        <input type="hidden" name="item_id" value="1462">
+        <button class="btn btn-dismiss" type="submit">Dismiss</button>
+      </form>
+    </div>
+  </div>
+  
+  <div class="card">
+    <div class="card-source">Greg Koukl</div>
+
+    <div class="card-title">
+      
+        <a href="https://strweekly.podbean.com/e/has-god-always-been-father-son-and-holy-spirit/" target="_blank" rel="noopener">Has God Always Been Father, Son, and Holy Spirit?</a>
+      
+    </div>
+
+    
+    <div class="card-summary">Greg answers questions about whether God has always been Father, Son, and Holy Spirit, his thoughts on women in ministry, how a layperson who isn’t into apologetics can defend the idea that Jesus is t</div>
+    
+
+    <div class="actions">
+      <form method="POST" action="/approve">
+        <input type="hidden" name="item_id" value="1761">
+        <button class="btn btn-approve" type="submit">Send to Broadcaster</button>
+      </form>
+      <form method="POST" action="/reading-list/add">
+        <input type="hidden" name="item_id" value="1761">
+        <button class="btn btn-reading" type="submit">Add to Reading List</button>
+      </form>
+      <form method="POST" action="/archive">
+        <input type="hidden" name="item_id" value="1761">
+        <button class="btn btn-archive" type="submit">Archive</button>
+      </form>
+      <form method="POST" action="/dismiss">
+        <input type="hidden" name="item_id" value="1761">
+        <button class="btn btn-dismiss" type="submit">Dismiss</button>
+      </form>
+    </div>
+  </div>
+  
+  <div class="card">
+    <div class="card-source">William Lane Craig (Podcast)</div>
+
+    <div class="card-title">
+      
+        <a href="https://blubrry.com/reasonable_faith/153840874/bart-ehrmans-moral-chaos/" target="_blank" rel="noopener">Bart Ehrman&#39;s Moral Chaos</a>
+      
+    </div>
+
+    
+    <div class="card-summary">&lt;p&gt;Dr. Craig critiques the moral philosophy of Dr. Bart Ehrman.&lt;/p&gt;</div>
+    
+
+    <div class="actions">
+      <form method="POST" action="/approve">
+        <input type="hidden" name="item_id" value="1463">
+        <button class="btn btn-approve" type="submit">Send to Broadcaster</button>
+      </form>
+      <form method="POST" action="/reading-list/add">
+        <input type="hidden" name="item_id" value="1463">
+        <button class="btn btn-reading" type="submit">Add to Reading List</button>
+      </form>
+      <form method="POST" action="/archive">
+        <input type="hidden" name="item_id" value="1463">
+        <button class="btn btn-archive" type="submit">Archive</button>
+      </form>
+      <form method="POST" action="/dismiss">
+        <input type="hidden" name="item_id" value="1463">
+        <button class="btn btn-dismiss" type="submit">Dismiss</button>
+      </form>
+    </div>
+  </div>
+  
+  <div class="card">
+    <div class="card-source">Greg Koukl</div>
+
+    <div class="card-title">
+      
+        <a href="https://strweekly.podbean.com/e/objections-to-last-week-s-shows-on-antisemitism/" target="_blank" rel="noopener">Objections to Last Week’s Shows on Antisemitism</a>
+      
+    </div>
+
+    
+    <div class="card-summary">Greg responds to objections to last week’s shows on antisemitism, talks to a caller who objects to the term “antisemitism” and says it’s not hateful to notice patterns about people, and responds to a </div>
+    
+
+    <div class="actions">
+      <form method="POST" action="/approve">
+        <input type="hidden" name="item_id" value="1762">
+        <button class="btn btn-approve" type="submit">Send to Broadcaster</button>
+      </form>
+      <form method="POST" action="/reading-list/add">
+        <input type="hidden" name="item_id" value="1762">
+        <button class="btn btn-reading" type="submit">Add to Reading List</button>
+      </form>
+      <form method="POST" action="/archive">
+        <input type="hidden" name="item_id" value="1762">
+        <button class="btn btn-archive" type="submit">Archive</button>
+      </form>
+      <form method="POST" action="/dismiss">
+        <input type="hidden" name="item_id" value="1762">
+        <button class="btn btn-dismiss" type="submit">Dismiss</button>
+      </form>
+    </div>
+  </div>
+  
+  <div class="card">
+    <div class="card-source">William Lane Craig (Podcast)</div>
+
+    <div class="card-title">
+      
+        <a href="https://blubrry.com/reasonable_faith/153831100/question-of-the-week-984-doubts-about-the-incarnation/" target="_blank" rel="noopener">Question of the Week #984: Doubts about the Incarnation</a>
+      
+    </div>
+
+    
+    <div class="card-summary">&lt;p&gt;Read this Question of the Week Here: https://www.reasonablefaith.org/writings/question-answer/doubts-about-the-incarnation&lt;/p&gt;</div>
+    
+
+    <div class="actions">
+      <form method="POST" action="/approve">
+        <input type="hidden" name="item_id" value="1464">
+        <button class="btn btn-approve" type="submit">Send to Broadcaster</button>
+      </form>
+      <form method="POST" action="/reading-list/add">
+        <input type="hidden" name="item_id" value="1464">
+        <button class="btn btn-reading" type="submit">Add to Reading List</button>
+      </form>
+      <form method="POST" action="/archive">
+        <input type="hidden" name="item_id" value="1464">
+        <button class="btn btn-archive" type="submit">Archive</button>
+      </form>
+      <form method="POST" action="/dismiss">
+        <input type="hidden" name="item_id" value="1464">
+        <button class="btn btn-dismiss" type="submit">Dismiss</button>
+      </form>
+    </div>
+  </div>
+  
+  <div class="card">
+    <div class="card-source">Greg Koukl</div>
+
+    <div class="card-title">
+      
+        <a href="https://strweekly.podbean.com/e/interview-scott-keith-%e2%80%93-being-family/" target="_blank" rel="noopener">Interview: Scott Keith – Being Family</a>
+      
+    </div>
+
+    
+    <div class="card-summary">Greg interviews Scott Keith, author of Being Family: Passing Down the Faith Through the Generations, discussing the beauty and importance of the Christian vocations of marriage and family and how God </div>
+    
+
+    <div class="actions">
+      <form method="POST" action="/approve">
+        <input type="hidden" name="item_id" value="1763">
+        <button class="btn btn-approve" type="submit">Send to Broadcaster</button>
+      </form>
+      <form method="POST" action="/reading-list/add">
+        <input type="hidden" name="item_id" value="1763">
+        <button class="btn btn-reading" type="submit">Add to Reading List</button>
+      </form>
+      <form method="POST" action="/archive">
+        <input type="hidden" name="item_id" value="1763">
+        <button class="btn btn-archive" type="submit">Archive</button>
+      </form>
+      <form method="POST" action="/dismiss">
+        <input type="hidden" name="item_id" value="1763">
+        <button class="btn btn-dismiss" type="submit">Dismiss</button>
+      </form>
+    </div>
+  </div>
+  
+  <div class="card">
+    <div class="card-source">William Lane Craig (Podcast)</div>
+
+    <div class="card-title">
+      
+        <a href="https://blubrry.com/reasonable_faith/153822817/can-god-be-grieved/" target="_blank" rel="noopener">Can God Be Grieved?</a>
+      
+    </div>
+
+    
+    <div class="card-summary">&lt;p&gt;Dr. Craig responds to a discussion with John Piper on what it means for God to be &#39;grieved,&#39; and whether God&#39;s will is always accomplished.&lt;/p&gt;</div>
+    
+
+    <div class="actions">
+      <form method="POST" action="/approve">
+        <input type="hidden" name="item_id" value="1465">
+        <button class="btn btn-approve" type="submit">Send to Broadcaster</button>
+      </form>
+      <form method="POST" action="/reading-list/add">
+        <input type="hidden" name="item_id" value="1465">
+        <button class="btn btn-reading" type="submit">Add to Reading List</button>
+      </form>
+      <form method="POST" action="/archive">
+        <input type="hidden" name="item_id" value="1465">
+        <button class="btn btn-archive" type="submit">Archive</button>
+      </form>
+      <form method="POST" action="/dismiss">
+        <input type="hidden" name="item_id" value="1465">
+        <button class="btn btn-dismiss" type="submit">Dismiss</button>
+      </form>
+    </div>
+  </div>
+  
+  <div class="card">
+    <div class="card-source">Greg Koukl</div>
+
+    <div class="card-title">
+      
+        <a href="https://strweekly.podbean.com/e/how-should-christians-view-and-treat-the-jews/" target="_blank" rel="noopener">How Should Christians View and Treat the Jews?</a>
+      
+    </div>
+
+    
+    <div class="card-summary">Greg and Amy continue their discussion about antisemitism, explaining what Romans 9–11 has to say about how we ought to view and treat the Jews and answering questions about the meaning of Revelation’</div>
+    
+
+    <div class="actions">
+      <form method="POST" action="/approve">
+        <input type="hidden" name="item_id" value="1764">
+        <button class="btn btn-approve" type="submit">Send to Broadcaster</button>
+      </form>
+      <form method="POST" action="/reading-list/add">
+        <input type="hidden" name="item_id" value="1764">
+        <button class="btn btn-reading" type="submit">Add to Reading List</button>
+      </form>
+      <form method="POST" action="/archive">
+        <input type="hidden" name="item_id" value="1764">
+        <button class="btn btn-archive" type="submit">Archive</button>
+      </form>
+      <form method="POST" action="/dismiss">
+        <input type="hidden" name="item_id" value="1764">
+        <button class="btn btn-dismiss" type="submit">Dismiss</button>
+      </form>
+    </div>
+  </div>
+  
+  <div class="card">
+    <div class="card-source">Greg Koukl</div>
+
+    <div class="card-title">
+      
+        <a href="https://strweekly.podbean.com/e/a-response-to-the-rising-antisemitism/" target="_blank" rel="noopener">A Response to the Rising Antisemitism</a>
+      
+    </div>
+
+    
+    <div class="card-summary">Greg and Amy talk about the antisemitism spreading among young conservative men and begin a discussion about what the Bible says about God’s relationship with the Jews and how Gentile believers in Chr</div>
+    
+
+    <div class="actions">
+      <form method="POST" action="/approve">
+        <input type="hidden" name="item_id" value="1765">
+        <button class="btn btn-approve" type="submit">Send to Broadcaster</button>
+      </form>
+      <form method="POST" action="/reading-list/add">
+        <input type="hidden" name="item_id" value="1765">
+        <button class="btn btn-reading" type="submit">Add to Reading List</button>
+      </form>
+      <form method="POST" action="/archive">
+        <input type="hidden" name="item_id" value="1765">
+        <button class="btn btn-archive" type="submit">Archive</button>
+      </form>
+      <form method="POST" action="/dismiss">
+        <input type="hidden" name="item_id" value="1765">
+        <button class="btn btn-dismiss" type="submit">Dismiss</button>
+      </form>
+    </div>
+  </div>
+  
+  <div class="card">
+    <div class="card-source">William Lane Craig (Podcast)</div>
+
+    <div class="card-title">
+      
+        <a href="https://blubrry.com/reasonable_faith/153806168/william-lane-craig-is-jumped-by-lutheran-satire/" target="_blank" rel="noopener">William Lane Craig is JUMPED by Lutheran Satire</a>
+      
+    </div>
+
+    
+    <div class="card-summary">&lt;p&gt;Dr. Craig is satirized for his rejection of young earth creationism and his uncanny resemblance to David Lee Roth!&lt;/p&gt;</div>
+    
+
+    <div class="actions">
+      <form method="POST" action="/approve">
+        <input type="hidden" name="item_id" value="1466">
+        <button class="btn btn-approve" type="submit">Send to Broadcaster</button>
+      </form>
+      <form method="POST" action="/reading-list/add">
+        <input type="hidden" name="item_id" value="1466">
+        <button class="btn btn-reading" type="submit">Add to Reading List</button>
+      </form>
+      <form method="POST" action="/archive">
+        <input type="hidden" name="item_id" value="1466">
+        <button class="btn btn-archive" type="submit">Archive</button>
+      </form>
+      <form method="POST" action="/dismiss">
+        <input type="hidden" name="item_id" value="1466">
+        <button class="btn btn-dismiss" type="submit">Dismiss</button>
+      </form>
+    </div>
+  </div>
+  
+  <div class="card">
+    <div class="card-source">Greg Koukl</div>
+
+    <div class="card-title">
+      
+        <a href="https://strweekly.podbean.com/e/your-salvation-doesn-t-depend-on-following-the-old-testament-laws/" target="_blank" rel="noopener">Your Salvation Doesn’t Depend on Following the Old Testament Laws</a>
+      
+    </div>
+
+    
+    <div class="card-summary">Greg talks about a card he received from a group saying we have to follow the Old Testament laws to be saved, then he answers questions about what happens to everyone who doesn’t trust in Jesus, makin</div>
+    
+
+    <div class="actions">
+      <form method="POST" action="/approve">
+        <input type="hidden" name="item_id" value="1766">
+        <button class="btn btn-approve" type="submit">Send to Broadcaster</button>
+      </form>
+      <form method="POST" action="/reading-list/add">
+        <input type="hidden" name="item_id" value="1766">
+        <button class="btn btn-reading" type="submit">Add to Reading List</button>
+      </form>
+      <form method="POST" action="/archive">
+        <input type="hidden" name="item_id" value="1766">
+        <button class="btn btn-archive" type="submit">Archive</button>
+      </form>
+      <form method="POST" action="/dismiss">
+        <input type="hidden" name="item_id" value="1766">
+        <button class="btn btn-dismiss" type="submit">Dismiss</button>
+      </form>
+    </div>
+  </div>
+  
+  <div class="card">
+    <div class="card-source">William Lane Craig (Podcast)</div>
+
+    <div class="card-title">
+      
+        <a href="https://blubrry.com/reasonable_faith/153797697/question-of-the-week-983-reconciliation-in-the-eschaton/" target="_blank" rel="noopener">Question of the Week #983: Reconciliation in the Eschaton</a>
+      
+    </div>
+
+    
+    <div class="card-summary">&lt;p&gt;Read this Question of the Week Here: https://www.reasonablefaith.org/writings/question-answer/reconciliation-in-the-eschaton&lt;/p&gt;</div>
+    
+
+    <div class="actions">
+      <form method="POST" action="/approve">
+        <input type="hidden" name="item_id" value="1467">
+        <button class="btn btn-approve" type="submit">Send to Broadcaster</button>
+      </form>
+      <form method="POST" action="/reading-list/add">
+        <input type="hidden" name="item_id" value="1467">
+        <button class="btn btn-reading" type="submit">Add to Reading List</button>
+      </form>
+      <form method="POST" action="/archive">
+        <input type="hidden" name="item_id" value="1467">
+        <button class="btn btn-archive" type="submit">Archive</button>
+      </form>
+      <form method="POST" action="/dismiss">
+        <input type="hidden" name="item_id" value="1467">
+        <button class="btn btn-dismiss" type="submit">Dismiss</button>
+      </form>
+    </div>
+  </div>
+  
+  <div class="card">
+    <div class="card-source">Greg Koukl</div>
+
+    <div class="card-title">
+      
+        <a href="https://strweekly.podbean.com/e/interview-stephen-meyer-%e2%80%93-the-story-of-everything/" target="_blank" rel="noopener">Interview: Stephen Meyer – The Story of Everything</a>
+      
+    </div>
+
+    
+    <div class="card-summary">Greg talks to Stephen Meyer about The Story of Everything, a film based on Meyer’s book Return of the God Hypothesis, discussing the two competing stories of reality in our culture—one materialist and</div>
+    
+
+    <div class="actions">
+      <form method="POST" action="/approve">
+        <input type="hidden" name="item_id" value="1767">
+        <button class="btn btn-approve" type="submit">Send to Broadcaster</button>
+      </form>
+      <form method="POST" action="/reading-list/add">
+        <input type="hidden" name="item_id" value="1767">
+        <button class="btn btn-reading" type="submit">Add to Reading List</button>
+      </form>
+      <form method="POST" action="/archive">
+        <input type="hidden" name="item_id" value="1767">
+        <button class="btn btn-archive" type="submit">Archive</button>
+      </form>
+      <form method="POST" action="/dismiss">
+        <input type="hidden" name="item_id" value="1767">
+        <button class="btn btn-dismiss" type="submit">Dismiss</button>
+      </form>
+    </div>
+  </div>
+  
+  <div class="card">
+    <div class="card-source">William Lane Craig (Podcast)</div>
+
+    <div class="card-title">
+      
+        <a href="https://blubrry.com/reasonable_faith/153789574/why-is-my-life-on-hold/" target="_blank" rel="noopener">Why is My Life On Hold?</a>
+      
+    </div>
+
+    
+    <div class="card-summary">&lt;p&gt;A young student&#39;s faith is tested by questions about nothingness and he can&#39;t seem to move past it.&lt;/p&gt;</div>
+    
+
+    <div class="actions">
+      <form method="POST" action="/approve">
+        <input type="hidden" name="item_id" value="1468">
+        <button class="btn btn-approve" type="submit">Send to Broadcaster</button>
+      </form>
+      <form method="POST" action="/reading-list/add">
+        <input type="hidden" name="item_id" value="1468">
+        <button class="btn btn-reading" type="submit">Add to Reading List</button>
+      </form>
+      <form method="POST" action="/archive">
+        <input type="hidden" name="item_id" value="1468">
+        <button class="btn btn-archive" type="submit">Archive</button>
+      </form>
+      <form method="POST" action="/dismiss">
+        <input type="hidden" name="item_id" value="1468">
+        <button class="btn btn-dismiss" type="submit">Dismiss</button>
+      </form>
+    </div>
+  </div>
+  
+
+  
 
 
 </body>
