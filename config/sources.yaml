@@ -23,7 +23,7 @@ authors:
     source_type: article
 
   - name: "Sean McDowell (Podcast)"
-    rss: "https://feeds.simplecast.com/aeGMgFGH"
+    rss: "https://seanmcdowell.org/podcast/feed"
     source_type: podcast
 
   - name: "Josh McDowell"
@@ -64,7 +64,7 @@ authors:
     source_type: article
 
   - name: "Greg Koukl"
-    rss: "https://www.str.org/feeds/podcast"
+    rss: "https://www.str.org/w/podcast-feed"
     source_type: podcast
 
   - name: "Justin Brierley"
@@ -104,7 +104,7 @@ authors:
 organizations:
 
   - name: "Answers in Genesis"
-    rss: "https://answersingenesis.org/feed/"
+    rss: "https://answersingenesis.org/blogs/feed/"
     source_type: publication
 
   - name: "Reasons to Believe"
@@ -112,11 +112,11 @@ organizations:
     source_type: publication
 
   - name: "Stand to Reason"
-    rss: "https://www.str.org/feeds/articles"
+    rss: "https://str.org/w/articles-feed"
     source_type: publication
 
   - name: "Stand to Reason (Podcast)"
-    rss: "https://www.str.org/feeds/podcast"
+    rss: "https://www.str.org/w/podcast-feed"
     source_type: podcast
 
 
@@ -135,7 +135,7 @@ journals:
     source_type: journal
 
   - name: "Trinity Journal"
-    url: "https://tiu.edu/trinityjournal"
+    url: "https://www.tiu.edu/trinity-journal/"
     scrape: true
     source_type: journal
 
@@ -143,6 +143,8 @@ journals:
     url: "https://www.southeasternreview.org"
     scrape: true
     source_type: journal
+    active: false
+    # Domain does not resolve — dead link; re-enable when a working URL is found
 
   - name: "Philosophia Christi"
     url: "https://www.epsociety.org/philosophia-christi"
@@ -157,13 +159,11 @@ journals:
     source_type: journal
 
   - name: "Modern Theology"
-    url: "https://onlinelibrary.wiley.com/journal/14680025"
-    scrape: true
+    rss: "https://onlinelibrary.wiley.com/feed/14680025/most-recent"
     source_type: journal
 
   - name: "International Journal of Systematic Theology"
-    url: "https://onlinelibrary.wiley.com/journal/14685895"
-    scrape: true
+    rss: "https://onlinelibrary.wiley.com/feed/14685895/most-recent"
     source_type: journal
 
   # Evangelical Quarterly — URL unverified; add when confirmed

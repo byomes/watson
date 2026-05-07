@@ -13,7 +13,13 @@ from core.database import get_connection
 log = logging.getLogger(__name__)
 
 SOURCES_PATH = BASE_DIR / "config" / "sources.yaml"
-SCRAPE_HEADERS = {"User-Agent": "Watson/1.0 (personal research agent)"}
+SCRAPE_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/124.0.0.0 Safari/537.36"
+    )
+}
 SCRAPE_TIMEOUT = 15
 
 
@@ -50,10 +56,21 @@ def _fetch_rss(source):
     new_count = 0
 
     log.info("Fetching RSS: %s (%s)", name, feed_url)
-    parsed = feedparser.parse(feed_url)
+    # Pass browser headers so feeds behind CDN checks don't block us
+    parsed = feedparser.parse(
+        feed_url,
+        request_headers=SCRAPE_HEADERS,
+        sanitize_html=False,
+    )
 
     if parsed.get("bozo") and not parsed.entries:
-        raise ValueError(f"Feed parse error for {name}: {parsed.get('bozo_exception')}")
+        bozo_exc = parsed.get("bozo_exception")
+        # If the feed is truly empty/unparseable, fall back to scraping the URL
+        url_field = source.get("url")
+        if url_field:
+            log.warning("RSS bozo for '%s' (%s) — falling back to scrape", name, bozo_exc)
+            return _fetch_scrape({**source, "scrape": True})
+        raise ValueError(f"Feed parse error for {name}: {bozo_exc}")
 
     with get_connection() as conn:
         for entry in parsed.entries:
@@ -138,6 +155,9 @@ def fetch_all():
 
     for source in sources:
         name = source.get("name", "unknown")
+        if source.get("active") is False:
+            log.info("Skipping inactive source: %s", name)
+            continue
         try:
             if source.get("rss"):
                 total_new += _fetch_rss(source)
