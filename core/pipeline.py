@@ -23,6 +23,7 @@ def _step(name, fn):
 def run():
     from core.fetcher import fetch_all
     from core.summarizer import summarize_items
+    from core.database import get_connection
     from briefing.builder import build
     from briefing.publisher import push
 
@@ -35,6 +36,28 @@ def run():
     summarized, err = _step("summarize", summarize_items)
     if err:
         summarized = 0
+
+    def index_to_library():
+        with get_connection() as conn:
+            rows = conn.execute(
+                "SELECT id, source_name, source_type, title, url, summary "
+                "FROM items WHERE status = 'new'"
+            ).fetchall()
+            count = 0
+            for row in rows:
+                existing = conn.execute(
+                    "SELECT 1 FROM library WHERE title = ? AND content_type = 'research'",
+                    (row["title"],),
+                ).fetchone()
+                if not existing:
+                    conn.execute(
+                        "INSERT INTO library (content_type, title, body) VALUES ('research', ?, ?)",
+                        (row["title"], row["summary"] or ""),
+                    )
+                    count += 1
+        return count
+
+    _step("index to library", index_to_library)
 
     _, err = _step("build briefing", build)
     build_ok = err is None

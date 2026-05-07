@@ -27,7 +27,7 @@ def init_db():
 
             CREATE TABLE IF NOT EXISTS library (
                 id            INTEGER PRIMARY KEY AUTOINCREMENT,
-                content_type  TEXT NOT NULL CHECK(content_type IN ('sermon', 'bible_study', 'voice_note', 'transcript')),
+                content_type  TEXT NOT NULL CHECK(content_type IN ('sermon', 'bible_study', 'voice_note', 'transcript', 'research')),
                 title         TEXT NOT NULL,
                 body          TEXT,
                 tags          TEXT,
@@ -44,6 +44,17 @@ def init_db():
                 date_captured TEXT NOT NULL DEFAULT (datetime('now')),
                 status        TEXT NOT NULL DEFAULT 'new'
                                   CHECK(status IN ('new', 'reviewed'))
+            );
+            CREATE TABLE IF NOT EXISTS reading_list (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                title         TEXT NOT NULL,
+                url           TEXT,
+                source_name   TEXT,
+                source_type   TEXT,
+                summary       TEXT,
+                date_added    TEXT NOT NULL DEFAULT (datetime('now')),
+                status        TEXT NOT NULL DEFAULT 'unread'
+                                  CHECK(status IN ('unread', 'reading', 'finished'))
             );
         """)
 

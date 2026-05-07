@@ -8,6 +8,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Paths
 DB_PATH = BASE_DIR / "data" / "watson.db"
+ARCHIVE_DIR = BASE_DIR / "data" / "archive"
 DEPLOY_DIR = BASE_DIR / "deploy"
 
 # GitHub
