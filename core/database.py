@@ -16,11 +16,28 @@ def _migrate():
         if "featured_date" not in existing:
             conn.execute("ALTER TABLE items ADD COLUMN featured_date TEXT")
 
+        vn_cols = {row[1] for row in conn.execute("PRAGMA table_info(voice_notes)").fetchall()}
+        if "created_at" not in vn_cols:
+            conn.execute("ALTER TABLE voice_notes ADD COLUMN created_at TEXT")
+
 
 def init_db():
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     with get_connection() as conn:
         conn.executescript("""
+            CREATE TABLE IF NOT EXISTS briefing_items (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                title       TEXT NOT NULL,
+                url         TEXT NOT NULL UNIQUE,
+                summary     TEXT,
+                source_name TEXT NOT NULL,
+                source_type TEXT NOT NULL DEFAULT 'article',
+                priority    INTEGER NOT NULL DEFAULT 3,
+                score       INTEGER,
+                fetched_at  TEXT NOT NULL DEFAULT (datetime('now')),
+                dismissed   INTEGER NOT NULL DEFAULT 0
+            );
+
             CREATE TABLE IF NOT EXISTS items (
                 id            INTEGER PRIMARY KEY AUTOINCREMENT,
                 source_name   TEXT NOT NULL,

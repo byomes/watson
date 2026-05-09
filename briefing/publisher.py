@@ -1,112 +1,147 @@
+"""
+Publish the briefing:
+  1. Push docs/briefing.html to GitHub via the Contents API.
+  2. Fire the Vercel deploy hook.
+  3. Send Bill a Telegram message with the live URL.
+"""
 import base64
 import logging
-import os
-import subprocess
 from datetime import datetime
 
 import requests
-from git import Repo, GitCommandError
 
-from briefing.builder import build
-from config.settings import BASE_DIR, DEPLOY_DIR, GITHUB_TOKEN, VERCEL_DEPLOY_HOOK
+from config.settings import (
+    DOCS_DIR,
+    GITHUB_REPO,
+    GITHUB_TOKEN,
+    VERCEL_DEPLOY_HOOK,
+    WATSON_BOT_TOKEN,
+    WATSON_CHAT_ID,
+)
 
 log = logging.getLogger(__name__)
 
-
-def _commit_message():
-    today = datetime.now()
-    month = today.strftime("%B")
-    return f"Watson briefing — {month} {today.day}, {today.year}"
+_GITHUB_API   = "https://api.github.com"
+_DOCS_PATH    = "docs/briefing.html"       # path inside the repo
+_BRIEFING_URL = "https://wcky-watson.vercel.app"
 
 
-def _stage_and_push():
-    repo = Repo(BASE_DIR)
+# ── GitHub Contents API ────────────────────────────────────────────────────
 
-    # Stage deploy/index.html
-    index_html = DEPLOY_DIR / "index.html"
-    if not index_html.exists():
-        raise FileNotFoundError(f"Nothing to push — {index_html} not found. Run build first.")
-    repo.index.add([str(index_html.relative_to(BASE_DIR))])
+def _gh_headers():
+    return {
+        "Authorization": f"token {GITHUB_TOKEN}",
+        "Accept":        "application/vnd.github.v3+json",
+        "User-Agent":    "watson-bot/1.0",
+    }
 
-    # Stage any assets
-    assets_dir = DEPLOY_DIR / "assets"
-    if assets_dir.exists():
-        asset_files = [
-            str(p.relative_to(BASE_DIR))
-            for p in assets_dir.rglob("*")
-            if p.is_file()
-        ]
-        if asset_files:
-            repo.index.add(asset_files)
 
-    # Nothing to commit if working tree is clean after staging
-    if not repo.index.diff("HEAD"):
-        log.info("No changes to deploy/index.html — briefing content unchanged, skipping commit")
+def _get_sha() -> str | None:
+    """Return the blob SHA of the current file in the repo, or None if absent."""
+    if not GITHUB_TOKEN or not GITHUB_REPO:
+        return None
+    resp = requests.get(
+        f"{_GITHUB_API}/repos/{GITHUB_REPO}/contents/{_DOCS_PATH}",
+        headers=_gh_headers(),
+        timeout=30,
+    )
+    if resp.status_code == 200:
+        return resp.json().get("sha")
+    if resp.status_code == 404:
+        return None
+    resp.raise_for_status()
+
+
+def _push_to_github(html_bytes: bytes) -> bool:
+    if not GITHUB_TOKEN or not GITHUB_REPO:
+        log.warning("GITHUB_TOKEN or GITHUB_REPO not set — skipping GitHub push")
         return False
 
-    msg = _commit_message()
-    repo.index.commit(msg)
-    log.info("Committed: %s", msg)
+    today   = datetime.now()
+    message = f"Watson briefing — {today.strftime('%B')} {today.day}, {today.year}"
+    sha     = _get_sha()
 
-    log.info("Pushing to main...")
-    # Use base64 basic-auth header — bypasses Windows credential manager entirely.
-    # GIT_TERMINAL_PROMPT=0 prevents git from falling back to interactive prompts.
-    env = os.environ.copy()
-    env["GIT_TERMINAL_PROMPT"] = "0"
+    body = {
+        "message": message,
+        "content": base64.b64encode(html_bytes).decode(),
+    }
+    if sha:
+        body["sha"] = sha   # required when updating an existing file
 
-    cmd = ["git"]
-    if GITHUB_TOKEN:
-        auth = base64.b64encode(f"token:{GITHUB_TOKEN}".encode()).decode()
-        cmd += [
-            "-c", "credential.helper=",
-            "-c", f"http.extraheader=Authorization: Basic {auth}",
-        ]
-    cmd += ["push", "origin", "main:main"]
-
-    result = subprocess.run(
-        cmd, cwd=str(BASE_DIR), capture_output=True, text=True, timeout=60, env=env
+    resp = requests.put(
+        f"{_GITHUB_API}/repos/{GITHUB_REPO}/contents/{_DOCS_PATH}",
+        headers=_gh_headers(),
+        json=body,
+        timeout=60,
     )
-    if result.returncode != 0:
-        raise GitCommandError("git push", result.returncode, result.stderr.strip())
-    log.info("Push successful")
+    resp.raise_for_status()
+    log.info("Pushed %s to GitHub (%s)", _DOCS_PATH, message)
     return True
 
 
+# ── Vercel ─────────────────────────────────────────────────────────────────
+
 def _trigger_vercel():
     if not VERCEL_DEPLOY_HOOK:
+        log.warning("VERCEL_DEPLOY_HOOK not set — skipping deploy trigger")
         return
     try:
-        resp = requests.post(VERCEL_DEPLOY_HOOK, timeout=10)
+        resp = requests.post(VERCEL_DEPLOY_HOOK, timeout=15)
         resp.raise_for_status()
         log.info("Vercel deploy hook triggered (HTTP %s)", resp.status_code)
-    except requests.RequestException as e:
-        log.warning("Vercel deploy hook failed: %s", e)
+    except requests.RequestException as exc:
+        log.warning("Vercel deploy hook failed: %s", exc)
 
 
-def push():
+# ── Telegram notification to Bill ──────────────────────────────────────────
+
+def _notify_bill():
+    if not WATSON_BOT_TOKEN or not WATSON_CHAT_ID:
+        log.warning("WATSON_BOT_TOKEN or WATSON_CHAT_ID not set — skipping Bill notification")
+        return
+    text = f"📋 Your briefing is ready: {_BRIEFING_URL}"
     try:
-        pushed = _stage_and_push()
-    except GitCommandError as e:
-        log.error("Git push failed: %s", e)
-        raise
-    except FileNotFoundError as e:
-        log.error(str(e))
-        raise
+        resp = requests.post(
+            f"https://api.telegram.org/bot{WATSON_BOT_TOKEN}/sendMessage",
+            json={"chat_id": WATSON_CHAT_ID, "text": text},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        log.info("Notified Bill via Telegram")
+    except requests.RequestException as exc:
+        log.warning("Bill notification failed: %s", exc)
+
+
+# ── Public API ─────────────────────────────────────────────────────────────
+
+def publish() -> bool:
+    """
+    Push docs/briefing.html to GitHub, trigger Vercel, notify Bill.
+    Returns True if the file was pushed, False if skipped (credentials missing).
+    """
+    briefing_path = DOCS_DIR / "briefing.html"
+    if not briefing_path.exists():
+        raise FileNotFoundError(
+            f"{briefing_path} not found — run build_briefing() before publish()"
+        )
+
+    html_bytes = briefing_path.read_bytes()
+    pushed     = _push_to_github(html_bytes)
 
     if pushed:
         _trigger_vercel()
+        _notify_bill()
 
     return pushed
 
 
 def publish_briefing():
+    """Convenience: build + publish in one call (used by manual / cron triggers)."""
     log.info("=== Watson publish starting ===")
-    build()
-    pushed = push()
-    if pushed:
-        log.info("=== Briefing published ===")
-    else:
-        log.info("=== Briefing built but not pushed (no changes) ===")
+    from briefing.builder import build_briefing
+    build_briefing()
+    pushed = publish()
+    log.info("=== %s ===", "Briefing published" if pushed else "Built but not pushed")
     return pushed
 
 

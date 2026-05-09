@@ -1,6 +1,7 @@
 import logging
 import re as _re
 import threading
+from datetime import datetime
 
 import yaml
 from flask import Flask, redirect, request, send_file, url_for
@@ -15,23 +16,75 @@ TEMPLATE_DIR = BASE_DIR / "briefing" / "templates"
 log = logging.getLogger(__name__)
 app = Flask(__name__)
 
-INDEX_HTML = DEPLOY_DIR / "index.html"
 THOUGHT_LIBRARY_HTML = DEPLOY_DIR / "thought-library.html"
 RESEARCH_LIBRARY_HTML = DEPLOY_DIR / "research-library.html"
 READING_LIST_HTML = DEPLOY_DIR / "reading-list.html"
 
 
-# ── Pages ──────────────────────────────────────────────────────────────────
+# ── Briefing dashboard ─────────────────────────────────────────────────────
 
 @app.route("/")
 def index():
-    if not INDEX_HTML.exists():
-        return (
-            "<p>No briefing built yet. "
-            "<a href='/run'>Run the pipeline now.</a></p>",
-            404,
+    with get_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT id, title, url, summary, source_name, source_type
+            FROM briefing_items
+            WHERE dismissed = 0
+            ORDER BY score DESC, fetched_at DESC
+            LIMIT 50
+            """
+        ).fetchall()
+    items = [dict(r) for r in rows]
+
+    dt = datetime.now()
+    hour = dt.hour % 12 or 12
+    ampm = "AM" if dt.hour < 12 else "PM"
+    generated_at = f"{dt.strftime('%B')} {dt.day}, {dt.year} at {hour}:{dt.minute:02d} {ampm}"
+
+    env = Environment(loader=FileSystemLoader(str(TEMPLATE_DIR)), autoescape=True)
+    template = env.get_template("dashboard.html")
+    html = template.render(items=items, total=len(items), generated_at=generated_at)
+    return html, 200, {"Content-Type": "text/html; charset=utf-8"}
+
+
+# ── Jenny action (forward to Telegram) ────────────────────────────────────
+
+@app.route("/action", methods=["POST"])
+def action():
+    item_id = request.form.get("item_id")
+    dest = request.form.get("dest")  # "email", "facebook", or "dismiss"
+
+    if not item_id:
+        return redirect(url_for("index"))
+
+    item_id = int(item_id)
+    item = None
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT title, url, summary FROM briefing_items WHERE id = ?",
+            (item_id,),
+        ).fetchone()
+        if row:
+            item = dict(row)
+
+    if item and dest in ("email", "facebook"):
+        try:
+            from telegram.jenny import send_to_email, send_to_facebook
+            if dest == "email":
+                send_to_email(item["title"], item["summary"] or "", item["url"] or "")
+            else:
+                send_to_facebook(item["title"], item["summary"] or "", item["url"] or "")
+            log.info("Forwarded item %d to %s via Jenny", item_id, dest)
+        except Exception as e:
+            log.error("Jenny send failed: %s", e)
+
+    with get_connection() as conn:
+        conn.execute(
+            "UPDATE briefing_items SET dismissed = 1 WHERE id = ?", (item_id,)
         )
-    return send_file(INDEX_HTML)
+
+    return redirect(url_for("index"))
 
 
 # ── Item actions ───────────────────────────────────────────────────────────
@@ -285,17 +338,11 @@ _pipeline_lock = threading.Lock()
 
 
 def _run_pipeline():
-    from core.fetcher import fetch_all
-    from core.summarizer import summarize_items
-    from briefing.publisher import publish_briefing
+    from core.pipeline import run as pipeline_run
 
     log.info("Pipeline started")
-    new_items = fetch_all()
-    log.info("Fetched %d new item(s)", new_items)
-    summarized = summarize_items()
-    log.info("Summarized %d item(s)", summarized)
-    publish_briefing()
-    log.info("Pipeline complete")
+    count = pipeline_run()
+    log.info("Pipeline complete — %d new item(s)", count)
 
 
 @app.route("/run")

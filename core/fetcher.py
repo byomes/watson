@@ -1,75 +1,109 @@
-import html
+"""
+Fetch RSS feeds and scrape URLs → summarize → score → store to briefing_items.
+This is the single source-of-truth for populating the briefing queue.
+"""
+import html as _html
 import logging
 import re
-import urllib3
 from datetime import datetime, timezone
-from html.parser import HTMLParser
+from urllib.parse import urljoin
 
 import feedparser
 import requests
+import urllib3
 import yaml
 from bs4 import BeautifulSoup
 
-# SSL verification is disabled globally — acceptable for a personal tool
-# fetching public content. Avoids failures on sites with misconfigured certs.
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 from config.settings import BASE_DIR
 from core.database import get_connection
+from core.summarizer import summarize
 
 log = logging.getLogger(__name__)
 
 SOURCES_PATH = BASE_DIR / "config" / "sources.yaml"
-SCRAPE_HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/124.0.0.0 Safari/537.36"
-    )
-}
-RSS_HEADERS = {
-    **SCRAPE_HEADERS,
+MAX_ITEMS    = 20
+TIMEOUT      = 15
+_BROWSER_UA  = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+)
+_RSS_HEADERS = {
+    "User-Agent": _BROWSER_UA,
     "Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml, */*",
 }
-SCRAPE_TIMEOUT = 15
+_SCRAPE_HEADERS = {
+    "User-Agent": _BROWSER_UA,
+    "Accept": "text/html,application/xhtml+xml,*/*",
+}
 
-# Characters invalid in XML 1.0 (excluding tab \x09, LF \x0A, CR \x0D)
+_HTML_TAGS   = re.compile(r"<[^>]+>")
+_DATE_IN_URL = re.compile(r"/\d{4}/\d{2}|/\d{4}/")
 _XML_INVALID = re.compile(r"[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]")
 
-_HTML_TAGS = re.compile(r"<[^>]+>")
-_DATE_IN_URL = re.compile(r"/\d{4}/\d{2}|/\d{4}/")
+_PRIORITY_BASE = {1: 100, 2: 60, 3: 30}
+_TYPE_BONUS    = {"podcast": 20, "publication": 15, "journal": 10, "article": 5}
 
+
+# ── Helpers ────────────────────────────────────────────────────────────────
 
 def _strip_html(text):
     if not text:
         return ""
-    stripped = _HTML_TAGS.sub(" ", text)
-    unescaped = html.unescape(stripped)
-    return " ".join(_HTML_TAGS.sub(" ", unescaped).split())
+    stripped  = _HTML_TAGS.sub(" ", text)
+    unescaped = _html.unescape(stripped)
+    return " ".join(unescaped.split())
 
 
-def _is_scrape_content(title, url, source_name):
-    """Return False for nav links, category pages, and menu items."""
+def _is_article(title, url, source_name):
+    """Return False for nav links, menu items, and section headers."""
     if title.strip() == source_name.strip():
         return False
     if len(title.split()) <= 3:
         return False
     if _DATE_IN_URL.search(url):
         return True
-    path = url.split("?")[0].split("#")[0].rstrip("/")
+    path     = url.split("?")[0].split("#")[0].rstrip("/")
     last_seg = path.rsplit("/", 1)[-1] if "/" in path else path
     return len(last_seg.split("-")) >= 3
 
 
-def _sanitize_feed(raw: bytes) -> str:
-    text = raw.decode("utf-8", errors="replace")
-    return _XML_INVALID.sub("", text)
+def _sanitize_xml(raw: bytes) -> str:
+    return _XML_INVALID.sub("", raw.decode("utf-8", errors="replace"))
 
+
+def _score(priority: int, source_type: str) -> int:
+    return _PRIORITY_BASE.get(priority, 30) + _TYPE_BONUS.get(source_type, 5)
+
+
+def _url_exists(conn, url: str) -> bool:
+    return conn.execute(
+        "SELECT 1 FROM briefing_items WHERE url = ?", (url,)
+    ).fetchone() is not None
+
+
+def _insert(conn, *, title, url, summary, source_name, source_type, priority):
+    conn.execute(
+        """
+        INSERT INTO briefing_items
+            (title, url, summary, source_name, source_type, priority, score)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (title, url, summary, source_name, source_type, priority,
+         _score(priority, source_type)),
+    )
+
+
+# ── Source loaders ─────────────────────────────────────────────────────────
 
 def _load_sources():
-    with open(SOURCES_PATH) as f:
+    with open(SOURCES_PATH, encoding="utf-8") as f:
         data = yaml.safe_load(f) or {}
     sources = []
+    # briefing_feeds have no priority/source_type fields — use sensible defaults
+    for feed in data.get("briefing_feeds", []) or []:
+        sources.append({**feed, "source_type": "article", "priority": 2})
     for category in ("authors", "organizations", "journals"):
         for entry in data.get(category, []) or []:
             entry.setdefault("source_type", "article")
@@ -77,158 +111,157 @@ def _load_sources():
     return sources
 
 
-def _url_exists(conn, url):
-    row = conn.execute("SELECT 1 FROM items WHERE url = ?", (url,)).fetchone()
-    return row is not None
+# ── Fetch strategies ───────────────────────────────────────────────────────
 
+def _fetch_rss(source: dict, budget: int) -> int:
+    name        = source["name"]
+    source_type = source.get("source_type", "article")
+    priority    = int(source.get("priority", 2))
+    feed_url    = source["rss"]
+    added       = 0
 
-def _insert_item(conn, source_name, source_type, title, url, summary, published_date):
-    conn.execute(
-        """
-        INSERT INTO items (source_name, source_type, title, url, summary, published_date, status)
-        VALUES (?, ?, ?, ?, ?, ?, 'new')
-        """,
-        (source_name, source_type, title, url, summary, published_date),
-    )
-
-
-def _fetch_rss(source):
-    name = source["name"]
-    source_type = source["source_type"]
-    feed_url = source["rss"]
-    new_count = 0
-
-    log.info("Fetching RSS: %s (%s)", name, feed_url)
-
-    # Fetch raw bytes, sanitize invalid XML chars, then let feedparser parse the string.
-    # On HTTP 4xx/5xx, fall back to scraping the site URL if one is configured.
+    log.info("RSS  %s", name)
     try:
-        resp = requests.get(feed_url, headers=RSS_HEADERS, timeout=SCRAPE_TIMEOUT, verify=False)
+        resp = requests.get(feed_url, headers=_RSS_HEADERS,
+                            timeout=TIMEOUT, verify=False)
         resp.raise_for_status()
-    except requests.HTTPError as exc:
-        url_field = source.get("url")
-        if url_field:
-            log.warning("RSS HTTP %s for '%s' — falling back to scrape", exc.response.status_code, name)
-            return _fetch_scrape({**source, "scrape": True})
-        raise
+    except requests.RequestException as exc:
+        # Graceful fallback: if the source also has a URL, try scraping it
+        fallback_url = source.get("url")
+        if fallback_url:
+            log.warning("  RSS failed (%s) — falling back to scrape", exc)
+            return _fetch_scrape({**source, "scrape": True}, budget)
+        log.warning("  RSS failed (%s) — skipping", exc)
+        return 0
 
-    clean_xml = _sanitize_feed(resp.content)
-    parsed = feedparser.parse(clean_xml, sanitize_html=False)
+    clean = _sanitize_xml(resp.content)
+    parsed = feedparser.parse(clean, sanitize_html=False)
 
     if parsed.get("bozo") and not parsed.entries:
-        bozo_exc = parsed.get("bozo_exception")
-        url_field = source.get("url")
-        if url_field:
-            log.warning("RSS bozo for '%s' (%s) — falling back to scrape", name, bozo_exc)
-            return _fetch_scrape({**source, "scrape": True})
-        raise ValueError(f"Feed parse error for {name}: {bozo_exc}")
+        fallback_url = source.get("url")
+        if fallback_url:
+            log.warning("  RSS bozo (%s) — falling back to scrape",
+                        parsed.get("bozo_exception"))
+            return _fetch_scrape({**source, "scrape": True}, budget)
+        log.warning("  RSS bozo, no fallback — skipping")
+        return 0
 
     with get_connection() as conn:
         for entry in parsed.entries:
+            if added >= budget:
+                break
             url = entry.get("link", "").strip()
-            if not url:
+            if not url or _url_exists(conn, url):
                 continue
-
-            if _url_exists(conn, url):
-                log.debug("  skip (exists): %s", url)
+            title = _strip_html(entry.get("title") or "").strip()
+            if not title or len(title.split()) <= 3:
                 continue
+            content = _strip_html(
+                entry.get("summary", "") or entry.get("description", "")
+            )
+            summary = summarize(title, content, name)
+            _insert(conn, title=title, url=url, summary=summary,
+                    source_name=name, source_type=source_type, priority=priority)
+            log.info("  + %s", title[:90])
+            added += 1
 
-            title = entry.get("title", "Untitled").strip()
-            summary = _strip_html(entry.get("summary", "") or entry.get("description", ""))
-            # feedparser gives time_struct tuples; convert to ISO string
-            pub_struct = entry.get("published_parsed") or entry.get("updated_parsed")
-            published_date = None
-            if pub_struct:
-                published_date = datetime(*pub_struct[:6], tzinfo=timezone.utc).isoformat()
-
-            _insert_item(conn, name, source_type, title, url, summary, published_date)
-            log.info("  + %s", title)
-            new_count += 1
-
-    return new_count
+    return added
 
 
-def _fetch_scrape(source):
-    name = source["name"]
-    source_type = source["source_type"]
-    url = source["url"]
-    new_count = 0
+def _fetch_scrape(source: dict, budget: int) -> int:
+    name        = source["name"]
+    source_type = source.get("source_type", "article")
+    priority    = int(source.get("priority", 2))
+    url         = source["url"]
+    added       = 0
 
-    log.info("Scraping: %s (%s)", name, url)
-    resp = requests.get(url, headers=SCRAPE_HEADERS, timeout=SCRAPE_TIMEOUT, verify=False)
-    resp.raise_for_status()
+    log.info("Scrape %s", name)
+    try:
+        resp = requests.get(url, headers=_SCRAPE_HEADERS,
+                            timeout=TIMEOUT, verify=False)
+        resp.raise_for_status()
+    except requests.RequestException as exc:
+        log.warning("  Scrape failed (%s) — skipping", exc)
+        return 0
 
     soup = BeautifulSoup(resp.text, "html.parser")
-    base = resp.url  # resolved URL after any redirects
+    base = resp.url
+    seen = set()
 
-    seen_urls = set()
     with get_connection() as conn:
         for a in soup.find_all("a", href=True):
+            if added >= budget:
+                break
             href = a["href"].strip()
             if not href or href.startswith(("#", "mailto:", "javascript:")):
                 continue
-
-            # Resolve relative URLs
             if href.startswith("http"):
                 article_url = href
             elif href.startswith("//"):
                 article_url = "https:" + href
             else:
-                from urllib.parse import urljoin
                 article_url = urljoin(base, href)
 
-            if article_url in seen_urls:
+            if article_url in seen or _url_exists(conn, article_url):
                 continue
-            seen_urls.add(article_url)
-
-            if _url_exists(conn, article_url):
-                log.debug("  skip (exists): %s", article_url)
-                continue
+            seen.add(article_url)
 
             title = a.get_text(strip=True)
-            if not title:
-                continue
-            if not _is_scrape_content(title, article_url, name):
-                log.debug("  skip (nav): %s", title)
+            if not title or not _is_article(title, article_url, name):
                 continue
 
-            _insert_item(conn, name, source_type, title, article_url, None, None)
-            log.info("  + %s", title)
-            new_count += 1
+            summary = summarize(title, "", name)
+            _insert(conn, title=title, url=article_url, summary=summary,
+                    source_name=name, source_type=source_type, priority=priority)
+            log.info("  + %s", title[:90])
+            added += 1
 
-    return new_count
+    return added
 
 
-def fetch_all():
+# ── Public API ─────────────────────────────────────────────────────────────
+
+def fetch_all() -> int:
+    """Fetch all active sources, store new items to briefing_items. Returns count added."""
     sources = _load_sources()
     if not sources:
         log.info("No sources configured in sources.yaml")
         return 0
 
-    total_new = 0
+    total  = 0
+    budget = MAX_ITEMS
 
     for source in sources:
+        if budget <= 0:
+            log.info("Item cap (%d) reached — stopping fetch", MAX_ITEMS)
+            break
         name = source.get("name", "unknown")
         if source.get("active") is False:
-            log.info("Skipping inactive source: %s", name)
+            log.debug("Skip inactive: %s", name)
             continue
         try:
             if source.get("rss"):
-                total_new += _fetch_rss(source)
+                added = _fetch_rss(source, budget)
             elif source.get("scrape") and source.get("url"):
-                total_new += _fetch_scrape(source)
+                added = _fetch_scrape(source, budget)
             else:
-                log.warning("Source '%s' has no rss or scrape URL — skipping", name)
-        except requests.RequestException as e:
-            log.error("Network error for '%s': %s", name, e)
-        except Exception as e:
-            log.error("Failed to fetch '%s': %s", name, e)
+                log.warning("No rss or scrape URL for '%s' — skipping", name)
+                continue
+        except Exception as exc:
+            log.error("Unexpected error for '%s': %s", name, exc)
+            continue
+        total  += added
+        budget -= added
 
-    log.info("Fetch complete — %d new item(s) added", total_new)
-    return total_new
+    log.info("Fetch complete — %d new item(s) added to briefing_items", total)
+    return total
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    logging.basicConfig(level=logging.INFO,
+                        format="%(asctime)s %(levelname)s %(message)s",
+                        datefmt="%H:%M:%S")
+    from core.database import init_db
+    init_db()
     count = fetch_all()
     print(f"\nDone. {count} new item(s) added.")

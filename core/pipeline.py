@@ -1,101 +1,38 @@
+"""
+Watson daily pipeline: fetch → build → publish.
+"""
 import logging
 import sys
-from datetime import datetime
 
 log = logging.getLogger(__name__)
 
 
-def _ts():
-    return datetime.now().strftime("%H:%M:%S")
-
-
-def _step(name, fn):
-    log.info("[%s] %-30s ...", _ts(), name)
-    try:
-        result = fn()
-        log.info("[%s] %-30s OK — %s", _ts(), name, result)
-        return result, None
-    except Exception as e:
-        log.error("[%s] %-30s FAILED — %s", _ts(), name, e)
-        return None, e
-
-
 def run():
+    from core.database import init_db
     from core.fetcher import fetch_all
-    from core.summarizer import summarize_items
-    from core.scorer import score_items
-    from core.database import get_connection
-    from briefing.builder import build
-    from briefing.publisher import push
+    from briefing.builder import build_briefing
+    from briefing.publisher import publish
 
-    log.info("[%s] === Watson pipeline starting ===", _ts())
+    init_db()
 
-    fetched, err = _step("fetch", fetch_all)
-    if err:
-        fetched = 0
+    count = fetch_all()
+    log.info("Fetched %d new item(s)", count)
 
-    summarized, err = _step("summarize", summarize_items)
-    if err:
-        summarized = 0
+    build_briefing()
+    log.info("Static briefing built")
 
-    _step("score", score_items)
+    published = publish()
+    log.info("Published: %s", published)
 
-    def index_to_library():
-        with get_connection() as conn:
-            rows = conn.execute(
-                "SELECT source_name, source_type, title, url, summary "
-                "FROM items WHERE status = 'new'"
-            ).fetchall()
-            count = 0
-            for row in rows:
-                existing = conn.execute(
-                    "SELECT 1 FROM research_library WHERE title = ? AND source_name = ?",
-                    (row["title"], row["source_name"]),
-                ).fetchone()
-                if not existing:
-                    conn.execute(
-                        "INSERT INTO research_library "
-                        "(content_type, title, url, summary, source_name) "
-                        "VALUES (?, ?, ?, ?, ?)",
-                        (row["source_type"], row["title"], row["url"],
-                         row["summary"] or "", row["source_name"]),
-                    )
-                    count += 1
-        return count
-
-    _step("index to library", index_to_library)
-
-    _, err = _step("build briefing", build)
-    build_ok = err is None
-
-    deployed = False
-    if build_ok:
-        pushed, err = _step("publish", push)
-        deployed = err is None and bool(pushed)
-    else:
-        log.warning("[%s] %-30s SKIPPED (build failed)", _ts(), "publish")
-
-    summary = {
-        "items_fetched": fetched or 0,
-        "items_summarized": summarized or 0,
-        "deployed": deployed,
-    }
-
-    log.info(
-        "[%s] === Pipeline complete — fetched=%d summarized=%d deployed=%s ===",
-        _ts(),
-        summary["items_fetched"],
-        summary["items_summarized"],
-        summary["deployed"],
-    )
-    return summary
+    return {"fetched": count, "published": published}
 
 
 if __name__ == "__main__":
     logging.basicConfig(
         level=logging.INFO,
-        format="%(message)s",
+        format="%(asctime)s %(levelname)s %(message)s",
+        datefmt="%H:%M:%S",
     )
     result = run()
-    print(f"\nResult: {result}")
-    sys.exit(0 if result["deployed"] else 1)
+    print(f"\nDone — fetched={result['fetched']} published={result['published']}")
+    sys.exit(0)
