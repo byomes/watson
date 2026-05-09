@@ -1,0 +1,2365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Watson — Saturday, May 9, 2026</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:      #0d0f14;
+      --surface: #12151c;
+      --rule:    #20242f;
+      --text:    #e0dcd4;
+      --muted:   #72748a;
+      --gold:    #c9a452;    /* brass accent — editorial */
+      --link:    #9bbee8;
+      --green:   #78c89a;
+      --blue:    #7ab4e8;
+      --serif:   Georgia, "Times New Roman", "Noto Serif", serif;
+      --sans:    -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    }
+
+    html { font-size: 17px; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--serif);
+      line-height: 1.65;
+      padding-bottom: 64px;
+    }
+
+    /* ── Layout ── */
+    .container {
+      max-width: 680px;
+      margin: 0 auto;
+      padding: 0 20px;
+    }
+
+    /* ── Masthead ── */
+    .masthead {
+      text-align: center;
+      padding: 36px 0 22px;
+      border-bottom: 1px solid var(--gold);
+      margin-bottom: 36px;
+    }
+
+    .masthead-wordmark {
+      font-family: var(--sans);
+      font-size: 0.68rem;
+      font-weight: 800;
+      letter-spacing: 0.45em;
+      text-transform: uppercase;
+      color: var(--gold);
+      margin-bottom: 8px;
+    }
+
+    .masthead-date {
+      font-family: var(--serif);
+      font-style: italic;
+      font-size: 1rem;
+      color: var(--muted);
+    }
+
+    .masthead-count {
+      font-family: var(--sans);
+      font-size: 0.7rem;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      margin-top: 4px;
+      opacity: 0.7;
+    }
+
+    /* ── Section labels ── */
+    .section-label {
+      font-family: var(--sans);
+      font-size: 0.62rem;
+      font-weight: 700;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--muted);
+      padding: 28px 0 14px;
+      border-top: 1px solid var(--rule);
+    }
+
+    /* ── Cards ── flat editorial style, no boxes ── */
+    .card {
+      padding: 14px 0 20px;
+      border-bottom: 1px solid var(--rule);
+    }
+
+    .card-meta {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      margin-bottom: 5px;
+    }
+
+    .card-source {
+      font-family: var(--sans);
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--gold);
+    }
+
+    .card-type {
+      font-family: var(--sans);
+      font-size: 0.6rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      opacity: 0.75;
+    }
+
+    .card-title {
+      font-family: var(--serif);
+      font-size: 1.13rem;
+      font-weight: 700;
+      line-height: 1.3;
+      margin-bottom: 7px;
+    }
+
+    .card-title a {
+      color: var(--text);
+      text-decoration: none;
+    }
+    .card-title a:hover { color: var(--gold); }
+
+    .card-summary {
+      font-family: var(--serif);
+      font-size: 0.91rem;
+      color: #a09c98;
+      line-height: 1.65;
+      margin-bottom: 12px;
+    }
+
+    /* ── Action buttons ── */
+    .card-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .btn {
+      font-family: var(--sans);
+      font-size: 0.68rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      padding: 4px 13px;
+      border-radius: 4px;
+      border: 1px solid transparent;
+      background: transparent;
+      cursor: pointer;
+      transition: opacity 0.15s, border-color 0.15s, color 0.15s;
+      white-space: nowrap;
+      text-decoration: none;
+      display: inline-block;
+      line-height: 1.6;
+    }
+    .btn:active  { opacity: 0.65; }
+    .btn:disabled { opacity: 0.45; cursor: default; }
+
+    .btn-read {
+      color: var(--link);
+      border-color: #1e2e40;
+    }
+    .btn-read:hover { border-color: var(--link); }
+
+    .btn-email {
+      color: var(--green);
+      border-color: #1a3028;
+    }
+    .btn-email:hover { border-color: var(--green); }
+
+    .btn-facebook {
+      color: var(--blue);
+      border-color: #18283a;
+    }
+    .btn-facebook:hover { border-color: var(--blue); }
+
+    /* ── Empty state ── */
+    .empty {
+      text-align: center;
+      padding: 60px 0;
+      font-family: var(--sans);
+      font-size: 0.88rem;
+      color: var(--muted);
+    }
+
+    /* ── Mobile adjustments ── */
+    @media (max-width: 480px) {
+      html { font-size: 16px; }
+      .card-title { font-size: 1.05rem; }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <header class="masthead">
+    <p class="masthead-wordmark">Watson</p>
+    <p class="masthead-date">Saturday, May 9, 2026</p>
+    
+    <p class="masthead-count">60 items</p>
+    
+  </header>
+
+  
+    
+    <h2 class="section-label">Articles</h2>
+
+    
+    <article class="card"
+             data-title="My Mentor Died 1,595 Years Ago"
+             data-summary="You can find a good mentor across town or across the country. I found mine across the centuries."
+             data-url="https://www.thegospelcoalition.org/article/augustine-mentor-died-1595-years/">
+
+      <div class="card-meta">
+        <span class="card-source">The Gospel Coalition</span>
+        
+      </div>
+
+      <h3 class="card-title">
+        
+          <a href="https://www.thegospelcoalition.org/article/augustine-mentor-died-1595-years/" target="_blank" rel="noopener noreferrer">My Mentor Died 1,595 Years Ago</a>
+        
+      </h3>
+
+      
+        <p class="card-summary">You can find a good mentor across town or across the country. I found mine across the centuries.</p>
+      
+
+      <div class="card-actions">
+        
+          <a class="btn btn-read"
+             href="https://www.thegospelcoalition.org/article/augustine-mentor-died-1595-years/"
+             target="_blank"
+             rel="noopener noreferrer">Read ↗</a>
+        
+        <button class="btn btn-email"
+                onclick="sendToJenny('email', this)">📧 To Email</button>
+        <button class="btn btn-facebook"
+                onclick="sendToJenny('facebook', this)">📘 To Facebook</button>
+      </div>
+
+    </article>
+    
+    <article class="card"
+             data-title="Christ’s Resurrection Is Good News for Creation, Too"
+             data-summary="As we live every day, we declare Christ’s resurrection to the world, because it’s the source of hope for all creation."
+             data-url="https://www.thegospelcoalition.org/article/resurrection-good-news-creation/">
+
+      <div class="card-meta">
+        <span class="card-source">The Gospel Coalition</span>
+        
+      </div>
+
+      <h3 class="card-title">
+        
+          <a href="https://www.thegospelcoalition.org/article/resurrection-good-news-creation/" target="_blank" rel="noopener noreferrer">Christ’s Resurrection Is Good News for Creation, Too</a>
+        
+      </h3>
+
+      
+        <p class="card-summary">As we live every day, we declare Christ’s resurrection to the world, because it’s the source of hope for all creation.</p>
+      
+
+      <div class="card-actions">
+        
+          <a class="btn btn-read"
+             href="https://www.thegospelcoalition.org/article/resurrection-good-news-creation/"
+             target="_blank"
+             rel="noopener noreferrer">Read ↗</a>
+        
+        <button class="btn btn-email"
+                onclick="sendToJenny('email', this)">📧 To Email</button>
+        <button class="btn btn-facebook"
+                onclick="sendToJenny('facebook', this)">📘 To Facebook</button>
+      </div>
+
+    </article>
+    
+    <article class="card"
+             data-title="On Losing Tim and Why Kathy Keller Published His Sermons on Sin"
+             data-summary="Kathy Keller joins Collin Hansen to discuss losing Tim, sin as the biggest problem in the world, and what the gospel offers."
+             data-url="https://www.thegospelcoalition.org/podcasts/gospelbound/tim-kathy-keller-published-sermons-sin/">
+
+      <div class="card-meta">
+        <span class="card-source">The Gospel Coalition</span>
+        
+      </div>
+
+      <h3 class="card-title">
+        
+          <a href="https://www.thegospelcoalition.org/podcasts/gospelbound/tim-kathy-keller-published-sermons-sin/" target="_blank" rel="noopener noreferrer">On Losing Tim and Why Kathy Keller Published His Sermons on Sin</a>
+        
+      </h3>
+
+      
+        <p class="card-summary">Kathy Keller joins Collin Hansen to discuss losing Tim, sin as the biggest problem in the world, and what the gospel offers.</p>
+      
+
+      <div class="card-actions">
+        
+          <a class="btn btn-read"
+             href="https://www.thegospelcoalition.org/podcasts/gospelbound/tim-kathy-keller-published-sermons-sin/"
+             target="_blank"
+             rel="noopener noreferrer">Read ↗</a>
+        
+        <button class="btn btn-email"
+                onclick="sendToJenny('email', this)">📧 To Email</button>
+        <button class="btn btn-facebook"
+                onclick="sendToJenny('facebook', this)">📘 To Facebook</button>
+      </div>
+
+    </article>
+    
+    <article class="card"
+             data-title="You Need a Bigger View of Worship"
+             data-summary="Worship is more than listening to worship music or going to church on Sundays. It’s more than saying a few words of praise to God or giving a portion of our income to the church."
+             data-url="https://www.thegospelcoalition.org/article/bigger-view-worship/">
+
+      <div class="card-meta">
+        <span class="card-source">The Gospel Coalition</span>
+        
+      </div>
+
+      <h3 class="card-title">
+        
+          <a href="https://www.thegospelcoalition.org/article/bigger-view-worship/" target="_blank" rel="noopener noreferrer">You Need a Bigger View of Worship</a>
+        
+      </h3>
+
+      
+        <p class="card-summary">Worship is more than listening to worship music or going to church on Sundays. It’s more than saying a few words of praise to God or giving a portion of our income to the church.</p>
+      
+
+      <div class="card-actions">
+        
+          <a class="btn btn-read"
+             href="https://www.thegospelcoalition.org/article/bigger-view-worship/"
+             target="_blank"
+             rel="noopener noreferrer">Read ↗</a>
+        
+        <button class="btn btn-email"
+                onclick="sendToJenny('email', this)">📧 To Email</button>
+        <button class="btn btn-facebook"
+                onclick="sendToJenny('facebook', this)">📘 To Facebook</button>
+      </div>
+
+    </article>
+    
+    <article class="card"
+             data-title="A Mundane Life Is a Courageous Life"
+             data-summary="In our mundane lives, we must dare to risk suffering for the sake of the good."
+             data-url="https://www.thegospelcoalition.org/article/mundane-life-courageous-life/">
+
+      <div class="card-meta">
+        <span class="card-source">The Gospel Coalition</span>
+        
+      </div>
+
+      <h3 class="card-title">
+        
+          <a href="https://www.thegospelcoalition.org/article/mundane-life-courageous-life/" target="_blank" rel="noopener noreferrer">A Mundane Life Is a Courageous Life</a>
+        
+      </h3>
+
+      
+        <p class="card-summary">In our mundane lives, we must dare to risk suffering for the sake of the good.</p>
+      
+
+      <div class="card-actions">
+        
+          <a class="btn btn-read"
+             href="https://www.thegospelcoalition.org/article/mundane-life-courageous-life/"
+             target="_blank"
+             rel="noopener noreferrer">Read ↗</a>
+        
+        <button class="btn btn-email"
+                onclick="sendToJenny('email', this)">📧 To Email</button>
+        <button class="btn btn-facebook"
+                onclick="sendToJenny('facebook', this)">📘 To Facebook</button>
+      </div>
+
+    </article>
+    
+    <article class="card"
+             data-title="‘Not a Child-Safe Technology’: Proactive Parenting in the Age of AI"
+             data-summary="AI is already encroaching on our kids’ education, emotions, and employment. How can we calmly and clearly see how to protect and guide them?"
+             data-url="https://www.thegospelcoalition.org/podcasts/recorded/parenting-age-ai/">
+
+      <div class="card-meta">
+        <span class="card-source">The Gospel Coalition</span>
+        
+      </div>
+
+      <h3 class="card-title">
+        
+          <a href="https://www.thegospelcoalition.org/podcasts/recorded/parenting-age-ai/" target="_blank" rel="noopener noreferrer">‘Not a Child-Safe Technology’: Proactive Parenting in the Age of AI</a>
+        
+      </h3>
+
+      
+        <p class="card-summary">AI is already encroaching on our kids’ education, emotions, and employment. How can we calmly and clearly see how to protect and guide them?</p>
+      
+
+      <div class="card-actions">
+        
+          <a class="btn btn-read"
+             href="https://www.thegospelcoalition.org/podcasts/recorded/parenting-age-ai/"
+             target="_blank"
+             rel="noopener noreferrer">Read ↗</a>
+        
+        <button class="btn btn-email"
+                onclick="sendToJenny('email', this)">📧 To Email</button>
+        <button class="btn btn-facebook"
+                onclick="sendToJenny('facebook', this)">📘 To Facebook</button>
+      </div>
+
+    </article>
+    
+    <article class="card"
+             data-title="When Evangelicals Forget Their Theology"
+             data-summary="The expanded edition of ‘Here We Stand!’ reminds us that though the times may change, the truth of the gospel never does."
+             data-url="https://www.thegospelcoalition.org/reviews/here-stand-cambridge-declaration/">
+
+      <div class="card-meta">
+        <span class="card-source">The Gospel Coalition</span>
+        
+      </div>
+
+      <h3 class="card-title">
+        
+          <a href="https://www.thegospelcoalition.org/reviews/here-stand-cambridge-declaration/" target="_blank" rel="noopener noreferrer">When Evangelicals Forget Their Theology</a>
+        
+      </h3>
+
+      
+        <p class="card-summary">The expanded edition of ‘Here We Stand!’ reminds us that though the times may change, the truth of the gospel never does.</p>
+      
+
+      <div class="card-actions">
+        
+          <a class="btn btn-read"
+             href="https://www.thegospelcoalition.org/reviews/here-stand-cambridge-declaration/"
+             target="_blank"
+             rel="noopener noreferrer">Read ↗</a>
+        
+        <button class="btn btn-email"
+                onclick="sendToJenny('email', this)">📧 To Email</button>
+        <button class="btn btn-facebook"
+                onclick="sendToJenny('facebook', this)">📘 To Facebook</button>
+      </div>
+
+    </article>
+    
+    <article class="card"
+             data-title="‘Not a Child-Safe Technology’: Proactive Parenting in the Age of AI"
+             data-summary="If we’ve learned anything from past technological waves, it’s this: Those who are probably going to be most harmed by AI are our kids."
+             data-url="https://www.thegospelcoalition.org/article/parenting-age-ai/">
+
+      <div class="card-meta">
+        <span class="card-source">The Gospel Coalition</span>
+        
+      </div>
+
+      <h3 class="card-title">
+        
+          <a href="https://www.thegospelcoalition.org/article/parenting-age-ai/" target="_blank" rel="noopener noreferrer">‘Not a Child-Safe Technology’: Proactive Parenting in the Age of AI</a>
+        
+      </h3>
+
+      
+        <p class="card-summary">If we’ve learned anything from past technological waves, it’s this: Those who are probably going to be most harmed by AI are our kids.</p>
+      
+
+      <div class="card-actions">
+        
+          <a class="btn btn-read"
+             href="https://www.thegospelcoalition.org/article/parenting-age-ai/"
+             target="_blank"
+             rel="noopener noreferrer">Read ↗</a>
+        
+        <button class="btn btn-email"
+                onclick="sendToJenny('email', this)">📧 To Email</button>
+        <button class="btn btn-facebook"
+                onclick="sendToJenny('facebook', this)">📘 To Facebook</button>
+      </div>
+
+    </article>
+    
+    <article class="card"
+             data-title="Help Kids with Learning Disabilities Rejoice"
+             data-summary="Battling a learning disability can be incredibly discouraging for kids. How can we help them think about their disabilities in light of the gospel?"
+             data-url="https://www.thegospelcoalition.org/article/kids-learning-disabilities-rejoice/">
+
+      <div class="card-meta">
+        <span class="card-source">The Gospel Coalition</span>
+        
+      </div>
+
+      <h3 class="card-title">
+        
+          <a href="https://www.thegospelcoalition.org/article/kids-learning-disabilities-rejoice/" target="_blank" rel="noopener noreferrer">Help Kids with Learning Disabilities Rejoice</a>
+        
+      </h3>
+
+      
+        <p class="card-summary">Battling a learning disability can be incredibly discouraging for kids. How can we help them think about their disabilities in light of the gospel?</p>
+      
+
+      <div class="card-actions">
+        
+          <a class="btn btn-read"
+             href="https://www.thegospelcoalition.org/article/kids-learning-disabilities-rejoice/"
+             target="_blank"
+             rel="noopener noreferrer">Read ↗</a>
+        
+        <button class="btn btn-email"
+                onclick="sendToJenny('email', this)">📧 To Email</button>
+        <button class="btn btn-facebook"
+                onclick="sendToJenny('facebook', this)">📘 To Facebook</button>
+      </div>
+
+    </article>
+    
+    <article class="card"
+             data-title="What’s the Difference Between Sadness and Discontent?"
+             data-summary="We can weep over deferred desires and yet have our hearts secure and content in Christ."
+             data-url="https://www.thegospelcoalition.org/article/difference-sadness-discontent/">
+
+      <div class="card-meta">
+        <span class="card-source">The Gospel Coalition</span>
+        
+      </div>
+
+      <h3 class="card-title">
+        
+          <a href="https://www.thegospelcoalition.org/article/difference-sadness-discontent/" target="_blank" rel="noopener noreferrer">What’s the Difference Between Sadness and Discontent?</a>
+        
+      </h3>
+
+      
+        <p class="card-summary">We can weep over deferred desires and yet have our hearts secure and content in Christ.</p>
+      
+
+      <div class="card-actions">
+        
+          <a class="btn btn-read"
+             href="https://www.thegospelcoalition.org/article/difference-sadness-discontent/"
+             target="_blank"
+             rel="noopener noreferrer">Read ↗</a>
+        
+        <button class="btn btn-email"
+                onclick="sendToJenny('email', this)">📧 To Email</button>
+        <button class="btn btn-facebook"
+                onclick="sendToJenny('facebook', this)">📘 To Facebook</button>
+      </div>
+
+    </article>
+    
+    <article class="card"
+             data-title="Music and Liturgy in the Local Church"
+             data-summary="We want the gospel to be at the heart of everything we do, including our public worship."
+             data-url="https://www.thegospelcoalition.org/podcasts/tgc-podcast/music-liturgy-local-church/">
+
+      <div class="card-meta">
+        <span class="card-source">The Gospel Coalition</span>
+        
+      </div>
+
+      <h3 class="card-title">
+        
+          <a href="https://www.thegospelcoalition.org/podcasts/tgc-podcast/music-liturgy-local-church/" target="_blank" rel="noopener noreferrer">Music and Liturgy in the Local Church</a>
+        
+      </h3>
+
+      
+        <p class="card-summary">We want the gospel to be at the heart of everything we do, including our public worship.</p>
+      
+
+      <div class="card-actions">
+        
+          <a class="btn btn-read"
+             href="https://www.thegospelcoalition.org/podcasts/tgc-podcast/music-liturgy-local-church/"
+             target="_blank"
+             rel="noopener noreferrer">Read ↗</a>
+        
+        <button class="btn btn-email"
+                onclick="sendToJenny('email', this)">📧 To Email</button>
+        <button class="btn btn-facebook"
+                onclick="sendToJenny('facebook', this)">📘 To Facebook</button>
+      </div>
+
+    </article>
+    
+    <article class="card"
+             data-title="There’s Hope in the Cultural Fight Against Pornography"
+             data-summary="‘Pornocracy’ presents a wake-up call for pastors, policy-makers, and parents alike."
+             data-url="https://www.thegospelcoalition.org/reviews/pronocracy-bartosch-jessel/">
+
+      <div class="card-meta">
+        <span class="card-source">The Gospel Coalition</span>
+        
+      </div>
+
+      <h3 class="card-title">
+        
+          <a href="https://www.thegospelcoalition.org/reviews/pronocracy-bartosch-jessel/" target="_blank" rel="noopener noreferrer">There’s Hope in the Cultural Fight Against Pornography</a>
+        
+      </h3>
+
+      
+        <p class="card-summary">‘Pornocracy’ presents a wake-up call for pastors, policy-makers, and parents alike.</p>
+      
+
+      <div class="card-actions">
+        
+          <a class="btn btn-read"
+             href="https://www.thegospelcoalition.org/reviews/pronocracy-bartosch-jessel/"
+             target="_blank"
+             rel="noopener noreferrer">Read ↗</a>
+        
+        <button class="btn btn-email"
+                onclick="sendToJenny('email', this)">📧 To Email</button>
+        <button class="btn btn-facebook"
+                onclick="sendToJenny('facebook', this)">📘 To Facebook</button>
+      </div>
+
+    </article>
+    
+    <article class="card"
+             data-title="3 Questions to Evaluate AI Use"
+             data-summary="When it comes to AI, there’s no one-size-fits-all command for believers. We need to consider AI use in light of God’s original design for humanity."
+             data-url="https://www.thegospelcoalition.org/article/questions-evaluate-ai-use/">
+
+      <div class="card-meta">
+        <span class="card-source">The Gospel Coalition</span>
+        
+      </div>
+
+      <h3 class="card-title">
+        
+          <a href="https://www.thegospelcoalition.org/article/questions-evaluate-ai-use/" target="_blank" rel="noopener noreferrer">3 Questions to Evaluate AI Use</a>
+        
+      </h3>
+
+      
+        <p class="card-summary">When it comes to AI, there’s no one-size-fits-all command for believers. We need to consider AI use in light of God’s original design for humanity.</p>
+      
+
+      <div class="card-actions">
+        
+          <a class="btn btn-read"
+             href="https://www.thegospelcoalition.org/article/questions-evaluate-ai-use/"
+             target="_blank"
+             rel="noopener noreferrer">Read ↗</a>
+        
+        <button class="btn btn-email"
+                onclick="sendToJenny('email', this)">📧 To Email</button>
+        <button class="btn btn-facebook"
+                onclick="sendToJenny('facebook', this)">📘 To Facebook</button>
+      </div>
+
+    </article>
+    
+    <article class="card"
+             data-title="Worship Is More than a Playlist"
+             data-summary="Melissa and Courtney talk with Emily Jensen about how to broaden our understanding of worship so we respond to God’s worth even in mundane moments."
+             data-url="https://www.thegospelcoalition.org/podcasts/deep-dish/worship-more-than-playlist/">
+
+      <div class="card-meta">
+        <span class="card-source">The Gospel Coalition</span>
+        
+      </div>
+
+      <h3 class="card-title">
+        
+          <a href="https://www.thegospelcoalition.org/podcasts/deep-dish/worship-more-than-playlist/" target="_blank" rel="noopener noreferrer">Worship Is More than a Playlist</a>
+        
+      </h3>
+
+      
+        <p class="card-summary">Melissa and Courtney talk with Emily Jensen about how to broaden our understanding of worship so we respond to God’s worth even in mundane moments.</p>
+      
+
+      <div class="card-actions">
+        
+          <a class="btn btn-read"
+             href="https://www.thegospelcoalition.org/podcasts/deep-dish/worship-more-than-playlist/"
+             target="_blank"
+             rel="noopener noreferrer">Read ↗</a>
+        
+        <button class="btn btn-email"
+                onclick="sendToJenny('email', this)">📧 To Email</button>
+        <button class="btn btn-facebook"
+                onclick="sendToJenny('facebook', this)">📘 To Facebook</button>
+      </div>
+
+    </article>
+    
+    <article class="card"
+             data-title="Why a Gen-Z Woman Wants Wrinkles"
+             data-summary="When I consider the older women in my life and local church, I know there’s no need to be anxious about aging. These faithful women are the most beautiful I know."
+             data-url="https://www.thegospelcoalition.org/article/gen-z-woman-wrinkles/">
+
+      <div class="card-meta">
+        <span class="card-source">The Gospel Coalition</span>
+        
+      </div>
+
+      <h3 class="card-title">
+        
+          <a href="https://www.thegospelcoalition.org/article/gen-z-woman-wrinkles/" target="_blank" rel="noopener noreferrer">Why a Gen-Z Woman Wants Wrinkles</a>
+        
+      </h3>
+
+      
+        <p class="card-summary">When I consider the older women in my life and local church, I know there’s no need to be anxious about aging. These faithful women are the most beautiful I know.</p>
+      
+
+      <div class="card-actions">
+        
+          <a class="btn btn-read"
+             href="https://www.thegospelcoalition.org/article/gen-z-woman-wrinkles/"
+             target="_blank"
+             rel="noopener noreferrer">Read ↗</a>
+        
+        <button class="btn btn-email"
+                onclick="sendToJenny('email', this)">📧 To Email</button>
+        <button class="btn btn-facebook"
+                onclick="sendToJenny('facebook', this)">📘 To Facebook</button>
+      </div>
+
+    </article>
+    
+    <article class="card"
+             data-title="Jonathan Edwards’s Vision of Heaven Equips Us for Today"
+             data-summary="You know about ‘Sinners in the Hands of an Angry God.’ Here’s how Edwards’s sermon on heaven is comforting and inspiring seniors."
+             data-url="https://www.thegospelcoalition.org/article/joanthan-edwards-heaven-equips/">
+
+      <div class="card-meta">
+        <span class="card-source">The Gospel Coalition</span>
+        
+      </div>
+
+      <h3 class="card-title">
+        
+          <a href="https://www.thegospelcoalition.org/article/joanthan-edwards-heaven-equips/" target="_blank" rel="noopener noreferrer">Jonathan Edwards’s Vision of Heaven Equips Us for Today</a>
+        
+      </h3>
+
+      
+        <p class="card-summary">You know about ‘Sinners in the Hands of an Angry God.’ Here’s how Edwards’s sermon on heaven is comforting and inspiring seniors.</p>
+      
+
+      <div class="card-actions">
+        
+          <a class="btn btn-read"
+             href="https://www.thegospelcoalition.org/article/joanthan-edwards-heaven-equips/"
+             target="_blank"
+             rel="noopener noreferrer">Read ↗</a>
+        
+        <button class="btn btn-email"
+                onclick="sendToJenny('email', this)">📧 To Email</button>
+        <button class="btn btn-facebook"
+                onclick="sendToJenny('facebook', this)">📘 To Facebook</button>
+      </div>
+
+    </article>
+    
+    <article class="card"
+             data-title="Lies and a Lion: Making Sense of 1 Kings 13"
+             data-summary="God’s Word must be heard rightly, proclaimed accurately, and obeyed fully."
+             data-url="https://www.thegospelcoalition.org/article/lies-lion-kings/">
+
+      <div class="card-meta">
+        <span class="card-source">The Gospel Coalition</span>
+        
+      </div>
+
+      <h3 class="card-title">
+        
+          <a href="https://www.thegospelcoalition.org/article/lies-lion-kings/" target="_blank" rel="noopener noreferrer">Lies and a Lion: Making Sense of 1 Kings 13</a>
+        
+      </h3>
+
+      
+        <p class="card-summary">God’s Word must be heard rightly, proclaimed accurately, and obeyed fully.</p>
+      
+
+      <div class="card-actions">
+        
+          <a class="btn btn-read"
+             href="https://www.thegospelcoalition.org/article/lies-lion-kings/"
+             target="_blank"
+             rel="noopener noreferrer">Read ↗</a>
+        
+        <button class="btn btn-email"
+                onclick="sendToJenny('email', this)">📧 To Email</button>
+        <button class="btn btn-facebook"
+                onclick="sendToJenny('facebook', this)">📘 To Facebook</button>
+      </div>
+
+    </article>
+    
+    <article class="card"
+             data-title="Don’t Let Preschool Ministry Be an Afterthought"
+             data-summary="‘The Beginner’s Gospel Story Curriculum’ helps churches teach the deep truths of the faith to young children."
+             data-url="https://www.thegospelcoalition.org/reviews/big-thoughts-tiny-tots/">
+
+      <div class="card-meta">
+        <span class="card-source">The Gospel Coalition</span>
+        
+      </div>
+
+      <h3 class="card-title">
+        
+          <a href="https://www.thegospelcoalition.org/reviews/big-thoughts-tiny-tots/" target="_blank" rel="noopener noreferrer">Don’t Let Preschool Ministry Be an Afterthought</a>
+        
+      </h3>
+
+      
+        <p class="card-summary">‘The Beginner’s Gospel Story Curriculum’ helps churches teach the deep truths of the faith to young children.</p>
+      
+
+      <div class="card-actions">
+        
+          <a class="btn btn-read"
+             href="https://www.thegospelcoalition.org/reviews/big-thoughts-tiny-tots/"
+             target="_blank"
+             rel="noopener noreferrer">Read ↗</a>
+        
+        <button class="btn btn-email"
+                onclick="sendToJenny('email', this)">📧 To Email</button>
+        <button class="btn btn-facebook"
+                onclick="sendToJenny('facebook', this)">📘 To Facebook</button>
+      </div>
+
+    </article>
+    
+    <article class="card"
+             data-title="Give Your Kids the Gospel in Bite-Size Pieces"
+             data-summary="No single picture gives my kids the whole gospel, but each teaches a small facet of gospel truth."
+             data-url="https://www.thegospelcoalition.org/article/kids-gospel-bite-size-pieces/">
+
+      <div class="card-meta">
+        <span class="card-source">The Gospel Coalition</span>
+        
+      </div>
+
+      <h3 class="card-title">
+        
+          <a href="https://www.thegospelcoalition.org/article/kids-gospel-bite-size-pieces/" target="_blank" rel="noopener noreferrer">Give Your Kids the Gospel in Bite-Size Pieces</a>
+        
+      </h3>
+
+      
+        <p class="card-summary">No single picture gives my kids the whole gospel, but each teaches a small facet of gospel truth.</p>
+      
+
+      <div class="card-actions">
+        
+          <a class="btn btn-read"
+             href="https://www.thegospelcoalition.org/article/kids-gospel-bite-size-pieces/"
+             target="_blank"
+             rel="noopener noreferrer">Read ↗</a>
+        
+        <button class="btn btn-email"
+                onclick="sendToJenny('email', this)">📧 To Email</button>
+        <button class="btn btn-facebook"
+                onclick="sendToJenny('facebook', this)">📘 To Facebook</button>
+      </div>
+
+    </article>
+    
+    <article class="card"
+             data-title="What Is the Gospel?"
+             data-summary="If pastors don’t define the gospel clearly, they risk losing it entirely."
+             data-url="https://www.thegospelcoalition.org/podcasts/everyday-pastor/what-is-gospel/">
+
+      <div class="card-meta">
+        <span class="card-source">The Gospel Coalition</span>
+        
+      </div>
+
+      <h3 class="card-title">
+        
+          <a href="https://www.thegospelcoalition.org/podcasts/everyday-pastor/what-is-gospel/" target="_blank" rel="noopener noreferrer">What Is the Gospel?</a>
+        
+      </h3>
+
+      
+        <p class="card-summary">If pastors don’t define the gospel clearly, they risk losing it entirely.</p>
+      
+
+      <div class="card-actions">
+        
+          <a class="btn btn-read"
+             href="https://www.thegospelcoalition.org/podcasts/everyday-pastor/what-is-gospel/"
+             target="_blank"
+             rel="noopener noreferrer">Read ↗</a>
+        
+        <button class="btn btn-email"
+                onclick="sendToJenny('email', this)">📧 To Email</button>
+        <button class="btn btn-facebook"
+                onclick="sendToJenny('facebook', this)">📘 To Facebook</button>
+      </div>
+
+    </article>
+    
+    <article class="card"
+             data-title="‘Suggested for You’: 5 Values AI Suggests"
+             data-summary="No technology is value-neutral. Here are five values AI technology suggests to users."
+             data-url="https://www.thegospelcoalition.org/article/values-ai-suggests/">
+
+      <div class="card-meta">
+        <span class="card-source">The Gospel Coalition</span>
+        
+      </div>
+
+      <h3 class="card-title">
+        
+          <a href="https://www.thegospelcoalition.org/article/values-ai-suggests/" target="_blank" rel="noopener noreferrer">‘Suggested for You’: 5 Values AI Suggests</a>
+        
+      </h3>
+
+      
+        <p class="card-summary">No technology is value-neutral. Here are five values AI technology suggests to users.</p>
+      
+
+      <div class="card-actions">
+        
+          <a class="btn btn-read"
+             href="https://www.thegospelcoalition.org/article/values-ai-suggests/"
+             target="_blank"
+             rel="noopener noreferrer">Read ↗</a>
+        
+        <button class="btn btn-email"
+                onclick="sendToJenny('email', this)">📧 To Email</button>
+        <button class="btn btn-facebook"
+                onclick="sendToJenny('facebook', this)">📘 To Facebook</button>
+      </div>
+
+    </article>
+    
+    <article class="card"
+             data-title="Is Jesus Atoning for You in Heaven?"
+             data-summary="The time-tested categories of Jesus’s humiliation and exaltation, coupled with his threefold office, are biblical ways to think about the priesthood of Christ in Hebrews."
+             data-url="https://www.thegospelcoalition.org/article/does-jesus-suffer-heaven/">
+
+      <div class="card-meta">
+        <span class="card-source">The Gospel Coalition</span>
+        
+      </div>
+
+      <h3 class="card-title">
+        
+          <a href="https://www.thegospelcoalition.org/article/does-jesus-suffer-heaven/" target="_blank" rel="noopener noreferrer">Is Jesus Atoning for You in Heaven?</a>
+        
+      </h3>
+
+      
+        <p class="card-summary">The time-tested categories of Jesus’s humiliation and exaltation, coupled with his threefold office, are biblical ways to think about the priesthood of Christ in Hebrews.</p>
+      
+
+      <div class="card-actions">
+        
+          <a class="btn btn-read"
+             href="https://www.thegospelcoalition.org/article/does-jesus-suffer-heaven/"
+             target="_blank"
+             rel="noopener noreferrer">Read ↗</a>
+        
+        <button class="btn btn-email"
+                onclick="sendToJenny('email', this)">📧 To Email</button>
+        <button class="btn btn-facebook"
+                onclick="sendToJenny('facebook', this)">📘 To Facebook</button>
+      </div>
+
+    </article>
+    
+    <article class="card"
+             data-title="When You (or a Friend) Face Unwanted Divorce"
+             data-summary="Courtney Doctor talks with Wendy Alsup and Vaneetha Rendall Risner about their experiences of divorce, how they saw God’s care for them, and how to help others going through unwanted divorce."
+             data-url="https://www.thegospelcoalition.org/podcasts/deep-dish/face-unwanted-divorce/">
+
+      <div class="card-meta">
+        <span class="card-source">The Gospel Coalition</span>
+        
+      </div>
+
+      <h3 class="card-title">
+        
+          <a href="https://www.thegospelcoalition.org/podcasts/deep-dish/face-unwanted-divorce/" target="_blank" rel="noopener noreferrer">When You (or a Friend) Face Unwanted Divorce</a>
+        
+      </h3>
+
+      
+        <p class="card-summary">Courtney Doctor talks with Wendy Alsup and Vaneetha Rendall Risner about their experiences of divorce, how they saw God’s care for them, and how to help others going through unwanted divorce.</p>
+      
+
+      <div class="card-actions">
+        
+          <a class="btn btn-read"
+             href="https://www.thegospelcoalition.org/podcasts/deep-dish/face-unwanted-divorce/"
+             target="_blank"
+             rel="noopener noreferrer">Read ↗</a>
+        
+        <button class="btn btn-email"
+                onclick="sendToJenny('email', this)">📧 To Email</button>
+        <button class="btn btn-facebook"
+                onclick="sendToJenny('facebook', this)">📘 To Facebook</button>
+      </div>
+
+    </article>
+    
+    <article class="card"
+             data-title="Why Escaping Atheism Isn’t Enough"
+             data-summary="‘Why I Am Not an Atheist’ is an effective, often moving account of how unsatisfying it is to put some other idea—whether matter or mind—in God’s place."
+             data-url="https://www.thegospelcoalition.org/reviews/why-not-atheist-beha/">
+
+      <div class="card-meta">
+        <span class="card-source">The Gospel Coalition</span>
+        
+      </div>
+
+      <h3 class="card-title">
+        
+          <a href="https://www.thegospelcoalition.org/reviews/why-not-atheist-beha/" target="_blank" rel="noopener noreferrer">Why Escaping Atheism Isn’t Enough</a>
+        
+      </h3>
+
+      
+        <p class="card-summary">‘Why I Am Not an Atheist’ is an effective, often moving account of how unsatisfying it is to put some other idea—whether matter or mind—in God’s place.</p>
+      
+
+      <div class="card-actions">
+        
+          <a class="btn btn-read"
+             href="https://www.thegospelcoalition.org/reviews/why-not-atheist-beha/"
+             target="_blank"
+             rel="noopener noreferrer">Read ↗</a>
+        
+        <button class="btn btn-email"
+                onclick="sendToJenny('email', this)">📧 To Email</button>
+        <button class="btn btn-facebook"
+                onclick="sendToJenny('facebook', this)">📘 To Facebook</button>
+      </div>
+
+    </article>
+    
+    <article class="card"
+             data-title="Follow the Science . . . to God"
+             data-summary="New documentary ‘The Story of Everything’ shows why science is increasingly a friend to faith—not a threat."
+             data-url="https://www.thegospelcoalition.org/article/follow-science-god/">
+
+      <div class="card-meta">
+        <span class="card-source">The Gospel Coalition</span>
+        
+      </div>
+
+      <h3 class="card-title">
+        
+          <a href="https://www.thegospelcoalition.org/article/follow-science-god/" target="_blank" rel="noopener noreferrer">Follow the Science . . . to God</a>
+        
+      </h3>
+
+      
+        <p class="card-summary">New documentary ‘The Story of Everything’ shows why science is increasingly a friend to faith—not a threat.</p>
+      
+
+      <div class="card-actions">
+        
+          <a class="btn btn-read"
+             href="https://www.thegospelcoalition.org/article/follow-science-god/"
+             target="_blank"
+             rel="noopener noreferrer">Read ↗</a>
+        
+        <button class="btn btn-email"
+                onclick="sendToJenny('email', this)">📧 To Email</button>
+        <button class="btn btn-facebook"
+                onclick="sendToJenny('facebook', this)">📘 To Facebook</button>
+      </div>
+
+    </article>
+    
+    <article class="card"
+             data-title="Redeem the Time: What Ben Sasse Teaches Us About Life, Death, and Politics"
+             data-summary="Sasse has a lot of hard-earned wisdom to impart, including some that only comes when facing a terminal diagnosis. He’s inviting us to walk with him through that dark valley."
+             data-url="https://www.thegospelcoalition.org/article/sasse-life-death-politics/">
+
+      <div class="card-meta">
+        <span class="card-source">The Gospel Coalition</span>
+        
+      </div>
+
+      <h3 class="card-title">
+        
+          <a href="https://www.thegospelcoalition.org/article/sasse-life-death-politics/" target="_blank" rel="noopener noreferrer">Redeem the Time: What Ben Sasse Teaches Us About Life, Death, and Politics</a>
+        
+      </h3>
+
+      
+        <p class="card-summary">Sasse has a lot of hard-earned wisdom to impart, including some that only comes when facing a terminal diagnosis. He’s inviting us to walk with him through that dark valley.</p>
+      
+
+      <div class="card-actions">
+        
+          <a class="btn btn-read"
+             href="https://www.thegospelcoalition.org/article/sasse-life-death-politics/"
+             target="_blank"
+             rel="noopener noreferrer">Read ↗</a>
+        
+        <button class="btn btn-email"
+                onclick="sendToJenny('email', this)">📧 To Email</button>
+        <button class="btn btn-facebook"
+                onclick="sendToJenny('facebook', this)">📘 To Facebook</button>
+      </div>
+
+    </article>
+    
+    <article class="card"
+             data-title="Hope for the Algorithm-Shaped Self"
+             data-summary="As AI companions grow more sophisticated at providing validation, the question becomes more urgent: Where will you find your identity?"
+             data-url="https://www.thegospelcoalition.org/article/algorithm-self-ai/">
+
+      <div class="card-meta">
+        <span class="card-source">The Gospel Coalition</span>
+        
+      </div>
+
+      <h3 class="card-title">
+        
+          <a href="https://www.thegospelcoalition.org/article/algorithm-self-ai/" target="_blank" rel="noopener noreferrer">Hope for the Algorithm-Shaped Self</a>
+        
+      </h3>
+
+      
+        <p class="card-summary">As AI companions grow more sophisticated at providing validation, the question becomes more urgent: Where will you find your identity?</p>
+      
+
+      <div class="card-actions">
+        
+          <a class="btn btn-read"
+             href="https://www.thegospelcoalition.org/article/algorithm-self-ai/"
+             target="_blank"
+             rel="noopener noreferrer">Read ↗</a>
+        
+        <button class="btn btn-email"
+                onclick="sendToJenny('email', this)">📧 To Email</button>
+        <button class="btn btn-facebook"
+                onclick="sendToJenny('facebook', this)">📘 To Facebook</button>
+      </div>
+
+    </article>
+    
+    <article class="card"
+             data-title="How to Pursue Virtue in a Distracted Age"
+             data-summary="‘To Live Well’ is a theologically robust and immensely practical guide for a virtuous Christian life in a turbulent world."
+             data-url="https://www.thegospelcoalition.org/reviews/live-well-wisdom/">
+
+      <div class="card-meta">
+        <span class="card-source">The Gospel Coalition</span>
+        
+      </div>
+
+      <h3 class="card-title">
+        
+          <a href="https://www.thegospelcoalition.org/reviews/live-well-wisdom/" target="_blank" rel="noopener noreferrer">How to Pursue Virtue in a Distracted Age</a>
+        
+      </h3>
+
+      
+        <p class="card-summary">‘To Live Well’ is a theologically robust and immensely practical guide for a virtuous Christian life in a turbulent world.</p>
+      
+
+      <div class="card-actions">
+        
+          <a class="btn btn-read"
+             href="https://www.thegospelcoalition.org/reviews/live-well-wisdom/"
+             target="_blank"
+             rel="noopener noreferrer">Read ↗</a>
+        
+        <button class="btn btn-email"
+                onclick="sendToJenny('email', this)">📧 To Email</button>
+        <button class="btn btn-facebook"
+                onclick="sendToJenny('facebook', this)">📘 To Facebook</button>
+      </div>
+
+    </article>
+    
+    <article class="card"
+             data-title="What We Owe the Dead: The Role of Virtue in History"
+             data-summary="We get wisdom from the study of the past, but we must bring wisdom to our study if understanding is our goal."
+             data-url="https://www.thegospelcoalition.org/article/owe-dead-virtue-history/">
+
+      <div class="card-meta">
+        <span class="card-source">The Gospel Coalition</span>
+        
+      </div>
+
+      <h3 class="card-title">
+        
+          <a href="https://www.thegospelcoalition.org/article/owe-dead-virtue-history/" target="_blank" rel="noopener noreferrer">What We Owe the Dead: The Role of Virtue in History</a>
+        
+      </h3>
+
+      
+        <p class="card-summary">We get wisdom from the study of the past, but we must bring wisdom to our study if understanding is our goal.</p>
+      
+
+      <div class="card-actions">
+        
+          <a class="btn btn-read"
+             href="https://www.thegospelcoalition.org/article/owe-dead-virtue-history/"
+             target="_blank"
+             rel="noopener noreferrer">Read ↗</a>
+        
+        <button class="btn btn-email"
+                onclick="sendToJenny('email', this)">📧 To Email</button>
+        <button class="btn btn-facebook"
+                onclick="sendToJenny('facebook', this)">📘 To Facebook</button>
+      </div>
+
+    </article>
+    
+    <article class="card"
+             data-title="How to Talk About Jesus in a Post-Christian Age (with Glen Scrivener)"
+             data-summary="Glen Scrivener joins Matt Smethurst and Ligon Duncan to help pastors navigate evangelism in a world where people no longer share basic Christian assumptions."
+             data-url="https://www.thegospelcoalition.org/podcasts/everyday-pastor/talk-jesus-post-christian-scrivener/">
+
+      <div class="card-meta">
+        <span class="card-source">The Gospel Coalition</span>
+        
+      </div>
+
+      <h3 class="card-title">
+        
+          <a href="https://www.thegospelcoalition.org/podcasts/everyday-pastor/talk-jesus-post-christian-scrivener/" target="_blank" rel="noopener noreferrer">How to Talk About Jesus in a Post-Christian Age (with Glen Scrivener)</a>
+        
+      </h3>
+
+      
+        <p class="card-summary">Glen Scrivener joins Matt Smethurst and Ligon Duncan to help pastors navigate evangelism in a world where people no longer share basic Christian assumptions.</p>
+      
+
+      <div class="card-actions">
+        
+          <a class="btn btn-read"
+             href="https://www.thegospelcoalition.org/podcasts/everyday-pastor/talk-jesus-post-christian-scrivener/"
+             target="_blank"
+             rel="noopener noreferrer">Read ↗</a>
+        
+        <button class="btn btn-email"
+                onclick="sendToJenny('email', this)">📧 To Email</button>
+        <button class="btn btn-facebook"
+                onclick="sendToJenny('facebook', this)">📘 To Facebook</button>
+      </div>
+
+    </article>
+    
+    <article class="card"
+             data-title="Hope for Gen Z’s Financial Nihilism"
+             data-summary="To many Gen Zers, finances seem meaningless. The church is uniquely positioned to point to a better way."
+             data-url="https://www.thegospelcoalition.org/article/financial-nihilism-hope/">
+
+      <div class="card-meta">
+        <span class="card-source">The Gospel Coalition</span>
+        
+      </div>
+
+      <h3 class="card-title">
+        
+          <a href="https://www.thegospelcoalition.org/article/financial-nihilism-hope/" target="_blank" rel="noopener noreferrer">Hope for Gen Z’s Financial Nihilism</a>
+        
+      </h3>
+
+      
+        <p class="card-summary">To many Gen Zers, finances seem meaningless. The church is uniquely positioned to point to a better way.</p>
+      
+
+      <div class="card-actions">
+        
+          <a class="btn btn-read"
+             href="https://www.thegospelcoalition.org/article/financial-nihilism-hope/"
+             target="_blank"
+             rel="noopener noreferrer">Read ↗</a>
+        
+        <button class="btn btn-email"
+                onclick="sendToJenny('email', this)">📧 To Email</button>
+        <button class="btn btn-facebook"
+                onclick="sendToJenny('facebook', this)">📘 To Facebook</button>
+      </div>
+
+    </article>
+    
+    <article class="card"
+             data-title="John Cotton: The Forgotten 17th-Century Puritan"
+             data-summary="Cotton knew sorrow firsthand. Through it all, he acknowledged that life isn’t life if it’s overwhelmed with discouragements."
+             data-url="https://www.thegospelcoalition.org/article/forgotten-puritan-john-cotton/">
+
+      <div class="card-meta">
+        <span class="card-source">The Gospel Coalition</span>
+        
+      </div>
+
+      <h3 class="card-title">
+        
+          <a href="https://www.thegospelcoalition.org/article/forgotten-puritan-john-cotton/" target="_blank" rel="noopener noreferrer">John Cotton: The Forgotten 17th-Century Puritan</a>
+        
+      </h3>
+
+      
+        <p class="card-summary">Cotton knew sorrow firsthand. Through it all, he acknowledged that life isn’t life if it’s overwhelmed with discouragements.</p>
+      
+
+      <div class="card-actions">
+        
+          <a class="btn btn-read"
+             href="https://www.thegospelcoalition.org/article/forgotten-puritan-john-cotton/"
+             target="_blank"
+             rel="noopener noreferrer">Read ↗</a>
+        
+        <button class="btn btn-email"
+                onclick="sendToJenny('email', this)">📧 To Email</button>
+        <button class="btn btn-facebook"
+                onclick="sendToJenny('facebook', this)">📘 To Facebook</button>
+      </div>
+
+    </article>
+    
+    <article class="card"
+             data-title="Afraid of Evangelism? Try This."
+             data-summary="We know people need Christ, but we fear the awkwardness that gospel conversations can create. How can we move past our fear?"
+             data-url="https://www.thegospelcoalition.org/article/afraid-evangelism-try-this/">
+
+      <div class="card-meta">
+        <span class="card-source">The Gospel Coalition</span>
+        
+      </div>
+
+      <h3 class="card-title">
+        
+          <a href="https://www.thegospelcoalition.org/article/afraid-evangelism-try-this/" target="_blank" rel="noopener noreferrer">Afraid of Evangelism? Try This.</a>
+        
+      </h3>
+
+      
+        <p class="card-summary">We know people need Christ, but we fear the awkwardness that gospel conversations can create. How can we move past our fear?</p>
+      
+
+      <div class="card-actions">
+        
+          <a class="btn btn-read"
+             href="https://www.thegospelcoalition.org/article/afraid-evangelism-try-this/"
+             target="_blank"
+             rel="noopener noreferrer">Read ↗</a>
+        
+        <button class="btn btn-email"
+                onclick="sendToJenny('email', this)">📧 To Email</button>
+        <button class="btn btn-facebook"
+                onclick="sendToJenny('facebook', this)">📘 To Facebook</button>
+      </div>
+
+    </article>
+    
+    <article class="card"
+             data-title="Develop a Taste for God’s Word"
+             data-summary="Scripture isn’t a collection of dry words on a page; it’s God’s Word spoken for us."
+             data-url="https://www.thegospelcoalition.org/article/develop-taste-gods-word/">
+
+      <div class="card-meta">
+        <span class="card-source">The Gospel Coalition</span>
+        
+      </div>
+
+      <h3 class="card-title">
+        
+          <a href="https://www.thegospelcoalition.org/article/develop-taste-gods-word/" target="_blank" rel="noopener noreferrer">Develop a Taste for God’s Word</a>
+        
+      </h3>
+
+      
+        <p class="card-summary">Scripture isn’t a collection of dry words on a page; it’s God’s Word spoken for us.</p>
+      
+
+      <div class="card-actions">
+        
+          <a class="btn btn-read"
+             href="https://www.thegospelcoalition.org/article/develop-taste-gods-word/"
+             target="_blank"
+             rel="noopener noreferrer">Read ↗</a>
+        
+        <button class="btn btn-email"
+                onclick="sendToJenny('email', this)">📧 To Email</button>
+        <button class="btn btn-facebook"
+                onclick="sendToJenny('facebook', this)">📘 To Facebook</button>
+      </div>
+
+    </article>
+    
+    <article class="card"
+             data-title="Why Christians Should Read More Poetry"
+             data-summary="Let’s resist the system and shape our souls, let’s build good character and buck bad culture, by reading good poetry."
+             data-url="https://www.thegospelcoalition.org/article/read-more-poetry/">
+
+      <div class="card-meta">
+        <span class="card-source">The Gospel Coalition</span>
+        
+      </div>
+
+      <h3 class="card-title">
+        
+          <a href="https://www.thegospelcoalition.org/article/read-more-poetry/" target="_blank" rel="noopener noreferrer">Why Christians Should Read More Poetry</a>
+        
+      </h3>
+
+      
+        <p class="card-summary">Let’s resist the system and shape our souls, let’s build good character and buck bad culture, by reading good poetry.</p>
+      
+
+      <div class="card-actions">
+        
+          <a class="btn btn-read"
+             href="https://www.thegospelcoalition.org/article/read-more-poetry/"
+             target="_blank"
+             rel="noopener noreferrer">Read ↗</a>
+        
+        <button class="btn btn-email"
+                onclick="sendToJenny('email', this)">📧 To Email</button>
+        <button class="btn btn-facebook"
+                onclick="sendToJenny('facebook', this)">📘 To Facebook</button>
+      </div>
+
+    </article>
+    
+    <article class="card"
+             data-title="Ancient Remedies for the Ills of Modernity"
+             data-summary="For centuries, readers have been struck by how modern the book of Ecclesiastes sounds. It diagnoses the human condition with stunning depth and timeless relevance."
+             data-url="https://www.thegospelcoalition.org/podcasts/tgc-podcast/ancient-remedies-ills-modernity/">
+
+      <div class="card-meta">
+        <span class="card-source">The Gospel Coalition</span>
+        
+      </div>
+
+      <h3 class="card-title">
+        
+          <a href="https://www.thegospelcoalition.org/podcasts/tgc-podcast/ancient-remedies-ills-modernity/" target="_blank" rel="noopener noreferrer">Ancient Remedies for the Ills of Modernity</a>
+        
+      </h3>
+
+      
+        <p class="card-summary">For centuries, readers have been struck by how modern the book of Ecclesiastes sounds. It diagnoses the human condition with stunning depth and timeless relevance.</p>
+      
+
+      <div class="card-actions">
+        
+          <a class="btn btn-read"
+             href="https://www.thegospelcoalition.org/podcasts/tgc-podcast/ancient-remedies-ills-modernity/"
+             target="_blank"
+             rel="noopener noreferrer">Read ↗</a>
+        
+        <button class="btn btn-email"
+                onclick="sendToJenny('email', this)">📧 To Email</button>
+        <button class="btn btn-facebook"
+                onclick="sendToJenny('facebook', this)">📘 To Facebook</button>
+      </div>
+
+    </article>
+    
+    <article class="card"
+             data-title="What Happened on the Threshing Floor?"
+             data-summary="Boaz and Ruth trade promiscuity for restraint, inhospitality for generosity, and seductive idolatry for covenant faithfulness."
+             data-url="https://www.thegospelcoalition.org/article/what-happened-threshing-floor/">
+
+      <div class="card-meta">
+        <span class="card-source">The Gospel Coalition</span>
+        
+      </div>
+
+      <h3 class="card-title">
+        
+          <a href="https://www.thegospelcoalition.org/article/what-happened-threshing-floor/" target="_blank" rel="noopener noreferrer">What Happened on the Threshing Floor?</a>
+        
+      </h3>
+
+      
+        <p class="card-summary">Boaz and Ruth trade promiscuity for restraint, inhospitality for generosity, and seductive idolatry for covenant faithfulness.</p>
+      
+
+      <div class="card-actions">
+        
+          <a class="btn btn-read"
+             href="https://www.thegospelcoalition.org/article/what-happened-threshing-floor/"
+             target="_blank"
+             rel="noopener noreferrer">Read ↗</a>
+        
+        <button class="btn btn-email"
+                onclick="sendToJenny('email', this)">📧 To Email</button>
+        <button class="btn btn-facebook"
+                onclick="sendToJenny('facebook', this)">📘 To Facebook</button>
+      </div>
+
+    </article>
+    
+    <article class="card"
+             data-title="2 Forces That Shape Every Church"
+             data-summary="All churches flesh out a relationship between contending and contextualizing—for better or worse."
+             data-url="https://www.thegospelcoalition.org/article/two-forces-shape-church/">
+
+      <div class="card-meta">
+        <span class="card-source">The Gospel Coalition</span>
+        
+      </div>
+
+      <h3 class="card-title">
+        
+          <a href="https://www.thegospelcoalition.org/article/two-forces-shape-church/" target="_blank" rel="noopener noreferrer">2 Forces That Shape Every Church</a>
+        
+      </h3>
+
+      
+        <p class="card-summary">All churches flesh out a relationship between contending and contextualizing—for better or worse.</p>
+      
+
+      <div class="card-actions">
+        
+          <a class="btn btn-read"
+             href="https://www.thegospelcoalition.org/article/two-forces-shape-church/"
+             target="_blank"
+             rel="noopener noreferrer">Read ↗</a>
+        
+        <button class="btn btn-email"
+                onclick="sendToJenny('email', this)">📧 To Email</button>
+        <button class="btn btn-facebook"
+                onclick="sendToJenny('facebook', this)">📘 To Facebook</button>
+      </div>
+
+    </article>
+    
+    <article class="card"
+             data-title="Why King Arthur Matters to Malcolm Guite"
+             data-summary="In ’Galahad and the Grail,’ Malcolm Guite helps contemporary readers experience an authentic version of the Arthurian legends in modern language."
+             data-url="https://www.thegospelcoalition.org/reviews/galahad-grail-guite/">
+
+      <div class="card-meta">
+        <span class="card-source">The Gospel Coalition</span>
+        
+      </div>
+
+      <h3 class="card-title">
+        
+          <a href="https://www.thegospelcoalition.org/reviews/galahad-grail-guite/" target="_blank" rel="noopener noreferrer">Why King Arthur Matters to Malcolm Guite</a>
+        
+      </h3>
+
+      
+        <p class="card-summary">In ’Galahad and the Grail,’ Malcolm Guite helps contemporary readers experience an authentic version of the Arthurian legends in modern language.</p>
+      
+
+      <div class="card-actions">
+        
+          <a class="btn btn-read"
+             href="https://www.thegospelcoalition.org/reviews/galahad-grail-guite/"
+             target="_blank"
+             rel="noopener noreferrer">Read ↗</a>
+        
+        <button class="btn btn-email"
+                onclick="sendToJenny('email', this)">📧 To Email</button>
+        <button class="btn btn-facebook"
+                onclick="sendToJenny('facebook', this)">📘 To Facebook</button>
+      </div>
+
+    </article>
+    
+    <article class="card"
+             data-title="What Transhumanism’s Hopes Reveal About Our Hearts"
+             data-summary="Strip away transhumanism’s digital vocabulary, and you’ll find a narrative familiar to any student of Christian eschatology."
+             data-url="https://www.thegospelcoalition.org/article/transhumanism-hopes-reveal-hearts/">
+
+      <div class="card-meta">
+        <span class="card-source">The Gospel Coalition</span>
+        
+      </div>
+
+      <h3 class="card-title">
+        
+          <a href="https://www.thegospelcoalition.org/article/transhumanism-hopes-reveal-hearts/" target="_blank" rel="noopener noreferrer">What Transhumanism’s Hopes Reveal About Our Hearts</a>
+        
+      </h3>
+
+      
+        <p class="card-summary">Strip away transhumanism’s digital vocabulary, and you’ll find a narrative familiar to any student of Christian eschatology.</p>
+      
+
+      <div class="card-actions">
+        
+          <a class="btn btn-read"
+             href="https://www.thegospelcoalition.org/article/transhumanism-hopes-reveal-hearts/"
+             target="_blank"
+             rel="noopener noreferrer">Read ↗</a>
+        
+        <button class="btn btn-email"
+                onclick="sendToJenny('email', this)">📧 To Email</button>
+        <button class="btn btn-facebook"
+                onclick="sendToJenny('facebook', this)">📘 To Facebook</button>
+      </div>
+
+    </article>
+    
+    <article class="card"
+             data-title="Is a Divorced Couple Free to Remarry Each Other?"
+             data-summary="As pastors, we have the privilege of helping couples discern and pursue this mending of what was once broken."
+             data-url="https://www.thegospelcoalition.org/article/divorced-couple-remarry/">
+
+      <div class="card-meta">
+        <span class="card-source">The Gospel Coalition</span>
+        
+      </div>
+
+      <h3 class="card-title">
+        
+          <a href="https://www.thegospelcoalition.org/article/divorced-couple-remarry/" target="_blank" rel="noopener noreferrer">Is a Divorced Couple Free to Remarry Each Other?</a>
+        
+      </h3>
+
+      
+        <p class="card-summary">As pastors, we have the privilege of helping couples discern and pursue this mending of what was once broken.</p>
+      
+
+      <div class="card-actions">
+        
+          <a class="btn btn-read"
+             href="https://www.thegospelcoalition.org/article/divorced-couple-remarry/"
+             target="_blank"
+             rel="noopener noreferrer">Read ↗</a>
+        
+        <button class="btn btn-email"
+                onclick="sendToJenny('email', this)">📧 To Email</button>
+        <button class="btn btn-facebook"
+                onclick="sendToJenny('facebook', this)">📘 To Facebook</button>
+      </div>
+
+    </article>
+    
+    <article class="card"
+             data-title="Your Spiritual Dryness Might Be a Gift"
+             data-summary="‘When God Seems Distant’ equips readers to survive and thrive in seasons when their spiritual life seems dry."
+             data-url="https://www.thegospelcoalition.org/reviews/god-seems-distant/">
+
+      <div class="card-meta">
+        <span class="card-source">The Gospel Coalition</span>
+        
+      </div>
+
+      <h3 class="card-title">
+        
+          <a href="https://www.thegospelcoalition.org/reviews/god-seems-distant/" target="_blank" rel="noopener noreferrer">Your Spiritual Dryness Might Be a Gift</a>
+        
+      </h3>
+
+      
+        <p class="card-summary">‘When God Seems Distant’ equips readers to survive and thrive in seasons when their spiritual life seems dry.</p>
+      
+
+      <div class="card-actions">
+        
+          <a class="btn btn-read"
+             href="https://www.thegospelcoalition.org/reviews/god-seems-distant/"
+             target="_blank"
+             rel="noopener noreferrer">Read ↗</a>
+        
+        <button class="btn btn-email"
+                onclick="sendToJenny('email', this)">📧 To Email</button>
+        <button class="btn btn-facebook"
+                onclick="sendToJenny('facebook', this)">📘 To Facebook</button>
+      </div>
+
+    </article>
+    
+    <article class="card"
+             data-title="Discipling the Next Generation"
+             data-summary="In our rapidly changing world, the issues of smartphones, COVID-19, social media, and travel sports have left many children, youth, and family ministries looking for clarity."
+             data-url="https://www.thegospelcoalition.org/podcasts/tgc-podcast/discipling-next-generation/">
+
+      <div class="card-meta">
+        <span class="card-source">The Gospel Coalition</span>
+        
+      </div>
+
+      <h3 class="card-title">
+        
+          <a href="https://www.thegospelcoalition.org/podcasts/tgc-podcast/discipling-next-generation/" target="_blank" rel="noopener noreferrer">Discipling the Next Generation</a>
+        
+      </h3>
+
+      
+        <p class="card-summary">In our rapidly changing world, the issues of smartphones, COVID-19, social media, and travel sports have left many children, youth, and family ministries looking for clarity.</p>
+      
+
+      <div class="card-actions">
+        
+          <a class="btn btn-read"
+             href="https://www.thegospelcoalition.org/podcasts/tgc-podcast/discipling-next-generation/"
+             target="_blank"
+             rel="noopener noreferrer">Read ↗</a>
+        
+        <button class="btn btn-email"
+                onclick="sendToJenny('email', this)">📧 To Email</button>
+        <button class="btn btn-facebook"
+                onclick="sendToJenny('facebook', this)">📘 To Facebook</button>
+      </div>
+
+    </article>
+    
+    <article class="card"
+             data-title="How to Help the Wife Who Thinks Her Husband Isn’t a Good Spiritual Leader"
+             data-summary="You can’t change her husband, you can’t change her, and you can’t fix their marriage. But you can help equip her to move toward her husband in prayer, conversation, and gospel partnership."
+             data-url="https://www.thegospelcoalition.org/article/helping-wife-husband-leader/">
+
+      <div class="card-meta">
+        <span class="card-source">The Gospel Coalition</span>
+        
+      </div>
+
+      <h3 class="card-title">
+        
+          <a href="https://www.thegospelcoalition.org/article/helping-wife-husband-leader/" target="_blank" rel="noopener noreferrer">How to Help the Wife Who Thinks Her Husband Isn’t a Good Spiritual Leader</a>
+        
+      </h3>
+
+      
+        <p class="card-summary">You can’t change her husband, you can’t change her, and you can’t fix their marriage. But you can help equip her to move toward her husband in prayer, conversation, and gospel partnership.</p>
+      
+
+      <div class="card-actions">
+        
+          <a class="btn btn-read"
+             href="https://www.thegospelcoalition.org/article/helping-wife-husband-leader/"
+             target="_blank"
+             rel="noopener noreferrer">Read ↗</a>
+        
+        <button class="btn btn-email"
+                onclick="sendToJenny('email', this)">📧 To Email</button>
+        <button class="btn btn-facebook"
+                onclick="sendToJenny('facebook', this)">📘 To Facebook</button>
+      </div>
+
+    </article>
+    
+    <article class="card"
+             data-title="Motherhood (and Fatherhood) in 3 Recent Films"
+             data-summary="Recent films ‘Hamnet,’ ‘Omaha,’ and ‘If I Had Legs I’d Kick You’ explore the emotions and burdens of parenting."
+             data-url="https://www.thegospelcoalition.org/article/motherhood-fatherhood-films/">
+
+      <div class="card-meta">
+        <span class="card-source">The Gospel Coalition</span>
+        
+      </div>
+
+      <h3 class="card-title">
+        
+          <a href="https://www.thegospelcoalition.org/article/motherhood-fatherhood-films/" target="_blank" rel="noopener noreferrer">Motherhood (and Fatherhood) in 3 Recent Films</a>
+        
+      </h3>
+
+      
+        <p class="card-summary">Recent films ‘Hamnet,’ ‘Omaha,’ and ‘If I Had Legs I’d Kick You’ explore the emotions and burdens of parenting.</p>
+      
+
+      <div class="card-actions">
+        
+          <a class="btn btn-read"
+             href="https://www.thegospelcoalition.org/article/motherhood-fatherhood-films/"
+             target="_blank"
+             rel="noopener noreferrer">Read ↗</a>
+        
+        <button class="btn btn-email"
+                onclick="sendToJenny('email', this)">📧 To Email</button>
+        <button class="btn btn-facebook"
+                onclick="sendToJenny('facebook', this)">📘 To Facebook</button>
+      </div>
+
+    </article>
+    
+    <article class="card"
+             data-title="The ‘Lordly’ Supper: An Antidote to What Ails the Church"
+             data-summary="The Corinthians had rightly valued this meal as ‘imperial,’ but they forgot who the true ‘emperor’ was."
+             data-url="https://www.thegospelcoalition.org/article/lordly-supper-antidote/">
+
+      <div class="card-meta">
+        <span class="card-source">The Gospel Coalition</span>
+        
+      </div>
+
+      <h3 class="card-title">
+        
+          <a href="https://www.thegospelcoalition.org/article/lordly-supper-antidote/" target="_blank" rel="noopener noreferrer">The ‘Lordly’ Supper: An Antidote to What Ails the Church</a>
+        
+      </h3>
+
+      
+        <p class="card-summary">The Corinthians had rightly valued this meal as ‘imperial,’ but they forgot who the true ‘emperor’ was.</p>
+      
+
+      <div class="card-actions">
+        
+          <a class="btn btn-read"
+             href="https://www.thegospelcoalition.org/article/lordly-supper-antidote/"
+             target="_blank"
+             rel="noopener noreferrer">Read ↗</a>
+        
+        <button class="btn btn-email"
+                onclick="sendToJenny('email', this)">📧 To Email</button>
+        <button class="btn btn-facebook"
+                onclick="sendToJenny('facebook', this)">📘 To Facebook</button>
+      </div>
+
+    </article>
+    
+    <article class="card"
+             data-title="‘Who’s Bad?’ Moral Evasion in ‘Michael’"
+             data-summary="‘Michael’ chooses escapism over hard moral questions, box-office success over truth."
+             data-url="https://www.thegospelcoalition.org/article/whos-bad-moral-evasion-michael/">
+
+      <div class="card-meta">
+        <span class="card-source">The Gospel Coalition</span>
+        
+      </div>
+
+      <h3 class="card-title">
+        
+          <a href="https://www.thegospelcoalition.org/article/whos-bad-moral-evasion-michael/" target="_blank" rel="noopener noreferrer">‘Who’s Bad?’ Moral Evasion in ‘Michael’</a>
+        
+      </h3>
+
+      
+        <p class="card-summary">‘Michael’ chooses escapism over hard moral questions, box-office success over truth.</p>
+      
+
+      <div class="card-actions">
+        
+          <a class="btn btn-read"
+             href="https://www.thegospelcoalition.org/article/whos-bad-moral-evasion-michael/"
+             target="_blank"
+             rel="noopener noreferrer">Read ↗</a>
+        
+        <button class="btn btn-email"
+                onclick="sendToJenny('email', this)">📧 To Email</button>
+        <button class="btn btn-facebook"
+                onclick="sendToJenny('facebook', this)">📘 To Facebook</button>
+      </div>
+
+    </article>
+    
+    <article class="card"
+             data-title="The Most Important Abortion Ruling You’ve Never Heard Of"
+             data-summary="The case, with two different rulings so far, concerns whether abortion pills can be mailed directly into states where abortion is illegal."
+             data-url="https://www.thegospelcoalition.org/article/abortion-ruling-never-heard/">
+
+      <div class="card-meta">
+        <span class="card-source">The Gospel Coalition</span>
+        
+      </div>
+
+      <h3 class="card-title">
+        
+          <a href="https://www.thegospelcoalition.org/article/abortion-ruling-never-heard/" target="_blank" rel="noopener noreferrer">The Most Important Abortion Ruling You’ve Never Heard Of</a>
+        
+      </h3>
+
+      
+        <p class="card-summary">The case, with two different rulings so far, concerns whether abortion pills can be mailed directly into states where abortion is illegal.</p>
+      
+
+      <div class="card-actions">
+        
+          <a class="btn btn-read"
+             href="https://www.thegospelcoalition.org/article/abortion-ruling-never-heard/"
+             target="_blank"
+             rel="noopener noreferrer">Read ↗</a>
+        
+        <button class="btn btn-email"
+                onclick="sendToJenny('email', this)">📧 To Email</button>
+        <button class="btn btn-facebook"
+                onclick="sendToJenny('facebook', this)">📘 To Facebook</button>
+      </div>
+
+    </article>
+    
+    <article class="card"
+             data-title="Why Therapy Can’t Replace the Church"
+             data-summary="Collin Hansen talks with Brad Edwards about the need for the church amid rampant anxiety, division, and individualism."
+             data-url="https://www.thegospelcoalition.org/podcasts/gospelbound/therapy-cant-replace-church/">
+
+      <div class="card-meta">
+        <span class="card-source">The Gospel Coalition</span>
+        
+      </div>
+
+      <h3 class="card-title">
+        
+          <a href="https://www.thegospelcoalition.org/podcasts/gospelbound/therapy-cant-replace-church/" target="_blank" rel="noopener noreferrer">Why Therapy Can’t Replace the Church</a>
+        
+      </h3>
+
+      
+        <p class="card-summary">Collin Hansen talks with Brad Edwards about the need for the church amid rampant anxiety, division, and individualism.</p>
+      
+
+      <div class="card-actions">
+        
+          <a class="btn btn-read"
+             href="https://www.thegospelcoalition.org/podcasts/gospelbound/therapy-cant-replace-church/"
+             target="_blank"
+             rel="noopener noreferrer">Read ↗</a>
+        
+        <button class="btn btn-email"
+                onclick="sendToJenny('email', this)">📧 To Email</button>
+        <button class="btn btn-facebook"
+                onclick="sendToJenny('facebook', this)">📘 To Facebook</button>
+      </div>
+
+    </article>
+    
+    <article class="card"
+             data-title="Introducing the New-and-Improved TGC Church Directory"
+             data-summary="We are pleased to announce the launch of our new-and-improved TGC Church Directory. Apply today to list your church."
+             data-url="https://www.thegospelcoalition.org/article/new-improved-tgc-church-directory/">
+
+      <div class="card-meta">
+        <span class="card-source">The Gospel Coalition</span>
+        
+      </div>
+
+      <h3 class="card-title">
+        
+          <a href="https://www.thegospelcoalition.org/article/new-improved-tgc-church-directory/" target="_blank" rel="noopener noreferrer">Introducing the New-and-Improved TGC Church Directory</a>
+        
+      </h3>
+
+      
+        <p class="card-summary">We are pleased to announce the launch of our new-and-improved TGC Church Directory. Apply today to list your church.</p>
+      
+
+      <div class="card-actions">
+        
+          <a class="btn btn-read"
+             href="https://www.thegospelcoalition.org/article/new-improved-tgc-church-directory/"
+             target="_blank"
+             rel="noopener noreferrer">Read ↗</a>
+        
+        <button class="btn btn-email"
+                onclick="sendToJenny('email', this)">📧 To Email</button>
+        <button class="btn btn-facebook"
+                onclick="sendToJenny('facebook', this)">📘 To Facebook</button>
+      </div>
+
+    </article>
+    
+    <article class="card"
+             data-title="Carl Trueman’s Answer to the Modern Self"
+             data-summary="‘The Desecration of Man’ will help church leaders understand the philosophical currents shaping our culture."
+             data-url="https://www.thegospelcoalition.org/reviews/desecration-man-rejection/">
+
+      <div class="card-meta">
+        <span class="card-source">The Gospel Coalition</span>
+        
+      </div>
+
+      <h3 class="card-title">
+        
+          <a href="https://www.thegospelcoalition.org/reviews/desecration-man-rejection/" target="_blank" rel="noopener noreferrer">Carl Trueman’s Answer to the Modern Self</a>
+        
+      </h3>
+
+      
+        <p class="card-summary">‘The Desecration of Man’ will help church leaders understand the philosophical currents shaping our culture.</p>
+      
+
+      <div class="card-actions">
+        
+          <a class="btn btn-read"
+             href="https://www.thegospelcoalition.org/reviews/desecration-man-rejection/"
+             target="_blank"
+             rel="noopener noreferrer">Read ↗</a>
+        
+        <button class="btn btn-email"
+                onclick="sendToJenny('email', this)">📧 To Email</button>
+        <button class="btn btn-facebook"
+                onclick="sendToJenny('facebook', this)">📘 To Facebook</button>
+      </div>
+
+    </article>
+    
+    <article class="card"
+             data-title="Raise Kids to Be Reality Respecters"
+             data-summary="We can’t be anything we want to be. Acknowledging this truth doesn’t make you a cynic or a pessimist."
+             data-url="https://www.thegospelcoalition.org/article/reality-respecters/">
+
+      <div class="card-meta">
+        <span class="card-source">The Gospel Coalition</span>
+        
+      </div>
+
+      <h3 class="card-title">
+        
+          <a href="https://www.thegospelcoalition.org/article/reality-respecters/" target="_blank" rel="noopener noreferrer">Raise Kids to Be Reality Respecters</a>
+        
+      </h3>
+
+      
+        <p class="card-summary">We can’t be anything we want to be. Acknowledging this truth doesn’t make you a cynic or a pessimist.</p>
+      
+
+      <div class="card-actions">
+        
+          <a class="btn btn-read"
+             href="https://www.thegospelcoalition.org/article/reality-respecters/"
+             target="_blank"
+             rel="noopener noreferrer">Read ↗</a>
+        
+        <button class="btn btn-email"
+                onclick="sendToJenny('email', this)">📧 To Email</button>
+        <button class="btn btn-facebook"
+                onclick="sendToJenny('facebook', this)">📘 To Facebook</button>
+      </div>
+
+    </article>
+    
+    <article class="card"
+             data-title="Reflections of a Seasoned Scholar (with Thomas Schreiner)"
+             data-summary="Tom Schreiner joins Matt Harmon and Ben Gladd to discuss why biblical theology matters, how to read the whole Bible as one story, and how typology, covenant, and careful attention to the text help Christians interpret Scripture faithfully. They also reflect on the future of biblical theology, the value of humility in difficult passages, and the rich Old Testament background behind Mary’s song in Luke 1."
+             data-url="https://www.thegospelcoalition.org/podcasts/carson-center/reflections-of-a-seasoned-scholar-with-thomas-schreiner/">
+
+      <div class="card-meta">
+        <span class="card-source">The Gospel Coalition</span>
+        
+      </div>
+
+      <h3 class="card-title">
+        
+          <a href="https://www.thegospelcoalition.org/podcasts/carson-center/reflections-of-a-seasoned-scholar-with-thomas-schreiner/" target="_blank" rel="noopener noreferrer">Reflections of a Seasoned Scholar (with Thomas Schreiner)</a>
+        
+      </h3>
+
+      
+        <p class="card-summary">Tom Schreiner joins Matt Harmon and Ben Gladd to discuss why biblical theology matters, how to read the whole Bible as one story, and how typology, covenant, and careful attention to the text help Christians interpret Scripture faithfully. They also reflect on the future of biblical theology, the value of humility in difficult passages, and the rich Old Testament background behind Mary’s song in Luke 1.</p>
+      
+
+      <div class="card-actions">
+        
+          <a class="btn btn-read"
+             href="https://www.thegospelcoalition.org/podcasts/carson-center/reflections-of-a-seasoned-scholar-with-thomas-schreiner/"
+             target="_blank"
+             rel="noopener noreferrer">Read ↗</a>
+        
+        <button class="btn btn-email"
+                onclick="sendToJenny('email', this)">📧 To Email</button>
+        <button class="btn btn-facebook"
+                onclick="sendToJenny('facebook', this)">📘 To Facebook</button>
+      </div>
+
+    </article>
+    
+    <article class="card"
+             data-title="Made by God: Free TGC Playlist for Kids"
+             data-summary="One antidote to counteract both frustration and pride in children is teaching them that we are God’s ‘workmanship, created in Christ Jesus for good works.’"
+             data-url="https://www.thegospelcoalition.org/article/made-by-god-free-tgc-playlist/">
+
+      <div class="card-meta">
+        <span class="card-source">The Gospel Coalition</span>
+        
+      </div>
+
+      <h3 class="card-title">
+        
+          <a href="https://www.thegospelcoalition.org/article/made-by-god-free-tgc-playlist/" target="_blank" rel="noopener noreferrer">Made by God: Free TGC Playlist for Kids</a>
+        
+      </h3>
+
+      
+        <p class="card-summary">One antidote to counteract both frustration and pride in children is teaching them that we are God’s ‘workmanship, created in Christ Jesus for good works.’</p>
+      
+
+      <div class="card-actions">
+        
+          <a class="btn btn-read"
+             href="https://www.thegospelcoalition.org/article/made-by-god-free-tgc-playlist/"
+             target="_blank"
+             rel="noopener noreferrer">Read ↗</a>
+        
+        <button class="btn btn-email"
+                onclick="sendToJenny('email', this)">📧 To Email</button>
+        <button class="btn btn-facebook"
+                onclick="sendToJenny('facebook', this)">📘 To Facebook</button>
+      </div>
+
+    </article>
+    
+    <article class="card"
+             data-title="Before You Record a Video Lesson"
+             data-summary="Discipleship isn’t a race; not everything needs to be streamlined for accessibility and efficiency."
+             data-url="https://www.thegospelcoalition.org/article/queue-video-curriculum/">
+
+      <div class="card-meta">
+        <span class="card-source">The Gospel Coalition</span>
+        
+      </div>
+
+      <h3 class="card-title">
+        
+          <a href="https://www.thegospelcoalition.org/article/queue-video-curriculum/" target="_blank" rel="noopener noreferrer">Before You Record a Video Lesson</a>
+        
+      </h3>
+
+      
+        <p class="card-summary">Discipleship isn’t a race; not everything needs to be streamlined for accessibility and efficiency.</p>
+      
+
+      <div class="card-actions">
+        
+          <a class="btn btn-read"
+             href="https://www.thegospelcoalition.org/article/queue-video-curriculum/"
+             target="_blank"
+             rel="noopener noreferrer">Read ↗</a>
+        
+        <button class="btn btn-email"
+                onclick="sendToJenny('email', this)">📧 To Email</button>
+        <button class="btn btn-facebook"
+                onclick="sendToJenny('facebook', this)">📘 To Facebook</button>
+      </div>
+
+    </article>
+    
+    <article class="card"
+             data-title="When the Church Feels like Nineveh"
+             data-summary="God redeemed the story of a man who ran from the Lord, despaired, and struggled to forgive. I’ve come to see he can redeem mine too."
+             data-url="https://www.thegospelcoalition.org/article/church-like-nineveh/">
+
+      <div class="card-meta">
+        <span class="card-source">The Gospel Coalition</span>
+        
+      </div>
+
+      <h3 class="card-title">
+        
+          <a href="https://www.thegospelcoalition.org/article/church-like-nineveh/" target="_blank" rel="noopener noreferrer">When the Church Feels like Nineveh</a>
+        
+      </h3>
+
+      
+        <p class="card-summary">God redeemed the story of a man who ran from the Lord, despaired, and struggled to forgive. I’ve come to see he can redeem mine too.</p>
+      
+
+      <div class="card-actions">
+        
+          <a class="btn btn-read"
+             href="https://www.thegospelcoalition.org/article/church-like-nineveh/"
+             target="_blank"
+             rel="noopener noreferrer">Read ↗</a>
+        
+        <button class="btn btn-email"
+                onclick="sendToJenny('email', this)">📧 To Email</button>
+        <button class="btn btn-facebook"
+                onclick="sendToJenny('facebook', this)">📘 To Facebook</button>
+      </div>
+
+    </article>
+    
+    <article class="card"
+             data-title="Sam Allberry Resigns from Church and Keller Center"
+             data-summary="Statement from The Gospel Coalition’s Board of Directors TGC was informed yesterday by Sam Allberry about “an inappropriate relationship with another man a few years ago” and that an announcement would be made today at Immanuel Church regarding his resignation as a pastor. Per TGC policy and procedures, we immediately began to remove all of Sam’s content from our website and other content channels, and we deferred this statement until the church membership was informed."
+             data-url="https://www.thegospelcoalition.org/article/announcement-from-tgc/">
+
+      <div class="card-meta">
+        <span class="card-source">The Gospel Coalition</span>
+        
+      </div>
+
+      <h3 class="card-title">
+        
+          <a href="https://www.thegospelcoalition.org/article/announcement-from-tgc/" target="_blank" rel="noopener noreferrer">Sam Allberry Resigns from Church and Keller Center</a>
+        
+      </h3>
+
+      
+        <p class="card-summary">Statement from The Gospel Coalition’s Board of Directors TGC was informed yesterday by Sam Allberry about “an inappropriate relationship with another man a few years ago” and that an announcement would be made today at Immanuel Church regarding his resignation as a pastor. Per TGC policy and procedures, we immediately began to remove all of Sam’s content from our website and other content channels, and we deferred this statement until the church membership was informed.</p>
+      
+
+      <div class="card-actions">
+        
+          <a class="btn btn-read"
+             href="https://www.thegospelcoalition.org/article/announcement-from-tgc/"
+             target="_blank"
+             rel="noopener noreferrer">Read ↗</a>
+        
+        <button class="btn btn-email"
+                onclick="sendToJenny('email', this)">📧 To Email</button>
+        <button class="btn btn-facebook"
+                onclick="sendToJenny('facebook', this)">📘 To Facebook</button>
+      </div>
+
+    </article>
+    
+    <article class="card"
+             data-title="What a Military Chaplain Taught Me About Hope"
+             data-summary="Despite great advances in health care, education, and equality, secular culture hasn’t become better at finding joy. Especially when shots are fired."
+             data-url="https://www.thegospelcoalition.org/article/military-chaplain-taught-hope/">
+
+      <div class="card-meta">
+        <span class="card-source">The Gospel Coalition</span>
+        
+      </div>
+
+      <h3 class="card-title">
+        
+          <a href="https://www.thegospelcoalition.org/article/military-chaplain-taught-hope/" target="_blank" rel="noopener noreferrer">What a Military Chaplain Taught Me About Hope</a>
+        
+      </h3>
+
+      
+        <p class="card-summary">Despite great advances in health care, education, and equality, secular culture hasn’t become better at finding joy. Especially when shots are fired.</p>
+      
+
+      <div class="card-actions">
+        
+          <a class="btn btn-read"
+             href="https://www.thegospelcoalition.org/article/military-chaplain-taught-hope/"
+             target="_blank"
+             rel="noopener noreferrer">Read ↗</a>
+        
+        <button class="btn btn-email"
+                onclick="sendToJenny('email', this)">📧 To Email</button>
+        <button class="btn btn-facebook"
+                onclick="sendToJenny('facebook', this)">📘 To Facebook</button>
+      </div>
+
+    </article>
+    
+    <article class="card"
+             data-title="Is Your Women’s Ministry Accessible to Single Moms?"
+             data-summary="It can be hard for churches to know how to help single moms meaningfully participate outside of Sunday worship. Here are some guiding questions to consider."
+             data-url="https://www.thegospelcoalition.org/article/womens-ministry-accessible-single-moms/">
+
+      <div class="card-meta">
+        <span class="card-source">The Gospel Coalition</span>
+        
+      </div>
+
+      <h3 class="card-title">
+        
+          <a href="https://www.thegospelcoalition.org/article/womens-ministry-accessible-single-moms/" target="_blank" rel="noopener noreferrer">Is Your Women’s Ministry Accessible to Single Moms?</a>
+        
+      </h3>
+
+      
+        <p class="card-summary">It can be hard for churches to know how to help single moms meaningfully participate outside of Sunday worship. Here are some guiding questions to consider.</p>
+      
+
+      <div class="card-actions">
+        
+          <a class="btn btn-read"
+             href="https://www.thegospelcoalition.org/article/womens-ministry-accessible-single-moms/"
+             target="_blank"
+             rel="noopener noreferrer">Read ↗</a>
+        
+        <button class="btn btn-email"
+                onclick="sendToJenny('email', this)">📧 To Email</button>
+        <button class="btn btn-facebook"
+                onclick="sendToJenny('facebook', this)">📘 To Facebook</button>
+      </div>
+
+    </article>
+    
+    <article class="card"
+             data-title="Can We Trust a God Who Allows Evil?"
+             data-summary="Even faithful Christians may struggle to see God’s justice when they experience the heartache, pain, and tragedies of our broken world."
+             data-url="https://www.thegospelcoalition.org/podcasts/tgc-podcast/trust-god-allows-evil/">
+
+      <div class="card-meta">
+        <span class="card-source">The Gospel Coalition</span>
+        
+      </div>
+
+      <h3 class="card-title">
+        
+          <a href="https://www.thegospelcoalition.org/podcasts/tgc-podcast/trust-god-allows-evil/" target="_blank" rel="noopener noreferrer">Can We Trust a God Who Allows Evil?</a>
+        
+      </h3>
+
+      
+        <p class="card-summary">Even faithful Christians may struggle to see God’s justice when they experience the heartache, pain, and tragedies of our broken world.</p>
+      
+
+      <div class="card-actions">
+        
+          <a class="btn btn-read"
+             href="https://www.thegospelcoalition.org/podcasts/tgc-podcast/trust-god-allows-evil/"
+             target="_blank"
+             rel="noopener noreferrer">Read ↗</a>
+        
+        <button class="btn btn-email"
+                onclick="sendToJenny('email', this)">📧 To Email</button>
+        <button class="btn btn-facebook"
+                onclick="sendToJenny('facebook', this)">📘 To Facebook</button>
+      </div>
+
+    </article>
+    
+
+    
+  
+
+</div><!-- /.container -->
+
+<script>
+  // Injected at build time — never committed to version control.
+  const JENNY_TOKEN = &#34;8624806244:AAGM378jbJufm_v4Uees2swHbavnBBkvoZI&#34;;
+  const JENNY_CHAT  = &#34;8659472239&#34;;
+
+  async function sendToJenny(dest, btn) {
+    const card    = btn.closest('.card');
+    const title   = card.dataset.title;
+    const summary = card.dataset.summary;
+    const url     = card.dataset.url;
+
+    const tag   = dest === 'email' ? '📧 TO EMAIL' : '📘 TO FACEBOOK';
+    const parts = [tag, title, summary, url].filter(Boolean);
+    const text  = parts.join('\n\n');
+
+    const saved = btn.textContent;
+    btn.disabled    = true;
+    btn.textContent = 'Sending…';
+
+    try {
+      // Use URLSearchParams (form-encoded) to avoid a CORS preflight.
+      const resp = await fetch(
+        `https://api.telegram.org/bot${JENNY_TOKEN}/sendMessage`,
+        {
+          method: 'POST',
+          body:   new URLSearchParams({ chat_id: JENNY_CHAT, text }),
+        }
+      );
+      const data = await resp.json();
+      if (!data.ok) throw new Error(data.description || 'Telegram API error');
+
+      btn.textContent   = dest === 'email' ? '✓ Email sent' : '✓ Facebook sent';
+      btn.style.opacity = '0.5';
+    } catch (err) {
+      btn.disabled    = false;
+      btn.textContent = saved;
+      alert('Could not send: ' + err.message);
+    }
+  }
+</script>
+</body>
+</html>
