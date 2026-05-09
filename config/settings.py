@@ -36,7 +36,10 @@ JENNY_CHAT_ID   = os.getenv("JENNY_CHAT_ID")
 KIT_API_KEY = os.getenv("KIT_API_KEY")
 
 # Briefing schedule
-BRIEFING_HOUR = int(os.getenv("BRIEFING_HOUR", "6"))
+BRIEFING_HOUR   = int(os.getenv("BRIEFING_HOUR",   "6"))
+
+# Freshness window for the briefing filter (set FRESHNESS_DAYS=2 in .env to tighten)
+FRESHNESS_DAYS  = int(os.getenv("FRESHNESS_DAYS",  "7"))
 
 # Warn on missing required values
 _REQUIRED = {

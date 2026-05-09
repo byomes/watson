@@ -10,32 +10,67 @@ def get_connection():
 
 def _migrate():
     with get_connection() as conn:
+        # ── items table ────────────────────────────────────────────────────
         existing = {row[1] for row in conn.execute("PRAGMA table_info(items)").fetchall()}
         if "score" not in existing:
             conn.execute("ALTER TABLE items ADD COLUMN score INTEGER")
         if "featured_date" not in existing:
             conn.execute("ALTER TABLE items ADD COLUMN featured_date TEXT")
 
+        # ── voice_notes table ──────────────────────────────────────────────
         vn_cols = {row[1] for row in conn.execute("PRAGMA table_info(voice_notes)").fetchall()}
         if "created_at" not in vn_cols:
             conn.execute("ALTER TABLE voice_notes ADD COLUMN created_at TEXT")
+
+        # ── briefing_items table ───────────────────────────────────────────
+        bi_cols = {row[1] for row in conn.execute("PRAGMA table_info(briefing_items)").fetchall()}
+        if "published_at" not in bi_cols:
+            conn.execute("ALTER TABLE briefing_items ADD COLUMN published_at TEXT")
+        if "date_unknown" not in bi_cols:
+            conn.execute(
+                "ALTER TABLE briefing_items ADD COLUMN date_unknown INTEGER NOT NULL DEFAULT 0"
+            )
+
+        # ── research_archive table ─────────────────────────────────────────
+        ra_cols = {row[1] for row in conn.execute("PRAGMA table_info(research_archive)").fetchall()}
+        if "published_at" not in ra_cols:
+            conn.execute("ALTER TABLE research_archive ADD COLUMN published_at TEXT")
+        if "date_unknown" not in ra_cols:
+            conn.execute(
+                "ALTER TABLE research_archive ADD COLUMN date_unknown INTEGER NOT NULL DEFAULT 0"
+            )
 
 
 def init_db():
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     with get_connection() as conn:
         conn.executescript("""
+            CREATE TABLE IF NOT EXISTS research_archive (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                title        TEXT NOT NULL,
+                url          TEXT NOT NULL UNIQUE,
+                summary      TEXT,
+                source_name  TEXT NOT NULL,
+                source_type  TEXT NOT NULL DEFAULT 'article',
+                priority     INTEGER NOT NULL DEFAULT 3,
+                published_at TEXT,
+                date_unknown INTEGER NOT NULL DEFAULT 0,
+                fetched_at   TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+
             CREATE TABLE IF NOT EXISTS briefing_items (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                title       TEXT NOT NULL,
-                url         TEXT NOT NULL UNIQUE,
-                summary     TEXT,
-                source_name TEXT NOT NULL,
-                source_type TEXT NOT NULL DEFAULT 'article',
-                priority    INTEGER NOT NULL DEFAULT 3,
-                score       INTEGER,
-                fetched_at  TEXT NOT NULL DEFAULT (datetime('now')),
-                dismissed   INTEGER NOT NULL DEFAULT 0
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                title        TEXT NOT NULL,
+                url          TEXT NOT NULL UNIQUE,
+                summary      TEXT,
+                source_name  TEXT NOT NULL,
+                source_type  TEXT NOT NULL DEFAULT 'article',
+                priority     INTEGER NOT NULL DEFAULT 3,
+                score        INTEGER,
+                published_at TEXT,
+                date_unknown INTEGER NOT NULL DEFAULT 0,
+                fetched_at   TEXT NOT NULL DEFAULT (datetime('now')),
+                dismissed    INTEGER NOT NULL DEFAULT 0
             );
 
             CREATE TABLE IF NOT EXISTS items (
@@ -86,6 +121,7 @@ def init_db():
                 status        TEXT NOT NULL DEFAULT 'new'
                                   CHECK(status IN ('new', 'reviewed'))
             );
+
             CREATE TABLE IF NOT EXISTS reading_list (
                 id            INTEGER PRIMARY KEY AUTOINCREMENT,
                 title         TEXT NOT NULL,
