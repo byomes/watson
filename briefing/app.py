@@ -71,7 +71,7 @@ def action():
 
     if item and dest in ("email", "facebook"):
         try:
-            from telegram.jenny import send_to_email, send_to_facebook
+            from bot.jenny import send_to_email, send_to_facebook
             if dest == "email":
                 send_to_email(item["title"], item["summary"] or "", item["url"] or "")
             else:
