@@ -183,6 +183,12 @@
     }
     .btn-facebook:hover { border-color: var(--blue); }
 
+    .btn-reject {
+      color: var(--muted);
+      border-color: #1e2030;
+    }
+    .btn-reject:hover { color: #ef4444; border-color: #3a1e1e; }
+
     /* ── Empty state ── */
     .empty {
       text-align: center;
@@ -250,6 +256,10 @@
                 onclick="sendToJenny('email', this)">📧 To Email</button>
         <button class="btn btn-facebook"
                 onclick="sendToJenny('facebook', this)">📘 To Facebook</button>
+        <a class="btn btn-reject"
+           href="https://t.me/wckyWatsonbot?start=reject_{{ item.id }}"
+           target="_blank"
+           rel="noopener noreferrer">Reject</a>
       </div>
 
     </article>
