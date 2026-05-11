@@ -30,6 +30,8 @@ def _migrate():
             conn.execute(
                 "ALTER TABLE briefing_items ADD COLUMN date_unknown INTEGER NOT NULL DEFAULT 0"
             )
+        if "reject_reason" not in bi_cols:
+            conn.execute("ALTER TABLE briefing_items ADD COLUMN reject_reason TEXT")
 
         # ── research_archive table ─────────────────────────────────────────
         ra_cols = {row[1] for row in conn.execute("PRAGMA table_info(research_archive)").fetchall()}
@@ -39,6 +41,18 @@ def _migrate():
             conn.execute(
                 "ALTER TABLE research_archive ADD COLUMN date_unknown INTEGER NOT NULL DEFAULT 0"
             )
+
+        # ── rejection_patterns table ───────────────────────────────────────
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS rejection_patterns (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                source_name TEXT,
+                keyword     TEXT,
+                reason      TEXT,
+                count       INTEGER NOT NULL DEFAULT 1,
+                last_seen   TEXT NOT NULL DEFAULT (datetime('now'))
+            )
+        """)
 
 
 def init_db():
@@ -69,8 +83,9 @@ def init_db():
                 score        INTEGER,
                 published_at TEXT,
                 date_unknown INTEGER NOT NULL DEFAULT 0,
-                fetched_at   TEXT NOT NULL DEFAULT (datetime('now')),
-                dismissed    INTEGER NOT NULL DEFAULT 0
+                fetched_at    TEXT NOT NULL DEFAULT (datetime('now')),
+                dismissed     INTEGER NOT NULL DEFAULT 0,
+                reject_reason TEXT
             );
 
             CREATE TABLE IF NOT EXISTS items (
@@ -133,10 +148,19 @@ def init_db():
                 status        TEXT NOT NULL DEFAULT 'unread'
                                   CHECK(status IN ('unread', 'reading', 'finished'))
             );
+
+            CREATE TABLE IF NOT EXISTS rejection_patterns (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                source_name TEXT,
+                keyword     TEXT,
+                reason      TEXT,
+                count       INTEGER NOT NULL DEFAULT 1,
+                last_seen   TEXT NOT NULL DEFAULT (datetime('now'))
+            );
         """)
+    _migrate()
 
 
 if __name__ == "__main__":
     init_db()
-    _migrate()
     print(f"Database initialized at {DB_PATH}")

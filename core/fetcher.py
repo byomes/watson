@@ -21,7 +21,7 @@ from bs4 import BeautifulSoup
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-from config.settings import BASE_DIR
+from config.settings import BASE_DIR, FRESHNESS_DAYS
 from core.database import get_connection
 from core.summarizer import summarize
 
@@ -168,6 +168,19 @@ def _url_seen(conn, url: str) -> bool:
     ).fetchone() is not None
 
 
+def _is_stale(published_at: str, date_unknown: bool) -> bool:
+    """Return True if the item's date is unknown or older than FRESHNESS_DAYS."""
+    if date_unknown:
+        return True
+    try:
+        dt = datetime.fromisoformat(published_at.replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return (datetime.now(timezone.utc) - dt).total_seconds() / 86400 > FRESHNESS_DAYS
+    except (ValueError, TypeError, AttributeError):
+        return True
+
+
 def _archive(conn, *, title, url, summary, source_name, source_type, priority,
              published_at, date_unknown):
     conn.execute(
@@ -268,6 +281,9 @@ def _fetch_rss(source: dict) -> tuple[list[dict], int]:
             _archive(conn, title=title, url=url, summary=summary,
                      source_name=name, source_type=source_type, priority=priority,
                      published_at=published_at, date_unknown=date_unknown)
+            if _is_stale(published_at, date_unknown):
+                log.debug("  Date reject: %s", title[:60])
+                continue
             results.append(_candidate(
                 title, url, summary, name, source_type, priority,
                 published_at=published_at, date_unknown=date_unknown,
@@ -342,6 +358,9 @@ def _fetch_scrape(source: dict) -> tuple[list[dict], int]:
             _archive(conn, title=title, url=article_url, summary=summary,
                      source_name=name, source_type=source_type, priority=priority,
                      published_at=published_at, date_unknown=date_unknown)
+            if _is_stale(published_at, date_unknown):
+                log.debug("  Date reject: %s", title[:60])
+                continue
             results.append(_candidate(
                 title, article_url, summary, name, source_type, priority,
                 published_at=published_at, date_unknown=date_unknown,

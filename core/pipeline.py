@@ -84,8 +84,14 @@ def _log_summary(fetch: dict, filter_stats: dict, score_stats: dict,
         filter_stats["rejected_thin"],
     )
     log.info(
-        "    Date unknown:    %d  (kept, -5 score penalty)",
-        filter_stats["date_unknown_kept"],
+        "    Rejected (unknown date): %d",
+        filter_stats["rejected_unknown_date"],
+    )
+    log.info("")
+    log.info("  Relevance gate:")
+    log.info(
+        "    Rejected (irrelevant): %d",
+        score_stats["rejected_irrelevant"],
     )
     log.info("")
     log.info("  Scoring:")

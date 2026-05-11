@@ -167,6 +167,21 @@
     .btn-facebook { background: #1e2e3a; color: #60b4f7;     border: 1px solid #4f8ef744; }
     .btn-dismiss  { background: transparent; color: var(--muted); border: 1px solid var(--border); }
     .btn-dismiss:hover { color: var(--red); border-color: var(--red); }
+    .reject-select {
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 6px 12px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      appearance: none;
+      -webkit-appearance: none;
+    }
+    .reject-select:hover { color: var(--red); border-color: var(--red); }
+    .reject-select:focus { outline: none; border-color: var(--red); color: var(--red); }
+    .reject-select option { background: var(--surface); color: var(--text); }
 
     /* ── Empty state ── */
     .empty {
@@ -234,10 +249,16 @@
         <input type="hidden" name="dest" value="facebook">
         <button type="submit" class="btn btn-facebook">📘 To Facebook</button>
       </form>
-      <form method="POST" action="/action">
+      <form method="POST" action="/reject">
         <input type="hidden" name="item_id" value="{{ item.id }}">
-        <input type="hidden" name="dest" value="dismiss">
-        <button type="submit" class="btn btn-dismiss">Dismiss</button>
+        <select name="reject_reason" class="reject-select" onchange="this.form.submit()">
+          <option value="" disabled selected>Reject…</option>
+          <option value="Off-topic">Off-topic</option>
+          <option value="Too old">Too old</option>
+          <option value="Wrong format">Wrong format</option>
+          <option value="Not useful">Not useful</option>
+          <option value="Other">Other</option>
+        </select>
       </form>
     </div>
   </div>
