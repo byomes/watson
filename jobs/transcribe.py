@@ -4,9 +4,14 @@ transcribe.py — Whisper transcription for both pipeline modes.
 Usage:
   python jobs/transcribe.py <audio_path> --mode weekly
   python jobs/transcribe.py <audio_path> --mode archive
+  python jobs/transcribe.py <audio_path> --mode archive --model base
 
 Weekly mode:  writes to outputs/transcripts/raw/<stem>-raw.txt
-Archive mode: writes to kb/<stem>.txt
+Archive mode: writes to kb/transcripts/<stem>.txt
+
+Model defaults (override with --model):
+  weekly  -> large
+  archive -> small
 """
 
 import argparse
@@ -22,11 +27,14 @@ load_dotenv()
 
 log = logging.getLogger(__name__)
 
-REPO_ROOT     = Path(__file__).resolve().parent.parent
-WHISPER_MODEL = os.getenv("WHISPER_MODEL", "large")
+REPO_ROOT = Path(__file__).resolve().parent.parent
+
+# Default models per mode -- override via --model or env vars
+DEFAULT_MODEL_WEEKLY  = os.getenv("WHISPER_MODEL_WEEKLY",  "large")
+DEFAULT_MODEL_ARCHIVE = os.getenv("WHISPER_MODEL_ARCHIVE", "small")
 
 RAW_DIR = REPO_ROOT / "outputs" / "transcripts" / "raw"
-KB_DIR  = REPO_ROOT / "kb"
+KB_DIR  = REPO_ROOT / "kb" / "transcripts"
 
 
 def _short_path(path: Path) -> str:
@@ -51,19 +59,19 @@ def raw_transcript_path(audio_path: Path) -> Path:
     return RAW_DIR / f"{audio_path.stem}-raw.txt"
 
 
-def transcribe(audio_path: Path, mode: str) -> Path:
+def transcribe(audio_path: Path, mode: str, model_name: str) -> Path:
     """
     Run Whisper on audio_path.
     Returns the path to the written transcript file.
     """
-    import whisper   # imported here so the module loads fast when used as a library
+    import whisper
 
-    log.info("Loading Whisper model: %s", WHISPER_MODEL)
-    model = whisper.load_model(WHISPER_MODEL)
+    log.info("Loading Whisper model: %s", model_name)
+    model = whisper.load_model(model_name)
 
     safe_path = _short_path(audio_path)
     log.info("Transcribing: %s", audio_path.name)
-    result = model.transcribe(safe_path)
+    result = model.transcribe(safe_path, verbose=True)
     text = result["text"].strip()
 
     if mode == "archive":
@@ -93,6 +101,12 @@ def main():
         default="weekly",
         help="weekly = full pipeline; archive = KB storage only",
     )
+    parser.add_argument(
+        "--model",
+        default=None,
+        help="Whisper model to use (tiny, base, small, medium, large). "
+             "Defaults to 'large' for weekly, 'small' for archive.",
+    )
     args = parser.parse_args()
 
     audio_path = Path(args.audio_path)
@@ -100,8 +114,18 @@ def main():
         log.error("Audio file not found: %s", audio_path)
         sys.exit(1)
 
-    out_path = transcribe(audio_path, args.mode)
-    print(f"TRANSCRIPT:{out_path}")   # sentinel for watcher.py if needed
+    # Resolve model: explicit flag > mode default
+    if args.model:
+        model_name = args.model
+    elif args.mode == "archive":
+        model_name = DEFAULT_MODEL_ARCHIVE
+    else:
+        model_name = DEFAULT_MODEL_WEEKLY
+
+    log.info("Mode: %s | Model: %s", args.mode, model_name)
+
+    out_path = transcribe(audio_path, args.mode, model_name)
+    print(f"TRANSCRIPT:{out_path}")
     sys.exit(0)
 
 
