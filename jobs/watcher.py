@@ -25,8 +25,8 @@ load_dotenv()
 log = logging.getLogger(__name__)
 
 # --- Config -----------------------------------------------------------
-INCOMING_DIR = Path(os.getenv("SERMON_INCOMING_DIR", r"E:\0 - Sermon Audio\incoming"))
-ARCHIVE_DIR  = Path(os.getenv("SERMON_ARCHIVE_DIR",  r"E:\0 - Sermon Audio\archive"))
+INCOMING_DIR  = Path(os.getenv("SERMON_INCOMING_DIR", r"E:\0 - Sermon Audio\incoming"))
+ARCHIVE_DIR   = Path(os.getenv("SERMON_ARCHIVE_DIR",  r"E:\0 - Sermon Audio\archive"))
 PROCESSED_DIR = INCOMING_DIR.parent / "processed"
 
 AUDIO_EXTENSIONS = {".mp3", ".mp4", ".m4a", ".wav", ".flac", ".ogg", ".opus"}
@@ -36,6 +36,9 @@ STABILITY_SECONDS = 10
 
 # Path to this repo's root (parent of jobs/)
 REPO_ROOT = Path(__file__).resolve().parent.parent
+
+RAW_DIR   = REPO_ROOT / "outputs" / "transcripts" / "raw"
+CLEAN_DIR = REPO_ROOT / "outputs" / "transcripts" / "clean"
 
 
 def _is_audio(path: Path) -> bool:
@@ -73,6 +76,17 @@ def _run_job(script: str, *args: str) -> bool:
     return True
 
 
+def _raw_path_for(audio_path: Path) -> Path:
+    """Derive the expected raw transcript path for a given audio file."""
+    return RAW_DIR / f"{audio_path.stem}-raw.txt"
+
+
+def _clean_path_for(raw_path: Path) -> Path:
+    """Derive the expected clean transcript path for a given raw transcript."""
+    stem = raw_path.stem.replace("-raw", "")
+    return CLEAN_DIR / f"{stem}-clean.txt"
+
+
 def handle_weekly(audio_path: Path):
     """Full pipeline: transcribe → cleanup → generate → notify."""
     log.info("Weekly pipeline starting: %s", audio_path.name)
@@ -84,24 +98,22 @@ def handle_weekly(audio_path: Path):
         log.error("Transcription failed — leaving file in incoming/")
         return
 
-    # Stage 2 — cleanup (transcribe.py writes raw transcript path to stdout
-    #            via a sentinel line; we re-derive the path here instead)
-    from jobs.transcribe import raw_transcript_path   # local import to avoid circular
-    raw_path = raw_transcript_path(audio_path)
+    raw_path = _raw_path_for(audio_path)
     if not raw_path.exists():
         log.error("Expected raw transcript not found: %s", raw_path)
         return
 
+    # Stage 2 — cleanup (pass-through, no API call)
     if not _run_job("cleanup.py", str(raw_path)):
         log.error("Cleanup failed")
         return
 
-    clean_path = raw_path.parent / raw_path.name.replace("-raw.txt", "-clean.txt")
+    clean_path = _clean_path_for(raw_path)
     if not clean_path.exists():
         log.error("Expected clean transcript not found: %s", clean_path)
         return
 
-    # Stage 3 — generate blog draft + social seeds, push to Vercel KV, notify
+    # Stage 3 — archive to KB, push to Git, notify via Telegram
     if not _run_job("generate.py", str(clean_path), audio_path.stem):
         log.error("Generate failed")
         return

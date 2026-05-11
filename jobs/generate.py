@@ -1,22 +1,22 @@
 """
-generate.py — Claude API: clean transcript → blog draft + social seeds.
-Pushes drafts to Vercel KV. Sends Telegram notification when ready.
+generate.py — Archive clean transcript to personal knowledge base (Git),
+then notify via Telegram with a direct raw GitHub link for claude.ai handoff.
+
+No API key required. Claude drafting is a manual human-in-the-loop step.
 
 Usage:
   python jobs/generate.py <clean_transcript_path> <sermon_slug>
 
-  sermon_slug: used for the blog filename and KV key, e.g. "2026-05-11-kingdom-citizenship"
+  sermon_slug: used for the KB filename, e.g. "2026-05-11-kingdom-citizenship"
 """
 
-import json
 import logging
 import os
-import re
+import subprocess
 import sys
 from datetime import date
 from pathlib import Path
 
-import anthropic
 import requests
 from dotenv import load_dotenv
 
@@ -26,110 +26,74 @@ log = logging.getLogger(__name__)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-MODEL      = "claude-sonnet-4-20250514"
-MAX_TOKENS = 4096
+# Personal knowledge base — transcripts land here and are pushed to Git
+KB_TRANSCRIPTS_DIR = REPO_ROOT / "kb" / "transcripts"
 
-BLOG_PROMPT_FILE   = REPO_ROOT / "prompts" / "generate_blog.md"
-SOCIAL_PROMPT_FILE = REPO_ROOT / "prompts" / "generate_social.md"
-
-DRAFTS_BLOG_DIR   = REPO_ROOT / "outputs" / "drafts" / "blog"
-DRAFTS_SOCIAL_DIR = REPO_ROOT / "outputs" / "drafts" / "social"
-
-# Vercel KV
-KV_URL   = os.getenv("VERCEL_KV_REST_API_URL")
-KV_TOKEN = os.getenv("VERCEL_KV_REST_API_TOKEN")
+# GitHub raw URL base — update if repo name changes
+GITHUB_RAW_BASE = os.getenv(
+    "GITHUB_RAW_BASE",
+    "https://raw.githubusercontent.com/byomes/watson/main/kb/transcripts"
+)
 
 # Watson Telegram bot
 WATSON_BOT_TOKEN = os.getenv("WATSON_BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
 WATSON_CHAT_ID   = os.getenv("WATSON_CHAT_ID")   or os.getenv("TELEGRAM_CHAT_ID")
 
-# Review app URL
-REVIEW_APP_URL = os.getenv("REVIEW_APP_URL", "https://watson-review.vercel.app")
 
+# --- Git helpers ------------------------------------------------------
 
-# --- Prompt loaders ---------------------------------------------------
-
-def _load_blog_prompt() -> str:
-    if BLOG_PROMPT_FILE.exists():
-        return BLOG_PROMPT_FILE.read_text(encoding="utf-8")
-    return (
-        "You are a writing assistant for a pastor and author. "
-        "Given a cleaned sermon transcript, write a blog article.\n\n"
-        "Requirements:\n"
-        "- 800–1200 words\n"
-        "- Title that works as a standalone article (not 'Sermon on X')\n"
-        "- Written in first person plural (we/us/our)\n"
-        "- Theological depth without academic jargon\n"
-        "- One clear takeaway\n"
-        "- No bullet points in body; flowing prose\n\n"
-        "Return ONLY valid JSON with these fields:\n"
-        "  title: string\n"
-        "  description: string (one sentence, under 160 chars)\n"
-        "  slug: string (url-friendly, no date prefix)\n"
-        "  body: string (the full article in markdown, no frontmatter)\n"
-        "No preamble, no explanation — JSON only."
+def _git(args: list[str], cwd: Path) -> str:
+    result = subprocess.run(
+        ["git"] + args,
+        cwd=cwd,
+        capture_output=True,
+        text=True,
     )
+    if result.returncode != 0:
+        raise RuntimeError(f"git {' '.join(args)} failed:\n{result.stderr.strip()}")
+    return result.stdout.strip()
 
 
-def _load_social_prompt() -> str:
-    if SOCIAL_PROMPT_FILE.exists():
-        return SOCIAL_PROMPT_FILE.read_text(encoding="utf-8")
-    return (
-        "You are a social media strategist for a pastor and author. "
-        "Given a cleaned sermon transcript, generate social media seed ideas.\n\n"
-        "Requirements:\n"
-        "- 5 seed ideas\n"
-        "- Each seed: one compelling hook sentence or question (under 280 chars)\n"
-        "- Varied angles: challenge, question, quote, stat, story\n"
-        "- Theology-forward but accessible\n\n"
-        "Return ONLY valid JSON: an array of 5 strings.\n"
-        "No preamble, no explanation — JSON only."
-    )
-
-
-# --- Claude calls -----------------------------------------------------
-
-def _call_claude(system: str, user: str) -> str:
-    client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
-    message = client.messages.create(
-        model=MODEL,
-        max_tokens=MAX_TOKENS,
-        system=system,
-        messages=[{"role": "user", "content": user}],
-    )
-    return message.content[0].text.strip()
-
-
-def _parse_json(raw: str) -> dict | list:
-    # Strip markdown fences if Claude adds them despite instructions
-    clean = re.sub(r"^```(?:json)?\s*", "", raw, flags=re.MULTILINE)
-    clean = re.sub(r"\s*```$", "", clean, flags=re.MULTILINE)
-    return json.loads(clean.strip())
-
-
-# --- Vercel KV --------------------------------------------------------
-
-def _kv_set(key: str, value: dict) -> None:
-    if not KV_URL or not KV_TOKEN:
-        log.warning("Vercel KV not configured — skipping push")
-        return
-    url = f"{KV_URL}/set/{key}"
-    headers = {"Authorization": f"Bearer {KV_TOKEN}"}
-    resp = requests.post(url, headers=headers, json=value, timeout=15)
-    resp.raise_for_status()
-    log.info("Pushed to Vercel KV: %s", key)
+def _commit_and_push(file_path: Path, commit_message: str) -> None:
+    _git(["add", str(file_path)], cwd=REPO_ROOT)
+    _git(["commit", "-m", commit_message], cwd=REPO_ROOT)
+    _git(["push"], cwd=REPO_ROOT)
+    log.info("Committed and pushed: %s", file_path.name)
 
 
 # --- Telegram ---------------------------------------------------------
 
-def _telegram_notify(text: str) -> None:
+def _telegram_notify(raw_url: str, title: str) -> None:
     if not WATSON_BOT_TOKEN or not WATSON_CHAT_ID:
         log.warning("Telegram not configured — skipping notification")
         return
+
+    # Plain text URL first — Telegram auto-links it, long-press to copy on mobile
+    text = (
+        f"📄 <b>New transcript archived</b>\n\n"
+        f"<b>{title}</b>\n\n"
+        f"Raw URL (copy and paste into claude.ai):\n"
+        f"<code>{raw_url}</code>\n\n"
+        f"Paste into claude.ai with:\n"
+        f"<i>\"Draft a blog article from this transcript.\"</i>"
+    )
+
+    # Inline keyboard: one button that opens the raw file
+    reply_markup = {
+        "inline_keyboard": [[
+            {"text": "📂 Open Transcript", "url": raw_url}
+        ]]
+    }
+
     url = f"https://api.telegram.org/bot{WATSON_BOT_TOKEN}/sendMessage"
     resp = requests.post(
         url,
-        json={"chat_id": WATSON_CHAT_ID, "text": text, "parse_mode": "HTML"},
+        json={
+            "chat_id":      WATSON_CHAT_ID,
+            "text":         text,
+            "parse_mode":   "HTML",
+            "reply_markup": reply_markup,
+        },
         timeout=10,
     )
     resp.raise_for_status()
@@ -140,68 +104,47 @@ def _telegram_notify(text: str) -> None:
 
 def generate(clean_path: Path, sermon_slug: str) -> None:
     clean_text = clean_path.read_text(encoding="utf-8")
-    today = date.today().strftime("%Y-%m-%d")
+    today      = date.today().strftime("%Y-%m-%d")
 
-    # Generate blog post
-    log.info("Generating blog post...")
-    blog_raw  = _call_claude(_load_blog_prompt(), clean_text)
-    blog_data = _parse_json(blog_raw)
+    # Build dated filename
+    # If slug already starts with a date, don't double-prefix
+    if sermon_slug.startswith(today):
+        dated_slug = sermon_slug
+    else:
+        dated_slug = f"{today}-{sermon_slug}"
 
-    slug          = blog_data.get("slug", sermon_slug)
-    dated_slug    = f"{today}-{slug}"
-    title         = blog_data.get("title", "Untitled")
-    description   = blog_data.get("description", "")
-    body          = blog_data.get("body", "")
+    filename = f"{dated_slug}.md"
 
-    # Build frontmatter + body as .md
+    # Wrap transcript in minimal markdown for readability in claude.ai
+    title = sermon_slug.replace("-", " ").title()
     md_content = (
-        f"---\n"
-        f"title: \"{title}\"\n"
-        f"date: \"{today}\"\n"
-        f"description: \"{description}\"\n"
-        f"slug: \"{slug}\"\n"
+        f"# Transcript: {title}\n"
+        f"Date: {today}\n\n"
         f"---\n\n"
-        f"{body}\n"
+        f"{clean_text.strip()}\n"
     )
 
-    # Save draft locally
-    DRAFTS_BLOG_DIR.mkdir(parents=True, exist_ok=True)
-    draft_path = DRAFTS_BLOG_DIR / f"{dated_slug}.md"
-    draft_path.write_text(md_content, encoding="utf-8")
-    log.info("Blog draft saved: %s", draft_path)
+    # Save to KB
+    KB_TRANSCRIPTS_DIR.mkdir(parents=True, exist_ok=True)
+    kb_path = KB_TRANSCRIPTS_DIR / filename
+    kb_path.write_text(md_content, encoding="utf-8")
+    log.info("Transcript archived to KB: %s", kb_path)
 
-    # Generate social seeds
-    log.info("Generating social seeds...")
-    social_raw   = _call_claude(_load_social_prompt(), clean_text)
-    social_seeds = _parse_json(social_raw)
+    # Commit and push to Git
+    try:
+        _commit_and_push(kb_path, f"transcript: add {dated_slug}")
+    except RuntimeError as e:
+        log.error("Git push failed: %s", e)
+        log.warning("Telegram notification will still fire with expected URL")
 
-    DRAFTS_SOCIAL_DIR.mkdir(parents=True, exist_ok=True)
-    social_path = DRAFTS_SOCIAL_DIR / f"{dated_slug}-seeds.json"
-    social_path.write_text(json.dumps(social_seeds, indent=2), encoding="utf-8")
-    log.info("Social seeds saved: %s", social_path)
+    # Build raw GitHub URL
+    raw_url = f"{GITHUB_RAW_BASE}/{filename}"
 
-    # Push to Vercel KV so review app can read without calling home
-    kv_payload = {
-        "dated_slug":   dated_slug,
-        "title":        title,
-        "description":  description,
-        "blog_md":      md_content,
-        "social_seeds": social_seeds,
-        "status":       "pending",
-        "generated_at": today,
-    }
-    _kv_set("sermon:current", kv_payload)
-
-    # Telegram notification
-    review_url = f"{REVIEW_APP_URL}?key={dated_slug}"
-    _telegram_notify(
-        f"✅ <b>Sermon pipeline complete</b>\n\n"
-        f"<b>{title}</b>\n\n"
-        f"Blog draft + social seeds ready for review.\n"
-        f"<a href='{review_url}'>Open review app →</a>"
-    )
+    # Notify via Telegram
+    _telegram_notify(raw_url, title)
 
     log.info("Generate job complete: %s", dated_slug)
+    log.info("Raw URL: %s", raw_url)
 
 
 def main():
