@@ -39,7 +39,7 @@ KIT_API_KEY = os.getenv("KIT_API_KEY")
 BRIEFING_HOUR   = int(os.getenv("BRIEFING_HOUR",   "6"))
 
 # Freshness window for the briefing filter (set FRESHNESS_DAYS=2 in .env to tighten)
-FRESHNESS_DAYS  = int(os.getenv("FRESHNESS_DAYS",  "7"))
+FRESHNESS_DAYS  = int(os.getenv("FRESHNESS_DAYS",  "5"))
 
 # Warn on missing required values
 _REQUIRED = {

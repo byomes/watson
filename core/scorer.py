@@ -119,7 +119,7 @@ def _quality_reject(item: dict) -> str | None:
     if item.get("has_content"):
         words = len((item.get("summary") or "").split())
         if words < 30:
-            return "thin_summary"
+            return "thin"
     return None
 
 
@@ -130,23 +130,29 @@ def filter_pool(pool: list[dict]) -> tuple[list[dict], dict]:
     Returns:
         (passed_items, stats_dict) where stats keys are:
           rejected_age, rejected_listicle, rejected_clickbait,
-          rejected_thin, date_unknown_kept
+          rejected_thin, rejected_unknown_date
     """
     passed = []
     stats  = {
-        "rejected_age":       0,
-        "rejected_listicle":  0,
-        "rejected_clickbait": 0,
-        "rejected_thin":      0,
-        "date_unknown_kept":  0,
+        "rejected_age":          0,
+        "rejected_listicle":     0,
+        "rejected_clickbait":    0,
+        "rejected_thin":         0,
+        "rejected_unknown_date": 0,
     }
 
     for item in pool:
         date_unknown = item.get("date_unknown", False)
         published_at = item.get("published_at")
 
-        # Freshness filter — skip only when date is KNOWN and stale
-        if not date_unknown and published_at:
+        # Unknown date is a hard reject
+        if date_unknown:
+            stats["rejected_unknown_date"] += 1
+            log.debug("Unknown-date reject: %s", item.get("title", "")[:60])
+            continue
+
+        # Freshness filter
+        if published_at:
             age = _age_days(published_at)
             if age is not None and age > FRESHNESS_DAYS:
                 stats["rejected_age"] += 1
@@ -160,9 +166,6 @@ def filter_pool(pool: list[dict]) -> tuple[list[dict], dict]:
             log.debug("Quality reject (%s): %s", reason, item.get("title", "")[:60])
             continue
 
-        if date_unknown:
-            stats["date_unknown_kept"] += 1
-
         passed.append(item)
 
     rejected_quality = (
@@ -172,11 +175,11 @@ def filter_pool(pool: list[dict]) -> tuple[list[dict], dict]:
     )
     log.info(
         "Filter: %d/%d passed  "
-        "(age=%d | quality=%d [listicle=%d clickbait=%d thin=%d] | unknown_date=%d kept)",
+        "(age=%d | quality=%d [listicle=%d clickbait=%d thin=%d] | unknown_date=%d rejected)",
         len(passed), len(pool),
         stats["rejected_age"], rejected_quality,
         stats["rejected_listicle"], stats["rejected_clickbait"], stats["rejected_thin"],
-        stats["date_unknown_kept"],
+        stats["rejected_unknown_date"],
     )
     return passed, stats
 
@@ -192,8 +195,6 @@ def _score_item(item: dict) -> int:
     score  = _PRIORITY_BASE.get(priority, 10)
     score += _TYPE_BONUS.get(source_type, 0)
     score += _authority_bonus(source_name, source_type)
-    if item.get("date_unknown"):
-        score -= 5
     if _BOOST.search(text):
         score += 15
     if _PENALTY.search(text):
@@ -208,15 +209,33 @@ def score_and_select(pool: list[dict], n: int = BRIEFING_SIZE) -> tuple[list[dic
 
     Returns:
         (selected_items, stats_dict) where stats keys are:
-          top_score, bottom_score, guaranteed_slots, guaranteed_names
+          top_score, bottom_score, guaranteed_slots, guaranteed_names,
+          rejected_irrelevant
     """
     if not pool:
-        return [], {"top_score": 0, "bottom_score": 0, "guaranteed_slots": 0, "guaranteed_names": []}
+        return [], {"top_score": 0, "bottom_score": 0, "guaranteed_slots": 0,
+                    "guaranteed_names": [], "rejected_irrelevant": 0}
 
+    # Relevance gate — must match at least one _BOOST keyword in title or summary
+    relevant            = []
+    rejected_irrelevant = 0
     for item in pool:
+        text = f"{item.get('title', '')} {item.get('summary', '')}"
+        if _BOOST.search(text):
+            relevant.append(item)
+        else:
+            rejected_irrelevant += 1
+            log.debug("Irrelevant reject: %s", item.get("title", "")[:60])
+
+    log.info(
+        "Relevance gate: %d/%d passed  (irrelevant=%d rejected)",
+        len(relevant), len(pool), rejected_irrelevant,
+    )
+
+    for item in relevant:
         item["score"] = _score_item(item)
 
-    by_score      = sorted(pool, key=lambda x: x["score"], reverse=True)
+    by_score      = sorted(relevant, key=lambda x: x["score"], reverse=True)
     selected      = []
     selected_urls = set()
     guaranteed    = []
@@ -243,15 +262,16 @@ def score_and_select(pool: list[dict], n: int = BRIEFING_SIZE) -> tuple[list[dic
     result = selected[:n]
 
     stats = {
-        "top_score":         result[0]["score"]  if result else 0,
-        "bottom_score":      result[-1]["score"] if result else 0,
-        "guaranteed_slots":  len(guaranteed),
-        "guaranteed_names":  guaranteed,
+        "top_score":           result[0]["score"]  if result else 0,
+        "bottom_score":        result[-1]["score"] if result else 0,
+        "guaranteed_slots":    len(guaranteed),
+        "guaranteed_names":    guaranteed,
+        "rejected_irrelevant": rejected_irrelevant,
     }
 
     log.info(
         "Scored %d candidates → selected %d  (scores %d–%d | guaranteed: %d)",
-        len(pool), len(result), stats["top_score"], stats["bottom_score"],
+        len(relevant), len(result), stats["top_score"], stats["bottom_score"],
         stats["guaranteed_slots"],
     )
     return result, stats

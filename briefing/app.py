@@ -9,6 +9,7 @@ from jinja2 import Environment, FileSystemLoader
 
 from config.settings import BASE_DIR, DEPLOY_DIR
 from core.database import get_connection
+from core.scorer import _BOOST
 
 SOURCES_PATH = BASE_DIR / "config" / "sources.yaml"
 TEMPLATE_DIR = BASE_DIR / "briefing" / "templates"
@@ -83,6 +84,52 @@ def action():
         conn.execute(
             "UPDATE briefing_items SET dismissed = 1 WHERE id = ?", (item_id,)
         )
+
+    return redirect(url_for("index"))
+
+
+@app.route("/reject", methods=["POST"])
+def reject_item():
+    item_id       = request.form.get("item_id")
+    reject_reason = request.form.get("reject_reason", "").strip()
+
+    if not item_id or not reject_reason:
+        return redirect(url_for("index"))
+
+    item_id = int(item_id)
+
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT title, summary, source_name FROM briefing_items WHERE id = ?",
+            (item_id,),
+        ).fetchone()
+
+        if row:
+            conn.execute(
+                "UPDATE briefing_items SET dismissed = 1, reject_reason = ? WHERE id = ?",
+                (reject_reason, item_id),
+            )
+            text     = f"{row['title']} {row['summary'] or ''}"
+            keywords = {m.lower() for m in _BOOST.findall(text)}
+            for kw in keywords:
+                existing = conn.execute(
+                    "SELECT id FROM rejection_patterns "
+                    "WHERE source_name = ? AND keyword = ? AND reason = ?",
+                    (row["source_name"], kw, reject_reason),
+                ).fetchone()
+                if existing:
+                    conn.execute(
+                        "UPDATE rejection_patterns SET count = count + 1, "
+                        "last_seen = datetime('now') WHERE id = ?",
+                        (existing["id"],),
+                    )
+                else:
+                    conn.execute(
+                        "INSERT INTO rejection_patterns (source_name, keyword, reason) "
+                        "VALUES (?, ?, ?)",
+                        (row["source_name"], kw, reject_reason),
+                    )
+            log.info("Rejected item %d (%s): %s", item_id, reject_reason, row["title"][:60])
 
     return redirect(url_for("index"))
 
