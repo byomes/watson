@@ -253,10 +253,15 @@
         <input type="hidden" name="item_id" value="{{ item.id }}">
         <select name="reject_reason" class="reject-select" onchange="this.form.submit()">
           <option value="" disabled selected>Reject…</option>
-          <option value="Off-topic">Off-topic</option>
+          <option value="Not theology/apologetics">Not theology/apologetics</option>
+          <option value="Event/conference announcement">Event/conference announcement</option>
+          <option value="Product/book promotion">Product/book promotion</option>
+          <option value="Podcast only">Podcast only</option>
+          <option value="Too shallow">Too shallow</option>
+          <option value="Already know this">Already know this</option>
+          <option value="Wrong audience">Wrong audience</option>
           <option value="Too old">Too old</option>
           <option value="Wrong format">Wrong format</option>
-          <option value="Not useful">Not useful</option>
           <option value="Other">Other</option>
         </select>
       </form>
