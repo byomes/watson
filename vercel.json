@@ -1,5 +1,4 @@
-{
-  "outputDirectory": "docs",
+﻿{
   "cleanUrls": false,
   "rewrites": [
     { "source": "/", "destination": "/briefing.html" }
