@@ -5,19 +5,18 @@ Commands:
   /briefing  — fetch and send today's research briefing
   /help      — show this message
   /start     — confirm Watson is running
+  /queue     — show pending blog drafts and their scheduled dates
 
 Message handling:
-  #blog <markdown> — save blog draft to DB, commit to byomes/wcky, confirm
+  #blog <markdown> — save blog draft to queue; scheduler publishes Tue/Thu/Sat 10am
   anything else    — save as a voice note
 """
 
 import logging
 import os
-import subprocess
 from datetime import date
 from pathlib import Path
 
-import requests
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application, CallbackQueryHandler, CommandHandler,
@@ -33,14 +32,8 @@ log = logging.getLogger(__name__)
 
 _AUTHORIZED_ID = int(TELEGRAM_CHAT_ID) if TELEGRAM_CHAT_ID else None
 
-BASE_DIR = Path(__file__).resolve().parent.parent
 
-# WCKY blog repo settings
-WCKY_GITHUB_REPO  = os.getenv("WCKY_GITHUB_REPO",  "byomes/wcky")
-WCKY_GITHUB_TOKEN = os.getenv("WCKY_GITHUB_TOKEN")
-
-
-# --- Helpers ----------------------------------------------------------
+# --- DB helpers -------------------------------------------------------
 
 def _save_note(text):
     with get_connection() as conn:
@@ -51,44 +44,48 @@ def _save_note(text):
         return cursor.lastrowid
 
 
-def _save_blog_draft(title: str, body: str) -> int:
+def _save_blog_draft(title: str, slug: str, body: str) -> int:
     with get_connection() as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS blog_drafts (
+                id             INTEGER PRIMARY KEY AUTOINCREMENT,
+                title          TEXT NOT NULL,
+                slug           TEXT NOT NULL,
+                body           TEXT NOT NULL,
+                status         TEXT NOT NULL DEFAULT 'pending',
+                scheduled_date TEXT,
+                published_at   TEXT,
+                created_at     TEXT NOT NULL DEFAULT (date('now'))
+            )
+        """)
         cursor = conn.execute(
-            """INSERT INTO thought_library
-               (content_type, title, body, date_created)
-               VALUES ('sermon', ?, ?, date('now'))""",
-            (title, body),
+            """INSERT INTO blog_drafts (title, slug, body, status)
+               VALUES (?, ?, ?, 'pending')""",
+            (title, slug, body),
         )
         return cursor.lastrowid
 
 
-def _push_blog_to_github(filename: str, content: str) -> str:
-    """Push a blog .md file to byomes/wcky via GitHub API. Returns the file URL."""
-    if not WCKY_GITHUB_TOKEN:
-        raise RuntimeError("WCKY_GITHUB_TOKEN not set in .env")
-
-    import base64
-    api_url = f"https://api.github.com/repos/{WCKY_GITHUB_REPO}/contents/content/blog/{filename}"
-    headers = {
-        "Authorization": f"token {WCKY_GITHUB_TOKEN}",
-        "Accept": "application/vnd.github.v3+json",
-    }
-
-    # Check if file already exists (needed for sha to update)
-    existing = requests.get(api_url, headers=headers, timeout=10)
-    sha = existing.json().get("sha") if existing.status_code == 200 else None
-
-    payload = {
-        "message": f"blog: add {filename}",
-        "content": base64.b64encode(content.encode()).decode(),
-    }
-    if sha:
-        payload["sha"] = sha
-
-    resp = requests.put(api_url, headers=headers, json=payload, timeout=15)
-    resp.raise_for_status()
-
-    return f"https://github.com/{WCKY_GITHUB_REPO}/blob/main/content/blog/{filename}"
+def _get_draft_queue() -> list:
+    with get_connection() as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS blog_drafts (
+                id             INTEGER PRIMARY KEY AUTOINCREMENT,
+                title          TEXT NOT NULL,
+                slug           TEXT NOT NULL,
+                body           TEXT NOT NULL,
+                status         TEXT NOT NULL DEFAULT 'pending',
+                scheduled_date TEXT,
+                published_at   TEXT,
+                created_at     TEXT NOT NULL DEFAULT (date('now'))
+            )
+        """)
+        return conn.execute(
+            """SELECT id, title, scheduled_date, status
+               FROM blog_drafts
+               WHERE status = 'pending'
+               ORDER BY id ASC"""
+        ).fetchall()
 
 
 def _is_authorized(update):
@@ -98,13 +95,12 @@ def _is_authorized(update):
 # --- Blog draft handler -----------------------------------------------
 
 async def _handle_blog_draft(update: Update, text: str) -> None:
-    """Process a #blog message — save to DB, push to wcky, confirm."""
-    await update.message.reply_text("📝 Processing blog draft...")
+    """Save #blog message to DB queue. Scheduler publishes Tue/Thu/Sat at 10am."""
+    await update.message.reply_text("📝 Saving blog draft...")
 
     today = date.today().strftime("%Y-%m-%d")
-
-    # Extract title from first line if it starts with #
     lines = text.strip().splitlines()
+
     if lines and lines[0].startswith("#"):
         title = lines[0].lstrip("#").strip()
         body  = "\n".join(lines[1:]).strip()
@@ -112,48 +108,42 @@ async def _handle_blog_draft(update: Update, text: str) -> None:
         title = f"Blog Draft {today}"
         body  = text.strip()
 
-    # Build frontmatter
+    # Build slug
     slug = title.lower()
     for ch in " !?:,;'\"":
         slug = slug.replace(ch, "-")
     slug = "-".join(p for p in slug.split("-") if p)
 
-    md_content = (
-        f"---\n"
-        f"title: \"{title}\"\n"
-        f"date: \"{today}\"\n"
-        f"slug: \"{slug}\"\n"
-        f"draft: true\n"
-        f"---\n\n"
-        f"{body}\n"
-    )
-
-    filename = f"{today}-{slug}.md"
-
-    # Save to DB
-    draft_id = _save_blog_draft(title, md_content)
+    draft_id = _save_blog_draft(title, slug, body)
     log.info("Blog draft saved to DB: #%d — %s", draft_id, title)
 
-    # Push to GitHub
-    try:
-        github_url = _push_blog_to_github(filename, md_content)
-        log.info("Blog draft pushed to GitHub: %s", github_url)
-        await update.message.reply_text(
-            f"✅ <b>Blog draft saved</b>\n\n"
-            f"<b>{title}</b>\n\n"
-            f"<a href='{github_url}'>View on GitHub →</a>\n\n"
-            f"Saved as <code>content/blog/{filename}</code>\n"
-            f"Marked <code>draft: true</code> — publish when ready.",
-            parse_mode="HTML",
-        )
-    except Exception as e:
-        log.error("GitHub push failed: %s", e)
-        await update.message.reply_text(
-            f"⚠️ Draft saved to DB (#{draft_id}) but GitHub push failed:\n{e}"
-        )
+    await update.message.reply_text(
+        f"✅ <b>Draft queued</b>\n\n"
+        f"<b>{title}</b>\n\n"
+        f"Scheduled for next available Tue/Thu/Sat at 10am.\n"
+        f"Send /queue to see the publish schedule.",
+        parse_mode="HTML",
+    )
 
 
 # --- Bot handlers -----------------------------------------------------
+
+async def handle_queue(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not _is_authorized(update):
+        return
+
+    drafts = _get_draft_queue()
+    if not drafts:
+        await update.message.reply_text("No drafts in queue.")
+        return
+
+    lines = ["<b>Draft queue:</b>\n"]
+    for d in drafts:
+        sched = d["scheduled_date"] or "unscheduled"
+        lines.append(f"#{d['id']} — {d['title'][:50]}\n    📅 {sched}")
+
+    await update.message.reply_text("\n".join(lines), parse_mode="HTML")
+
 
 async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not _is_authorized(update):
@@ -168,12 +158,14 @@ async def handle_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     text = (
         "Watson commands:\n"
-        "/briefing — fetch and send today's research briefing\n"
+        "/briefing — fetch today's research briefing\n"
+        "/queue — show pending blog drafts and publish dates\n"
         "/help — show this message\n\n"
-        "Send <b>#blog</b> followed by your markdown to save a blog draft.\n"
-        "Send any other text to save it as a note.",
+        "Send <b>#blog</b> followed by markdown to queue a blog draft.\n"
+        "Drafts publish automatically Tue/Thu/Sat at 10am.\n\n"
+        "Send any other text to save as a note."
     )
-    await update.message.reply_text(text[0], parse_mode="HTML")
+    await update.message.reply_text(text, parse_mode="HTML")
 
 
 async def handle_briefing(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -196,19 +188,18 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not text:
         return
 
-    # Route #blog messages to blog draft handler
     if text.lower().startswith("#blog"):
         draft_text = text[5:].strip()
         if not draft_text:
             await update.message.reply_text(
-                "Send your markdown after #blog:\n\n<code>#blog\n# Title\n\nBody text...</code>",
+                "Send your markdown after #blog:\n\n"
+                "<code>#blog\n# Title\n\nBody text...</code>",
                 parse_mode="HTML",
             )
             return
         await _handle_blog_draft(update, draft_text)
         return
 
-    # Everything else is a voice note
     log.info("Received text note: %s", text[:120])
     note_id = _save_note(text)
     log.info("Saved note #%d", note_id)
@@ -257,18 +248,15 @@ async def _send_reject_keyboard(update: Update, item_id: int) -> None:
 async def handle_reject(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not _is_authorized(update):
         return
-
     if not context.args or not context.args[0].isdigit():
         await update.message.reply_text("Usage: /reject {item_id}")
         return
-
     await _send_reject_keyboard(update, int(context.args[0]))
 
 
 async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not _is_authorized(update):
         return
-
     payload = context.args[0] if context.args else ""
     if payload.startswith("reject_") and payload[7:].isdigit():
         await _send_reject_keyboard(update, int(payload[7:]))
@@ -346,6 +334,7 @@ def main():
     app.add_handler(CommandHandler("help",     handle_help))
     app.add_handler(CommandHandler("briefing", handle_briefing))
     app.add_handler(CommandHandler("reject",   handle_reject))
+    app.add_handler(CommandHandler("queue",    handle_queue))
     app.add_handler(CallbackQueryHandler(handle_reject_callback, pattern=r"^reject:"))
     app.add_handler(MessageHandler(filters.VOICE, handle_voice))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
