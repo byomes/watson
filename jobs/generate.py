@@ -8,10 +8,12 @@ Usage:
   python jobs/generate.py <clean_transcript_path> <sermon_slug>
 
   sermon_slug: used for the KB filename, e.g. "2026-05-11-kingdom-citizenship"
+              or "05-10-2026-kingdom-citizenship" — date prefix is normalized.
 """
 
 import logging
 import os
+import re
 import subprocess
 import sys
 from datetime import date
@@ -38,6 +40,14 @@ GITHUB_RAW_BASE = os.getenv(
 # Watson Telegram bot
 WATSON_BOT_TOKEN = os.getenv("WATSON_BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
 WATSON_CHAT_ID   = os.getenv("WATSON_CHAT_ID")   or os.getenv("TELEGRAM_CHAT_ID")
+
+# Matches any leading date: YYYY-MM-DD or MM-DD-YYYY
+_DATE_PREFIX_RE = re.compile(r"^\d{2,4}-\d{2}-\d{2,4}-?")
+
+
+def _strip_date_prefix(slug: str) -> str:
+    """Remove any leading date pattern from a slug."""
+    return _DATE_PREFIX_RE.sub("", slug).strip("-")
 
 
 # --- Git helpers ------------------------------------------------------
@@ -68,7 +78,6 @@ def _telegram_notify(raw_url: str, title: str) -> None:
         log.warning("Telegram not configured — skipping notification")
         return
 
-    # Plain text URL first — Telegram auto-links it, long-press to copy on mobile
     text = (
         f"📄 <b>New transcript archived</b>\n\n"
         f"<b>{title}</b>\n\n"
@@ -78,7 +87,6 @@ def _telegram_notify(raw_url: str, title: str) -> None:
         f"<i>\"Draft a blog article from this transcript.\"</i>"
     )
 
-    # Inline keyboard: one button that opens the raw file
     reply_markup = {
         "inline_keyboard": [[
             {"text": "📂 Open Transcript", "url": raw_url}
@@ -106,17 +114,15 @@ def generate(clean_path: Path, sermon_slug: str) -> None:
     clean_text = clean_path.read_text(encoding="utf-8")
     today      = date.today().strftime("%Y-%m-%d")
 
-    # Build dated filename
-    # If slug already starts with a date, don't double-prefix
-    if sermon_slug.startswith(today):
-        dated_slug = sermon_slug
-    else:
-        dated_slug = f"{today}-{sermon_slug}"
+    # Strip any existing date prefix from slug, then apply today's date
+    clean_slug = _strip_date_prefix(sermon_slug)
+    dated_slug = f"{today}-{clean_slug}"
+    filename   = f"{dated_slug}.md"
 
-    filename = f"{dated_slug}.md"
+    # Human-readable title from clean slug
+    title = clean_slug.replace("-", " ").title()
 
     # Wrap transcript in minimal markdown for readability in claude.ai
-    title = sermon_slug.replace("-", " ").title()
     md_content = (
         f"# Transcript: {title}\n"
         f"Date: {today}\n\n"

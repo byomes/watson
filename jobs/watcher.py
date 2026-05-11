@@ -67,14 +67,14 @@ def _wait_for_stable(path: Path, stable_secs: int = STABILITY_SECONDS) -> bool:
 
 def _run_job(script: str, *args: str) -> bool:
     """Run a jobs/ script as a subprocess. Returns True on success."""
-    cmd = [sys.executable, str(REPO_ROOT / "jobs" / script), *args]
+    python_bin = os.getenv("PYTHON_BIN", sys.executable)
+    cmd = python_bin.split() + [str(REPO_ROOT / "jobs" / script), *args]
     log.info("Running: %s", " ".join(cmd))
     result = subprocess.run(cmd, capture_output=False)
     if result.returncode != 0:
         log.error("%s failed (exit %d)", script, result.returncode)
         return False
     return True
-
 
 def _raw_path_for(audio_path: Path) -> Path:
     """Derive the expected raw transcript path for a given audio file."""
