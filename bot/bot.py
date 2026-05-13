@@ -27,6 +27,7 @@ from briefing.builder import build_telegram_briefing
 from config.settings import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 from core.database import get_connection, init_db
 from core.scorer import _BOOST
+from jobs.ask import ask
 
 log = logging.getLogger(__name__)
 
@@ -321,6 +322,21 @@ async def handle_reject_callback(update: Update, context: ContextTypes.DEFAULT_T
     )
 
 
+
+async def handle_ask(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not _is_authorized(update):
+        return
+    if not context.args:
+        await update.message.reply_text("Usage: /ask what did I preach on suffering?")
+        return
+    question = " ".join(context.args)
+    await update.message.reply_text("Searching your sermons...")
+    try:
+        answer = ask(question)
+        await update.message.reply_text(answer)
+    except Exception as exc:
+        log.error("Ask failed: %s", exc)
+        await update.message.reply_text(f"Ask failed: {exc}")
 def main():
     if not TELEGRAM_BOT_TOKEN:
         raise RuntimeError("TELEGRAM_BOT_TOKEN is not set in .env")
@@ -335,6 +351,7 @@ def main():
     app.add_handler(CommandHandler("briefing", handle_briefing))
     app.add_handler(CommandHandler("reject",   handle_reject))
     app.add_handler(CommandHandler("queue",    handle_queue))
+    app.add_handler(CommandHandler("ask",      handle_ask))
     app.add_handler(CallbackQueryHandler(handle_reject_callback, pattern=r"^reject:"))
     app.add_handler(MessageHandler(filters.VOICE, handle_voice))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
@@ -350,3 +367,6 @@ if __name__ == "__main__":
         datefmt="%H:%M:%S",
     )
     main()
+
+
+
