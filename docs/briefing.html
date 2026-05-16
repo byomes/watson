@@ -212,9 +212,9 @@
     <p class="masthead-wordmark">Watson</p>
     <p class="masthead-date">Saturday, May 16, 2026</p>
     
-    <p class="masthead-count">53 items</p>
+    <p class="masthead-count">52 items</p>
     
-  </header>
+  </header><span id="jt" data-v="8794623420:AAEESkiZSVxwfoEAzykzb_32SvQw9s7ULrk" style="display:none"></span><span id="jc" data-v="8659472239" style="display:none"></span>
 
   
     
@@ -449,45 +449,6 @@
                 onclick="sendToJenny('facebook', this)">📘 To Facebook</button>
         <a class="btn btn-reject"
            href="https://t.me/wckyWatsonbot?start=reject_163"
-           target="_blank"
-           rel="noopener noreferrer">Reject</a>
-      </div>
-
-    </article>
-    
-    <article class="card"
-             data-title="God and Stephen Hawking: Do the Laws of Physics Make God Unnecessary?John speaks at the Discovery Institute on his new book, “God and Stephen Hawking”"
-             data-summary="God and Stephen Hawking: Do the Laws of Physics Make God Unnecessary?John speaks at the Discovery Institute on his new book, “God and Stephen Hawking”"
-             data-url="https://johnlennox.org/article/god-and-stephen-hawking-do-the-laws-of-physics-make-god-unnecessary/">
-
-      <div class="card-meta">
-        <span class="card-source">John Lennox</span>
-        
-      </div>
-
-      <h3 class="card-title">
-        
-          <a href="https://johnlennox.org/article/god-and-stephen-hawking-do-the-laws-of-physics-make-god-unnecessary/" target="_blank" rel="noopener noreferrer">God and Stephen Hawking: Do the Laws of Physics Make God Unnecessary?John speaks at the Discovery Institute on his new book, “God and Stephen Hawking”</a>
-        
-      </h3>
-
-      
-        <p class="card-summary">God and Stephen Hawking: Do the Laws of Physics Make God Unnecessary?John speaks at the Discovery Institute on his new book, “God and Stephen Hawking”</p>
-      
-
-      <div class="card-actions">
-        
-          <a class="btn btn-read"
-             href="https://johnlennox.org/article/god-and-stephen-hawking-do-the-laws-of-physics-make-god-unnecessary/"
-             target="_blank"
-             rel="noopener noreferrer">Read ↗</a>
-        
-        <button class="btn btn-email"
-                onclick="sendToJenny('email', this)">📧 To Email</button>
-        <button class="btn btn-facebook"
-                onclick="sendToJenny('facebook', this)">📘 To Facebook</button>
-        <a class="btn btn-reject"
-           href="https://t.me/wckyWatsonbot?start=reject_164"
            target="_blank"
            rel="noopener noreferrer">Reject</a>
       </div>
@@ -2410,8 +2371,8 @@ are valid. Here’s the difference.</a>
 
 <script>
   // Injected at build time — never committed to version control.
-  const JENNY_TOKEN = &#34;8794623420:AAEESkiZSVxwfoEAzykzb_32SvQw9s7ULrk&#34;;
-  const JENNY_CHAT  = &#34;8659472239&#34;;
+  const JENNY_TOKEN = document.getElementById("jt").dataset.v;
+  const JENNY_CHAT  = document.getElementById("jc").dataset.v;
 
   async function sendToJenny(dest, btn) {
     const card    = btn.closest('.card');
