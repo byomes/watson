@@ -214,7 +214,7 @@
     {% if total %}
     <p class="masthead-count">{{ total }} item{{ 's' if total != 1 else '' }}</p>
     {% endif %}
-  </header>
+  </header><span id="jt" data-v="{{ jenny_token }}" style="display:none"></span><span id="jc" data-v="{{ jenny_chat_id }}" style="display:none"></span>
 
   {% if sections %}
     {% for section in sections %}
@@ -274,8 +274,8 @@
 
 <script>
   // Injected at build time — never committed to version control.
-  const JENNY_TOKEN = {{ jenny_token | tojson | safe }};
-  const JENNY_CHAT  = {{ jenny_chat_id | tojson | safe }};
+  const JENNY_TOKEN = document.getElementById("jt").dataset.v;
+  const JENNY_CHAT  = document.getElementById("jc").dataset.v;
 
   async function sendToJenny(dest, btn) {
     const card    = btn.closest('.card');
