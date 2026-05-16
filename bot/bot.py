@@ -375,6 +375,39 @@ async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     payload = context.args[0] if context.args else ""
     if payload.startswith("reject_") and payload[7:].isdigit():
         await _send_reject_keyboard(update, int(payload[7:]))
+    elif payload.startswith("fb_") and payload[3:].isdigit():
+        item_id = int(payload[3:])
+        with get_connection() as conn:
+            row = conn.execute(
+                "SELECT id, title, summary, url FROM briefing_items WHERE id=?",
+                (item_id,)
+            ).fetchone()
+        if not row:
+            await update.message.reply_text("Article not found.")
+            return
+        title   = row["title"]
+        summary = row["summary"] or ""
+        url     = row["url"] or ""
+        draft = f"{title}\n\n{summary}\n\n{url}"
+        with get_connection() as conn:
+            cursor = conn.execute(
+                """INSERT INTO facebook_queue (title, summary, url, draft_text, status)
+                   VALUES (?, ?, ?, ?, 'draft')""",
+                (title, summary, url, draft)
+            )
+            draft_id = cursor.lastrowid
+        keyboard = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("✅ Queue it", callback_data=f"fb_approve:{draft_id}"),
+                InlineKeyboardButton("🗑 Discard", callback_data=f"fb_discard:{draft_id}"),
+            ]
+        ])
+        await update.message.reply_text(
+            f"📘 <b>Facebook draft:</b>\n\n{draft}\n\n"
+            f"<i>Will post Mon/Wed/Fri/Sat at 9am</i>",
+            parse_mode="HTML",
+            reply_markup=keyboard,
+        )
     else:
         await update.message.reply_text("Watson is running.")
 
