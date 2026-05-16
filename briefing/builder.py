@@ -11,7 +11,7 @@ from jinja2 import Environment, FileSystemLoader
 
 from config.settings import (
     BASE_DIR, DEPLOY_DIR, DOCS_DIR,
-    JENNY_BOT_TOKEN, JENNY_CHAT_ID,
+    TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID,
 )
 from core.database import get_connection
 
@@ -101,8 +101,8 @@ def build_briefing():
         sections=sections,
         total=total,
         date_str=date_str,
-        jenny_token=JENNY_BOT_TOKEN or "",
-        jenny_chat_id=JENNY_CHAT_ID or "",
+        jenny_token=TELEGRAM_BOT_TOKEN or "",
+        jenny_chat_id=TELEGRAM_CHAT_ID or "",
     )
 
     DOCS_DIR.mkdir(parents=True, exist_ok=True)
