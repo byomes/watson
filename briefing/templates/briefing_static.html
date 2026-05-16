@@ -274,8 +274,8 @@
 
 <script>
   // Injected at build time — never committed to version control.
-  const JENNY_TOKEN = {{ jenny_token | tojson }};
-  const JENNY_CHAT  = {{ jenny_chat_id | tojson }};
+  const JENNY_TOKEN = {{ jenny_token | tojson | safe }};
+  const JENNY_CHAT  = {{ jenny_chat_id | tojson | safe }};
 
   async function sendToJenny(dest, btn) {
     const card    = btn.closest('.card');
