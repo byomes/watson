@@ -9,6 +9,7 @@ Commands:
 
 Message handling:
   #blog <markdown> — save blog draft to queue; scheduler publishes Tue/Thu/Sat 10am
+  📘 TO FACEBOOK   — sent by briefing button; Watson drafts post, asks for approval
   anything else    — save as a voice note
 """
 
@@ -28,6 +29,7 @@ from config.settings import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 from core.database import get_connection, init_db
 from core.scorer import _BOOST
 from jobs.ask import ask
+from jobs.facebook.facebook_post import add_to_queue, init_db as init_fb_db
 
 log = logging.getLogger(__name__)
 
@@ -181,6 +183,97 @@ async def handle_briefing(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"Briefing failed: {exc}")
 
 
+# --- Facebook queue handler -------------------------------------------
+
+def _parse_facebook_message(text: str) -> dict:
+    """Parse the 📘 TO FACEBOOK message from the briefing button."""
+    lines = [l.strip() for l in text.strip().splitlines() if l.strip()]
+    # Remove the tag line
+    lines = [l for l in lines if l != "📘 TO FACEBOOK"]
+    title   = lines[0] if len(lines) > 0 else ""
+    summary = lines[1] if len(lines) > 1 else ""
+    url     = lines[2] if len(lines) > 2 else ""
+    return {"title": title, "summary": summary, "url": url}
+
+
+async def _handle_facebook_share(update: Update, text: str) -> None:
+    """Draft a Facebook post and ask Bill to approve or edit."""
+    parsed = _parse_facebook_message(text)
+    title   = parsed["title"]
+    summary = parsed["summary"]
+    url     = parsed["url"]
+
+    draft = f"{title}\n\n{summary}\n\n{url}"
+
+    with get_connection() as conn:
+        cursor = conn.execute(
+            """INSERT INTO facebook_queue (title, summary, url, draft_text, status)
+               VALUES (?, ?, ?, ?, 'draft')""",
+            (title, summary, url, draft)
+        )
+        draft_id = cursor.lastrowid
+
+    keyboard = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("✅ Queue it", callback_data=f"fb_approve:{draft_id}"),
+            InlineKeyboardButton("🗑 Discard", callback_data=f"fb_discard:{draft_id}"),
+        ]
+    ])
+
+    await update.message.reply_text(
+        f"📘 <b>Facebook draft:</b>\n\n{draft}\n\n"
+        f"<i>Will post Mon/Wed/Fri/Sat at 9am</i>",
+        parse_mode="HTML",
+        reply_markup=keyboard,
+    )
+
+
+async def handle_facebook_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    if not _is_authorized(update):
+        return
+
+    if query.data == "fb_edit":
+        await query.edit_message_text(
+            "✏️ Reply with your edited post text and I'll queue it.\n\nStart your message with <code>#fb</code> to queue it directly.",
+            parse_mode="HTML",
+            reply_markup=None,
+        )
+        return
+
+    if query.data.startswith("fb_approve:"):
+        draft_id = int(query.data[len("fb_approve:"):])
+        with get_connection() as conn:
+            row = conn.execute(
+                "SELECT title, summary, url, draft_text FROM facebook_queue WHERE id=?",
+                (draft_id,)
+            ).fetchone()
+        if not row:
+            await query.edit_message_text("Draft not found.")
+            return
+        result = add_to_queue(row["title"], row["summary"], row["url"], row["draft_text"])
+        if result:
+            post_id, slot = result
+            slot_str = slot.strftime("%A, %b %-d at %-I:%M %p")
+            await query.edit_message_text(
+                f"✅ <b>Queued for Facebook</b>\n\n"
+                f"{row['draft_text']}\n\n"
+                f"📅 Scheduled: {slot_str}",
+                parse_mode="HTML",
+                reply_markup=None,
+            )
+        else:
+            await query.edit_message_text("No available slots in the next 4 weeks.")
+
+    if query.data.startswith("fb_discard:"):
+        draft_id = int(query.data[len("fb_discard:"):])
+        with get_connection() as conn:
+            conn.execute("UPDATE facebook_queue SET status='discarded' WHERE id=?", (draft_id,))
+        await query.edit_message_text("Discarded.", reply_markup=None)
+
+
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not _is_authorized(update):
         return
@@ -199,6 +292,27 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
         await _handle_blog_draft(update, draft_text)
+        return
+
+    if text.startswith("📘 TO FACEBOOK"):
+        await _handle_facebook_share(update, text)
+        return
+
+    if text.lower().startswith("#fb"):
+        draft_text = text[3:].strip()
+        if not draft_text:
+            await update.message.reply_text("Send your post text after #fb.")
+            return
+        result = add_to_queue("", "", "", draft_text)
+        if result:
+            post_id, slot = result
+            slot_str = slot.strftime("%A, %b %-d at %-I:%M %p")
+            await update.message.reply_text(
+                f"✅ <b>Queued for Facebook</b>\n\n{draft_text}\n\n📅 {slot_str}",
+                parse_mode="HTML",
+            )
+        else:
+            await update.message.reply_text("No available slots in the next 4 weeks.")
         return
 
     log.info("Received text note: %s", text[:120])
@@ -344,6 +458,7 @@ def main():
         raise RuntimeError("TELEGRAM_CHAT_ID is not set in .env")
 
     init_db()
+    init_fb_db()
 
     app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
     app.add_handler(CommandHandler("start",    handle_start))
@@ -353,6 +468,7 @@ def main():
     app.add_handler(CommandHandler("queue",    handle_queue))
     app.add_handler(CommandHandler("ask",      handle_ask))
     app.add_handler(CallbackQueryHandler(handle_reject_callback, pattern=r"^reject:"))
+    app.add_handler(CallbackQueryHandler(handle_facebook_callback, pattern=r"^fb_"))
     app.add_handler(MessageHandler(filters.VOICE, handle_voice))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
 
@@ -367,6 +483,8 @@ if __name__ == "__main__":
         datefmt="%H:%M:%S",
     )
     main()
+
+
 
 
 
