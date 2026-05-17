@@ -707,37 +707,44 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     await update.message.reply_text("📸 Got it — analyzing book cover...")
     try:
-        import subprocess, tempfile, httpx, re
+        import tempfile, base64, re, os
+        import urllib.request, urllib.error
+        import json as _json
 
         photo = update.message.photo[-1]
         file = await context.bot.get_file(photo.file_id)
 
-        # Download image to a temp file
+        # Download image
         with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
             tmp_path = tmp.name
+        urllib.request.urlretrieve(file.file_path, tmp_path)
 
-        async with httpx.AsyncClient() as client:
-            img_resp = await client.get(file.file_path)
-            with open(tmp_path, "wb") as f:
-                f.write(img_resp.content)
+        with open(tmp_path, "rb") as f:
+            img_b64 = base64.b64encode(f.read()).decode()
+        os.unlink(tmp_path)
 
-        # Call ollama CLI via subprocess
-        prompt = "This is a book cover. Extract the book title and author name. Reply in this format only: Title: <title>\nAuthor: <author>"
-        result = subprocess.run(
-            ["ollama", "run", "llava:7b", prompt],
-            input=open(tmp_path, "rb").read(),
-            capture_output=True,
-            timeout=60
+        # Call ollama REST API directly
+        payload = _json.dumps({
+            "model": "llava:7b",
+            "prompt": "This is a book cover. Extract the book title and author name. Reply in this format only: Title: <title>\nAuthor: <author>",
+            "images": [img_b64],
+            "stream": False
+        }).encode()
+
+        req = urllib.request.Request(
+            "http://localhost:11434/api/generate",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST"
         )
-        text = result.stdout.decode("utf-8", errors="ignore")
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            result = _json.loads(resp.read())
+        text = result.get("response", "")
 
         title_match = re.search(r"Title:\s*(.+)", text)
         author_match = re.search(r"Author:\s*(.+)", text)
         title = title_match.group(1).strip() if title_match else "Unknown Title"
         author = author_match.group(1).strip() if author_match else "Unknown"
-
-        import os
-        os.unlink(tmp_path)
 
         from jobs.reading_list import add_book
         book = add_book(title, author)
