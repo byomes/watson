@@ -76,19 +76,25 @@ def parse_text_input(text):
     return title, author, link.strip()
 
 def extract_from_url(url):
-    """Fetch URL and extract title/author from meta tags or page title."""
+    """Fetch URL and extract title/author from meta tags or Amazon URL structure."""
+    # Amazon: extract title from URL path
+    if "amazon.com" in url:
+        import re
+        match = re.search(r'/dp/[A-Z0-9]+|/([A-Za-z0-9-]+)/dp/', url)
+        path_match = re.search(r'amazon\.com/([^/]+)/(?:dp|product)/', url)
+        if path_match:
+            raw = path_match.group(1)
+            title = raw.replace("-", " ").title()
+            return title, "Unknown", url
     try:
         resp = requests.get(url, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
         html = resp.text
-        # Try og:title
         og = re.search(r'<meta[^>]+property=["\']og:title["\'][^>]+content=["\'](.*?)["\']', html)
         if og:
             title = og.group(1).strip()
         else:
-            # Fall back to <title>
             t = re.search(r'<title>(.*?)</title>', html, re.IGNORECASE)
             title = t.group(1).strip() if t else url
-        # Try author meta
         auth = re.search(r'<meta[^>]+name=["\']author["\'][^>]+content=["\'](.*?)["\']', html)
         author = auth.group(1).strip() if auth else "Unknown"
         return title, author, url
