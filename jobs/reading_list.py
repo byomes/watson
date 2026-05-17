@@ -53,6 +53,22 @@ def update_status(title, status):
         _save(books)
     return match
 
+def remove_book_by_id(book_id):
+    books = _load()
+    match = next((b for b in books if b["id"] == book_id), None)
+    if match:
+        books = [b for b in books if b["id"] != book_id]
+        _save(books)
+    return match
+
+def update_status_by_id(book_id, status):
+    books = _load()
+    match = next((b for b in books if b["id"] == book_id), None)
+    if match:
+        match["status"] = status
+        _save(books)
+    return match
+
 def list_books():
     return _load()
 

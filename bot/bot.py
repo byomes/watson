@@ -357,34 +357,43 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("\n".join(lines), parse_mode="HTML", disable_web_page_preview=True)
         return
 
-    if text.lower().startswith("watson remove book:"):
-        title = text[len("watson remove book:"):].strip()
-        from jobs.reading_list import remove_book
-        book = remove_book(title)
+    if text.lower().startswith("watson remove book"):
+        raw = text[len("watson remove book"):].strip().lstrip(":").strip()
+        from jobs.reading_list import remove_book, remove_book_by_id, list_books
+        if raw.startswith("#") and raw[1:].isdigit():
+            book = remove_book_by_id(int(raw[1:]))
+        else:
+            book = remove_book(raw)
         if book:
             await update.message.reply_text(f"✅ Removed: {book['title']}")
         else:
-            await update.message.reply_text(f"Book not found: {title}")
+            await update.message.reply_text(f"Book not found: {raw}")
         return
 
-    if text.lower().startswith("watson reading:"):
-        title = text[len("watson reading:"):].strip()
-        from jobs.reading_list import update_status
-        book = update_status(title, "reading")
+    if text.lower().startswith("watson reading"):
+        raw = text[len("watson reading"):].strip().lstrip(":").strip()
+        from jobs.reading_list import update_status, update_status_by_id
+        if raw.startswith("#") and raw[1:].isdigit():
+            book = update_status_by_id(int(raw[1:]), "reading")
+        else:
+            book = update_status(raw, "reading")
         if book:
             await update.message.reply_text(f"📖 Now reading: {book['title']}")
         else:
-            await update.message.reply_text(f"Book not found: {title}")
+            await update.message.reply_text(f"Book not found: {raw}")
         return
 
-    if text.lower().startswith("watson finished:"):
-        title = text[len("watson finished:"):].strip()
-        from jobs.reading_list import update_status
-        book = update_status(title, "finished")
+    if text.lower().startswith("watson finished"):
+        raw = text[len("watson finished"):].strip().lstrip(":").strip()
+        from jobs.reading_list import update_status, update_status_by_id
+        if raw.startswith("#") and raw[1:].isdigit():
+            book = update_status_by_id(int(raw[1:]), "finished")
+        else:
+            book = update_status(raw, "finished")
         if book:
             await update.message.reply_text(f"✅ Finished: {book['title']}")
         else:
-            await update.message.reply_text(f"Book not found: {title}")
+            await update.message.reply_text(f"Book not found: {raw}")
         return
 
     if text.lower().startswith("http"):
@@ -753,10 +762,12 @@ async def handle_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         lines = ["<b>Reading List:</b>\n"]
         for b in books:
             icon = icons.get(b.get("status", "queued"), "📋")
-            line = f"{icon} <b>{b['title']}</b> — {b['author']}"
+            line = f"{icon} #{b['id']} <b>{b['title']}</b> — {b['author']}"
             if b.get("link"):
                 line += f"\n    <a href='{b['link']}'>Link</a>"
             lines.append(line)
+        lines.append("\nTo remove a book: <code>Watson remove book #&lt;id&gt;</code>")
+        lines.append("To update status: <code>Watson reading #&lt;id&gt;</code> or <code>Watson finished #&lt;id&gt;</code>")
         await query.message.reply_text("\n".join(lines), parse_mode="HTML", disable_web_page_preview=True)
 
     elif query.data == "menu_addbook":
