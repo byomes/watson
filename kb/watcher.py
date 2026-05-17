@@ -133,7 +133,7 @@ def process_file(path: Path):
             counter += 1
 
         out_path.write_text(content, encoding="utf-8")
-        log.info("Converted: %s → %s", path.name, out_path.name)
+        log.info("Converted: %s -> %s", path.name, out_path.name)
 
         # Ingest into OpenWebUI
         ingest_file(out_path)
@@ -166,29 +166,39 @@ def ingest_file(path: Path):
         file_id = resp.json().get("id")
         log.info("Uploaded to OpenWebUI: %s (id=%s)", path.name, file_id)
 
-        # Add to knowledge collection
-        col_resp = requests.post(
+        # Get or create knowledge collection
+        cols_resp = requests.get(
             f"{OPENWEBUI_URL}/api/v1/knowledge/",
-            headers={
-                "Authorization": f"Bearer {OPENWEBUI_API_KEY}",
-                "Content-Type": "application/json"
-            },
-            json={"name": KNOWLEDGE_COLLECTION, "description": "Personal knowledge library"},
+            headers={"Authorization": f"Bearer {OPENWEBUI_API_KEY}"},
             timeout=10
         )
-        if col_resp.status_code in (200, 201):
-            col_id = col_resp.json().get("id")
+        cols = cols_resp.json()
+
+        # Handle both list and dict responses
+        if isinstance(cols, list):
+            col_id = next((c["id"] for c in cols if isinstance(c, dict) and c.get("name") == KNOWLEDGE_COLLECTION), None)
+        elif isinstance(cols, dict) and "data" in cols:
+            col_id = next((c["id"] for c in cols["data"] if isinstance(c, dict) and c.get("name") == KNOWLEDGE_COLLECTION), None)
         else:
-            # Collection may already exist — search for it
-            cols = requests.get(
+            col_id = None
+
+        if not col_id:
+            # Create the collection
+            col_resp = requests.post(
                 f"{OPENWEBUI_URL}/api/v1/knowledge/",
-                headers={"Authorization": f"Bearer {OPENWEBUI_API_KEY}"},
+                headers={
+                    "Authorization": f"Bearer {OPENWEBUI_API_KEY}",
+                    "Content-Type": "application/json"
+                },
+                json={"name": KNOWLEDGE_COLLECTION, "description": "Personal knowledge library"},
                 timeout=10
-            ).json()
-            col_id = next((c["id"] for c in cols if c["name"] == KNOWLEDGE_COLLECTION), None)
+            )
+            col_data = col_resp.json()
+            if isinstance(col_data, dict):
+                col_id = col_data.get("id")
 
         if col_id and file_id:
-            requests.post(
+            add_resp = requests.post(
                 f"{OPENWEBUI_URL}/api/v1/knowledge/{col_id}/file/add",
                 headers={
                     "Authorization": f"Bearer {OPENWEBUI_API_KEY}",
@@ -197,7 +207,12 @@ def ingest_file(path: Path):
                 json={"file_id": file_id},
                 timeout=10
             )
-            log.info("Added to collection '%s'", KNOWLEDGE_COLLECTION)
+            if add_resp.status_code == 200:
+                log.info("Added to collection '%s'", KNOWLEDGE_COLLECTION)
+            else:
+                log.error("Failed to add to collection: %s %s", add_resp.status_code, add_resp.text)
+        else:
+            log.warning("Could not find or create collection '%s'", KNOWLEDGE_COLLECTION)
 
     except Exception as e:
         log.error("Ingest failed for %s: %s", path.name, e)
