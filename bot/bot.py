@@ -492,7 +492,7 @@ async def handle_fbqueue(update: Update, context: ContextTypes.DEFAULT_TYPE):
         sched = r["scheduled_time"] or r["posted_time"] or "unscheduled"
         title = (r["title"] or "Untitled")[:60]
         lines.append(f"{status_icon} #{r['id']} — {title}\n    📅 {sched}")
-    lines.append("\nSend /fbcancel <id> to remove a post from the queue.")
+    lines.append("\nSend /fbcancel &lt;id&gt; to remove a post from the queue.")
     await update.message.reply_text("\n".join(lines), parse_mode="HTML")
 
 
