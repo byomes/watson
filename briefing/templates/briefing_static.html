@@ -252,8 +252,10 @@
              target="_blank"
              rel="noopener noreferrer">Read ↗</a>
         {% endif %}
-        <button class="btn btn-email"
-                onclick="sendToJenny('email', this)">📧 To Email</button>
+        <a class="btn btn-email"
+           href="https://t.me/wckyWatsonbot?start=email_{{ item.id }}"
+           target="_blank"
+           rel="noopener noreferrer">📧 To Email</a>
         <a class="btn btn-facebook"
            href="https://t.me/wckyWatsonbot?start=share_{{ item.id }}"
            target="_blank"
