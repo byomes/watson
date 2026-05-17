@@ -375,8 +375,8 @@ async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     payload = context.args[0] if context.args else ""
     if payload.startswith("reject_") and payload[7:].isdigit():
         await _send_reject_keyboard(update, int(payload[7:]))
-    elif payload.startswith("fb") and payload[2:].isdigit():
-        item_id = int(payload[2:])
+    elif payload.startswith("share_") and payload[6:].isdigit():
+        item_id = int(payload[6:])
         with get_connection() as conn:
             row = conn.execute(
                 "SELECT id, title, summary, url FROM briefing_items WHERE id=?",
