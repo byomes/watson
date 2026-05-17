@@ -30,6 +30,7 @@ from core.database import get_connection, init_db
 from core.scorer import _BOOST
 from jobs.ask import ask
 from jobs.facebook.facebook_post import add_to_queue, init_db as init_fb_db
+from jobs.email.email_queue import add_to_email_queue, init_email_db
 
 log = logging.getLogger(__name__)
 
@@ -165,6 +166,8 @@ async def handle_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/queue — show pending blog drafts and publish dates\n"
         "/fbqueue — show scheduled Facebook posts\n"
         "/fbcancel &lt;id&gt; — cancel a queued post\n"
+        "/emailqueue — show articles queued for weekly email\n"
+        "/emailcancel &lt;id&gt; — remove an article from the email queue\n"
         "/help — show this message\n\n"
         "Send <b>#blog</b> followed by markdown to queue a blog draft.\n"
         "Drafts publish automatically Tue/Thu/Sat at 10am.\n\n"
@@ -410,6 +413,37 @@ async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode="HTML",
             reply_markup=keyboard,
         )
+    elif payload.startswith("email_") and payload[6:].isdigit():
+        item_id = int(payload[6:])
+        with get_connection() as conn:
+            row = conn.execute(
+                "SELECT id, title, summary, url FROM briefing_items WHERE id=?",
+                (item_id,)
+            ).fetchone()
+        if not row:
+            await update.message.reply_text("Article not found.")
+            return
+        title   = row["title"]
+        summary = row["summary"] or ""
+        url     = row["url"] or ""
+        with get_connection() as conn:
+            cursor = conn.execute(
+                """INSERT INTO email_queue (title, summary, url, status)
+                   VALUES (?, ?, ?, 'queued')""",
+                (title, summary, url)
+            )
+            item_id_db = cursor.lastrowid
+        keyboard = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("✅ Queue for Email", callback_data=f"email_approve:{item_id_db}"),
+                InlineKeyboardButton("🗑 Discard", callback_data=f"email_discard:{item_id_db}"),
+            ]
+        ])
+        await update.message.reply_text(
+            f"📧 <b>Queue for weekly email?</b>\n\n<b>{title}</b>\n\n{summary[:200]}\n\n{url}",
+            parse_mode="HTML",
+            reply_markup=keyboard,
+        )
     else:
         await update.message.reply_text("Watson is running.")
 
@@ -470,6 +504,73 @@ async def handle_reject_callback(update: Update, context: ContextTypes.DEFAULT_T
         reply_markup=None,
     )
 
+
+
+async def handle_email_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    if not _is_authorized(update):
+        return
+
+    if query.data.startswith("email_approve:"):
+        item_id = int(query.data[len("email_approve:"):])
+        with get_connection() as conn:
+            row = conn.execute(
+                "SELECT title FROM email_queue WHERE id=?", (item_id,)
+            ).fetchone()
+        if not row:
+            await query.edit_message_text("Item not found.")
+            return
+        await query.edit_message_text(
+            f"✅ <b>Queued for weekly email</b>\n\n{row['title'][:80]}",
+            parse_mode="HTML",
+            reply_markup=None,
+        )
+
+    if query.data.startswith("email_discard:"):
+        item_id = int(query.data[len("email_discard:"):])
+        with get_connection() as conn:
+            conn.execute("UPDATE email_queue SET status='discarded' WHERE id=?", (item_id,))
+        await query.edit_message_text("Discarded.", reply_markup=None)
+
+
+async def handle_emailqueue(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not _is_authorized(update):
+        return
+    with get_connection() as conn:
+        rows = conn.execute(
+            """SELECT id, title, created_at FROM email_queue
+               WHERE status = 'queued'
+               ORDER BY created_at ASC"""
+        ).fetchall()
+    if not rows:
+        await update.message.reply_text("Email queue is empty.")
+        return
+    lines = ["<b>Email Queue:</b>\n"]
+    for r in rows:
+        title = (r["title"] or "Untitled")[:60]
+        lines.append(f"📧 #{r['id']} — {title}")
+    lines.append("\nSend /emailcancel &lt;id&gt; to remove an article.")
+    await update.message.reply_text("\n".join(lines), parse_mode="HTML")
+
+
+async def handle_emailcancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not _is_authorized(update):
+        return
+    if not context.args or not context.args[0].isdigit():
+        await update.message.reply_text("Usage: /emailcancel <id>")
+        return
+    item_id = int(context.args[0])
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT id, title FROM email_queue WHERE id=?", (item_id,)
+        ).fetchone()
+        if not row:
+            await update.message.reply_text(f"No item with id {item_id}.")
+            return
+        conn.execute("UPDATE email_queue SET status='cancelled' WHERE id=?", (item_id,))
+    await update.message.reply_text(f"❌ Removed #{item_id}: {row['title'][:60]}")
 
 
 async def handle_fbqueue(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -543,6 +644,7 @@ def main():
 
     init_db()
     init_fb_db()
+    init_email_db()
 
     app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
     app.add_handler(CommandHandler("start",    handle_start))
@@ -550,11 +652,14 @@ def main():
     app.add_handler(CommandHandler("briefing", handle_briefing))
     app.add_handler(CommandHandler("reject",   handle_reject))
     app.add_handler(CommandHandler("queue",    handle_queue))
-    app.add_handler(CommandHandler("fbqueue",  handle_fbqueue))
-    app.add_handler(CommandHandler("fbcancel", handle_fbcancel))
-    app.add_handler(CommandHandler("ask",      handle_ask))
+    app.add_handler(CommandHandler("fbqueue",     handle_fbqueue))
+    app.add_handler(CommandHandler("fbcancel",    handle_fbcancel))
+    app.add_handler(CommandHandler("emailqueue",  handle_emailqueue))
+    app.add_handler(CommandHandler("emailcancel", handle_emailcancel))
+    app.add_handler(CommandHandler("ask",         handle_ask))
     app.add_handler(CallbackQueryHandler(handle_reject_callback, pattern=r"^reject:"))
     app.add_handler(CallbackQueryHandler(handle_facebook_callback, pattern=r"^fb_"))
+    app.add_handler(CallbackQueryHandler(handle_email_callback, pattern=r"^email_"))
     app.add_handler(MessageHandler(filters.VOICE, handle_voice))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
 
