@@ -5,6 +5,9 @@ Processes all audio files in a folder sequentially, one at a time.
 Skips files already transcribed. Resume-safe — restart anytime and it
 picks up where it left off.
 
+After successful transcription, audio is moved to a 'processed' folder
+so you know it's done and safe to delete.
+
 Usage:
   py -3.11 jobs/batch.py                        # process SERMON_ARCHIVE_DIR
   py -3.11 jobs/batch.py --dir "E:\My Audio"    # process a custom folder
@@ -12,15 +15,16 @@ Usage:
   py -3.11 jobs/batch.py --dry-run              # list files without processing
 
 Log is written to: outputs/logs/batch.log
+Processed audio moves to: <source_folder>/processed/
 """
 
 import argparse
 import logging
 import os
+import shutil
 import subprocess
 import sys
 import time
-from datetime import datetime
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -29,20 +33,30 @@ load_dotenv()
 
 log = logging.getLogger(__name__)
 
-REPO_ROOT    = Path(__file__).resolve().parent.parent
-LOG_DIR      = REPO_ROOT / "outputs" / "logs"
-KB_DIR       = REPO_ROOT / "kb" / "transcripts"
+REPO_ROOT     = Path(__file__).resolve().parent.parent
+LOG_DIR       = REPO_ROOT / "outputs" / "logs"
+KB_DIR        = Path(os.getenv("KB_LOCAL_DIR", str(REPO_ROOT / "kb" / "transcripts")))
 
-ARCHIVE_DIR  = Path(os.getenv("SERMON_ARCHIVE_DIR", r"E:\0 - Sermon Audio\archive"))
-PROCESSED_DIR = ARCHIVE_DIR.parent / "processed"
+ARCHIVE_DIR   = Path(os.getenv("SERMON_ARCHIVE_DIR", r"E:\0 - Sermon Audio\archive"))
 
 AUDIO_EXTENSIONS = {".mp3", ".mp4", ".m4a", ".wav", ".flac", ".ogg", ".opus"}
 
 
 def _already_transcribed(audio_path: Path) -> bool:
-    """Check if a transcript already exists in kb/transcripts/ for this file."""
+    """Check if a transcript already exists in KB_LOCAL_DIR for this file."""
     expected = KB_DIR / f"{audio_path.stem}.txt"
     return expected.exists()
+
+
+def _move_to_processed(audio_path: Path, processed_dir: Path) -> None:
+    """Move audio file to processed folder after successful transcription."""
+    processed_dir.mkdir(parents=True, exist_ok=True)
+    dest = processed_dir / audio_path.name
+    # If a file with the same name already exists in processed, add a suffix
+    if dest.exists():
+        dest = processed_dir / f"{audio_path.stem}_1{audio_path.suffix}"
+    shutil.move(str(audio_path), str(dest))
+    log.info("Moved to processed: %s", dest.name)
 
 
 def _run_transcribe(audio_path: Path, model: str) -> bool:
@@ -72,14 +86,16 @@ def _collect_audio(folder: Path) -> list[Path]:
 
 
 def batch(folder: Path, model: str, dry_run: bool) -> None:
+    processed_dir = folder / "processed"
+
     files = _collect_audio(folder)
 
     if not files:
         log.info("No audio files found in %s", folder)
         return
 
-    already_done  = [f for f in files if _already_transcribed(f)]
-    to_process    = [f for f in files if not _already_transcribed(f)]
+    already_done = [f for f in files if _already_transcribed(f)]
+    to_process   = [f for f in files if not _already_transcribed(f)]
 
     log.info("Found %d audio files — %d already transcribed, %d to process",
              len(files), len(already_done), len(to_process))
@@ -90,6 +106,7 @@ def batch(folder: Path, model: str, dry_run: bool) -> None:
             log.info("  PENDING: %s", f.name)
         for f in already_done:
             log.info("  DONE:    %s", f.name)
+        log.info("Processed audio will move to: %s", processed_dir)
         return
 
     if not to_process:
@@ -116,12 +133,18 @@ def batch(folder: Path, model: str, dry_run: bool) -> None:
             success_count += 1
             log.info("Done in %.0fs — %d remaining — ETA ~%.0f min",
                      elapsed, remaining, eta_seconds / 60)
+            # Move to processed so it's clear what's done and safe to delete
+            try:
+                _move_to_processed(audio_path, processed_dir)
+            except Exception as e:
+                log.warning("Could not move to processed: %s", e)
         else:
             fail_count += 1
-            log.warning("Skipping failed file and continuing")
+            log.warning("Skipping failed file and continuing — left in archive folder")
 
     log.info("=== Batch complete: %d succeeded, %d failed, total time %.0f min ===",
              success_count, fail_count, (time.time() - start_time) / 60)
+    log.info("Processed audio is in: %s", processed_dir)
 
 
 def main():
@@ -162,9 +185,10 @@ def main():
         sys.exit(1)
 
     log.info("Batch transcription starting")
-    log.info("  Folder: %s", folder)
-    log.info("  Model:  %s", args.model)
-    log.info("  Log:    %s", log_file)
+    log.info("  Folder:    %s", folder)
+    log.info("  Processed: %s", folder / "processed")
+    log.info("  Model:     %s", args.model)
+    log.info("  Log:       %s", log_file)
 
     batch(folder, args.model, args.dry_run)
 
