@@ -163,6 +163,7 @@ async def handle_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     text = (
         "Watson commands:\n"
+        "/menu — show interactive menu\n"
         "/briefing — fetch today's research briefing\n"
         "/queue — show pending blog drafts and publish dates\n"
         "/fbqueue — show scheduled Facebook posts\n"
@@ -702,6 +703,85 @@ async def handle_fbcancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"❌ Cancelled post #{post_id}: {row['title'][:60]}")
 
 
+async def handle_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not _is_authorized(update):
+        return
+    keyboard = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("📘 Facebook Queue", callback_data="menu_fbqueue"),
+            InlineKeyboardButton("📧 Email Queue", callback_data="menu_emailqueue"),
+        ],
+        [
+            InlineKeyboardButton("📚 Reading List", callback_data="menu_booklist"),
+            InlineKeyboardButton("➕ Add Book", callback_data="menu_addbook"),
+        ],
+        [
+            InlineKeyboardButton("🎙 Ask Watson", callback_data="menu_ask"),
+            InlineKeyboardButton("📰 Briefing", callback_data="menu_briefing"),
+        ],
+    ])
+    await update.message.reply_text(
+        "<b>Watson Menu</b>\n\nWhat would you like to do?",
+        parse_mode="HTML",
+        reply_markup=keyboard,
+    )
+
+
+async def handle_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    if not _is_authorized(update):
+        return
+
+    if query.data == "menu_fbqueue":
+        await query.edit_message_reply_markup(reply_markup=None)
+        await handle_fbqueue(update, context)
+
+    elif query.data == "menu_emailqueue":
+        await query.edit_message_reply_markup(reply_markup=None)
+        await handle_emailqueue(update, context)
+
+    elif query.data == "menu_booklist":
+        await query.edit_message_reply_markup(reply_markup=None)
+        from jobs.reading_list import list_books
+        books = list_books()
+        if not books:
+            await query.message.reply_text("Your reading list is empty.")
+            return
+        icons = {"queued": "📋", "reading": "📖", "finished": "✅"}
+        lines = ["<b>Reading List:</b>\n"]
+        for b in books:
+            icon = icons.get(b.get("status", "queued"), "📋")
+            line = f"{icon} <b>{b['title']}</b> — {b['author']}"
+            if b.get("link"):
+                line += f"\n    <a href='{b['link']}'>Link</a>"
+            lines.append(line)
+        await query.message.reply_text("\n".join(lines), parse_mode="HTML", disable_web_page_preview=True)
+
+    elif query.data == "menu_addbook":
+        await query.edit_message_reply_markup(reply_markup=None)
+        await query.message.reply_text(
+            "Send a book using any of these methods:\n\n"
+            "• <code>Watson add book: Title by Author</code>\n"
+            "• Paste an Amazon or Goodreads URL\n"
+            "• Send a photo of the cover (coming soon)",
+            parse_mode="HTML"
+        )
+
+    elif query.data == "menu_ask":
+        await query.edit_message_reply_markup(reply_markup=None)
+        await query.message.reply_text(
+            "Ask me anything about your sermons:\n\n"
+            "<code>/ask what did I preach on suffering?</code>",
+            parse_mode="HTML"
+        )
+
+    elif query.data == "menu_briefing":
+        await query.edit_message_reply_markup(reply_markup=None)
+        await handle_briefing(update, context)
+
+
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not _is_authorized(update):
         return
@@ -737,6 +817,7 @@ def main():
 
     app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
     app.add_handler(CommandHandler("start",    handle_start))
+    app.add_handler(CommandHandler("menu",     handle_menu))
     app.add_handler(CommandHandler("help",     handle_help))
     app.add_handler(CommandHandler("briefing", handle_briefing))
     app.add_handler(CommandHandler("reject",   handle_reject))
@@ -749,6 +830,7 @@ def main():
     app.add_handler(CallbackQueryHandler(handle_reject_callback, pattern=r"^reject:"))
     app.add_handler(CallbackQueryHandler(handle_facebook_callback, pattern=r"^fb_"))
     app.add_handler(CallbackQueryHandler(handle_email_callback, pattern=r"^email_"))
+    app.add_handler(CallbackQueryHandler(handle_menu_callback, pattern=r"^menu_"))
     app.add_handler(MessageHandler(filters.VOICE, handle_voice))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
