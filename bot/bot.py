@@ -163,6 +163,8 @@ async def handle_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Watson commands:\n"
         "/briefing — fetch today's research briefing\n"
         "/queue — show pending blog drafts and publish dates\n"
+        "/fbqueue — show scheduled Facebook posts\n"
+        "/fbcancel &lt;id&gt; — cancel a queued post\n"
         "/help — show this message\n\n"
         "Send <b>#blog</b> followed by markdown to queue a blog draft.\n"
         "Drafts publish automatically Tue/Thu/Sat at 10am.\n\n"
@@ -470,6 +472,55 @@ async def handle_reject_callback(update: Update, context: ContextTypes.DEFAULT_T
 
 
 
+async def handle_fbqueue(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not _is_authorized(update):
+        return
+    with get_connection() as conn:
+        rows = conn.execute(
+            """SELECT id, title, status, scheduled_time, posted_time
+               FROM facebook_queue
+               WHERE status IN ('approved', 'posted')
+               ORDER BY scheduled_time ASC
+               LIMIT 10"""
+        ).fetchall()
+    if not rows:
+        await update.message.reply_text("Facebook queue is empty.")
+        return
+    lines = ["<b>Facebook Queue:</b>\n"]
+    for r in rows:
+        status_icon = "✅" if r["status"] == "approved" else "📤"
+        sched = r["scheduled_time"] or r["posted_time"] or "unscheduled"
+        title = (r["title"] or "Untitled")[:60]
+        lines.append(f"{status_icon} #{r['id']} — {title}\n    📅 {sched}")
+    lines.append("\nSend /fbcancel <id> to remove a post from the queue.")
+    await update.message.reply_text("\n".join(lines), parse_mode="HTML")
+
+
+async def handle_fbcancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not _is_authorized(update):
+        return
+    if not context.args or not context.args[0].isdigit():
+        await update.message.reply_text("Usage: /fbcancel <id>")
+        return
+    post_id = int(context.args[0])
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT id, title, status FROM facebook_queue WHERE id=?",
+            (post_id,)
+        ).fetchone()
+        if not row:
+            await update.message.reply_text(f"No post with id {post_id}.")
+            return
+        if row["status"] == "posted":
+            await update.message.reply_text("That post has already been published.")
+            return
+        conn.execute(
+            "UPDATE facebook_queue SET status='cancelled' WHERE id=?",
+            (post_id,)
+        )
+    await update.message.reply_text(f"❌ Cancelled post #{post_id}: {row['title'][:60]}")
+
+
 async def handle_ask(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not _is_authorized(update):
         return
@@ -499,6 +550,8 @@ def main():
     app.add_handler(CommandHandler("briefing", handle_briefing))
     app.add_handler(CommandHandler("reject",   handle_reject))
     app.add_handler(CommandHandler("queue",    handle_queue))
+    app.add_handler(CommandHandler("fbqueue",  handle_fbqueue))
+    app.add_handler(CommandHandler("fbcancel", handle_fbcancel))
     app.add_handler(CommandHandler("ask",      handle_ask))
     app.add_handler(CallbackQueryHandler(handle_reject_callback, pattern=r"^reject:"))
     app.add_handler(CallbackQueryHandler(handle_facebook_callback, pattern=r"^fb_"))
