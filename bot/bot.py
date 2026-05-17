@@ -386,7 +386,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(f"Book not found: {title}")
         return
 
-    if text.lower().startswith("http") and ("amazon" in text or "goodreads" in text or "bookshop" in text or text.endswith(".com") or "/book" in text):
+    if text.lower().startswith("http"):
         from jobs.reading_list import add_book, extract_from_url
         await update.message.reply_text("🔍 Fetching book info...")
         title, author, link = extract_from_url(text.strip())
