@@ -640,7 +640,8 @@ async def handle_emailqueue(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lines = ["<b>Email Queue:</b>\n"]
     for r in rows:
         title = (r["title"] or "Untitled")[:60]
-        lines.append(f"📧 #{r['id']} — {title}")
+        added = r["created_at"] or ""
+        lines.append(f"📧 #{r['id']} — {title}\n📅 {added}")
     lines.append("\nSend /emailcancel &lt;id&gt; to remove an article.")
     await update.message.reply_text("\n".join(lines), parse_mode="HTML")
 
@@ -682,7 +683,7 @@ async def handle_fbqueue(update: Update, context: ContextTypes.DEFAULT_TYPE):
         status_icon = "✅" if r["status"] == "approved" else "📤"
         sched = r["scheduled_time"] or r["posted_time"] or "unscheduled"
         title = (r["title"] or "Untitled")[:60]
-        lines.append(f"{status_icon} #{r['id']} — {title}\n    📅 {sched}")
+        lines.append(f"{status_icon} #{r['id']} — {title}\n📅 {sched}")
     lines.append("\nSend /fbcancel &lt;id&gt; to remove a post from the queue.")
     await update.message.reply_text("\n".join(lines), parse_mode="HTML")
 
