@@ -1,6 +1,11 @@
 """
-generate.py — Archive clean transcript to personal knowledge base (Git),
-then notify via Telegram with a direct raw GitHub link for claude.ai handoff.
+generate.py — Archive clean transcript to two destinations:
+  1. Git-tracked KB in Watson repo (kb/transcripts/) → pushed to GitHub
+     so the raw URL works on mobile for claude.ai blog drafting.
+  2. Local knowledge base inbox (KB_LOCAL_DIR from .env, e.g. F:\\Knowledge_Database\\_inbox)
+     for the local ingest pipeline. No Git involvement.
+
+Then notify via Telegram with the raw GitHub link.
 
 No API key required. Claude drafting is a manual human-in-the-loop step.
 
@@ -28,8 +33,13 @@ log = logging.getLogger(__name__)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-# Personal knowledge base — transcripts land here and are pushed to Git
-KB_TRANSCRIPTS_DIR = REPO_ROOT / "kb" / "transcripts"
+# Destination 1: Git-tracked KB inside Watson repo — always pushed to GitHub
+KB_GIT_DIR = REPO_ROOT / "kb" / "transcripts"
+
+# Destination 2: Local knowledge base inbox on F: drive (or wherever .env points)
+# Set KB_LOCAL_DIR in .env, e.g. KB_LOCAL_DIR=F:\Knowledge_Database\_inbox
+# Falls back to same as Git KB if not set.
+KB_LOCAL_DIR = Path(os.getenv("KB_LOCAL_DIR", str(KB_GIT_DIR)))
 
 # GitHub raw URL base — update if repo name changes
 GITHUB_RAW_BASE = os.getenv(
@@ -130,23 +140,32 @@ def generate(clean_path: Path, sermon_slug: str) -> None:
         f"{clean_text.strip()}\n"
     )
 
-    # Save to KB
-    KB_TRANSCRIPTS_DIR.mkdir(parents=True, exist_ok=True)
-    kb_path = KB_TRANSCRIPTS_DIR / filename
-    kb_path.write_text(md_content, encoding="utf-8")
-    log.info("Transcript archived to KB: %s", kb_path)
+    # --- Destination 1: Git-tracked KB (always inside Watson repo) ---
+    KB_GIT_DIR.mkdir(parents=True, exist_ok=True)
+    git_kb_path = KB_GIT_DIR / filename
+    git_kb_path.write_text(md_content, encoding="utf-8")
+    log.info("Transcript written to Git KB: %s", git_kb_path)
 
-    # Commit and push to Git
     try:
-        _commit_and_push(kb_path, f"transcript: add {dated_slug}")
+        _commit_and_push(git_kb_path, f"transcript: add {dated_slug}")
     except RuntimeError as e:
         log.error("Git push failed: %s", e)
         log.warning("Telegram notification will still fire with expected URL")
 
-    # Build raw GitHub URL
-    raw_url = f"{GITHUB_RAW_BASE}/{filename}"
+    # --- Destination 2: Local KB inbox (F: drive or wherever KB_LOCAL_DIR points) ---
+    if KB_LOCAL_DIR != KB_GIT_DIR:
+        try:
+            KB_LOCAL_DIR.mkdir(parents=True, exist_ok=True)
+            local_kb_path = KB_LOCAL_DIR / filename
+            local_kb_path.write_text(md_content, encoding="utf-8")
+            log.info("Transcript written to local KB inbox: %s", local_kb_path)
+        except Exception as e:
+            log.error("Local KB write failed: %s", e)
+    else:
+        log.info("KB_LOCAL_DIR same as Git KB — skipping duplicate write")
 
-    # Notify via Telegram
+    # Build raw GitHub URL and notify
+    raw_url = f"{GITHUB_RAW_BASE}/{filename}"
     _telegram_notify(raw_url, title)
 
     log.info("Generate job complete: %s", dated_slug)
