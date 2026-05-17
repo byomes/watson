@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 load_dotenv(os.path.expanduser("~/watson/.env"))
 
 DB_PATH = os.path.expanduser("~/watson/data/watson.db")
-KIT_API_KEY = os.getenv("KIT_API_KEY")
+KIT_API_SECRET = os.getenv("KIT_API_SECRET")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
@@ -68,7 +68,7 @@ def create_kit_broadcast(subject, body):
     response = requests.post(
         "https://api.convertkit.com/v3/broadcasts",
         json={
-            "api_secret": KIT_API_KEY,
+            "api_secret": KIT_API_SECRET,
             "subject": subject,
             "content": body,
             "description": f"Weekly email draft — {datetime.now().strftime('%Y-%m-%d')}",
