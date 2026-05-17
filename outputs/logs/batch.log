@@ -1,0 +1,1027 @@
+14:56:14 INFO Batch transcription starting
+14:56:14 INFO   Folder: E:\0 - Sermon Audio\archive
+14:56:14 INFO   Model:  medium
+14:56:14 INFO   Log:    D:\OneDrive\Claude\agents\watson\outputs\logs\batch.log
+14:56:14 INFO Found 11 audio files — 0 already transcribed, 11 to process
+14:56:14 INFO --- DRY RUN — no files will be processed ---
+14:56:14 INFO   PENDING: Acts 01-01-14.mp3
+14:56:14 INFO   PENDING: Acts 01-15-26.mp3
+14:56:14 INFO   PENDING: Acts 02-01-13.mp3
+14:56:14 INFO   PENDING: Acts 02-14-24.mp3
+14:56:14 INFO   PENDING: Acts 02-25-36.mp3
+14:56:14 INFO   PENDING: Acts 02-36-47.mp3
+14:56:14 INFO   PENDING: GONE - Easter 2026.mp3
+14:56:14 INFO   PENDING: Grow - Invest in Others - Social.mp3
+14:56:14 INFO   PENDING: Grow - Invest in Others.mp3
+14:56:14 INFO   PENDING: Grow - Lifestyle Obedience.mp3
+14:56:14 INFO   PENDING: Grow - Trust in Jesus.mp3
+14:56:53 INFO Batch transcription starting
+14:56:53 INFO   Folder: E:\0 - Sermon Audio\archive
+14:56:53 INFO   Model:  medium
+14:56:53 INFO   Log:    D:\OneDrive\Claude\agents\watson\outputs\logs\batch.log
+14:56:53 INFO Found 11 audio files — 0 already transcribed, 11 to process
+14:56:53 INFO --- [1/11] Acts 01-01-14.mp3 ---
+14:56:53 INFO Transcribing: Acts 01-01-14.mp3
+15:03:42 INFO Done in 409s — 10 remaining — ETA ~68 min
+15:03:42 INFO --- [2/11] Acts 01-15-26.mp3 ---
+15:03:42 INFO Transcribing: Acts 01-15-26.mp3
+15:11:58 INFO Done in 495s — 9 remaining — ETA ~68 min
+15:11:58 INFO --- [3/11] Acts 02-01-13.mp3 ---
+15:11:58 INFO Transcribing: Acts 02-01-13.mp3
+15:19:50 INFO Done in 473s — 8 remaining — ETA ~61 min
+15:19:50 INFO --- [4/11] Acts 02-14-24.mp3 ---
+15:19:50 INFO Transcribing: Acts 02-14-24.mp3
+15:24:45 INFO Done in 294s — 7 remaining — ETA ~49 min
+15:24:45 INFO --- [5/11] Acts 02-25-36.mp3 ---
+15:24:45 INFO Transcribing: Acts 02-25-36.mp3
+15:33:25 INFO Done in 520s — 6 remaining — ETA ~44 min
+15:33:25 INFO --- [6/11] Acts 02-36-47.mp3 ---
+15:33:25 INFO Transcribing: Acts 02-36-47.mp3
+15:41:22 INFO Done in 478s — 5 remaining — ETA ~37 min
+15:41:22 INFO --- [7/11] GONE - Easter 2026.mp3 ---
+15:41:22 INFO Transcribing: GONE - Easter 2026.mp3
+15:46:58 INFO Done in 336s — 4 remaining — ETA ~29 min
+15:46:58 INFO --- [8/11] Grow - Invest in Others - Social.mp3 ---
+15:46:58 INFO Transcribing: Grow - Invest in Others - Social.mp3
+15:51:54 INFO Done in 295s — 3 remaining — ETA ~21 min
+15:51:54 INFO --- [9/11] Grow - Invest in Others.mp3 ---
+15:51:54 INFO Transcribing: Grow - Invest in Others.mp3
+15:58:19 INFO Done in 386s — 2 remaining — ETA ~14 min
+15:58:19 INFO --- [10/11] Grow - Lifestyle Obedience.mp3 ---
+15:58:19 INFO Transcribing: Grow - Lifestyle Obedience.mp3
+16:05:33 INFO Done in 434s — 1 remaining — ETA ~7 min
+16:05:33 INFO --- [11/11] Grow - Trust in Jesus.mp3 ---
+16:05:33 INFO Transcribing: Grow - Trust in Jesus.mp3
+16:11:43 INFO Done in 370s — 0 remaining — ETA ~0 min
+16:11:43 INFO === Batch complete: 11 succeeded, 0 failed, total time 75 min ===
+16:54:20 INFO Batch transcription starting
+16:54:20 INFO   Folder: E:\0 - Sermon Audio\archive
+16:54:20 INFO   Model:  medium
+16:54:20 INFO   Log:    D:\OneDrive\Claude\agents\watson\outputs\logs\batch.log
+16:54:20 INFO Found 44 audio files — 2 already transcribed, 42 to process
+16:54:20 INFO --- [1/42] Christ in Culture 07-20-2025.mp3 ---
+16:54:20 INFO Transcribing: Christ in Culture 07-20-2025.mp3
+17:04:54 INFO Done in 635s — 41 remaining — ETA ~434 min
+17:04:54 INFO --- [2/42] Christmas 2025 - The Dating of Christmas.mp3 ---
+17:04:54 INFO Transcribing: Christmas 2025 - The Dating of Christmas.mp3
+17:09:55 INFO Done in 300s — 40 remaining — ETA ~312 min
+17:09:55 INFO --- [3/42] Christmas 2025 - The Expectation of Christmas.mp3 ---
+17:09:55 INFO Transcribing: Christmas 2025 - The Expectation of Christmas.mp3
+17:14:51 INFO Done in 297s — 39 remaining — ETA ~267 min
+17:14:51 INFO --- [4/42] Christmas 2025 - The Lineage of Christmas.mp3 ---
+17:14:51 INFO Transcribing: Christmas 2025 - The Lineage of Christmas.mp3
+17:20:23 INFO Done in 331s — 38 remaining — ETA ~247 min
+17:20:23 INFO --- [5/42] Christmas 2025 - The Witnesses of Christmas.mp3 ---
+17:20:23 INFO Transcribing: Christmas 2025 - The Witnesses of Christmas.mp3
+17:26:05 INFO Done in 343s — 37 remaining — ETA ~235 min
+17:26:05 INFO --- [6/42] FAM - Biblical Marriage.mp3 ---
+17:26:05 INFO Transcribing: FAM - Biblical Marriage.mp3
+17:33:12 INFO Done in 427s — 36 remaining — ETA ~233 min
+17:33:12 INFO --- [7/42] FAM - Childship.mp3 ---
+17:33:12 INFO Transcribing: FAM - Childship.mp3
+17:38:51 INFO Done in 339s — 35 remaining — ETA ~223 min
+17:38:51 INFO --- [8/42] FAM - Family Foundation.mp3 ---
+17:38:51 INFO Transcribing: FAM - Family Foundation.mp3
+17:45:22 INFO Done in 391s — 34 remaining — ETA ~217 min
+17:45:22 INFO --- [9/42] FAM - Husbandry.mp3 ---
+17:45:22 INFO Transcribing: FAM - Husbandry.mp3
+17:50:54 INFO Done in 332s — 33 remaining — ETA ~207 min
+17:50:54 INFO --- [10/42] FAM - Wifery.mp3 ---
+17:50:54 INFO Transcribing: FAM - Wifery.mp3
+17:58:25 INFO Done in 451s — 32 remaining — ETA ~205 min
+17:58:25 INFO --- [11/42] FLOOD 01 - The Pre Flood World.mp3 ---
+17:58:25 INFO Transcribing: FLOOD 01 - The Pre Flood World.mp3
+18:04:53 INFO Done in 388s — 31 remaining — ETA ~199 min
+18:04:53 INFO --- [12/42] FLOOD 02 - Noah In His World.mp3 ---
+18:04:53 INFO Transcribing: FLOOD 02 - Noah In His World.mp3
+18:09:29 INFO Done in 277s — 30 remaining — ETA ~188 min
+18:09:29 INFO --- [13/42] FLOOD 03 - The Ark.mp3 ---
+18:09:29 INFO Transcribing: FLOOD 03 - The Ark.mp3
+18:14:07 INFO Done in 277s — 29 remaining — ETA ~178 min
+18:14:07 INFO --- [14/42] FLOOD 04 - Dinosuars.mp3 ---
+18:14:07 INFO Transcribing: FLOOD 04 - Dinosuars.mp3
+18:18:41 INFO Done in 275s — 28 remaining — ETA ~169 min
+18:18:41 INFO --- [15/42] FLOOD 05 - The Flood.mp3 ---
+18:18:41 INFO Transcribing: FLOOD 05 - The Flood.mp3
+18:23:35 INFO Done in 293s — 27 remaining — ETA ~161 min
+18:23:35 INFO --- [16/42] Gifted  - 07 - Dangers to Avoid.mp3 ---
+18:23:35 INFO Transcribing: Gifted  - 07 - Dangers to Avoid.mp3
+18:31:50 INFO Done in 495s — 26 remaining — ETA ~158 min
+18:31:50 INFO --- [17/42] Gifted - 01 - Introduction to Spritual Gifts.mp3 ---
+18:31:50 INFO Transcribing: Gifted - 01 - Introduction to Spritual Gifts.mp3
+18:41:35 INFO Done in 585s — 25 remaining — ETA ~158 min
+18:41:35 INFO --- [18/42] Gifted - 02 - Why Different Gifts.mp3 ---
+18:41:35 INFO Transcribing: Gifted - 02 - Why Different Gifts.mp3
+18:50:17 INFO Done in 522s — 24 remaining — ETA ~155 min
+18:50:17 INFO --- [19/42] Gifted - 03 - Supremecy of Love.mp3 ---
+18:50:17 INFO Transcribing: Gifted - 03 - Supremecy of Love.mp3
+18:57:19 INFO Done in 421s — 23 remaining — ETA ~149 min
+18:57:19 INFO --- [20/42] Gifted - 04 - Speaking in Tongues.mp3 ---
+18:57:19 INFO Transcribing: Gifted - 04 - Speaking in Tongues.mp3
+19:05:31 INFO Done in 493s — 22 remaining — ETA ~144 min
+19:05:31 INFO --- [21/42] Gifted - 05 - Tongues & Prophecy.mp3 ---
+19:05:31 INFO Transcribing: Gifted - 05 - Tongues & Prophecy.mp3
+19:12:19 INFO Done in 408s — 21 remaining — ETA ~138 min
+19:12:19 INFO --- [22/42] Gifted - 06 - Spiritual Gifts in Worship.mp3 ---
+19:12:19 INFO Transcribing: Gifted - 06 - Spiritual Gifts in Worship.mp3
+19:19:10 INFO Done in 411s — 20 remaining — ETA ~132 min
+19:19:10 INFO --- [23/42] GROW - Disciple Maker.mp3 ---
+19:19:10 INFO Transcribing: GROW - Disciple Maker.mp3
+19:25:33 INFO Done in 383s — 19 remaining — ETA ~125 min
+19:25:33 INFO --- [24/42] GROW - Follower.mp3 ---
+19:25:33 INFO Transcribing: GROW - Follower.mp3
+19:30:45 INFO Done in 311s — 18 remaining — ETA ~117 min
+19:30:45 INFO --- [25/42] Haggai - Ch 1.mp3 ---
+19:30:45 INFO Transcribing: Haggai - Ch 1.mp3
+19:38:30 INFO Done in 466s — 17 remaining — ETA ~112 min
+19:38:30 INFO --- [26/42] Haggai-Ch2.mp3 ---
+19:38:30 INFO Transcribing: Haggai-Ch2.mp3
+19:44:08 INFO Done in 338s — 16 remaining — ETA ~104 min
+19:44:08 INFO --- [27/42] Heresy - Docetism.mp3 ---
+19:44:08 INFO Transcribing: Heresy - Docetism.mp3
+19:48:33 INFO Done in 265s — 15 remaining — ETA ~97 min
+19:48:33 INFO --- [28/42] Heresy - Ebionism.mp3 ---
+19:48:33 INFO Transcribing: Heresy - Ebionism.mp3
+19:53:34 INFO Done in 301s — 14 remaining — ETA ~90 min
+19:53:34 INFO --- [29/42] Heresy - Gnosticism.mp3 ---
+19:53:34 INFO Transcribing: Heresy - Gnosticism.mp3
+19:59:31 INFO Done in 357s — 13 remaining — ETA ~83 min
+19:59:31 INFO --- [30/42] James - The Primacy of Prayer - James 05-13-20.mp3 ---
+19:59:31 INFO Transcribing: James - The Primacy of Prayer - James 05-13-20.mp3
+20:04:34 INFO Done in 303s — 12 remaining — ETA ~76 min
+20:04:34 INFO --- [31/42] James 01-01-12 - The Method of Maturity.mp3 ---
+20:04:34 INFO Transcribing: James 01-01-12 - The Method of Maturity.mp3
+20:13:12 INFO Done in 519s — 11 remaining — ETA ~71 min
+20:13:12 INFO --- [32/42] James 01-13-27 - The Truth About Temptation.mp3 ---
+20:13:12 INFO Transcribing: James 01-13-27 - The Truth About Temptation.mp3
+20:19:51 INFO Done in 399s — 10 remaining — ETA ~64 min
+20:19:51 INFO --- [33/42] James 02-01-13 - The Danger of Discrimination.mp3 ---
+20:19:51 INFO Transcribing: James 02-01-13 - The Danger of Discrimination.mp3
+20:27:00 INFO Done in 429s — 9 remaining — ETA ~58 min
+20:27:00 INFO --- [34/42] James 03-14-04-03 - The Root of Fruit --.mp3 ---
+20:27:00 INFO Transcribing: James 03-14-04-03 - The Root of Fruit --.mp3
+20:31:41 INFO Done in 281s — 8 remaining — ETA ~51 min
+20:31:41 INFO --- [35/42] James 04-04-17 - The Expectation of Exclusivity.mp3 ---
+20:31:41 INFO Transcribing: James 04-04-17 - The Expectation of Exclusivity.mp3
+20:38:54 INFO Done in 433s — 7 remaining — ETA ~45 min
+20:38:54 INFO --- [36/42] James 20-14-27 - The Witness of Works.mp3 ---
+20:38:54 INFO Transcribing: James 20-14-27 - The Witness of Works.mp3
+20:45:13 INFO Done in 378s — 6 remaining — ETA ~38 min
+20:45:13 INFO --- [37/42] RESET.mp3 ---
+20:45:13 INFO Transcribing: RESET.mp3
+20:52:33 INFO Done in 440s — 5 remaining — ETA ~32 min
+20:52:33 INFO --- [38/42] The Book of 2 John.mp3 ---
+20:52:33 INFO Transcribing: The Book of 2 John.mp3
+21:03:08 INFO Done in 635s — 4 remaining — ETA ~26 min
+21:03:08 INFO --- [39/42] The Poison of Prosperity - James 05-01-12.mp3 ---
+21:03:08 INFO Transcribing: The Poison of Prosperity - James 05-01-12.mp3
+21:11:50 INFO Done in 522s — 3 remaining — ETA ~20 min
+21:11:50 INFO --- [40/42] The Primacy of Prayer 07-13-25.2676.6536.mp3 ---
+21:11:50 INFO Transcribing: The Primacy of Prayer 07-13-25.2676.6536.mp3
+21:16:44 INFO Done in 294s — 2 remaining — ETA ~13 min
+21:16:44 INFO --- [41/42] The Primacy of Prayer 07-13-25.2676.6536_1.mp3 ---
+21:16:44 INFO Transcribing: The Primacy of Prayer 07-13-25.2676.6536_1.mp3
+21:17:10 INFO Done in 26s — 1 remaining — ETA ~6 min
+21:17:10 INFO --- [42/42] Xmas Eve 2025.mp3 ---
+21:17:10 INFO Transcribing: Xmas Eve 2025.mp3
+21:21:16 INFO Done in 246s — 0 remaining — ETA ~0 min
+21:21:16 INFO === Batch complete: 42 succeeded, 0 failed, total time 267 min ===
+21:41:31 INFO Batch transcription starting
+21:41:31 INFO   Folder: E:\0 - Sermon Audio\archive
+21:41:31 INFO   Model:  medium
+21:41:31 INFO   Log:    D:\OneDrive\Claude\agents\watson\outputs\logs\batch.log
+21:41:31 INFO Found 26 audio files — 0 already transcribed, 26 to process
+21:41:31 INFO --- [1/26] Better - Christian Community.mp3 ---
+21:41:31 INFO Transcribing: Better - Christian Community.mp3
+21:48:34 INFO Done in 423s — 25 remaining — ETA ~176 min
+21:48:34 INFO --- [2/26] Better - Faithful.mp3 ---
+21:48:34 INFO Transcribing: Better - Faithful.mp3
+21:54:09 INFO Done in 335s — 24 remaining — ETA ~152 min
+21:54:09 INFO --- [3/26] Better - Holy.mp3 ---
+21:54:09 INFO Transcribing: Better - Holy.mp3
+21:59:35 INFO Done in 326s — 23 remaining — ETA ~139 min
+21:59:35 INFO --- [4/26] Better - Servant.mp3 ---
+21:59:35 INFO Transcribing: Better - Servant.mp3
+22:05:09 INFO Done in 333s — 22 remaining — ETA ~130 min
+22:05:09 INFO --- [5/26] Better - Worship.mp3 ---
+22:05:09 INFO Transcribing: Better - Worship.mp3
+22:10:25 INFO Done in 316s — 21 remaining — ETA ~121 min
+22:10:25 INFO --- [6/26] Book of Ruth - Chapter Four.mp3 ---
+22:10:25 INFO Transcribing: Book of Ruth - Chapter Four.mp3
+22:15:36 INFO Done in 312s — 20 remaining — ETA ~114 min
+22:15:36 INFO --- [7/26] Book of Ruth - Chapter One.mp3 ---
+22:15:36 INFO Transcribing: Book of Ruth - Chapter One.mp3
+22:21:24 INFO Done in 347s — 19 remaining — ETA ~108 min
+22:21:24 INFO --- [8/26] Book of Ruth - Chapter Three.mp3 ---
+22:21:24 INFO Transcribing: Book of Ruth - Chapter Three.mp3
+22:26:59 INFO Done in 335s — 18 remaining — ETA ~102 min
+22:26:59 INFO --- [9/26] Book of Ruth - Chapter Two.mp3 ---
+22:26:59 INFO Transcribing: Book of Ruth - Chapter Two.mp3
+22:33:16 INFO Done in 378s — 17 remaining — ETA ~98 min
+22:33:16 INFO --- [10/26] Easter Sunday 2024.mp3 ---
+22:33:16 INFO Transcribing: Easter Sunday 2024.mp3
+22:38:08 INFO Done in 292s — 16 remaining — ETA ~91 min
+22:38:08 INFO --- [11/26] Faith at the Cross Social.mp3 ---
+22:38:08 INFO Transcribing: Faith at the Cross Social.mp3
+22:41:04 INFO Done in 176s — 15 remaining — ETA ~81 min
+22:41:04 INFO --- [12/26] Faith At The Cross.mp3 ---
+22:41:04 INFO Transcribing: Faith At The Cross.mp3
+22:44:01 INFO Done in 177s — 14 remaining — ETA ~73 min
+22:44:01 INFO --- [13/26] How To Live As A Christian.mp3 ---
+22:44:01 INFO Transcribing: How To Live As A Christian.mp3
+22:51:05 INFO Done in 424s — 13 remaining — ETA ~70 min
+22:51:05 INFO --- [14/26] Love Like Jesus - Discern Like Jesus.mp3 ---
+22:51:05 INFO Transcribing: Love Like Jesus - Discern Like Jesus.mp3
+22:56:48 INFO Done in 343s — 12 remaining — ETA ~65 min
+22:56:48 INFO --- [15/26] Love Like Jesus - Listen Like Jesus.mp3 ---
+22:56:48 INFO Transcribing: Love Like Jesus - Listen Like Jesus.mp3
+23:02:41 INFO Done in 353s — 11 remaining — ETA ~60 min
+23:02:41 INFO --- [16/26] Love Like Jesus - Respond Like Jesus.mp3 ---
+23:02:41 INFO Transcribing: Love Like Jesus - Respond Like Jesus.mp3
+23:09:33 INFO Done in 412s — 10 remaining — ETA ~55 min
+23:09:33 INFO --- [17/26] Love Like Jesus - Story Like Jesus.mp3 ---
+23:09:33 INFO Transcribing: Love Like Jesus - Story Like Jesus.mp3
+23:11:15 INFO Done in 102s — 9 remaining — ETA ~48 min
+23:11:15 INFO --- [18/26] Palm Sunday 2024.mp3 ---
+23:11:15 INFO Transcribing: Palm Sunday 2024.mp3
+23:17:11 INFO Done in 355s — 8 remaining — ETA ~43 min
+23:17:11 INFO --- [19/26] Summer in the Psalms - Psalm 01.mp3 ---
+23:17:11 INFO Transcribing: Summer in the Psalms - Psalm 01.mp3
+23:22:46 INFO Done in 336s — 7 remaining — ETA ~37 min
+23:22:46 INFO --- [20/26] Summer in the Psalms - Psalm 02.mp3 ---
+23:22:46 INFO Transcribing: Summer in the Psalms - Psalm 02.mp3
+23:27:06 INFO Done in 260s — 6 remaining — ETA ~32 min
+23:27:06 INFO --- [21/26] Summer in the Psalms - Psalm 03.mp3 ---
+23:27:06 INFO Transcribing: Summer in the Psalms - Psalm 03.mp3
+23:32:21 INFO Done in 315s — 5 remaining — ETA ~26 min
+23:32:21 INFO --- [22/26] Summer in the Psalms - Psalm 08.mp3 ---
+23:32:21 INFO Transcribing: Summer in the Psalms - Psalm 08.mp3
+23:38:02 INFO Done in 341s — 4 remaining — ETA ~21 min
+23:38:02 INFO --- [23/26] Summer in the Psalms - Psalm 14.mp3 ---
+23:38:02 INFO Transcribing: Summer in the Psalms - Psalm 14.mp3
+23:43:02 INFO Done in 300s — 3 remaining — ETA ~16 min
+23:43:02 INFO --- [24/26] Summer in the Psalms - Psalm 19.mp3 ---
+23:43:02 INFO Transcribing: Summer in the Psalms - Psalm 19.mp3
+23:48:56 INFO Done in 354s — 2 remaining — ETA ~11 min
+23:48:56 INFO --- [25/26] Vision Sunday 9-9-24.mp3 ---
+23:48:56 INFO Transcribing: Vision Sunday 9-9-24.mp3
+23:56:17 INFO Done in 440s — 1 remaining — ETA ~5 min
+23:56:17 INFO --- [26/26] What is Salvation by Faith.mp3 ---
+23:56:17 INFO Transcribing: What is Salvation by Faith.mp3
+00:02:37 INFO Done in 380s — 0 remaining — ETA ~0 min
+00:02:37 INFO === Batch complete: 26 succeeded, 0 failed, total time 141 min ===
+00:02:37 WARNING Telegram env vars missing — skipping notification
+07:33:53 INFO Batch transcription starting
+07:33:53 INFO   Folder: E:\0 - Sermon Audio\archive
+07:33:53 INFO   Model:  medium
+07:33:53 INFO   Log:    D:\OneDrive\Claude\agents\watson\outputs\logs\batch.log
+07:33:53 INFO Found 26 audio files — 26 already transcribed, 0 to process
+07:33:53 INFO All files already transcribed. Nothing to do.
+07:34:52 INFO Batch transcription starting
+07:34:52 INFO   Folder: E:\0 - Sermon Audio\archive
+07:34:52 INFO   Model:  medium
+07:34:52 INFO   Log:    D:\OneDrive\Claude\agents\watson\outputs\logs\batch.log
+07:34:52 INFO Found 23 audio files — 1 already transcribed, 22 to process
+07:34:52 INFO --- [1/22] Back to the Basics_ Giving.mp3 ---
+07:34:52 INFO Transcribing: Back to the Basics_ Giving.mp3
+07:41:24 INFO Done in 392s — 21 remaining — ETA ~137 min
+07:41:24 INFO --- [2/22] Back to the Basics_ Prayer.mp3 ---
+07:41:24 INFO Transcribing: Back to the Basics_ Prayer.mp3
+07:49:02 INFO Done in 458s — 20 remaining — ETA ~142 min
+07:49:02 INFO --- [3/22] Back to the Basics_ The Gospel.mp3 ---
+07:49:02 INFO Transcribing: Back to the Basics_ The Gospel.mp3
+07:56:24 INFO Done in 441s — 19 remaining — ETA ~136 min
+07:56:24 INFO --- [4/22] Back to the Basics_ Worship.mp3 ---
+07:56:24 INFO Transcribing: Back to the Basics_ Worship.mp3
+08:01:34 INFO Done in 311s — 18 remaining — ETA ~120 min
+08:01:34 INFO --- [5/22] Christmas_ Joseph the Carpenter.mp3 ---
+08:01:34 INFO Transcribing: Christmas_ Joseph the Carpenter.mp3
+08:06:58 INFO Done in 324s — 17 remaining — ETA ~109 min
+08:06:58 INFO --- [6/22] Christmas_ Mary.mp3 ---
+08:06:58 INFO Transcribing: Christmas_ Mary.mp3
+08:12:33 INFO Done in 334s — 16 remaining — ETA ~100 min
+08:12:33 INFO --- [7/22] Easter Sunday 2023 - Is He Risen.mp3 ---
+08:12:33 INFO Transcribing: Easter Sunday 2023 - Is He Risen.mp3
+08:16:37 INFO Done in 244s — 15 remaining — ETA ~89 min
+08:16:37 INFO --- [8/22] Holy New Year - Pastor Bill Yomes - January 01, 2023 at Catalyst.mp3 ---
+08:16:37 INFO Transcribing: Holy New Year - Pastor Bill Yomes - January 01, 2023 at Catalyst.mp3
+08:20:38 INFO Done in 241s — 14 remaining — ETA ~80 min
+08:20:38 INFO --- [9/22] John 1_ The Lamb of God.mp3 ---
+08:20:38 INFO Transcribing: John 1_ The Lamb of God.mp3
+08:25:25 INFO Done in 287s — 13 remaining — ETA ~73 min
+08:25:25 INFO --- [10/22] John 1_ The Word & The Light.mp3 ---
+08:25:25 INFO Transcribing: John 1_ The Word & The Light.mp3
+08:30:32 INFO Done in 307s — 12 remaining — ETA ~67 min
+08:30:32 INFO --- [11/22] John 1_ The Word Became Flesh.mp3 ---
+08:30:32 INFO Transcribing: John 1_ The Word Became Flesh.mp3
+08:36:32 INFO Done in 360s — 11 remaining — ETA ~62 min
+08:36:32 INFO --- [12/22] Jonah - Ch1 - The Depths of Disobedience.mp3 ---
+08:36:32 INFO Transcribing: Jonah - Ch1 - The Depths of Disobedience.mp3
+08:43:23 INFO Done in 411s — 10 remaining — ETA ~57 min
+08:43:23 INFO --- [13/22] Jonah - Ch2 -  Depths of Distress.mp3 ---
+08:43:23 INFO Transcribing: Jonah - Ch2 -  Depths of Distress.mp3
+08:50:34 INFO Done in 431s — 9 remaining — ETA ~52 min
+08:50:34 INFO --- [14/22] Jonah - Ch3 - Second Chances.mp3 ---
+08:50:34 INFO Transcribing: Jonah - Ch3 - Second Chances.mp3
+08:57:18 INFO Done in 405s — 8 remaining — ETA ~47 min
+08:57:18 INFO --- [15/22] Love Like Jesus - Story Like Jesus_1.mp3 ---
+08:57:18 INFO Transcribing: Love Like Jesus - Story Like Jesus_1.mp3
+09:04:41 INFO Done in 443s — 7 remaining — ETA ~42 min
+09:04:41 INFO --- [16/22] Palm Sunday 2023.mp3 ---
+09:04:41 INFO Transcribing: Palm Sunday 2023.mp3
+09:11:35 INFO Done in 414s — 6 remaining — ETA ~36 min
+09:11:35 INFO --- [17/22] Pastor Tyler - New Year's Eve 2023.mp3 ---
+09:11:35 INFO Transcribing: Pastor Tyler - New Year's Eve 2023.mp3
+09:15:24 INFO Done in 229s — 5 remaining — ETA ~30 min
+09:15:24 INFO --- [18/22] RESCUE_ A Gospel Message.mp3 ---
+09:15:24 INFO Transcribing: RESCUE_ A Gospel Message.mp3
+09:22:43 INFO Done in 439s — 4 remaining — ETA ~24 min
+09:22:43 INFO --- [19/22] Sex is Good.mp3 ---
+09:22:43 INFO Transcribing: Sex is Good.mp3
+09:29:55 INFO Done in 433s — 3 remaining — ETA ~18 min
+09:29:55 INFO --- [20/22] The Holy Spirit and The Believer.mp3 ---
+09:29:55 INFO Transcribing: The Holy Spirit and The Believer.mp3
+09:34:16 INFO Done in 261s — 2 remaining — ETA ~12 min
+09:34:16 INFO --- [21/22] The Holy Spirit in the New Testament.mp3 ---
+09:34:16 INFO Transcribing: The Holy Spirit in the New Testament.mp3
+09:39:57 INFO Done in 341s — 1 remaining — ETA ~6 min
+09:39:57 INFO --- [22/22] The Holy Spirit in the Old Testament.mp3 ---
+09:39:57 INFO Transcribing: The Holy Spirit in the Old Testament.mp3
+09:45:13 INFO Done in 317s — 0 remaining — ETA ~0 min
+09:45:13 INFO === Batch complete: 22 succeeded, 0 failed, total time 130 min ===
+09:45:13 WARNING Telegram env vars missing — skipping notification
+22:34:51 INFO Batch transcription starting
+22:34:51 INFO   Folder: E:\0 - Sermon Audio\archive
+22:34:51 INFO   Model:  medium
+22:34:51 INFO   Log:    D:\OneDrive\Claude\agents\watson\outputs\logs\batch.log
+22:34:51 INFO Found 23 audio files — 0 already transcribed, 23 to process
+22:34:51 INFO --- [1/23] Back to the Basics_ Giving.mp3 ---
+22:34:51 INFO Transcribing: Back to the Basics_ Giving.mp3
+22:34:57 ERROR Failed: Back to the Basics_ Giving.mp3 (exit 1)
+22:34:57 WARNING Skipping failed file and continuing
+22:34:57 INFO --- [2/23] Back to the Basics_ Prayer.mp3 ---
+22:34:57 INFO Transcribing: Back to the Basics_ Prayer.mp3
+22:34:59 ERROR Failed: Back to the Basics_ Prayer.mp3 (exit 1)
+22:34:59 WARNING Skipping failed file and continuing
+22:34:59 INFO --- [3/23] Back to the Basics_ The Gospel.mp3 ---
+22:34:59 INFO Transcribing: Back to the Basics_ The Gospel.mp3
+22:35:03 ERROR Failed: Back to the Basics_ The Gospel.mp3 (exit 1)
+22:35:03 WARNING Skipping failed file and continuing
+22:35:03 INFO --- [4/23] Back to the Basics_ Worship.mp3 ---
+22:35:03 INFO Transcribing: Back to the Basics_ Worship.mp3
+22:35:06 ERROR Failed: Back to the Basics_ Worship.mp3 (exit 1)
+22:35:06 WARNING Skipping failed file and continuing
+22:35:06 INFO --- [5/23] Christmas_ Joseph the Carpenter.mp3 ---
+22:35:06 INFO Transcribing: Christmas_ Joseph the Carpenter.mp3
+22:35:09 ERROR Failed: Christmas_ Joseph the Carpenter.mp3 (exit 1)
+22:35:09 WARNING Skipping failed file and continuing
+22:35:09 INFO --- [6/23] Christmas_ Mary.mp3 ---
+22:35:09 INFO Transcribing: Christmas_ Mary.mp3
+22:35:12 ERROR Failed: Christmas_ Mary.mp3 (exit 1)
+22:35:12 WARNING Skipping failed file and continuing
+22:35:12 INFO --- [7/23] Easter Sunday 2023 - Is He Risen.mp3 ---
+22:35:12 INFO Transcribing: Easter Sunday 2023 - Is He Risen.mp3
+22:35:15 ERROR Failed: Easter Sunday 2023 - Is He Risen.mp3 (exit 1)
+22:35:15 WARNING Skipping failed file and continuing
+22:35:15 INFO --- [8/23] Holy New Year - Pastor Bill Yomes - January 01, 2023 at Catalyst.mp3 ---
+22:35:15 INFO Transcribing: Holy New Year - Pastor Bill Yomes - January 01, 2023 at Catalyst.mp3
+22:35:17 ERROR Failed: Holy New Year - Pastor Bill Yomes - January 01, 2023 at Catalyst.mp3 (exit 1)
+22:35:17 WARNING Skipping failed file and continuing
+22:35:17 INFO --- [9/23] John 1_ The Lamb of God.mp3 ---
+22:35:17 INFO Transcribing: John 1_ The Lamb of God.mp3
+22:35:20 ERROR Failed: John 1_ The Lamb of God.mp3 (exit 1)
+22:35:20 WARNING Skipping failed file and continuing
+22:35:20 INFO --- [10/23] John 1_ The Word & The Light.mp3 ---
+22:35:20 INFO Transcribing: John 1_ The Word & The Light.mp3
+22:35:23 ERROR Failed: John 1_ The Word & The Light.mp3 (exit 1)
+22:35:23 WARNING Skipping failed file and continuing
+22:35:23 INFO --- [11/23] John 1_ The Word Became Flesh.mp3 ---
+22:35:23 INFO Transcribing: John 1_ The Word Became Flesh.mp3
+22:35:25 ERROR Failed: John 1_ The Word Became Flesh.mp3 (exit 1)
+22:35:25 WARNING Skipping failed file and continuing
+22:35:25 INFO --- [12/23] Jonah - Ch1 - The Depths of Disobedience.mp3 ---
+22:35:25 INFO Transcribing: Jonah - Ch1 - The Depths of Disobedience.mp3
+22:35:28 ERROR Failed: Jonah - Ch1 - The Depths of Disobedience.mp3 (exit 1)
+22:35:28 WARNING Skipping failed file and continuing
+22:35:28 INFO --- [13/23] Jonah - Ch2 -  Depths of Distress.mp3 ---
+22:35:28 INFO Transcribing: Jonah - Ch2 -  Depths of Distress.mp3
+22:35:31 ERROR Failed: Jonah - Ch2 -  Depths of Distress.mp3 (exit 1)
+22:35:31 WARNING Skipping failed file and continuing
+22:35:31 INFO --- [14/23] Jonah - Ch3 - Second Chances.mp3 ---
+22:35:31 INFO Transcribing: Jonah - Ch3 - Second Chances.mp3
+22:35:34 ERROR Failed: Jonah - Ch3 - Second Chances.mp3 (exit 1)
+22:35:34 WARNING Skipping failed file and continuing
+22:35:34 INFO --- [15/23] Love Like Jesus - Story Like Jesus.mp3 ---
+22:35:34 INFO Transcribing: Love Like Jesus - Story Like Jesus.mp3
+22:35:36 ERROR Failed: Love Like Jesus - Story Like Jesus.mp3 (exit 1)
+22:35:36 WARNING Skipping failed file and continuing
+22:35:36 INFO --- [16/23] Love Like Jesus - Story Like Jesus_1.mp3 ---
+22:35:36 INFO Transcribing: Love Like Jesus - Story Like Jesus_1.mp3
+22:35:39 ERROR Failed: Love Like Jesus - Story Like Jesus_1.mp3 (exit 1)
+22:35:39 WARNING Skipping failed file and continuing
+22:35:39 INFO --- [17/23] Palm Sunday 2023.mp3 ---
+22:35:39 INFO Transcribing: Palm Sunday 2023.mp3
+22:35:41 ERROR Failed: Palm Sunday 2023.mp3 (exit 1)
+22:35:41 WARNING Skipping failed file and continuing
+22:35:41 INFO --- [18/23] Pastor Tyler - New Year's Eve 2023.mp3 ---
+22:35:41 INFO Transcribing: Pastor Tyler - New Year's Eve 2023.mp3
+22:35:44 ERROR Failed: Pastor Tyler - New Year's Eve 2023.mp3 (exit 1)
+22:35:44 WARNING Skipping failed file and continuing
+22:35:44 INFO --- [19/23] RESCUE_ A Gospel Message.mp3 ---
+22:35:44 INFO Transcribing: RESCUE_ A Gospel Message.mp3
+22:35:47 ERROR Failed: RESCUE_ A Gospel Message.mp3 (exit 1)
+22:35:47 WARNING Skipping failed file and continuing
+22:35:47 INFO --- [20/23] Sex is Good.mp3 ---
+22:35:47 INFO Transcribing: Sex is Good.mp3
+22:35:50 ERROR Failed: Sex is Good.mp3 (exit 1)
+22:35:50 WARNING Skipping failed file and continuing
+22:35:50 INFO --- [21/23] The Holy Spirit and The Believer.mp3 ---
+22:35:50 INFO Transcribing: The Holy Spirit and The Believer.mp3
+22:35:52 ERROR Failed: The Holy Spirit and The Believer.mp3 (exit 1)
+22:35:52 WARNING Skipping failed file and continuing
+22:35:52 INFO --- [22/23] The Holy Spirit in the New Testament.mp3 ---
+22:35:52 INFO Transcribing: The Holy Spirit in the New Testament.mp3
+22:35:55 ERROR Failed: The Holy Spirit in the New Testament.mp3 (exit 1)
+22:35:55 WARNING Skipping failed file and continuing
+22:35:55 INFO --- [23/23] The Holy Spirit in the Old Testament.mp3 ---
+22:35:55 INFO Transcribing: The Holy Spirit in the Old Testament.mp3
+22:35:58 ERROR Failed: The Holy Spirit in the Old Testament.mp3 (exit 1)
+22:35:58 WARNING Skipping failed file and continuing
+22:35:58 INFO === Batch complete: 0 succeeded, 23 failed, total time 1 min ===
+22:36:48 INFO Batch transcription starting
+22:36:48 INFO   Folder: E:\0 - Sermon Audio\archive
+22:36:48 INFO   Model:  medium
+22:36:48 INFO   Log:    D:\OneDrive\Claude\agents\watson\outputs\logs\batch.log
+22:36:48 INFO Found 23 audio files — 0 already transcribed, 23 to process
+22:36:48 INFO --- [1/23] Back to the Basics_ Giving.mp3 ---
+22:36:48 INFO Transcribing: Back to the Basics_ Giving.mp3
+22:36:50 ERROR Failed: Back to the Basics_ Giving.mp3 (exit 1)
+22:36:50 WARNING Skipping failed file and continuing
+22:36:50 INFO --- [2/23] Back to the Basics_ Prayer.mp3 ---
+22:36:50 INFO Transcribing: Back to the Basics_ Prayer.mp3
+22:36:52 ERROR Failed: Back to the Basics_ Prayer.mp3 (exit 1)
+22:36:52 WARNING Skipping failed file and continuing
+22:36:52 INFO --- [3/23] Back to the Basics_ The Gospel.mp3 ---
+22:36:52 INFO Transcribing: Back to the Basics_ The Gospel.mp3
+22:36:55 ERROR Failed: Back to the Basics_ The Gospel.mp3 (exit 1)
+22:36:55 WARNING Skipping failed file and continuing
+22:36:55 INFO --- [4/23] Back to the Basics_ Worship.mp3 ---
+22:36:55 INFO Transcribing: Back to the Basics_ Worship.mp3
+22:36:58 ERROR Failed: Back to the Basics_ Worship.mp3 (exit 1)
+22:36:58 WARNING Skipping failed file and continuing
+22:36:58 INFO --- [5/23] Christmas_ Joseph the Carpenter.mp3 ---
+22:36:58 INFO Transcribing: Christmas_ Joseph the Carpenter.mp3
+22:37:00 ERROR Failed: Christmas_ Joseph the Carpenter.mp3 (exit 1)
+22:37:00 WARNING Skipping failed file and continuing
+22:37:00 INFO --- [6/23] Christmas_ Mary.mp3 ---
+22:37:00 INFO Transcribing: Christmas_ Mary.mp3
+22:37:02 ERROR Failed: Christmas_ Mary.mp3 (exit 1)
+22:37:02 WARNING Skipping failed file and continuing
+22:37:02 INFO --- [7/23] Easter Sunday 2023 - Is He Risen.mp3 ---
+22:37:02 INFO Transcribing: Easter Sunday 2023 - Is He Risen.mp3
+22:37:05 ERROR Failed: Easter Sunday 2023 - Is He Risen.mp3 (exit 1)
+22:37:05 WARNING Skipping failed file and continuing
+22:37:05 INFO --- [8/23] Holy New Year - Pastor Bill Yomes - January 01, 2023 at Catalyst.mp3 ---
+22:37:05 INFO Transcribing: Holy New Year - Pastor Bill Yomes - January 01, 2023 at Catalyst.mp3
+22:37:08 ERROR Failed: Holy New Year - Pastor Bill Yomes - January 01, 2023 at Catalyst.mp3 (exit 1)
+22:37:08 WARNING Skipping failed file and continuing
+22:37:08 INFO --- [9/23] John 1_ The Lamb of God.mp3 ---
+22:37:08 INFO Transcribing: John 1_ The Lamb of God.mp3
+22:37:10 ERROR Failed: John 1_ The Lamb of God.mp3 (exit 1)
+22:37:10 WARNING Skipping failed file and continuing
+22:37:10 INFO --- [10/23] John 1_ The Word & The Light.mp3 ---
+22:37:10 INFO Transcribing: John 1_ The Word & The Light.mp3
+22:37:13 ERROR Failed: John 1_ The Word & The Light.mp3 (exit 1)
+22:37:13 WARNING Skipping failed file and continuing
+22:37:13 INFO --- [11/23] John 1_ The Word Became Flesh.mp3 ---
+22:37:13 INFO Transcribing: John 1_ The Word Became Flesh.mp3
+22:37:15 ERROR Failed: John 1_ The Word Became Flesh.mp3 (exit 1)
+22:37:15 WARNING Skipping failed file and continuing
+22:37:15 INFO --- [12/23] Jonah - Ch1 - The Depths of Disobedience.mp3 ---
+22:37:15 INFO Transcribing: Jonah - Ch1 - The Depths of Disobedience.mp3
+22:37:18 ERROR Failed: Jonah - Ch1 - The Depths of Disobedience.mp3 (exit 1)
+22:37:18 WARNING Skipping failed file and continuing
+22:37:18 INFO --- [13/23] Jonah - Ch2 -  Depths of Distress.mp3 ---
+22:37:18 INFO Transcribing: Jonah - Ch2 -  Depths of Distress.mp3
+22:37:21 ERROR Failed: Jonah - Ch2 -  Depths of Distress.mp3 (exit 1)
+22:37:21 WARNING Skipping failed file and continuing
+22:37:21 INFO --- [14/23] Jonah - Ch3 - Second Chances.mp3 ---
+22:37:21 INFO Transcribing: Jonah - Ch3 - Second Chances.mp3
+22:37:24 ERROR Failed: Jonah - Ch3 - Second Chances.mp3 (exit 1)
+22:37:24 WARNING Skipping failed file and continuing
+22:37:24 INFO --- [15/23] Love Like Jesus - Story Like Jesus.mp3 ---
+22:37:24 INFO Transcribing: Love Like Jesus - Story Like Jesus.mp3
+22:37:25 ERROR Failed: Love Like Jesus - Story Like Jesus.mp3 (exit 1)
+22:37:25 WARNING Skipping failed file and continuing
+22:37:25 INFO --- [16/23] Love Like Jesus - Story Like Jesus_1.mp3 ---
+22:37:25 INFO Transcribing: Love Like Jesus - Story Like Jesus_1.mp3
+22:37:26 ERROR Failed: Love Like Jesus - Story Like Jesus_1.mp3 (exit 1)
+22:37:26 WARNING Skipping failed file and continuing
+22:37:26 INFO --- [17/23] Palm Sunday 2023.mp3 ---
+22:37:26 INFO Transcribing: Palm Sunday 2023.mp3
+22:37:27 ERROR Failed: Palm Sunday 2023.mp3 (exit 1)
+22:37:27 WARNING Skipping failed file and continuing
+22:37:27 INFO --- [18/23] Pastor Tyler - New Year's Eve 2023.mp3 ---
+22:37:27 INFO Transcribing: Pastor Tyler - New Year's Eve 2023.mp3
+22:37:29 ERROR Failed: Pastor Tyler - New Year's Eve 2023.mp3 (exit 1)
+22:37:29 WARNING Skipping failed file and continuing
+22:37:29 INFO --- [19/23] RESCUE_ A Gospel Message.mp3 ---
+22:37:29 INFO Transcribing: RESCUE_ A Gospel Message.mp3
+22:37:30 ERROR Failed: RESCUE_ A Gospel Message.mp3 (exit 1)
+22:37:30 WARNING Skipping failed file and continuing
+22:37:30 INFO --- [20/23] Sex is Good.mp3 ---
+22:37:30 INFO Transcribing: Sex is Good.mp3
+22:37:31 ERROR Failed: Sex is Good.mp3 (exit 1)
+22:37:31 WARNING Skipping failed file and continuing
+22:37:31 INFO --- [21/23] The Holy Spirit and The Believer.mp3 ---
+22:37:31 INFO Transcribing: The Holy Spirit and The Believer.mp3
+22:37:32 ERROR Failed: The Holy Spirit and The Believer.mp3 (exit 1)
+22:37:32 WARNING Skipping failed file and continuing
+22:37:32 INFO --- [22/23] The Holy Spirit in the New Testament.mp3 ---
+22:37:32 INFO Transcribing: The Holy Spirit in the New Testament.mp3
+22:37:34 ERROR Failed: The Holy Spirit in the New Testament.mp3 (exit 1)
+22:37:34 WARNING Skipping failed file and continuing
+22:37:34 INFO --- [23/23] The Holy Spirit in the Old Testament.mp3 ---
+22:37:34 INFO Transcribing: The Holy Spirit in the Old Testament.mp3
+22:37:35 ERROR Failed: The Holy Spirit in the Old Testament.mp3 (exit 1)
+22:37:35 WARNING Skipping failed file and continuing
+22:37:35 INFO === Batch complete: 0 succeeded, 23 failed, total time 1 min ===
+22:39:36 INFO Batch transcription starting
+22:39:36 INFO   Folder: E:\0 - Sermon Audio\archive
+22:39:36 INFO   Model:  medium
+22:39:36 INFO   Log:    D:\OneDrive\Claude\agents\watson\outputs\logs\batch.log
+22:39:36 INFO Found 23 audio files — 0 already transcribed, 23 to process
+22:39:36 INFO --- [1/23] Back to the Basics_ Giving.mp3 ---
+22:39:36 INFO Transcribing: Back to the Basics_ Giving.mp3
+22:39:37 ERROR Failed: Back to the Basics_ Giving.mp3 (exit 1)
+22:39:37 WARNING Skipping failed file and continuing
+22:39:37 INFO --- [2/23] Back to the Basics_ Prayer.mp3 ---
+22:39:37 INFO Transcribing: Back to the Basics_ Prayer.mp3
+22:39:38 ERROR Failed: Back to the Basics_ Prayer.mp3 (exit 1)
+22:39:38 WARNING Skipping failed file and continuing
+22:39:38 INFO --- [3/23] Back to the Basics_ The Gospel.mp3 ---
+22:39:38 INFO Transcribing: Back to the Basics_ The Gospel.mp3
+22:39:39 ERROR Failed: Back to the Basics_ The Gospel.mp3 (exit 1)
+22:39:39 WARNING Skipping failed file and continuing
+22:39:39 INFO --- [4/23] Back to the Basics_ Worship.mp3 ---
+22:39:39 INFO Transcribing: Back to the Basics_ Worship.mp3
+22:39:40 ERROR Failed: Back to the Basics_ Worship.mp3 (exit 1)
+22:39:40 WARNING Skipping failed file and continuing
+22:39:40 INFO --- [5/23] Christmas_ Joseph the Carpenter.mp3 ---
+22:39:40 INFO Transcribing: Christmas_ Joseph the Carpenter.mp3
+22:39:41 ERROR Failed: Christmas_ Joseph the Carpenter.mp3 (exit 1)
+22:39:41 WARNING Skipping failed file and continuing
+22:39:41 INFO --- [6/23] Christmas_ Mary.mp3 ---
+22:39:41 INFO Transcribing: Christmas_ Mary.mp3
+22:39:42 ERROR Failed: Christmas_ Mary.mp3 (exit 1)
+22:39:42 WARNING Skipping failed file and continuing
+22:39:42 INFO --- [7/23] Easter Sunday 2023 - Is He Risen.mp3 ---
+22:39:42 INFO Transcribing: Easter Sunday 2023 - Is He Risen.mp3
+22:39:43 ERROR Failed: Easter Sunday 2023 - Is He Risen.mp3 (exit 1)
+22:39:43 WARNING Skipping failed file and continuing
+22:39:43 INFO --- [8/23] Holy New Year - Pastor Bill Yomes - January 01, 2023 at Catalyst.mp3 ---
+22:39:43 INFO Transcribing: Holy New Year - Pastor Bill Yomes - January 01, 2023 at Catalyst.mp3
+22:39:44 ERROR Failed: Holy New Year - Pastor Bill Yomes - January 01, 2023 at Catalyst.mp3 (exit 1)
+22:39:44 WARNING Skipping failed file and continuing
+22:39:44 INFO --- [9/23] John 1_ The Lamb of God.mp3 ---
+22:39:44 INFO Transcribing: John 1_ The Lamb of God.mp3
+22:39:45 ERROR Failed: John 1_ The Lamb of God.mp3 (exit 1)
+22:39:45 WARNING Skipping failed file and continuing
+22:39:45 INFO --- [10/23] John 1_ The Word & The Light.mp3 ---
+22:39:45 INFO Transcribing: John 1_ The Word & The Light.mp3
+22:39:46 ERROR Failed: John 1_ The Word & The Light.mp3 (exit 1)
+22:39:46 WARNING Skipping failed file and continuing
+22:39:46 INFO --- [11/23] John 1_ The Word Became Flesh.mp3 ---
+22:39:46 INFO Transcribing: John 1_ The Word Became Flesh.mp3
+22:39:47 ERROR Failed: John 1_ The Word Became Flesh.mp3 (exit 1)
+22:39:47 WARNING Skipping failed file and continuing
+22:39:47 INFO --- [12/23] Jonah - Ch1 - The Depths of Disobedience.mp3 ---
+22:39:47 INFO Transcribing: Jonah - Ch1 - The Depths of Disobedience.mp3
+22:39:48 ERROR Failed: Jonah - Ch1 - The Depths of Disobedience.mp3 (exit 1)
+22:39:48 WARNING Skipping failed file and continuing
+22:39:48 INFO --- [13/23] Jonah - Ch2 -  Depths of Distress.mp3 ---
+22:39:48 INFO Transcribing: Jonah - Ch2 -  Depths of Distress.mp3
+22:39:48 ERROR Failed: Jonah - Ch2 -  Depths of Distress.mp3 (exit 1)
+22:39:48 WARNING Skipping failed file and continuing
+22:39:48 INFO --- [14/23] Jonah - Ch3 - Second Chances.mp3 ---
+22:39:48 INFO Transcribing: Jonah - Ch3 - Second Chances.mp3
+22:39:49 ERROR Failed: Jonah - Ch3 - Second Chances.mp3 (exit 1)
+22:39:49 WARNING Skipping failed file and continuing
+22:39:49 INFO --- [15/23] Love Like Jesus - Story Like Jesus.mp3 ---
+22:39:49 INFO Transcribing: Love Like Jesus - Story Like Jesus.mp3
+22:39:50 ERROR Failed: Love Like Jesus - Story Like Jesus.mp3 (exit 1)
+22:39:50 WARNING Skipping failed file and continuing
+22:39:50 INFO --- [16/23] Love Like Jesus - Story Like Jesus_1.mp3 ---
+22:39:50 INFO Transcribing: Love Like Jesus - Story Like Jesus_1.mp3
+22:39:51 ERROR Failed: Love Like Jesus - Story Like Jesus_1.mp3 (exit 1)
+22:39:51 WARNING Skipping failed file and continuing
+22:39:51 INFO --- [17/23] Palm Sunday 2023.mp3 ---
+22:39:51 INFO Transcribing: Palm Sunday 2023.mp3
+22:39:52 ERROR Failed: Palm Sunday 2023.mp3 (exit 1)
+22:39:52 WARNING Skipping failed file and continuing
+22:39:52 INFO --- [18/23] Pastor Tyler - New Year's Eve 2023.mp3 ---
+22:39:52 INFO Transcribing: Pastor Tyler - New Year's Eve 2023.mp3
+22:39:53 ERROR Failed: Pastor Tyler - New Year's Eve 2023.mp3 (exit 1)
+22:39:53 WARNING Skipping failed file and continuing
+22:39:53 INFO --- [19/23] RESCUE_ A Gospel Message.mp3 ---
+22:39:53 INFO Transcribing: RESCUE_ A Gospel Message.mp3
+22:39:54 ERROR Failed: RESCUE_ A Gospel Message.mp3 (exit 1)
+22:39:54 WARNING Skipping failed file and continuing
+22:39:54 INFO --- [20/23] Sex is Good.mp3 ---
+22:39:54 INFO Transcribing: Sex is Good.mp3
+22:39:55 ERROR Failed: Sex is Good.mp3 (exit 1)
+22:39:55 WARNING Skipping failed file and continuing
+22:39:55 INFO --- [21/23] The Holy Spirit and The Believer.mp3 ---
+22:39:55 INFO Transcribing: The Holy Spirit and The Believer.mp3
+22:39:56 ERROR Failed: The Holy Spirit and The Believer.mp3 (exit 1)
+22:39:56 WARNING Skipping failed file and continuing
+22:39:56 INFO --- [22/23] The Holy Spirit in the New Testament.mp3 ---
+22:39:56 INFO Transcribing: The Holy Spirit in the New Testament.mp3
+22:39:57 ERROR Failed: The Holy Spirit in the New Testament.mp3 (exit 1)
+22:39:57 WARNING Skipping failed file and continuing
+22:39:57 INFO --- [23/23] The Holy Spirit in the Old Testament.mp3 ---
+22:39:57 INFO Transcribing: The Holy Spirit in the Old Testament.mp3
+22:39:58 ERROR Failed: The Holy Spirit in the Old Testament.mp3 (exit 1)
+22:39:58 WARNING Skipping failed file and continuing
+22:39:58 INFO === Batch complete: 0 succeeded, 23 failed, total time 0 min ===
+22:41:04 INFO Batch transcription starting
+22:41:04 INFO   Folder: E:\0 - Sermon Audio\archive
+22:41:04 INFO   Model:  medium
+22:41:04 INFO   Log:    D:\OneDrive\Claude\agents\watson\outputs\logs\batch.log
+22:41:04 INFO Found 23 audio files — 0 already transcribed, 23 to process
+22:41:04 INFO --- [1/23] Back to the Basics_ Giving.mp3 ---
+22:41:04 INFO Transcribing: Back to the Basics_ Giving.mp3
+22:41:05 ERROR Failed: Back to the Basics_ Giving.mp3 (exit 1)
+22:41:05 WARNING Skipping failed file and continuing
+22:41:05 INFO --- [2/23] Back to the Basics_ Prayer.mp3 ---
+22:41:05 INFO Transcribing: Back to the Basics_ Prayer.mp3
+22:41:06 ERROR Failed: Back to the Basics_ Prayer.mp3 (exit 1)
+22:41:06 WARNING Skipping failed file and continuing
+22:41:06 INFO --- [3/23] Back to the Basics_ The Gospel.mp3 ---
+22:41:06 INFO Transcribing: Back to the Basics_ The Gospel.mp3
+22:41:07 ERROR Failed: Back to the Basics_ The Gospel.mp3 (exit 1)
+22:41:07 WARNING Skipping failed file and continuing
+22:41:07 INFO --- [4/23] Back to the Basics_ Worship.mp3 ---
+22:41:07 INFO Transcribing: Back to the Basics_ Worship.mp3
+22:41:08 ERROR Failed: Back to the Basics_ Worship.mp3 (exit 1)
+22:41:08 WARNING Skipping failed file and continuing
+22:41:08 INFO --- [5/23] Christmas_ Joseph the Carpenter.mp3 ---
+22:41:08 INFO Transcribing: Christmas_ Joseph the Carpenter.mp3
+22:41:09 ERROR Failed: Christmas_ Joseph the Carpenter.mp3 (exit 1)
+22:41:09 WARNING Skipping failed file and continuing
+22:41:09 INFO --- [6/23] Christmas_ Mary.mp3 ---
+22:41:09 INFO Transcribing: Christmas_ Mary.mp3
+22:41:10 ERROR Failed: Christmas_ Mary.mp3 (exit 1)
+22:41:10 WARNING Skipping failed file and continuing
+22:41:10 INFO --- [7/23] Easter Sunday 2023 - Is He Risen.mp3 ---
+22:41:10 INFO Transcribing: Easter Sunday 2023 - Is He Risen.mp3
+22:41:11 ERROR Failed: Easter Sunday 2023 - Is He Risen.mp3 (exit 1)
+22:41:11 WARNING Skipping failed file and continuing
+22:41:11 INFO --- [8/23] Holy New Year - Pastor Bill Yomes - January 01, 2023 at Catalyst.mp3 ---
+22:41:11 INFO Transcribing: Holy New Year - Pastor Bill Yomes - January 01, 2023 at Catalyst.mp3
+22:41:12 ERROR Failed: Holy New Year - Pastor Bill Yomes - January 01, 2023 at Catalyst.mp3 (exit 1)
+22:41:12 WARNING Skipping failed file and continuing
+22:41:12 INFO --- [9/23] John 1_ The Lamb of God.mp3 ---
+22:41:12 INFO Transcribing: John 1_ The Lamb of God.mp3
+22:41:13 ERROR Failed: John 1_ The Lamb of God.mp3 (exit 1)
+22:41:13 WARNING Skipping failed file and continuing
+22:41:13 INFO --- [10/23] John 1_ The Word & The Light.mp3 ---
+22:41:13 INFO Transcribing: John 1_ The Word & The Light.mp3
+22:41:14 ERROR Failed: John 1_ The Word & The Light.mp3 (exit 1)
+22:41:14 WARNING Skipping failed file and continuing
+22:41:14 INFO --- [11/23] John 1_ The Word Became Flesh.mp3 ---
+22:41:14 INFO Transcribing: John 1_ The Word Became Flesh.mp3
+22:41:15 ERROR Failed: John 1_ The Word Became Flesh.mp3 (exit 1)
+22:41:15 WARNING Skipping failed file and continuing
+22:41:15 INFO --- [12/23] Jonah - Ch1 - The Depths of Disobedience.mp3 ---
+22:41:15 INFO Transcribing: Jonah - Ch1 - The Depths of Disobedience.mp3
+22:41:16 ERROR Failed: Jonah - Ch1 - The Depths of Disobedience.mp3 (exit 1)
+22:41:16 WARNING Skipping failed file and continuing
+22:41:16 INFO --- [13/23] Jonah - Ch2 -  Depths of Distress.mp3 ---
+22:41:16 INFO Transcribing: Jonah - Ch2 -  Depths of Distress.mp3
+22:41:16 ERROR Failed: Jonah - Ch2 -  Depths of Distress.mp3 (exit 1)
+22:41:16 WARNING Skipping failed file and continuing
+22:41:16 INFO --- [14/23] Jonah - Ch3 - Second Chances.mp3 ---
+22:41:16 INFO Transcribing: Jonah - Ch3 - Second Chances.mp3
+22:41:18 ERROR Failed: Jonah - Ch3 - Second Chances.mp3 (exit 1)
+22:41:18 WARNING Skipping failed file and continuing
+22:41:18 INFO --- [15/23] Love Like Jesus - Story Like Jesus.mp3 ---
+22:41:18 INFO Transcribing: Love Like Jesus - Story Like Jesus.mp3
+22:41:18 ERROR Failed: Love Like Jesus - Story Like Jesus.mp3 (exit 1)
+22:41:18 WARNING Skipping failed file and continuing
+22:41:18 INFO --- [16/23] Love Like Jesus - Story Like Jesus_1.mp3 ---
+22:41:18 INFO Transcribing: Love Like Jesus - Story Like Jesus_1.mp3
+22:41:19 ERROR Failed: Love Like Jesus - Story Like Jesus_1.mp3 (exit 1)
+22:41:19 WARNING Skipping failed file and continuing
+22:41:19 INFO --- [17/23] Palm Sunday 2023.mp3 ---
+22:41:19 INFO Transcribing: Palm Sunday 2023.mp3
+22:41:20 ERROR Failed: Palm Sunday 2023.mp3 (exit 1)
+22:41:20 WARNING Skipping failed file and continuing
+22:41:20 INFO --- [18/23] Pastor Tyler - New Year's Eve 2023.mp3 ---
+22:41:20 INFO Transcribing: Pastor Tyler - New Year's Eve 2023.mp3
+22:41:21 ERROR Failed: Pastor Tyler - New Year's Eve 2023.mp3 (exit 1)
+22:41:21 WARNING Skipping failed file and continuing
+22:41:21 INFO --- [19/23] RESCUE_ A Gospel Message.mp3 ---
+22:41:21 INFO Transcribing: RESCUE_ A Gospel Message.mp3
+22:41:22 ERROR Failed: RESCUE_ A Gospel Message.mp3 (exit 1)
+22:41:22 WARNING Skipping failed file and continuing
+22:41:22 INFO --- [20/23] Sex is Good.mp3 ---
+22:41:22 INFO Transcribing: Sex is Good.mp3
+22:41:23 ERROR Failed: Sex is Good.mp3 (exit 1)
+22:41:23 WARNING Skipping failed file and continuing
+22:41:23 INFO --- [21/23] The Holy Spirit and The Believer.mp3 ---
+22:41:23 INFO Transcribing: The Holy Spirit and The Believer.mp3
+22:41:24 ERROR Failed: The Holy Spirit and The Believer.mp3 (exit 1)
+22:41:24 WARNING Skipping failed file and continuing
+22:41:24 INFO --- [22/23] The Holy Spirit in the New Testament.mp3 ---
+22:41:24 INFO Transcribing: The Holy Spirit in the New Testament.mp3
+22:41:25 ERROR Failed: The Holy Spirit in the New Testament.mp3 (exit 1)
+22:41:25 WARNING Skipping failed file and continuing
+22:41:25 INFO --- [23/23] The Holy Spirit in the Old Testament.mp3 ---
+22:41:25 INFO Transcribing: The Holy Spirit in the Old Testament.mp3
+22:41:27 ERROR Failed: The Holy Spirit in the Old Testament.mp3 (exit 1)
+22:41:27 WARNING Skipping failed file and continuing
+22:41:27 INFO === Batch complete: 0 succeeded, 23 failed, total time 0 min ===
+22:49:42 INFO Batch transcription starting
+22:49:42 INFO   Folder: E:\0 - Sermon Audio\archive
+22:49:42 INFO   Model:  medium
+22:49:42 INFO   Log:    D:\OneDrive\Claude\agents\watson\outputs\logs\batch.log
+22:49:42 INFO Found 23 audio files — 0 already transcribed, 23 to process
+22:49:42 INFO --- [1/23] Back to the Basics_ Giving.mp3 ---
+22:49:42 INFO Transcribing: Back to the Basics_ Giving.mp3
+22:49:44 ERROR Failed: Back to the Basics_ Giving.mp3 (exit 1)
+22:49:44 WARNING Skipping failed file and continuing
+22:49:44 INFO --- [2/23] Back to the Basics_ Prayer.mp3 ---
+22:49:44 INFO Transcribing: Back to the Basics_ Prayer.mp3
+22:49:45 ERROR Failed: Back to the Basics_ Prayer.mp3 (exit 1)
+22:49:45 WARNING Skipping failed file and continuing
+22:49:45 INFO --- [3/23] Back to the Basics_ The Gospel.mp3 ---
+22:49:45 INFO Transcribing: Back to the Basics_ The Gospel.mp3
+22:49:46 ERROR Failed: Back to the Basics_ The Gospel.mp3 (exit 1)
+22:49:46 WARNING Skipping failed file and continuing
+22:49:46 INFO --- [4/23] Back to the Basics_ Worship.mp3 ---
+22:49:46 INFO Transcribing: Back to the Basics_ Worship.mp3
+22:49:47 ERROR Failed: Back to the Basics_ Worship.mp3 (exit 1)
+22:49:47 WARNING Skipping failed file and continuing
+22:49:47 INFO --- [5/23] Christmas_ Joseph the Carpenter.mp3 ---
+22:49:47 INFO Transcribing: Christmas_ Joseph the Carpenter.mp3
+22:49:48 ERROR Failed: Christmas_ Joseph the Carpenter.mp3 (exit 1)
+22:49:48 WARNING Skipping failed file and continuing
+22:49:48 INFO --- [6/23] Christmas_ Mary.mp3 ---
+22:49:48 INFO Transcribing: Christmas_ Mary.mp3
+22:49:49 ERROR Failed: Christmas_ Mary.mp3 (exit 1)
+22:49:49 WARNING Skipping failed file and continuing
+22:49:49 INFO --- [7/23] Easter Sunday 2023 - Is He Risen.mp3 ---
+22:49:49 INFO Transcribing: Easter Sunday 2023 - Is He Risen.mp3
+22:49:50 ERROR Failed: Easter Sunday 2023 - Is He Risen.mp3 (exit 1)
+22:49:50 WARNING Skipping failed file and continuing
+22:49:50 INFO --- [8/23] Holy New Year - Pastor Bill Yomes - January 01, 2023 at Catalyst.mp3 ---
+22:49:50 INFO Transcribing: Holy New Year - Pastor Bill Yomes - January 01, 2023 at Catalyst.mp3
+22:49:51 ERROR Failed: Holy New Year - Pastor Bill Yomes - January 01, 2023 at Catalyst.mp3 (exit 1)
+22:49:51 WARNING Skipping failed file and continuing
+22:49:51 INFO --- [9/23] John 1_ The Lamb of God.mp3 ---
+22:49:51 INFO Transcribing: John 1_ The Lamb of God.mp3
+22:49:52 ERROR Failed: John 1_ The Lamb of God.mp3 (exit 1)
+22:49:52 WARNING Skipping failed file and continuing
+22:49:52 INFO --- [10/23] John 1_ The Word & The Light.mp3 ---
+22:49:52 INFO Transcribing: John 1_ The Word & The Light.mp3
+22:49:53 ERROR Failed: John 1_ The Word & The Light.mp3 (exit 1)
+22:49:53 WARNING Skipping failed file and continuing
+22:49:53 INFO --- [11/23] John 1_ The Word Became Flesh.mp3 ---
+22:49:53 INFO Transcribing: John 1_ The Word Became Flesh.mp3
+22:49:55 ERROR Failed: John 1_ The Word Became Flesh.mp3 (exit 1)
+22:49:55 WARNING Skipping failed file and continuing
+22:49:55 INFO --- [12/23] Jonah - Ch1 - The Depths of Disobedience.mp3 ---
+22:49:55 INFO Transcribing: Jonah - Ch1 - The Depths of Disobedience.mp3
+22:49:56 ERROR Failed: Jonah - Ch1 - The Depths of Disobedience.mp3 (exit 1)
+22:49:56 WARNING Skipping failed file and continuing
+22:49:56 INFO --- [13/23] Jonah - Ch2 -  Depths of Distress.mp3 ---
+22:49:56 INFO Transcribing: Jonah - Ch2 -  Depths of Distress.mp3
+22:49:57 ERROR Failed: Jonah - Ch2 -  Depths of Distress.mp3 (exit 1)
+22:49:57 WARNING Skipping failed file and continuing
+22:49:57 INFO --- [14/23] Jonah - Ch3 - Second Chances.mp3 ---
+22:49:57 INFO Transcribing: Jonah - Ch3 - Second Chances.mp3
+22:49:58 ERROR Failed: Jonah - Ch3 - Second Chances.mp3 (exit 1)
+22:49:58 WARNING Skipping failed file and continuing
+22:49:58 INFO --- [15/23] Love Like Jesus - Story Like Jesus.mp3 ---
+22:49:58 INFO Transcribing: Love Like Jesus - Story Like Jesus.mp3
+22:49:59 ERROR Failed: Love Like Jesus - Story Like Jesus.mp3 (exit 1)
+22:49:59 WARNING Skipping failed file and continuing
+22:49:59 INFO --- [16/23] Love Like Jesus - Story Like Jesus_1.mp3 ---
+22:49:59 INFO Transcribing: Love Like Jesus - Story Like Jesus_1.mp3
+22:50:00 ERROR Failed: Love Like Jesus - Story Like Jesus_1.mp3 (exit 1)
+22:50:00 WARNING Skipping failed file and continuing
+22:50:00 INFO --- [17/23] Palm Sunday 2023.mp3 ---
+22:50:00 INFO Transcribing: Palm Sunday 2023.mp3
+22:50:01 ERROR Failed: Palm Sunday 2023.mp3 (exit 1)
+22:50:01 WARNING Skipping failed file and continuing
+22:50:01 INFO --- [18/23] Pastor Tyler - New Year's Eve 2023.mp3 ---
+22:50:01 INFO Transcribing: Pastor Tyler - New Year's Eve 2023.mp3
+22:50:03 ERROR Failed: Pastor Tyler - New Year's Eve 2023.mp3 (exit 1)
+22:50:03 WARNING Skipping failed file and continuing
+22:50:03 INFO --- [19/23] RESCUE_ A Gospel Message.mp3 ---
+22:50:03 INFO Transcribing: RESCUE_ A Gospel Message.mp3
+22:50:04 ERROR Failed: RESCUE_ A Gospel Message.mp3 (exit 1)
+22:50:04 WARNING Skipping failed file and continuing
+22:50:04 INFO --- [20/23] Sex is Good.mp3 ---
+22:50:04 INFO Transcribing: Sex is Good.mp3
+22:50:05 ERROR Failed: Sex is Good.mp3 (exit 1)
+22:50:05 WARNING Skipping failed file and continuing
+22:50:05 INFO --- [21/23] The Holy Spirit and The Believer.mp3 ---
+22:50:05 INFO Transcribing: The Holy Spirit and The Believer.mp3
+22:50:06 ERROR Failed: The Holy Spirit and The Believer.mp3 (exit 1)
+22:50:06 WARNING Skipping failed file and continuing
+22:50:06 INFO --- [22/23] The Holy Spirit in the New Testament.mp3 ---
+22:50:06 INFO Transcribing: The Holy Spirit in the New Testament.mp3
+22:50:07 ERROR Failed: The Holy Spirit in the New Testament.mp3 (exit 1)
+22:50:07 WARNING Skipping failed file and continuing
+22:50:07 INFO --- [23/23] The Holy Spirit in the Old Testament.mp3 ---
+22:50:07 INFO Transcribing: The Holy Spirit in the Old Testament.mp3
+22:50:09 ERROR Failed: The Holy Spirit in the Old Testament.mp3 (exit 1)
+22:50:09 WARNING Skipping failed file and continuing
+22:50:09 INFO === Batch complete: 0 succeeded, 23 failed, total time 0 min ===
+22:52:44 INFO Batch transcription starting
+22:52:44 INFO   Folder: E:\0 - Sermon Audio\archive
+22:52:44 INFO   Model:  medium
+22:52:44 INFO   Log:    D:\OneDrive\Claude\agents\watson\outputs\logs\batch.log
+22:52:44 INFO Found 23 audio files — 0 already transcribed, 23 to process
+22:52:44 INFO --- [1/23] Back to the Basics_ Giving.mp3 ---
+22:52:44 INFO Transcribing: Back to the Basics_ Giving.mp3
+22:52:45 ERROR Failed: Back to the Basics_ Giving.mp3 (exit 1)
+22:52:45 WARNING Skipping failed file and continuing
+22:52:45 INFO --- [2/23] Back to the Basics_ Prayer.mp3 ---
+22:52:45 INFO Transcribing: Back to the Basics_ Prayer.mp3
+22:52:46 ERROR Failed: Back to the Basics_ Prayer.mp3 (exit 1)
+22:52:46 WARNING Skipping failed file and continuing
+22:52:46 INFO --- [3/23] Back to the Basics_ The Gospel.mp3 ---
+22:52:46 INFO Transcribing: Back to the Basics_ The Gospel.mp3
+22:52:47 ERROR Failed: Back to the Basics_ The Gospel.mp3 (exit 1)
+22:52:47 WARNING Skipping failed file and continuing
+22:52:47 INFO --- [4/23] Back to the Basics_ Worship.mp3 ---
+22:52:47 INFO Transcribing: Back to the Basics_ Worship.mp3
+22:52:48 ERROR Failed: Back to the Basics_ Worship.mp3 (exit 1)
+22:52:48 WARNING Skipping failed file and continuing
+22:52:48 INFO --- [5/23] Christmas_ Joseph the Carpenter.mp3 ---
+22:52:48 INFO Transcribing: Christmas_ Joseph the Carpenter.mp3
+22:52:49 ERROR Failed: Christmas_ Joseph the Carpenter.mp3 (exit 1)
+22:52:49 WARNING Skipping failed file and continuing
+22:52:49 INFO --- [6/23] Christmas_ Mary.mp3 ---
+22:52:49 INFO Transcribing: Christmas_ Mary.mp3
+22:52:50 ERROR Failed: Christmas_ Mary.mp3 (exit 1)
+22:52:50 WARNING Skipping failed file and continuing
+22:52:50 INFO --- [7/23] Easter Sunday 2023 - Is He Risen.mp3 ---
+22:52:50 INFO Transcribing: Easter Sunday 2023 - Is He Risen.mp3
+22:52:51 ERROR Failed: Easter Sunday 2023 - Is He Risen.mp3 (exit 1)
+22:52:51 WARNING Skipping failed file and continuing
+22:52:51 INFO --- [8/23] Holy New Year - Pastor Bill Yomes - January 01, 2023 at Catalyst.mp3 ---
+22:52:51 INFO Transcribing: Holy New Year - Pastor Bill Yomes - January 01, 2023 at Catalyst.mp3
+22:52:52 ERROR Failed: Holy New Year - Pastor Bill Yomes - January 01, 2023 at Catalyst.mp3 (exit 1)
+22:52:52 WARNING Skipping failed file and continuing
+22:52:52 INFO --- [9/23] John 1_ The Lamb of God.mp3 ---
+22:52:52 INFO Transcribing: John 1_ The Lamb of God.mp3
+22:52:52 ERROR Failed: John 1_ The Lamb of God.mp3 (exit 1)
+22:52:52 WARNING Skipping failed file and continuing
+22:52:52 INFO --- [10/23] John 1_ The Word & The Light.mp3 ---
+22:52:52 INFO Transcribing: John 1_ The Word & The Light.mp3
+22:52:53 ERROR Failed: John 1_ The Word & The Light.mp3 (exit 1)
+22:52:53 WARNING Skipping failed file and continuing
+22:52:53 INFO --- [11/23] John 1_ The Word Became Flesh.mp3 ---
+22:52:53 INFO Transcribing: John 1_ The Word Became Flesh.mp3
+22:52:54 ERROR Failed: John 1_ The Word Became Flesh.mp3 (exit 1)
+22:52:54 WARNING Skipping failed file and continuing
+22:52:54 INFO --- [12/23] Jonah - Ch1 - The Depths of Disobedience.mp3 ---
+22:52:54 INFO Transcribing: Jonah - Ch1 - The Depths of Disobedience.mp3
+22:52:55 ERROR Failed: Jonah - Ch1 - The Depths of Disobedience.mp3 (exit 1)
+22:52:55 WARNING Skipping failed file and continuing
+22:52:55 INFO --- [13/23] Jonah - Ch2 -  Depths of Distress.mp3 ---
+22:52:55 INFO Transcribing: Jonah - Ch2 -  Depths of Distress.mp3
+22:52:56 ERROR Failed: Jonah - Ch2 -  Depths of Distress.mp3 (exit 1)
+22:52:56 WARNING Skipping failed file and continuing
+22:52:56 INFO --- [14/23] Jonah - Ch3 - Second Chances.mp3 ---
+22:52:56 INFO Transcribing: Jonah - Ch3 - Second Chances.mp3
+22:52:57 ERROR Failed: Jonah - Ch3 - Second Chances.mp3 (exit 1)
+22:52:57 WARNING Skipping failed file and continuing
+22:52:57 INFO --- [15/23] Love Like Jesus - Story Like Jesus.mp3 ---
+22:52:57 INFO Transcribing: Love Like Jesus - Story Like Jesus.mp3
+22:52:58 ERROR Failed: Love Like Jesus - Story Like Jesus.mp3 (exit 1)
+22:52:58 WARNING Skipping failed file and continuing
+22:52:58 INFO --- [16/23] Love Like Jesus - Story Like Jesus_1.mp3 ---
+22:52:58 INFO Transcribing: Love Like Jesus - Story Like Jesus_1.mp3
+22:52:59 ERROR Failed: Love Like Jesus - Story Like Jesus_1.mp3 (exit 1)
+22:52:59 WARNING Skipping failed file and continuing
+22:52:59 INFO --- [17/23] Palm Sunday 2023.mp3 ---
+22:52:59 INFO Transcribing: Palm Sunday 2023.mp3
+22:53:00 ERROR Failed: Palm Sunday 2023.mp3 (exit 1)
+22:53:00 WARNING Skipping failed file and continuing
+22:53:00 INFO --- [18/23] Pastor Tyler - New Year's Eve 2023.mp3 ---
+22:53:00 INFO Transcribing: Pastor Tyler - New Year's Eve 2023.mp3
+22:53:01 ERROR Failed: Pastor Tyler - New Year's Eve 2023.mp3 (exit 1)
+22:53:01 WARNING Skipping failed file and continuing
+22:53:01 INFO --- [19/23] RESCUE_ A Gospel Message.mp3 ---
+22:53:01 INFO Transcribing: RESCUE_ A Gospel Message.mp3
+22:53:02 ERROR Failed: RESCUE_ A Gospel Message.mp3 (exit 1)
+22:53:02 WARNING Skipping failed file and continuing
+22:53:02 INFO --- [20/23] Sex is Good.mp3 ---
+22:53:02 INFO Transcribing: Sex is Good.mp3
+22:53:03 ERROR Failed: Sex is Good.mp3 (exit 1)
+22:53:03 WARNING Skipping failed file and continuing
+22:53:03 INFO --- [21/23] The Holy Spirit and The Believer.mp3 ---
+22:53:03 INFO Transcribing: The Holy Spirit and The Believer.mp3
+22:53:04 ERROR Failed: The Holy Spirit and The Believer.mp3 (exit 1)
+22:53:04 WARNING Skipping failed file and continuing
+22:53:04 INFO --- [22/23] The Holy Spirit in the New Testament.mp3 ---
+22:53:04 INFO Transcribing: The Holy Spirit in the New Testament.mp3
+22:53:05 ERROR Failed: The Holy Spirit in the New Testament.mp3 (exit 1)
+22:53:05 WARNING Skipping failed file and continuing
+22:53:05 INFO --- [23/23] The Holy Spirit in the Old Testament.mp3 ---
+22:53:05 INFO Transcribing: The Holy Spirit in the Old Testament.mp3
+22:53:06 ERROR Failed: The Holy Spirit in the Old Testament.mp3 (exit 1)
+22:53:06 WARNING Skipping failed file and continuing
+22:53:06 INFO === Batch complete: 0 succeeded, 23 failed, total time 0 min ===
+17:20:24 INFO Batch transcription starting
+17:20:24 INFO   Folder: E:\0 - Sermon Audio\archive
+17:20:24 INFO   Model:  medium
+17:20:24 INFO   Log:    D:\OneDrive\Claude\agents\watson\outputs\logs\batch.log
+17:20:24 INFO Found 23 audio files — 0 already transcribed, 23 to process
+17:20:24 INFO --- DRY RUN — no files will be processed ---
+17:20:24 INFO   PENDING: Back to the Basics_ Giving.mp3
+17:20:24 INFO   PENDING: Back to the Basics_ Prayer.mp3
+17:20:24 INFO   PENDING: Back to the Basics_ The Gospel.mp3
+17:20:24 INFO   PENDING: Back to the Basics_ Worship.mp3
+17:20:24 INFO   PENDING: Christmas_ Joseph the Carpenter.mp3
+17:20:24 INFO   PENDING: Christmas_ Mary.mp3
+17:20:24 INFO   PENDING: Easter Sunday 2023 - Is He Risen.mp3
+17:20:24 INFO   PENDING: Holy New Year - Pastor Bill Yomes - January 01, 2023 at Catalyst.mp3
+17:20:24 INFO   PENDING: John 1_ The Lamb of God.mp3
+17:20:24 INFO   PENDING: John 1_ The Word & The Light.mp3
+17:20:24 INFO   PENDING: John 1_ The Word Became Flesh.mp3
+17:20:24 INFO   PENDING: Jonah - Ch1 - The Depths of Disobedience.mp3
+17:20:24 INFO   PENDING: Jonah - Ch2 -  Depths of Distress.mp3
+17:20:24 INFO   PENDING: Jonah - Ch3 - Second Chances.mp3
+17:20:24 INFO   PENDING: Love Like Jesus - Story Like Jesus.mp3
+17:20:24 INFO   PENDING: Love Like Jesus - Story Like Jesus_1.mp3
+17:20:24 INFO   PENDING: Palm Sunday 2023.mp3
+17:20:24 INFO   PENDING: Pastor Tyler - New Year's Eve 2023.mp3
+17:20:24 INFO   PENDING: RESCUE_ A Gospel Message.mp3
+17:20:24 INFO   PENDING: Sex is Good.mp3
+17:20:24 INFO   PENDING: The Holy Spirit and The Believer.mp3
+17:20:24 INFO   PENDING: The Holy Spirit in the New Testament.mp3
+17:20:24 INFO   PENDING: The Holy Spirit in the Old Testament.mp3
+17:21:45 INFO Batch transcription starting
+17:21:45 INFO   Folder: E:\0 - Sermon Audio\archive
+17:21:45 INFO   Model:  medium
+17:21:45 INFO   Log:    D:\OneDrive\Claude\agents\watson\outputs\logs\batch.log
+17:21:45 INFO Found 22 audio files — 22 already transcribed, 0 to process
+17:21:45 INFO --- DRY RUN — no files will be processed ---
+17:21:45 INFO   DONE:    Back to the Basics_ Giving.mp3
+17:21:45 INFO   DONE:    Back to the Basics_ Prayer.mp3
+17:21:45 INFO   DONE:    Back to the Basics_ The Gospel.mp3
+17:21:45 INFO   DONE:    Back to the Basics_ Worship.mp3
+17:21:45 INFO   DONE:    Christmas_ Joseph the Carpenter.mp3
+17:21:45 INFO   DONE:    Christmas_ Mary.mp3
+17:21:45 INFO   DONE:    Easter Sunday 2023 - Is He Risen.mp3
+17:21:45 INFO   DONE:    Holy New Year - Pastor Bill Yomes - January 01, 2023 at Catalyst.mp3
+17:21:45 INFO   DONE:    John 1_ The Lamb of God.mp3
+17:21:45 INFO   DONE:    John 1_ The Word & The Light.mp3
+17:21:45 INFO   DONE:    John 1_ The Word Became Flesh.mp3
+17:21:45 INFO   DONE:    Jonah - Ch1 - The Depths of Disobedience.mp3
+17:21:45 INFO   DONE:    Jonah - Ch2 -  Depths of Distress.mp3
+17:21:45 INFO   DONE:    Jonah - Ch3 - Second Chances.mp3
+17:21:45 INFO   DONE:    Love Like Jesus - Story Like Jesus.mp3
+17:21:45 INFO   DONE:    Palm Sunday 2023.mp3
+17:21:45 INFO   DONE:    Pastor Tyler - New Year's Eve 2023.mp3
+17:21:45 INFO   DONE:    RESCUE_ A Gospel Message.mp3
+17:21:45 INFO   DONE:    Sex is Good.mp3
+17:21:45 INFO   DONE:    The Holy Spirit and The Believer.mp3
+17:21:45 INFO   DONE:    The Holy Spirit in the New Testament.mp3
+17:21:45 INFO   DONE:    The Holy Spirit in the Old Testament.mp3
+17:24:17 INFO Batch transcription starting
+17:24:17 INFO   Folder:    E:\0 - Sermon Audio\archive
+17:24:17 INFO   Processed: E:\0 - Sermon Audio\archive\processed
+17:24:17 INFO   Model:     medium
+17:24:17 INFO   Log:       D:\OneDrive\Claude\agents\watson\outputs\logs\batch.log
+17:24:17 INFO Found 22 audio files — 22 already transcribed, 0 to process
+17:24:17 INFO --- DRY RUN — no files will be processed ---
+17:24:17 INFO   DONE:    Back to the Basics_ Giving.mp3
+17:24:17 INFO   DONE:    Back to the Basics_ Prayer.mp3
+17:24:17 INFO   DONE:    Back to the Basics_ The Gospel.mp3
+17:24:17 INFO   DONE:    Back to the Basics_ Worship.mp3
+17:24:17 INFO   DONE:    Christmas_ Joseph the Carpenter.mp3
+17:24:17 INFO   DONE:    Christmas_ Mary.mp3
+17:24:17 INFO   DONE:    Easter Sunday 2023 - Is He Risen.mp3
+17:24:17 INFO   DONE:    Holy New Year - Pastor Bill Yomes - January 01, 2023 at Catalyst.mp3
+17:24:17 INFO   DONE:    John 1_ The Lamb of God.mp3
+17:24:17 INFO   DONE:    John 1_ The Word & The Light.mp3
+17:24:17 INFO   DONE:    John 1_ The Word Became Flesh.mp3
+17:24:17 INFO   DONE:    Jonah - Ch1 - The Depths of Disobedience.mp3
+17:24:17 INFO   DONE:    Jonah - Ch2 -  Depths of Distress.mp3
+17:24:17 INFO   DONE:    Jonah - Ch3 - Second Chances.mp3
+17:24:17 INFO   DONE:    Love Like Jesus - Story Like Jesus.mp3
+17:24:17 INFO   DONE:    Palm Sunday 2023.mp3
+17:24:17 INFO   DONE:    Pastor Tyler - New Year's Eve 2023.mp3
+17:24:17 INFO   DONE:    RESCUE_ A Gospel Message.mp3
+17:24:17 INFO   DONE:    Sex is Good.mp3
+17:24:17 INFO   DONE:    The Holy Spirit and The Believer.mp3
+17:24:17 INFO   DONE:    The Holy Spirit in the New Testament.mp3
+17:24:17 INFO   DONE:    The Holy Spirit in the Old Testament.mp3
+17:24:17 INFO Processed audio will move to: E:\0 - Sermon Audio\archive\processed
