@@ -410,6 +410,32 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("Couldn't extract book info from that URL. Try: Watson add book: Title by Author")
         return
 
+    if text.lower().startswith("watson update #"):
+        raw = text[len("watson update #"):].strip()
+        if not raw.isdigit():
+            await update.message.reply_text("Usage: Watson update #<id>")
+            return
+        book_id = int(raw)
+        from jobs.reading_list import list_books
+        books = list_books()
+        book = next((b for b in books if b["id"] == book_id), None)
+        if not book:
+            await update.message.reply_text(f"Book #{book_id} not found.")
+            return
+        keyboard = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("📖 Reading", callback_data=f"book_reading:{book_id}"),
+                InlineKeyboardButton("✅ Finished", callback_data=f"book_finished:{book_id}"),
+                InlineKeyboardButton("🗑 Remove", callback_data=f"book_remove:{book_id}"),
+            ]
+        ])
+        await update.message.reply_text(
+            f"<b>{book['title']}</b> by {book['author']}\nCurrent status: {book.get('status', 'queued')}",
+            parse_mode="HTML",
+            reply_markup=keyboard,
+        )
+        return
+
     log.info("Received text note: %s", text[:120])
     note_id = _save_note(text)
     log.info("Saved note #%d", note_id)
@@ -794,6 +820,41 @@ async def handle_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         await handle_briefing(update, context)
 
 
+async def handle_book_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    if not _is_authorized(update):
+        return
+
+    if query.data.startswith("book_reading:"):
+        book_id = int(query.data[len("book_reading:"):])
+        from jobs.reading_list import update_status_by_id
+        book = update_status_by_id(book_id, "reading")
+        if book:
+            await query.edit_message_text(f"📖 Now reading: {book['title']}", reply_markup=None)
+        else:
+            await query.edit_message_text("Book not found.", reply_markup=None)
+
+    elif query.data.startswith("book_finished:"):
+        book_id = int(query.data[len("book_finished:"):])
+        from jobs.reading_list import update_status_by_id
+        book = update_status_by_id(book_id, "finished")
+        if book:
+            await query.edit_message_text(f"✅ Finished: {book['title']}", reply_markup=None)
+        else:
+            await query.edit_message_text("Book not found.", reply_markup=None)
+
+    elif query.data.startswith("book_remove:"):
+        book_id = int(query.data[len("book_remove:"):])
+        from jobs.reading_list import remove_book_by_id
+        book = remove_book_by_id(book_id)
+        if book:
+            await query.edit_message_text(f"🗑 Removed: {book['title']}", reply_markup=None)
+        else:
+            await query.edit_message_text("Book not found.", reply_markup=None)
+
+
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not _is_authorized(update):
         return
@@ -842,6 +903,7 @@ def main():
     app.add_handler(CallbackQueryHandler(handle_reject_callback, pattern=r"^reject:"))
     app.add_handler(CallbackQueryHandler(handle_facebook_callback, pattern=r"^fb_"))
     app.add_handler(CallbackQueryHandler(handle_email_callback, pattern=r"^email_"))
+    app.add_handler(CallbackQueryHandler(handle_book_callback, pattern=r"^book_"))
     app.add_handler(CallbackQueryHandler(handle_menu_callback, pattern=r"^menu_"))
     app.add_handler(MessageHandler(filters.VOICE, handle_voice))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
