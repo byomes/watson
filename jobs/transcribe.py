@@ -34,7 +34,7 @@ DEFAULT_MODEL_WEEKLY  = os.getenv("WHISPER_MODEL_WEEKLY",  "large")
 DEFAULT_MODEL_ARCHIVE = os.getenv("WHISPER_MODEL_ARCHIVE", "small")
 
 RAW_DIR = REPO_ROOT / "outputs" / "transcripts" / "raw"
-KB_DIR  = REPO_ROOT / "kb" / "transcripts"
+KB_DIR  = Path(r"F:\Knowledge_Database\_inbox")
 
 
 def _short_path(path: Path) -> str:
