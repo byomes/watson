@@ -254,8 +254,10 @@
         {% endif %}
         <button class="btn btn-email"
                 onclick="sendToJenny('email', this)">📧 To Email</button>
-        <button class="btn btn-facebook"
-                onclick="sendFbToWatson({{ item.id }}, this)">📘 To Facebook</button>
+        <a class="btn btn-facebook"
+           href="https://t.me/wckyWatsonbot?start=fb_{{ item.id }}"
+           target="_blank"
+           rel="noopener noreferrer">📘 To Facebook</a>
         <a class="btn btn-reject"
            href="https://t.me/wckyWatsonbot?start=reject_{{ item.id }}"
            target="_blank"
@@ -312,28 +314,6 @@
     }
   }
 
-  async function sendFbToWatson(itemId, btn) {
-    const saved = btn.textContent;
-    btn.disabled = true;
-    btn.textContent = 'Sending…';
-    try {
-        const resp = await fetch(
-            `https://api.telegram.org/bot${JENNY_TOKEN}/sendMessage`,
-            {
-                method: 'POST',
-                body: new URLSearchParams({ chat_id: JENNY_CHAT, text: `/start fb_${itemId}` }),
-            }
-        );
-        const data = await resp.json();
-        if (!data.ok) throw new Error(data.description || 'Telegram API error');
-        btn.textContent = '✔ Sent';
-        btn.style.opacity = '0.5';
-    } catch (err) {
-        btn.disabled = false;
-        btn.textContent = saved;
-        alert('Could not send: ' + err.message);
-    }
-  }
 </script>
 </body>
 </html>
