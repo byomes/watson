@@ -15,6 +15,7 @@ Message handling:
 
 import logging
 import os
+import re
 from datetime import date
 from pathlib import Path
 
@@ -171,6 +172,13 @@ async def handle_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/help — show this message\n\n"
         "Send <b>#blog</b> followed by markdown to queue a blog draft.\n"
         "Drafts publish automatically Tue/Thu/Sat at 10am.\n\n"
+        "Watson add book: Title by Author — link\n"
+        "Watson list books\n"
+        "Watson reading: Title\n"
+        "Watson finished: Title\n"
+        "Watson remove book: Title\n"
+        "Send a photo of a book cover to add it\n"
+        "Send an Amazon/Goodreads URL to add it\n\n"
         "Send any other text to save as a note."
     )
     await update.message.reply_text(text, parse_mode="HTML")
@@ -318,6 +326,78 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
         else:
             await update.message.reply_text("No available slots in the next 4 weeks.")
+        return
+
+    if text.lower().startswith("watson add book:"):
+        raw = text[len("watson add book:"):].strip()
+        from jobs.reading_list import add_book, parse_text_input
+        title, author, link = parse_text_input(raw)
+        book = add_book(title, author, link)
+        await update.message.reply_text(
+            f"📚 Added to reading list:\n<b>{book['title']}</b> by {book['author']}",
+            parse_mode="HTML"
+        )
+        return
+
+    if text.lower().startswith("watson list books"):
+        from jobs.reading_list import list_books
+        books = list_books()
+        if not books:
+            await update.message.reply_text("Your reading list is empty.")
+            return
+        icons = {"queued": "📋", "reading": "📖", "finished": "✅"}
+        lines = ["<b>Reading List:</b>\n"]
+        for b in books:
+            icon = icons.get(b.get("status", "queued"), "📋")
+            line = f"{icon} <b>{b['title']}</b> — {b['author']}"
+            if b.get("link"):
+                line += f"\n    <a href='{b['link']}'>Link</a>"
+            lines.append(line)
+        await update.message.reply_text("\n".join(lines), parse_mode="HTML", disable_web_page_preview=True)
+        return
+
+    if text.lower().startswith("watson remove book:"):
+        title = text[len("watson remove book:"):].strip()
+        from jobs.reading_list import remove_book
+        book = remove_book(title)
+        if book:
+            await update.message.reply_text(f"✅ Removed: {book['title']}")
+        else:
+            await update.message.reply_text(f"Book not found: {title}")
+        return
+
+    if text.lower().startswith("watson reading:"):
+        title = text[len("watson reading:"):].strip()
+        from jobs.reading_list import update_status
+        book = update_status(title, "reading")
+        if book:
+            await update.message.reply_text(f"📖 Now reading: {book['title']}")
+        else:
+            await update.message.reply_text(f"Book not found: {title}")
+        return
+
+    if text.lower().startswith("watson finished:"):
+        title = text[len("watson finished:"):].strip()
+        from jobs.reading_list import update_status
+        book = update_status(title, "finished")
+        if book:
+            await update.message.reply_text(f"✅ Finished: {book['title']}")
+        else:
+            await update.message.reply_text(f"Book not found: {title}")
+        return
+
+    if text.lower().startswith("http") and ("amazon" in text or "goodreads" in text or "bookshop" in text or text.endswith(".com") or "/book" in text):
+        from jobs.reading_list import add_book, extract_from_url
+        await update.message.reply_text("🔍 Fetching book info...")
+        title, author, link = extract_from_url(text.strip())
+        if title:
+            book = add_book(title, author, link)
+            await update.message.reply_text(
+                f"📚 Added to reading list:\n<b>{book['title']}</b> by {book['author']}",
+                parse_mode="HTML"
+            )
+        else:
+            await update.message.reply_text("Couldn't extract book info from that URL. Try: Watson add book: Title by Author")
         return
 
     log.info("Received text note: %s", text[:120])
@@ -622,6 +702,41 @@ async def handle_fbcancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"❌ Cancelled post #{post_id}: {row['title'][:60]}")
 
 
+async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not _is_authorized(update):
+        return
+    await update.message.reply_text("📸 Got it — analyzing book cover...")
+    try:
+        photo = update.message.photo[-1]
+        file = await context.bot.get_file(photo.file_id)
+        import httpx, base64
+        async with httpx.AsyncClient() as client:
+            img_resp = await client.get(file.file_path)
+            img_b64 = base64.b64encode(img_resp.content).decode()
+        import ollama
+        response = ollama.chat(
+            model="llava:7b",
+            messages=[{
+                "role": "user",
+                "content": "This is a book cover. Extract the book title and author name. Reply in this format only: Title: <title>\nAuthor: <author>",
+                "images": [img_b64]
+            }]
+        )
+        text = response["message"]["content"]
+        title_match = re.search(r"Title:\s*(.+)", text)
+        author_match = re.search(r"Author:\s*(.+)", text)
+        title = title_match.group(1).strip() if title_match else "Unknown Title"
+        author = author_match.group(1).strip() if author_match else "Unknown"
+        from jobs.reading_list import add_book
+        book = add_book(title, author)
+        await update.message.reply_text(
+            f"📚 Added to reading list:\n<b>{book['title']}</b> by {book['author']}\n\nIf this looks wrong, use: Watson add book: Title by Author",
+            parse_mode="HTML"
+        )
+    except Exception as e:
+        await update.message.reply_text(f"Couldn't read the cover: {e}\nTry: Watson add book: Title by Author")
+
+
 async def handle_ask(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not _is_authorized(update):
         return
@@ -661,6 +776,7 @@ def main():
     app.add_handler(CallbackQueryHandler(handle_facebook_callback, pattern=r"^fb_"))
     app.add_handler(CallbackQueryHandler(handle_email_callback, pattern=r"^email_"))
     app.add_handler(MessageHandler(filters.VOICE, handle_voice))
+    app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
 
     log.info("Watson bot listening (chat_id=%d)...", _AUTHORIZED_ID)
