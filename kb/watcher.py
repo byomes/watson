@@ -23,8 +23,28 @@ LIBRARY = Path(r"F:\Knowledge_Database\_library")
 OPENWEBUI_URL = os.getenv("OPENWEBUI_URL", "http://localhost:3000")
 OPENWEBUI_API_KEY = os.getenv("OPENWEBUI_API_KEY")
 KNOWLEDGE_COLLECTION = "Personal Library"
+CACHE_FILE = Path(__file__).parent / ".collection_id_cache.json"
 
 _collection_id = None
+
+
+def _load_cached_collection_id() -> str | None:
+    try:
+        if CACHE_FILE.exists():
+            import json
+            data = json.loads(CACHE_FILE.read_text(encoding="utf-8"))
+            return data.get("collection_id")
+    except Exception:
+        pass
+    return None
+
+
+def _save_cached_collection_id(collection_id: str):
+    import json
+    CACHE_FILE.write_text(
+        json.dumps({"collection_id": collection_id, "name": KNOWLEDGE_COLLECTION}),
+        encoding="utf-8"
+    )
 
 logging.basicConfig(
     level=logging.INFO,
@@ -171,30 +191,45 @@ def ingest_file(path: Path):
         global _collection_id
 
         if not _collection_id:
-            # Check for existing collection
+            # 1. Check local cache — survives restarts and works around unreliable GET /knowledge/
+            _collection_id = _load_cached_collection_id()
+            if _collection_id:
+                log.info("Loaded collection id from cache: %s", _collection_id)
+
+        if not _collection_id:
+            # 2. Fall back to querying the API (handles both list and paginated {items, total} shapes)
             cols_resp = requests.get(
                 f"{OPENWEBUI_URL}/api/v1/knowledge/",
                 headers={"Authorization": f"Bearer {OPENWEBUI_API_KEY}"},
                 timeout=10
             )
-            cols = cols_resp.json() if cols_resp.status_code == 200 else []
+            if cols_resp.status_code == 200:
+                data = cols_resp.json()
+                cols = data.get("items", data) if isinstance(data, dict) else data
+            else:
+                cols = []
 
             if isinstance(cols, list):
                 _collection_id = next((c["id"] for c in cols if isinstance(c, dict) and c.get("name") == KNOWLEDGE_COLLECTION), None)
+            if _collection_id:
+                log.info("Found existing collection via API: %s", _collection_id)
+                _save_cached_collection_id(_collection_id)
 
-            if not _collection_id:
-                col_resp = requests.post(
-                    f"{OPENWEBUI_URL}/api/v1/knowledge/create",
-                    headers={
-                        "Authorization": f"Bearer {OPENWEBUI_API_KEY}",
-                        "Content-Type": "application/json"
-                    },
-                    json={"name": KNOWLEDGE_COLLECTION, "description": "Personal knowledge library"},
-                    timeout=10
-                )
-                if col_resp.status_code == 200:
-                    _collection_id = col_resp.json().get("id")
-                    log.info("Created collection '%s' (id=%s)", KNOWLEDGE_COLLECTION, _collection_id)
+        if not _collection_id:
+            # 3. Create a new collection and cache its ID immediately
+            col_resp = requests.post(
+                f"{OPENWEBUI_URL}/api/v1/knowledge/create",
+                headers={
+                    "Authorization": f"Bearer {OPENWEBUI_API_KEY}",
+                    "Content-Type": "application/json"
+                },
+                json={"name": KNOWLEDGE_COLLECTION, "description": "Personal knowledge library"},
+                timeout=10
+            )
+            if col_resp.status_code == 200:
+                _collection_id = col_resp.json().get("id")
+                log.info("Created collection '%s' (id=%s)", KNOWLEDGE_COLLECTION, _collection_id)
+                _save_cached_collection_id(_collection_id)
 
         if _collection_id and file_id:
             add_resp = requests.post(
