@@ -24,6 +24,8 @@ OPENWEBUI_URL = os.getenv("OPENWEBUI_URL", "http://localhost:3000")
 OPENWEBUI_API_KEY = os.getenv("OPENWEBUI_API_KEY")
 KNOWLEDGE_COLLECTION = "Personal Library"
 
+_collection_id = None
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(message)s",
@@ -166,42 +168,37 @@ def ingest_file(path: Path):
         file_id = resp.json().get("id")
         log.info("Uploaded to OpenWebUI: %s (id=%s)", path.name, file_id)
 
-        COLLECTION_CREATE_URL = f"{OPENWEBUI_URL}/api/v1/knowledge/create"
-        COLLECTION_LIST_URL = f"{OPENWEBUI_URL}/api/v1/knowledge/"
+        global _collection_id
 
-        # Get existing collections
-        cols_resp = requests.get(
-            COLLECTION_LIST_URL,
-            headers={"Authorization": f"Bearer {OPENWEBUI_API_KEY}"},
-            timeout=10
-        )
-        cols = cols_resp.json() if cols_resp.status_code == 200 else []
-
-        # Find existing collection
-        col_id = None
-        if isinstance(cols, list):
-            col_id = next((c["id"] for c in cols if isinstance(c, dict) and c.get("name") == KNOWLEDGE_COLLECTION), None)
-
-        # Create if not found
-        if not col_id:
-            col_resp = requests.post(
-                COLLECTION_CREATE_URL,
-                headers={
-                    "Authorization": f"Bearer {OPENWEBUI_API_KEY}",
-                    "Content-Type": "application/json"
-                },
-                json={"name": KNOWLEDGE_COLLECTION, "description": "Personal knowledge library"},
+        if not _collection_id:
+            # Check for existing collection
+            cols_resp = requests.get(
+                f"{OPENWEBUI_URL}/api/v1/knowledge/",
+                headers={"Authorization": f"Bearer {OPENWEBUI_API_KEY}"},
                 timeout=10
             )
-            if col_resp.status_code == 200:
-                col_id = col_resp.json().get("id")
-                log.info("Created collection '%s' (id=%s)", KNOWLEDGE_COLLECTION, col_id)
-            else:
-                log.error("Failed to create collection: %s %s", col_resp.status_code, col_resp.text)
+            cols = cols_resp.json() if cols_resp.status_code == 200 else []
 
-        if col_id and file_id:
+            if isinstance(cols, list):
+                _collection_id = next((c["id"] for c in cols if isinstance(c, dict) and c.get("name") == KNOWLEDGE_COLLECTION), None)
+
+            if not _collection_id:
+                col_resp = requests.post(
+                    f"{OPENWEBUI_URL}/api/v1/knowledge/create",
+                    headers={
+                        "Authorization": f"Bearer {OPENWEBUI_API_KEY}",
+                        "Content-Type": "application/json"
+                    },
+                    json={"name": KNOWLEDGE_COLLECTION, "description": "Personal knowledge library"},
+                    timeout=10
+                )
+                if col_resp.status_code == 200:
+                    _collection_id = col_resp.json().get("id")
+                    log.info("Created collection '%s' (id=%s)", KNOWLEDGE_COLLECTION, _collection_id)
+
+        if _collection_id and file_id:
             add_resp = requests.post(
-                f"{OPENWEBUI_URL}/api/v1/knowledge/{col_id}/file/add",
+                f"{OPENWEBUI_URL}/api/v1/knowledge/{_collection_id}/file/add",
                 headers={
                     "Authorization": f"Bearer {OPENWEBUI_API_KEY}",
                     "Content-Type": "application/json"
