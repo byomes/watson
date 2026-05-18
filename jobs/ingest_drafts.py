@@ -60,7 +60,10 @@ def _kv_get(key: str) -> str | None:
     resp = requests.get(url, headers=_kv_headers(), timeout=10)
     resp.raise_for_status()
     data = resp.json()
-    return data.get("result")
+    result = data.get("result")
+    if isinstance(result, dict):
+        return result.get("value")
+    return result
 
 
 def _kv_delete(key: str) -> None:
