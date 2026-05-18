@@ -269,12 +269,8 @@ async def handle_facebook_callback(update: Update, context: ContextTypes.DEFAULT
             return
         result = add_to_queue(row["title"], row["summary"], row["url"], row["draft_text"])
         if result:
-            post_id, slot = result
-            slot_str = slot.strftime("%A, %b %-d at %-I:%M %p")
             await query.edit_message_text(
-                f"✅ <b>Queued for Facebook</b>\n\n"
-                f"{row['draft_text']}\n\n"
-                f"📅 Scheduled: {slot_str}",
+                f"✅ <b>Queued for Facebook</b>\n\n{row['title'][:80]}",
                 parse_mode="HTML",
                 reply_markup=None,
             )
