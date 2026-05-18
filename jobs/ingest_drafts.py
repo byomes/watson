@@ -63,6 +63,13 @@ def _kv_get(key: str) -> str | None:
     result = data.get("result")
     if isinstance(result, dict):
         return result.get("value")
+    if isinstance(result, str):
+        try:
+            parsed = __import__("json").loads(result)
+            if isinstance(parsed, dict):
+                return parsed.get("value")
+        except Exception:
+            pass
     return result
 
 
