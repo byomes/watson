@@ -32,6 +32,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 WCKY_GITHUB_REPO  = os.getenv("WCKY_GITHUB_REPO",  "byomes/wcky")
 WCKY_GITHUB_TOKEN = os.getenv("WCKY_GITHUB_TOKEN")
+WATSON_BOT_TOKEN = os.getenv("WATSON_BOT_TOKEN")
+WATSON_CHAT_ID   = os.getenv("WATSON_CHAT_ID")
 VERCEL_DEPLOY_HOOK = os.getenv("VERCEL_DEPLOY_HOOK")
 
 # Publish days: 1=Tuesday, 3=Thursday, 5=Saturday
@@ -79,9 +81,9 @@ def _get_pending_drafts() -> list:
         ).fetchall()
 
 
-def _get_due_drafts() -> list:
+def _get_due_drafts(target_date: str = None) -> list:
     """Return drafts scheduled for today."""
-    today = date.today().isoformat()
+    today = target_date or date.today().isoformat()
     with _get_connection() as conn:
         return conn.execute(
             """SELECT id, title, slug, body, scheduled_date
@@ -110,6 +112,7 @@ def _build_md(draft: dict) -> str:
 
     # Generate excerpt from first 160 chars of body
     plain = body.replace("#", "").replace("*", "").replace("\n", " ").strip()
+    plain = plain.replace('"', "'")  # prevent YAML breakage
     excerpt = plain[:157] + "..." if len(plain) > 160 else plain
 
     return (
@@ -185,9 +188,9 @@ def assign_schedules() -> None:
     log.info("Assigned %d drafts to publish slots", len(pending))
 
 
-def publish_due(dry_run: bool = False) -> None:
+def publish_due(dry_run: bool = False, target_date: str = None) -> None:
     """Push any drafts scheduled for today to GitHub."""
-    due = _get_due_drafts()
+    due = _get_due_drafts(target_date=target_date)
     if not due:
         log.info("No drafts due today (%s)", date.today().isoformat())
         return
@@ -213,6 +216,15 @@ def publish_due(dry_run: bool = False) -> None:
             deployed = True
         except Exception as e:
             log.error("Failed to publish draft #%d: %s", draft["id"], e)
+            try:
+                if WATSON_BOT_TOKEN and WATSON_CHAT_ID:
+                    requests.post(
+                        f"https://api.telegram.org/bot{WATSON_BOT_TOKEN}/sendMessage",
+                        json={"chat_id": WATSON_CHAT_ID, "text": f"⚠️ Watson scheduler failed to publish: {filename}\n\nError: {e}", "parse_mode": "HTML"},
+                        timeout=10,
+                    )
+            except Exception:
+                pass
 
     if deployed:
         try:
@@ -231,15 +243,17 @@ def main():
     parser = argparse.ArgumentParser(description="Blog publish scheduler")
     parser.add_argument("--dry-run", action="store_true",
                         help="Show what would publish without pushing")
+    parser.add_argument("--date", default=None,
+                        help="Publish drafts due on this date (YYYY-MM-DD), default today")
     args = parser.parse_args()
 
-    log.info("Scheduler running — %s", date.today().isoformat())
+    log.info("Scheduler running — %s", args.date or date.today().isoformat())
 
     # Step 1: assign slots to any new unscheduled drafts
     assign_schedules()
 
     # Step 2: publish anything due today
-    publish_due(dry_run=args.dry_run)
+    publish_due(dry_run=args.dry_run, target_date=args.date)
 
     log.info("Scheduler done")
 
