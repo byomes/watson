@@ -1,5 +1,6 @@
 import os
 import sqlite3
+import time
 import requests
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
@@ -34,25 +35,25 @@ def check_token_expiry():
             print("Facebook token check: OK (non-expiring token)")
             return
 
-        days_remaining = (expires_at - datetime.now().timestamp()) / 86400
+        days_remaining = round((expires_at - time.time()) / 86400)
+        expiry_date = datetime.fromtimestamp(expires_at).strftime("%Y-%m-%d")
 
         if days_remaining <= 0:
-            raise ValueError(f"token expired {abs(int(days_remaining))} days ago")
+            raise ValueError(f"token expired {abs(days_remaining)} days ago")
 
         if days_remaining <= 7:
-            n = int(days_remaining)
             msg = (
-                f"⚠️ Facebook token expires in {n} days. "
+                f"⚠️ Facebook token expires in {days_remaining} days. "
                 "Renew at developers.facebook.com/tools/explorer"
             )
-            print(f"Facebook token check: {n} days remaining — Telegram warning sent")
+            print(f"Facebook token check: {days_remaining} days remaining — Telegram warning sent")
             requests.post(
                 f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
                 data={"chat_id": TELEGRAM_CHAT_ID, "text": msg},
                 timeout=10,
             )
         else:
-            print(f"Facebook token check: OK ({int(days_remaining)} days remaining)")
+            print(f"Facebook token check: OK ({days_remaining} days remaining, expires {expiry_date})")
 
     except Exception as e:
         print(f"Facebook token check failed: {e}")
