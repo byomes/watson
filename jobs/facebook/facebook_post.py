@@ -9,10 +9,64 @@ load_dotenv(os.path.expanduser("~/watson/.env"))
 DB_PATH = os.path.expanduser("~/watson/data/watson.db")
 FB_PAGE_ID = os.getenv("FB_PAGE_ID")
 FB_ACCESS_TOKEN = os.getenv("FB_ACCESS_TOKEN")
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
 # Post at 9am on Mon, Wed, Fri, Sat (weekday numbers: 0=Mon, 2=Wed, 4=Fri, 5=Sat)
 SLOT_DAYS = [0, 2, 4, 5]
 SLOT_HOUR = 9
+
+
+def check_token_expiry():
+    try:
+        resp = requests.get(
+            "https://graph.facebook.com/debug_token",
+            params={"input_token": FB_ACCESS_TOKEN, "access_token": FB_ACCESS_TOKEN},
+            timeout=10,
+        )
+        data = resp.json().get("data", {})
+        expires_at = data.get("expires_at", 0)
+
+        if not data.get("is_valid", False):
+            raise ValueError("token marked invalid by API")
+
+        if expires_at == 0:
+            print("Facebook token check: OK (non-expiring token)")
+            return
+
+        days_remaining = (expires_at - datetime.now().timestamp()) / 86400
+
+        if days_remaining <= 0:
+            raise ValueError(f"token expired {abs(int(days_remaining))} days ago")
+
+        if days_remaining <= 7:
+            n = int(days_remaining)
+            msg = (
+                f"⚠️ Facebook token expires in {n} days. "
+                "Renew at developers.facebook.com/tools/explorer"
+            )
+            print(f"Facebook token check: {n} days remaining — Telegram warning sent")
+            requests.post(
+                f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+                data={"chat_id": TELEGRAM_CHAT_ID, "text": msg},
+                timeout=10,
+            )
+        else:
+            print(f"Facebook token check: OK ({int(days_remaining)} days remaining)")
+
+    except Exception as e:
+        print(f"Facebook token check failed: {e}")
+        try:
+            requests.post(
+                f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+                data={
+                    "chat_id": TELEGRAM_CHAT_ID,
+                    "text": "🚨 Facebook token is expired or invalid. Posts will not go out.",
+                },
+                timeout=10,
+            )
+        except Exception:
+            pass
 
 
 def init_db():
@@ -112,5 +166,6 @@ def run_due_posts():
 
 
 if __name__ == "__main__":
+    check_token_expiry()
     init_db()
     run_due_posts()
