@@ -22,25 +22,35 @@ def search(question, k=TOP_K):
         chunks.append({"title": meta["title"], "text": doc})
     return chunks
 
-def synthesize(question, chunks):
+def synthesize(question, chunks, memory_context=""):
     context = ""
     for c in chunks:
         context += "--- From: " + c["title"] + " ---\n" + c["text"] + "\n\n"
-    prompt = "You are a helpful assistant with access to sermon transcripts from Pastor Bill Yomes. Answer the following question using only the provided sermon excerpts. Be specific and reference which sermons your answer draws from.\n\nQuestion: " + question + "\n\nSermon excerpts:\n" + context + "\n\nAnswer:"
+    prompt = "You are a helpful assistant with access to sermon transcripts from Pastor Bill Yomes. Answer the following question using only the provided sermon excerpts. Be specific and reference which sermons your answer draws from.\n\n"
+    if memory_context:
+        prompt += memory_context + "\n\n## Current Message\n"
+    prompt += "Question: " + question + "\n\nSermon excerpts:\n" + context + "\n\nAnswer:"
     resp = requests.post(OLLAMA_URL, json={"model": OLLAMA_MODEL, "prompt": prompt, "stream": False}, timeout=120)
     resp.raise_for_status()
     return resp.json()["response"].strip()
 
 def ask(question):
+    from jobs.memory_manager import build_context, append_working_memory, detect_topic, append_project_memory
     log.info("Searching knowledge base for: %s", question)
     chunks = search(question)
     if not chunks:
         return "No relevant sermons found for that question."
     log.info("Found %d relevant chunks, synthesizing...", len(chunks))
-    answer = synthesize(question, chunks)
+    memory_context = build_context(question)
+    answer = synthesize(question, chunks, memory_context)
     sources = list(dict.fromkeys(c["title"] for c in chunks))
     source_list = "\n".join("- " + s for s in sources)
-    return answer + "\n\nSources:\n" + source_list
+    result = answer + "\n\nSources:\n" + source_list
+    append_working_memory(question, answer)
+    topic = detect_topic(question)
+    if topic:
+        append_project_memory(topic, f"Discussed: {question[:80]}")
+    return result
 
 def main():
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", datefmt="%H:%M:%S")
