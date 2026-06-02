@@ -170,6 +170,7 @@ async def handle_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/fbcancel &lt;id&gt; — cancel a queued post\n"
         "/emailqueue — show articles queued for weekly email\n"
         "/emailcancel &lt;id&gt; — remove an article from the email queue\n"
+        "/saved — show your saved for later list\n"
         "/help — show this message\n\n"
         "Send <b>#blog</b> followed by markdown to queue a blog draft.\n"
         "Drafts publish automatically Tue/Thu/Sat at 10am.\n\n"
@@ -706,6 +707,59 @@ async def handle_emailcancel(update: Update, context: ContextTypes.DEFAULT_TYPE)
     await update.message.reply_text(f"❌ Removed #{item_id}: {row['title'][:60]}")
 
 
+async def handle_saved(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not _is_authorized(update):
+        return
+    with get_connection() as conn:
+        rows = conn.execute(
+            """SELECT id, title, url, source_name, status
+               FROM reading_list
+               WHERE status != 'finished'
+               ORDER BY date_added DESC"""
+        ).fetchall()
+    if not rows:
+        await update.message.reply_text("Your saved list is empty.")
+        return
+    lines = ["<b>Saved for Later:</b>\n"]
+    for r in rows:
+        source = f" — {r['source_name']}" if r['source_name'] else ""
+        title = (r['title'] or 'Untitled')[:60]
+        url = r['url'] or ''
+        status_icon = "📖" if r['status'] == 'reading' else "🔖"
+        if url:
+            lines.append(f"{status_icon} <a href='{url}'>{title}</a>{source}\n/savedremove_{r['id']}")
+        else:
+            lines.append(f"{status_icon} {title}{source}\n/savedremove_{r['id']}")
+    await update.message.reply_text(
+        "\n\n".join(lines),
+        parse_mode="HTML",
+        disable_web_page_preview=True,
+    )
+
+
+async def handle_savedremove(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not _is_authorized(update):
+        return
+    text = update.message.text.strip()
+    prefix = "/savedremove_"
+    if not text.startswith(prefix):
+        return
+    raw = text[len(prefix):]
+    if not raw.isdigit():
+        await update.message.reply_text("Invalid id.")
+        return
+    entry_id = int(raw)
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT title FROM reading_list WHERE id=?", (entry_id,)
+        ).fetchone()
+        if not row:
+            await update.message.reply_text("Item not found.")
+            return
+        conn.execute("DELETE FROM reading_list WHERE id=?", (entry_id,))
+    await update.message.reply_text(f"🗑 Removed: {row['title'][:60]}")
+
+
 async def handle_fbqueue(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not _is_authorized(update):
         return
@@ -762,6 +816,9 @@ async def handle_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [
             InlineKeyboardButton("📘 Facebook Queue", callback_data="menu_fbqueue"),
             InlineKeyboardButton("📧 Email Queue", callback_data="menu_emailqueue"),
+        ],
+        [
+            InlineKeyboardButton("🔖 Saved for Later", callback_data="menu_saved"),
         ],
         [
             InlineKeyboardButton("📚 Reading List", callback_data="menu_booklist"),
@@ -834,6 +891,10 @@ async def handle_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     elif query.data == "menu_briefing":
         await query.edit_message_reply_markup(reply_markup=None)
         await handle_briefing(update, context)
+
+    elif query.data == "menu_saved":
+        await query.edit_message_reply_markup(reply_markup=None)
+        await handle_saved(update, context)
 
 
 async def handle_book_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -915,12 +976,14 @@ def main():
     app.add_handler(CommandHandler("fbcancel",    handle_fbcancel))
     app.add_handler(CommandHandler("emailqueue",  handle_emailqueue))
     app.add_handler(CommandHandler("emailcancel", handle_emailcancel))
+    app.add_handler(CommandHandler("saved",       handle_saved))
     app.add_handler(CommandHandler("ask",         handle_ask))
     app.add_handler(CallbackQueryHandler(handle_reject_callback, pattern=r"^reject:"))
     app.add_handler(CallbackQueryHandler(handle_facebook_callback, pattern=r"^fb_"))
     app.add_handler(CallbackQueryHandler(handle_email_callback, pattern=r"^email_"))
     app.add_handler(CallbackQueryHandler(handle_book_callback, pattern=r"^book_"))
     app.add_handler(CallbackQueryHandler(handle_menu_callback, pattern=r"^menu_"))
+    app.add_handler(MessageHandler(filters.Regex(r"^/savedremove_\d+$"), handle_savedremove))
     app.add_handler(MessageHandler(filters.VOICE, handle_voice))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
