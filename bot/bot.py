@@ -407,6 +407,12 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("Couldn't extract book info from that URL. Try: Watson add book: Title by Author")
         return
 
+    if text.lower().startswith("watson bible"):
+        from jobs.bible import run as bible_run
+        reply = bible_run(text)
+        await update.message.reply_text(reply, parse_mode="Markdown")
+        return
+
     if text.lower().startswith("watson note"):
         from jobs.note import run as note_run
         reply = note_run(text)
