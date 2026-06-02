@@ -225,6 +225,20 @@ def reading_list_update():
     return redirect(url_for("reading_list"))
 
 
+@app.route("/reading-list/remove", methods=["POST"])
+def reading_list_remove():
+    entry_id = request.form.get("entry_id")
+    if not entry_id:
+        return redirect(url_for("reading_list"))
+    with get_connection() as conn:
+        conn.execute(
+            "DELETE FROM reading_list WHERE id = ?",
+            (int(entry_id),)
+        )
+    log.info("Reading list entry %s removed", entry_id)
+    return redirect(url_for("reading_list"))
+
+
 # ── Library ────────────────────────────────────────────────────────────────
 
 @app.route("/library")

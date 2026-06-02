@@ -167,6 +167,7 @@
     .btn-facebook { background: #1e2e3a; color: #60b4f7;     border: 1px solid #4f8ef744; }
     .btn-dismiss  { background: transparent; color: var(--muted); border: 1px solid var(--border); }
     .btn-dismiss:hover { color: var(--red); border-color: var(--red); }
+    .btn-reading  { background: #1e3a5f; color: var(--accent); border: 1px solid #4f8ef744; }
     .reject-select {
       font-size: 0.75rem;
       font-weight: 600;
@@ -248,6 +249,10 @@
         <input type="hidden" name="item_id" value="{{ item.id }}">
         <input type="hidden" name="dest" value="facebook">
         <button type="submit" class="btn btn-facebook">📘 To Facebook</button>
+      </form>
+      <form method="POST" action="/reading-list/add">
+        <input type="hidden" name="item_id" value="{{ item.id }}">
+        <button type="submit" class="btn btn-reading">Save for Later</button>
       </form>
       <form method="POST" action="/reject">
         <input type="hidden" name="item_id" value="{{ item.id }}">
