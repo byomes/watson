@@ -1,1 +1,6 @@
-{"framework":null,"buildCommand":null,"outputDirectory":"docs","rewrites":[{"source":"/","destination":"/briefing.html"}]}
+{
+  "framework": null,
+  "buildCommand": "",
+  "outputDirectory": "docs",
+  "rewrites": [{"source": "/", "destination": "/briefing.html"}]
+}
