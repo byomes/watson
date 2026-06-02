@@ -556,6 +556,26 @@ async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode="HTML",
             reply_markup=keyboard,
         )
+    elif payload.startswith("savelater_") and payload[10:].isdigit():
+        item_id = int(payload[10:])
+        with get_connection() as conn:
+            row = conn.execute(
+                "SELECT id, title, url, source_name, source_type, summary FROM briefing_items WHERE id=?",
+                (item_id,)
+            ).fetchone()
+        if not row:
+            await update.message.reply_text("Article not found.")
+            return
+        with get_connection() as conn:
+            conn.execute(
+                """INSERT OR IGNORE INTO reading_list (title, url, source_name, source_type, summary, status)
+                   VALUES (?, ?, ?, ?, ?, 'unread')""",
+                (row["title"], row["url"], row["source_name"], row["source_type"], row["summary"])
+            )
+        await update.message.reply_text(
+            f"🔖 <b>Saved for later</b>\n\n{row['title'][:80]}",
+            parse_mode="HTML",
+        )
     else:
         await update.message.reply_text("Watson is running.")
 
