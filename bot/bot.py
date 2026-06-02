@@ -31,7 +31,7 @@ from core.database import get_connection, init_db
 from core.scorer import _BOOST
 from jobs.ask import ask
 from jobs.facebook.facebook_post import add_to_queue, init_db as init_fb_db
-from jobs.email.email_queue import add_to_email_queue, init_email_db
+from jobs.email_job.email_queue import add_to_email_queue, init_email_db
 
 log = logging.getLogger(__name__)
 
