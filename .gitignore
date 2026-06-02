@@ -4,3 +4,22 @@ data/archive/
 __pycache__/
 *.pyc
 .claude/settings.local.json
+
+# Runtime logs
+logs/
+data/*.log
+data/reading_list.json
+
+# Transcripts (generated at runtime)
+kb/transcripts/
+
+# Python environment
+venv/
+
+# Editor/OS artifacts
+.env~
+config/settings.py.save
+udo journalctl -u watson-bot.service -n 50
+
+# Local env overrides (never commit secrets)
+.env.local
