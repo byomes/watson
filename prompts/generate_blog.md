@@ -22,6 +22,12 @@ Article requirements:
 - Flowing prose — no bullet points in the body
 - The article should feel complete, not like a sermon summary
 
+Series handling:
+- Do NOT add a series attribution line in the footer or anywhere at the end of the article.
+- Read the transcript and determine whether it belongs to a named series. A series is clearly identifiable when the transcript explicitly names it (e.g., "This is week three of our series on…" or a title slide referencing the series name).
+- If a series is clearly identifiable, weave the series name naturally into the article body — once, early, only if it adds meaningful context for the reader.
+- If the sermon is standalone or the series name cannot be confidently determined from the transcript, omit any series reference entirely.
+
 Return ONLY valid JSON with exactly these fields:
 {
   "title": "Article title here",
