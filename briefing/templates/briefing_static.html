@@ -189,6 +189,8 @@
     }
     .btn-reject:hover { color: #ef4444; border-color: #3a1e1e; }
 
+    .btn-save { background: #1e3a5f; color: #4f8ef7; border: 1px solid #4f8ef744; }
+
     /* ── Empty state ── */
     .empty {
       text-align: center;
@@ -260,6 +262,10 @@
            href="https://t.me/wckyWatsonbot?start=share_{{ item.id }}"
            target="_blank"
            rel="noopener noreferrer">📘 To Facebook</a>
+        <a class="btn btn-save"
+           href="https://t.me/wckyWatsonbot?start=savelater_{{ item.id }}"
+           target="_blank"
+           rel="noopener noreferrer">🔖 Save for Later</a>
         <a class="btn btn-reject"
            href="https://t.me/wckyWatsonbot?start=reject_{{ item.id }}"
            target="_blank"
