@@ -83,7 +83,8 @@ def bill_report(service_date: str, updated: bool = False) -> tuple[str, str]:
     with _conn() as conn:
         rows = conn.execute(
             """
-            SELECT name, email, phone, campus, is_first_visit,
+            SELECT first_name || ' ' || last_name AS name,
+                   email, phone, campus, is_first_visit,
                    next_step, question_or_comment
             FROM connect_cards
             WHERE service_date = ?
@@ -153,7 +154,9 @@ def donna_report(service_date: str, updated: bool = False) -> tuple[str, str]:
     with _conn() as conn:
         rows = conn.execute(
             """
-            SELECT campus, is_first_visit, name, email, phone
+            SELECT campus, is_first_visit,
+                   first_name || ' ' || last_name AS name,
+                   email, phone
             FROM connect_cards
             WHERE service_date = ?
             ORDER BY campus, is_first_visit DESC, name
@@ -219,7 +222,8 @@ def kaci_report(service_date: str, updated: bool = False) -> tuple[str, str]:
     with _conn() as conn:
         rows = conn.execute(
             """
-            SELECT name, campus, prayer_request, prayer_request_public
+            SELECT first_name || ' ' || last_name AS name,
+                   campus, prayer_request, prayer_request_public
             FROM connect_cards
             WHERE service_date = ?
               AND prayer_request IS NOT NULL
