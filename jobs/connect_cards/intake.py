@@ -421,7 +421,7 @@ def run(dry_run: bool = False) -> None:
         return
 
     try:
-        mail.select("INBOX")
+        mail.select('"connect-cards"')
         status, data = mail.search(
             None,
             f'(UNSEEN FROM "{EXPECTED_SENDER}" SUBJECT "{EXPECTED_SUBJECT}")',
