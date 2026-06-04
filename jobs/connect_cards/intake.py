@@ -25,6 +25,7 @@ import email.utils
 import imaplib
 import logging
 import os
+import re
 import sqlite3
 from datetime import datetime, timedelta
 from html.parser import HTMLParser
@@ -49,7 +50,7 @@ DB_PATH = os.path.expanduser("~/watson/data/watson.db")
 
 EXPECTED_SENDER     = "no-reply@snappages.com"
 EXPECTED_SUBJECT    = "Catalyst Connect Card - Submission"
-EXPECTED_FIRST_LINE = "Where did you attend with us?"
+EXPECTED_FIRST_LINE = "http://snappages.com"
 
 CAMPUS_MAP = {
     "Wilmington Campus": "Wilmington",
@@ -149,13 +150,26 @@ def _get_body(msg) -> str:
 
 def _parse_body(text: str) -> dict | None:
     """
-    Parse connect card body line-by-line using a label-state machine.
-    Returns None if the first non-empty line is not the expected campus question.
+    Parse connect card body using regex extraction between known label boundaries.
+    Returns None if the first non-empty line is not the Subsplash URL identifier.
     """
-    lines = [l.strip() for l in text.splitlines()]
-    non_empty = [l for l in lines if l]
-    if not non_empty or non_empty[0] != EXPECTED_FIRST_LINE:
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+
+    first_non_empty = next((l.strip() for l in text.split("\n") if l.strip()), "")
+    if first_non_empty != EXPECTED_FIRST_LINE:
         return None
+
+    # Strip copyright footer
+    copyright_idx = text.find("© 2022 Subsplash")
+    if copyright_idx != -1:
+        text = text[:copyright_idx]
+
+    # Content starts after the first blank line
+    blank = re.search(r"\n\n+", text)
+    body = text[blank.end():] if blank else text
+
+    # Collapse remaining newlines — the form body is one run-on string
+    body = re.sub(r"[\r\n]+", " ", body).strip()
 
     fields = {
         "campus":                None,
@@ -169,53 +183,57 @@ def _parse_body(text: str) -> dict | None:
         "prayer_leadership_only": False,
         "prayer_request":        None,
     }
-    current = None
 
-    for line in lines:
-        if not line:
-            continue
+    if "Please restrict my request to leadership only." in body:
+        fields["prayer_leadership_only"] = True
 
-        # Label detection (checked before value handling)
-        if line == "Where did you attend with us?":
-            current = "campus"
-        elif line == "First Name":
-            current = "first_name"
-        elif line == "Last Name":
-            current = "last_name"
-        elif line == "Email":
-            current = "email"
-        elif line == "Phone Number":
-            current = "phone"
-        elif line == "Do you have a question/comment?":
-            current = "question_comment"
-        elif line == "Are you ready to take a Next Step this week?":
-            current = "next_steps"
-        elif line == "Is this your first Sunday with us?":
-            current = "is_first_visit"
-        elif line == "Please restrict my request to leadership only.":
-            fields["prayer_leadership_only"] = True
-            current = None
-        elif line == "How can we pray for you this week?":
-            current = "prayer_request"
+    def between(start_label, end_label):
+        m = re.search(re.escape(start_label) + r"(.*?)" + re.escape(end_label), body, re.DOTALL)
+        return m.group(1).strip() if m else None
 
-        # Value collection
-        elif current == "campus":
-            fields["campus"] = CAMPUS_MAP.get(line, line)
-            current = None
-        elif current == "is_first_visit":
-            fields["is_first_visit"] = (line == "Yes it is!")
-            current = None
-        elif current in ("first_name", "last_name", "email", "phone"):
-            fields[current] = line
-            current = None
-        elif current == "next_steps":
-            if line in NEXT_STEP_VALUES:
-                fields["next_steps"].append(line)
-        elif current in ("question_comment", "prayer_request"):
-            if fields[current] is None:
-                fields[current] = line
-            else:
-                fields[current] += "\n" + line
+    def after(start_label):
+        m = re.search(re.escape(start_label) + r"(.*?)$", body, re.DOTALL)
+        return m.group(1).strip() if m else None
+
+    campus_raw = between("Where did you attend with us?", "First Name")
+    if campus_raw is not None:
+        fields["campus"] = CAMPUS_MAP.get(campus_raw, campus_raw)
+
+    val = between("First Name", "Last Name")
+    if val is not None:
+        fields["first_name"] = val
+
+    val = between("Last Name", "Email")
+    if val is not None:
+        fields["last_name"] = val
+
+    val = between("Email", "Phone Number")
+    if val is not None:
+        fields["email"] = val
+
+    val = between("Phone Number", "Do you have a question/comment?")
+    if val is not None:
+        fields["phone"] = val
+
+    val = between("Do you have a question/comment?", "Are you ready to take a Next Step this week?")
+    if val:
+        fields["question_comment"] = val
+
+    ns_raw = between("Are you ready to take a Next Step this week?", "Is this your first Sunday with us?")
+    if ns_raw is not None:
+        parts = [s.strip() for s in ns_raw.split(",")]
+        fields["next_steps"] = [p for p in parts if p in NEXT_STEP_VALUES]
+
+    fv_raw = between("Is this your first Sunday with us?", "How can we pray for you this week?")
+    if fv_raw is None:
+        fv_raw = after("Is this your first Sunday with us?")
+    if fv_raw is not None:
+        fields["is_first_visit"] = "Yes it is!" in fv_raw
+
+    prayer_raw = after("How can we pray for you this week?")
+    if prayer_raw:
+        prayer_raw = prayer_raw.replace("Please restrict my request to leadership only.", "").strip()
+        fields["prayer_request"] = prayer_raw or None
 
     fields["next_steps"] = ", ".join(fields["next_steps"]) or None
     return fields
