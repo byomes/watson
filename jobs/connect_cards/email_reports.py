@@ -44,6 +44,7 @@ FROM_ADDR  = os.getenv("WATSON_FROM_ADDRESS") or SMTP_USER
 BILL_EMAIL  = os.getenv("BILL_EMAIL", "")
 DONNA_EMAIL = os.getenv("DONNA_EMAIL", "")
 KACI_EMAIL  = os.getenv("KACI_EMAIL", "")
+REPORT_CC   = os.getenv("REPORT_CC", "")
 
 DB_PATH = os.path.expanduser("~/watson/data/watson.db")
 
@@ -71,15 +72,19 @@ def _send(to: str, subject: str, html: str) -> None:
     msg["Subject"] = subject
     msg["From"]    = f"Watson <{FROM_ADDR}>"
     msg["To"]      = to
+    if REPORT_CC:
+        msg["Cc"] = REPORT_CC
     msg.attach(MIMEText(html, "html"))
 
+    recipients = [to] + ([REPORT_CC] if REPORT_CC else [])
     with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as smtp:
         smtp.ehlo()
         smtp.starttls()
         smtp.login(SMTP_USER, SMTP_PASS)
-        smtp.sendmail(FROM_ADDR, [to], msg.as_string())
+        smtp.sendmail(FROM_ADDR, recipients, msg.as_string())
 
-    print(f"Sent: {subject!r} → {to}")
+    cc_note = f", CC {REPORT_CC}" if REPORT_CC else ""
+    print(f"Sent: {subject!r} → {to}{cc_note}")
 
 
 def send_bill_report(service_date: str | None = None, updated: bool = False) -> None:
