@@ -9,7 +9,7 @@ Table: connect_cards
   email                 TEXT
   phone                 TEXT
   is_first_visit        INTEGER  (1 = yes, 0 = returning)
-  next_step             TEXT     (NULL if none selected)
+  next_steps            TEXT     (NULL if none selected)
   question_or_comment   TEXT     (NULL if none)
   prayer_request        TEXT     (NULL if none)
   prayer_request_public INTEGER  (1 = public, 0 = leadership-only)
@@ -85,10 +85,10 @@ def bill_report(service_date: str, updated: bool = False) -> tuple[str, str]:
             """
             SELECT first_name || ' ' || last_name AS name,
                    email, phone, campus, is_first_visit,
-                   next_step, question_or_comment
+                   next_steps, question_or_comment
             FROM connect_cards
             WHERE service_date = ?
-              AND (next_step IS NOT NULL OR question_or_comment IS NOT NULL)
+              AND (next_steps IS NOT NULL OR question_or_comment IS NOT NULL)
             ORDER BY is_first_visit DESC, name
             """,
             (service_date,),
@@ -123,7 +123,7 @@ def bill_report(service_date: str, updated: bool = False) -> tuple[str, str]:
         if r["phone"]:
             contact += ("<br>" if contact else "") + r["phone"]
         next_step_cell = (
-            f"<div class='note'>{r['next_step']}</div>" if r["next_step"] else "—"
+            f"<div class='note'>{r['next_steps']}</div>" if r["next_steps"] else "—"
         )
         comment_cell = (
             f"<div class='note'>{r['question_or_comment']}</div>"
