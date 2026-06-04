@@ -35,10 +35,11 @@ from jobs.connect_cards.reports import bill_report, donna_report, kaci_report
 
 load_dotenv(os.path.expanduser("~/watson/.env"))
 
-SMTP_HOST = "smtp.gmail.com"
-SMTP_PORT = 587
-FROM_ADDR = os.getenv("WATSON_GMAIL_ADDRESS", "")
-FROM_PASS = os.getenv("WATSON_GMAIL_APP_PASSWORD", "")
+SMTP_HOST  = "smtp.gmail.com"
+SMTP_PORT  = 587
+SMTP_USER  = os.getenv("WATSON_GMAIL_ADDRESS", "")
+SMTP_PASS  = os.getenv("WATSON_GMAIL_APP_PASSWORD", "")
+FROM_ADDR  = os.getenv("WATSON_FROM_ADDRESS") or SMTP_USER
 
 BILL_EMAIL  = os.getenv("BILL_EMAIL", "")
 DONNA_EMAIL = os.getenv("DONNA_EMAIL", "")
@@ -61,7 +62,7 @@ def _previous_monday_5am(sunday: str) -> str:
 
 
 def _send(to: str, subject: str, html: str) -> None:
-    if not FROM_ADDR or not FROM_PASS:
+    if not SMTP_USER or not SMTP_PASS:
         raise RuntimeError("WATSON_GMAIL_ADDRESS and WATSON_GMAIL_APP_PASSWORD must be set.")
     if not to:
         raise RuntimeError("Recipient address is empty — check env vars.")
@@ -75,7 +76,7 @@ def _send(to: str, subject: str, html: str) -> None:
     with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as smtp:
         smtp.ehlo()
         smtp.starttls()
-        smtp.login(FROM_ADDR, FROM_PASS)
+        smtp.login(SMTP_USER, SMTP_PASS)
         smtp.sendmail(FROM_ADDR, [to], msg.as_string())
 
     print(f"Sent: {subject!r} → {to}")
