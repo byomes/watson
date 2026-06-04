@@ -1,0 +1,9 @@
+# Connect card weekly reports
+# Add these lines to Watson's crontab: crontab -e
+
+# Monday 5am — Bill (next steps + comments) and Kaci (prayer requests)
+0 5 * * 1 cd /home/billyomes/watson && PYTHONPATH=/home/billyomes/watson python3 -m jobs.connect_cards.email_reports --bill >> /home/billyomes/watson/logs/connect_cards.log 2>&1
+0 5 * * 1 cd /home/billyomes/watson && PYTHONPATH=/home/billyomes/watson python3 -m jobs.connect_cards.email_reports --kaci >> /home/billyomes/watson/logs/connect_cards.log 2>&1
+
+# Tuesday 5am — Donna (attendance)
+0 5 * * 2 cd /home/billyomes/watson && PYTHONPATH=/home/billyomes/watson python3 -m jobs.connect_cards.email_reports --donna >> /home/billyomes/watson/logs/connect_cards.log 2>&1
