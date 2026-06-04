@@ -23,3 +23,8 @@ udo journalctl -u watson-bot.service -n 50
 
 # Local env overrides (never commit secrets)
 .env.local
+
+# Google OAuth credentials (keep on server only)
+client_secret_*.json
+config/credentials.json
+config/token.json
