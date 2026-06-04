@@ -155,12 +155,11 @@ def _parse_body(text: str) -> dict | None:
     """
     text = text.replace("\r\n", "\n").replace("\r", "\n")
 
-    first_non_empty = next((l.strip() for l in text.split("\n") if l.strip()), "")
-    if first_non_empty != EXPECTED_FIRST_LINE:
+    if "http://snappages.com" not in text or "Where did you attend with us?" not in text:
         return None
 
     # Strip copyright footer
-    copyright_idx = text.find("© 2022 Subsplash")
+    copyright_idx = text.find("© 2022")
     if copyright_idx != -1:
         text = text[:copyright_idx]
 
