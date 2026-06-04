@@ -69,7 +69,7 @@ def _send(to: str, subject: str, html: str) -> None:
 
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
-    msg["From"]    = FROM_ADDR
+    msg["From"]    = f"Watson <{FROM_ADDR}>"
     msg["To"]      = to
     msg.attach(MIMEText(html, "html"))
 
