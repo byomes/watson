@@ -26,7 +26,12 @@ def get_service():
             creds.refresh(Request())
         else:
             flow = InstalledAppFlow.from_client_secrets_file(str(CREDENTIALS_FILE), SCOPES)
-            creds = flow.run_console()
+            flow.redirect_uri = 'urn:ietf:wg:oauth:2.0:oob'
+        auth_url, _ = flow.authorization_url(prompt='consent')
+        print('Visit this URL:', auth_url)
+        code = input('Enter the auth code: ')
+        flow.fetch_token(code=code)
+        creds = flow.credentials
         TOKEN_FILE.write_text(creds.to_json())
 
     return build("gmail", "v1", credentials=creds)
