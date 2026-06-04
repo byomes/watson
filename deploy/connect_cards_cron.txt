@@ -9,3 +9,6 @@
 
 # Sunday 4am — attendance sync only, no emails
 0 4 * * 0 cd /home/billyomes/watson && PYTHONPATH=/home/billyomes/watson python3 -m jobs.connect_cards.email_reports --sync >> /home/billyomes/watson/logs/connect_cards.log 2>&1
+
+# Every 30 minutes — poll Gmail for new connect cards
+*/30 * * * * cd /home/billyomes/watson && PYTHONPATH=/home/billyomes/watson python3 -m jobs.connect_cards.intake >> /home/billyomes/watson/logs/connect_cards.log 2>&1
