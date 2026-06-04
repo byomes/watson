@@ -47,9 +47,29 @@ def run():
         )
     """)
 
+    # connect_cards
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS connect_cards (
+            id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+            congregation_id       INTEGER,
+            first_name            TEXT,
+            last_name             TEXT,
+            email                 TEXT,
+            phone                 TEXT,
+            campus                TEXT,
+            service_date          DATE,
+            is_first_visit        INTEGER DEFAULT 0,
+            next_steps            TEXT,
+            question_comment      TEXT,
+            prayer_request        TEXT,
+            prayer_request_public INTEGER DEFAULT 1,
+            created_at            DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
     conn.commit()
     conn.close()
-    print("people and congregation tables ready.")
+    print("people, congregation, and connect_cards tables ready.")
 
 
 if __name__ == "__main__":
