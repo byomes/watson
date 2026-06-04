@@ -14,6 +14,9 @@ Table: connect_cards
   prayer_request        TEXT     (NULL if none)
   prayer_request_public INTEGER  (1 = public, 0 = leadership-only)
   created_at            DATETIME
+
+All queries filter by service_date, never created_at, so late-arriving cards
+are always attributed to the correct Sunday regardless of submission time.
 """
 
 import os
@@ -41,6 +44,13 @@ _CSS = (
     ".empty{color:#bbb;font-style:italic;font-size:.9em}"
     ".footer{margin-top:32px;padding-top:12px;border-top:1px solid #eee;font-size:.8em;color:#bbb}"
     ".note{background:#fafafa;border-left:3px solid #ddd;padding:6px 10px;margin:4px 0;font-size:.9em}"
+    ".updated-note{background:#fef9e7;border:1px solid #f0c040;border-radius:4px;padding:10px 14px;margin-bottom:16px;font-size:.9em;color:#666}"
+)
+
+_UPDATED_BANNER = (
+    "<div class='updated-note'>"
+    "This is an updated report. Any additions since Monday are included."
+    "</div>"
 )
 
 
@@ -48,6 +58,11 @@ def _conn():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
+
+
+def _subject(report_type: str, service_date: str, updated: bool) -> str:
+    base = f"Watson — {report_type} | {service_date}"
+    return base + (" | Updated" if updated else "")
 
 
 def _wrap(title: str, subtitle: str, body: str) -> str:
@@ -63,7 +78,7 @@ def _wrap(title: str, subtitle: str, body: str) -> str:
 
 # ── Bill: next steps + questions/comments ─────────────────────────────────────
 
-def bill_report(service_date: str) -> tuple[str, str]:
+def bill_report(service_date: str, updated: bool = False) -> tuple[str, str]:
     """Return (subject, html) for Bill — next steps and comments."""
     with _conn() as conn:
         rows = conn.execute(
@@ -82,11 +97,15 @@ def bill_report(service_date: str) -> tuple[str, str]:
             (service_date,),
         ).fetchone()[0]
 
-    subject = f"Connect Cards — Next Steps & Comments ({service_date})"
+    subject = _subject("Next Steps & Comments", service_date, updated)
+    banner = _UPDATED_BANNER if updated else ""
 
     if not rows:
-        body = f"<p class='empty'>No next steps or comments recorded for {service_date}.</p>"
-        body += f"<p style='color:#888;font-size:.9em'>Total cards submitted: {total}</p>"
+        body = (
+            banner
+            + f"<p class='empty'>No next steps or comments recorded for {service_date}.</p>"
+            + f"<p style='color:#888;font-size:.9em'>Total cards submitted: {total}</p>"
+        )
         return subject, _wrap("Next Steps &amp; Comments", service_date, body)
 
     table_rows = ""
@@ -119,16 +138,17 @@ def bill_report(service_date: str) -> tuple[str, str]:
         )
 
     body = (
-        f"<p style='color:#888;font-size:.9em'>Total cards: {total} &nbsp;|&nbsp; Showing {len(rows)} with next step or comment</p>"
-        f"<table><thead><tr><th>Person</th><th>Next Step</th><th>Question / Comment</th></tr></thead>"
-        f"<tbody>{table_rows}</tbody></table>"
+        banner
+        + f"<p style='color:#888;font-size:.9em'>Total cards: {total} &nbsp;|&nbsp; Showing {len(rows)} with next step or comment</p>"
+        + "<table><thead><tr><th>Person</th><th>Next Step</th><th>Question / Comment</th></tr></thead>"
+        + f"<tbody>{table_rows}</tbody></table>"
     )
     return subject, _wrap("Next Steps &amp; Comments", service_date, body)
 
 
 # ── Donna: attendance summary ─────────────────────────────────────────────────
 
-def donna_report(service_date: str) -> tuple[str, str]:
+def donna_report(service_date: str, updated: bool = False) -> tuple[str, str]:
     """Return (subject, html) for Donna — attendance counts and breakdown."""
     with _conn() as conn:
         rows = conn.execute(
@@ -141,7 +161,8 @@ def donna_report(service_date: str) -> tuple[str, str]:
             (service_date,),
         ).fetchall()
 
-    subject = f"Connect Cards — Attendance Report ({service_date})"
+    subject = _subject("Attendance Report", service_date, updated)
+    banner = _UPDATED_BANNER if updated else ""
 
     total = len(rows)
     first_time = sum(1 for r in rows if r["is_first_visit"])
@@ -160,7 +181,7 @@ def donna_report(service_date: str) -> tuple[str, str]:
     )
 
     if not rows:
-        body = stats + f"<p class='empty'>No connect cards submitted for {service_date}.</p>"
+        body = banner + stats + f"<p class='empty'>No connect cards submitted for {service_date}.</p>"
         return subject, _wrap("Attendance Report", service_date, body)
 
     table_rows = ""
@@ -182,7 +203,8 @@ def donna_report(service_date: str) -> tuple[str, str]:
         )
 
     body = (
-        stats
+        banner
+        + stats
         + "<h2>All Submissions</h2>"
         + "<table><thead><tr><th>Name</th><th>Campus</th><th>Visit Type</th><th>Contact</th></tr></thead>"
         + f"<tbody>{table_rows}</tbody></table>"
@@ -192,7 +214,7 @@ def donna_report(service_date: str) -> tuple[str, str]:
 
 # ── Kaci: prayer requests ─────────────────────────────────────────────────────
 
-def kaci_report(service_date: str) -> tuple[str, str]:
+def kaci_report(service_date: str, updated: bool = False) -> tuple[str, str]:
     """Return (subject, html) for Kaci — prayer requests with public/private flag."""
     with _conn() as conn:
         rows = conn.execute(
@@ -210,11 +232,15 @@ def kaci_report(service_date: str) -> tuple[str, str]:
             (service_date,),
         ).fetchone()[0]
 
-    subject = f"Connect Cards — Prayer Requests ({service_date})"
+    subject = _subject("Prayer Requests", service_date, updated)
+    banner = _UPDATED_BANNER if updated else ""
 
     if not rows:
-        body = f"<p class='empty'>No prayer requests submitted for {service_date}.</p>"
-        body += f"<p style='color:#888;font-size:.9em'>Total cards submitted: {total}</p>"
+        body = (
+            banner
+            + f"<p class='empty'>No prayer requests submitted for {service_date}.</p>"
+            + f"<p style='color:#888;font-size:.9em'>Total cards submitted: {total}</p>"
+        )
         return subject, _wrap("Prayer Requests", service_date, body)
 
     public_count = sum(1 for r in rows if r["prayer_request_public"])
@@ -245,7 +271,8 @@ def kaci_report(service_date: str) -> tuple[str, str]:
         )
 
     body = (
-        stats
+        banner
+        + stats
         + f"<p style='color:#888;font-size:.9em'>Total cards submitted: {total}</p>"
         + "<table><thead><tr><th>Person</th><th>Visibility</th><th>Prayer Request</th></tr></thead>"
         + f"<tbody>{table_rows}</tbody></table>"
