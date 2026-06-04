@@ -5,7 +5,7 @@ Configuration (env vars):
   BILL_EMAIL                Recipient for next steps + comments report
   DONNA_EMAIL               Recipient for attendance report
   KACI_EMAIL                Recipient for prayer requests report
-  WATSON_GMAIL_ADDRESS      SMTP login / from address (smtp.startlogic.com)
+  WATSON_GMAIL_ADDRESS      SMTP login / from address (smtp.gmail.com)
   WATSON_GMAIL_APP_PASSWORD SMTP password / app password
 
 Cron (on watson):
@@ -35,7 +35,7 @@ from jobs.connect_cards.reports import bill_report, donna_report, kaci_report
 
 load_dotenv(os.path.expanduser("~/watson/.env"))
 
-SMTP_HOST = "smtp.startlogic.com"
+SMTP_HOST = "smtp.gmail.com"
 SMTP_PORT = 587
 FROM_ADDR = os.getenv("WATSON_GMAIL_ADDRESS", "")
 FROM_PASS = os.getenv("WATSON_GMAIL_APP_PASSWORD", "")
