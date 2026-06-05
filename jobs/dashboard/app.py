@@ -92,7 +92,7 @@ button{cursor:pointer;font-family:inherit}
 input,select,textarea{font-family:inherit}
 #hdr{position:fixed;top:0;left:0;right:0;z-index:10;background:var(--bg);border-bottom:1px solid var(--border);padding:0 16px;height:54px;display:flex;align-items:center;justify-content:space-between}
 #hdr h1{font-size:15px;font-weight:600;letter-spacing:.02em}
-#gear-btn{background:none;border:none;color:var(--text2);font-size:20px;padding:6px 8px;border-radius:8px;line-height:1}
+#gear-btn{background:none;border:none;color:var(--text2);font-size:24px;padding:4px 10px;border-radius:8px;line-height:1}
 #gear-btn:hover{background:var(--bg3)}
 #main{padding:66px 0 84px;min-height:100vh}
 .tab{display:none;padding:14px}
