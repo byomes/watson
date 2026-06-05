@@ -127,31 +127,6 @@ def _send_directive_telegram(sender, subject):
         log.error("Telegram directive alert failed: %s", exc)
 
 
-def poll_directives():
-    emails = get_unread(label=WATSON_DIRECTIVE_LABEL)
-    log.info("Found %d WATSON_DIRECTIVE email(s)", len(emails))
-
-    for email in emails:
-        msg_id  = email["id"]
-        sender  = _extract_address(email["sender"])
-        subject = email["subject"]
-        body    = email["body"]
-        received_at = email.get("date") or datetime.utcnow().isoformat()
-
-        if sender not in WHITELIST:
-            log.warning("Directive from non-whitelisted sender %s — skipping", sender)
-            mark_as_read(msg_id)
-            continue
-
-        mark_as_read(msg_id)
-
-        if "watson build:" in subject.lower():
-            code_agent.handle(subject, body)
-        else:
-            _store(sender, subject, body[:200], body, received_at, "directive")
-            _send_directive_telegram(sender, subject)
-
-
 def run():
     init_gmail_inbox()
     emails = get_unread()
@@ -165,6 +140,12 @@ def run():
         received_at = email.get("date") or datetime.utcnow().isoformat()
         snippet   = body[:200]
 
+        addr = _extract_address(sender)
+        if addr in WHITELIST and "WATSON_DIRECTIVE" in subject.upper():
+            code_agent.handle(subject, body)
+            mark_as_read(msg_id)
+            continue
+
         classification = _classify(sender, subject, snippet)
         log.info("%-10s | %s | %s", classification.upper(), sender[:40], subject[:60])
 
@@ -177,8 +158,6 @@ def run():
 
         if classification == "urgent":
             _send_telegram(sender, subject, snippet)
-
-    poll_directives()
 
 
 if __name__ == "__main__":
