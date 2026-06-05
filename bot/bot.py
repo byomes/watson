@@ -17,7 +17,7 @@ import json
 import logging
 import os
 import re
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -36,6 +36,9 @@ from jobs.email_job.email_queue import add_to_email_queue, init_email_db
 from jobs.email_job.gmail import send_as_watson
 from jobs.email_intake import init_gmail_inbox
 from jobs.people.api import people_create, people_list, people_get, congregation_search
+import jobs.calendar.pending as pending_module
+from jobs.calendar import reasoner
+from jobs.intent.classifier import classify as _classify_intent
 
 log = logging.getLogger(__name__)
 
@@ -289,260 +292,254 @@ async def handle_facebook_callback(update: Update, context: ContextTypes.DEFAULT
         await query.edit_message_text("Discarded.", reply_markup=None)
 
 
-def detect_intent(text: str) -> dict:
-    import requests as _req
-    prompt = f"""You are an intent classifier. Return ONLY valid JSON, no explanation, no markdown.
-
-Possible intents: send_email, add_contact, find_contact, list_contacts, add_book, list_books, blog_draft, facebook_post, launch_code, ask_kb, general_chat
-
-For send_email extract: contact_name, subject, body
-For add_contact extract: name, email, phone
-For find_contact extract: name
-For add_book extract: title, author, link
-For blog_draft extract: title, body
-For facebook_post extract: body
-For launch_code extract: task
-For ask_kb extract: question
-
-Message: {text}
-
-JSON format: {{"intent": "intent_name", "params": {{"key": "value"}}}}"""
-
-    try:
-        resp = _req.post(
-            "http://localhost:11434/api/generate",
-            json={"model": "qwen2.5:7b", "prompt": prompt, "stream": False},
-            timeout=30
-        )
-        raw = resp.json().get("response", "").strip()
-        raw = re.sub(r"```json|```", "", raw).strip()
-        return json.loads(raw)
-    except Exception as e:
-        log.error("Intent detection failed: %s", e)
-        return {"intent": "general_chat", "params": {}}
-
-
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not _is_authorized(update):
         return
 
-    text = update.message.text.strip()
-    if not text:
+    text = update.message.text or ""
+    if not text.strip():
         return
 
-    if text.startswith("📘 TO FACEBOOK"):
+    if text.startswith("\U0001f4d8 TO FACEBOOK"):
         await _handle_facebook_share(update, text)
         return
 
-    # Normalize curly/smart apostrophes from phone keyboards before any checks
-    text_lower = text.lower().replace('’', "'").replace('‘', "'")
+    chat_id = update.effective_chat.id
 
-    if any(p in text_lower for p in [
-        "what's my day", "whats my day",
-        "what's my schedule", "whats my schedule",
-        "my schedule",
-    ]):
-        await _handle_calendar_day(update)
-        return
+    # Normalize smart quotes from mobile keyboards
+    text_clean = text.replace("’", "'").replace("‘", "'")
+    text_lower = text_clean.lower().strip()
 
-    if any(p in text_lower for p in [
-        "headed to the hospital",
-        "mark rest of day busy",
-        "busy rest of day",
-    ]):
-        await _handle_mark_busy(update)
-        return
+    # Strip "watson" prefix if present
+    for prefix in ("watson,", "watson"):
+        if text_lower.startswith(prefix):
+            text_lower = text_lower[len(prefix):].strip()
+            text_clean = text_clean[len(prefix):].strip()
+            break
 
-    if any(p in text_lower for p in [
-        "what's available", "whats available",
-        "availability",
-    ]):
-        await _handle_calendar_availability(update)
-        return
+    # Handle CONFIRM / CANCEL for pending actions
+    if text_lower in ("yes", "confirm", "yes do it", "book it", "go ahead"):
+        p = pending_module.get_pending(chat_id)
+        if p:
+            await _execute_pending(update, context, p)
+            return
 
-    await update.message.reply_text("On it...")
-    result = detect_intent(text)
-    intent = result.get("intent", "general_chat")
+    if text_lower in ("no", "cancel", "don't book", "never mind"):
+        p = pending_module.get_pending(chat_id)
+        if p:
+            pending_module.cancel_pending(p["id"])
+            await update.message.reply_text("Got it — cancelled.")
+            return
+
+    # Classify intent via Ollama llama3.2:3b
+    result = _classify_intent(text_clean)
+    intent = result.get("intent", "general")
     params = result.get("params", {})
     log.info("Intent: %s | Params: %s", intent, params)
 
-    if intent == "send_email":
-        contact_name = params.get("contact_name", "")
-        subject = params.get("subject", "(no subject)")
-        body = params.get("body", "")
-        if not contact_name or not body:
-            await update.message.reply_text("I need a contact name and message body to send an email.")
-            return
-        from jobs.people.api import people_list as _pl
-        all_people = _pl()
-        people_matches = [p for p in all_people if contact_name.lower() in p.get("name", "").lower()] if isinstance(all_people, list) else []
-        congregation_matches = congregation_search(contact_name)
-        congregation_matches = congregation_matches if isinstance(congregation_matches, list) else []
-        all_matches = people_matches + congregation_matches
-        match = next((r for r in all_matches if r.get("email")), None)
-        if not match:
-            await update.message.reply_text(f"No contact found for {contact_name}. Add them first with: Watson add contact: {contact_name} | [email]")
-            return
-        email_addr = match["email"]
-        if subject == "(no subject)":
-            try:
-                import requests as _req2
-                subj_resp = _req2.post(
-                    "http://localhost:11434/api/generate",
-                    json={"model": "qwen2.5:7b", "prompt": f"Write a short email subject line (under 10 words, no quotes) for:\n\n{body}", "stream": False},
-                    timeout=30
-                )
-                subject = subj_resp.json().get("response", "").strip().strip('"').strip("'") or "(no subject)"
-            except Exception:
-                pass
-        formatted_body = (
-            f"Hi,\n\n"
-            f"Dr. Bill asked me to send you this message:\n\n"
-            f"{body}\n\n"
-            f"---\n"
-            f"Watson\n"
-            f"AI-powered digital assistant\n"
-            f"Office of Dr. Bill Yomes\n"
-            f"williamckyomes.com/start"
-        )
-        try:
-            send_as_watson(email_addr, subject, formatted_body)
-            await update.message.reply_text(f"✉️ Sent to {contact_name} ({email_addr})")
-        except Exception as exc:
-            log.error("send_as_watson failed: %s", exc)
-            await update.message.reply_text(f"Failed to send: {exc}")
-        return
+    if intent == "calendar_query":
+        await _handle_calendar_day(update, context, params)
+    elif intent == "calendar_busy":
+        await _handle_mark_busy(update, context)
+    elif intent == "calendar_availability":
+        await _handle_calendar_availability(update, context, params)
+    elif intent == "block_time":
+        await _handle_block_time(update, context, params)
+    elif intent == "book_appointment":
+        await _handle_book_appointment(update, context, params)
+    elif intent == "task_create":
+        await _handle_task_create(update, context, params)
+    elif intent == "task_list":
+        await _handle_task_list(update, context)
+    elif intent == "task_done":
+        await _handle_task_done(update, context, params)
+    else:
+        await _handle_general(update, context, text_clean)
 
-    if intent == "add_contact":
-        name = params.get("name", "")
-        email_addr = params.get("email")
-        phone = params.get("phone")
-        if not name:
-            await update.message.reply_text("I need at least a name to add a contact.")
-            return
-        res = people_create({"name": name, "email": email_addr, "phone": phone})
-        if isinstance(res, dict) and "error" in res:
-            await update.message.reply_text(f"Error: {res['error']}")
-        else:
-            await update.message.reply_text(f"✅ Contact added: {name}")
-        return
 
-    if intent == "find_contact":
-        name = params.get("name", "")
-        from jobs.people.api import people_list as _pl
-        all_people = _pl()
-        matches = [p for p in all_people if name.lower() in p.get("name", "").lower()] if isinstance(all_people, list) else []
-        congregation_matches = congregation_search(name)
-        all_matches = matches + (congregation_matches if isinstance(congregation_matches, list) else [])
-        if not all_matches:
-            await update.message.reply_text(f"No contact found for: {name}")
-            return
-        lines = []
-        for r in all_matches:
-            line = r.get("name", "")
-            if r.get("email"): line += f" — {r['email']}"
-            if r.get("phone"): line += f" — {r['phone']}"
-            lines.append(line)
-        await update.message.reply_text("\n".join(lines))
-        return
+# --- New intent handlers --------------------------------------------------
 
-    if intent == "list_contacts":
-        from jobs.people.api import people_list as _pl
-        results = _pl()
-        if not results:
-            await update.message.reply_text("No contacts found.")
-            return
-        lines = [f"{r.get('name','')} — {r.get('email','')}" for r in results[:20]]
-        await update.message.reply_text("\n".join(lines))
-        return
-
-    if intent == "launch_code":
-        task = params.get("task", text)
-        from jobs.dev.code_agent import run_code_agent
-        reply = run_code_agent(task)
-        await update.message.reply_text(reply)
-        return
-
-    if intent == "ask_kb":
-        question = params.get("question", text)
-        try:
-            answer = ask(question)
-            await update.message.reply_text(answer)
-        except Exception as exc:
-            await update.message.reply_text(f"KB search failed: {exc}")
-        return
-
-    if intent == "blog_draft":
-        title = params.get("title", f"Draft {date.today()}")
-        body = params.get("body", "")
-        slug = title.lower().replace(" ", "-")
-        draft_id = _save_blog_draft(title, slug, body)
-        await update.message.reply_text(f"✅ Blog draft saved: {title}")
-        return
-
-    if intent == "facebook_post":
-        body = params.get("body", "")
-        res = add_to_queue("", "", "", body)
-        if res:
-            post_id, slot = res
-            slot_str = slot.strftime("%A, %b %-d at %-I:%M %p")
-            await update.message.reply_text(f"✅ Queued for Facebook\n\n{body}\n\n📅 {slot_str}", parse_mode="HTML")
-        else:
-            await update.message.reply_text("No available slots in the next 4 weeks.")
-        return
-
-    if intent == "add_book":
-        title = params.get("title", "")
-        author = params.get("author", "")
-        link = params.get("link", "")
-        if not title:
-            await update.message.reply_text("I need at least a title to add a book.")
-            return
-        from jobs.reading_list import add_book
-        book = add_book(title, author, link)
-        await update.message.reply_text(
-            f"📚 Added to reading list:\n<b>{book['title']}</b> by {book['author']}",
-            parse_mode="HTML"
-        )
-        return
-
-    if intent == "list_books":
-        from jobs.reading_list import list_books
-        books = list_books()
-        if not books:
-            await update.message.reply_text("Your reading list is empty.")
-            return
-        icons = {"queued": "📋", "reading": "📖", "finished": "✅"}
-        lines = ["<b>Reading List:</b>\n"]
-        for b in books:
-            icon = icons.get(b.get("status", "queued"), "📋")
-            line = f"{icon} <b>{b['title']}</b> — {b['author']}"
-            if b.get("link"):
-                line += f"\n    <a href='{b['link']}'>Link</a>"
-            lines.append(line)
-        await update.message.reply_text("\n".join(lines), parse_mode="HTML", disable_web_page_preview=True)
-        return
-
-    # General chat fallback — Open WebUI Watson model
+async def _handle_block_time(update: Update, context: ContextTypes.DEFAULT_TYPE, params: dict) -> None:
+    duration_minutes = int(params.get("duration_minutes") or 60)
+    day_str = params.get("day") or "today"
+    title = params.get("title") or "Blocked"
+    chat_id = update.effective_chat.id
     try:
-        import requests as _requests
-        response = _requests.post(
-            "http://localhost:3000/api/chat/completions",
-            headers={
-                "Authorization": "Bearer sk-bebae8262fd8461aa9d706ce93041401",
-                "Content-Type": "application/json"
-            },
-            json={"model": "watson", "messages": [{"role": "user", "content": text}], "stream": False},
-            timeout=120
+        slot = reasoner.find_best_slot(day_str, duration_minutes)
+        if not slot["available"]:
+            await update.message.reply_text(slot["message"])
+            return
+        pending_module.save_pending(chat_id, "block_time", params, slot)
+        await update.message.reply_text(
+            f"📅 I found a slot for {title}:\n\n{slot['display']}\n\nReply YES to book it or NO to cancel."
         )
-        response.raise_for_status()
-        reply = response.json()["choices"][0]["message"]["content"].strip()
+    except Exception as exc:
+        log.error("Block time failed: %s", exc)
+        await update.message.reply_text(f"Error finding slot: {exc}")
+
+
+async def _handle_book_appointment(update: Update, context: ContextTypes.DEFAULT_TYPE, params: dict) -> None:
+    name = params.get("name")
+    email_addr = params.get("email")
+    if not name:
+        await update.message.reply_text("Who is this appointment with? Please give me their name.")
+        return
+    if not email_addr:
+        await update.message.reply_text(f"What is {name}'s email address?")
+        return
+    duration_minutes = int(params.get("duration_minutes") or 60)
+    day_str = params.get("day") or "next wednesday"
+    chat_id = update.effective_chat.id
+    try:
+        slot = reasoner.find_best_slot(day_str, duration_minutes)
+        if not slot["available"]:
+            await update.message.reply_text(slot["message"])
+            return
+        pending_module.save_pending(chat_id, "book_appointment", params, slot)
+        await update.message.reply_text(
+            f"📅 I found a slot for {name}:\n\n{slot['display']}\n\nReply YES to book it or NO to cancel."
+        )
+    except Exception as exc:
+        log.error("Book appointment failed: %s", exc)
+        await update.message.reply_text(f"Error finding slot: {exc}")
+
+
+def _ensure_tasks_table(conn) -> None:
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS tasks (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            title        TEXT NOT NULL,
+            due_datetime TEXT,
+            status       TEXT NOT NULL DEFAULT 'active',
+            created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+
+
+async def _handle_task_create(update: Update, context: ContextTypes.DEFAULT_TYPE, params: dict) -> None:
+    title = params.get("title", "")
+    due = params.get("due_datetime")
+    if not title:
+        await update.message.reply_text("What should I call this task?")
+        return
+    try:
+        with get_connection() as conn:
+            _ensure_tasks_table(conn)
+            conn.execute("INSERT INTO tasks (title, due_datetime) VALUES (?, ?)", (title, due))
+        if due:
+            await update.message.reply_text(f"✅ Reminder set for {title} on {due}.")
+        else:
+            await update.message.reply_text(f"✅ Got it — added '{title}' to your tasks.")
+    except Exception as exc:
+        log.error("Task create failed: %s", exc)
+        await update.message.reply_text(f"Error saving task: {exc}")
+
+
+async def _handle_task_list(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    try:
+        with get_connection() as conn:
+            _ensure_tasks_table(conn)
+            rows = conn.execute(
+                "SELECT id, title, due_datetime FROM tasks WHERE status = 'active' ORDER BY id ASC"
+            ).fetchall()
+        if not rows:
+            await update.message.reply_text("No active tasks.")
+            return
+        lines = ["📋 Your tasks:\n"]
+        for r in rows:
+            line = f"• {r['title']}"
+            if r["due_datetime"]:
+                line += f" — {r['due_datetime']}"
+            lines.append(line)
+        await update.message.reply_text("\n".join(lines))
+    except Exception as exc:
+        log.error("Task list failed: %s", exc)
+        await update.message.reply_text(f"Error loading tasks: {exc}")
+
+
+async def _handle_task_done(update: Update, context: ContextTypes.DEFAULT_TYPE, params: dict) -> None:
+    title = params.get("title", "")
+    if not title:
+        await update.message.reply_text("Which task should I mark done?")
+        return
+    try:
+        with get_connection() as conn:
+            _ensure_tasks_table(conn)
+            conn.execute(
+                "UPDATE tasks SET status = 'done' WHERE status = 'active' AND title LIKE ?",
+                (f"%{title}%",),
+            )
+        await update.message.reply_text(f"✅ Marked done: {title}")
+    except Exception as exc:
+        log.error("Task done failed: %s", exc)
+        await update.message.reply_text(f"Error updating task: {exc}")
+
+
+async def _handle_general(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str) -> None:
+    try:
+        import requests as _req
+        resp = _req.post(
+            "http://localhost:11434/api/chat",
+            json={
+                "model": "llama3.2:3b",
+                "messages": [{"role": "user", "content": text}],
+                "stream": False,
+            },
+            timeout=60,
+        )
+        resp.raise_for_status()
+        reply = resp.json()["message"]["content"].strip()
         if not reply:
             reply = "I didn't get a response."
     except Exception as exc:
-        log.error("Ollama chat failed: %s", exc)
-        reply = f"Chat failed: {exc}"
+        log.error("Ollama general chat failed: %s", exc)
+        reply = "I'm having trouble thinking right now. Try again in a moment."
     await update.message.reply_text(reply)
+
+
+async def _execute_pending(update: Update, context: ContextTypes.DEFAULT_TYPE, pending: dict) -> None:
+    action_type = pending["action_type"]
+    params = pending["params"]
+    slot = pending["proposed_slot"]
+    pending_id = pending["id"]
+
+    if action_type not in ("block_time", "book_appointment"):
+        await update.message.reply_text("I don't know how to execute that action.")
+        return
+
+    title = params.get("title") or (
+        f"Meeting with {params.get('name', 'Guest')}"
+        if action_type == "book_appointment"
+        else "Blocked"
+    )
+    try:
+        start_dt = datetime.fromisoformat(slot["start"])
+        end_dt = datetime.fromisoformat(slot["end"])
+        display = slot.get("display", "")
+
+        if action_type == "block_time":
+            from jobs.calendar.calendar import mark_busy
+            mark_busy(start_dt, end_dt, title)
+        else:
+            from jobs.calendar.calendar import create_event
+            create_event(title, start_dt, end_dt, "", params.get("email", ""))
+
+        pending_module.confirm_pending(pending_id)
+        await update.message.reply_text(f"✅ Booked — {title} on {display}")
+
+        try:
+            send_as_watson(
+                "pastorbill@catalyst302.com",
+                f"Watson booked: {title}",
+                f"Watson has booked the following on your calendar:\n\n{title}\n{display}",
+            )
+        except Exception as email_exc:
+            log.warning("Booking notification email failed: %s", email_exc)
+
+    except Exception as exc:
+        log.error("Execute pending failed: %s", exc)
+        pending_module.cancel_pending(pending_id)
+        await update.message.reply_text(f"Sorry, I couldn't book that — calendar error: {exc}")
 
 
 _REJECT_REASONS = [
@@ -1121,24 +1118,35 @@ async def handle_ask(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # --- Calendar handlers --------------------------------------------------------
 
-async def _handle_calendar_day(update: Update) -> None:
-    from datetime import datetime
+async def _handle_calendar_day(update: Update, context: ContextTypes.DEFAULT_TYPE, params: dict) -> None:
     from zoneinfo import ZoneInfo
-    from jobs.calendar.calendar import get_todays_events
+    from jobs.calendar.calendar import get_events
     ny = ZoneInfo("America/New_York")
+    day_str = (params or {}).get("day") if params else None
     try:
-        events = get_todays_events()
+        if day_str and day_str != "today":
+            d = reasoner.parse_day(day_str)
+        else:
+            d = datetime.now(ny).date()
+        day_start = datetime(d.year, d.month, d.day, 0, 0, tzinfo=ny)
+        day_end = datetime(d.year, d.month, d.day, 23, 59, 59, tzinfo=ny)
+        events = get_events(day_start, day_end)
         if not events:
-            await update.message.reply_text("\U0001f4c5 Nothing on the calendar today.")
+            label = "Today" if d == datetime.now(ny).date() else d.strftime("%A, %B %-d")
+            await update.message.reply_text(f"📅 Nothing on the calendar for {label}.")
             return
-        lines = ["\U0001f4c5 Today's Schedule\n"]
+        label = "Today" if d == datetime.now(ny).date() else d.strftime("%A, %B %-d")
+        lines = [f"📅 {label}'s Schedule\n"]
         for e in events:
             start_str = e.get("start", "")
-            try:
-                start_dt = datetime.fromisoformat(start_str).astimezone(ny)
-                time_fmt = start_dt.strftime("%-I:%M %p")
-            except Exception:
-                time_fmt = start_str
+            if "T" not in start_str:
+                time_fmt = "All Day"
+            else:
+                try:
+                    start_dt = datetime.fromisoformat(start_str).astimezone(ny)
+                    time_fmt = start_dt.strftime("%-I:%M %p")
+                except Exception:
+                    time_fmt = start_str
             lines.append(f"{time_fmt} — {e.get('summary', '(no title)')}")
         await update.message.reply_text("\n".join(lines))
     except Exception as exc:
@@ -1146,22 +1154,21 @@ async def _handle_calendar_day(update: Update) -> None:
         await update.message.reply_text(f"Calendar error: {exc}")
 
 
-async def _handle_mark_busy(update: Update) -> None:
+async def _handle_mark_busy(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     from jobs.calendar.calendar import mark_day_busy_from_now
     try:
         mark_day_busy_from_now()
-        await update.message.reply_text("\U0001f6ab Done — marked rest of day as busy.")
+        await update.message.reply_text("🚫 Done — marked rest of today as busy.")
     except Exception as exc:
         log.error("Mark busy failed: %s", exc)
         await update.message.reply_text(f"Error: {exc}")
 
 
-async def _handle_calendar_availability(update: Update) -> None:
-    from datetime import datetime
+async def _handle_calendar_availability(update: Update, context: ContextTypes.DEFAULT_TYPE, params: dict) -> None:
     from jobs.calendar.availability import get_available_slots_next_30_days
     try:
         all_slots = get_available_slots_next_30_days("virtual")
-        lines = ["\U0001f4c6 Next available slots:\n"]
+        lines = ["📆 Next available slots:\n"]
         count = 0
         for date_str, slots in all_slots.items():
             if count >= 5:
@@ -1174,7 +1181,7 @@ async def _handle_calendar_availability(update: Update) -> None:
                 lines.append(f"{day_label} — {slot['display']}")
                 count += 1
         if count == 0:
-            await update.message.reply_text("\U0001f4c6 No available slots in the next 30 days.")
+            await update.message.reply_text("📆 No available slots in the next 30 days.")
         else:
             await update.message.reply_text("\n".join(lines))
     except Exception as exc:
