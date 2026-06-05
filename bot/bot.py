@@ -32,7 +32,7 @@ from core.scorer import _BOOST
 from jobs.ask import ask
 from jobs.facebook.facebook_post import add_to_queue, init_db as init_fb_db
 from jobs.email_job.email_queue import add_to_email_queue, init_email_db
-from jobs.email_job.gmail import create_draft
+from jobs.email_job.gmail import send_as_watson
 from jobs.email_intake import init_gmail_inbox
 from jobs.people.api import people_create, people_list, people_get, congregation_search
 
@@ -556,13 +556,13 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"williamckyomes.com/start"
         )
         try:
-            create_draft(email_addr, subject, formatted_body)
+            send_as_watson(email_addr, subject, formatted_body)
             await update.message.reply_text(
-                f"✉️ Draft created for {contact_name} ({email_addr}) — review and send from Gmail"
+                f"✉️ Sent to {contact_name} ({email_addr})"
             )
         except Exception as exc:
-            log.error("create_draft failed in email hook: %s", exc)
-            await update.message.reply_text(f"Failed to create draft: {exc}")
+            log.error("send_as_watson failed in email hook: %s", exc)
+            await update.message.reply_text(f"Failed to send email: {exc}")
         return
 
     _draft_hook = re.match(
@@ -600,13 +600,13 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"williamckyomes.com/start"
         )
         try:
-            create_draft(email_addr, subject, formatted_body)
+            send_as_watson(email_addr, subject, formatted_body)
             await update.message.reply_text(
-                f"✉️ Draft created for {contact_name} ({email_addr}) — review and send from Gmail"
+                f"✉️ Sent to {contact_name} ({email_addr})"
             )
         except Exception as exc:
-            log.error("create_draft failed in draft hook: %s", exc)
-            await update.message.reply_text(f"Failed to create draft: {exc}")
+            log.error("send_as_watson failed in draft hook: %s", exc)
+            await update.message.reply_text(f"Failed to send email: {exc}")
         return
 
     log.info("Received text message: %s", text[:120])
@@ -914,13 +914,13 @@ async def handle_draft(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     to, subject, body = parts[0], parts[1], parts[2]
     try:
-        create_draft(to, subject, body)
+        send_as_watson(to, subject, body)
         await update.message.reply_text(
-            f"✉️ Draft saved — review and send from Gmail.\n\nTo: {to}\nSubject: {subject}"
+            f"✉️ Sent to {to}\nSubject: {subject}"
         )
     except Exception as exc:
-        log.error("create_draft failed: %s", exc)
-        await update.message.reply_text(f"Failed to create draft: {exc}")
+        log.error("send_as_watson failed: %s", exc)
+        await update.message.reply_text(f"Failed to send email: {exc}")
 
 
 async def handle_inbox(update: Update, context: ContextTypes.DEFAULT_TYPE):
