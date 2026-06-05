@@ -8,9 +8,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from flask import Flask, g, jsonify, request
 from jobs.people.api import people_create, people_delete, people_list, people_update
+from jobs.booking.availability_api import booking_bp
 
 DB = os.path.expanduser("~/watson/data/watson.db")
 app = Flask(__name__)
+app.register_blueprint(booking_bp)
 
 
 def _db():
@@ -1022,92 +1024,6 @@ def reminders_delete(reminder_id):
 
 
 # ── Calendar API ──────────────────────────────────────────────────────────────
-
-@app.route("/api/availability")
-def get_availability():
-    from datetime import datetime
-    from jobs.calendar.availability import get_available_slots, get_available_slots_next_30_days
-    try:
-        meeting_type = request.args.get("type", "virtual")
-        date_str = request.args.get("date")
-        if date_str:
-            d = datetime.strptime(date_str, "%Y-%m-%d").date()
-            slots = get_available_slots(d, meeting_type)
-            return jsonify({date_str: slots})
-        else:
-            slots = get_available_slots_next_30_days(meeting_type)
-            return jsonify(slots)
-    except Exception as exc:
-        return jsonify({"error": str(exc), "available": False}), 500
-
-
-@app.route("/api/book", methods=["POST"])
-def book_appointment():
-    from datetime import datetime
-    from zoneinfo import ZoneInfo
-    from jobs.calendar.calendar import create_event
-    from jobs.email_job.gmail import send_as_watson
-
-    data = request.get_json(force=True) or {}
-    for field in ("name", "email", "reason", "start", "end", "type"):
-        if not data.get(field):
-            return jsonify({"error": f"{field} required"}), 400
-
-    name         = data["name"]
-    email        = data["email"]
-    reason       = data["reason"]
-    start        = data["start"]
-    end          = data["end"]
-    meeting_type = data["type"]
-
-    ny = ZoneInfo("America/New_York")
-    try:
-        start_dt = datetime.fromisoformat(start).astimezone(ny)
-        end_dt   = datetime.fromisoformat(end).astimezone(ny)
-    except Exception as exc:
-        return jsonify({"error": f"invalid time format: {exc}"}), 400
-
-    display = (
-        f"{start_dt.strftime('%A, %B %-d at %-I:%M %p')}"
-        f" — {end_dt.strftime('%-I:%M %p')}"
-    )
-
-    try:
-        description = f"Type: {meeting_type}\nReason: {reason}\nEmail: {email}"
-        event_id = create_event(f"Appointment: {name}", start_dt, end_dt, description, email)
-    except Exception as exc:
-        return jsonify({"error": f"calendar error: {exc}"}), 500
-
-    try:
-        confirmation_body = (
-            f"Hi {name},\n\n"
-            f"Your {meeting_type} appointment with Pastor Bill is confirmed.\n\n"
-            f"Date & Time: {display}\n\n"
-            f"For virtual appointments, Pastor Bill will reach out with connection details before your meeting.\n\n"
-            f"If you need to cancel or reschedule, reply to this email.\n\n"
-            f"Watson\n"
-            f"AI-powered digital assistant\n"
-            f"Office of Dr. Bill Yomes\n"
-            f"williamckyomes.com/start"
-        )
-        send_as_watson(email, "Your Appointment with Pastor Bill is Confirmed", confirmation_body)
-
-        notification_body = (
-            f"New {meeting_type} appointment\n\n"
-            f"Name: {name}\n"
-            f"Email: {email}\n"
-            f"Time: {display}\n"
-            f"Reason: {reason}"
-        )
-        send_as_watson(
-            "pastorbill@catalyst302.com",
-            f"New Appointment Booked: {name}",
-            notification_body,
-        )
-    except Exception as exc:
-        return jsonify({"error": f"email error: {exc}"}), 500
-
-    return jsonify({"ok": True, "event_id": event_id})
 
 
 @app.route("/api/calendar/busy-rest-of-day", methods=["POST"])
