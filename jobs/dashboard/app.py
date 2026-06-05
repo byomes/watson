@@ -152,7 +152,7 @@ select option{background:var(--bg2)}
 .theme-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0}
 .theme-lbl{font-size:14px;color:var(--text)}
 .theme-btn2{padding:7px 16px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;color:var(--text2);font-size:12px}
-#settings-panel{position:fixed;top:54px;right:0;left:0;z-index:9;background:var(--bg);border-bottom:1px solid var(--border);padding:12px 16px;display:none}
+#settings-panel{position:fixed;top:54px;right:0;left:0;z-index:9;background:var(--bg2);border-bottom:1px solid var(--border);padding:12px 16px;display:none}
 </style>
 </head>
 <body>
@@ -300,7 +300,7 @@ function toggleTheme() {
 function toggleSettings(e) {
   e.stopPropagation();
   const p = document.getElementById('settings-panel');
-  p.style.display = p.style.display === 'none' ? 'block' : 'none';
+  p.style.display = getComputedStyle(p).display === 'none' ? 'block' : 'none';
 }
 document.addEventListener('click', function(e) {
   if (!e.target.closest('#settings-panel') && e.target.id !== 'gear-btn') {
