@@ -152,13 +152,22 @@ select option{background:var(--bg2)}
 .theme-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0}
 .theme-lbl{font-size:14px;color:var(--text)}
 .theme-btn2{padding:7px 16px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;color:var(--text2);font-size:12px}
+#settings-panel{position:fixed;top:54px;right:0;left:0;z-index:9;background:var(--bg);border-bottom:1px solid var(--border);padding:12px 16px;display:none}
 </style>
 </head>
 <body>
 
 <div id="hdr">
   <h1>Watson</h1>
-  <button id="gear-btn" onclick="switchTab('settings')">&#9881;</button>
+  <button id="gear-btn" onclick="toggleSettings(event)">&#9881;</button>
+</div>
+
+<div id="settings-panel">
+  <div class="flabel">Appearance</div>
+  <div class="theme-row">
+    <span class="theme-lbl" id="theme-lbl-text">Dark mode</span>
+    <button class="theme-btn2" id="theme-toggle-btn" onclick="toggleTheme()">Switch to Light</button>
+  </div>
 </div>
 
 <div id="main">
@@ -245,16 +254,6 @@ select option{background:var(--bg2)}
     <div id="rl-list"></div>
   </div>
 
-  <div id="tab-settings" class="tab">
-    <div class="ph-hdr">Settings</div>
-    <div class="fbox">
-      <div class="flabel">Appearance</div>
-      <div class="theme-row">
-        <span class="theme-lbl" id="theme-lbl-text">Dark mode</span>
-        <button class="theme-btn2" id="theme-toggle-btn" onclick="toggleTheme()">Switch to Light</button>
-      </div>
-    </div>
-  </div>
 
 </div>
 
@@ -279,10 +278,6 @@ select option{background:var(--bg2)}
     <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></span>
     <span>Reading</span>
   </button>
-  <button class="nb" id="nav-settings" onclick="switchTab('settings')">
-    <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
-    <span>Settings</span>
-  </button>
 </nav>
 
 <script>
@@ -302,6 +297,16 @@ function toggleTheme() {
   localStorage.setItem('watson-theme', next);
   _syncThemeUI();
 }
+function toggleSettings(e) {
+  e.stopPropagation();
+  const p = document.getElementById('settings-panel');
+  p.style.display = p.style.display === 'none' ? 'block' : 'none';
+}
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('#settings-panel') && e.target.id !== 'gear-btn') {
+    document.getElementById('settings-panel').style.display = 'none';
+  }
+});
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 function esc(s) {
@@ -324,8 +329,8 @@ async function api(url, method, body) {
 }
 
 // ── Tabs ──────────────────────────────────────────────────────────────────
-const TABS = ['briefing','tasks','reminders','contacts','reading','settings'];
-const loaded = {briefing:false, tasks:false, reminders:false, contacts:false, reading:false, settings:true};
+const TABS = ['briefing','tasks','reminders','contacts','reading'];
+const loaded = {briefing:false, tasks:false, reminders:false, contacts:false, reading:false};
 const loaders = {};
 
 function switchTab(name) {
