@@ -452,10 +452,28 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(result)
         return
 
-    log.info("Received text note: %s", text[:120])
-    note_id = _save_note(text)
-    log.info("Saved note #%d", note_id)
-    await update.message.reply_text("Got it. Note saved.")
+    log.info("Received text message: %s", text[:120])
+    await update.message.reply_text("Thinking...")
+    try:
+        import requests as _requests
+        response = _requests.post(
+            "http://localhost:11434/api/generate",
+            json={
+                "model": "phi3:mini",
+                "prompt": text,
+                "stream": False,
+                "system": "You are Watson, Dr. Bill Yomes's personal AI assistant. You are terse, direct, and efficient. You help with research, content, scheduling, and ministry operations. You never guess — if you don't know, you say so. You are not a pastor and do not speak with spiritual authority. Keep responses concise."
+            },
+            timeout=120
+        )
+        response.raise_for_status()
+        reply = response.json().get("response", "").strip()
+        if not reply:
+            reply = "I didn't get a response from Ollama."
+    except Exception as exc:
+        log.error("Ollama chat failed: %s", exc)
+        reply = f"Chat failed: {exc}"
+    await update.message.reply_text(reply)
 
 
 _REJECT_REASONS = [
