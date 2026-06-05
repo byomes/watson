@@ -1,5 +1,6 @@
 import base64
 import os
+from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
 
@@ -35,12 +36,24 @@ def get_service():
     return build("gmail", "v1", credentials=creds)
 
 
+def _build_mime(to, subject, body):
+    html_body = body.replace("\n", "<br>")
+    html_body = html_body.replace(
+        "williamckyomes.com/start",
+        '<a href="https://williamckyomes.com/start">williamckyomes.com/start</a>'
+    )
+    msg = MIMEMultipart("alternative")
+    msg["to"] = to
+    msg["subject"] = subject
+    msg.attach(MIMEText(body, "plain"))
+    msg.attach(MIMEText(f"<html><body>{html_body}</body></html>", "html"))
+    return msg
+
+
 def send_email(to, subject, body):
     service = get_service()
-    message = MIMEText(body)
-    message["to"] = to
-    message["subject"] = subject
-    raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
+    msg = _build_mime(to, subject, body)
+    raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
     return service.users().messages().send(userId="me", body={"raw": raw}).execute()
 
 
@@ -88,10 +101,8 @@ def get_message(message_id):
 
 def create_draft(to, subject, body):
     service = get_service()
-    message = MIMEText(body)
-    message["to"] = to
-    message["subject"] = subject
-    raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
+    msg = _build_mime(to, subject, body)
+    raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
     draft = service.users().drafts().create(
         userId="me",
         body={"message": {"raw": raw}}
