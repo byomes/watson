@@ -32,6 +32,7 @@ from core.scorer import _BOOST
 from jobs.ask import ask
 from jobs.facebook.facebook_post import add_to_queue, init_db as init_fb_db
 from jobs.email_job.email_queue import add_to_email_queue, init_email_db
+from jobs.email_job.gmail import create_draft
 from jobs.email_intake import init_gmail_inbox
 
 log = logging.getLogger(__name__)
@@ -748,6 +749,25 @@ async def handle_emailcancel(update: Update, context: ContextTypes.DEFAULT_TYPE)
     await update.message.reply_text(f"❌ Removed #{item_id}: {row['title'][:60]}")
 
 
+async def handle_draft(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not _is_authorized(update):
+        return
+    raw = " ".join(context.args) if context.args else ""
+    parts = [p.strip() for p in raw.split("|")]
+    if len(parts) < 3 or not parts[0] or not parts[1] or not parts[2]:
+        await update.message.reply_text("Usage: /draft [to] | [subject] | [body]")
+        return
+    to, subject, body = parts[0], parts[1], parts[2]
+    try:
+        create_draft(to, subject, body)
+        await update.message.reply_text(
+            f"✉️ Draft saved — review and send from Gmail.\n\nTo: {to}\nSubject: {subject}"
+        )
+    except Exception as exc:
+        log.error("create_draft failed: %s", exc)
+        await update.message.reply_text(f"Failed to create draft: {exc}")
+
+
 async def handle_inbox(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not _is_authorized(update):
         return
@@ -1055,6 +1075,7 @@ def main():
     app.add_handler(CommandHandler("fbcancel",    handle_fbcancel))
     app.add_handler(CommandHandler("emailqueue",  handle_emailqueue))
     app.add_handler(CommandHandler("emailcancel", handle_emailcancel))
+    app.add_handler(CommandHandler("draft",       handle_draft))
     app.add_handler(CommandHandler("inbox",       handle_inbox))
     app.add_handler(CommandHandler("read",        handle_read))
     app.add_handler(CommandHandler("saved",       handle_saved))
