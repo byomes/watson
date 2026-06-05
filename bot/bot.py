@@ -555,6 +555,40 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(f"Failed to create draft: {exc}")
         return
 
+    _draft_hook = re.match(
+        r'^draft (?:an )?email to (.+?)\.\s*subject:\s*(.+?)\.\s*(.+)$',
+        text, re.IGNORECASE | re.DOTALL
+    )
+    if _draft_hook:
+        contact_name = _draft_hook.group(1).strip()
+        subject = _draft_hook.group(2).strip()
+        body = _draft_hook.group(3).strip()
+        results = congregation_search(contact_name)
+        if not results or (isinstance(results, dict) and "error" in results):
+            results = []
+        from jobs.people.api import people_list
+        all_people = people_list()
+        if isinstance(all_people, list):
+            people_matches = [p for p in all_people if contact_name.lower() in p.get("name", "").lower()]
+            results = list(results) + people_matches
+        match = next((r for r in results if r.get("email")), None)
+        if not match:
+            await update.message.reply_text(
+                f"No contact found for {contact_name} — add them first with:\n"
+                f"Watson add contact: {contact_name} | [email]"
+            )
+            return
+        email_addr = match["email"]
+        try:
+            create_draft(email_addr, subject, body)
+            await update.message.reply_text(
+                f"✉️ Draft created for {contact_name} ({email_addr}) — review and send from Gmail"
+            )
+        except Exception as exc:
+            log.error("create_draft failed in draft hook: %s", exc)
+            await update.message.reply_text(f"Failed to create draft: {exc}")
+        return
+
     log.info("Received text message: %s", text[:120])
     await update.message.reply_text("Thinking...")
     try:
