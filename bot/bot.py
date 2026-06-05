@@ -334,7 +334,8 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await _handle_facebook_share(update, text)
         return
 
-    text_lower = text.lower()
+    # Normalize curly/smart apostrophes from phone keyboards before any checks
+    text_lower = text.lower().replace('’', "'").replace('‘', "'")
 
     if any(p in text_lower for p in [
         "what's my day", "whats my day",
@@ -354,7 +355,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if any(p in text_lower for p in [
         "what's available", "whats available",
-        "watson availability",
+        "availability",
     ]):
         await _handle_calendar_availability(update)
         return
