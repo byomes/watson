@@ -513,9 +513,14 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         contact_name = _email_hook.group(1).strip()
         body = _email_hook.group(2).strip()
         results = congregation_search(contact_name)
-        if isinstance(results, dict) and "error" in results:
-            await update.message.reply_text(f"Error: {results['error']}")
-            return
+        if not results or (isinstance(results, dict) and "error" in results):
+            results = []
+        # Also search people table
+        from jobs.people.api import people_list
+        all_people = people_list()
+        if isinstance(all_people, list):
+            people_matches = [p for p in all_people if contact_name.lower() in p.get("name", "").lower()]
+            results = list(results) + people_matches
         match = next((r for r in results if r.get("email")), None)
         if not match:
             await update.message.reply_text(
