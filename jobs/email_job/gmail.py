@@ -99,16 +99,34 @@ def get_message(message_id):
     }
 
 
-def create_draft(to, subject, body):
-    service = get_service()
-    msg = _build_mime(to, subject, body)
-    msg["from"] = "Watson <watson@williamckyomes.com>"
-    raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
-    draft = service.users().drafts().create(
-        userId="me",
-        body={"message": {"raw": raw}}
-    ).execute()
-    return draft
+def send_as_watson(to, subject, body_plain):
+    import smtplib
+    import os
+    from dotenv import load_dotenv
+    load_dotenv(Path.home() / "watson" / ".env")
+
+    smtp_user = os.getenv("WATSON_GMAIL_ADDRESS", "")
+    smtp_pass = os.getenv("WATSON_GMAIL_APP_PASSWORD", "")
+    from_addr = os.getenv("WATSON_FROM_ADDRESS") or smtp_user
+
+    body_html = body_plain.replace("\n", "<br>").replace(
+        "williamckyomes.com/start",
+        '<a href="https://williamckyomes.com/start">williamckyomes.com/start</a>'
+    )
+
+    msg = MIMEMultipart("alternative")
+    msg["To"] = to
+    msg["Subject"] = subject
+    msg["From"] = f"Watson <{from_addr}>"
+    msg.attach(MIMEText(body_plain, "plain"))
+    msg.attach(MIMEText(f"<html><body>{body_html}</body></html>", "html"))
+
+    with smtplib.SMTP("smtp.gmail.com", 587) as smtp:
+        smtp.ehlo()
+        smtp.starttls()
+        smtp.login(smtp_user, smtp_pass)
+        smtp.sendmail(from_addr, [to], msg.as_string())
+    return {"ok": True}
 
 
 def _extract_body(payload):
