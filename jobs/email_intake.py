@@ -7,6 +7,7 @@ Crontab (run on watson server):
 """
 
 import logging
+import re
 import sqlite3
 from datetime import datetime
 
@@ -14,8 +15,16 @@ import requests
 
 from config.settings import DB_PATH, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 from jobs.email_job.gmail import get_unread, mark_as_read
+import jobs.code_agent.agent as code_agent
 
 log = logging.getLogger(__name__)
+
+WHITELIST = [
+    "bill.yomes@gmail.com",
+    "pastorbill@catalyst302.com",
+    "me@williamckyomes.com",
+    "bill@faithmakessense.com",
+]
 
 OLLAMA_URL = "http://localhost:11434/api/generate"
 OLLAMA_MODEL = "llama3.2:3b"
@@ -94,6 +103,53 @@ def _send_telegram(sender, subject, snippet):
         log.error("Telegram alert failed: %s", exc)
 
 
+def _extract_address(sender_field):
+    match = re.search(r"<(.+?)>", sender_field)
+    if match:
+        return match.group(1).strip().lower()
+    return sender_field.strip().lower()
+
+
+def _send_directive_telegram(sender, subject):
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        log.error("Telegram credentials not set — cannot send directive alert")
+        return
+    text = f"📬 New directive\n\nFrom: {sender}\nSubject: {subject}"
+    try:
+        requests.post(
+            f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+            json={"chat_id": TELEGRAM_CHAT_ID, "text": text},
+            timeout=15,
+        )
+    except Exception as exc:
+        log.error("Telegram directive alert failed: %s", exc)
+
+
+def poll_directives():
+    emails = get_unread(label="WATSON_DIRECTIVE")
+    log.info("Found %d WATSON_DIRECTIVE email(s)", len(emails))
+
+    for email in emails:
+        msg_id  = email["id"]
+        sender  = _extract_address(email["sender"])
+        subject = email["subject"]
+        body    = email["body"]
+        received_at = email.get("date") or datetime.utcnow().isoformat()
+
+        if sender not in WHITELIST:
+            log.warning("Directive from non-whitelisted sender %s — skipping", sender)
+            mark_as_read(msg_id)
+            continue
+
+        mark_as_read(msg_id)
+
+        if "watson build:" in subject.lower():
+            code_agent.handle(subject, body)
+        else:
+            _store(sender, subject, body[:200], body, received_at, "directive")
+            _send_directive_telegram(sender, subject)
+
+
 def run():
     init_gmail_inbox()
     emails = get_unread()
@@ -119,6 +175,8 @@ def run():
 
         if classification == "urgent":
             _send_telegram(sender, subject, snippet)
+
+    poll_directives()
 
 
 if __name__ == "__main__":
