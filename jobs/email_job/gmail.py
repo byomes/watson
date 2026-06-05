@@ -88,6 +88,19 @@ def get_message(message_id):
     }
 
 
+def create_draft(to, subject, body):
+    service = get_service()
+    message = MIMEText(body)
+    message["to"] = to
+    message["subject"] = subject
+    raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
+    draft = service.users().drafts().create(
+        userId="me",
+        body={"message": {"raw": raw}}
+    ).execute()
+    return draft
+
+
 def _extract_body(payload):
     if "parts" in payload:
         for part in payload["parts"]:
