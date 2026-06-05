@@ -4,13 +4,12 @@ from zoneinfo import ZoneInfo
 from jobs.calendar.calendar import get_events
 
 NY = ZoneInfo("America/New_York")
-SLOT_DURATION = 60  # minutes
+SLOT_DURATION = 45  # minutes
 
 # weekday(): Mon=0, Tue=1, Wed=2, Thu=3, Fri=4, Sat=5, Sun=6
 BOOKING_WINDOWS = {
     2: [(10, 0, 13, 0)],                       # Wed: 10am–1pm
     3: [(10, 0, 13, 0), (19, 0, 20, 30)],      # Thu: 10am–1pm, 7–8:30pm
-    5: [(8, 0, 9, 30)],                        # Sat: 8–9:30am
 }
 
 
@@ -53,10 +52,13 @@ def get_available_slots(d: date, meeting_type: str) -> list:
     day_start = datetime(d.year, d.month, d.day, 0,  0,  tzinfo=NY)
     day_end   = datetime(d.year, d.month, d.day, 23, 59, tzinfo=NY)
     events = get_events(day_start, day_end)
+    cutoff = datetime.now(NY) + timedelta(hours=2)
 
     slots = []
     for h_start, m_start, h_end, m_end in windows:
         for slot_start, slot_end in _slots_for_window(d, h_start, m_start, h_end, m_end):
+            if slot_start < cutoff:
+                continue
             if not _overlaps(slot_start, slot_end, events):
                 slots.append({
                     "start":   slot_start.isoformat(),
@@ -74,4 +76,23 @@ def get_available_slots_next_30_days(meeting_type: str) -> dict:
         slots = get_available_slots(d, meeting_type)
         if slots:
             result[d.isoformat()] = slots
+    return result
+
+
+def get_available_slots_grouped(meeting_type: str) -> list:
+    today = date.today()
+    result = []
+    for i in range(30):
+        d = today + timedelta(days=i)
+        slots = get_available_slots(d, meeting_type)
+        if slots:
+            day_label = datetime(d.year, d.month, d.day).strftime("%A, %B %-d")
+            result.append({
+                "date":  d.isoformat(),
+                "label": day_label,
+                "slots": [
+                    {"start": s["start"], "end": s["end"], "label": s["display"]}
+                    for s in slots
+                ],
+            })
     return result
