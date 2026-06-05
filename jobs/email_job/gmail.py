@@ -102,6 +102,7 @@ def get_message(message_id):
 def create_draft(to, subject, body):
     service = get_service()
     msg = _build_mime(to, subject, body)
+    msg["from"] = "Watson <watson@williamckyomes.com>"
     raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
     draft = service.users().drafts().create(
         userId="me",
