@@ -19,6 +19,8 @@ import jobs.code_agent.agent as code_agent
 
 log = logging.getLogger(__name__)
 
+WATSON_DIRECTIVE_LABEL = "Label_1238322494970583528"
+
 WHITELIST = [
     "bill.yomes@gmail.com",
     "pastorbill@catalyst302.com",
@@ -126,7 +128,7 @@ def _send_directive_telegram(sender, subject):
 
 
 def poll_directives():
-    emails = get_unread(label="WATSON_DIRECTIVE")
+    emails = get_unread(label=WATSON_DIRECTIVE_LABEL)
     log.info("Found %d WATSON_DIRECTIVE email(s)", len(emails))
 
     for email in emails:

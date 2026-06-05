@@ -14,6 +14,8 @@ import requests
 
 log = logging.getLogger(__name__)
 
+WATSON_DIRECTIVE_LABEL = "Label_1238322494970583528"
+
 
 def _telegram(text):
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
@@ -98,7 +100,7 @@ def _process_confirm(msg_id, job_id, spec):
 def poll_confirms():
     _expire_stale_jobs()
 
-    emails = get_unread(label="WATSON_DIRECTIVE")
+    emails = get_unread(label=WATSON_DIRECTIVE_LABEL)
     for email in emails:
         msg_id  = email["id"]
         sender  = _extract_address(email["sender"])
