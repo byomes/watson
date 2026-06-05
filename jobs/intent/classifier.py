@@ -7,24 +7,42 @@ import requests
 log = logging.getLogger(__name__)
 
 _OLLAMA_URL = "http://localhost:11434/api/generate"
-_MODEL = "llama3.2:3b"
+_MODEL = "qwen2.5-coder:7b"
 
-_SYSTEM_PROMPT = """\
-You are Watson's intent classifier. Read the user message and return ONLY a JSON object with no other text.
+_SYSTEM_PROMPT = """
+You are a strict intent classifier. Your only job is to read a command and return a JSON object.
+Do not respond conversationally. Do not explain. Return ONLY valid JSON, nothing else.
 
-Intents:
-- calendar_query: asking about schedule/events. Params: {day: "today|monday|tuesday|..."|null}
-- calendar_busy: telling Watson to mark time as busy (hospital, emergency, going out). Params: {}
-- calendar_availability: asking what time slots are open. Params: {}
-- block_time: asking Watson to block time for a specific purpose. Params: {duration_minutes: int, day: "next wednesday|this thursday|...", title: str}
-- book_appointment: booking someone else into calendar. Params: {name: str|null, email: str|null, duration_minutes: int, day: str|null, type: "virtual|inperson"}
-- task_create: creating a task or reminder. Params: {title: str, due_datetime: str|null}
-- task_list: asking to see tasks or reminders. Params: {}
-- task_done: marking a task complete. Params: {title: str|null}
-- general: everything else. Params: {}
+Focus on the COMMAND STRUCTURE, not the content words.
 
-Return ONLY valid JSON. Example:
-{"intent": "block_time", "params": {"duration_minutes": 120, "day": "next wednesday", "title": "Bible Study Planning"}}"""
+Rules:
+- "book X hours/minutes for [anything]" or "block time for [anything]" = block_time
+- "what's my day" or "what's my schedule" or "what do I have" = calendar_query
+- "mark rest of day busy" or "I'm headed to [anywhere]" or "going to [anywhere]" = calendar_busy
+- "what's available" or "when am I free" or "availability" = calendar_availability
+- "remind me" or "add task" or "don't forget" = task_create
+- "what are my tasks" or "what's due" = task_list
+- "book an appointment for [person]" or "schedule [person]" = book_appointment
+- everything else = general
+
+Intents and their params:
+- block_time: {duration_minutes: int, day: str, title: str}
+- calendar_query: {day: str or null}
+- calendar_busy: {}
+- calendar_availability: {}
+- book_appointment: {name: str or null, email: str or null, duration_minutes: int, day: str or null, type: "virtual|inperson"}
+- task_create: {title: str, due_datetime: str or null}
+- task_list: {}
+- general: {}
+
+Examples:
+"book 2 hours next wednesday for Bible Study Planning" → {"intent": "block_time", "params": {"duration_minutes": 120, "day": "next wednesday", "title": "Bible Study Planning"}}
+"what's my day on monday" → {"intent": "calendar_query", "params": {"day": "monday"}}
+"I'm headed to the hospital" → {"intent": "calendar_busy", "params": {}}
+"remind me at 3pm to call John" → {"intent": "task_create", "params": {"title": "call John", "due_datetime": "3pm"}}
+
+Return ONLY the JSON object. No markdown. No explanation. No other text.
+"""
 
 
 def classify(message_text: str) -> dict:
@@ -38,6 +56,9 @@ def classify(message_text: str) -> dict:
         resp.raise_for_status()
         raw = resp.json().get("response", "").strip()
         raw = re.sub(r"```json|```", "", raw).strip()
+        raw = raw.strip().lstrip('`').rstrip('`')
+        if raw.startswith('json'):
+            raw = raw[4:].strip()
         return json.loads(raw)
     except requests.Timeout:
         log.warning("Ollama classify timed out")
