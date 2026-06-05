@@ -334,6 +334,31 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await _handle_facebook_share(update, text)
         return
 
+    text_lower = text.lower()
+
+    if any(p in text_lower for p in [
+        "what's my day", "whats my day",
+        "what's my schedule", "whats my schedule",
+        "my schedule",
+    ]):
+        await _handle_calendar_day(update)
+        return
+
+    if any(p in text_lower for p in [
+        "headed to the hospital",
+        "mark rest of day busy",
+        "busy rest of day",
+    ]):
+        await _handle_mark_busy(update)
+        return
+
+    if any(p in text_lower for p in [
+        "what's available", "whats available",
+        "watson availability",
+    ]):
+        await _handle_calendar_availability(update)
+        return
+
     await update.message.reply_text("On it...")
     result = detect_intent(text)
     intent = result.get("intent", "general_chat")
@@ -1091,6 +1116,69 @@ async def handle_ask(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as exc:
         log.error("Ask failed: %s", exc)
         await update.message.reply_text(f"Ask failed: {exc}")
+
+
+# --- Calendar handlers --------------------------------------------------------
+
+async def _handle_calendar_day(update: Update) -> None:
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    from jobs.calendar.calendar import get_todays_events
+    ny = ZoneInfo("America/New_York")
+    try:
+        events = get_todays_events()
+        if not events:
+            await update.message.reply_text("\U0001f4c5 Nothing on the calendar today.")
+            return
+        lines = ["\U0001f4c5 Today's Schedule\n"]
+        for e in events:
+            start_str = e.get("start", "")
+            try:
+                start_dt = datetime.fromisoformat(start_str).astimezone(ny)
+                time_fmt = start_dt.strftime("%-I:%M %p")
+            except Exception:
+                time_fmt = start_str
+            lines.append(f"{time_fmt} — {e.get('summary', '(no title)')}")
+        await update.message.reply_text("\n".join(lines))
+    except Exception as exc:
+        log.error("Calendar day failed: %s", exc)
+        await update.message.reply_text(f"Calendar error: {exc}")
+
+
+async def _handle_mark_busy(update: Update) -> None:
+    from jobs.calendar.calendar import mark_day_busy_from_now
+    try:
+        mark_day_busy_from_now()
+        await update.message.reply_text("\U0001f6ab Done — marked rest of day as busy.")
+    except Exception as exc:
+        log.error("Mark busy failed: %s", exc)
+        await update.message.reply_text(f"Error: {exc}")
+
+
+async def _handle_calendar_availability(update: Update) -> None:
+    from datetime import datetime
+    from jobs.calendar.availability import get_available_slots_next_30_days
+    try:
+        all_slots = get_available_slots_next_30_days("virtual")
+        lines = ["\U0001f4c6 Next available slots:\n"]
+        count = 0
+        for date_str, slots in all_slots.items():
+            if count >= 5:
+                break
+            d = datetime.strptime(date_str, "%Y-%m-%d")
+            day_label = d.strftime("%A, %b %-d")
+            for slot in slots:
+                if count >= 5:
+                    break
+                lines.append(f"{day_label} — {slot['display']}")
+                count += 1
+        if count == 0:
+            await update.message.reply_text("\U0001f4c6 No available slots in the next 30 days.")
+        else:
+            await update.message.reply_text("\n".join(lines))
+    except Exception as exc:
+        log.error("Calendar availability failed: %s", exc)
+        await update.message.reply_text(f"Error: {exc}")
 def main():
     if not TELEGRAM_BOT_TOKEN:
         raise RuntimeError("TELEGRAM_BOT_TOKEN is not set in .env")
