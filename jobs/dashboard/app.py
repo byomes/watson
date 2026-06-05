@@ -555,7 +555,7 @@ function renderReading() {
         (b.summary ? '<div class="bk-sum">' + esc(b.summary) + '</div>' : '') +
         '<div class="row">' +
           S_ORDER.filter(s => s !== b.status).map(s =>
-            '<button class="btn btn-gh" onclick="setBookStatus(' + b.id + ',\'' + s + '\')">→ ' + s + '</button>'
+            `<button class="btn btn-gh" onclick="setBookStatus(${b.id},'${s}')">→ ${s}</button>`
           ).join('') +
         '</div>' +
       '</div>'
