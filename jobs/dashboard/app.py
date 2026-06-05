@@ -373,11 +373,11 @@ function renderBriefing() {
       <div class="meta">${esc(i.source_name)}</div>
       ${i.summary ? '<div class="summary">' + esc(i.summary) + '</div>' : ''}
       <div class="row">
-        <button class="btn btn-g" onclick="bAction(${i.id},'approve')">&#128214; Read</button>
-        <button class="btn btn-b" onclick="bAction(${i.id},'email')">&#9993; Email</button>
-        <button class="btn btn-b" onclick="bAction(${i.id},'facebook')">&#128216; Facebook</button>
-        <button class="btn btn-gh" onclick="bAction(${i.id},'tolist')">&#128203; To List</button>
-        <button class="btn btn-r" onclick="bAction(${i.id},'reject')">&#10005; Reject</button>
+        <button class="btn btn-g" onclick="bAction(${i.id},'approve')">Read</button>
+        <button class="btn btn-b" onclick="bAction(${i.id},'email')">Email</button>
+        <button class="btn btn-b" onclick="bAction(${i.id},'facebook')">Facebook</button>
+        <button class="btn btn-gh" onclick="bAction(${i.id},'tolist')">To List</button>
+        <button class="btn btn-r" onclick="bAction(${i.id},'reject')">Reject</button>
       </div>
     </div>`).join('');
 }
