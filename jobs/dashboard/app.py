@@ -363,7 +363,7 @@ function renderBriefing() {
   const dateStr = new Date().toLocaleDateString('en-US', {weekday:'long', month:'long', day:'numeric', year:'numeric'});
   const header = '<div style="text-align:center;padding:18px 0 4px">' +
     '<div style="font-size:14px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;font-variant:small-caps;color:#d29922">Watson</div>' +
-    '<div style="font-size:12px;font-style:italic;color:var(--text2);font-family:Georgia,\'Times New Roman\',serif;margin-top:5px">' + dateStr + '</div>' +
+    '<div style="font-size:12px;font-style:italic;color:var(--text2);font-family:Georgia,serif;margin-top:5px">' + dateStr + '</div>' +
     '<hr style="border:none;border-top:1px solid rgba(210,153,34,0.45);margin:12px 0 16px">' +
     '</div>';
   if (!bItems.length) { el.innerHTML = header + '<div class="ctr">No items today</div>'; return; }
