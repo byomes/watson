@@ -529,7 +529,22 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
         email_addr = match["email"]
-        subject = f"From Watson — {body[:50]}"
+        try:
+            import requests as _req
+            subj_resp = _req.post(
+                "http://localhost:11434/api/generate",
+                json={
+                    "model": "llama3.2:3b",
+                    "prompt": f"Write a short, natural email subject line (under 10 words, no quotes) for this email:\n\n{body}",
+                    "stream": False
+                },
+                timeout=30
+            )
+            subject = subj_resp.json().get("response", "").strip().strip('"').strip("'")
+            if not subject:
+                subject = "(no subject)"
+        except Exception:
+            subject = "(no subject)"
         try:
             create_draft(email_addr, subject, body)
             await update.message.reply_text(
