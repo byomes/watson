@@ -17,23 +17,21 @@ TOKEN_FILE = CONFIG_DIR / "token.json"
 
 def get_service():
     creds = None
-
     if TOKEN_FILE.exists():
         creds = Credentials.from_authorized_user_file(str(TOKEN_FILE), SCOPES)
-
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
+            TOKEN_FILE.write_text(creds.to_json())
         else:
             flow = InstalledAppFlow.from_client_secrets_file(str(CREDENTIALS_FILE), SCOPES)
             flow.redirect_uri = 'urn:ietf:wg:oauth:2.0:oob'
-        auth_url, _ = flow.authorization_url(prompt='consent')
-        print('Visit this URL:', auth_url)
-        code = input('Enter the auth code: ')
-        flow.fetch_token(code=code)
-        creds = flow.credentials
-        TOKEN_FILE.write_text(creds.to_json())
-
+            auth_url, _ = flow.authorization_url(prompt='consent')
+            print('Visit this URL:', auth_url)
+            code = input('Enter the auth code: ')
+            flow.fetch_token(code=code)
+            creds = flow.credentials
+            TOKEN_FILE.write_text(creds.to_json())
     return build("gmail", "v1", credentials=creds)
 
 
