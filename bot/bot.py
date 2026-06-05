@@ -445,6 +445,13 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
+    if text.lower().startswith("launch claude code:"):
+        task = text[len("launch claude code:"):].strip()
+        from jobs.dev.code_agent import run_code_agent
+        result = run_code_agent(task)
+        await update.message.reply_text(result)
+        return
+
     log.info("Received text note: %s", text[:120])
     note_id = _save_note(text)
     log.info("Saved note #%d", note_id)
