@@ -62,7 +62,10 @@ def people_create(data):
                 (data.get("name"), data.get("email"), data.get("phone"),
                  data.get("relationship"), data.get("notes")),
             )
-            return people_get(cur.lastrowid)
+            row = conn.execute(
+                "SELECT * FROM people WHERE id = ?", (cur.lastrowid,)
+            ).fetchone()
+            return _row(row) or {"error": "Not found"}
     except Exception as e:
         return {"error": str(e)}
 
@@ -131,7 +134,10 @@ def congregation_create(data):
                  data.get("prayer_requests"), data.get("follow_up"),
                  data.get("first_seen"), data.get("last_seen")),
             )
-            return congregation_get(cur.lastrowid)
+            row = conn.execute(
+                "SELECT * FROM congregation WHERE id = ?", (cur.lastrowid,)
+            ).fetchone()
+            return _row(row) or {"error": "Not found"}
     except Exception as e:
         return {"error": str(e)}
 
