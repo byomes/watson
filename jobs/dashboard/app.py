@@ -38,6 +38,18 @@ def _bootstrap():
         status     TEXT    NOT NULL DEFAULT 'active',
         created_at TEXT    NOT NULL DEFAULT (datetime('now'))
     )""")
+    try:
+        c.execute("ALTER TABLE tasks ADD COLUMN sort_order INTEGER DEFAULT 0")
+    except Exception:
+        pass
+    c.execute("""CREATE TABLE IF NOT EXISTS reminders (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        title        TEXT    NOT NULL,
+        due_datetime TEXT    NOT NULL,
+        status       TEXT    NOT NULL DEFAULT 'active',
+        sort_order   INTEGER DEFAULT 0,
+        created_at   TEXT    NOT NULL DEFAULT (datetime('now'))
+    )""")
     c.commit()
     c.close()
 
@@ -97,7 +109,7 @@ input,select,textarea{font-family:inherit}
 .bl{background:rgba(63,185,80,.12);color:var(--success)}
 .fbox{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:12px}
 .flabel{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px}
-input[type=text],input[type=date],select,textarea{display:block;width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:7px;padding:9px 10px;color:var(--text);font-size:12px;outline:none;margin-bottom:7px}
+input[type=text],input[type=date],input[type=time],select,textarea{display:block;width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:7px;padding:9px 10px;color:var(--text);font-size:12px;outline:none;margin-bottom:7px}
 input:focus,select:focus{border-color:var(--accent)}
 select option{background:var(--bg2)}
 .tr{display:flex;align-items:flex-start;gap:9px;padding:10px 0;border-bottom:1px solid var(--border)}
@@ -171,6 +183,27 @@ select option{background:var(--bg2)}
     <div id="t-list"></div>
   </div>
 
+  <div id="tab-reminders" class="tab">
+    <div class="fbox">
+      <div class="flabel">Add Reminder</div>
+      <input type="text" id="r-title" placeholder="Reminder title…" onkeydown="if(event.key==='Enter')addReminder()">
+      <div style="display:flex;gap:6px">
+        <input type="date" id="r-date" style="flex:1">
+        <input type="time" id="r-time" style="flex:1">
+      </div>
+      <button class="btn btn-p" style="width:100%;padding:9px;border-radius:7px;border:none;font-size:12px" onclick="addReminder()">+ Add Reminder</button>
+    </div>
+    <div class="pills">
+      <button class="pill active" id="rpill-all" onclick="setRFilter('all')">All</button>
+      <button class="pill" id="rpill-active" onclick="setRFilter('active')">Active</button>
+      <button class="pill" id="rpill-done" onclick="setRFilter('done')">Done</button>
+    </div>
+    <div id="r-offline" class="ctr" style="display:none">Watson offline<br><br>
+      <button class="btn btn-gh" style="flex:none;padding:7px 14px;width:auto" onclick="loadReminders()">Retry</button>
+    </div>
+    <div id="r-list"></div>
+  </div>
+
   <div id="tab-contacts" class="tab">
     <div style="display:flex;gap:8px;margin-bottom:4px">
       <input class="sbar" id="c-search" placeholder="Search contacts…" oninput="renderContacts()" style="flex:1;margin-bottom:0">
@@ -203,6 +236,7 @@ select option{background:var(--bg2)}
 <nav id="nav">
   <button class="nb active" id="nav-briefing" onclick="switchTab('briefing')"><span class="ic">📰</span><span>Briefing</span></button>
   <button class="nb" id="nav-tasks" onclick="switchTab('tasks')"><span class="ic">✓</span><span>Tasks</span></button>
+  <button class="nb" id="nav-reminders" onclick="switchTab('reminders')"><span class="ic">⏰</span><span>Reminders</span></button>
   <button class="nb" id="nav-contacts" onclick="switchTab('contacts')"><span class="ic">👤</span><span>Contacts</span></button>
   <button class="nb" id="nav-reading" onclick="switchTab('reading')"><span class="ic">📖</span><span>Reading</span></button>
 </nav>
@@ -242,8 +276,8 @@ async function api(url, method, body) {
 }
 
 // ── Tabs ──────────────────────────────────────────────────────────────────
-const TABS = ['briefing','tasks','contacts','reading'];
-const loaded = {briefing:false, tasks:false, contacts:false, reading:false};
+const TABS = ['briefing','tasks','reminders','contacts','reading'];
+const loaded = {briefing:false, tasks:false, reminders:false, contacts:false, reading:false};
 const loaders = {};
 
 function switchTab(name) {
@@ -325,7 +359,7 @@ function renderTasks() {
   const vis = tFilter === 'all' ? tasks : tasks.filter(t => t.status === tFilter);
   if (!vis.length) { el.innerHTML = '<div class="ctr">No tasks</div>'; return; }
   el.innerHTML = vis.map(t => `
-    <div class="tr" id="task-${t.id}">
+    <div class="tr" data-drag-id="${t.id}" id="task-${t.id}">
       <button class="tc ${t.status === 'done' ? 'done' : ''}" onclick="toggleTask(${t.id})"></button>
       <div class="tbody">
         <div class="ttitle ${t.status === 'done' ? 'done' : ''}">${esc(t.title)}</div>
@@ -537,6 +571,168 @@ async function setBookStatus(id, status) {
     renderReading();
   }
 }
+
+// ── Reminders ─────────────────────────────────────────────────────────────
+let reminders = [];
+let rFilter = 'all';
+
+async function loadReminders() {
+  document.getElementById('r-list').innerHTML = sk(4);
+  document.getElementById('r-offline').style.display = 'none';
+  try {
+    reminders = await api('/api/reminders');
+    renderReminders();
+  } catch(_) {
+    document.getElementById('r-list').innerHTML = '';
+    document.getElementById('r-offline').style.display = 'block';
+  }
+}
+loaders.reminders = loadReminders;
+
+function setRFilter(f) {
+  rFilter = f;
+  ['all','active','done'].forEach(x =>
+    document.getElementById('rpill-' + x).classList.toggle('active', x === f));
+  renderReminders();
+}
+
+function fmtDt(s) {
+  return s ? s.replace('T', ' ') : '';
+}
+
+function renderReminders() {
+  const el = document.getElementById('r-list');
+  const vis = rFilter === 'all' ? reminders : reminders.filter(r => r.status === rFilter);
+  if (!vis.length) { el.innerHTML = '<div class="ctr">No reminders</div>'; return; }
+  el.innerHTML = vis.map(r => `
+    <div class="tr" data-drag-id="${r.id}" id="rem-${r.id}">
+      <button class="tc ${r.status === 'done' ? 'done' : ''}" onclick="toggleReminder(${r.id})"></button>
+      <div class="tbody">
+        <div class="ttitle ${r.status === 'done' ? 'done' : ''}">${esc(r.title)}</div>
+        <div class="tmeta">
+          <span style="font-size:10px;color:var(--text3)">⏰ ${esc(fmtDt(r.due_datetime))}</span>
+        </div>
+      </div>
+      <button class="tdel" onclick="deleteReminder(${r.id})">×</button>
+    </div>`).join('');
+}
+
+async function addReminder() {
+  const title = document.getElementById('r-title').value.trim();
+  const date = document.getElementById('r-date').value;
+  const time = document.getElementById('r-time').value;
+  if (!title || !date || !time) return;
+  const r = await api('/api/reminders', 'POST', {title, due_datetime: date + ' ' + time, sort_order: 0});
+  if (!r.error) {
+    reminders.unshift(r);
+    document.getElementById('r-title').value = '';
+    document.getElementById('r-date').value = '';
+    document.getElementById('r-time').value = '';
+    renderReminders();
+  }
+}
+
+async function toggleReminder(id) {
+  const r = reminders.find(x => x.id === id);
+  if (!r) return;
+  const status = r.status === 'done' ? 'active' : 'done';
+  reminders = reminders.map(x => x.id === id ? Object.assign({}, x, {status}) : x);
+  renderReminders();
+  api('/api/reminders/' + id, 'PATCH', {status});
+}
+
+async function deleteReminder(id) {
+  reminders = reminders.filter(r => r.id !== id);
+  renderReminders();
+  api('/api/reminders/' + id, 'DELETE');
+}
+
+// ── Drag to reorder ───────────────────────────────────────────────────────
+let _drag = null;
+
+function attachDrag(listId, reorderCb) {
+  const list = document.getElementById(listId);
+  if (!list) return;
+
+  list.addEventListener('touchstart', function(e) {
+    const row = e.target.closest('[data-drag-id]');
+    if (!row) return;
+    _drag = {
+      row, list, reorderCb,
+      startY: e.touches[0].clientY,
+      active: false,
+      timer: setTimeout(function() { _startDrag(e.touches[0]); }, 500)
+    };
+  }, {passive: true});
+
+  list.addEventListener('touchmove', function(e) {
+    if (!_drag) return;
+    const dy = Math.abs(e.touches[0].clientY - _drag.startY);
+    if (!_drag.active && dy > 8) { clearTimeout(_drag.timer); _drag = null; return; }
+    if (!_drag.active) return;
+    e.preventDefault();
+    _moveDrag(e.touches[0]);
+  }, {passive: false});
+
+  list.addEventListener('touchend', function() {
+    if (!_drag) return;
+    clearTimeout(_drag.timer);
+    if (_drag.active) _endDrag();
+    _drag = null;
+  });
+}
+
+function _startDrag(touch) {
+  if (!_drag) return;
+  _drag.active = true;
+  const row = _drag.row;
+  const rect = row.getBoundingClientRect();
+  _drag.offsetY = touch.clientY - rect.top;
+  const ghost = row.cloneNode(true);
+  ghost.style.cssText = 'position:fixed;left:' + rect.left + 'px;top:' + rect.top + 'px;width:' + rect.width + 'px;opacity:0.85;pointer-events:none;z-index:999;box-shadow:0 8px 24px rgba(0,0,0,.4);background:var(--bg3);border-radius:10px';
+  document.body.appendChild(ghost);
+  _drag.ghost = ghost;
+  _drag.ghostTop = rect.top;
+  const ph = document.createElement('div');
+  ph.style.cssText = 'height:' + rect.height + 'px;background:var(--bg3);opacity:0.3;border-radius:10px';
+  row.parentNode.insertBefore(ph, row);
+  row.style.display = 'none';
+  _drag.ph = ph;
+  navigator.vibrate && navigator.vibrate(20);
+}
+
+function _moveDrag(touch) {
+  if (!_drag || !_drag.active) return;
+  const y = _drag.ghostTop + (touch.clientY - _drag.startY);
+  _drag.ghost.style.top = y + 'px';
+  const rows = Array.from(_drag.list.querySelectorAll('[data-drag-id]')).filter(r => r !== _drag.row);
+  let target = null;
+  for (const r of rows) {
+    const rect = r.getBoundingClientRect();
+    if (touch.clientY < rect.top + rect.height / 2) { target = r; break; }
+  }
+  if (target) _drag.list.insertBefore(_drag.ph, target);
+  else _drag.list.appendChild(_drag.ph);
+}
+
+function _endDrag() {
+  if (!_drag || !_drag.active) return;
+  _drag.ghost.remove();
+  _drag.row.style.display = '';
+  _drag.list.insertBefore(_drag.row, _drag.ph);
+  _drag.ph.remove();
+  const orderedIds = Array.from(_drag.list.querySelectorAll('[data-drag-id]')).map(r => parseInt(r.dataset.dragId));
+  orderedIds.forEach(function(id, idx) { _drag.reorderCb(id, idx); });
+}
+
+attachDrag('t-list', function(id, order) {
+  tasks = tasks.map(t => t.id === id ? Object.assign({}, t, {sort_order: order}) : t);
+  api('/api/tasks/' + id + '/reorder', 'PATCH', {sort_order: order});
+});
+attachDrag('r-list', function(id, order) {
+  reminders = reminders.map(r => r.id === id ? Object.assign({}, r, {sort_order: order}) : r);
+  api('/api/reminders/' + id, 'PATCH', {sort_order: order});
+});
 </script>
 </body>
 </html>"""
@@ -590,7 +786,7 @@ def briefing_facebook(item_id):
 @app.route("/api/tasks")
 def tasks_list():
     rows = _db().execute(
-        "SELECT * FROM tasks ORDER BY created_at DESC"
+        "SELECT * FROM tasks ORDER BY sort_order ASC, created_at DESC"
     ).fetchall()
     return jsonify([dict(r) for r in rows])
 
@@ -631,6 +827,18 @@ def tasks_delete(task_id):
     _db().execute("DELETE FROM tasks WHERE id = ?", (task_id,))
     _db().commit()
     return jsonify({"ok": True})
+
+
+@app.route("/api/tasks/<int:task_id>/reorder", methods=["PATCH"])
+def tasks_reorder(task_id):
+    data = request.get_json(force=True)
+    sort_order = data.get("sort_order")
+    if sort_order is None:
+        return jsonify({"error": "sort_order required"}), 400
+    _db().execute("UPDATE tasks SET sort_order = ? WHERE id = ?", (sort_order, task_id))
+    _db().commit()
+    row = _db().execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
+    return jsonify(dict(row) if row else {"error": "not found"})
 
 
 # ── Contacts API ──────────────────────────────────────────────────────────────
@@ -680,6 +888,55 @@ def reading_update(entry_id):
         "SELECT * FROM reading_list WHERE id = ?", (entry_id,)
     ).fetchone()
     return jsonify(dict(row) if row else {"error": "not found"})
+
+
+# ── Reminders API ────────────────────────────────────────────────────────────
+
+@app.route("/api/reminders")
+def reminders_list():
+    rows = _db().execute(
+        "SELECT * FROM reminders ORDER BY sort_order ASC, due_datetime ASC"
+    ).fetchall()
+    return jsonify([dict(r) for r in rows])
+
+
+@app.route("/api/reminders", methods=["POST"])
+def reminders_create():
+    data = request.get_json(force=True)
+    title = (data.get("title") or "").strip()
+    due_datetime = (data.get("due_datetime") or "").strip()
+    if not title or not due_datetime:
+        return jsonify({"error": "title and due_datetime required"}), 400
+    cur = _db().execute(
+        "INSERT INTO reminders (title, due_datetime, status, sort_order) VALUES (?, ?, ?, ?)",
+        (title, due_datetime, "active", data.get("sort_order", 0)),
+    )
+    _db().commit()
+    row = _db().execute("SELECT * FROM reminders WHERE id = ?", (cur.lastrowid,)).fetchone()
+    return jsonify(dict(row)), 201
+
+
+@app.route("/api/reminders/<int:reminder_id>", methods=["PATCH"])
+def reminders_update(reminder_id):
+    data = request.get_json(force=True)
+    allowed = {"title", "due_datetime", "status", "sort_order"}
+    fields = {k: v for k, v in data.items() if k in allowed}
+    if not fields:
+        return jsonify({"error": "nothing to update"}), 400
+    set_clause = ", ".join(f"{k} = ?" for k in fields)
+    _db().execute(
+        f"UPDATE reminders SET {set_clause} WHERE id = ?", (*fields.values(), reminder_id)
+    )
+    _db().commit()
+    row = _db().execute("SELECT * FROM reminders WHERE id = ?", (reminder_id,)).fetchone()
+    return jsonify(dict(row) if row else {"error": "not found"})
+
+
+@app.route("/api/reminders/<int:reminder_id>", methods=["DELETE"])
+def reminders_delete(reminder_id):
+    _db().execute("DELETE FROM reminders WHERE id = ?", (reminder_id,))
+    _db().commit()
+    return jsonify({"ok": True})
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────
