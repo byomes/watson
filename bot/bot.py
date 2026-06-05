@@ -13,6 +13,7 @@ Message handling:
   anything else    — save as a voice note
 """
 
+import json
 import logging
 import os
 import re
@@ -288,6 +289,44 @@ async def handle_facebook_callback(update: Update, context: ContextTypes.DEFAULT
         await query.edit_message_text("Discarded.", reply_markup=None)
 
 
+def detect_intent(text: str) -> dict:
+    import requests as _req
+    prompt = f"""You are an intent classifier for a personal AI assistant. Classify the following message and extract parameters.
+
+Return ONLY valid JSON, no explanation, no markdown, no code blocks.
+
+Possible intents:
+- send_email: user wants to send or draft an email (extract: contact_name, subject, body)
+- add_contact: user wants to add a contact (extract: name, email, phone)
+- find_contact: user wants to find/look up a contact (extract: name)
+- list_contacts: user wants to see all contacts
+- add_book: user wants to add a book to reading list (extract: title, author, link)
+- list_books: user wants to see reading list
+- blog_draft: user wants to save a blog draft (extract: title, body)
+- facebook_post: user wants to queue a Facebook post (extract: body)
+- launch_code: user wants to build something new / launch Claude Code (extract: task)
+- ask_kb: user wants to search sermon knowledge base (extract: question)
+- general_chat: anything else (extract: nothing)
+
+Message: {text}
+
+JSON response format:
+{{"intent": "intent_name", "params": {{"key": "value"}}}}"""
+
+    try:
+        resp = _req.post(
+            "http://localhost:11434/api/generate",
+            json={"model": "qwen2.5:7b", "prompt": prompt, "stream": False},
+            timeout=30
+        )
+        raw = resp.json().get("response", "").strip()
+        raw = re.sub(r"```json|```", "", raw).strip()
+        return json.loads(raw)
+    except Exception as e:
+        log.error("Intent detection failed: %s", e)
+        return {"intent": "general_chat", "params": {}}
+
+
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not _is_authorized(update):
         return
@@ -296,43 +335,149 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not text:
         return
 
-    if text.lower().startswith("#blog"):
-        draft_text = text[5:].strip()
-        if not draft_text:
-            await update.message.reply_text(
-                "Send your markdown after #blog:\n\n"
-                "<code>#blog\n# Title\n\nBody text...</code>",
-                parse_mode="HTML",
-            )
-            return
-        await _handle_blog_draft(update, draft_text)
-        return
-
     if text.startswith("📘 TO FACEBOOK"):
         await _handle_facebook_share(update, text)
         return
 
-    if text.lower().startswith("#fb"):
-        draft_text = text[3:].strip()
-        if not draft_text:
-            await update.message.reply_text("Send your post text after #fb.")
+    await update.message.reply_text("On it...")
+    result = detect_intent(text)
+    intent = result.get("intent", "general_chat")
+    params = result.get("params", {})
+    log.info("Intent: %s | Params: %s", intent, params)
+
+    if intent == "send_email":
+        contact_name = params.get("contact_name", "")
+        subject = params.get("subject", "(no subject)")
+        body = params.get("body", "")
+        if not contact_name or not body:
+            await update.message.reply_text("I need a contact name and message body to send an email.")
             return
-        result = add_to_queue("", "", "", draft_text)
-        if result:
-            post_id, slot = result
+        from jobs.people.api import people_list as _pl
+        all_people = _pl()
+        people_matches = [p for p in all_people if contact_name.lower() in p.get("name", "").lower()] if isinstance(all_people, list) else []
+        congregation_matches = congregation_search(contact_name)
+        congregation_matches = congregation_matches if isinstance(congregation_matches, list) else []
+        all_matches = people_matches + congregation_matches
+        match = next((r for r in all_matches if r.get("email")), None)
+        if not match:
+            await update.message.reply_text(f"No contact found for {contact_name}. Add them first with: Watson add contact: {contact_name} | [email]")
+            return
+        email_addr = match["email"]
+        if subject == "(no subject)":
+            try:
+                import requests as _req2
+                subj_resp = _req2.post(
+                    "http://localhost:11434/api/generate",
+                    json={"model": "qwen2.5:7b", "prompt": f"Write a short email subject line (under 10 words, no quotes) for:\n\n{body}", "stream": False},
+                    timeout=30
+                )
+                subject = subj_resp.json().get("response", "").strip().strip('"').strip("'") or "(no subject)"
+            except Exception:
+                pass
+        formatted_body = (
+            f"Hi,\n\n"
+            f"Dr. Bill asked me to send you this message:\n\n"
+            f"{body}\n\n"
+            f"---\n"
+            f"Watson\n"
+            f"AI-powered digital assistant\n"
+            f"Office of Dr. Bill Yomes\n"
+            f"williamckyomes.com/start"
+        )
+        try:
+            send_as_watson(email_addr, subject, formatted_body)
+            await update.message.reply_text(f"✉️ Sent to {contact_name} ({email_addr})")
+        except Exception as exc:
+            log.error("send_as_watson failed: %s", exc)
+            await update.message.reply_text(f"Failed to send: {exc}")
+        return
+
+    if intent == "add_contact":
+        name = params.get("name", "")
+        email_addr = params.get("email")
+        phone = params.get("phone")
+        if not name:
+            await update.message.reply_text("I need at least a name to add a contact.")
+            return
+        res = people_create({"name": name, "email": email_addr, "phone": phone})
+        if isinstance(res, dict) and "error" in res:
+            await update.message.reply_text(f"Error: {res['error']}")
+        else:
+            await update.message.reply_text(f"✅ Contact added: {name}")
+        return
+
+    if intent == "find_contact":
+        name = params.get("name", "")
+        from jobs.people.api import people_list as _pl
+        all_people = _pl()
+        matches = [p for p in all_people if name.lower() in p.get("name", "").lower()] if isinstance(all_people, list) else []
+        congregation_matches = congregation_search(name)
+        all_matches = matches + (congregation_matches if isinstance(congregation_matches, list) else [])
+        if not all_matches:
+            await update.message.reply_text(f"No contact found for: {name}")
+            return
+        lines = []
+        for r in all_matches:
+            line = r.get("name", "")
+            if r.get("email"): line += f" — {r['email']}"
+            if r.get("phone"): line += f" — {r['phone']}"
+            lines.append(line)
+        await update.message.reply_text("\n".join(lines))
+        return
+
+    if intent == "list_contacts":
+        from jobs.people.api import people_list as _pl
+        results = _pl()
+        if not results:
+            await update.message.reply_text("No contacts found.")
+            return
+        lines = [f"{r.get('name','')} — {r.get('email','')}" for r in results[:20]]
+        await update.message.reply_text("\n".join(lines))
+        return
+
+    if intent == "launch_code":
+        task = params.get("task", text)
+        from jobs.dev.code_agent import run_code_agent
+        reply = run_code_agent(task)
+        await update.message.reply_text(reply)
+        return
+
+    if intent == "ask_kb":
+        question = params.get("question", text)
+        try:
+            answer = ask(question)
+            await update.message.reply_text(answer)
+        except Exception as exc:
+            await update.message.reply_text(f"KB search failed: {exc}")
+        return
+
+    if intent == "blog_draft":
+        title = params.get("title", f"Draft {date.today()}")
+        body = params.get("body", "")
+        slug = title.lower().replace(" ", "-")
+        draft_id = _save_blog_draft(title, slug, body)
+        await update.message.reply_text(f"✅ Blog draft saved: {title}")
+        return
+
+    if intent == "facebook_post":
+        body = params.get("body", "")
+        res = add_to_queue("", "", "", body)
+        if res:
+            post_id, slot = res
             slot_str = slot.strftime("%A, %b %-d at %-I:%M %p")
-            await update.message.reply_text(
-                f"✅ <b>Queued for Facebook</b>\n\n{draft_text}\n\n📅 {slot_str}",
-                parse_mode="HTML",
-            )
+            await update.message.reply_text(f"✅ Queued for Facebook\n\n{body}\n\n📅 {slot_str}", parse_mode="HTML")
         else:
             await update.message.reply_text("No available slots in the next 4 weeks.")
         return
 
-    if text.lower().startswith("watson add book:"):
-        raw = text[len("watson add book:"):].strip()
-        from jobs.reading_list import add_book, parse_text_input
-        title, author, link = parse_text_input(raw)
+    if intent == "add_book":
+        title = params.get("title", "")
+        author = params.get("author", "")
+        link = params.get("link", "")
+        if not title:
+            await update.message.reply_text("I need at least a title to add a book.")
+            return
+        from jobs.reading_list import add_book
         book = add_book(title, author, link)
         await update.message.reply_text(
             f"📚 Added to reading list:\n<b>{book['title']}</b> by {book['author']}",
@@ -340,7 +485,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    if text.lower().startswith("watson list books"):
+    if intent == "list_books":
         from jobs.reading_list import list_books
         books = list_books()
         if not books:
@@ -357,260 +502,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("\n".join(lines), parse_mode="HTML", disable_web_page_preview=True)
         return
 
-    if text.lower().startswith("watson remove book"):
-        raw = text[len("watson remove book"):].strip().lstrip(":").strip()
-        from jobs.reading_list import remove_book, remove_book_by_id, list_books
-        if raw.startswith("#") and raw[1:].isdigit():
-            book = remove_book_by_id(int(raw[1:]))
-        else:
-            book = remove_book(raw)
-        if book:
-            await update.message.reply_text(f"✅ Removed: {book['title']}")
-        else:
-            await update.message.reply_text(f"Book not found: {raw}")
-        return
-
-    if text.lower().startswith("watson reading"):
-        raw = text[len("watson reading"):].strip().lstrip(":").strip()
-        from jobs.reading_list import update_status, update_status_by_id
-        if raw.startswith("#") and raw[1:].isdigit():
-            book = update_status_by_id(int(raw[1:]), "reading")
-        else:
-            book = update_status(raw, "reading")
-        if book:
-            await update.message.reply_text(f"📖 Now reading: {book['title']}")
-        else:
-            await update.message.reply_text(f"Book not found: {raw}")
-        return
-
-    if text.lower().startswith("watson finished"):
-        raw = text[len("watson finished"):].strip().lstrip(":").strip()
-        from jobs.reading_list import update_status, update_status_by_id
-        if raw.startswith("#") and raw[1:].isdigit():
-            book = update_status_by_id(int(raw[1:]), "finished")
-        else:
-            book = update_status(raw, "finished")
-        if book:
-            await update.message.reply_text(f"✅ Finished: {book['title']}")
-        else:
-            await update.message.reply_text(f"Book not found: {raw}")
-        return
-
-    if text.lower().startswith("http"):
-        from jobs.reading_list import add_book, extract_from_url
-        await update.message.reply_text("🔍 Fetching book info...")
-        title, author, link = extract_from_url(text.strip())
-        if title:
-            book = add_book(title, author, link)
-            await update.message.reply_text(
-                f"📚 Added to reading list:\n<b>{book['title']}</b> by {book['author']}",
-                parse_mode="HTML"
-            )
-        else:
-            await update.message.reply_text("Couldn't extract book info from that URL. Try: Watson add book: Title by Author")
-        return
-
-    if text.lower().startswith("watson bible"):
-        from jobs.bible import run as bible_run
-        reply = bible_run(text)
-        await update.message.reply_text(reply, parse_mode="Markdown")
-        return
-
-    if text.lower().startswith("watson note"):
-        from jobs.note import run as note_run
-        reply = note_run(text)
-        await update.message.reply_text(reply)
-        return
-
-    if text.lower().startswith("watson update #"):
-        raw = text[len("watson update #"):].strip()
-        if not raw.isdigit():
-            await update.message.reply_text("Usage: Watson update #<id>")
-            return
-        book_id = int(raw)
-        from jobs.reading_list import list_books
-        books = list_books()
-        book = next((b for b in books if b["id"] == book_id), None)
-        if not book:
-            await update.message.reply_text(f"Book #{book_id} not found.")
-            return
-        keyboard = InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton("📖 Reading", callback_data=f"book_reading:{book_id}"),
-                InlineKeyboardButton("✅ Finished", callback_data=f"book_finished:{book_id}"),
-                InlineKeyboardButton("🗑 Remove", callback_data=f"book_remove:{book_id}"),
-            ]
-        ])
-        await update.message.reply_text(
-            f"<b>{book['title']}</b> by {book['author']}\nCurrent status: {book.get('status', 'queued')}",
-            parse_mode="HTML",
-            reply_markup=keyboard,
-        )
-        return
-
-    if text.lower().startswith("launch claude code:"):
-        task = text[len("launch claude code:"):].strip()
-        from jobs.dev.code_agent import run_code_agent
-        result = run_code_agent(task)
-        await update.message.reply_text(result)
-        return
-
-    if text.lower().startswith("watson add contact:"):
-        payload = text[len("watson add contact:"):].strip()
-        parts = [p.strip() for p in payload.split("|")]
-        name = parts[0] if parts else ""
-        email_addr = parts[1] if len(parts) > 1 else None
-        phone = parts[2] if len(parts) > 2 else None
-        if not name:
-            await update.message.reply_text("Usage: Watson add contact: [name] | [email] | [phone]")
-            return
-        result = people_create({"name": name, "email": email_addr or None, "phone": phone or None})
-        if isinstance(result, dict) and "error" in result:
-            await update.message.reply_text(f"Error: {result['error']}")
-        else:
-            await update.message.reply_text(f"✅ Contact added: {name}")
-        return
-
-    if text.lower().startswith("watson find contact:"):
-        query = text[len("watson find contact:"):].strip()
-        results = congregation_search(query)
-        if isinstance(results, dict) and "error" in results:
-            await update.message.reply_text(f"Error: {results['error']}")
-            return
-        if not results:
-            await update.message.reply_text(f"No contact found for: {query}")
-            return
-        lines = []
-        for r in results:
-            line = r.get("name", "")
-            if r.get("email"):
-                line += f" — {r['email']}"
-            if r.get("phone"):
-                line += f" — {r['phone']}"
-            lines.append(line)
-        await update.message.reply_text("\n".join(lines))
-        return
-
-    if text.lower().strip() == "watson list contacts":
-        results = people_list()
-        if isinstance(results, dict) and "error" in results:
-            await update.message.reply_text(f"Error: {results['error']}")
-            return
-        if not results:
-            await update.message.reply_text("No contacts found.")
-            return
-        lines = []
-        for r in results[:20]:
-            line = r.get("name", "")
-            if r.get("email"):
-                line += f" — {r['email']}"
-            lines.append(line)
-        await update.message.reply_text("\n".join(lines))
-        return
-
-    _email_hook = re.match(r'^email\s+(.+?):\s*(.+)$', text, re.IGNORECASE | re.DOTALL)
-    if _email_hook:
-        contact_name = _email_hook.group(1).strip()
-        body = _email_hook.group(2).strip()
-        results = congregation_search(contact_name)
-        if not results or (isinstance(results, dict) and "error" in results):
-            results = []
-        # Also search people table
-        from jobs.people.api import people_list
-        all_people = people_list()
-        if isinstance(all_people, list):
-            people_matches = [p for p in all_people if contact_name.lower() in p.get("name", "").lower()]
-            results = list(results) + people_matches
-        match = next((r for r in results if r.get("email")), None)
-        if not match:
-            await update.message.reply_text(
-                f"No contact found for {contact_name} — add them first with:\n"
-                f"Watson add contact: {contact_name} | [email]"
-            )
-            return
-        email_addr = match["email"]
-        try:
-            import requests as _req
-            subj_resp = _req.post(
-                "http://localhost:11434/api/generate",
-                json={
-                    "model": "llama3.2:3b",
-                    "prompt": f"Write a short, natural email subject line (under 10 words, no quotes) for this email:\n\n{body}",
-                    "stream": False
-                },
-                timeout=30
-            )
-            subject = subj_resp.json().get("response", "").strip().strip('"').strip("'")
-            if not subject:
-                subject = "(no subject)"
-        except Exception:
-            subject = "(no subject)"
-        formatted_body = (
-            f"Hi,\n\n"
-            f"Dr. Bill asked me to send you this message:\n\n"
-            f"{body}\n\n"
-            f"---\n"
-            f"Watson\n"
-            f"AI-powered digital assistant\n"
-            f"Office of Dr. Bill Yomes\n"
-            f"williamckyomes.com/start"
-        )
-        try:
-            send_as_watson(email_addr, subject, formatted_body)
-            await update.message.reply_text(
-                f"✉️ Sent to {contact_name} ({email_addr})"
-            )
-        except Exception as exc:
-            log.error("send_as_watson failed in email hook: %s", exc)
-            await update.message.reply_text(f"Failed to send email: {exc}")
-        return
-
-    _draft_hook = re.match(
-        r'^send (?:an )?email to (.+?)\.\s*subject:\s*(.+?)\.\s*(.+)$',
-        text, re.IGNORECASE | re.DOTALL
-    )
-    if _draft_hook:
-        contact_name = _draft_hook.group(1).strip()
-        subject = _draft_hook.group(2).strip()
-        body = _draft_hook.group(3).strip()
-        results = congregation_search(contact_name)
-        if not results or (isinstance(results, dict) and "error" in results):
-            results = []
-        from jobs.people.api import people_list
-        all_people = people_list()
-        if isinstance(all_people, list):
-            people_matches = [p for p in all_people if contact_name.lower() in p.get("name", "").lower()]
-            results = list(results) + people_matches
-        match = next((r for r in results if r.get("email")), None)
-        if not match:
-            await update.message.reply_text(
-                f"No contact found for {contact_name} — add them first with:\n"
-                f"Watson add contact: {contact_name} | [email]"
-            )
-            return
-        email_addr = match["email"]
-        formatted_body = (
-            f"Hi,\n\n"
-            f"Dr. Bill asked me to send you this message:\n\n"
-            f"{body}\n\n"
-            f"---\n"
-            f"Watson\n"
-            f"AI-powered digital assistant\n"
-            f"Office of Dr. Bill Yomes\n"
-            f"williamckyomes.com/start"
-        )
-        try:
-            send_as_watson(email_addr, subject, formatted_body)
-            await update.message.reply_text(
-                f"✉️ Sent to {contact_name} ({email_addr})"
-            )
-        except Exception as exc:
-            log.error("send_as_watson failed in draft hook: %s", exc)
-            await update.message.reply_text(f"Failed to send email: {exc}")
-        return
-
-    log.info("Received text message: %s", text[:120])
-    await update.message.reply_text("Thinking...")
+    # General chat fallback — Open WebUI Watson model
     try:
         import requests as _requests
         response = _requests.post(
@@ -619,17 +511,13 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "Authorization": "Bearer sk-bebae8262fd8461aa9d706ce93041401",
                 "Content-Type": "application/json"
             },
-            json={
-                "model": "watson",
-                "messages": [{"role": "user", "content": text}],
-                "stream": False
-            },
+            json={"model": "watson", "messages": [{"role": "user", "content": text}], "stream": False},
             timeout=120
         )
         response.raise_for_status()
         reply = response.json()["choices"][0]["message"]["content"].strip()
         if not reply:
-            reply = "I didn't get a response from Ollama."
+            reply = "I didn't get a response."
     except Exception as exc:
         log.error("Ollama chat failed: %s", exc)
         reply = f"Chat failed: {exc}"
