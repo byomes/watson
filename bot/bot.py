@@ -291,27 +291,22 @@ async def handle_facebook_callback(update: Update, context: ContextTypes.DEFAULT
 
 def detect_intent(text: str) -> dict:
     import requests as _req
-    prompt = f"""You are an intent classifier for a personal AI assistant. Classify the following message and extract parameters.
+    prompt = f"""You are an intent classifier. Return ONLY valid JSON, no explanation, no markdown.
 
-Return ONLY valid JSON, no explanation, no markdown, no code blocks.
+Possible intents: send_email, add_contact, find_contact, list_contacts, add_book, list_books, blog_draft, facebook_post, launch_code, ask_kb, general_chat
 
-Possible intents:
-- send_email: user wants to send or draft an email (extract: contact_name, subject, body)
-- add_contact: user wants to add a contact (extract: name, email, phone)
-- find_contact: user wants to find/look up a contact (extract: name)
-- list_contacts: user wants to see all contacts
-- add_book: user wants to add a book to reading list (extract: title, author, link)
-- list_books: user wants to see reading list
-- blog_draft: user wants to save a blog draft (extract: title, body)
-- facebook_post: user wants to queue a Facebook post (extract: body)
-- launch_code: user wants to build something new / launch Claude Code (extract: task)
-- ask_kb: user wants to search sermon knowledge base (extract: question)
-- general_chat: anything else (extract: nothing)
+For send_email extract: contact_name, subject, body
+For add_contact extract: name, email, phone
+For find_contact extract: name
+For add_book extract: title, author, link
+For blog_draft extract: title, body
+For facebook_post extract: body
+For launch_code extract: task
+For ask_kb extract: question
 
 Message: {text}
 
-JSON response format:
-{{"intent": "intent_name", "params": {{"key": "value"}}}}"""
+JSON format: {{"intent": "intent_name", "params": {{"key": "value"}}}}"""
 
     try:
         resp = _req.post(
