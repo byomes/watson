@@ -34,6 +34,7 @@ from jobs.facebook.facebook_post import add_to_queue, init_db as init_fb_db
 from jobs.email_job.email_queue import add_to_email_queue, init_email_db
 from jobs.email_job.gmail import create_draft
 from jobs.email_intake import init_gmail_inbox
+from jobs.people.api import people_create, people_list, people_get, congregation_search
 
 log = logging.getLogger(__name__)
 
@@ -452,6 +453,86 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         from jobs.dev.code_agent import run_code_agent
         result = run_code_agent(task)
         await update.message.reply_text(result)
+        return
+
+    if text.lower().startswith("watson add contact:"):
+        payload = text[len("watson add contact:"):].strip()
+        parts = [p.strip() for p in payload.split("|")]
+        name = parts[0] if parts else ""
+        email_addr = parts[1] if len(parts) > 1 else None
+        phone = parts[2] if len(parts) > 2 else None
+        if not name:
+            await update.message.reply_text("Usage: Watson add contact: [name] | [email] | [phone]")
+            return
+        result = people_create({"name": name, "email": email_addr or None, "phone": phone or None})
+        if isinstance(result, dict) and "error" in result:
+            await update.message.reply_text(f"Error: {result['error']}")
+        else:
+            await update.message.reply_text(f"✅ Contact added: {name}")
+        return
+
+    if text.lower().startswith("watson find contact:"):
+        query = text[len("watson find contact:"):].strip()
+        results = congregation_search(query)
+        if isinstance(results, dict) and "error" in results:
+            await update.message.reply_text(f"Error: {results['error']}")
+            return
+        if not results:
+            await update.message.reply_text(f"No contact found for: {query}")
+            return
+        lines = []
+        for r in results:
+            line = r.get("name", "")
+            if r.get("email"):
+                line += f" — {r['email']}"
+            if r.get("phone"):
+                line += f" — {r['phone']}"
+            lines.append(line)
+        await update.message.reply_text("\n".join(lines))
+        return
+
+    if text.lower().strip() == "watson list contacts":
+        results = people_list()
+        if isinstance(results, dict) and "error" in results:
+            await update.message.reply_text(f"Error: {results['error']}")
+            return
+        if not results:
+            await update.message.reply_text("No contacts found.")
+            return
+        lines = []
+        for r in results[:20]:
+            line = r.get("name", "")
+            if r.get("email"):
+                line += f" — {r['email']}"
+            lines.append(line)
+        await update.message.reply_text("\n".join(lines))
+        return
+
+    _email_hook = re.match(r'^email\s+(.+?):\s*(.+)$', text, re.IGNORECASE | re.DOTALL)
+    if _email_hook:
+        contact_name = _email_hook.group(1).strip()
+        body = _email_hook.group(2).strip()
+        results = congregation_search(contact_name)
+        if isinstance(results, dict) and "error" in results:
+            await update.message.reply_text(f"Error: {results['error']}")
+            return
+        match = next((r for r in results if r.get("email")), None)
+        if not match:
+            await update.message.reply_text(
+                f"No contact found for {contact_name} — add them first with:\n"
+                f"Watson add contact: {contact_name} | [email]"
+            )
+            return
+        email_addr = match["email"]
+        subject = f"From Watson — {body[:50]}"
+        try:
+            create_draft(email_addr, subject, body)
+            await update.message.reply_text(
+                f"✉️ Draft created for {contact_name} ({email_addr}) — review and send from Gmail"
+            )
+        except Exception as exc:
+            log.error("create_draft failed in email hook: %s", exc)
+            await update.message.reply_text(f"Failed to create draft: {exc}")
         return
 
     log.info("Received text message: %s", text[:120])
