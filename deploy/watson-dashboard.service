@@ -1,0 +1,17 @@
+[Unit]
+Description=Watson Dashboard
+After=network.target
+
+[Service]
+Type=simple
+User=billyomes
+WorkingDirectory=/home/billyomes/watson
+Environment=PYTHONPATH=/home/billyomes/watson
+ExecStart=/usr/bin/python3 /home/billyomes/watson/jobs/dashboard/app.py
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
