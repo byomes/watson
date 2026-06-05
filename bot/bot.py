@@ -545,8 +545,18 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 subject = "(no subject)"
         except Exception:
             subject = "(no subject)"
+        formatted_body = (
+            f"Hi,\n\n"
+            f"Dr. Bill asked me to send you this message:\n\n"
+            f"{body}\n\n"
+            f"---\n"
+            f"Watson\n"
+            f"AI-powered digital assistant\n"
+            f"Office of Dr. Bill Yomes\n"
+            f"williamckyomes.com/start"
+        )
         try:
-            create_draft(email_addr, subject, body)
+            create_draft(email_addr, subject, formatted_body)
             await update.message.reply_text(
                 f"✉️ Draft created for {contact_name} ({email_addr}) — review and send from Gmail"
             )
@@ -579,8 +589,18 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
         email_addr = match["email"]
+        formatted_body = (
+            f"Hi,\n\n"
+            f"Dr. Bill asked me to send you this message:\n\n"
+            f"{body}\n\n"
+            f"---\n"
+            f"Watson\n"
+            f"AI-powered digital assistant\n"
+            f"Office of Dr. Bill Yomes\n"
+            f"williamckyomes.com/start"
+        )
         try:
-            create_draft(email_addr, subject, body)
+            create_draft(email_addr, subject, formatted_body)
             await update.message.reply_text(
                 f"✉️ Draft created for {contact_name} ({email_addr}) — review and send from Gmail"
             )
