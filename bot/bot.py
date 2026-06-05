@@ -566,7 +566,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     _draft_hook = re.match(
-        r'^draft (?:an )?email to (.+?)\.\s*subject:\s*(.+?)\.\s*(.+)$',
+        r'^send (?:an )?email to (.+?)\.\s*subject:\s*(.+?)\.\s*(.+)$',
         text, re.IGNORECASE | re.DOTALL
     )
     if _draft_hook:
