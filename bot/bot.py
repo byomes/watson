@@ -457,17 +457,20 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         import requests as _requests
         response = _requests.post(
-            "http://localhost:11434/api/generate",
+            "http://localhost:3000/api/chat/completions",
+            headers={
+                "Authorization": "Bearer sk-bebae8262fd8461aa9d706ce93041401",
+                "Content-Type": "application/json"
+            },
             json={
-                "model": "llama3.2:3b",
-                "prompt": text,
-                "stream": False,
-                "system": "You are Watson, Dr. Bill Yomes's personal AI assistant. You are terse, direct, and efficient. You help with research, content, scheduling, and ministry operations. You never guess — if you don't know, you say so. You are not a pastor and do not speak with spiritual authority. Keep responses concise."
+                "model": "watson",
+                "messages": [{"role": "user", "content": text}],
+                "stream": False
             },
             timeout=120
         )
         response.raise_for_status()
-        reply = response.json().get("response", "").strip()
+        reply = response.json()["choices"][0]["message"]["content"].strip()
         if not reply:
             reply = "I didn't get a response from Ollama."
     except Exception as exc:
