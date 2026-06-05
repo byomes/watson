@@ -50,6 +50,15 @@ def _bootstrap():
         sort_order   INTEGER DEFAULT 0,
         created_at   TEXT    NOT NULL DEFAULT (datetime('now'))
     )""")
+    c.execute("""CREATE TABLE IF NOT EXISTS reading_list (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        title       TEXT    NOT NULL,
+        url         TEXT,
+        source_name TEXT,
+        summary     TEXT,
+        status      TEXT    NOT NULL DEFAULT 'unread',
+        date_added  TEXT    NOT NULL DEFAULT (datetime('now'))
+    )""")
     c.commit()
     c.close()
 
@@ -78,26 +87,26 @@ HTML = """<!DOCTYPE html>
   --accent:#0969da;--success:#1a7f37;--danger:#cf222e;--warn:#9a6700;
 }
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,sans-serif;font-size:14px;min-height:100vh}
+body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,sans-serif;font-size:15px;min-height:100vh}
 button{cursor:pointer;font-family:inherit}
 input,select,textarea{font-family:inherit}
-#hdr{position:fixed;top:0;left:0;right:0;z-index:10;background:var(--bg);border-bottom:1px solid var(--border);padding:0 16px;height:48px;display:flex;align-items:center;justify-content:space-between}
+#hdr{position:fixed;top:0;left:0;right:0;z-index:10;background:var(--bg);border-bottom:1px solid var(--border);padding:0 16px;height:54px;display:flex;align-items:center;justify-content:space-between}
 #hdr h1{font-size:15px;font-weight:600;letter-spacing:.02em}
-#theme-btn{background:none;border:none;color:var(--text2);font-size:17px;padding:4px 8px;border-radius:6px}
-#theme-btn:hover{background:var(--bg3)}
-#main{padding:60px 0 72px;min-height:100vh}
-.tab{display:none;padding:12px 14px}
+#gear-btn{background:none;border:none;color:var(--text2);font-size:20px;padding:6px 8px;border-radius:8px;line-height:1}
+#gear-btn:hover{background:var(--bg3)}
+#main{padding:66px 0 84px;min-height:100vh}
+.tab{display:none;padding:14px}
 .tab.active{display:block}
 #nav{position:fixed;bottom:0;left:0;right:0;background:var(--bg);border-top:1px solid var(--border);display:flex;padding-bottom:env(safe-area-inset-bottom)}
-.nb{flex:1;background:none;border:none;color:var(--text3);padding:10px 0 8px;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:10px;letter-spacing:.04em;text-transform:uppercase}
-.nb .ic{font-size:18px;line-height:1}
+.nb{flex:1;background:none;border:none;color:var(--text3);padding:12px 0 10px;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:12px;letter-spacing:.04em;text-transform:uppercase}
+.nb .ic{width:22px;height:22px;display:flex;align-items:center;justify-content:center}
 .nb.active{color:var(--accent)}
-.card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:13px;margin-bottom:10px;transition:opacity .2s}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:13px;margin-bottom:10px;transition:opacity .2s;box-shadow:0 1px 3px rgba(0,0,0,0.12)}
 .card-title{font-size:13px;font-weight:500;line-height:1.4;margin-bottom:4px}
 .meta{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px}
 .summary{font-size:12px;color:var(--text2);line-height:1.5;margin-bottom:8px}
-.row{display:flex;gap:6px;margin-top:8px}
-.btn{flex:1;padding:7px 6px;font-size:11px;border-radius:7px;border:1px solid;font-family:'DM Mono',monospace}
+.row{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.btn{flex:1;padding:7px 6px;font-size:11px;border-radius:10px;border:1px solid;font-family:'DM Mono',monospace}
 .btn-g{background:rgba(63,185,80,.1);border-color:rgba(63,185,80,.3);color:var(--success)}
 .btn-r{background:rgba(218,54,51,.1);border-color:rgba(218,54,51,.25);color:var(--danger)}
 .btn-b{background:rgba(56,139,253,.1);border-color:rgba(56,139,253,.25);color:var(--accent)}
@@ -107,9 +116,9 @@ input,select,textarea{font-family:inherit}
 .bh{background:rgba(218,54,51,.12);color:var(--danger)}
 .bm{background:rgba(210,153,34,.12);color:var(--warn)}
 .bl{background:rgba(63,185,80,.12);color:var(--success)}
-.fbox{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:12px}
+.fbox{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:12px;margin-bottom:12px}
 .flabel{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px}
-input[type=text],input[type=date],input[type=time],select,textarea{display:block;width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:7px;padding:9px 10px;color:var(--text);font-size:12px;outline:none;margin-bottom:7px}
+input[type=text],input[type=date],input[type=time],select,textarea{display:block;width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:9px;padding:11px 12px;color:var(--text);font-size:12px;outline:none;margin-bottom:7px}
 input:focus,select:focus{border-color:var(--accent)}
 select option{background:var(--bg2)}
 .tr{display:flex;align-items:flex-start;gap:9px;padding:10px 0;border-bottom:1px solid var(--border)}
@@ -123,29 +132,33 @@ select option{background:var(--bg2)}
 .tdel{background:none;border:none;color:var(--text3);font-size:16px;padding:2px 4px;flex-shrink:0}
 .tdel:hover{color:var(--danger)}
 .pills{display:flex;gap:6px;margin-bottom:12px}
-.pill{flex:1;padding:6px 0;font-size:11px;text-transform:uppercase;letter-spacing:.04em;border:1px solid var(--border);border-radius:7px;background:var(--bg2);color:var(--text3)}
+.pill{flex:1;padding:6px 0;font-size:11px;text-transform:uppercase;letter-spacing:.04em;border:1px solid var(--border);border-radius:10px;background:var(--bg2);color:var(--text3)}
 .pill.active{background:var(--accent);border-color:var(--accent);color:#fff}
 .cr{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer}
 .av{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:13px;font-weight:500}
 .cdet{background:var(--bg2);border:1px solid var(--border);border-radius:9px;padding:11px;margin-bottom:4px}
 .dl{font-size:12px;color:var(--text2);margin-bottom:4px}
 .slabel{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin:0 0 8px 2px}
-.bk{background:var(--bg2);border:1px solid var(--border);border-radius:9px;padding:11px 12px;margin-bottom:8px}
+.bk{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:11px 12px;margin-bottom:8px;box-shadow:0 1px 3px rgba(0,0,0,0.12)}
 .bk-title{font-size:13px;color:var(--text);margin-bottom:3px;line-height:1.4}
 .bk-src{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px}
 .bk-sum{font-size:11px;color:var(--text2);line-height:1.5;margin-bottom:8px}
 .sk{background:var(--bg3);border-radius:4px;animation:pulse 1.4s ease-in-out infinite}
 @keyframes pulse{0%,100%{opacity:.4}50%{opacity:.8}}
 .ctr{text-align:center;padding:40px 0;color:var(--text2);font-size:13px}
-.sbar{width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:9px 11px;color:var(--text);font-size:13px;outline:none;margin-bottom:10px}
+.sbar{width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:9px;padding:11px 12px;color:var(--text);font-size:13px;outline:none;margin-bottom:10px}
 .sbar:focus{border-color:var(--accent)}
+.ph-hdr{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:14px}
+.theme-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0}
+.theme-lbl{font-size:14px;color:var(--text)}
+.theme-btn2{padding:7px 16px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;color:var(--text2);font-size:12px}
 </style>
 </head>
 <body>
 
 <div id="hdr">
   <h1>Watson</h1>
-  <button id="theme-btn" onclick="toggleTheme()"></button>
+  <button id="gear-btn" onclick="switchTab('settings')">&#9881;</button>
 </div>
 
 <div id="main">
@@ -161,7 +174,7 @@ select option{background:var(--bg2)}
   <div id="tab-tasks" class="tab">
     <div class="fbox">
       <div class="flabel">Add Task</div>
-      <input type="text" id="t-title" placeholder="Task title…" onkeydown="if(event.key==='Enter')addTask()">
+      <input type="text" id="t-title" placeholder="Task title..." onkeydown="if(event.key==='Enter')addTask()">
       <div style="display:flex;gap:6px">
         <input type="date" id="t-due" style="flex:1">
         <select id="t-pri" style="flex:1">
@@ -170,7 +183,7 @@ select option{background:var(--bg2)}
           <option value="low">Low</option>
         </select>
       </div>
-      <button class="btn btn-p" style="width:100%;padding:9px;border-radius:7px;border:none;font-size:12px" onclick="addTask()">+ Add Task</button>
+      <button class="btn btn-p" style="width:100%;padding:9px;border-radius:10px;border:none;font-size:12px" onclick="addTask()">+ Add Task</button>
     </div>
     <div class="pills">
       <button class="pill active" id="pill-all" onclick="setFilter('all')">All</button>
@@ -184,14 +197,15 @@ select option{background:var(--bg2)}
   </div>
 
   <div id="tab-reminders" class="tab">
+    <div class="ph-hdr">Reminders</div>
     <div class="fbox">
       <div class="flabel">Add Reminder</div>
-      <input type="text" id="r-title" placeholder="Reminder title…" onkeydown="if(event.key==='Enter')addReminder()">
+      <input type="text" id="r-title" placeholder="Reminder title..." onkeydown="if(event.key==='Enter')addReminder()">
       <div style="display:flex;gap:6px">
         <input type="date" id="r-date" style="flex:1">
         <input type="time" id="r-time" style="flex:1">
       </div>
-      <button class="btn btn-p" style="width:100%;padding:9px;border-radius:7px;border:none;font-size:12px" onclick="addReminder()">+ Add Reminder</button>
+      <button class="btn btn-p" style="width:100%;padding:9px;border-radius:10px;border:none;font-size:12px" onclick="addReminder()">+ Add Reminder</button>
     </div>
     <div class="pills">
       <button class="pill active" id="rpill-all" onclick="setRFilter('all')">All</button>
@@ -206,8 +220,8 @@ select option{background:var(--bg2)}
 
   <div id="tab-contacts" class="tab">
     <div style="display:flex;gap:8px;margin-bottom:4px">
-      <input class="sbar" id="c-search" placeholder="Search contacts…" oninput="renderContacts()" style="flex:1;margin-bottom:0">
-      <button id="c-add-btn" onclick="toggleAddContact()" style="padding:9px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:16px;flex-shrink:0">+</button>
+      <input class="sbar" id="c-search" placeholder="Search contacts..." oninput="renderContacts()" style="flex:1;margin-bottom:0">
+      <button id="c-add-btn" onclick="toggleAddContact()" style="padding:9px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:9px;color:var(--text);font-size:16px;flex-shrink:0">+</button>
     </div>
     <div id="c-add-form" class="fbox" style="display:none;margin-top:10px">
       <div class="flabel">New Contact</div>
@@ -216,7 +230,7 @@ select option{background:var(--bg2)}
       <input type="text" id="nc-phone" placeholder="Phone">
       <input type="text" id="nc-rel" placeholder="Relationship">
       <input type="text" id="nc-notes" placeholder="Notes">
-      <button class="btn btn-p" style="width:100%;padding:9px;border:none;border-radius:7px;font-size:12px" onclick="saveNewContact()">Add Contact</button>
+      <button class="btn btn-p" style="width:100%;padding:9px;border:none;border-radius:10px;font-size:12px" onclick="saveNewContact()">Add Contact</button>
     </div>
     <div id="c-offline" class="ctr" style="display:none">Watson offline<br><br>
       <button class="btn btn-gh" style="flex:none;padding:7px 14px;width:auto" onclick="loadContacts()">Retry</button>
@@ -225,34 +239,68 @@ select option{background:var(--bg2)}
   </div>
 
   <div id="tab-reading" class="tab">
-    <div id="r-offline" class="ctr" style="display:none">Watson offline<br><br>
+    <div id="rl-offline" class="ctr" style="display:none">Watson offline<br><br>
       <button class="btn btn-gh" style="flex:none;padding:7px 14px;width:auto" onclick="loadReading()">Retry</button>
     </div>
-    <div id="r-list"></div>
+    <div id="rl-list"></div>
+  </div>
+
+  <div id="tab-settings" class="tab">
+    <div class="ph-hdr">Settings</div>
+    <div class="fbox">
+      <div class="flabel">Appearance</div>
+      <div class="theme-row">
+        <span class="theme-lbl" id="theme-lbl-text">Dark mode</span>
+        <button class="theme-btn2" id="theme-toggle-btn" onclick="toggleTheme()">Switch to Light</button>
+      </div>
+    </div>
   </div>
 
 </div>
 
 <nav id="nav">
-  <button class="nb active" id="nav-briefing" onclick="switchTab('briefing')"><span class="ic">📰</span><span>Briefing</span></button>
-  <button class="nb" id="nav-tasks" onclick="switchTab('tasks')"><span class="ic">✓</span><span>Tasks</span></button>
-  <button class="nb" id="nav-reminders" onclick="switchTab('reminders')"><span class="ic">⏰</span><span>Reminders</span></button>
-  <button class="nb" id="nav-contacts" onclick="switchTab('contacts')"><span class="ic">👤</span><span>Contacts</span></button>
-  <button class="nb" id="nav-reading" onclick="switchTab('reading')"><span class="ic">📖</span><span>Reading</span></button>
+  <button class="nb active" id="nav-briefing" onclick="switchTab('briefing')">
+    <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="9" x2="9" y2="21"/></svg></span>
+    <span>Briefing</span>
+  </button>
+  <button class="nb" id="nav-tasks" onclick="switchTab('tasks')">
+    <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>
+    <span>Tasks</span>
+  </button>
+  <button class="nb" id="nav-reminders" onclick="switchTab('reminders')">
+    <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 15"/></svg></span>
+    <span>Reminders</span>
+  </button>
+  <button class="nb" id="nav-contacts" onclick="switchTab('contacts')">
+    <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
+    <span>Contacts</span>
+  </button>
+  <button class="nb" id="nav-reading" onclick="switchTab('reading')">
+    <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></span>
+    <span>Reading</span>
+  </button>
+  <button class="nb" id="nav-settings" onclick="switchTab('settings')">
+    <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
+    <span>Settings</span>
+  </button>
 </nav>
 
 <script>
 // ── Theme ─────────────────────────────────────────────────────────────────
 const root = document.documentElement;
-function _syncThemeBtn() {
-  document.getElementById('theme-btn').textContent = root.getAttribute('data-theme') === 'dark' ? '☀' : '☾';
+function _syncThemeUI() {
+  const isDark = root.getAttribute('data-theme') === 'dark';
+  const btn = document.getElementById('theme-toggle-btn');
+  const lbl = document.getElementById('theme-lbl-text');
+  if (btn) btn.textContent = isDark ? 'Switch to Light' : 'Switch to Dark';
+  if (lbl) lbl.textContent = isDark ? 'Dark mode' : 'Light mode';
 }
-_syncThemeBtn();
+_syncThemeUI();
 function toggleTheme() {
   const next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
   root.setAttribute('data-theme', next);
   localStorage.setItem('watson-theme', next);
-  _syncThemeBtn();
+  _syncThemeUI();
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -276,8 +324,8 @@ async function api(url, method, body) {
 }
 
 // ── Tabs ──────────────────────────────────────────────────────────────────
-const TABS = ['briefing','tasks','reminders','contacts','reading'];
-const loaded = {briefing:false, tasks:false, reminders:false, contacts:false, reading:false};
+const TABS = ['briefing','tasks','reminders','contacts','reading','settings'];
+const loaded = {briefing:false, tasks:false, reminders:false, contacts:false, reading:false, settings:true};
 const loaders = {};
 
 function switchTab(name) {
@@ -312,9 +360,11 @@ function renderBriefing() {
       <div class="meta">${esc(i.source_name)}</div>
       ${i.summary ? '<div class="summary">' + esc(i.summary) + '</div>' : ''}
       <div class="row">
-        <button class="btn btn-g" onclick="bAction(${i.id},'approve')">👍 Approve</button>
-        <button class="btn btn-r" onclick="bAction(${i.id},'reject')">👎 Reject</button>
-        <button class="btn btn-b" onclick="bAction(${i.id},'facebook')">📘 FB</button>
+        <button class="btn btn-g" onclick="bAction(${i.id},'approve')">&#128214; Read</button>
+        <button class="btn btn-b" onclick="bAction(${i.id},'email')">&#9993; Email</button>
+        <button class="btn btn-b" onclick="bAction(${i.id},'facebook')">&#128216; Facebook</button>
+        <button class="btn btn-gh" onclick="bAction(${i.id},'tolist')">&#128203; To List</button>
+        <button class="btn btn-r" onclick="bAction(${i.id},'reject')">&#10005; Reject</button>
       </div>
     </div>`).join('');
 }
@@ -368,7 +418,7 @@ function renderTasks() {
           ${t.due_date ? '<span style="font-size:10px;color:var(--text3)">' + esc(t.due_date) + '</span>' : ''}
         </div>
       </div>
-      <button class="tdel" onclick="deleteTask(${t.id})">×</button>
+      <button class="tdel" onclick="deleteTask(${t.id})">&#215;</button>
     </div>`).join('');
 }
 
@@ -477,8 +527,8 @@ function renderContacts() {
         '<div class="row"><button class="btn btn-p" onclick="saveEdit(' + c.id + ')">Save</button>' +
         '<button class="btn btn-gh" onclick="cancelEdit()">Cancel</button></div>'
       :
-        (c.email ? '<div class="dl">✉ ' + esc(c.email) + '</div>' : '') +
-        (c.phone ? '<div class="dl">📞 ' + esc(c.phone) + '</div>' : '') +
+        (c.email ? '<div class="dl">&#9993; ' + esc(c.email) + '</div>' : '') +
+        (c.phone ? '<div class="dl">&#128222; ' + esc(c.phone) + '</div>' : '') +
         (c.relationship ? '<div class="dl">' + esc(c.relationship) + '</div>' : '') +
         (c.notes ? '<div class="dl" style="color:var(--text3);font-size:11px">' + esc(c.notes) + '</div>' : '') +
         '<div class="row" style="margin-top:8px">' +
@@ -526,23 +576,23 @@ async function delContact(id) {
 // ── Reading ───────────────────────────────────────────────────────────────
 let books = [];
 const S_ORDER = ['reading','unread','finished'];
-const S_LABEL = {reading:'📖 Reading', unread:'📋 Unread', finished:'✅ Finished'};
+const S_LABEL = {reading:'&#128214; Reading', unread:'&#128203; Unread', finished:'&#9989; Finished'};
 
 async function loadReading() {
-  document.getElementById('r-list').innerHTML = sk(4);
-  document.getElementById('r-offline').style.display = 'none';
+  document.getElementById('rl-list').innerHTML = sk(4);
+  document.getElementById('rl-offline').style.display = 'none';
   try {
     books = await api('/api/reading');
     renderReading();
   } catch(_) {
-    document.getElementById('r-list').innerHTML = '';
-    document.getElementById('r-offline').style.display = 'block';
+    document.getElementById('rl-list').innerHTML = '';
+    document.getElementById('rl-offline').style.display = 'block';
   }
 }
 loaders.reading = loadReading;
 
 function renderReading() {
-  const el = document.getElementById('r-list');
+  const el = document.getElementById('rl-list');
   if (!books.length) { el.innerHTML = '<div class="ctr">Reading list is empty</div>'; return; }
   const groups = S_ORDER.map(s => ({s, items: books.filter(b => b.status === s)})).filter(g => g.items.length);
   el.innerHTML = groups.map(g =>
@@ -555,7 +605,7 @@ function renderReading() {
         (b.summary ? '<div class="bk-sum">' + esc(b.summary) + '</div>' : '') +
         '<div class="row">' +
           S_ORDER.filter(s => s !== b.status).map(s =>
-            `<button class="btn btn-gh" onclick="setBookStatus(${b.id},'${s}')">→ ${s}</button>`
+            `<button class="btn btn-gh" onclick="setBookStatus(${b.id},'${s}')">&#8594; ${s}</button>`
           ).join('') +
         '</div>' +
       '</div>'
@@ -610,10 +660,10 @@ function renderReminders() {
       <div class="tbody">
         <div class="ttitle ${r.status === 'done' ? 'done' : ''}">${esc(r.title)}</div>
         <div class="tmeta">
-          <span style="font-size:10px;color:var(--text3)">⏰ ${esc(fmtDt(r.due_datetime))}</span>
+          <span style="font-size:10px;color:var(--text3)">&#9200; ${esc(fmtDt(r.due_datetime))}</span>
         </div>
       </div>
-      <button class="tdel" onclick="deleteReminder(${r.id})">×</button>
+      <button class="tdel" onclick="deleteReminder(${r.id})">&#215;</button>
     </div>`).join('');
 }
 
@@ -778,6 +828,33 @@ def briefing_facebook(item_id):
         (item_id,),
     )
     _db().commit()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/briefing/<int:item_id>/email", methods=["POST"])
+def briefing_email(item_id):
+    _db().execute(
+        "UPDATE briefing_items SET dismissed = 1, reject_reason = 'email' WHERE id = ?",
+        (item_id,),
+    )
+    _db().commit()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/briefing/<int:item_id>/tolist", methods=["POST"])
+def briefing_tolist(item_id):
+    db = _db()
+    db.execute(
+        "INSERT INTO reading_list (title, url, source_name, summary, status, date_added) "
+        "SELECT title, url, source_name, summary, 'unread', datetime('now') "
+        "FROM briefing_items WHERE id = ?",
+        (item_id,),
+    )
+    db.execute(
+        "UPDATE briefing_items SET dismissed = 1, reject_reason = 'tolist' WHERE id = ?",
+        (item_id,),
+    )
+    db.commit()
     return jsonify({"ok": True})
 
 
