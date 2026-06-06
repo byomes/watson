@@ -1,4 +1,5 @@
 """jobs/skillbuilder/build.py — generate a new Watson job via qwen2.5-coder:7b."""
+import json
 import logging
 import os
 import subprocess
@@ -91,6 +92,26 @@ def _syntax_check(code: str) -> tuple[bool, str]:
         tmp.unlink(missing_ok=True)
         return False, result.stderr.strip()
     return True, ""
+
+
+def _update_skills_json(job_path: str, description: str) -> None:
+    skills_file = REPO / "memory" / "skills.json"
+    slug = Path(job_path).stem
+    module = job_path.replace("/", ".").removesuffix(".py")
+    try:
+        skills = json.loads(skills_file.read_text(encoding="utf-8")) if skills_file.exists() else []
+    except Exception:
+        skills = []
+    if not any(s.get("slug") == slug for s in skills):
+        skills.append({
+            "slug": slug,
+            "description": description,
+            "triggers": [],
+            "job_module": module,
+            "function": "run",
+            "interfaces": ["dashboard", "telegram"],
+        })
+        skills_file.write_text(json.dumps(skills, indent=2), encoding="utf-8")
 
 
 def _update_python_memory(job_path: str, description: str) -> None:
@@ -209,9 +230,10 @@ def build_skill(description: str, job_path: str) -> bool:
         "Pull on Beelink to confirm: git log --oneline -1"
     )
 
-    # 9. Update memory and sync DB
+    # 9. Update memory, skills registry, and sync DB
     try:
         _update_python_memory(job_path, description)
+        _update_skills_json(job_path, description)
         from jobs.memory.sync import main as sync_main
         sync_main()
     except Exception as exc:

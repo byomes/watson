@@ -49,5 +49,20 @@ def main():
 
     updater.start_polling()
 
+def run() -> str:
+    """Check Watson logs for errors in the last hour. Returns a summary string."""
+    load_dotenv()
+    errors = get_recent_errors()
+    if not errors:
+        return "No errors found in the last hour."
+    summary = f"Found {len(errors)} error(s) in the last hour:\n"
+    for row in list(errors)[:10]:
+        d = dict(row)
+        ts = str(d.get("timestamp") or d.get("created_at", ""))
+        content = str(d.get("content", ""))[:120]
+        summary += f"• {ts}: {content}\n"
+    return summary.strip()
+
+
 if __name__ == "__main__":
     main()
