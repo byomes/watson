@@ -28,7 +28,7 @@ input,select,textarea{font-family:'DM Sans',system-ui,sans-serif}
 #gear-btn{background:none;border:none;color:var(--text-muted);padding:6px;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;width:34px;height:34px}
 #gear-btn:hover{color:var(--text)}
 #main{padding:66px 0 84px;min-height:100vh}
-.tab{display:none;padding:16px}
+.tab{display:none;padding:16px;padding-top:calc(80px + env(safe-area-inset-top))}
 .tab.active{display:block}
 #nav{position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border);display:flex;padding-bottom:max(8px,env(safe-area-inset-bottom));transition:transform .2s ease-out}
 #nav.hidden{transform:translateY(100%)}
