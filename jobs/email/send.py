@@ -53,18 +53,33 @@ def _lookup_email(name: str) -> str | None:
     return row[0] if row else None
 
 
-def _send_smtp(to_email: str, subject: str, body: str) -> None:
+def _send_smtp(to_email: str, subject: str, body: str, to_name: str = "") -> None:
     smtp_host = os.getenv("WATSON_SMTP_HOST")
     smtp_user = os.getenv("WATSON_SMTP_USER")
     smtp_pass = os.getenv("WATSON_GMAIL_APP_PASSWORD")
 
-    full_body = f"{body}\n\n---\nWatson\nAI-powered digital assistant\nOffice of Dr. Bill Yomes\nwilliamckyomes.com/start"
+    plain = f"{body}\n\n---\nWatson\nAI-powered digital assistant\nOffice of Dr. Bill Yomes\nwilliamckyomes.com/start"
+
+    first_name = to_name.split()[0] if to_name else to_email
+    html = (
+        f"<p>{first_name},</p>"
+        f"<p>Dr. Bill Yomes asked me to reach out to you.</p>"
+        f"<p>{body}</p>"
+        f"<hr>"
+        f'<p style="color:#666;font-size:12px;">'
+        f"Watson<br>"
+        f"AI-powered digital assistant<br>"
+        f"Office of Dr. Bill Yomes<br>"
+        f'<a href="https://williamckyomes.com/start">williamckyomes.com/start</a>'
+        f"</p>"
+    )
 
     msg = MIMEMultipart("alternative")
     msg["From"] = "Watson <watson.wcky@gmail.com>"
     msg["To"] = to_email
     msg["Subject"] = subject
-    msg.attach(MIMEText(full_body, "plain"))
+    msg.attach(MIMEText(plain, "plain"))
+    msg.attach(MIMEText(html, "html"))
 
     with smtplib.SMTP(smtp_host, 587) as smtp:
         smtp.ehlo()
@@ -98,7 +113,7 @@ def run(message: str = None) -> str:
         )
 
     try:
-        _send_smtp(to_email, subject, body)
+        _send_smtp(to_email, subject, body, to_name=to_name)
     except Exception as exc:
         log.error("Email send failed: %s", exc)
         return f"Failed to send email: {exc}"
