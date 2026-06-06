@@ -380,6 +380,19 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(route_result["message"])
         return
 
+    # Safety net: if any build trigger leaked past the router, fire the build now.
+    if any(t in text_clean.lower() for t in _router._BUILD_TRIGGERS):
+        import threading
+        description = _router._extract_build_description(text_clean)
+        job_path = _router._generate_job_path(description)
+        threading.Thread(
+            target=_router._build_in_background,
+            args=(description, job_path, "telegram"),
+            daemon=True,
+        ).start()
+        await update.message.reply_text("Building that skill now. I'll notify you via Telegram when it's ready.")
+        return
+
     # Classify intent via Ollama llama3.2:3b
     result = _classify_intent(text_clean)
     intent = result.get("intent", "general")

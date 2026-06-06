@@ -583,6 +583,19 @@ def chat():
         _pending_skill_request = message
         return jsonify({"response": route_result["message"]})
 
+    # Safety net: if any build trigger leaked past the router, fire the build now.
+    # This prevents the Ollama SPEC/CONFIRM path from ever activating on build requests.
+    if any(t in msg_lower for t in _router._BUILD_TRIGGERS):
+        import threading
+        description = _router._extract_build_description(message)
+        job_path = _router._generate_job_path(description)
+        threading.Thread(
+            target=_router._build_in_background,
+            args=(description, job_path, "dashboard"),
+            daemon=True,
+        ).start()
+        return jsonify({"response": "Building that skill now. I'll notify you via Telegram when it's ready."})
+
     # Fall through to Ollama
     core_md_path = Path(os.path.expanduser("~/watson/memory/core.md"))
     try:

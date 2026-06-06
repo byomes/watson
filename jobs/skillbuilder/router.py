@@ -25,6 +25,14 @@ _RETRY_PHRASES = frozenset({
     "try that again", "build again", "retry building",
 })
 
+# Matched against msg_lower BEFORE the LLM call — guaranteed BUILD, no fallthrough
+_BUILD_TRIGGERS = (
+    "build a skill", "build me a skill", "build me something that",
+    "build something that", "create a job", "create a skill",
+    "write a job", "write a skill", "add the ability to",
+    "i need you to be able to", "can you build", "build me a",
+)
+
 _CATEGORY_KEYWORDS = {
     "monitor": "monitoring", "log": "monitoring", "disk": "monitoring",
     "cpu": "monitoring", "memory": "monitoring", "health": "monitoring",
@@ -179,6 +187,13 @@ def route(message: str, interface: str) -> dict:
         job_path = _generate_job_path(description)
         return {"action": "build", "description": description, "job_path": job_path}
 
+    # Keyword pre-check: guaranteed BUILD before the LLM sees the message.
+    # Prevents build requests from ever falling through to Ollama.
+    if any(trigger in msg_lower for trigger in _BUILD_TRIGGERS):
+        description = _extract_build_description(message)
+        job_path = _generate_job_path(description)
+        return {"action": "build", "description": description, "job_path": job_path}
+
     skills = _load_skills(interface)
     if not skills:
         return {"action": "chat"}
@@ -188,6 +203,14 @@ def route(message: str, interface: str) -> dict:
     except Exception as exc:
         log.warning("Skill router LLM call failed: %s", exc)
         return {"action": "chat"}
+
+    # If the LLM mistakenly returned CHAT for a build-phrased message, force BUILD.
+    if decision == "CHAT" and any(
+        kw in msg_lower for kw in ("build", "create a job", "write a job", "add ability")
+    ):
+        description = _extract_build_description(message)
+        job_path = _generate_job_path(description)
+        return {"action": "build", "description": description, "job_path": job_path}
 
     if decision.startswith("SKILL:"):
         slug = decision[len("SKILL:"):].strip()
