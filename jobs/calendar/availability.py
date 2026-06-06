@@ -71,7 +71,7 @@ def get_available_slots(d: date, meeting_type: str) -> list:
 def get_available_slots_next_30_days(meeting_type: str) -> dict:
     today = date.today()
     result = {}
-    for i in range(30):
+    for i in range(60):
         d = today + timedelta(days=i)
         slots = get_available_slots(d, meeting_type)
         if slots:
@@ -82,7 +82,7 @@ def get_available_slots_next_30_days(meeting_type: str) -> dict:
 def get_available_slots_grouped(meeting_type: str) -> list:
     today = date.today()
     result = []
-    for i in range(30):
+    for i in range(60):
         d = today + timedelta(days=i)
         slots = get_available_slots(d, meeting_type)
         if slots:

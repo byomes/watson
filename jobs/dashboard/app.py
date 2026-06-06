@@ -8,11 +8,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from flask import Flask, g, jsonify, request
 from jobs.people.api import people_create, people_delete, people_list, people_update
-from jobs.booking.availability_api import booking_bp
 
 DB = os.path.expanduser("~/watson/data/watson.db")
 app = Flask(__name__)
-app.register_blueprint(booking_bp)
 
 
 def _db():
