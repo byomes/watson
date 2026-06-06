@@ -217,5 +217,30 @@
       "telegram"
     ],
     "status": "ready"
+  },
+  {
+    "slug": "import_contacts",
+    "description": "Import or sync contacts from Google Contacts into the People Registry",
+    "triggers": [
+      "import contacts",
+      "sync contacts",
+      "update contacts",
+      "pull contacts from google"
+    ],
+    "job_module": "jobs.people.google_contacts",
+    "function": "run",
+    "interfaces": ["dashboard", "telegram"],
+    "status": "ready"
+  },
+  {
+    "slug": "adds_memory_files",
+    "description": "build a skill that adds Memory and Files buttons to the top of the project workspace in the dashboard. The Files button should open the file sidebar. The Memory button should open a full screen panel showing the project memory file with the option to add notes to it manually.",
+    "triggers": [],
+    "job_module": "jobs.monitoring.adds_memory_files",
+    "function": "run",
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ]
   }
 ]

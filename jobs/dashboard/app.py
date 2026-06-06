@@ -257,6 +257,39 @@ def contacts_delete(contact_id):
     return jsonify(people_delete(contact_id))
 
 
+@app.route("/api/contacts/import", methods=["POST"])
+def contacts_import():
+    import threading
+
+    def _run():
+        try:
+            from jobs.people.google_contacts import import_contacts
+            counts = import_contacts(sync_only=False)
+            summary = (
+                f"Google Contacts import complete: {counts['inserted']} new, "
+                f"{counts['updated']} updated, {counts['skipped']} skipped. "
+                f"Total: {counts['total']}"
+            )
+        except Exception as exc:
+            log.error("Google Contacts import failed: %s", exc)
+            summary = f"Google Contacts import failed: {exc}"
+        bot_token = os.getenv("WATSON_BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
+        chat_id = os.getenv("WATSON_CHAT_ID") or os.getenv("TELEGRAM_CHAT_ID")
+        if bot_token and chat_id:
+            try:
+                import requests as _req
+                _req.post(
+                    f"https://api.telegram.org/bot{bot_token}/sendMessage",
+                    json={"chat_id": chat_id, "text": f"📇 {summary}"},
+                    timeout=15,
+                )
+            except Exception as exc:
+                log.error("Telegram notify failed: %s", exc)
+
+    threading.Thread(target=_run, daemon=True).start()
+    return jsonify({"response": "Importing contacts from Google. This may take a moment…"})
+
+
 # ── Reading API ───────────────────────────────────────────────────────────────
 
 @app.route("/api/reading")

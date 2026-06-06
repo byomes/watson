@@ -19,3 +19,15 @@ PYTHONPATH=/home/billyomes/watson 0 7 * * 1 /home/billyomes/watson/venv/bin/pyth
 ```
 
 (Weekly, Mondays 7am)
+
+---
+
+# Google Contacts Sync — Cron Entry
+
+Add this to crontab (`crontab -e`) to sync Google Contacts into the People Registry every Sunday at 3am:
+
+```
+PYTHONPATH=/home/billyomes/watson 0 3 * * 0 /home/billyomes/watson/venv/bin/python3 -m jobs.people.google_contacts sync >> /home/billyomes/watson/logs/contacts_sync.log 2>&1
+```
+
+(Weekly, Sundays 3am)

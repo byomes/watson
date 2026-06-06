@@ -535,6 +535,19 @@ let contacts = [];
 let expandedC = null;
 let editingC = null;
 
+async function importGoogleContacts() {
+  const msg = document.getElementById('c-import-msg');
+  msg.textContent = 'Importing from Google Contacts…';
+  msg.style.display = 'block';
+  try {
+    const data = await api('/api/contacts/import', 'POST');
+    msg.textContent = data.response || 'Import started.';
+    setTimeout(() => loadContacts(), 3000);
+  } catch(e) {
+    msg.textContent = 'Import failed: ' + e;
+  }
+}
+
 async function loadContacts() {
   document.getElementById('c-list').innerHTML = sk(4);
   document.getElementById('c-offline').style.display = 'none';
