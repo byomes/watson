@@ -34,7 +34,7 @@ def _telegram(text: str) -> None:
         requests.post(
             f"https://api.telegram.org/bot{bot_token}/sendMessage",
             json={"chat_id": chat_id, "text": text},
-            timeout=10,
+            timeout=300,
         )
     except Exception as exc:
         log.error("Telegram failed: %s", exc)
