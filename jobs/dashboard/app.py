@@ -91,7 +91,9 @@ body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,
 button{cursor:pointer;font-family:inherit}
 input,select,textarea{font-family:inherit}
 #hdr{position:fixed;top:0;left:0;right:0;z-index:10;background:var(--bg);border-bottom:1px solid var(--border);padding:0 16px;height:54px;display:flex;align-items:center;justify-content:space-between}
-#hdr h1{font-size:15px;font-weight:600;letter-spacing:.02em}
+#hdr-identity{display:flex;align-items:center;gap:10px}
+#hdr-title{font-size:15px;font-weight:700;letter-spacing:.02em;line-height:1.2}
+#hdr-sub{font-size:10px;color:var(--text3);font-weight:400;line-height:1.2}
 #gear-btn{background:none;border:none;color:var(--text2);font-size:24px;padding:4px 10px;border-radius:8px;line-height:1}
 #gear-btn:hover{background:var(--bg3)}
 #main{padding:66px 0 84px;min-height:100vh}
@@ -158,7 +160,13 @@ select option{background:var(--bg2)}
 <body>
 
 <div id="hdr">
-  <h1>Watson</h1>
+  <div id="hdr-identity">
+    <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="32" height="32" rx="4" fill="#111827"/><text x="16" y="24" text-anchor="middle" font-family="Georgia,serif" font-size="21" font-weight="bold" fill="white">W</text></svg>
+    <div>
+      <div id="hdr-title">Watson</div>
+      <div id="hdr-sub">Digital Assistant to Dr. Bill Yomes</div>
+    </div>
+  </div>
   <button id="gear-btn" onclick="toggleSettings(event)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
 </div>
 
