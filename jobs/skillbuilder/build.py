@@ -72,7 +72,7 @@ def _call_ollama(prompt: str) -> str:
     resp = requests.post(
         OLLAMA_URL,
         json={"model": OLLAMA_MODEL, "prompt": prompt, "stream": False},
-        timeout=120,
+        timeout=300,
     )
     resp.raise_for_status()
     return resp.json().get("response", "").strip()
