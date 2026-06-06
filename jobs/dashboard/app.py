@@ -1452,7 +1452,13 @@ def chat():
     history = data.get("history") or []
     if not message:
         return jsonify({"error": "message required"}), 400
-    messages = [{"role": "system", "content": WATSON_SYSTEM}]
+    core_md_path = Path(os.path.expanduser("~/watson/memory/core.md"))
+    try:
+        core_md = core_md_path.read_text(encoding="utf-8")
+        system_prompt = f"{core_md}\n\n{WATSON_SYSTEM}"
+    except FileNotFoundError:
+        system_prompt = WATSON_SYSTEM
+    messages = [{"role": "system", "content": system_prompt}]
     for h in history[-20:]:
         if h.get("role") in ("user", "assistant") and h.get("content"):
             messages.append({"role": h["role"], "content": h["content"]})
