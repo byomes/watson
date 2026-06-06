@@ -64,6 +64,26 @@ def _run_skill(skill: dict) -> str:
     return output or "(no output)"
 
 
+_LIST_SKILLS_TRIGGERS = {
+    "list your skills",
+    "what can you do",
+    "show your skills",
+    "what skills do you have",
+    "list skills",
+}
+
+
+def _list_skills_response(interface: str) -> str:
+    skills = _load_skills(interface)
+    if not skills:
+        return "I don't have any skills registered yet."
+    lines = "\n".join(
+        f"• {s['slug'].replace('_', ' ').title()}: {s['description']}"
+        for s in skills
+    )
+    return "Here are my current skills:\n\n" + lines
+
+
 def route(message: str, interface: str) -> dict:
     """Route a message to a skill, propose a new skill, or fall through to chat.
 
@@ -72,6 +92,13 @@ def route(message: str, interface: str) -> dict:
       {"action": "propose", "message": str}
       {"action": "chat"}
     """
+    if message.strip().lower() in _LIST_SKILLS_TRIGGERS:
+        return {
+            "action": "skill",
+            "slug": "list_skills",
+            "result": _list_skills_response(interface),
+        }
+
     skills = _load_skills(interface)
     if not skills:
         return {"action": "chat"}
