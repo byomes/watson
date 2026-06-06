@@ -243,6 +243,11 @@ def build_skill(description: str, job_path: str) -> bool:
     return True
 
 
+def run() -> str:
+    """Prompt Bill to describe the skill he wants built."""
+    return "Skill builder ready. Describe what you need and I'll write the code."
+
+
 if __name__ == "__main__":
     import sys
     if len(sys.argv) < 3:

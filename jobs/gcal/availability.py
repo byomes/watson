@@ -79,6 +79,25 @@ def get_available_slots_next_30_days(meeting_type: str) -> dict:
     return result
 
 
+def run() -> str:
+    """Return a summary of available booking slots for the next 7 days."""
+    try:
+        today = date.today()
+        lines = []
+        for i in range(7):
+            d = today + timedelta(days=i)
+            slots = get_available_slots(d, "virtual")
+            if slots:
+                day_label = d.strftime("%A, %b %-d")
+                slot_strs = ", ".join(s["display"] for s in slots)
+                lines.append(f"{day_label}: {slot_strs}")
+        if not lines:
+            return "No available booking slots in the next 7 days."
+        return "Available slots (next 7 days):\n" + "\n".join(lines)
+    except Exception as exc:
+        return f"Calendar unavailable: {exc}"
+
+
 def get_available_slots_grouped(meeting_type: str) -> list:
     today = date.today()
     result = []

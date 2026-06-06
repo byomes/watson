@@ -72,7 +72,9 @@ def search_passage(bible_id: str, reference: str) -> str:
         return reference, f"API error: {e}"
 
 
-def run(message_text: str) -> str:
+def run(message_text: str = "") -> str:
+    if not message_text:
+        return "Bible lookup ready. Usage: Watson, bible [reference] or Watson, bible [translation] [reference]"
     translation_key, reference = parse_command(message_text)
     if not reference:
         return "Usage: `Watson bible [NIV|CSB|NASB|all] <reference>`\nExample: `Watson bible John 3:16`"

@@ -5,6 +5,61 @@
     "triggers": ["check logs", "any errors", "log report", "what errors", "error summary", "check for errors"],
     "job_module": "jobs.monitoring.log_watch",
     "function": "run",
-    "interfaces": ["dashboard", "telegram"]
+    "interfaces": ["dashboard", "telegram"],
+    "status": "ready"
+  },
+  {
+    "slug": "bible_lookup",
+    "description": "Look up a Bible verse in NIV, CSB, or NASB translation",
+    "triggers": ["bible", "verse", "look up", "scripture", "read me", "what does the bible say"],
+    "job_module": "jobs.bible",
+    "function": "run",
+    "interfaces": ["dashboard", "telegram"],
+    "status": "ready"
+  },
+  {
+    "slug": "calendar_availability",
+    "description": "Check Watson calendar availability and open booking slots",
+    "triggers": ["availability", "open slots", "when am I free", "check calendar", "what's on my calendar", "my schedule"],
+    "job_module": "jobs.gcal.availability",
+    "function": "run",
+    "interfaces": ["dashboard", "telegram"],
+    "status": "ready"
+  },
+  {
+    "slug": "people_registry",
+    "description": "Check the People Registry contact count or look up a contact",
+    "triggers": ["people", "contacts", "how many contacts", "people registry", "look up contact"],
+    "job_module": "jobs.people.server",
+    "function": "run",
+    "interfaces": ["dashboard", "telegram"],
+    "status": "ready"
+  },
+  {
+    "slug": "send_email",
+    "description": "Send an email — Watson saves a draft to Gmail for review before sending",
+    "triggers": ["send an email", "email", "draft an email", "write an email", "send email"],
+    "job_module": "jobs.email.send",
+    "function": "run",
+    "interfaces": ["dashboard", "telegram"],
+    "status": "ready"
+  },
+  {
+    "slug": "new_project",
+    "description": "Create a new Watson project with memory files and index entry",
+    "triggers": ["new project", "create project", "start a project", "add project"],
+    "job_module": "jobs.memory.new_project",
+    "function": "run",
+    "interfaces": ["dashboard", "telegram"],
+    "status": "ready"
+  },
+  {
+    "slug": "build_skill",
+    "description": "Build a new Watson skill using the AI code writer",
+    "triggers": ["build a skill", "new skill", "create a skill", "add a skill", "build a job"],
+    "job_module": "jobs.skillbuilder.build",
+    "function": "run",
+    "interfaces": ["dashboard", "telegram"],
+    "status": "ready"
   }
 ]

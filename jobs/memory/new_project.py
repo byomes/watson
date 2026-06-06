@@ -73,6 +73,11 @@ def create_project(slug: str, name: str) -> None:
     sync_main()
 
 
+def run() -> str:
+    """Prompt Bill to provide project details conversationally."""
+    return "New project skill ready. Tell me the project name and I'll set it up."
+
+
 if __name__ == "__main__":
     import sys
     if len(sys.argv) != 3:

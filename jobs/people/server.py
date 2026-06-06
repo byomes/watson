@@ -176,6 +176,16 @@ class Handler(BaseHTTPRequestHandler):
         print(f'[people-api] {self.address_string()} {fmt % args}', file=sys.stdout)
 
 
+def run() -> str:
+    """Return a summary of the People Registry contact count."""
+    try:
+        from jobs.people.api import people_list
+        contacts = people_list()
+        return f"People Registry: {len(contacts)} contacts on file."
+    except Exception as exc:
+        return f"People Registry unavailable: {exc}"
+
+
 if __name__ == '__main__':
     server = HTTPServer(('', PORT), Handler)
     print(f'[people-api] Listening on port {PORT}', flush=True)
