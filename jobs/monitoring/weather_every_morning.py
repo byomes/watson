@@ -1,57 +1,155 @@
-"""jobs/weather/notify.py — send daily weather update via Telegram at 6am."""
+"""jobs/monitoring/weather_every_morning.py — daily 6am weather forecast via Telegram."""
+import asyncio
 import os
-import time
-from datetime import datetime, timezone, timedelta
+from datetime import date
+
 import requests
-from telegram.ext import Updater, Job, CommandHandler, run_jobs
-from python_dotenv import load_dotenv
+from dotenv import load_dotenv
+from telegram import Bot
 
-REPO = Path(__file__).resolve().parents[2]
-DB_PATH = os.getenv("WATSON_DB", str(REPO / "data" / "watson.db"))
-LOG_PATH = REPO / "logs"
-WEATHER_API_KEY = os.getenv("WEATHER_API_KEY")
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+load_dotenv()
 
-def _db():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+LAT = 39.7447
+LON = -75.5484
+TIMEZONE = "America/New_York"
 
-def log_error(func):
-    def wrapper(*args, **kwargs):
-        try:
-            return func(*args, **kwargs)
-        except Exception as e:
-            with open(LOG_PATH / "error.log", "a") as f:
-                f.write(f"{datetime.now(timezone.utc)} - {e}\n")
-            raise
-    return wrapper
+_WMO = {
+    0:  "☀️ Clear",
+    1:  "⛅ Partly cloudy", 2:  "⛅ Partly cloudy", 3:  "⛅ Partly cloudy",
+    45: "🌫 Foggy",         48: "🌫 Foggy",
+    51: "🌧 Rainy",         53: "🌧 Rainy",         55: "🌧 Rainy",
+    61: "🌧 Rainy",         63: "🌧 Rainy",         65: "🌧 Rainy",
+    71: "❄️ Snowy",         73: "❄️ Snowy",         75: "❄️ Snowy",  77: "❄️ Snowy",
+    80: "🌦 Showers",       81: "🌦 Showers",       82: "🌦 Showers",
+    95: "⛈ Thunderstorms", 96: "⛈ Thunderstorms", 99: "⛈ Thunderstorms",
+}
+_RAIN_CODES = {51, 53, 55, 61, 63, 65, 80, 81, 82, 95, 96, 99}
+_SNOW_CODES = {71, 73, 75, 77}
+_TARGET_HOURS = [6, 8, 10, 12, 14, 16, 18, 20]
 
-@log_error
-def get_weather():
-    url = f"http://api.openweathermap.org/data/2.5/weather?q=your_city&appid={WEATHER_API_KEY}&units=metric"
-    response = requests.get(url)
-    if response.status_code == 200:
-        data = response.json()
-        return f"Weather in your city: {data['weather'][0]['description']}, Temp: {data['main']['temp']}°C"
+
+def _hour_label(h: int) -> str:
+    if h == 0:
+        return "12am"
+    if h < 12:
+        return f"{h}am"
+    if h == 12:
+        return "12pm"
+    return f"{h - 12}pm"
+
+
+def _fetch() -> dict:
+    resp = requests.get(
+        "https://api.open-meteo.com/v1/forecast",
+        params={
+            "latitude": LAT,
+            "longitude": LON,
+            "hourly": "temperature_2m,precipitation_probability,precipitation,windspeed_10m,weathercode",
+            "daily": "weathercode,temperature_2m_max,temperature_2m_min,precipitation_sum,windspeed_10m_max",
+            "timezone": TIMEZONE,
+            "forecast_days": 1,
+            "temperature_unit": "fahrenheit",
+            "windspeed_unit": "mph",
+            "precipitation_unit": "inch",
+        },
+        timeout=15,
+    )
+    resp.raise_for_status()
+    return resp.json()
+
+
+def _format(data: dict) -> str:
+    hourly = data["hourly"]
+    daily = data["daily"]
+
+    today = date.today()
+    today_str = today.isoformat()
+    weekday = today.strftime("%A")
+    month = today.strftime("%B")
+    day = today.day
+
+    max_temp = daily["temperature_2m_max"][0]
+    max_wind = round(daily["windspeed_10m_max"][0])
+
+    # Index today's hours by hour integer
+    hour_idx = {}
+    for i, t in enumerate(hourly["time"]):
+        if t.startswith(today_str):
+            hour_idx[int(t[11:13])] = i
+
+    hourly_lines = []
+    has_rain = False
+    has_snow = False
+    max_precip_prob = 0
+
+    for h in _TARGET_HOURS:
+        idx = hour_idx.get(h)
+        if idx is None:
+            continue
+        temp = round(hourly["temperature_2m"][idx])
+        precip_prob = hourly["precipitation_probability"][idx] or 0
+        wcode = hourly["weathercode"][idx]
+        condition = _WMO.get(wcode, "🌡")
+
+        if wcode in _RAIN_CODES:
+            has_rain = True
+        if wcode in _SNOW_CODES:
+            has_snow = True
+        if precip_prob > max_precip_prob:
+            max_precip_prob = precip_prob
+
+        hourly_lines.append(
+            f"{_hour_label(h):<5}  {temp:>3}°F  {condition}  {precip_prob}% chance rain"
+        )
+
+    # Recommendation
+    if max_temp > 80:
+        rec = "Light clothing, it'll be warm today"
+    elif max_temp < 40:
+        rec = "Heavy coat, it's cold today"
+    elif max_temp <= 60:
+        rec = "Light jacket recommended"
     else:
-        return "Failed to fetch weather"
+        rec = "Comfortable layers"
 
-@log_error
-def send_weather(update, context):
-    message = get_weather()
-    context.bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
+    if max_precip_prob > 50:
+        rec += " — bring an umbrella"
+    if has_snow:
+        rec += " — watch for slippery conditions"
 
-def main():
-    updater = Updater(token=TELEGRAM_BOT_TOKEN, use_context=True)
-    dp = updater.dispatcher
+    parts = [
+        f"🌤 Good morning, Dr. Bill — {weekday} {month} {day}",
+        "",
+        "📍 Wilmington, DE",
+        "",
+        "\n".join(hourly_lines),
+        "",
+        f"💨 Wind: {max_wind}mph",
+    ]
+    if has_rain and not has_snow:
+        parts.append("🌧 Rain expected — carry an umbrella")
+    if has_snow:
+        parts.append("❄️ Snow expected — dress warm")
+    parts.append(f"\nRecommendation: {rec}")
 
-    job_queue = updater.job_queue
-    job_queue.run_daily(send_weather, time(6, 0), name="daily_weather")
+    return "\n".join(parts)
 
-    updater.start_polling()
-    updater.idle()
+
+async def _send(message: str) -> None:
+    token = os.getenv("TELEGRAM_BOT_TOKEN")
+    chat_id = os.getenv("TELEGRAM_CHAT_ID")
+    if not token or not chat_id:
+        raise RuntimeError("TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID not set")
+    async with Bot(token=token) as bot:
+        await bot.send_message(chat_id=chat_id, text=message)
+
+
+def run() -> str:
+    data = _fetch()
+    message = _format(data)
+    asyncio.run(_send(message))
+    return "Weather forecast sent."
+
 
 if __name__ == "__main__":
-    main()
+    run()
