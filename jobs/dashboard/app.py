@@ -613,6 +613,7 @@ def chat():
                     "to_name": result["to_name"],
                     "to_email": result["to_email"],
                     "subject": result["subject"],
+                    "body": result["body"],
                 },
             })
         return jsonify({"response": "✓ " + result})

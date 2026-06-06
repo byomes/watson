@@ -232,9 +232,11 @@ function _appendEmailConfirmCard(container, em) {
   const card = document.createElement('div');
   card.className = 'email-confirm-card';
   card.id = 'email-confirm-card';
+  const bodyPreview = em.body && em.body.length > 200 ? esc(em.body.slice(0, 200)) + '…' : esc(em.body || '');
   card.innerHTML =
-    '<div class="email-confirm-row"><span class="email-confirm-lbl">To</span>' + esc(em.to_name) + ' (' + esc(em.to_email) + ')</div>' +
-    '<div class="email-confirm-row"><span class="email-confirm-lbl">Subject</span>' + esc(em.subject) + '</div>' +
+    '<div class="email-confirm-row"><span class="email-confirm-lbl">To: </span>' + esc(em.to_name) + ' (' + esc(em.to_email) + ')</div>' +
+    '<div class="email-confirm-row"><span class="email-confirm-lbl">Subject: </span>' + esc(em.subject) + '</div>' +
+    '<div class="email-confirm-row"><span class="email-confirm-lbl">Body: </span>' + bodyPreview + '</div>' +
     '<div class="email-confirm-btns">' +
       '<button class="email-confirm-send" onclick="confirmEmail(true)">Send ✓</button>' +
       '<button class="email-confirm-cancel" onclick="confirmEmail(false)">Cancel ✗</button>' +
