@@ -594,7 +594,9 @@ def chat():
             skill = next((s for s in skills if s["slug"] == slug), None)
             if skill:
                 try:
-                    route_result["result"] = _router._run_skill(skill)
+                    route_result["result"] = _router._run_skill(
+                        skill, message=route_result.get("message")
+                    )
                 except Exception as exc:
                     log.error("Skill execution failed for %s: %s", slug, exc)
                     route_result["result"] = f"Skill failed: {exc}"
