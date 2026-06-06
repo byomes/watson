@@ -196,6 +196,11 @@ select option{background:var(--bg2)}
 #chat-mic-btn{width:40px;height:40px;background:var(--bg2);border:1px solid var(--border);border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;color:var(--text2);transition:background .2s,border-color .2s,color .2s}
 #chat-mic-btn.recording{border-color:var(--accent);background:rgba(99,102,241,.15);color:var(--accent);animation:mic-pulse 1s ease-in-out infinite}
 @keyframes mic-pulse{0%,100%{opacity:1}50%{opacity:.55}}
+#chat-attach-btn{width:36px;height:36px;background:var(--bg2);border:1px solid var(--border);border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;color:var(--text2);font-size:20px;line-height:1;padding:0}
+#chat-attach-btn:hover{background:var(--bg3)}
+#chat-attach-indicator{display:none;padding:3px 14px 5px;background:var(--bg);font-size:11px;color:var(--text2);flex-shrink:0}
+#chat-attach-x{background:none;border:none;color:var(--text3);font-size:14px;padding:0 3px;cursor:pointer;vertical-align:middle;line-height:1}
+#chat-attach-x:hover{color:var(--danger)}
 
 .ctr{text-align:center;padding:40px 0;color:var(--text2);font-size:13px}
 .sbar{width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:9px;padding:11px 12px;color:var(--text);font-size:13px;outline:none;margin-bottom:10px}
@@ -241,7 +246,10 @@ select option{background:var(--bg2)}
   <!-- ── Chat Tab ─────────────────────────────────────────────────── -->
   <div id="tab-chat" class="tab active">
     <div id="chat-messages"></div>
+    <div id="chat-attach-indicator">&#128206; <span id="ai-filename"></span><button id="chat-attach-x" onclick="clearAttachment()" title="Remove">&#215;</button></div>
     <div id="chat-input-area">
+      <input type="file" id="chat-file-input" style="display:none" onchange="handleFileSelect(this)">
+      <button id="chat-attach-btn" onclick="document.getElementById('chat-file-input').click()" title="Attach file">+</button>
       <button id="chat-mic-btn" onclick="toggleVoice()"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg></button>
       <input id="chat-input" type="text" placeholder="Message Watson…">
       <button id="chat-send-btn" onclick="sendChat()">Send</button>
@@ -429,6 +437,8 @@ function switchTab(name) {
 // ── Chat — session state ──────────────────────────────────────────────────
 let currentSessionId = null;
 let chatHistory = [];
+let attachedFileContent = null;
+let attachedFileName = null;
 
 // Load session list
 async function loadSessions() {
@@ -525,6 +535,35 @@ function _hideTyping() {
   if (el) el.remove();
 }
 
+async function handleFileSelect(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const fd = new FormData();
+  fd.append('file', file);
+  try {
+    const r = await fetch('/api/upload', {method: 'POST', body: fd});
+    const data = await r.json();
+    if (data.success) {
+      attachedFileContent = data.content;
+      attachedFileName = data.filename;
+      document.getElementById('ai-filename').textContent = data.filename;
+      document.getElementById('chat-attach-indicator').style.display = 'block';
+    } else {
+      alert('Upload failed: ' + (data.error || 'Unknown error'));
+    }
+  } catch(e) {
+    alert('Upload error: ' + e.message);
+  }
+  input.value = '';
+}
+
+function clearAttachment() {
+  attachedFileContent = null;
+  attachedFileName = null;
+  document.getElementById('chat-attach-indicator').style.display = 'none';
+  document.getElementById('ai-filename').textContent = '';
+}
+
 async function sendChat() {
   const input = document.getElementById('chat-input');
   const text = input.value.trim();
@@ -535,10 +574,17 @@ async function sendChat() {
     currentSessionId = sess.id;
   }
   input.value = '';
-  _appendMsg('user', text);
+
+  const displayMsg = attachedFileName ? text + '\n\U0001F4CE ' + attachedFileName : text;
+  const ollamaMsg = attachedFileContent
+    ? '[Attached file: ' + attachedFileName + ']\n' + attachedFileContent + '\n\n---\n\nUser message: ' + text
+    : text;
+  if (attachedFileContent) clearAttachment();
+
+  _appendMsg('user', displayMsg);
 
   // Save user message
-  api('/api/chat/sessions/' + currentSessionId + '/messages', 'POST', {role:'user', content:text});
+  api('/api/chat/sessions/' + currentSessionId + '/messages', 'POST', {role:'user', content: displayMsg});
 
   // Auto-title from first message
   if (chatHistory.length === 0) {
@@ -546,11 +592,11 @@ async function sendChat() {
     api('/api/chat/sessions/' + currentSessionId, 'PATCH', {title});
   }
 
-  chatHistory.push({role: 'user', content: text});
+  chatHistory.push({role: 'user', content: ollamaMsg});
   if (chatHistory.length > 40) chatHistory = chatHistory.slice(-40);
   _showTyping();
   try {
-    const data = await api('/api/chat', 'POST', {message: text, history: chatHistory.slice(0, -1)});
+    const data = await api('/api/chat', 'POST', {message: ollamaMsg, history: chatHistory.slice(0, -1)});
     _hideTyping();
     const reply = data.response || '(no response)';
     _appendMsg('watson', reply);
@@ -1386,6 +1432,42 @@ def chat_messages_create(session_id):
         "SELECT * FROM chat_messages WHERE id = ?", (cur.lastrowid,)
     ).fetchone()
     return jsonify(dict(row)), 201
+
+
+# ── Upload API ────────────────────────────────────────────────────────────────
+
+_TEXT_EXTS = {".txt", ".md", ".csv", ".json", ".py", ".html", ".xml"}
+_TRUNCATE_AT = 8000
+
+
+@app.route("/api/upload", methods=["POST"])
+def upload_file():
+    if "file" not in request.files:
+        return jsonify({"success": False, "error": "No file provided"}), 400
+    f = request.files["file"]
+    filename = f.filename or "unknown"
+    ext = Path(filename).suffix.lower()
+    try:
+        if ext in _TEXT_EXTS:
+            content = f.read().decode("utf-8")
+        elif ext == ".pdf":
+            try:
+                import pypdf
+            except ImportError:
+                return jsonify({"success": False, "error": "pypdf not installed. Run: pip install pypdf"})
+            import io
+            reader = pypdf.PdfReader(io.BytesIO(f.read()))
+            content = "\n".join(page.extract_text() or "" for page in reader.pages)
+        else:
+            try:
+                content = f.read().decode("utf-8")
+            except UnicodeDecodeError:
+                return jsonify({"success": False, "error": "File type not supported for text extraction. Try a text-based file."})
+        if len(content) > _TRUNCATE_AT:
+            content = content[:_TRUNCATE_AT] + "\n[File truncated at 8000 characters]"
+        return jsonify({"success": True, "content": content, "filename": filename})
+    except Exception as exc:
+        return jsonify({"success": False, "error": str(exc)})
 
 
 # ── Chat API ─────────────────────────────────────────────────────────────────
