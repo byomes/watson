@@ -1,8 +1,8 @@
 from datetime import datetime, date, timedelta
 from zoneinfo import ZoneInfo
 
-from jobs.calendar.calendar import get_events
-from jobs.calendar.availability import BOOKING_WINDOWS
+from jobs.gcal.calendar import get_events
+from jobs.gcal.availability import BOOKING_WINDOWS
 
 NY = ZoneInfo("America/New_York")
 
