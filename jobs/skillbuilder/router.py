@@ -25,6 +25,12 @@ _RETRY_PHRASES = frozenset({
     "try that again", "build again", "retry building",
 })
 
+_WRAP_UP_TRIGGERS = (
+    "we're done", "wrap this up", "save this session", "end session",
+    "that's all for now", "save to memory", "summarize and save",
+    "let's wrap up", "we are done", "wrap up this session",
+)
+
 # Matched against msg_lower BEFORE the LLM call — guaranteed BUILD, no fallthrough
 _BUILD_TRIGGERS = (
     "build a skill", "build me a skill", "build me something that",
@@ -147,7 +153,7 @@ def _ask_router(message: str, skills: list) -> str:
     prompt = (
         "SYSTEM: You are Watson's skill router. Given a user message and a list of "
         "available skills, determine the best action. Reply with exactly one of: "
-        "SKILL:<slug>, LIST_SKILLS, BUILD, PROPOSE, or CHAT. Nothing else.\n\n"
+        "SKILL:<slug>, LIST_SKILLS, BUILD, PROPOSE, WRAP_UP, or CHAT. Nothing else.\n\n"
         "SKILL:<slug> — the message clearly maps to a known skill by intent and meaning. "
         "Match on what the user wants to accomplish, not exact wording. "
         "The triggers array is a hint only.\n"
@@ -159,6 +165,10 @@ def _ask_router(message: str, skills: list) -> str:
         "'I need you to be able to', 'write a job that', 'build me something that'.\n"
         "PROPOSE — the message describes a task Watson should be able to do but currently "
         "cannot — but is NOT explicitly asking Watson to build it right now.\n"
+        "WRAP_UP — Bill is explicitly closing a working session and wants Watson to summarize "
+        "and save it to memory. Phrases: 'we're done', 'wrap this up', 'save this session', "
+        "'end session', 'that's all for now', 'save to memory', 'summarize and save', "
+        "'let's wrap up'.\n"
         "CHAT — general conversation, question, or something Watson should respond to normally.\n\n"
         f"Available skills:\n{skills_json}\n\n"
         f"User message: {message}"
@@ -275,5 +285,8 @@ def route(message: str, interface: str) -> dict:
             "action": "propose",
             "message": "I don't have a skill for that yet. Want me to build one?",
         }
+
+    if decision == "WRAP_UP":
+        return {"action": "wrap_up"}
 
     return {"action": "chat"}

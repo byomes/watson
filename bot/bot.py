@@ -47,6 +47,18 @@ _AUTHORIZED_ID = int(TELEGRAM_CHAT_ID) if TELEGRAM_CHAT_ID else None
 # Pending skill proposals keyed by Telegram chat_id
 _pending_skills: dict[int, str] = {}
 
+# Per-chat message counter for background reflection
+_msg_counter: dict[int, int] = {}
+
+
+def _maybe_reflect(chat_id: int) -> None:
+    _msg_counter[chat_id] = _msg_counter.get(chat_id, 0) + 1
+    if _msg_counter[chat_id] % 10 == 0:
+        import threading
+        from jobs.memory.reflect import reflect
+        session_id = f"telegram_{chat_id}"
+        threading.Thread(target=reflect, args=(session_id, None), daemon=True).start()
+
 _SKILL_AFFIRM = {"yes", "yes please", "go ahead", "build it", "sure", "do it", "yep", "yeah"}
 _SKILL_DENY = {"no", "never mind", "nope", "cancel", "don't", "no thanks"}
 
@@ -363,6 +375,17 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if route_result["action"] == "skill":
         await update.message.reply_text("✓ " + route_result["result"])
+        _maybe_reflect(chat_id)
+        return
+
+    if route_result["action"] == "wrap_up":
+        import threading
+        from jobs.memory.wrap_up import wrap_up as _wrap_up
+        session_id = f"telegram_{chat_id}"
+        threading.Thread(
+            target=_wrap_up, args=(session_id, None), daemon=True
+        ).start()
+        await update.message.reply_text("Wrapping up this session. I'll save it to memory and notify you via Telegram.")
         return
 
     if route_result["action"] == "build":
@@ -417,6 +440,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await _handle_task_done(update, context, params)
     else:
         await _handle_general(update, context, text_clean)
+        _maybe_reflect(chat_id)
 
 
 # --- New intent handlers --------------------------------------------------

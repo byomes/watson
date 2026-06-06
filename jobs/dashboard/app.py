@@ -415,6 +415,23 @@ def chat_messages_create(session_id):
     row = _db().execute(
         "SELECT * FROM chat_messages WHERE id = ?", (cur.lastrowid,)
     ).fetchone()
+
+    # Trigger reflect every 10 assistant messages (runs silently in background)
+    if role == "assistant":
+        count = _db().execute(
+            "SELECT COUNT(*) FROM chat_messages WHERE session_id = ?", (session_id,)
+        ).fetchone()[0]
+        if count > 0 and count % 10 == 0:
+            session_row = _db().execute(
+                "SELECT project_slug FROM chat_sessions WHERE id = ?", (session_id,)
+            ).fetchone()
+            project_slug = session_row["project_slug"] if session_row else None
+            import threading
+            from jobs.memory.reflect import reflect
+            threading.Thread(
+                target=reflect, args=(session_id, project_slug), daemon=True
+            ).start()
+
     return jsonify(dict(row)), 201
 
 
@@ -582,6 +599,18 @@ def chat():
     if route_result["action"] == "propose":
         _pending_skill_request = message
         return jsonify({"response": route_result["message"]})
+
+    if route_result["action"] == "wrap_up":
+        import threading
+        from jobs.memory.wrap_up import wrap_up as _wrap_up
+        session_id = data.get("session_id")
+        project_slug = data.get("project_slug")
+        threading.Thread(
+            target=_wrap_up,
+            args=(session_id, project_slug),
+            daemon=True,
+        ).start()
+        return jsonify({"response": "Wrapping up this session. I'll save it to memory and notify you via Telegram."})
 
     # Safety net: if any build trigger leaked past the router, fire the build now.
     # This prevents the Ollama SPEC/CONFIRM path from ever activating on build requests.
