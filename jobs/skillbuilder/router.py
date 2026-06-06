@@ -35,10 +35,15 @@ def _ask_router(message: str, skills: list) -> str:
     prompt = (
         "SYSTEM: You are Watson's skill router. Given a user message and a list of "
         "available skills, determine the best action. Reply with exactly one of: "
-        "SKILL:<slug>, PROPOSE, or CHAT. Nothing else.\n\n"
-        "SKILL:<slug> — the message clearly maps to a known skill. Use the slug exactly as listed.\n"
+        "SKILL:<slug>, LIST_SKILLS, PROPOSE, or CHAT. Nothing else.\n\n"
+        "SKILL:<slug> — the message clearly maps to a known skill by intent and meaning. "
+        "Match on what the user wants to accomplish, not exact wording. "
+        "The triggers array is a hint only.\n"
+        "LIST_SKILLS — the user wants to know what Watson can do, see his capabilities, "
+        "or list his skills. This includes any natural phrasing like 'what can you do', "
+        "'show me your skills', 'what do you know how to do', 'what are you capable of'.\n"
         "PROPOSE — the message describes a task Watson should be able to do but currently cannot.\n"
-        "CHAT — this is general conversation, a question, or something Watson should just respond to normally.\n\n"
+        "CHAT — general conversation, a question, or something Watson should just respond to normally.\n\n"
         f"Available skills:\n{skills_json}\n\n"
         f"User message: {message}"
     )
@@ -64,16 +69,7 @@ def _run_skill(skill: dict) -> str:
     return output or "(no output)"
 
 
-_LIST_SKILLS_TRIGGERS = {
-    "list your skills",
-    "what can you do",
-    "show your skills",
-    "what skills do you have",
-    "list skills",
-}
-
-
-def _list_skills_response(interface: str) -> str:
+def _list_skills_result(interface: str) -> str:
     skills = _load_skills(interface)
     if not skills:
         return "I don't have any skills registered yet."
@@ -92,13 +88,6 @@ def route(message: str, interface: str) -> dict:
       {"action": "propose", "message": str}
       {"action": "chat"}
     """
-    if message.strip().lower() in _LIST_SKILLS_TRIGGERS:
-        return {
-            "action": "skill",
-            "slug": "list_skills",
-            "result": _list_skills_response(interface),
-        }
-
     skills = _load_skills(interface)
     if not skills:
         return {"action": "chat"}
@@ -119,6 +108,13 @@ def route(message: str, interface: str) -> dict:
         except Exception as exc:
             result = f"Skill failed to execute: {exc}"
         return {"action": "skill", "slug": slug, "result": result}
+
+    if decision == "LIST_SKILLS":
+        return {
+            "action": "skill",
+            "slug": "list_skills",
+            "result": _list_skills_result(interface),
+        }
 
     if decision == "PROPOSE":
         return {
