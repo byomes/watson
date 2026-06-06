@@ -165,6 +165,9 @@ select option{background:var(--bg2)}
 #chat-input{flex:1;background:var(--bg2);border:1px solid var(--border);border-radius:22px;padding:10px 14px;color:var(--text);font-size:13px;outline:none}
 #chat-input:focus{border-color:var(--accent)}
 #chat-send-btn{background:var(--accent);border:none;border-radius:22px;padding:10px 16px;color:#fff;font-size:13px;flex-shrink:0;cursor:pointer}
+#chat-mic-btn{width:40px;height:40px;background:var(--bg2);border:1px solid var(--border);border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;color:var(--text2);transition:background .2s,border-color .2s,color .2s}
+#chat-mic-btn.recording{border-color:var(--accent);background:rgba(99,102,241,.15);color:var(--accent);animation:mic-pulse 1s ease-in-out infinite}
+@keyframes mic-pulse{0%,100%{opacity:1}50%{opacity:.55}}
 .ctr{text-align:center;padding:40px 0;color:var(--text2);font-size:13px}
 .sbar{width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:9px;padding:11px 12px;color:var(--text);font-size:13px;outline:none;margin-bottom:10px}
 .sbar:focus{border-color:var(--accent)}
@@ -205,6 +208,7 @@ select option{background:var(--bg2)}
   <div id="tab-chat" class="tab active">
     <div id="chat-messages"></div>
     <div id="chat-input-area">
+      <button id="chat-mic-btn" onclick="toggleVoice()"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg></button>
       <input id="chat-input" type="text" placeholder="Message Watson…">
       <button id="chat-send-btn" onclick="sendChat()">Send</button>
     </div>
@@ -437,6 +441,39 @@ async function sendChat() {
 document.getElementById('chat-input').addEventListener('keydown', function(e) {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); }
 });
+
+// ── Voice input ───────────────────────────────────────────────────────────
+(function() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const btn = document.getElementById('chat-mic-btn');
+  if (!SR) { btn.style.display = 'none'; return; }
+  const rec = new SR();
+  rec.continuous = false;
+  rec.interimResults = false;
+  rec.lang = 'en-US';
+  let active = false;
+  function stopRec() {
+    active = false;
+    btn.classList.remove('recording');
+    try { rec.stop(); } catch(_) {}
+  }
+  rec.onresult = function(e) {
+    const t = e.results[0][0].transcript.trim();
+    stopRec();
+    if (t) {
+      document.getElementById('chat-input').value = t;
+      sendChat();
+    }
+  };
+  rec.onerror = function() { stopRec(); };
+  rec.onend = function() { if (active) stopRec(); };
+  window.toggleVoice = function() {
+    if (active) { stopRec(); return; }
+    active = true;
+    btn.classList.add('recording');
+    try { rec.start(); } catch(_) { stopRec(); }
+  };
+})();
 
 // ── Briefing ──────────────────────────────────────────────────────────────
 let bItems = [];
