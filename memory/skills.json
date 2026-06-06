@@ -148,6 +148,42 @@
     "status": "ready"
   },
   {
+    "slug": "wrap_up",
+    "description": "Summarize and save the current working session to project memory",
+    "triggers": [
+      "wrap up",
+      "we're done",
+      "save session",
+      "end session",
+      "save to memory",
+      "summarize and save"
+    ],
+    "job_module": "jobs.memory.wrap_up",
+    "function": "run",
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ],
+    "status": "ready"
+  },
+  {
+    "slug": "reflect",
+    "description": "Reflect on recent conversations and store key insights to memory",
+    "triggers": [
+      "reflect",
+      "what have we discussed",
+      "summarize recent chats",
+      "what do you remember"
+    ],
+    "job_module": "jobs.memory.reflect",
+    "function": "run",
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ],
+    "status": "ready"
+  },
+  {
     "slug": "tells_many_days",
     "description": "Calculate and report how many days until Christmas",
     "triggers": [
