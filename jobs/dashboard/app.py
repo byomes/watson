@@ -1,4 +1,5 @@
 """Watson dashboard — port 5200, Tailscale-only."""
+import json
 import os
 import sqlite3
 import sys
@@ -10,6 +11,7 @@ from flask import Flask, g, jsonify, request
 from jobs.people.api import people_create, people_delete, people_list, people_update
 
 DB = os.path.expanduser("~/watson/data/watson.db")
+SKILLS_FILE = Path(__file__).resolve().parents[2] / "memory" / "skills.json"
 app = Flask(__name__)
 
 
@@ -212,6 +214,15 @@ select option{background:var(--bg2)}
 .theme-lbl{font-size:14px;color:var(--text)}
 .theme-btn2{padding:7px 16px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;color:var(--text2);font-size:12px}
 #settings-panel{position:fixed;top:54px;right:0;left:0;z-index:9;background:var(--bg2);border-bottom:1px solid var(--border);padding:12px 16px;display:none}
+#settings-skills{display:none}
+#settings-skills-list{max-height:260px;overflow-y:auto;margin-top:4px}
+.sp-back{display:flex;align-items:center;gap:5px;background:none;border:none;color:var(--text2);font-size:12px;padding:0 0 10px;cursor:pointer}
+.sp-back:hover{color:var(--text)}
+.skill-card{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px;display:flex;align-items:center;gap:10px}
+.skill-info{flex:1;min-width:0}
+.skill-name{font-size:13px;font-weight:600;color:var(--text);margin-bottom:2px}
+.skill-desc{font-size:11px;color:var(--text2);line-height:1.4}
+.skill-use-btn{flex-shrink:0;padding:6px 12px;background:var(--accent);border:none;border-radius:8px;color:#fff;font-size:11px;cursor:pointer;font-family:inherit}
 </style>
 </head>
 <body>
@@ -228,18 +239,29 @@ select option{background:var(--bg2)}
 </div>
 
 <div id="settings-panel">
-  <div class="flabel">Appearance</div>
-  <div class="theme-row">
-    <span class="theme-lbl" id="theme-lbl-text">Dark mode</span>
-    <button class="theme-btn2" id="theme-toggle-btn" onclick="toggleTheme()">Switch to Light</button>
+  <div id="settings-main">
+    <div class="flabel">Appearance</div>
+    <div class="theme-row">
+      <span class="theme-lbl" id="theme-lbl-text">Dark mode</span>
+      <button class="theme-btn2" id="theme-toggle-btn" onclick="toggleTheme()">Switch to Light</button>
+    </div>
+    <div class="theme-row" style="margin-top:6px">
+      <span class="theme-lbl">Contacts</span>
+      <button class="theme-btn2" onclick="document.getElementById('settings-panel').style.display='none';switchTab('contacts')">Open Contacts</button>
+    </div>
+    <div class="theme-row" style="margin-top:6px">
+      <span class="theme-lbl">Reading List</span>
+      <button class="theme-btn2" onclick="document.getElementById('settings-panel').style.display='none';switchTab('reading')">Open Reading</button>
+    </div>
+    <div class="theme-row" style="margin-top:6px">
+      <span class="theme-lbl">Skills</span>
+      <button class="theme-btn2" onclick="openSkillsPanel()">Open Skills</button>
+    </div>
   </div>
-  <div class="theme-row" style="margin-top:6px">
-    <span class="theme-lbl">Contacts</span>
-    <button class="theme-btn2" onclick="document.getElementById('settings-panel').style.display='none';switchTab('contacts')">Open Contacts</button>
-  </div>
-  <div class="theme-row" style="margin-top:6px">
-    <span class="theme-lbl">Reading List</span>
-    <button class="theme-btn2" onclick="document.getElementById('settings-panel').style.display='none';switchTab('reading')">Open Reading</button>
+  <div id="settings-skills">
+    <button class="sp-back" onclick="closeSkillsPanel()">&#8592; Back</button>
+    <div class="flabel">Skills</div>
+    <div id="settings-skills-list"></div>
   </div>
 </div>
 
@@ -394,13 +416,61 @@ function toggleTheme() {
 function toggleSettings(e) {
   e.stopPropagation();
   const p = document.getElementById('settings-panel');
-  p.style.display = getComputedStyle(p).display === 'none' ? 'block' : 'none';
+  if (getComputedStyle(p).display === 'none') {
+    p.style.display = 'block';
+  } else {
+    p.style.display = 'none';
+    closeSkillsPanel();
+  }
 }
 document.addEventListener('click', function(e) {
   if (!e.target.closest('#settings-panel') && e.target.id !== 'gear-btn') {
     document.getElementById('settings-panel').style.display = 'none';
+    closeSkillsPanel();
   }
 });
+
+// ── Skills panel ─────────────────────────────────────────────────────────────
+function openSkillsPanel() {
+  document.getElementById('settings-main').style.display = 'none';
+  document.getElementById('settings-skills').style.display = 'block';
+  loadSkillsPanel();
+}
+function closeSkillsPanel() {
+  document.getElementById('settings-skills').style.display = 'none';
+  document.getElementById('settings-main').style.display = 'block';
+}
+async function loadSkillsPanel() {
+  const el = document.getElementById('settings-skills-list');
+  el.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:6px 0">Loading...</div>';
+  try {
+    const skills = await api('/api/skills');
+    if (!skills.length) {
+      el.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:6px 0">No skills installed yet.</div>';
+      return;
+    }
+    el.innerHTML = skills.map(function(s) {
+      const name = s.slug.replace(/_/g, ' ').replace(/\\b\\w/g, function(c){return c.toUpperCase();});
+      return '<div class="skill-card">' +
+        '<div class="skill-info">' +
+          '<div class="skill-name">' + esc(name) + '</div>' +
+          '<div class="skill-desc">' + esc(s.description) + '</div>' +
+        '</div>' +
+        '<button class="skill-use-btn" data-slug="' + esc(s.slug) + '" onclick="useSkill(this.dataset.slug)">Use Skill</button>' +
+      '</div>';
+    }).join('');
+  } catch(e) {
+    el.innerHTML = '<div style="font-size:12px;color:var(--danger);padding:6px 0">Failed to load skills.</div>';
+  }
+}
+function useSkill(slug) {
+  const name = slug.replace(/_/g, ' ').replace(/\\b\\w/g, function(c){return c.toUpperCase();});
+  document.getElementById('settings-panel').style.display = 'none';
+  closeSkillsPanel();
+  switchTab('chat');
+  document.getElementById('chat-input').value = 'Watson, run ' + name;
+  document.getElementById('chat-input').focus();
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 function esc(s) {
@@ -1470,6 +1540,19 @@ def upload_file():
         return jsonify({"success": True, "content": content, "filename": filename})
     except Exception as exc:
         return jsonify({"success": False, "error": str(exc)})
+
+
+# ── Skills API ────────────────────────────────────────────────────────────────
+
+@app.route("/api/skills")
+def skills_list_api():
+    if not SKILLS_FILE.exists():
+        return jsonify([])
+    try:
+        skills = json.loads(SKILLS_FILE.read_text(encoding="utf-8"))
+        return jsonify(skills if isinstance(skills, list) else [])
+    except Exception:
+        return jsonify([])
 
 
 # ── Chat API ─────────────────────────────────────────────────────────────────
