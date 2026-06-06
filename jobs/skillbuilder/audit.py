@@ -85,8 +85,12 @@ def run_audit() -> str:
         "For each gap, provide: gap name, why it matters, suggested job path, brief description "
         "of what to build.\n\n"
         "Format response as a JSON array:\n"
-        '[{"gap": "name", "reason": "why it matters", "job_path": "jobs/x/y.py", '
+        '[{"gap": "name", "reason": "why it matters", "job_path": "jobs/category/skill_name.py", '
         '"description": "what to build"}]\n\n'
+        "job_path must be a short two-part path: jobs/<category>/<skill_name>.py\n"
+        "Examples: jobs/monitoring/disk_watch.py, jobs/email/weekly_digest.py, "
+        "jobs/ministry/sermon_outline.py\n"
+        "Do NOT use long descriptive paths or dot-separated names.\n\n"
         "Output ONLY the JSON array. No preamble, no explanation."
     )
     user = (
@@ -118,6 +122,18 @@ def run_audit() -> str:
         _telegram("📊 Weekly audit complete — no capability gaps identified.")
         return "No gaps identified."
 
+    _PASTORAL_TERMS = {
+        "pastoral", "counseling", "counsel", "prayer", "pray",
+        "spiritual authority", "pastor",
+    }
+
+    def _is_pastoral(gap: dict) -> bool:
+        text = " ".join([
+            gap.get("gap", ""),
+            gap.get("description", ""),
+        ]).lower()
+        return any(term in text for term in _PASTORAL_TERMS)
+
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(DB_PATH))
     _ensure_gaps_table(conn)
@@ -128,6 +144,11 @@ def run_audit() -> str:
         reason = gap.get("reason", "")
         job_path = gap.get("job_path", "jobs/misc/new_skill.py")
         description = gap.get("description", "")
+
+        if _is_pastoral(gap):
+            log.info("Audit rejected pastoral gap: %s", gap_name)
+            summary_lines.append(f"#{n} {gap_name} — SKIPPED (pastoral content)")
+            continue
 
         conn.execute(
             "INSERT INTO capability_gaps (gap_name, reason, job_path, description, status) "
