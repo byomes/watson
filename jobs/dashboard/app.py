@@ -588,6 +588,19 @@ def chat():
         route_result = {"action": "chat"}
 
     if route_result["action"] == "skill":
+        if "result" not in route_result:
+            slug = route_result["slug"]
+            skills = _router._load_skills("dashboard")
+            skill = next((s for s in skills if s["slug"] == slug), None)
+            if skill:
+                try:
+                    route_result["result"] = _router._run_skill(skill)
+                except Exception as exc:
+                    log.error("Skill execution failed for %s: %s", slug, exc)
+                    route_result["result"] = f"Skill failed: {exc}"
+            else:
+                log.error("Skill '%s' not found in registry", slug)
+                route_result["result"] = f"Skill '{slug}' not found."
         return jsonify({"response": "✓ " + route_result["result"]})
 
     if route_result["action"] == "build":
