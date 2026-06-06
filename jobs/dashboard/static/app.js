@@ -304,7 +304,7 @@ async function sendChat() {
   if (chatHistory.length > 40) chatHistory = chatHistory.slice(-40);
   _showTyping();
   try {
-    const data = await api('/api/chat', 'POST', {message: ollamaMsg, history: chatHistory.slice(0, -1)});
+    const data = await api('/api/chat', 'POST', {message: ollamaMsg, history: chatHistory.slice(0, -1), session_id: currentSessionId});
     _hideTyping();
     const reply = data.response || '(no response)';
     _appendMsg('watson', reply);
@@ -1032,7 +1032,7 @@ async function sendPWChat() {
   if (pwChatHistory.length > 40) pwChatHistory = pwChatHistory.slice(-40);
   _showPWTyping();
   try {
-    const data = await api('/api/chat', 'POST', {message:ollamaMsg, history:pwChatHistory.slice(0,-1)});
+    const data = await api('/api/chat', 'POST', {message:ollamaMsg, history:pwChatHistory.slice(0,-1), session_id: pwSessionId, project_slug: pwSlug});
     _hidePWTyping();
     const reply = data.response || '(no response)';
     _appendPWMsg('watson', reply);
