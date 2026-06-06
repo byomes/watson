@@ -24,3 +24,32 @@ PYTHONPATH=/home/billyomes/watson venv/bin/python3 -m jobs.skillbuilder.build '<
 
 Watson writes the job, syntax-checks it, commits, pushes, and notifies via Telegram.
 Always review the generated file before activating it.
+
+## Lessons Learned
+
+### run() function required in all skills (2026-06-06)
+Every Watson skill MUST have a run() function with no arguments that returns a string result.
+The skill router calls run() directly via dynamic import — main() is not sufficient.
+Missing run() causes: "module has no attribute 'run'" error.
+Pattern:
+def run() -> str:
+    # do the work
+    return "result string"
+
+if __name__ == "__main__":
+    print(run())
+
+### Always import Path when using REPO paths (2026-06-06)
+If the skill uses REPO = Path(__file__).resolve().parents[2], always include:
+from pathlib import Path
+Missing this import causes: "name 'Path' is not defined" error.
+
+### Skills must return strings, not send Telegram messages (2026-06-06)
+Skills called by the router should RETURN their result as a string.
+The router displays the result in chat and Telegram automatically.
+Skills should only send their own Telegram messages if they run standalone via cron.
+A run() function should never call the Telegram API directly.
+
+## Recently Built
+- jobs/monitoring/weather_every_morning.py: build a skill that checks the weather and sends it to me every morning at 6am via Telegram (built 2026-06-06)
+- jobs/misc/tells_many_days.py: build a skill that tells me how many days until Christmas (built by qwen2.5-coder:7b on 2026-06-06)
