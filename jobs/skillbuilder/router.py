@@ -29,7 +29,35 @@ _WRAP_UP_TRIGGERS = (
     "we're done", "wrap this up", "save this session", "end session",
     "that's all for now", "save to memory", "summarize and save",
     "let's wrap up", "we are done", "wrap up this session",
+    "wrap up", "save session",
 )
+
+_LIST_SKILLS_TRIGGERS = (
+    "list your skills", "what can you do", "show skills",
+)
+
+# Pre-check map: slug → trigger phrases. Matched before the LLM call.
+_SKILL_PRE_CHECKS: dict[str, tuple] = {
+    "send_email": (
+        "send an email", "send email", "email to",
+        "draft an email", "write an email", "compose an email",
+    ),
+    "tells_many_days": (
+        "how many days until christmas", "christmas countdown",
+    ),
+    "weather_every_morning": (
+        "what's the weather", "weather today", "check the weather", "forecast",
+    ),
+    "log_watch": (
+        "check logs", "any errors", "error summary",
+    ),
+    "bible_lookup": (
+        "bible", "scripture", "look up verse",
+    ),
+    "calendar_availability": (
+        "my availability", "check calendar", "open slots", "when am i free",
+    ),
+}
 
 # Matched against msg_lower BEFORE the LLM call — returns run_audit immediately, no fallthrough
 _AUDIT_TRIGGERS = (
@@ -248,6 +276,19 @@ def _route(message: str, interface: str) -> dict:
     # Keyword pre-check: audit phrases fire run_audit immediately, no LLM call.
     if any(trigger in msg_lower for trigger in _AUDIT_TRIGGERS):
         return {"action": "skill", "slug": "run_audit"}
+
+    # Keyword pre-checks: common skills — no LLM call for known patterns.
+    for slug, triggers in _SKILL_PRE_CHECKS.items():
+        if any(trigger in msg_lower for trigger in triggers):
+            return {"action": "skill", "slug": slug}
+
+    # Keyword pre-check: wrap-up phrases.
+    if any(trigger in msg_lower for trigger in _WRAP_UP_TRIGGERS):
+        return {"action": "wrap_up"}
+
+    # Keyword pre-check: list skills.
+    if any(trigger in msg_lower for trigger in _LIST_SKILLS_TRIGGERS):
+        return {"action": "skill", "slug": "list_skills", "result": _list_skills_result(interface)}
 
     # Keyword pre-check: guaranteed BUILD before the LLM sees the message.
     # Prevents build requests from ever falling through to Ollama.
