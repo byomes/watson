@@ -228,6 +228,43 @@ function _appendMsg(role, text) {
   msgs.scrollTop = msgs.scrollHeight;
 }
 
+function _appendEmailConfirmCard(container, em) {
+  const card = document.createElement('div');
+  card.className = 'email-confirm-card';
+  card.id = 'email-confirm-card';
+  card.innerHTML =
+    '<div class="email-confirm-row"><span class="email-confirm-lbl">To</span>' + esc(em.to_name) + ' (' + esc(em.to_email) + ')</div>' +
+    '<div class="email-confirm-row"><span class="email-confirm-lbl">Subject</span>' + esc(em.subject) + '</div>' +
+    '<div class="email-confirm-btns">' +
+      '<button class="email-confirm-send" onclick="confirmEmail(true)">Send ✓</button>' +
+      '<button class="email-confirm-cancel" onclick="confirmEmail(false)">Cancel ✗</button>' +
+    '</div>';
+  container.appendChild(card);
+  container.scrollTop = container.scrollHeight;
+}
+
+function _activeMsgsEl() {
+  const pw = document.getElementById('proj-workspace');
+  return (pw && pw.classList.contains('open'))
+    ? document.getElementById('pw-messages')
+    : document.getElementById('chat-messages');
+}
+
+async function confirmEmail(send) {
+  const card = document.getElementById('email-confirm-card');
+  try {
+    const data = await api('/api/email/confirm', 'POST', {confirm: send});
+    if (card) card.remove();
+    const reply = data.response || (send ? 'Email sent ✓' : 'Email cancelled.');
+    const pw = document.getElementById('proj-workspace');
+    if (pw && pw.classList.contains('open')) _appendPWMsg('watson', reply);
+    else _appendMsg('watson', reply);
+  } catch(e) {
+    if (card) card.remove();
+    _appendMsg('watson', 'Error: ' + e);
+  }
+}
+
 function _showTyping() {
   const msgs = document.getElementById('chat-messages');
   const wrap = document.createElement('div');
@@ -308,6 +345,7 @@ async function sendChat() {
     _hideTyping();
     const reply = data.response || '(no response)';
     _appendMsg('watson', reply);
+    if (data.confirm_email) _appendEmailConfirmCard(document.getElementById('chat-messages'), data.confirm_email);
     chatHistory.push({role: 'assistant', content: reply});
     if (chatHistory.length > 40) chatHistory = chatHistory.slice(-40);
     // Save Watson reply
@@ -1036,6 +1074,7 @@ async function sendPWChat() {
     _hidePWTyping();
     const reply = data.response || '(no response)';
     _appendPWMsg('watson', reply);
+    if (data.confirm_email) _appendEmailConfirmCard(document.getElementById('pw-messages'), data.confirm_email);
     pwChatHistory.push({role:'assistant', content:reply});
     if (pwChatHistory.length > 40) pwChatHistory = pwChatHistory.slice(-40);
     api('/api/chat/sessions/' + pwSessionId + '/messages', 'POST', {role:'assistant', content:reply});

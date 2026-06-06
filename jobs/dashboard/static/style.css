@@ -249,3 +249,11 @@ select option{background:var(--surface)}
 .pm-textarea::placeholder{color:var(--text-muted)}
 .pm-textarea:focus{border-color:var(--accent)}
 .pm-save-btn{align-self:flex-start;padding:8px 18px;background:var(--accent);border:none;border-radius:6px;color:#fff;font-size:13px;font-family:inherit;font-weight:500;cursor:pointer}
+
+/* Email confirmation card */
+.email-confirm-card{margin:8px 12px 4px;padding:14px 16px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;display:flex;flex-direction:column;gap:8px;max-width:420px}
+.email-confirm-row{font-size:13px;color:var(--text)}
+.email-confirm-lbl{font-weight:600;color:var(--text-muted);margin-right:6px}
+.email-confirm-btns{display:flex;gap:8px;margin-top:4px}
+.email-confirm-send{padding:7px 16px;background:var(--accent);border:none;border-radius:6px;color:#fff;font-size:13px;font-family:inherit;font-weight:500;cursor:pointer}
+.email-confirm-cancel{padding:7px 16px;background:none;border:1px solid var(--red,#e05c5c);border-radius:6px;color:var(--red,#e05c5c);font-size:13px;font-family:inherit;cursor:pointer}

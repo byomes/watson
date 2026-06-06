@@ -227,6 +227,8 @@ def _run_skill(skill: dict, message: str = None) -> str:
             result = fn(message=message)
         else:
             result = fn()
+    if isinstance(result, dict):
+        return result
     output = buf.getvalue().strip()
     if result is not None:
         return str(result)
