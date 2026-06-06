@@ -1,9 +1,12 @@
 """Watson dashboard — port 5200, Tailscale-only."""
 import json
+import logging
 import os
 import sqlite3
 import sys
 from pathlib import Path
+
+log = logging.getLogger(__name__)
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
@@ -601,15 +604,19 @@ def chat():
         return jsonify({"response": route_result["message"]})
 
     if route_result["action"] == "wrap_up":
-        import threading
-        from jobs.memory.wrap_up import wrap_up as _wrap_up
         session_id = data.get("session_id")
         project_slug = data.get("project_slug")
-        threading.Thread(
-            target=_wrap_up,
-            args=(session_id, project_slug),
-            daemon=True,
-        ).start()
+        log.info("WRAP_UP triggered — session_id=%s project_slug=%s", session_id, project_slug)
+        try:
+            import threading
+            from jobs.memory.wrap_up import wrap_up as _wrap_up
+            threading.Thread(
+                target=_wrap_up,
+                args=(session_id, project_slug),
+                daemon=True,
+            ).start()
+        except Exception as exc:
+            log.error("WRAP_UP: failed to start background thread: %s", exc)
         return jsonify({"response": "Wrapping up this session. I'll save it to memory and notify you via Telegram."})
 
     # Safety net: if any build trigger leaked past the router, fire the build now.
