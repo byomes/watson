@@ -266,7 +266,8 @@
     "interfaces": [
       "dashboard",
       "telegram"
-    ]
+    ],
+    "status": "dev"
   },
   {
     "slug": "both_read_pdf",
@@ -277,7 +278,8 @@
     "interfaces": [
       "dashboard",
       "telegram"
-    ]
+    ],
+    "status": "dev"
   },
   {
     "slug": "read_pdf",
@@ -322,7 +324,7 @@
     "job_module": "jobs.research.article_reader",
     "function": "run",
     "interfaces": ["dashboard", "telegram"],
-    "status": "ready"
+    "status": "dev"
   },
   {
     "slug": "feed_reader",
@@ -331,7 +333,7 @@
     "job_module": "jobs.research.feed_reader",
     "function": "run",
     "interfaces": ["dashboard", "telegram"],
-    "status": "ready"
+    "status": "dev"
   },
   {
     "slug": "table_extractor",
@@ -340,7 +342,7 @@
     "job_module": "jobs.data.table_extractor",
     "function": "run",
     "interfaces": ["dashboard", "telegram"],
-    "status": "ready"
+    "status": "dev"
   },
   {
     "slug": "data_analyzer",
@@ -349,7 +351,7 @@
     "job_module": "jobs.data.data_analyzer",
     "function": "run",
     "interfaces": ["dashboard", "telegram"],
-    "status": "ready"
+    "status": "dev"
   },
   {
     "slug": "vcf_importer",
@@ -358,7 +360,7 @@
     "job_module": "jobs.contacts.vcf_importer",
     "function": "run",
     "interfaces": ["dashboard", "telegram"],
-    "status": "ready"
+    "status": "dev"
   },
   {
     "slug": "qr_generator",
@@ -367,7 +369,7 @@
     "job_module": "jobs.utilities.qr_generator",
     "function": "run",
     "interfaces": ["dashboard", "telegram"],
-    "status": "ready"
+    "status": "dev"
   },
   {
     "slug": "date_helper",
@@ -376,7 +378,7 @@
     "job_module": "jobs.utilities.date_helper",
     "function": "run",
     "interfaces": ["dashboard", "telegram"],
-    "status": "ready"
+    "status": "dev"
   },
   {
     "slug": "youtube_downloader",
@@ -385,7 +387,7 @@
     "job_module": "jobs.media.youtube_downloader",
     "function": "run",
     "interfaces": ["dashboard", "telegram"],
-    "status": "ready"
+    "status": "dev"
   },
   {
     "slug": "text_processor",
@@ -394,6 +396,6 @@
     "job_module": "jobs.utilities.text_processor",
     "function": "run",
     "interfaces": ["dashboard", "telegram"],
-    "status": "ready"
+    "status": "dev"
   }
 ]

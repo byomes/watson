@@ -62,28 +62,55 @@ async function loadRemindersPanel() {
     el.innerHTML = '<div style="font-size:12px;color:var(--red);padding:6px 0">Failed to load reminders.</div>';
   }
 }
+var _allSkills = [];
+var _skillTab = 'ready';
+
 async function loadSkillsPanel() {
   const el = document.getElementById('settings-skills-list');
   el.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:6px 0">Loading...</div>';
+  _skillTab = 'ready';
+  _updateSkillTabUI();
   try {
-    const skills = await api('/api/skills');
-    if (!skills.length) {
-      el.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:6px 0">No skills installed yet.</div>';
-      return;
-    }
-    el.innerHTML = skills.map(function(s) {
-      const name = s.slug.replace(/_/g, ' ').replace(/\b\w/g, function(c){return c.toUpperCase();});
-      return '<div class="skill-card">' +
-        '<div class="skill-info">' +
-          '<div class="skill-name">' + esc(name) + '</div>' +
-          '<div class="skill-desc">' + esc(s.description) + '</div>' +
-        '</div>' +
-        '<button class="skill-use-btn" data-slug="' + esc(s.slug) + '" onclick="useSkill(this.dataset.slug)">Use Skill</button>' +
-      '</div>';
-    }).join('');
+    _allSkills = await api('/api/skills');
+    _renderSkillList();
   } catch(e) {
     el.innerHTML = '<div style="font-size:12px;color:var(--danger);padding:6px 0">Failed to load skills.</div>';
   }
+}
+
+function switchSkillTab(tab) {
+  _skillTab = tab;
+  _updateSkillTabUI();
+  _renderSkillList();
+}
+
+function _updateSkillTabUI() {
+  document.querySelectorAll('.skill-tab').forEach(function(btn) {
+    const active = btn.dataset.tab === _skillTab;
+    btn.style.color = active ? 'var(--accent)' : 'var(--text-muted)';
+    btn.style.borderBottomColor = active ? 'var(--accent)' : 'transparent';
+  });
+}
+
+function _renderSkillList() {
+  const el = document.getElementById('settings-skills-list');
+  const filtered = _allSkills.filter(function(s) {
+    return (s.status || 'ready') === _skillTab;
+  });
+  if (!filtered.length) {
+    el.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:6px 0">No ' + _skillTab + ' skills.</div>';
+    return;
+  }
+  el.innerHTML = filtered.map(function(s) {
+    const name = s.slug.replace(/_/g, ' ').replace(/\b\w/g, function(c){return c.toUpperCase();});
+    return '<div class="skill-card">' +
+      '<div class="skill-info">' +
+        '<div class="skill-name">' + esc(name) + '</div>' +
+        '<div class="skill-desc">' + esc(s.description) + '</div>' +
+      '</div>' +
+      '<button class="skill-use-btn" data-slug="' + esc(s.slug) + '" onclick="useSkill(this.dataset.slug)">Use Skill</button>' +
+    '</div>';
+  }).join('');
 }
 function useSkill(slug) {
   const name = slug.replace(/_/g, ' ').replace(/\b\w/g, function(c){return c.toUpperCase();});

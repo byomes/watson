@@ -516,7 +516,12 @@ def skills_list_api():
         return jsonify([])
     try:
         skills = json.loads(SKILLS_FILE.read_text(encoding="utf-8"))
-        return jsonify(skills if isinstance(skills, list) else [])
+        if not isinstance(skills, list):
+            return jsonify([])
+        for s in skills:
+            if "status" not in s:
+                s["status"] = "ready"
+        return jsonify(skills)
     except Exception:
         return jsonify([])
 
