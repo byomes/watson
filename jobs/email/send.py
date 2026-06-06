@@ -1,8 +1,8 @@
-"""jobs/email/send.py — Email skill: extract recipient/subject/body from natural language and save a Gmail draft."""
-import base64
+"""jobs/email/send.py — Email skill: extract recipient/subject/body from natural language and send via SMTP."""
 import json
 import logging
 import os
+import smtplib
 import sqlite3
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -53,17 +53,24 @@ def _lookup_email(name: str) -> str | None:
     return row[0] if row else None
 
 
-def _save_draft(to_email: str, subject: str, body: str) -> None:
-    from jobs.email_job.gmail import get_service
+def _send_smtp(to_email: str, subject: str, body: str) -> None:
+    smtp_host = os.getenv("WATSON_SMTP_HOST")
+    smtp_user = os.getenv("WATSON_SMTP_USER")
+    smtp_pass = os.getenv("WATSON_GMAIL_APP_PASSWORD")
+
+    full_body = f"{body}\n\n---\nSent by Watson on behalf of Dr. Bill Yomes"
+
     msg = MIMEMultipart("alternative")
-    msg["to"] = to_email
-    msg["subject"] = subject
-    msg.attach(MIMEText(body, "plain"))
-    raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
-    service = get_service()
-    service.users().drafts().create(
-        userId="me", body={"message": {"raw": raw}}
-    ).execute()
+    msg["From"] = "Watson <watson.wcky@gmail.com>"
+    msg["To"] = to_email
+    msg["Subject"] = subject
+    msg.attach(MIMEText(full_body, "plain"))
+
+    with smtplib.SMTP(smtp_host, 587) as smtp:
+        smtp.ehlo()
+        smtp.starttls()
+        smtp.login(smtp_user, smtp_pass)
+        smtp.sendmail(smtp_user, [to_email], msg.as_string())
 
 
 def run(message: str = None) -> str:
@@ -91,9 +98,9 @@ def run(message: str = None) -> str:
         )
 
     try:
-        _save_draft(to_email, subject, body)
+        _send_smtp(to_email, subject, body)
     except Exception as exc:
-        log.error("Gmail draft creation failed: %s", exc)
-        return f"Draft failed: {exc}"
+        log.error("Email send failed: %s", exc)
+        return f"Failed to send email: {exc}"
 
-    return f"Draft saved to Gmail: To: {to_email}, Subject: {subject}"
+    return f"Email sent to {to_name} at {to_email} — Subject: {subject}"
