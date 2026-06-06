@@ -276,11 +276,13 @@ def _update_python_memory(job_path: str, description: str, built_by: str) -> Non
         )
 
 
-def _post_success(job_path: str, description: str, built_by: str) -> None:
+def _post_success(job_path: str, description: str, built_by: str, code: str = "") -> None:
     Path(tempfile.gettempdir()).joinpath("watson_skill_draft.py").unlink(missing_ok=True)
     try:
         _update_python_memory(job_path, description, built_by)
         _update_skills_json(job_path, description)
+        if code:
+            _save_learning(description, job_path, built_by, code)
         from jobs.memory.sync import main as sync_main
         sync_main()
     except Exception as exc:
@@ -289,10 +291,75 @@ def _post_success(job_path: str, description: str, built_by: str) -> None:
 
 # ── Build skill ───────────────────────────────────────────────────────────────
 
+def _save_learning(description: str, job_path: str, built_by: str, code: str) -> None:
+    """Summarize the newly built code and append the pattern to coding memory."""
+    if not code:
+        return
+    first_50 = "\n".join(code.splitlines()[:50])
+    first_20 = "\n".join(code.splitlines()[:20])
+    today = date.today().isoformat()
+
+    try:
+        resp = requests.post(
+            OLLAMA_URL,
+            json={
+                "model": "llama3.2:3b",
+                "prompt": (
+                    "In one paragraph, what is the key coding pattern demonstrated in this code? "
+                    "Focus on the approach, not the specifics.\n\n" + first_50
+                ),
+                "stream": False,
+            },
+            timeout=60,
+        )
+        resp.raise_for_status()
+        summary = resp.json().get("response", "").strip()
+    except Exception as exc:
+        log.warning("_save_learning: Ollama call failed: %s", exc)
+        return
+
+    desc_lower = description.lower()
+    if any(k in desc_lower for k in ("telegram", "message", "notify", "bot")):
+        target = MEMORY / "coding" / "telegram.md"
+    elif any(k in desc_lower for k in ("sqlite", "db", "database", "sql")):
+        target = MEMORY / "coding" / "sqlite.md"
+    elif any(k in desc_lower for k in ("ollama", "llm", "llama", "model", "chat")):
+        target = MEMORY / "coding" / "ollama.md"
+    else:
+        target = MEMORY / "coding" / "python.md"
+
+    if not target.exists():
+        return
+
+    entry = (
+        f"\n\n## Pattern: {description[:60]} ({today})\n"
+        f"{summary}\n"
+        f"```python\n{first_20}\n```"
+    )
+    try:
+        with target.open("a", encoding="utf-8") as f:
+            f.write(entry)
+        log.info("_save_learning: appended to %s", target.name)
+    except Exception as exc:
+        log.warning("_save_learning: write failed: %s", exc)
+
+
 def build_skill(description: str, job_path: str) -> bool:
     log.info("Building skill: %s → %s", description[:60], job_path)
 
+    # Research phase: find relevant patterns before writing code
+    research_context = ""
+    try:
+        from jobs.skillbuilder.research import research as _do_research
+        research_context = _do_research(description)
+        if research_context:
+            log.info("Research complete: %d chars", len(research_context))
+    except Exception as exc:
+        log.warning("Research failed (non-fatal): %s", exc)
+
     context = _load_context()
+    if research_context:
+        context = context + "\n\n" + research_context
     examples = _load_examples()
 
     system = (
@@ -343,7 +410,7 @@ def build_skill(description: str, job_path: str) -> bool:
                     "Review before activating. Add a cron entry or start as a service to enable."
                 )
                 _log_build(description, job_path, 1, True, built_by=OLLAMA_MODEL)
-                _post_success(job_path, description, OLLAMA_MODEL)
+                _post_success(job_path, description, OLLAMA_MODEL, code_1)
                 return True
             _telegram(f"✗ Git push failed: {push_err}")
             _log_build(description, job_path, 1, False, error_1=push_err, built_by=OLLAMA_MODEL)
@@ -384,7 +451,7 @@ def build_skill(description: str, job_path: str) -> bool:
                         description, job_path, 2, True,
                         error_1=error_1, built_by=OLLAMA_MODEL,
                     )
-                    _post_success(job_path, description, OLLAMA_MODEL)
+                    _post_success(job_path, description, OLLAMA_MODEL, code_2)
                     return True
                 _telegram(f"✗ Git push failed: {push_err}")
                 _log_build(
@@ -431,7 +498,7 @@ def build_skill(description: str, job_path: str) -> bool:
                         description, job_path, 3, True,
                         error_1=error_1, error_2=error_2, built_by="claude-sonnet",
                     )
-                    _post_success(job_path, description, "claude-sonnet")
+                    _post_success(job_path, description, "claude-sonnet", code_3)
                     return True
                 _telegram(f"✗ Git push failed: {push_err}")
                 _log_build(

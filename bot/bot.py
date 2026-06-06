@@ -47,6 +47,8 @@ _AUTHORIZED_ID = int(TELEGRAM_CHAT_ID) if TELEGRAM_CHAT_ID else None
 # Pending skill proposals keyed by Telegram chat_id
 _pending_skills: dict[int, str] = {}
 
+# Pending capability gap proposals (from audit) — resolved via DB
+
 # Per-chat message counter for background reflection
 _msg_counter: dict[int, int] = {}
 
@@ -61,6 +63,39 @@ def _maybe_reflect(chat_id: int) -> None:
 
 _SKILL_AFFIRM = {"yes", "yes please", "go ahead", "build it", "sure", "do it", "yep", "yeah"}
 _SKILL_DENY = {"no", "never mind", "nope", "cancel", "don't", "no thanks"}
+
+
+def _get_next_proposed_gap() -> dict | None:
+    """Return the oldest proposed capability gap from the DB, or None."""
+    try:
+        with get_connection() as conn:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS capability_gaps (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    gap_name TEXT NOT NULL,
+                    reason TEXT,
+                    job_path TEXT,
+                    description TEXT,
+                    status TEXT NOT NULL DEFAULT 'proposed',
+                    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+                )
+            """)
+            row = conn.execute(
+                "SELECT * FROM capability_gaps WHERE status='proposed' ORDER BY created_at ASC LIMIT 1"
+            ).fetchone()
+        return dict(row) if row else None
+    except Exception:
+        return None
+
+
+def _set_gap_status(gap_id: int, status: str) -> None:
+    try:
+        with get_connection() as conn:
+            conn.execute(
+                "UPDATE capability_gaps SET status=? WHERE id=?", (status, gap_id)
+            )
+    except Exception as exc:
+        log.warning("Gap status update failed: %s", exc)
 
 
 # --- DB helpers -------------------------------------------------------
@@ -335,7 +370,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text_clean = text_clean[len(prefix):].strip()
             break
 
-    # Handle CONFIRM / CANCEL for pending actions (calendar and skill proposals)
+    # Handle CONFIRM / CANCEL for pending actions (calendar, skill proposals, capability gaps)
     if text_lower in ("yes", "confirm", "yes do it", "book it", "go ahead") or text_lower in _SKILL_AFFIRM:
         if chat_id in _pending_skills:
             pending_desc = _pending_skills.pop(chat_id)
@@ -349,6 +384,22 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ).start()
             await update.message.reply_text("Building that skill now. I'll notify you via Telegram when it's ready.")
             return
+        gap = _get_next_proposed_gap()
+        if gap:
+            _set_gap_status(gap["id"], "approved")
+            from jobs.skillbuilder import router as _router
+            import threading
+            description = gap.get("description") or gap["gap_name"]
+            job_path = gap.get("job_path", "jobs/misc/new_skill.py")
+            threading.Thread(
+                target=_router._build_in_background,
+                args=(description, job_path, "telegram"),
+                daemon=True,
+            ).start()
+            await update.message.reply_text(
+                f"Building {gap['gap_name']} now. I'll notify you via Telegram when it's ready."
+            )
+            return
         p = pending_module.get_pending(chat_id)
         if p:
             await _execute_pending(update, context, p)
@@ -358,6 +409,11 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if chat_id in _pending_skills:
             del _pending_skills[chat_id]
             await update.message.reply_text("Got it. Let me know if you need anything else.")
+            return
+        gap = _get_next_proposed_gap()
+        if gap:
+            _set_gap_status(gap["id"], "rejected")
+            await update.message.reply_text("Got it, skipped.")
             return
         p = pending_module.get_pending(chat_id)
         if p:

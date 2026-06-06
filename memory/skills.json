@@ -199,5 +199,23 @@
       "telegram"
     ],
     "status": "ready"
+  },
+  {
+    "slug": "run_audit",
+    "description": "Run a capability gap audit and send gap proposals via Telegram",
+    "triggers": [
+      "run audit",
+      "capability audit",
+      "what gaps do you have",
+      "audit watson",
+      "what should you build next"
+    ],
+    "job_module": "jobs.skillbuilder.audit",
+    "function": "run",
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ],
+    "status": "ready"
   }
 ]
