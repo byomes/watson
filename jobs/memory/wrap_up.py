@@ -3,7 +3,7 @@ import logging
 import os
 import sqlite3
 import subprocess
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 import requests
@@ -126,8 +126,10 @@ def wrap_up(session_id=None, project_slug: str = None) -> str:
     messages = _load_all_messages(session_id) if session_id is not None else []
     transcript = _format_transcript(messages) if messages else "(no messages recorded in this session)"
 
+    today = datetime.now().strftime("%Y-%m-%d %I:%M %p")
     prompt = (
         "SYSTEM: You are Watson's memory system. Bill is explicitly closing a working session. "
+        f"Today's date and time: {today}\n\n"
         "Create a detailed session summary for project memory. Include:\n"
         "1. What was accomplished in this session\n"
         "2. Decisions made and why\n"
