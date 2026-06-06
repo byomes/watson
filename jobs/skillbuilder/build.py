@@ -35,7 +35,7 @@ def _telegram(text: str) -> None:
         requests.post(
             f"https://api.telegram.org/bot{bot_token}/sendMessage",
             json={"chat_id": chat_id, "text": text},
-            timeout=300,
+            timeout=600,
         )
     except Exception as exc:
         log.error("Telegram failed: %s", exc)
@@ -73,7 +73,7 @@ def _call_ollama(prompt: str) -> str:
     resp = requests.post(
         OLLAMA_URL,
         json={"model": OLLAMA_MODEL, "prompt": prompt, "stream": False},
-        timeout=300,
+        timeout=600,
     )
     resp.raise_for_status()
     return resp.json().get("response", "").strip()

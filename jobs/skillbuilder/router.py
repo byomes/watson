@@ -80,16 +80,51 @@ def _extract_build_description(message: str) -> str:
     return msg.strip() or message.strip()
 
 
+_SLUG_FILLER = frozenset({
+    "build", "skill", "that", "checks", "the", "a", "an", "and", "or",
+    "for", "to", "with", "i", "me", "my", "job", "create", "add",
+    "ability", "write", "something", "watson", "can", "you", "make",
+    "new", "some", "it", "its", "is", "are", "be", "been", "has",
+    "have", "will", "would", "should", "could", "get", "gets", "give",
+    "gives", "send", "sends", "this", "then", "when", "how", "what",
+    "which", "also", "just", "let", "use", "using",
+})
+
+_CATEGORY_MAP = {
+    "weather": "monitoring", "forecast": "monitoring",
+    "monitor": "monitoring", "log": "monitoring", "disk": "monitoring",
+    "cpu": "monitoring", "memory": "monitoring", "health": "monitoring",
+    "email": "email", "gmail": "email", "mail": "email",
+    "calendar": "gcal", "schedule": "gcal", "event": "gcal", "booking": "gcal",
+    "bible": "bible", "verse": "bible", "scripture": "bible",
+    "social": "social", "twitter": "social", "facebook": "social",
+    "remind": "misc", "reminder": "misc",
+    "task": "misc", "todo": "misc",
+    "people": "people", "contact": "people",
+    "news": "misc", "briefing": "misc",
+    "sermon": "sermon", "transcript": "sermon",
+    "report": "misc", "summary": "misc",
+}
+
+
 def _generate_job_path(description: str) -> str:
-    """Derive jobs/<category>/<slug>.py from a plain-English description."""
+    """Derive jobs/<category>/<slug>.py from a plain-English description.
+
+    Strips filler words, picks the first 3 meaningful keywords for the slug,
+    and maps the first recognised domain keyword to a category folder.
+    Example: "checks the weather and sends it to me" → jobs/monitoring/weather_sends.py
+    """
     words = re.sub(r'[^a-z0-9\s]', '', description.lower()).split()
-    category = "custom"
-    for word in words:
-        if word in _CATEGORY_KEYWORDS:
-            category = _CATEGORY_KEYWORDS[word]
+    meaningful = [w for w in words if w not in _SLUG_FILLER and len(w) > 1]
+
+    category = "misc"
+    for word in meaningful:
+        if word in _CATEGORY_MAP:
+            category = _CATEGORY_MAP[word]
             break
-    slug_words = [w for w in words if len(w) > 2][:5]
-    slug = "_".join(slug_words)[:40].strip("_") or "skill"
+
+    slug_words = meaningful[:3]
+    slug = "_".join(slug_words) or "skill"
     return f"jobs/{category}/{slug}.py"
 
 
