@@ -647,9 +647,9 @@ async function sendChat() {
   }
   input.value = '';
 
-  const displayMsg = attachedFileName ? text + '\n\U0001F4CE ' + attachedFileName : text;
+  const displayMsg = attachedFileName ? text + '\\n\U0001F4CE ' + attachedFileName : text;
   const ollamaMsg = attachedFileContent
-    ? '[Attached file: ' + attachedFileName + ']\n' + attachedFileContent + '\n\n---\n\nUser message: ' + text
+    ? '[Attached file: ' + attachedFileName + ']\\n' + attachedFileContent + '\\n\\n---\\n\\nUser message: ' + text
     : text;
   if (attachedFileContent) clearAttachment();
 
