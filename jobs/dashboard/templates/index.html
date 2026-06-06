@@ -283,8 +283,11 @@
     <button class="pw-sidebar-close" onclick="closeFileSidebar()">&#215;</button>
   </div>
   <div id="pw-sidebar-content" style="flex:1;overflow-y:auto;padding:12px"></div>
-  <div style="padding:12px;border-top:1px solid var(--border);flex-shrink:0">
+  <div style="padding:12px;border-top:1px solid var(--border);flex-shrink:0;display:flex;flex-direction:column;gap:8px">
     <button class="pw-new-note-btn" onclick="openNoteModal()">+ New Note</button>
+    <input type="file" id="pw-sidebar-file-input" style="display:none" onchange="handleSidebarFileUpload(this)">
+    <button class="pw-new-note-btn" style="background:none;color:var(--text-muted);border-color:var(--border)" onclick="document.getElementById('pw-sidebar-file-input').click()">&#8593; Upload File</button>
+    <span id="pw-upload-msg" style="display:none;color:var(--accent);font-size:12px;text-align:center">Uploaded ✓</span>
   </div>
 </div>
 

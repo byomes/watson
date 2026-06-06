@@ -1077,6 +1077,24 @@ async function openFileSidebar() {
 }
 function closeFileSidebar() { document.getElementById('pw-sidebar').classList.remove('open'); }
 
+async function handleSidebarFileUpload(input) {
+  if (!input.files.length || !pwSlug) return;
+  const file = input.files[0];
+  input.value = '';
+  const form = new FormData();
+  form.append('file', file);
+  try {
+    const resp = await fetch('/api/projects/' + pwSlug + '/files', { method: 'POST', body: form });
+    if (!resp.ok) throw new Error(await resp.text());
+    await loadFileSidebar();
+    const msg = document.getElementById('pw-upload-msg');
+    msg.style.display = 'block';
+    setTimeout(() => { msg.style.display = 'none'; }, 2000);
+  } catch (e) {
+    alert('Upload failed: ' + e);
+  }
+}
+
 async function openProjectMemory() {
   if (!pwSlug) return;
   closeFileSidebar();
