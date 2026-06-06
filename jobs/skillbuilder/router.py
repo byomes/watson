@@ -3,6 +3,8 @@ import importlib
 import io
 import json
 import logging
+import re
+import threading
 from contextlib import redirect_stdout
 from pathlib import Path
 
@@ -14,6 +16,73 @@ OLLAMA_URL = "http://localhost:11434/api/generate"
 OLLAMA_MODEL = "llama3.2:3b"
 
 log = logging.getLogger(__name__)
+
+# Keyed by interface ("dashboard", "telegram"); stores description of last failed build
+_last_failed_build: dict[str, str] = {}
+
+_RETRY_PHRASES = frozenset({
+    "retry", "try again", "build it again", "rebuild",
+    "try that again", "build again", "retry building",
+})
+
+_CATEGORY_KEYWORDS = {
+    "monitor": "monitoring", "log": "monitoring", "disk": "monitoring",
+    "cpu": "monitoring", "memory": "monitoring", "health": "monitoring",
+    "email": "email", "gmail": "email", "mail": "email",
+    "calendar": "gcal", "schedule": "gcal", "event": "gcal", "booking": "gcal",
+    "bible": "bible", "verse": "bible", "scripture": "bible",
+    "weather": "weather", "forecast": "weather",
+    "social": "social", "twitter": "social", "facebook": "social",
+    "remind": "reminders", "reminder": "reminders",
+    "task": "tasks", "todo": "tasks",
+    "people": "people", "contact": "people",
+    "news": "briefing", "briefing": "briefing",
+    "sermon": "sermon", "transcript": "sermon",
+    "report": "reporting", "summary": "reporting",
+}
+
+_BUILD_FRAME_PATTERNS = [
+    r'^watson[,\s]+',
+    r'^build\s+me\s+a\s+skill\s+that\s+',
+    r'^build\s+a\s+skill\s+that\s+',
+    r'^build\s+a\s+skill\s+to\s+',
+    r'^create\s+a\s+job\s+that\s+',
+    r'^create\s+a\s+skill\s+that\s+',
+    r'^write\s+a\s+job\s+that\s+',
+    r'^add\s+the\s+ability\s+to\s+',
+    r'^i\s+need\s+you\s+to\s+be\s+able\s+to\s+',
+    r'^build\s+something\s+that\s+',
+    r'^build\s+me\s+something\s+that\s+',
+    r'^can\s+you\s+build\s+',
+    r'^build\s+me\s+a\s+',
+    r'^build\s+a\s+',
+    r'^create\s+a\s+',
+    r'^write\s+a\s+',
+]
+
+
+def _extract_build_description(message: str) -> str:
+    """Strip build-request framing, return the functional description."""
+    msg = message.strip()
+    for pattern in _BUILD_FRAME_PATTERNS:
+        match = re.match(pattern, msg, re.IGNORECASE)
+        if match:
+            msg = msg[match.end():]
+            break
+    return msg.strip() or message.strip()
+
+
+def _generate_job_path(description: str) -> str:
+    """Derive jobs/<category>/<slug>.py from a plain-English description."""
+    words = re.sub(r'[^a-z0-9\s]', '', description.lower()).split()
+    category = "custom"
+    for word in words:
+        if word in _CATEGORY_KEYWORDS:
+            category = _CATEGORY_KEYWORDS[word]
+            break
+    slug_words = [w for w in words if len(w) > 2][:5]
+    slug = "_".join(slug_words)[:40].strip("_") or "skill"
+    return f"jobs/{category}/{slug}.py"
 
 
 def _load_skills(interface: str) -> list:
@@ -35,15 +104,19 @@ def _ask_router(message: str, skills: list) -> str:
     prompt = (
         "SYSTEM: You are Watson's skill router. Given a user message and a list of "
         "available skills, determine the best action. Reply with exactly one of: "
-        "SKILL:<slug>, LIST_SKILLS, PROPOSE, or CHAT. Nothing else.\n\n"
+        "SKILL:<slug>, LIST_SKILLS, BUILD, PROPOSE, or CHAT. Nothing else.\n\n"
         "SKILL:<slug> — the message clearly maps to a known skill by intent and meaning. "
         "Match on what the user wants to accomplish, not exact wording. "
         "The triggers array is a hint only.\n"
-        "LIST_SKILLS — the user wants to know what Watson can do, see his capabilities, "
-        "or list his skills. This includes any natural phrasing like 'what can you do', "
-        "'show me your skills', 'what do you know how to do', 'what are you capable of'.\n"
-        "PROPOSE — the message describes a task Watson should be able to do but currently cannot.\n"
-        "CHAT — general conversation, a question, or something Watson should just respond to normally.\n\n"
+        "LIST_SKILLS — the user wants to know what Watson can do or see his capabilities. "
+        "This includes any natural phrasing like 'what can you do', 'show me your skills', "
+        "'what do you know how to do', 'what are you capable of'.\n"
+        "BUILD — the user is explicitly asking Watson to build, create, or add a new skill "
+        "or job. Phrases like 'build a skill', 'create a job', 'add the ability to', "
+        "'I need you to be able to', 'write a job that', 'build me something that'.\n"
+        "PROPOSE — the message describes a task Watson should be able to do but currently "
+        "cannot — but is NOT explicitly asking Watson to build it right now.\n"
+        "CHAT — general conversation, question, or something Watson should respond to normally.\n\n"
         f"Available skills:\n{skills_json}\n\n"
         f"User message: {message}"
     )
@@ -80,14 +153,32 @@ def _list_skills_result(interface: str) -> str:
     return "Here are my current skills:\n\n" + lines
 
 
+def _build_in_background(description: str, job_path: str, interface: str) -> None:
+    """Background thread target: run build_skill and track result in _last_failed_build."""
+    from jobs.skillbuilder.build import build_skill
+    success = build_skill(description, job_path)
+    if success:
+        _last_failed_build.pop(interface, None)
+    else:
+        _last_failed_build[interface] = description
+
+
 def route(message: str, interface: str) -> dict:
-    """Route a message to a skill, propose a new skill, or fall through to chat.
+    """Route a message to a skill, trigger a build, propose a new skill, or fall through.
 
     Returns one of:
       {"action": "skill", "slug": str, "result": str}
+      {"action": "build", "description": str, "job_path": str}
       {"action": "propose", "message": str}
       {"action": "chat"}
     """
+    # Retry check: if Bill is retrying after a failed build, skip the LLM
+    msg_lower = message.lower().strip()
+    if any(phrase in msg_lower for phrase in _RETRY_PHRASES) and interface in _last_failed_build:
+        description = _last_failed_build[interface]
+        job_path = _generate_job_path(description)
+        return {"action": "build", "description": description, "job_path": job_path}
+
     skills = _load_skills(interface)
     if not skills:
         return {"action": "chat"}
@@ -115,6 +206,11 @@ def route(message: str, interface: str) -> dict:
             "slug": "list_skills",
             "result": _list_skills_result(interface),
         }
+
+    if decision == "BUILD":
+        description = _extract_build_description(message)
+        job_path = _generate_job_path(description)
+        return {"action": "build", "description": description, "job_path": job_path}
 
     if decision == "PROPOSE":
         return {

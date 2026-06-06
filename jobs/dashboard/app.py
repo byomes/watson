@@ -546,14 +546,13 @@ def chat():
         if msg_lower in _AFFIRM:
             pending = _pending_skill_request
             _pending_skill_request = None
-            slug = pending.lower()[:40]
-            for ch in " !?:,;'\"/\\.":
-                slug = slug.replace(ch, "_")
-            slug = "_".join(p for p in slug.split("_") if p)[:30]
-            job_path = f"jobs/custom/{slug}.py"
-            from jobs.skillbuilder.build import build_skill as _build_skill
+            job_path = _router._generate_job_path(pending)
             import threading
-            threading.Thread(target=_build_skill, args=(pending, job_path), daemon=True).start()
+            threading.Thread(
+                target=_router._build_in_background,
+                args=(pending, job_path, "dashboard"),
+                daemon=True,
+            ).start()
             return jsonify({"response": "Building that skill now. I’ll notify you via Telegram when it’s ready."})
         if msg_lower in _DENY or msg_lower.startswith("no "):
             _pending_skill_request = None
@@ -567,6 +566,15 @@ def chat():
 
     if route_result["action"] == "skill":
         return jsonify({"response": "✓ " + route_result["result"]})
+
+    if route_result["action"] == "build":
+        import threading
+        threading.Thread(
+            target=_router._build_in_background,
+            args=(route_result["description"], route_result["job_path"], "dashboard"),
+            daemon=True,
+        ).start()
+        return jsonify({"response": "Building that skill now. I'll notify you via Telegram when it's ready."})
 
     if route_result["action"] == "propose":
         _pending_skill_request = message

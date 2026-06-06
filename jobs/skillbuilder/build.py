@@ -168,13 +168,21 @@ def build_skill(description: str, job_path: str) -> bool:
     try:
         code = _call_ollama(full_prompt)
     except Exception as exc:
-        msg = f"✗ Skill build failed ({job_path}): Ollama error — {exc}"
+        msg = (
+            f"✗ Build failed: {job_path}\n\n"
+            f"Ollama error — {exc}\n\n"
+            f"Build failed after attempt. Say 'retry building {description[:40]}' to try again."
+        )
         log.error(msg)
         _telegram(msg)
         return False
 
     if not code:
-        msg = f"✗ Skill build failed ({job_path}): empty response from model"
+        msg = (
+            f"✗ Build failed: {job_path}\n\n"
+            f"Empty response from model.\n\n"
+            f"Build failed after attempt. Say 'retry building {description[:40]}' to try again."
+        )
         log.error(msg)
         _telegram(msg)
         return False
@@ -190,7 +198,11 @@ def build_skill(description: str, job_path: str) -> bool:
     # 5. Syntax check
     ok, err = _syntax_check(code)
     if not ok:
-        msg = f"✗ Skill build failed ({job_path}): syntax error\n\n{err}"
+        msg = (
+            f"✗ Build failed: {job_path}\n\n"
+            f"Syntax error — {err}\n\n"
+            f"Build failed after attempt. Say 'retry building {description[:40]}' to try again."
+        )
         log.error(msg)
         _telegram(msg)
         return False
@@ -218,7 +230,11 @@ def build_skill(description: str, job_path: str) -> bool:
             check=True,
         )
     except subprocess.CalledProcessError as exc:
-        msg = f"✗ Skill build ({job_path}): git error — {exc}"
+        msg = (
+            f"✗ Build failed: {job_path}\n\n"
+            f"Git error — {exc}\n\n"
+            f"Build failed after attempt. Say 'retry building {description[:40]}' to try again."
+        )
         log.error(msg)
         _telegram(msg)
         return False
@@ -226,8 +242,8 @@ def build_skill(description: str, job_path: str) -> bool:
     # 8. Notify Bill
     _telegram(
         f"✓ Skill built: {job_path}\n\n"
-        "Review before running. To activate add a cron entry or start as a service.\n\n"
-        "Pull on Beelink to confirm: git log --oneline -1"
+        f"{description}\n\n"
+        "Review before activating. Add a cron entry or start as a service to enable."
     )
 
     # 9. Update memory, skills registry, and sync DB
