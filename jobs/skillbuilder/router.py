@@ -23,7 +23,11 @@ def _load_skills(interface: str) -> list:
         skills = json.loads(SKILLS_FILE.read_text(encoding="utf-8"))
     except Exception:
         return []
-    return [s for s in skills if interface in s.get("interfaces", [])]
+    return [
+        s for s in skills
+        if interface in s.get("interfaces", [])
+        and s.get("status", "ready") == "ready"
+    ]
 
 
 def _ask_router(message: str, skills: list) -> str:
