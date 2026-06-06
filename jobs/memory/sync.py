@@ -80,7 +80,7 @@ def sync_projects(conn):
         last_updated = row.get("last_updated", "").strip()
         if not slug:
             continue
-        file_path = str(MEMORY / "projects" / f"{slug}.md")
+        file_path = str(MEMORY / "projects" / slug / f"{slug}.md")
         conn.execute(
             """
             INSERT INTO memory_projects (slug, name, status, file_path, last_updated)

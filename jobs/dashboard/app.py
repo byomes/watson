@@ -12,6 +12,7 @@ from jobs.people.api import people_create, people_delete, people_list, people_up
 
 DB = os.path.expanduser("~/watson/data/watson.db")
 SKILLS_FILE = Path(__file__).resolve().parents[2] / "memory" / "skills.json"
+MEMORY = Path(__file__).resolve().parents[2] / "memory"
 app = Flask(__name__)
 
 
@@ -75,6 +76,10 @@ def _bootstrap():
         created_at TEXT    NOT NULL DEFAULT (datetime('now')),
         FOREIGN KEY (session_id) REFERENCES chat_sessions(id)
     )""")
+    try:
+        c.execute("ALTER TABLE chat_sessions ADD COLUMN project_slug TEXT DEFAULT NULL")
+    except Exception:
+        pass
     c.commit()
     c.close()
 
@@ -1719,6 +1724,145 @@ def calendar_today():
         return jsonify(events)
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
+
+
+# ── Projects ──────────────────────────────────────────────────────────────────
+
+import re as _re
+from datetime import date as _date
+from werkzeug.utils import secure_filename as _secure
+
+
+def _parse_projects_index():
+    index_path = MEMORY / "projects" / "_index.md"
+    if not index_path.exists():
+        return []
+    rows = []
+    lines = index_path.read_text(encoding="utf-8").splitlines()
+    header = None
+    for line in lines:
+        line = line.strip()
+        if not line.startswith("|"):
+            continue
+        cells = [c.strip() for c in line.strip("|").split("|")]
+        if header is None:
+            header = [c.lower().replace(" ", "_") for c in cells]
+            continue
+        if all(_re.fullmatch(r"[-:]+", c) for c in cells):
+            continue
+        if len(cells) == len(header):
+            rows.append(dict(zip(header, cells)))
+    return rows
+
+
+@app.route("/api/projects")
+def projects_list():
+    return jsonify(_parse_projects_index())
+
+
+@app.route("/api/projects/<slug>")
+def projects_get(slug):
+    md_path = MEMORY / "projects" / slug / f"{slug}.md"
+    if not md_path.exists():
+        return jsonify({"error": "not found"}), 404
+    rows = _parse_projects_index()
+    meta = next((r for r in rows if r.get("slug") == slug), {})
+    return jsonify({"slug": slug, "meta": meta, "content": md_path.read_text(encoding="utf-8")})
+
+
+@app.route("/api/projects/<slug>/files")
+def projects_files_list(slug):
+    files_dir = MEMORY / "projects" / slug / "files"
+    if not files_dir.exists():
+        return jsonify([])
+    entries = [
+        {"name": f.name, "size": f.stat().st_size}
+        for f in sorted(files_dir.iterdir())
+        if f.is_file()
+    ]
+    return jsonify(entries)
+
+
+@app.route("/api/projects/<slug>/files/<filename>")
+def projects_files_get(slug, filename):
+    from flask import send_from_directory
+    files_dir = MEMORY / "projects" / slug / "files"
+    if not (files_dir / filename).exists():
+        return jsonify({"error": "not found"}), 404
+    return send_from_directory(str(files_dir), filename)
+
+
+@app.route("/api/projects/<slug>/notes", methods=["POST"])
+def projects_notes_add(slug):
+    project_dir = MEMORY / "projects" / slug
+    if not project_dir.exists():
+        return jsonify({"error": "project not found"}), 404
+    data = request.get_json(force=True, silent=True) or {}
+    note_text = (data.get("note") or "").strip()
+    if not note_text:
+        return jsonify({"error": "note required"}), 400
+    notes_dir = project_dir / "notes"
+    notes_dir.mkdir(exist_ok=True)
+    today = _date.today().isoformat()
+    note_file = notes_dir / f"{today}.md"
+    sep = "\n\n---\n\n" if note_file.exists() else ""
+    with note_file.open("a", encoding="utf-8") as f:
+        f.write(f"{sep}{note_text}\n")
+    return jsonify({"ok": True, "file": note_file.name})
+
+
+@app.route("/api/projects/<slug>/files", methods=["POST"])
+def projects_files_upload(slug):
+    project_dir = MEMORY / "projects" / slug
+    if not project_dir.exists():
+        return jsonify({"error": "project not found"}), 404
+    f = request.files.get("file")
+    if not f:
+        return jsonify({"error": "file required"}), 400
+    files_dir = project_dir / "files"
+    files_dir.mkdir(exist_ok=True)
+    filename = _secure(f.filename or "upload")
+    dest = files_dir / filename
+    f.save(str(dest))
+    return jsonify({"ok": True, "name": filename, "size": dest.stat().st_size})
+
+
+@app.route("/api/projects/<slug>/chat", methods=["POST"])
+def projects_chat_session(slug):
+    project_dir = MEMORY / "projects" / slug
+    if not project_dir.exists():
+        return jsonify({"error": "project not found"}), 404
+    rows = _parse_projects_index()
+    meta = next((r for r in rows if r.get("slug") == slug), {})
+    title = f"{meta.get('name', slug)} — Chat"
+    db = _db()
+    cur = db.execute(
+        "INSERT INTO chat_sessions (title, project_slug) VALUES (?, ?)",
+        (title, slug),
+    )
+    db.commit()
+    session = dict(db.execute(
+        "SELECT * FROM chat_sessions WHERE id = ?", (cur.lastrowid,)
+    ).fetchone())
+    return jsonify(session), 201
+
+
+@app.route("/api/projects", methods=["POST"])
+def projects_create():
+    data = request.get_json(force=True, silent=True) or {}
+    slug = (data.get("slug") or "").strip().lower().replace(" ", "_")
+    name = (data.get("name") or "").strip()
+    if not slug or not name:
+        return jsonify({"error": "slug and name required"}), 400
+    project_dir = MEMORY / "projects" / slug
+    if project_dir.exists():
+        return jsonify({"error": "project already exists"}), 409
+    try:
+        from jobs.memory.new_project import create_project
+        create_project(slug, name)
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+    return jsonify({"ok": True, "slug": slug, "name": name}), 201
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────
