@@ -314,5 +314,86 @@
     "function": "run",
     "interfaces": ["dashboard", "telegram"],
     "status": "ready"
+  },
+  {
+    "slug": "article_reader",
+    "description": "Fetch and read the full text of any article or web page from a URL",
+    "triggers": ["read this article", "fetch this url", "read this page", "summarize this link"],
+    "job_module": "jobs.research.article_reader",
+    "function": "run",
+    "interfaces": ["dashboard", "telegram"],
+    "status": "ready"
+  },
+  {
+    "slug": "feed_reader",
+    "description": "Parse an RSS or Atom feed and return the latest entries",
+    "triggers": ["read this feed", "parse rss", "get latest from"],
+    "job_module": "jobs.research.feed_reader",
+    "function": "run",
+    "interfaces": ["dashboard", "telegram"],
+    "status": "ready"
+  },
+  {
+    "slug": "table_extractor",
+    "description": "Extract tables from a PDF file and return structured data",
+    "triggers": ["extract tables", "get tables from pdf", "read tables"],
+    "job_module": "jobs.data.table_extractor",
+    "function": "run",
+    "interfaces": ["dashboard", "telegram"],
+    "status": "ready"
+  },
+  {
+    "slug": "data_analyzer",
+    "description": "Analyze a CSV or Excel file and return a summary of its contents",
+    "triggers": ["analyze this file", "summarize this spreadsheet", "analyze csv", "analyze excel"],
+    "job_module": "jobs.data.data_analyzer",
+    "function": "run",
+    "interfaces": ["dashboard", "telegram"],
+    "status": "ready"
+  },
+  {
+    "slug": "vcf_importer",
+    "description": "Import contacts from a vCard .vcf file into the People Registry",
+    "triggers": ["import contacts", "import vcf", "load contact card", "import vcard"],
+    "job_module": "jobs.contacts.vcf_importer",
+    "function": "run",
+    "interfaces": ["dashboard", "telegram"],
+    "status": "ready"
+  },
+  {
+    "slug": "qr_generator",
+    "description": "Generate a QR code for any text or URL",
+    "triggers": ["generate qr code", "create qr", "make a qr code", "qr code for"],
+    "job_module": "jobs.utilities.qr_generator",
+    "function": "run",
+    "interfaces": ["dashboard", "telegram"],
+    "status": "ready"
+  },
+  {
+    "slug": "date_helper",
+    "description": "Parse dates and calculate time differences in human-readable format",
+    "triggers": ["how many days until", "when is", "days until", "time until"],
+    "job_module": "jobs.utilities.date_helper",
+    "function": "run",
+    "interfaces": ["dashboard", "telegram"],
+    "status": "ready"
+  },
+  {
+    "slug": "youtube_downloader",
+    "description": "Download audio from a YouTube video for transcription or listening",
+    "triggers": ["download this video", "download audio from", "get audio from youtube", "download youtube"],
+    "job_module": "jobs.media.youtube_downloader",
+    "function": "run",
+    "interfaces": ["dashboard", "telegram"],
+    "status": "ready"
+  },
+  {
+    "slug": "text_processor",
+    "description": "Summarize text, extract keywords, or convert HTML to markdown",
+    "triggers": ["summarize this text", "extract keywords", "convert to markdown", "key points from"],
+    "job_module": "jobs.utilities.text_processor",
+    "function": "run",
+    "interfaces": ["dashboard", "telegram"],
+    "status": "ready"
   }
 ]
