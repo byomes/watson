@@ -147,6 +147,24 @@ select option{background:var(--bg2)}
 .bk-sum{font-size:11px;color:var(--text2);line-height:1.5;margin-bottom:8px}
 .sk{background:var(--bg3);border-radius:4px;animation:pulse 1.4s ease-in-out infinite}
 @keyframes pulse{0%,100%{opacity:.4}50%{opacity:.8}}
+#tab-chat{padding:0;display:none;flex-direction:column;height:calc(100vh - 54px - 84px)}
+#tab-chat.active{display:flex}
+#chat-messages{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px}
+.msg-wrap{display:flex;flex-direction:column}
+.msg-wrap.user{align-items:flex-end}
+.msg-wrap.watson{align-items:flex-start}
+.msg-bubble{max-width:78%;padding:10px 13px;border-radius:16px;font-size:13px;line-height:1.5;word-break:break-word;white-space:pre-wrap}
+.msg-wrap.user .msg-bubble{background:#b07d10;color:#fff}
+.msg-wrap.watson .msg-bubble{background:var(--bg2);color:var(--text);border:1px solid var(--border)}
+.typing-indicator{display:flex;gap:4px;align-items:center;padding:10px 13px;background:var(--bg2);border:1px solid var(--border);border-radius:16px;width:fit-content}
+.typing-indicator span{width:7px;height:7px;background:var(--text3);border-radius:50%;animation:tbounce 1.2s ease-in-out infinite}
+.typing-indicator span:nth-child(2){animation-delay:.2s}
+.typing-indicator span:nth-child(3){animation-delay:.4s}
+@keyframes tbounce{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-6px)}}
+#chat-input-area{padding:10px 14px;border-top:1px solid var(--border);display:flex;gap:8px;background:var(--bg);flex-shrink:0}
+#chat-input{flex:1;background:var(--bg2);border:1px solid var(--border);border-radius:22px;padding:10px 14px;color:var(--text);font-size:13px;outline:none}
+#chat-input:focus{border-color:var(--accent)}
+#chat-send-btn{background:var(--accent);border:none;border-radius:22px;padding:10px 16px;color:#fff;font-size:13px;flex-shrink:0;cursor:pointer}
 .ctr{text-align:center;padding:40px 0;color:var(--text2);font-size:13px}
 .sbar{width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:9px;padding:11px 12px;color:var(--text);font-size:13px;outline:none;margin-bottom:10px}
 .sbar:focus{border-color:var(--accent)}
@@ -176,11 +194,23 @@ select option{background:var(--bg2)}
     <span class="theme-lbl" id="theme-lbl-text">Dark mode</span>
     <button class="theme-btn2" id="theme-toggle-btn" onclick="toggleTheme()">Switch to Light</button>
   </div>
+  <div class="theme-row" style="margin-top:6px">
+    <span class="theme-lbl">Contacts</span>
+    <button class="theme-btn2" onclick="document.getElementById('settings-panel').style.display='none';switchTab('contacts')">Open Contacts</button>
+  </div>
 </div>
 
 <div id="main">
 
-  <div id="tab-briefing" class="tab active">
+  <div id="tab-chat" class="tab active">
+    <div id="chat-messages"></div>
+    <div id="chat-input-area">
+      <input id="chat-input" type="text" placeholder="Message Watson…">
+      <button id="chat-send-btn" onclick="sendChat()">Send</button>
+    </div>
+  </div>
+
+  <div id="tab-briefing" class="tab">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
       <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em">Today's Briefing</div>
       <span id="b-offline" style="font-size:10px;color:var(--warn);display:none">· offline</span>
@@ -266,7 +296,11 @@ select option{background:var(--bg2)}
 </div>
 
 <nav id="nav">
-  <button class="nb active" id="nav-briefing" onclick="switchTab('briefing')">
+  <button class="nb active" id="nav-chat" onclick="switchTab('chat')">
+    <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+    <span>Chat</span>
+  </button>
+  <button class="nb" id="nav-briefing" onclick="switchTab('briefing')">
     <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="9" x2="9" y2="21"/></svg></span>
     <span>Briefing</span>
   </button>
@@ -277,10 +311,6 @@ select option{background:var(--bg2)}
   <button class="nb" id="nav-reminders" onclick="switchTab('reminders')">
     <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 15"/></svg></span>
     <span>Reminders</span>
-  </button>
-  <button class="nb" id="nav-contacts" onclick="switchTab('contacts')">
-    <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
-    <span>Contacts</span>
   </button>
   <button class="nb" id="nav-reading" onclick="switchTab('reading')">
     <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></span>
@@ -337,17 +367,76 @@ async function api(url, method, body) {
 }
 
 // ── Tabs ──────────────────────────────────────────────────────────────────
-const TABS = ['briefing','tasks','reminders','contacts','reading'];
-const loaded = {briefing:false, tasks:false, reminders:false, contacts:false, reading:false};
+const TABS = ['chat','briefing','tasks','reminders','contacts','reading'];
+const loaded = {chat:true, briefing:false, tasks:false, reminders:false, contacts:false, reading:false};
 const loaders = {};
 
 function switchTab(name) {
   TABS.forEach(t => {
     document.getElementById('tab-' + t).classList.toggle('active', t === name);
-    document.getElementById('nav-' + t).classList.toggle('active', t === name);
+    const navEl = document.getElementById('nav-' + t);
+    if (navEl) navEl.classList.toggle('active', t === name);
   });
-  if (!loaded[name]) { loaded[name] = true; loaders[name](); }
+  if (!loaded[name]) { loaded[name] = true; if (loaders[name]) loaders[name](); }
 }
+
+// ── Chat ──────────────────────────────────────────────────────────────────
+let chatHistory = [];
+
+loaders.chat = function() {};
+
+function _appendMsg(role, text) {
+  const msgs = document.getElementById('chat-messages');
+  const wrap = document.createElement('div');
+  wrap.className = 'msg-wrap ' + role;
+  const bubble = document.createElement('div');
+  bubble.className = 'msg-bubble';
+  bubble.textContent = text;
+  wrap.appendChild(bubble);
+  msgs.appendChild(wrap);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function _showTyping() {
+  const msgs = document.getElementById('chat-messages');
+  const wrap = document.createElement('div');
+  wrap.className = 'msg-wrap watson';
+  wrap.id = 'typing-wrap';
+  wrap.innerHTML = '<div class="typing-indicator"><span></span><span></span><span></span></div>';
+  msgs.appendChild(wrap);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function _hideTyping() {
+  const el = document.getElementById('typing-wrap');
+  if (el) el.remove();
+}
+
+async function sendChat() {
+  const input = document.getElementById('chat-input');
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  _appendMsg('user', text);
+  chatHistory.push({role: 'user', content: text});
+  if (chatHistory.length > 40) chatHistory = chatHistory.slice(-40);
+  _showTyping();
+  try {
+    const data = await api('/api/chat', 'POST', {message: text, history: chatHistory.slice(0, -1)});
+    _hideTyping();
+    const reply = data.response || '(no response)';
+    _appendMsg('watson', reply);
+    chatHistory.push({role: 'assistant', content: reply});
+    if (chatHistory.length > 40) chatHistory = chatHistory.slice(-40);
+  } catch(_) {
+    _hideTyping();
+    _appendMsg('watson', 'Watson is offline.');
+  }
+}
+
+document.getElementById('chat-input').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); }
+});
 
 // ── Briefing ──────────────────────────────────────────────────────────────
 let bItems = [];
@@ -406,8 +495,7 @@ async function bAction(id, action) {
   bItems = bItems.filter(i => i.id !== id);
 }
 
-loaded.briefing = true;
-loadBriefing();
+loaders.briefing = loadBriefing;
 
 // ── Tasks ─────────────────────────────────────────────────────────────────
 let tasks = [];
@@ -1051,6 +1139,42 @@ def reminders_delete(reminder_id):
     _db().execute("DELETE FROM reminders WHERE id = ?", (reminder_id,))
     _db().commit()
     return jsonify({"ok": True})
+
+
+# ── Chat API ─────────────────────────────────────────────────────────────────
+
+WATSON_SYSTEM = (
+    "You are Watson, Dr. Bill Yomes' AI-powered digital assistant. "
+    "You are terse, direct, and efficient. You never pastor or speak theologically "
+    "without permission. You never guess — if uncertain, you say so. "
+    "You act on Dr. Bill's behalf under his supervision."
+)
+
+
+@app.route("/api/chat", methods=["POST"])
+def chat():
+    import requests as _req
+    data = request.get_json(force=True) or {}
+    message = (data.get("message") or "").strip()
+    history = data.get("history") or []
+    if not message:
+        return jsonify({"error": "message required"}), 400
+    messages = [{"role": "system", "content": WATSON_SYSTEM}]
+    for h in history[-20:]:
+        if h.get("role") in ("user", "assistant") and h.get("content"):
+            messages.append({"role": h["role"], "content": h["content"]})
+    messages.append({"role": "user", "content": message})
+    try:
+        resp = _req.post(
+            "http://localhost:11434/api/chat",
+            json={"model": "llama3.2:3b", "messages": messages, "stream": False},
+            timeout=60,
+        )
+        resp.raise_for_status()
+        reply = resp.json().get("message", {}).get("content", "")
+        return jsonify({"response": reply})
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
 
 
 # ── Calendar API ──────────────────────────────────────────────────────────────
