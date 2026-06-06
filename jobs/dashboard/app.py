@@ -921,6 +921,32 @@ def projects_status_update(slug):
     return jsonify({"success": True})
 
 
+@app.route("/api/projects/<slug>/memory", methods=["GET"])
+def projects_memory_get(slug):
+    project_dir = MEMORY / "projects" / slug
+    if not project_dir.exists():
+        return jsonify({"error": "not found"}), 404
+    mem_path = project_dir / "memory.md"
+    content = mem_path.read_text(encoding="utf-8") if mem_path.exists() else ""
+    return jsonify({"content": content})
+
+
+@app.route("/api/projects/<slug>/memory", methods=["POST"])
+def projects_memory_post(slug):
+    project_dir = MEMORY / "projects" / slug
+    if not project_dir.exists():
+        return jsonify({"error": "not found"}), 404
+    data = request.get_json(force=True, silent=True) or {}
+    addition = (data.get("content") or "").strip()
+    if not addition:
+        return jsonify({"error": "content required"}), 400
+    mem_path = project_dir / "memory.md"
+    existing = mem_path.read_text(encoding="utf-8") if mem_path.exists() else ""
+    sep = "\n\n" if existing.strip() else ""
+    mem_path.write_text(existing + sep + addition, encoding="utf-8")
+    return jsonify({"ok": True})
+
+
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":

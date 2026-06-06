@@ -1075,6 +1075,43 @@ async function openFileSidebar() {
 }
 function closeFileSidebar() { document.getElementById('pw-sidebar').classList.remove('open'); }
 
+async function openProjectMemory() {
+  if (!pwSlug) return;
+  const panel = document.getElementById('project-memory-panel');
+  const content = document.getElementById('pm-content');
+  content.textContent = 'Loading…';
+  panel.classList.add('open');
+  try {
+    const data = await api('/api/projects/' + pwSlug + '/memory');
+    content.textContent = data.content || '(no memory yet)';
+  } catch (e) {
+    content.textContent = 'Failed to load memory.';
+  }
+}
+
+function closeProjectMemory() {
+  document.getElementById('project-memory-panel').classList.remove('open');
+}
+
+async function saveProjectMemory() {
+  if (!pwSlug) return;
+  const ta = document.getElementById('pm-textarea');
+  const addition = ta.value.trim();
+  if (!addition) return;
+  try {
+    await api('/api/projects/' + pwSlug + '/memory', 'POST', { content: addition });
+    const content = document.getElementById('pm-content');
+    const existing = content.textContent === '(no memory yet)' ? '' : content.textContent;
+    content.textContent = existing + (existing ? '\n\n' : '') + addition;
+    ta.value = '';
+    const msg = document.getElementById('pm-saved-msg');
+    msg.style.display = 'inline';
+    setTimeout(() => { msg.style.display = 'none'; }, 2000);
+  } catch (e) {
+    alert('Failed to save: ' + e);
+  }
+}
+
 async function loadFileSidebar() {
   const el = document.getElementById('pw-sidebar-content');
   if (!pwSlug) return;

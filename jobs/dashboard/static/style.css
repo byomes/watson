@@ -179,6 +179,8 @@ select option{background:var(--surface)}
 .pw-title{flex:1;font-size:15px;font-weight:600;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 4px}
 .pw-icon-btn{width:36px;height:36px;background:none;border:none;color:var(--text-muted);border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:18px;flex-shrink:0;line-height:1;transition:color .15s}
 .pw-icon-btn:hover{color:var(--text)}
+.pw-ghost-btn{height:30px;padding:0 10px;background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:6px;font-size:12px;font-family:inherit;cursor:pointer;white-space:nowrap;transition:color .15s}
+.pw-ghost-btn:hover{color:var(--text)}
 .pw-kebab-menu{position:absolute;right:12px;top:54px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;min-width:170px;z-index:101;display:none}
 .pw-kebab-menu.open{display:block}
 .pw-kebab-item{display:block;width:100%;padding:11px 14px;background:none;border:none;color:var(--text);text-align:left;font-size:13px;cursor:pointer;font-family:inherit;border-bottom:1px solid var(--border)}
@@ -236,3 +238,14 @@ select option{background:var(--surface)}
 
 /* Project badge in history */
 .proj-badge{font-size:9px;padding:2px 6px;border-radius:3px;background:var(--accent-soft);color:var(--accent);margin-left:5px;vertical-align:middle;letter-spacing:.02em;font-weight:500;font-family:'DM Mono',monospace}
+
+/* Project memory panel */
+#project-memory-panel{position:fixed;top:0;left:0;right:0;bottom:0;z-index:200;background:var(--bg);display:flex;flex-direction:column;transform:translateY(100%);transition:transform .2s ease-out;visibility:hidden}
+#project-memory-panel.open{transform:translateY(0);visibility:visible}
+.pm-content{flex:1;overflow-y:auto;padding:16px 20px;white-space:pre-wrap;font-family:'DM Mono',monospace;font-size:13px;color:var(--text-muted)}
+.pm-add-area{padding:16px 20px;border-top:1px solid var(--border);flex-shrink:0;display:flex;flex-direction:column;gap:8px}
+.pm-add-label{font-size:12px;font-weight:500;color:var(--text-muted)}
+.pm-textarea{width:100%;height:120px;resize:none;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;color:var(--text);font-size:13px;font-family:'DM Sans',sans-serif;outline:none;box-sizing:border-box}
+.pm-textarea::placeholder{color:var(--text-muted)}
+.pm-textarea:focus{border-color:var(--accent)}
+.pm-save-btn{align-self:flex-start;padding:8px 18px;background:var(--accent);border:none;border-radius:6px;color:#fff;font-size:13px;font-family:inherit;font-weight:500;cursor:pointer}
