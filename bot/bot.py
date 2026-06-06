@@ -44,6 +44,12 @@ log = logging.getLogger(__name__)
 
 _AUTHORIZED_ID = int(TELEGRAM_CHAT_ID) if TELEGRAM_CHAT_ID else None
 
+# Pending skill proposals keyed by Telegram chat_id
+_pending_skills: dict[int, str] = {}
+
+_SKILL_AFFIRM = {"yes", "yes please", "go ahead", "build it", "sure", "do it", "yep", "yeah"}
+_SKILL_DENY = {"no", "never mind", "nope", "cancel", "don't", "no thanks"}
+
 
 # --- DB helpers -------------------------------------------------------
 
@@ -317,19 +323,52 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text_clean = text_clean[len(prefix):].strip()
             break
 
-    # Handle CONFIRM / CANCEL for pending actions
-    if text_lower in ("yes", "confirm", "yes do it", "book it", "go ahead"):
+    # Handle CONFIRM / CANCEL for pending actions (calendar and skill proposals)
+    if text_lower in ("yes", "confirm", "yes do it", "book it", "go ahead") or text_lower in _SKILL_AFFIRM:
+        if chat_id in _pending_skills:
+            pending_desc = _pending_skills.pop(chat_id)
+            slug = pending_desc.lower()[:40]
+            for ch in " !?:,;'\"/\\.":
+                slug = slug.replace(ch, "_")
+            slug = "_".join(p for p in slug.split("_") if p)[:30]
+            job_path = f"jobs/custom/{slug}.py"
+            from jobs.skillbuilder.build import build_skill as _build_skill
+            import threading
+            threading.Thread(target=_build_skill, args=(pending_desc, job_path), daemon=True).start()
+            await update.message.reply_text("Building that skill now. I'll notify you via Telegram when it's ready.")
+            return
         p = pending_module.get_pending(chat_id)
         if p:
             await _execute_pending(update, context, p)
             return
 
-    if text_lower in ("no", "cancel", "don't book", "never mind"):
+    if text_lower in ("no", "cancel", "don't book", "never mind") or text_lower in _SKILL_DENY:
+        if chat_id in _pending_skills:
+            del _pending_skills[chat_id]
+            await update.message.reply_text("Got it. Let me know if you need anything else.")
+            return
         p = pending_module.get_pending(chat_id)
         if p:
             pending_module.cancel_pending(p["id"])
             await update.message.reply_text("Got it — cancelled.")
             return
+
+    # Skill routing — before intent classification
+    try:
+        from jobs.skillbuilder import router as _router
+        route_result = _router.route(text_clean, "telegram")
+    except Exception as exc:
+        log.warning("Skill router failed: %s", exc)
+        route_result = {"action": "chat"}
+
+    if route_result["action"] == "skill":
+        await update.message.reply_text("✓ " + route_result["result"])
+        return
+
+    if route_result["action"] == "propose":
+        _pending_skills[chat_id] = text_clean
+        await update.message.reply_text(route_result["message"])
+        return
 
     # Classify intent via Ollama llama3.2:3b
     result = _classify_intent(text_clean)

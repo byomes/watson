@@ -79,6 +79,8 @@ def _bootstrap():
 
 _bootstrap()
 
+# Pending skill proposal keyed by a single user (single-user system)
+_pending_skill_request: str | None = None
 
 # ── Shell ─────────────────────────────────────────────────────────────────────
 
@@ -1526,14 +1528,56 @@ SYSTEM CONTEXT:
 - Never auto-push — Bill pulls manually"""
 
 
+_AFFIRM = {"yes", "yes please", "go ahead", "build it", "sure", "do it", "yep", "yeah"}
+_DENY = {"no", "never mind", "nope", "cancel", "don't", "no thanks"}
+
+
 @app.route("/api/chat", methods=["POST"])
 def chat():
     import requests as _req
+    from jobs.skillbuilder import router as _router
+    global _pending_skill_request
+
     data = request.get_json(force=True) or {}
     message = (data.get("message") or "").strip()
     history = data.get("history") or []
     if not message:
         return jsonify({"error": "message required"}), 400
+
+    msg_lower = message.lower().strip()
+
+    # Handle yes/no follow-up on a pending skill proposal
+    if _pending_skill_request is not None:
+        if msg_lower in _AFFIRM:
+            pending = _pending_skill_request
+            _pending_skill_request = None
+            slug = pending.lower()[:40]
+            for ch in " !?:,;'\"/\\.":
+                slug = slug.replace(ch, "_")
+            slug = "_".join(p for p in slug.split("_") if p)[:30]
+            job_path = f"jobs/custom/{slug}.py"
+            from jobs.skillbuilder.build import build_skill as _build_skill
+            import threading
+            threading.Thread(target=_build_skill, args=(pending, job_path), daemon=True).start()
+            return jsonify({"response": "Building that skill now. I’ll notify you via Telegram when it’s ready."})
+        if msg_lower in _DENY or msg_lower.startswith("no "):
+            _pending_skill_request = None
+            return jsonify({"response": "Got it. Let me know if you need anything else."})
+
+    # Skill routing
+    try:
+        route_result = _router.route(message, "dashboard")
+    except Exception as exc:
+        route_result = {"action": "chat"}
+
+    if route_result["action"] == "skill":
+        return jsonify({"response": "✓ " + route_result["result"]})
+
+    if route_result["action"] == "propose":
+        _pending_skill_request = message
+        return jsonify({"response": route_result["message"]})
+
+    # Fall through to Ollama
     core_md_path = Path(os.path.expanduser("~/watson/memory/core.md"))
     try:
         core_md = core_md_path.read_text(encoding="utf-8")

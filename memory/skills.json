@@ -1,0 +1,10 @@
+[
+  {
+    "slug": "log_watch",
+    "description": "Check Watson logs for errors in the last hour and send a Telegram summary",
+    "triggers": ["check logs", "any errors", "log report", "what errors", "error summary", "check for errors"],
+    "job_module": "jobs.monitoring.log_watch",
+    "function": "run",
+    "interfaces": ["dashboard", "telegram"]
+  }
+]
