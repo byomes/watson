@@ -526,10 +526,14 @@ function _hideTyping() {
 }
 
 async function sendChat() {
-  if (!currentSessionId) return;
   const input = document.getElementById('chat-input');
   const text = input.value.trim();
   if (!text) return;
+  if (!currentSessionId) {
+    const title = text.length > 50 ? text.slice(0, 50) : text;
+    const sess = await api('/api/chat/sessions', 'POST', {title});
+    currentSessionId = sess.id;
+  }
   input.value = '';
   _appendMsg('user', text);
 
