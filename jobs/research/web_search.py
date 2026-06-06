@@ -1,10 +1,13 @@
-"""jobs/research/web_search.py — Web search via DuckDuckGo Instant Answer API (no key required)."""
+"""jobs/research/web_search.py — Web search via Serper.dev (Google results)."""
 import logging
-import urllib.parse
+import os
 
 import requests
+from dotenv import load_dotenv
 
-DDGO_URL = "https://api.duckduckgo.com/"
+load_dotenv()
+
+SERPER_URL = "https://google.serper.dev/search"
 OLLAMA_URL = "http://localhost:11434/api/generate"
 OLLAMA_MODEL = "llama3.2:3b"
 
@@ -12,46 +15,42 @@ log = logging.getLogger(__name__)
 
 
 def search(query: str, max_results: int = 5) -> list[dict]:
-    params = {
-        "q": query,
-        "format": "json",
-        "no_html": "1",
-        "skip_disambig": "1",
-    }
+    api_key = os.getenv("SERPER_API_KEY")
+    if not api_key:
+        log.error("SERPER_API_KEY not set")
+        return []
+
     try:
-        resp = requests.get(DDGO_URL, params=params, timeout=10)
+        resp = requests.post(
+            SERPER_URL,
+            headers={"X-API-KEY": api_key, "Content-Type": "application/json"},
+            json={"q": query, "num": max_results},
+            timeout=10,
+        )
         resp.raise_for_status()
         data = resp.json()
     except Exception as exc:
-        log.error("DuckDuckGo request failed: %s", exc)
+        log.error("Serper request failed: %s", exc)
         return []
 
     results = []
 
-    answer = data.get("Answer", "").strip()
-    if answer:
-        results.append({"title": "Direct Answer", "snippet": answer, "url": ""})
+    answer_box = data.get("answerBox")
+    if answer_box:
+        snippet = answer_box.get("answer") or answer_box.get("snippet", "")
+        if snippet:
+            results.append({
+                "title": "Direct Answer",
+                "snippet": snippet,
+                "url": answer_box.get("link", ""),
+            })
 
-    abstract = data.get("AbstractText", "").strip()
-    abstract_url = data.get("AbstractURL", "").strip()
-    if abstract:
-        results.append({"title": "Summary", "snippet": abstract, "url": abstract_url})
-
-    for topic in data.get("RelatedTopics", []):
-        if len(results) >= max_results + 2:
-            break
-        # RelatedTopics can contain nested groups — handle both forms
-        if "Topics" in topic:
-            for sub in topic["Topics"]:
-                text = sub.get("Text", "").strip()
-                url = sub.get("FirstURL", "").strip()
-                if text:
-                    results.append({"title": text[:60], "snippet": text, "url": url})
-        else:
-            text = topic.get("Text", "").strip()
-            url = topic.get("FirstURL", "").strip()
-            if text:
-                results.append({"title": text[:60], "snippet": text, "url": url})
+    for item in data.get("organic", [])[:max_results]:
+        results.append({
+            "title": item.get("title", ""),
+            "snippet": item.get("snippet", ""),
+            "url": item.get("link", ""),
+        })
 
     return results
 

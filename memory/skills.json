@@ -220,7 +220,7 @@
   },
   {
     "slug": "web_search",
-    "description": "Search the web using DuckDuckGo and return relevant results",
+    "description": "Search the web using Serper.dev (Google) and return relevant results",
     "triggers": [
       "search for",
       "look up",
