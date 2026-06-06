@@ -219,6 +219,25 @@
     "status": "ready"
   },
   {
+    "slug": "web_search",
+    "description": "Search the web using DuckDuckGo and return relevant results",
+    "triggers": [
+      "search for",
+      "look up",
+      "find information about",
+      "search the web",
+      "google",
+      "what is",
+      "who is",
+      "when did",
+      "how does"
+    ],
+    "job_module": "jobs.research.web_search",
+    "function": "run",
+    "interfaces": ["dashboard", "telegram"],
+    "status": "ready"
+  },
+  {
     "slug": "import_contacts",
     "description": "Import or sync contacts from Google Contacts into the People Registry",
     "triggers": [
