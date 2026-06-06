@@ -112,10 +112,10 @@ def run(message: str = None) -> str:
             "Add them first or provide a full email address."
         )
 
-    try:
-        _send_smtp(to_email, subject, body, to_name=to_name)
-    except Exception as exc:
-        log.error("Email send failed: %s", exc)
-        return f"Failed to send email: {exc}"
-
-    return f"Email sent to {to_name} at {to_email} — Subject: {subject}"
+    return {
+        "confirm": True,
+        "to_name": to_name,
+        "to_email": to_email,
+        "subject": subject,
+        "body": body,
+    }

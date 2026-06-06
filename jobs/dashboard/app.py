@@ -10,13 +10,14 @@ log = logging.getLogger(__name__)
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from flask import Flask, g, jsonify, render_template, request
+from flask import Flask, g, jsonify, render_template, request, session
 from jobs.people.api import people_create, people_delete, people_list, people_update
 
 DB = os.path.expanduser("~/watson/data/watson.db")
 SKILLS_FILE = Path(__file__).resolve().parents[2] / "memory" / "skills.json"
 MEMORY = Path(__file__).resolve().parents[2] / "memory"
 app = Flask(__name__, static_folder='static', template_folder='templates')
+app.secret_key = os.getenv("FLASK_SECRET_KEY", "watson-dashboard-secret")
 
 
 def _db():
@@ -603,7 +604,18 @@ def chat():
             else:
                 log.error("Skill '%s' not found in registry", slug)
                 route_result["result"] = f"Skill '{slug}' not found."
-        return jsonify({"response": "✓ " + route_result["result"]})
+        result = route_result["result"]
+        if isinstance(result, dict) and result.get("confirm"):
+            session["pending_email"] = result
+            return jsonify({
+                "response": f"I found {result['to_name']} at {result['to_email']}. Confirm below to send.",
+                "confirm_email": {
+                    "to_name": result["to_name"],
+                    "to_email": result["to_email"],
+                    "subject": result["subject"],
+                },
+            })
+        return jsonify({"response": "✓ " + result})
 
     if route_result["action"] == "build":
         import threading
@@ -919,6 +931,27 @@ def projects_status_update(slug):
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
     return jsonify({"success": True})
+
+
+@app.route("/api/email/confirm", methods=["POST"])
+def email_confirm():
+    from jobs.email.send import _send_smtp
+    data = request.get_json(force=True, silent=True) or {}
+    if not data.get("confirm"):
+        session.pop("pending_email", None)
+        return jsonify({"response": "Email cancelled."})
+    pending = session.pop("pending_email", None)
+    if not pending:
+        return jsonify({"response": "No pending email found."}), 400
+    try:
+        _send_smtp(
+            pending["to_email"], pending["subject"], pending["body"],
+            to_name=pending["to_name"],
+        )
+    except Exception as exc:
+        log.error("Email confirm send failed: %s", exc)
+        return jsonify({"response": f"Failed to send email: {exc}"}), 500
+    return jsonify({"response": f"Email sent to {pending['to_name']} ✓"})
 
 
 @app.route("/api/projects/<slug>/memory", methods=["GET"])
