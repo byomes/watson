@@ -462,10 +462,10 @@ document.getElementById('chat-input').addEventListener('keydown', function(e) {
     stopRec();
     if (t) {
       document.getElementById('chat-input').value = t;
-      sendChat();
+      setTimeout(sendChat, 100);
     }
   };
-  rec.onerror = function() { stopRec(); };
+  rec.onerror = function(e) { console.log('Speech error:', e.error); stopRec(); };
   rec.onend = function() { if (active) stopRec(); };
   window.toggleVoice = function() {
     if (active) { stopRec(); return; }
