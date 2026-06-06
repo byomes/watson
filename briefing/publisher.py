@@ -23,7 +23,7 @@ log = logging.getLogger(__name__)
 
 _GITHUB_API   = "https://api.github.com"
 _DOCS_PATH    = "docs/briefing.html"       # path inside the repo
-_BRIEFING_URL = "https://wcky-watson.vercel.app"
+_BRIEFING_URL = "https://williamckyomes.com/dashboard"
 
 
 # ── GitHub Contents API ────────────────────────────────────────────────────
