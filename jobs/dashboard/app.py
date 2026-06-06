@@ -228,6 +228,75 @@ select option{background:var(--bg2)}
 .skill-name{font-size:13px;font-weight:600;color:var(--text);margin-bottom:2px}
 .skill-desc{font-size:11px;color:var(--text2);line-height:1.4}
 .skill-use-btn{flex-shrink:0;padding:6px 12px;background:var(--accent);border:none;border-radius:8px;color:#fff;font-size:11px;cursor:pointer;font-family:inherit}
+
+/* Projects tab */
+.proj-card{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:10px;cursor:pointer;transition:background .15s}
+.proj-card:active{background:var(--bg3)}
+.proj-name{font-size:14px;font-weight:600;color:var(--text);margin-bottom:6px}
+.proj-meta{font-size:11px;color:var(--text3)}
+.status-active{display:inline-block;font-size:10px;padding:2px 7px;border-radius:4px;background:rgba(63,185,80,.15);color:var(--success);letter-spacing:.03em;text-transform:uppercase}
+.status-planned{display:inline-block;font-size:10px;padding:2px 7px;border-radius:4px;background:rgba(210,153,34,.15);color:var(--warn);letter-spacing:.03em;text-transform:uppercase}
+.status-archived{display:inline-block;font-size:10px;padding:2px 7px;border-radius:4px;background:rgba(139,148,158,.15);color:var(--text3);letter-spacing:.03em;text-transform:uppercase}
+.arch-toggle{padding:6px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;color:var(--text2);font-size:11px;cursor:pointer}
+.arch-toggle.on{background:var(--accent);border-color:var(--accent);color:#fff}
+
+/* Project workspace overlay */
+#proj-workspace{position:fixed;top:0;left:0;right:0;bottom:0;z-index:100;background:var(--bg);display:none;flex-direction:column}
+#proj-workspace.open{display:flex}
+.pw-topbar{height:54px;border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 10px;gap:8px;flex-shrink:0;position:relative}
+.pw-back{background:none;border:none;color:var(--accent);font-size:22px;padding:4px 8px;cursor:pointer;flex-shrink:0;line-height:1}
+.pw-title{flex:1;font-size:15px;font-weight:600;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 4px}
+.pw-icon-btn{width:36px;height:36px;background:none;border:none;color:var(--text2);border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:18px;flex-shrink:0;line-height:1}
+.pw-icon-btn:hover{background:var(--bg3)}
+.pw-kebab-menu{position:absolute;right:12px;top:54px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;min-width:170px;z-index:101;box-shadow:0 4px 12px rgba(0,0,0,.25);display:none}
+.pw-kebab-menu.open{display:block}
+.pw-kebab-item{display:block;width:100%;padding:10px 14px;background:none;border:none;color:var(--text);text-align:left;font-size:13px;cursor:pointer;font-family:inherit}
+.pw-kebab-item:hover{background:var(--bg3)}
+.pw-kebab-item.danger{color:var(--danger)}
+
+/* Project summary card */
+#pw-summary-card{margin:12px 14px 0;background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:12px;flex-shrink:0}
+.pw-summary-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.pw-summary-lbl{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em}
+.pw-summary-dismiss{background:none;border:none;color:var(--text3);font-size:18px;cursor:pointer;padding:0 4px;line-height:1}
+.pw-summary-text{font-size:12px;color:var(--text2);font-style:italic;line-height:1.5}
+
+/* PW messages + input */
+#pw-messages{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px}
+#pw-attach-indicator{padding:3px 14px 5px;background:var(--bg);font-size:11px;color:var(--text2);flex-shrink:0;display:none}
+#pw-attach-x{background:none;border:none;color:var(--text3);font-size:14px;padding:0 3px;cursor:pointer;line-height:1}
+#pw-input-area{padding:10px 14px;padding-bottom:max(10px,env(safe-area-inset-bottom,0px));border-top:1px solid var(--border);display:flex;gap:8px;background:var(--bg);flex-shrink:0}
+#pw-input{flex:1;background:var(--bg2);border:1px solid var(--border);border-radius:22px;padding:10px 14px;color:var(--text);font-size:13px;outline:none}
+#pw-input:focus{border-color:var(--accent)}
+#pw-send-btn{background:var(--accent);border:none;border-radius:22px;padding:10px 16px;color:#fff;font-size:13px;cursor:pointer;flex-shrink:0}
+#pw-attach-btn{width:36px;height:36px;background:var(--bg2);border:1px solid var(--border);border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text2);font-size:20px;line-height:1;padding:0;flex-shrink:0}
+#pw-attach-btn:hover{background:var(--bg3)}
+#pw-mic-btn{width:40px;height:40px;background:var(--bg2);border:1px solid var(--border);border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text2);flex-shrink:0}
+#pw-mic-btn.recording{border-color:var(--accent);background:rgba(99,102,241,.15);color:var(--accent);animation:mic-pulse 1s ease-in-out infinite}
+
+/* File sidebar */
+#pw-sidebar{position:fixed;top:0;right:0;bottom:0;width:280px;max-width:90vw;background:var(--bg2);border-left:1px solid var(--border);z-index:102;transform:translateX(100%);transition:transform .25s ease;display:flex;flex-direction:column}
+#pw-sidebar.open{transform:translateX(0)}
+.pw-sidebar-hdr{height:54px;border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 14px;flex-shrink:0;gap:8px}
+.pw-sidebar-title{flex:1;font-size:13px;font-weight:600}
+.pw-sidebar-close{background:none;border:none;color:var(--text2);font-size:22px;padding:4px 6px;cursor:pointer;line-height:1}
+.pw-file-section{margin-bottom:16px}
+.pw-file-section-lbl{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px}
+.pw-file-row{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;cursor:pointer;transition:background .15s}
+.pw-file-row:hover{background:var(--bg3)}
+.pw-file-name{flex:1;font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pw-file-date{font-size:10px;color:var(--text3);flex-shrink:0}
+.pw-new-note-btn{width:100%;padding:9px;background:var(--accent);border:none;border-radius:9px;color:#fff;font-size:12px;cursor:pointer;font-family:inherit}
+
+/* Note modal */
+#pw-note-modal{position:fixed;inset:0;z-index:103;background:rgba(0,0,0,.5);display:none;align-items:flex-end;justify-content:center}
+#pw-note-modal.open{display:flex}
+.pw-modal-inner{background:var(--bg2);border-radius:16px 16px 0 0;padding:16px;width:100%;max-height:70vh;display:flex;flex-direction:column}
+.pw-modal-title{font-size:13px;font-weight:600;color:var(--text);margin-bottom:10px}
+#pw-note-content{flex:1;min-height:120px;max-height:220px;resize:none;background:var(--bg3);border:1px solid var(--border);border-radius:9px;padding:10px 12px;color:var(--text);font-size:13px;outline:none;margin-bottom:10px}
+
+/* Project badge in history */
+.proj-badge{font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(56,139,253,.15);color:var(--accent);margin-left:5px;vertical-align:middle;letter-spacing:.02em;font-weight:500}
 </style>
 </head>
 <body>
@@ -376,6 +445,19 @@ select option{background:var(--bg2)}
     <div id="rl-list"></div>
   </div>
 
+  <div id="tab-projects" class="tab">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <button class="arch-toggle" id="arch-toggle" onclick="toggleArchivedProjects()">Show Archived</button>
+      <button onclick="showNewProjectForm()" style="padding:7px 14px;background:var(--accent);border:none;border-radius:9px;color:#fff;font-size:12px;cursor:pointer;font-family:inherit">+ New Project</button>
+    </div>
+    <div id="proj-new-form" class="fbox" style="display:none;margin-bottom:10px">
+      <div class="flabel">New Project</div>
+      <input type="text" id="proj-new-name" placeholder="Project name..." onkeydown="if(event.key==='Enter')createProject()">
+      <button class="btn btn-p" style="width:100%;padding:9px;border:none;border-radius:10px;font-size:12px" onclick="createProject()">Create</button>
+    </div>
+    <div id="proj-list"></div>
+  </div>
+
 </div>
 
 <nav id="nav">
@@ -399,7 +481,67 @@ select option{background:var(--bg2)}
     <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 15"/></svg></span>
     <span>Reminders</span>
   </button>
+  <button class="nb" id="nav-projects" onclick="switchTab('projects')">
+    <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></span>
+    <span>Projects</span>
+  </button>
 </nav>
+
+<!-- Project workspace overlay -->
+<div id="proj-workspace">
+  <div class="pw-topbar">
+    <button class="pw-back" onclick="closeProjectWorkspace()">&#8592;</button>
+    <span class="pw-title" id="pw-title"></span>
+    <div style="display:flex;gap:2px;flex-shrink:0">
+      <button class="pw-icon-btn" title="Files" onclick="openFileSidebar()">&#128193;</button>
+      <button class="pw-icon-btn" id="pw-kebab-btn" title="More" onclick="toggleKebabMenu(event)">&#8942;</button>
+    </div>
+    <div class="pw-kebab-menu" id="pw-kebab-menu">
+      <button class="pw-kebab-item" onclick="archiveProject()">Archive Project</button>
+      <button class="pw-kebab-item danger" onclick="confirmDeleteProject()">Delete Project</button>
+    </div>
+  </div>
+  <div id="pw-summary-card" style="display:none">
+    <div class="pw-summary-hdr">
+      <span class="pw-summary-lbl">Watson&#39;s summary</span>
+      <button class="pw-summary-dismiss" onclick="dismissSummary()">&#215;</button>
+    </div>
+    <div class="pw-summary-text" id="pw-summary-text"></div>
+  </div>
+  <div id="pw-messages"></div>
+  <div id="pw-attach-indicator">&#128206; <span id="pw-attach-name"></span><button id="pw-attach-x" onclick="clearPWAttachment()">&#215;</button></div>
+  <div id="pw-input-area">
+    <input type="file" id="pw-file-input" style="display:none" onchange="handlePWFileSelect(this)">
+    <button id="pw-attach-btn" onclick="document.getElementById('pw-file-input').click()">+</button>
+    <button id="pw-mic-btn" onclick="togglePWVoice()"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg></button>
+    <input id="pw-input" type="text" placeholder="Message Watson&#8230;">
+    <button id="pw-send-btn" onclick="sendPWChat()">Send</button>
+  </div>
+</div>
+
+<!-- File sidebar -->
+<div id="pw-sidebar">
+  <div class="pw-sidebar-hdr">
+    <span class="pw-sidebar-title">Project Files</span>
+    <button class="pw-sidebar-close" onclick="closeFileSidebar()">&#215;</button>
+  </div>
+  <div id="pw-sidebar-content" style="flex:1;overflow-y:auto;padding:12px"></div>
+  <div style="padding:12px;border-top:1px solid var(--border);flex-shrink:0">
+    <button class="pw-new-note-btn" onclick="openNoteModal()">+ New Note</button>
+  </div>
+</div>
+
+<!-- Note modal -->
+<div id="pw-note-modal">
+  <div class="pw-modal-inner">
+    <div class="pw-modal-title">New Note</div>
+    <textarea id="pw-note-content" placeholder="Note content..."></textarea>
+    <div class="row">
+      <button class="btn btn-p" onclick="saveNote()">Save</button>
+      <button class="btn btn-gh" onclick="closeNoteModal()">Cancel</button>
+    </div>
+  </div>
+</div>
 
 <script>
 // ── Theme ─────────────────────────────────────────────────────────────────
@@ -498,8 +640,8 @@ async function api(url, method, body) {
 }
 
 // ── Tabs ──────────────────────────────────────────────────────────────────
-const TABS = ['chat','history','briefing','tasks','reminders','contacts','reading'];
-const loaded = {chat:true, history:false, briefing:false, tasks:false, reminders:false, contacts:false, reading:false};
+const TABS = ['chat','history','briefing','tasks','reminders','contacts','reading','projects'];
+const loaded = {chat:true, history:false, briefing:false, tasks:false, reminders:false, contacts:false, reading:false, projects:false};
 const loaders = {};
 
 function switchTab(name) {
@@ -530,9 +672,15 @@ async function loadSessions() {
       const d = new Date(s.updated_at.replace(' ','T') + 'Z');
       const dateStr = d.toLocaleDateString('en-US', {month:'short', day:'numeric'}) + ' ' +
                       d.toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit'});
-      return '<div class="session-row" onclick="openSession(' + s.id + ',\\'' + esc(s.title).replace(/'/g,"\\'") + '\\')">' +
+      const proj = s.project_slug ? projects.find(p => p.slug === s.project_slug) : null;
+      const projLabel = proj ? proj.name : s.project_slug;
+      const badge = s.project_slug ? '<span class="proj-badge">' + esc(projLabel || s.project_slug) + '</span>' : '';
+      const onclick = s.project_slug
+        ? 'openProjectWorkspace(\\'' + esc(s.project_slug) + '\\',\\'' + esc(projLabel || s.project_slug).replace(/'/g,"\\'") + '\\')'
+        : 'openSession(' + s.id + ',\\'' + esc(s.title).replace(/'/g,"\\'") + '\\')';
+      return '<div class="session-row" onclick="' + onclick + '">' +
         '<div class="session-info">' +
-          '<div class="session-title">' + esc(s.title) + '</div>' +
+          '<div class="session-title">' + esc(s.title) + badge + '</div>' +
           '<div class="session-date">' + dateStr + '</div>' +
         '</div>' +
         '<button class="session-del" onclick="event.stopPropagation();deleteSession(' + s.id + ')" title="Delete">&#215;</button>' +
@@ -1188,6 +1336,358 @@ attachDrag('r-list', function(id, order) {
   reminders = reminders.map(r => r.id === id ? Object.assign({}, r, {sort_order: order}) : r);
   api('/api/reminders/' + id, 'PATCH', {sort_order: order});
 });
+
+// ── Projects tab ──────────────────────────────────────────────────────────────
+let projShowArchived = false;
+let projects = [];
+
+async function loadProjects() {
+  const el = document.getElementById('proj-list');
+  el.innerHTML = sk(3);
+  try {
+    projects = await api('/api/projects');
+    renderProjects();
+  } catch(_) {
+    el.innerHTML = '<div class="ctr">Watson offline</div>';
+  }
+}
+loaders.projects = loadProjects;
+
+function renderProjects() {
+  const el = document.getElementById('proj-list');
+  const filtered = projects.filter(p =>
+    projShowArchived ? (p.status||'').toLowerCase() === 'archived' : (p.status||'').toLowerCase() !== 'archived'
+  );
+  if (!filtered.length) {
+    el.innerHTML = '<div class="ctr">' + (projShowArchived ? 'No archived projects' : 'No projects yet') + '</div>';
+    return;
+  }
+  el.innerHTML = filtered.map(p => {
+    const s = (p.status || '').toLowerCase();
+    const sc = s === 'active' ? 'status-active' : s === 'planned' ? 'status-planned' : 'status-archived';
+    const restoreBtn = projShowArchived
+      ? '<button class="btn btn-gh" style="flex:none;padding:4px 10px;font-size:11px" onclick="event.stopPropagation();restoreProject(\\'' + esc(p.slug) + '\\')">Restore</button>'
+      : '';
+    return '<div class="proj-card" onclick="openProjectWorkspace(\\'' + esc(p.slug) + '\\',\\'' + esc(p.name||p.slug).replace(/'/g,"\\'") + '\\')">' +
+      '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">' +
+        '<div class="proj-name">' + esc(p.name||p.slug) + '</div>' + restoreBtn +
+      '</div>' +
+      '<div style="display:flex;justify-content:space-between;align-items:center">' +
+        '<span class="' + sc + '">' + esc(p.status||'') + '</span>' +
+        '<span class="proj-meta">' + esc(p.last_updated||'') + '</span>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function showNewProjectForm() {
+  const f = document.getElementById('proj-new-form');
+  f.style.display = f.style.display === 'none' ? 'block' : 'none';
+  if (f.style.display === 'block') document.getElementById('proj-new-name').focus();
+}
+
+async function createProject() {
+  const name = document.getElementById('proj-new-name').value.trim();
+  if (!name) return;
+  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'');
+  const r = await api('/api/projects', 'POST', {slug, name});
+  if (r.error) { alert('Error: ' + r.error); return; }
+  document.getElementById('proj-new-name').value = '';
+  document.getElementById('proj-new-form').style.display = 'none';
+  loadProjects();
+}
+
+function toggleArchivedProjects() {
+  projShowArchived = !projShowArchived;
+  const btn = document.getElementById('arch-toggle');
+  btn.classList.toggle('on', projShowArchived);
+  btn.textContent = projShowArchived ? 'Show Active' : 'Show Archived';
+  renderProjects();
+}
+
+async function restoreProject(slug) {
+  const r = await api('/api/projects/' + slug + '/status', 'PATCH', {status: 'Active'});
+  if (r.success) {
+    const p = projects.find(x => x.slug === slug);
+    if (p) p.status = 'Active';
+    renderProjects();
+  }
+}
+
+// ── Project workspace ─────────────────────────────────────────────────────────
+let pwSlug = null;
+let pwSessionId = null;
+let pwChatHistory = [];
+let pwAttachedContent = null;
+let pwAttachedName = null;
+
+async function openProjectWorkspace(slug, name) {
+  pwSlug = slug;
+  pwSessionId = null;
+  pwChatHistory = [];
+  pwAttachedContent = null;
+  pwAttachedName = null;
+  document.getElementById('pw-title').textContent = name;
+  document.getElementById('pw-messages').innerHTML = '';
+  document.getElementById('pw-summary-card').style.display = 'none';
+  document.getElementById('pw-attach-indicator').style.display = 'none';
+  document.getElementById('pw-kebab-menu').classList.remove('open');
+  closeFileSidebar();
+  document.getElementById('proj-workspace').classList.add('open');
+  document.body.style.overflow = 'hidden';
+  try {
+    const [proj, sessions] = await Promise.all([
+      api('/api/projects/' + slug),
+      api('/api/chat/sessions?project_slug=' + encodeURIComponent(slug))
+    ]);
+    if (proj.content) {
+      const lines = proj.content.split('\\n');
+      const summary = lines.find(l => l.trim() && !l.startsWith('#') && !l.startsWith('**') && !l.startsWith('- ') && !l.startsWith('|'));
+      if (summary) {
+        document.getElementById('pw-summary-text').textContent = summary.trim();
+        document.getElementById('pw-summary-card').style.display = 'block';
+      }
+    }
+    if (sessions && sessions.length) {
+      pwSessionId = sessions[0].id;
+      const msgs = await api('/api/chat/sessions/' + pwSessionId + '/messages');
+      msgs.forEach(m => {
+        _appendPWMsg(m.role === 'assistant' ? 'watson' : 'user', m.content);
+        pwChatHistory.push({role: m.role, content: m.content});
+      });
+      document.getElementById('pw-messages').scrollTop = document.getElementById('pw-messages').scrollHeight;
+    }
+  } catch(_) {}
+  document.getElementById('pw-input').focus();
+}
+
+function closeProjectWorkspace() {
+  document.getElementById('proj-workspace').classList.remove('open');
+  document.body.style.overflow = '';
+  pwSlug = null;
+}
+
+function dismissSummary() {
+  document.getElementById('pw-summary-card').style.display = 'none';
+}
+
+// ── PW messaging ──────────────────────────────────────────────────────────────
+function _appendPWMsg(role, text) {
+  const msgs = document.getElementById('pw-messages');
+  const wrap = document.createElement('div');
+  wrap.className = 'msg-wrap ' + role;
+  const bubble = document.createElement('div');
+  bubble.className = 'msg-bubble';
+  bubble.textContent = text;
+  wrap.appendChild(bubble);
+  msgs.appendChild(wrap);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+function _showPWTyping() {
+  const msgs = document.getElementById('pw-messages');
+  const wrap = document.createElement('div');
+  wrap.className = 'msg-wrap watson';
+  wrap.id = 'pw-typing-wrap';
+  wrap.innerHTML = '<div class="typing-indicator"><span></span><span></span><span></span></div>';
+  msgs.appendChild(wrap);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+function _hidePWTyping() { const el = document.getElementById('pw-typing-wrap'); if (el) el.remove(); }
+
+async function handlePWFileSelect(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const fd = new FormData();
+  fd.append('file', file);
+  try {
+    const r = await fetch('/api/upload', {method:'POST', body:fd});
+    const data = await r.json();
+    if (data.success) {
+      pwAttachedContent = data.content;
+      pwAttachedName = data.filename;
+      document.getElementById('pw-attach-name').textContent = data.filename;
+      document.getElementById('pw-attach-indicator').style.display = 'block';
+    }
+  } catch(e) { alert('Upload error: ' + e.message); }
+  input.value = '';
+}
+function clearPWAttachment() {
+  pwAttachedContent = null; pwAttachedName = null;
+  document.getElementById('pw-attach-indicator').style.display = 'none';
+  document.getElementById('pw-attach-name').textContent = '';
+}
+
+async function sendPWChat() {
+  const input = document.getElementById('pw-input');
+  const text = input.value.trim();
+  if (!text || !pwSlug) return;
+  if (!pwSessionId) {
+    try {
+      const s = await api('/api/projects/' + pwSlug + '/chat', 'POST');
+      pwSessionId = s.id;
+    } catch(_) { return; }
+  }
+  input.value = '';
+  const displayMsg = pwAttachedName ? text + '\\n\U0001F4CE ' + pwAttachedName : text;
+  const ollamaMsg = pwAttachedContent
+    ? '[Attached file: ' + pwAttachedName + ']\\n' + pwAttachedContent + '\\n\\n---\\n\\nUser message: ' + text
+    : text;
+  if (pwAttachedContent) clearPWAttachment();
+  _appendPWMsg('user', displayMsg);
+  api('/api/chat/sessions/' + pwSessionId + '/messages', 'POST', {role:'user', content:displayMsg});
+  if (pwChatHistory.length === 0) {
+    const title = text.length > 50 ? text.slice(0,50) + '...' : text;
+    api('/api/chat/sessions/' + pwSessionId, 'PATCH', {title});
+  }
+  pwChatHistory.push({role:'user', content:ollamaMsg});
+  if (pwChatHistory.length > 40) pwChatHistory = pwChatHistory.slice(-40);
+  _showPWTyping();
+  try {
+    const data = await api('/api/chat', 'POST', {message:ollamaMsg, history:pwChatHistory.slice(0,-1)});
+    _hidePWTyping();
+    const reply = data.response || '(no response)';
+    _appendPWMsg('watson', reply);
+    pwChatHistory.push({role:'assistant', content:reply});
+    if (pwChatHistory.length > 40) pwChatHistory = pwChatHistory.slice(-40);
+    api('/api/chat/sessions/' + pwSessionId + '/messages', 'POST', {role:'assistant', content:reply});
+  } catch(_) { _hidePWTyping(); _appendPWMsg('watson', 'Watson is offline.'); }
+}
+document.getElementById('pw-input').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendPWChat(); }
+});
+
+// PW voice
+(function() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const btn = document.getElementById('pw-mic-btn');
+  if (!SR) { btn.style.display = 'none'; return; }
+  const rec = new SR();
+  rec.continuous = false; rec.interimResults = false; rec.lang = 'en-US';
+  let active = false;
+  function stopRec() { active = false; btn.classList.remove('recording'); try { rec.stop(); } catch(_) {} }
+  rec.onresult = function(e) {
+    const t = e.results[0][0].transcript.trim();
+    stopRec();
+    if (t) { document.getElementById('pw-input').value = t; setTimeout(sendPWChat, 100); }
+  };
+  rec.onerror = function() { stopRec(); };
+  rec.onend = function() { if (active) stopRec(); };
+  window.togglePWVoice = function() {
+    if (active) { stopRec(); return; }
+    active = true; btn.classList.add('recording');
+    try { rec.start(); } catch(_) { stopRec(); }
+  };
+})();
+
+// ── File sidebar ──────────────────────────────────────────────────────────────
+async function openFileSidebar() {
+  document.getElementById('pw-sidebar').classList.add('open');
+  await loadFileSidebar();
+}
+function closeFileSidebar() { document.getElementById('pw-sidebar').classList.remove('open'); }
+
+async function loadFileSidebar() {
+  const el = document.getElementById('pw-sidebar-content');
+  if (!pwSlug) return;
+  el.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:4px 0">Loading...</div>';
+  try {
+    const data = await api('/api/projects/' + pwSlug + '/files');
+    let html = '<div class="pw-file-section"><div class="pw-file-section-lbl">Watson Notes</div>';
+    if (data.notes && data.notes.length) {
+      html += data.notes.map(f => {
+        const d = new Date(f.mtime * 1000).toLocaleDateString('en-US', {month:'short', day:'numeric'});
+        return '<div class="pw-file-row" onclick="injectFile(\\'' + esc(pwSlug) + '\\',\\'' + esc(f.name) + '\\',\\'notes\\')">' +
+          '<div class="pw-file-name">' + esc(f.name) + '</div>' +
+          '<div class="pw-file-date">' + d + '</div></div>';
+      }).join('');
+    } else {
+      html += '<div style="font-size:11px;color:var(--text3);padding:4px 2px">No notes yet</div>';
+    }
+    html += '</div><div class="pw-file-section"><div class="pw-file-section-lbl">Uploaded Files</div>';
+    if (data.files && data.files.length) {
+      html += data.files.map(f => {
+        const d = new Date(f.mtime * 1000).toLocaleDateString('en-US', {month:'short', day:'numeric'});
+        return '<div class="pw-file-row" onclick="injectFile(\\'' + esc(pwSlug) + '\\',\\'' + esc(f.name) + '\\',\\'files\\')">' +
+          '<div class="pw-file-name">' + esc(f.name) + '</div>' +
+          '<div class="pw-file-date">' + d + '</div></div>';
+      }).join('');
+    } else {
+      html += '<div style="font-size:11px;color:var(--text3);padding:4px 2px">No files uploaded</div>';
+    }
+    html += '</div>';
+    el.innerHTML = html;
+  } catch(_) {
+    el.innerHTML = '<div style="color:var(--danger);font-size:12px">Failed to load files.</div>';
+  }
+}
+
+async function injectFile(slug, filename, section) {
+  try {
+    const r = await fetch('/api/projects/' + slug + '/files/' + encodeURIComponent(filename) + '?section=' + section);
+    const text = await r.text();
+    pwAttachedContent = text.slice(0, 8000);
+    pwAttachedName = filename;
+    document.getElementById('pw-attach-name').textContent = filename;
+    document.getElementById('pw-attach-indicator').style.display = 'block';
+    closeFileSidebar();
+    document.getElementById('pw-input').focus();
+  } catch(e) { alert('Could not load file: ' + e.message); }
+}
+
+// ── Note modal ────────────────────────────────────────────────────────────────
+function openNoteModal() {
+  document.getElementById('pw-note-content').value = '';
+  document.getElementById('pw-note-modal').classList.add('open');
+  setTimeout(function() { document.getElementById('pw-note-content').focus(); }, 50);
+}
+function closeNoteModal() { document.getElementById('pw-note-modal').classList.remove('open'); }
+
+async function saveNote() {
+  const text = document.getElementById('pw-note-content').value.trim();
+  if (!text || !pwSlug) return;
+  const r = await api('/api/projects/' + pwSlug + '/notes', 'POST', {note: text});
+  if (r.ok) { closeNoteModal(); loadFileSidebar(); }
+  else { alert('Failed to save note: ' + (r.error || 'Unknown error')); }
+}
+
+// ── Kebab / archive / delete ──────────────────────────────────────────────────
+function toggleKebabMenu(e) {
+  e.stopPropagation();
+  document.getElementById('pw-kebab-menu').classList.toggle('open');
+}
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('#pw-kebab-menu') && e.target.id !== 'pw-kebab-btn') {
+    document.getElementById('pw-kebab-menu').classList.remove('open');
+  }
+});
+
+async function archiveProject() {
+  document.getElementById('pw-kebab-menu').classList.remove('open');
+  if (!pwSlug) return;
+  const r = await api('/api/projects/' + pwSlug + '/status', 'PATCH', {status: 'Archived'});
+  if (r.success) {
+    const p = projects.find(x => x.slug === pwSlug);
+    if (p) p.status = 'Archived';
+    closeProjectWorkspace();
+  } else { alert('Archive failed: ' + (r.error || 'Unknown error')); }
+}
+
+function confirmDeleteProject() {
+  document.getElementById('pw-kebab-menu').classList.remove('open');
+  if (!pwSlug) return;
+  if (!confirm('This will permanently delete the project and all its files. Are you sure?')) return;
+  deleteProject();
+}
+
+async function deleteProject() {
+  const slug = pwSlug;
+  const r = await api('/api/projects/' + slug, 'DELETE');
+  if (r.success) {
+    projects = projects.filter(p => p.slug !== slug);
+    closeProjectWorkspace();
+    renderProjects();
+  } else { alert('Delete failed: ' + (r.error || 'Unknown error')); }
+}
 </script>
 </body>
 </html>"""
@@ -1433,10 +1933,18 @@ def reminders_delete(reminder_id):
 
 @app.route("/api/chat/sessions")
 def chat_sessions_list():
-    rows = _db().execute(
-        "SELECT id, title, created_at, updated_at FROM chat_sessions "
-        "ORDER BY updated_at DESC LIMIT 50"
-    ).fetchall()
+    project_slug = request.args.get("project_slug")
+    if project_slug:
+        rows = _db().execute(
+            "SELECT id, title, created_at, updated_at, project_slug FROM chat_sessions "
+            "WHERE project_slug = ? ORDER BY updated_at DESC",
+            (project_slug,),
+        ).fetchall()
+    else:
+        rows = _db().execute(
+            "SELECT id, title, created_at, updated_at, project_slug FROM chat_sessions "
+            "ORDER BY updated_at DESC LIMIT 50"
+        ).fetchall()
     return jsonify([dict(r) for r in rows])
 
 
@@ -1772,24 +2280,34 @@ def projects_get(slug):
 
 @app.route("/api/projects/<slug>/files")
 def projects_files_list(slug):
-    files_dir = MEMORY / "projects" / slug / "files"
-    if not files_dir.exists():
-        return jsonify([])
-    entries = [
-        {"name": f.name, "size": f.stat().st_size}
-        for f in sorted(files_dir.iterdir())
-        if f.is_file()
-    ]
-    return jsonify(entries)
+    project_dir = MEMORY / "projects" / slug
+    if not project_dir.exists():
+        return jsonify({"notes": [], "files": []})
+    notes, files = [], []
+    notes_dir = project_dir / "notes"
+    if notes_dir.exists():
+        for f in sorted(notes_dir.iterdir()):
+            if f.is_file():
+                st = f.stat()
+                notes.append({"name": f.name, "size": st.st_size, "mtime": st.st_mtime})
+    files_dir = project_dir / "files"
+    if files_dir.exists():
+        for f in sorted(files_dir.iterdir()):
+            if f.is_file():
+                st = f.stat()
+                files.append({"name": f.name, "size": st.st_size, "mtime": st.st_mtime})
+    return jsonify({"notes": notes, "files": files})
 
 
 @app.route("/api/projects/<slug>/files/<filename>")
 def projects_files_get(slug, filename):
     from flask import send_from_directory
-    files_dir = MEMORY / "projects" / slug / "files"
-    if not (files_dir / filename).exists():
+    section = request.args.get("section", "files")
+    subdir = "notes" if section == "notes" else "files"
+    file_dir = MEMORY / "projects" / slug / subdir
+    if not (file_dir / filename).exists():
         return jsonify({"error": "not found"}), 404
-    return send_from_directory(str(files_dir), filename)
+    return send_from_directory(str(file_dir), filename)
 
 
 @app.route("/api/projects/<slug>/notes", methods=["POST"])
@@ -1863,6 +2381,70 @@ def projects_create():
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
     return jsonify({"ok": True, "slug": slug, "name": name}), 201
+
+
+@app.route("/api/projects/<slug>", methods=["DELETE"])
+def projects_delete(slug):
+    import shutil
+    import subprocess as _sp
+    project_dir = MEMORY / "projects" / slug
+    if not project_dir.exists():
+        return jsonify({"error": "not found"}), 404
+    try:
+        index_path = MEMORY / "projects" / "_index.md"
+        if index_path.exists():
+            lines = index_path.read_text(encoding="utf-8").splitlines(keepends=True)
+            new_lines = [
+                l for l in lines
+                if not _re.match(r"\|\s*" + _re.escape(slug) + r"\s*\|", l.strip())
+            ]
+            index_path.write_text("".join(new_lines), encoding="utf-8")
+        shutil.rmtree(str(project_dir))
+        _sp.run(["git", "add", str(MEMORY / "projects")], cwd=str(MEMORY.parent), check=True)
+        _sp.run(["git", "commit", "-m", f"project: deleted {slug}"], cwd=str(MEMORY.parent), check=True)
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+    return jsonify({"success": True})
+
+
+@app.route("/api/projects/<slug>/status", methods=["PATCH"])
+def projects_status_update(slug):
+    import subprocess as _sp
+    data = request.get_json(force=True, silent=True) or {}
+    status = (data.get("status") or "").strip()
+    if status not in ("Active", "Planned", "Archived"):
+        return jsonify({"error": "invalid status"}), 400
+    project_dir = MEMORY / "projects" / slug
+    if not project_dir.exists():
+        return jsonify({"error": "not found"}), 404
+    try:
+        md_path = project_dir / f"{slug}.md"
+        if md_path.exists():
+            content = md_path.read_text(encoding="utf-8")
+            content = _re.sub(r"\*\*Status:\*\*\s*.+", f"**Status:** {status}", content)
+            md_path.write_text(content, encoding="utf-8")
+        index_path = MEMORY / "projects" / "_index.md"
+        if index_path.exists():
+            lines = index_path.read_text(encoding="utf-8").splitlines()
+            new_lines = []
+            for line in lines:
+                stripped = line.strip()
+                if stripped.startswith("|") and _re.match(r"\|\s*" + _re.escape(slug) + r"\s*\|", stripped):
+                    parts = [p.strip() for p in stripped.strip("|").split("|")]
+                    if len(parts) >= 3:
+                        parts[2] = status
+                        line = "| " + " | ".join(parts) + " |"
+                new_lines.append(line)
+            index_path.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
+        _sp.run(["git", "add", str(project_dir), str(MEMORY / "projects" / "_index.md")],
+                cwd=str(MEMORY.parent), check=True)
+        _sp.run(["git", "commit", "-m", f"project({slug}): status → {status}"],
+                cwd=str(MEMORY.parent), check=True)
+        from jobs.memory.sync import main as sync_main
+        sync_main()
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+    return jsonify({"success": True})
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────
