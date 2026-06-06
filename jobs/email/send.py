@@ -58,7 +58,7 @@ def _send_smtp(to_email: str, subject: str, body: str) -> None:
     smtp_user = os.getenv("WATSON_SMTP_USER")
     smtp_pass = os.getenv("WATSON_GMAIL_APP_PASSWORD")
 
-    full_body = f"{body}\n\n---\nSent by Watson on behalf of Dr. Bill Yomes"
+    full_body = f"{body}\n\n---\nWatson\nAI-powered digital assistant\nOffice of Dr. Bill Yomes\nwilliamckyomes.com/start"
 
     msg = MIMEMultipart("alternative")
     msg["From"] = "Watson <watson.wcky@gmail.com>"
