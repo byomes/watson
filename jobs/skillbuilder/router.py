@@ -176,7 +176,7 @@ def _ask_router(message: str, skills: list) -> str:
     resp = requests.post(
         OLLAMA_URL,
         json={"model": OLLAMA_MODEL, "prompt": prompt, "stream": False},
-        timeout=30,
+        timeout=60,
     )
     resp.raise_for_status()
     return resp.json().get("response", "").strip()
@@ -225,6 +225,14 @@ def route(message: str, interface: str) -> dict:
       {"action": "propose", "message": str}
       {"action": "chat"}
     """
+    try:
+        return _route(message, interface)
+    except Exception as exc:
+        log.warning("Router error (falling back to chat): %s", exc)
+        return {"action": "chat"}
+
+
+def _route(message: str, interface: str) -> dict:
     # Retry check: if Bill is retrying after a failed build, skip the LLM
     msg_lower = message.lower().strip()
     if any(phrase in msg_lower for phrase in _RETRY_PHRASES) and interface in _last_failed_build:
