@@ -215,13 +215,18 @@ def _ask_router(message: str, skills: list) -> str:
     return resp.json().get("response", "").strip()
 
 
-def _run_skill(skill: dict) -> str:
+def _run_skill(skill: dict, message: str = None) -> str:
+    import inspect
     mod = importlib.import_module(skill["job_module"])
     fn = getattr(mod, skill["function"])
     buf = io.StringIO()
     result = None
     with redirect_stdout(buf):
-        result = fn()
+        sig = inspect.signature(fn)
+        if message is not None and "message" in sig.parameters:
+            result = fn(message=message)
+        else:
+            result = fn()
     output = buf.getvalue().strip()
     if result is not None:
         return str(result)
@@ -280,7 +285,7 @@ def _route(message: str, interface: str) -> dict:
     # Keyword pre-checks: common skills — no LLM call for known patterns.
     for slug, triggers in _SKILL_PRE_CHECKS.items():
         if any(trigger in msg_lower for trigger in triggers):
-            return {"action": "skill", "slug": slug}
+            return {"action": "skill", "slug": slug, "message": message}
 
     # Keyword pre-check: wrap-up phrases.
     if any(trigger in msg_lower for trigger in _WRAP_UP_TRIGGERS):
