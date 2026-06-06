@@ -2,64 +2,166 @@
   {
     "slug": "log_watch",
     "description": "Check Watson logs for errors in the last hour and send a Telegram summary",
-    "triggers": ["check logs", "any errors", "log report", "what errors", "error summary", "check for errors"],
+    "triggers": [
+      "check logs",
+      "any errors",
+      "log report",
+      "what errors",
+      "error summary",
+      "check for errors"
+    ],
     "job_module": "jobs.monitoring.log_watch",
     "function": "run",
-    "interfaces": ["dashboard", "telegram"],
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ],
     "status": "ready"
   },
   {
     "slug": "bible_lookup",
     "description": "Look up a Bible verse in NIV, CSB, or NASB translation",
-    "triggers": ["bible", "verse", "look up", "scripture", "read me", "what does the bible say"],
+    "triggers": [
+      "bible",
+      "verse",
+      "look up",
+      "scripture",
+      "read me",
+      "what does the bible say"
+    ],
     "job_module": "jobs.bible",
     "function": "run",
-    "interfaces": ["dashboard", "telegram"],
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ],
     "status": "ready"
   },
   {
     "slug": "calendar_availability",
     "description": "Check Watson calendar availability and open booking slots",
-    "triggers": ["availability", "open slots", "when am I free", "check calendar", "what's on my calendar", "my schedule"],
+    "triggers": [
+      "availability",
+      "open slots",
+      "when am I free",
+      "check calendar",
+      "what's on my calendar",
+      "my schedule"
+    ],
     "job_module": "jobs.gcal.availability",
     "function": "run",
-    "interfaces": ["dashboard", "telegram"],
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ],
     "status": "ready"
   },
   {
     "slug": "people_registry",
     "description": "Check the People Registry contact count or look up a contact",
-    "triggers": ["people", "contacts", "how many contacts", "people registry", "look up contact"],
+    "triggers": [
+      "people",
+      "contacts",
+      "how many contacts",
+      "people registry",
+      "look up contact"
+    ],
     "job_module": "jobs.people.server",
     "function": "run",
-    "interfaces": ["dashboard", "telegram"],
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ],
     "status": "ready"
   },
   {
     "slug": "send_email",
-    "description": "Send an email — Watson saves a draft to Gmail for review before sending",
-    "triggers": ["send an email", "email", "draft an email", "write an email", "send email"],
+    "description": "Send an email \u2014 Watson saves a draft to Gmail for review before sending",
+    "triggers": [
+      "send an email",
+      "email",
+      "draft an email",
+      "write an email",
+      "send email"
+    ],
     "job_module": "jobs.email.send",
     "function": "run",
-    "interfaces": ["dashboard", "telegram"],
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ],
     "status": "ready"
   },
   {
     "slug": "new_project",
     "description": "Create a new Watson project with memory files and index entry",
-    "triggers": ["new project", "create project", "start a project", "add project"],
+    "triggers": [
+      "new project",
+      "create project",
+      "start a project",
+      "add project"
+    ],
     "job_module": "jobs.memory.new_project",
     "function": "run",
-    "interfaces": ["dashboard", "telegram"],
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ],
     "status": "ready"
   },
   {
     "slug": "build_skill",
     "description": "Build a new Watson skill from a natural language description using the AI code writer",
-    "triggers": ["build a skill", "create a job", "add ability", "write a job", "build something that"],
+    "triggers": [
+      "build a skill",
+      "create a job",
+      "add ability",
+      "write a job",
+      "build something that"
+    ],
     "job_module": "jobs.skillbuilder.build",
     "function": "run",
-    "interfaces": ["dashboard", "telegram"],
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ],
+    "status": "ready"
+  },
+  {
+    "slug": "weather_every_morning",
+    "description": "Check the weather forecast for today and send an hourly summary via Telegram",
+    "triggers": [
+      "weather",
+      "forecast",
+      "what's the weather",
+      "weather today",
+      "will it rain",
+      "temperature today",
+      "what should I wear"
+    ],
+    "job_module": "jobs.monitoring.weather_every_morning",
+    "function": "run",
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ],
+    "status": "ready"
+  },
+  {
+    "slug": "tells_many_days",
+    "description": "Calculate and report how many days until Christmas",
+    "triggers": [
+      "days until christmas",
+      "how many days until christmas",
+      "christmas countdown",
+      "when is christmas"
+    ],
+    "job_module": "jobs.misc.tells_many_days",
+    "function": "run",
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ],
     "status": "ready"
   }
 ]
