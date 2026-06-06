@@ -2,7 +2,11 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Watson">
+<meta name="theme-color" content="#0d0f12">
 <title>Watson</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -14,10 +18,10 @@
 
 <div id="hdr">
   <div id="hdr-identity">
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="36" height="36" style="border-radius:7px;flex-shrink:0;">
+    <button onclick="location.reload()" title="Refresh Watson" style="background:none;border:none;padding:0;cursor:pointer;flex-shrink:0;line-height:0;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="36" height="36" style="border-radius:7px;display:block;">
       <rect x="0" y="0" width="512" height="512" rx="51" fill="#111827"/>
       <text x="256" y="400" font-family="Georgia, serif" font-size="360" font-weight="700" fill="white" text-anchor="middle">W</text>
-    </svg>
+    </svg></button>
     <div>
       <div id="hdr-name">Watson</div>
       <div id="hdr-sub">Digital Assistant to Dr. Bill Yomes</div>
