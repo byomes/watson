@@ -18,6 +18,26 @@ OLLAMA_MODEL = "llama3.2:3b"
 
 log = logging.getLogger(__name__)
 
+_PASTORAL_TERMS = {
+    "pastoral", "counseling", "counsel", "prayer", "pray",
+    "pastor", "contextualization", "spiritual", "chaplain",
+    "ministry guidance", "soul care",
+}
+
+
+def _is_pastoral(gap: dict) -> bool:
+    text = " ".join([gap.get("gap", ""), gap.get("description", "")]).lower()
+    return any(term in text for term in _PASTORAL_TERMS)
+
+
+def _job_path_exists(job_path: str) -> bool:
+    if os.path.exists(os.path.join(REPO, job_path)):
+        return True
+    slash_path = job_path.replace(".", "/")
+    if not slash_path.endswith(".py"):
+        slash_path += ".py"
+    return os.path.exists(os.path.join(REPO, slash_path))
+
 
 def _telegram(text: str) -> None:
     bot_token = os.getenv("WATSON_BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
@@ -87,10 +107,12 @@ def run_audit() -> str:
         "Format response as a JSON array:\n"
         '[{"gap": "name", "reason": "why it matters", "job_path": "jobs/category/skill_name.py", '
         '"description": "what to build"}]\n\n'
-        "job_path must be a short two-part path: jobs/<category>/<skill_name>.py\n"
-        "Examples: jobs/monitoring/disk_watch.py, jobs/email/weekly_digest.py, "
-        "jobs/ministry/sermon_outline.py\n"
-        "Do NOT use long descriptive paths or dot-separated names.\n\n"
+        "The job_path must be a NEW file that does not yet exist. "
+        "Use format jobs/category/descriptive_name.py. "
+        "Valid categories: monitoring, email, content, research, calendar, documents, ministry, misc. "
+        "Example valid paths: jobs/research/argument_mapper.py, jobs/content/sermon_outline.py, "
+        "jobs/ministry/theology_tester.py\n"
+        "Do NOT reference existing Watson modules. Do NOT use dot-separated names.\n\n"
         "Output ONLY the JSON array. No preamble, no explanation."
     )
     user = (
@@ -122,17 +144,14 @@ def run_audit() -> str:
         _telegram("📊 Weekly audit complete — no capability gaps identified.")
         return "No gaps identified."
 
-    _PASTORAL_TERMS = {
-        "pastoral", "counseling", "counsel", "prayer", "pray",
-        "spiritual authority", "pastor",
-    }
-
-    def _is_pastoral(gap: dict) -> bool:
-        text = " ".join([
-            gap.get("gap", ""),
-            gap.get("description", ""),
-        ]).lower()
-        return any(term in text for term in _PASTORAL_TERMS)
+    filtered = []
+    for gap in gaps:
+        job_path = gap.get("job_path", "")
+        if _job_path_exists(job_path):
+            log.info("Audit rejected existing-path gap: %s (%s)", gap.get("gap"), job_path)
+            continue
+        filtered.append(gap)
+    gaps = filtered
 
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(DB_PATH))
