@@ -1,10 +1,11 @@
-"""jobs/skillbuilder/build.py — generate a new Watson job via qwen2.5-coder:7b."""
+"""jobs/skillbuilder/build.py — three-tier skill builder: Ollama → Claude Sonnet → Claude Code."""
 import json
 import logging
 import os
+import sqlite3
 import subprocess
 import tempfile
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 import requests
@@ -14,8 +15,11 @@ load_dotenv()
 
 REPO = Path(__file__).resolve().parents[2]
 MEMORY = REPO / "memory"
+DB_PATH = Path(os.getenv("WATSON_DB", str(REPO / "data" / "watson.db")))
 OLLAMA_URL = "http://localhost:11434/api/generate"
 OLLAMA_MODEL = "qwen2.5-coder:7b"
+ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
+ANTHROPIC_MODEL = "claude-sonnet-4-6"
 
 logging.basicConfig(
     level=logging.INFO,
@@ -25,21 +29,28 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 
+# ── Telegram ──────────────────────────────────────────────────────────────────
+
 def _telegram(text: str) -> None:
     bot_token = os.getenv("WATSON_BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
     chat_id = os.getenv("WATSON_CHAT_ID") or os.getenv("TELEGRAM_CHAT_ID")
     if not (bot_token and chat_id):
         log.warning("Telegram credentials not set — skipping notification")
         return
+    # Telegram message limit is 4096 chars
+    if len(text) > 4000:
+        text = text[:3950] + "\n…[truncated]"
     try:
         requests.post(
             f"https://api.telegram.org/bot{bot_token}/sendMessage",
             json={"chat_id": chat_id, "text": text},
-            timeout=600,
+            timeout=30,
         )
     except Exception as exc:
         log.error("Telegram failed: %s", exc)
 
+
+# ── Context loaders ───────────────────────────────────────────────────────────
 
 def _load_context() -> str:
     files = [
@@ -69,6 +80,8 @@ def _load_examples() -> str:
     return "\n\n".join(parts)
 
 
+# ── Model callers ─────────────────────────────────────────────────────────────
+
 def _call_ollama(prompt: str) -> str:
     resp = requests.post(
         OLLAMA_URL,
@@ -79,8 +92,39 @@ def _call_ollama(prompt: str) -> str:
     return resp.json().get("response", "").strip()
 
 
+def _call_anthropic(system: str, user: str) -> str:
+    api_key = os.getenv("ANTHROPIC_API_KEY")
+    if not api_key:
+        raise RuntimeError("ANTHROPIC_API_KEY not set")
+    resp = requests.post(
+        ANTHROPIC_URL,
+        headers={
+            "x-api-key": api_key,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+        },
+        json={
+            "model": ANTHROPIC_MODEL,
+            "max_tokens": 4096,
+            "system": system,
+            "messages": [{"role": "user", "content": user}],
+        },
+        timeout=60,
+    )
+    resp.raise_for_status()
+    return resp.json()["content"][0]["text"].strip()
+
+
+# ── Code utilities ────────────────────────────────────────────────────────────
+
+def _strip_fences(code: str) -> str:
+    if "```" in code:
+        lines = code.splitlines()
+        return "\n".join(line for line in lines if not line.startswith("```")).strip()
+    return code
+
+
 def _syntax_check(code: str) -> tuple[bool, str]:
-    """Write code to a temp file, run py_compile, return (ok, error_msg)."""
     tmp = Path(tempfile.gettempdir()) / "watson_skill_draft.py"
     tmp.write_text(code, encoding="utf-8")
     result = subprocess.run(
@@ -93,6 +137,108 @@ def _syntax_check(code: str) -> tuple[bool, str]:
         return False, result.stderr.strip()
     return True, ""
 
+
+# ── Git ───────────────────────────────────────────────────────────────────────
+
+def _run(cmd: list, **kwargs) -> subprocess.CompletedProcess:
+    return subprocess.run(cmd, cwd=str(REPO), capture_output=True, text=True, **kwargs)
+
+
+def safe_git_push() -> tuple[bool, str]:
+    """Fetch, sync if behind, then push. Returns (success, error_message)."""
+    r = _run(["git", "fetch", "origin"])
+    if r.returncode != 0:
+        return False, f"git fetch failed: {r.stderr.strip()}"
+
+    r = _run(["git", "rev-list", "HEAD..origin/main", "--count"])
+    if r.returncode != 0:
+        return False, f"git rev-list failed: {r.stderr.strip()}"
+
+    behind = int(r.stdout.strip() or "0")
+
+    if behind > 0:
+        _run(["git", "stash"])
+        r = _run(["git", "pull", "origin", "main"])
+        if r.returncode != 0:
+            _run(["git", "stash", "pop"])
+            return False, f"git pull failed: {r.stderr.strip()}"
+        r = _run(["git", "stash", "pop"])
+        if r.returncode != 0:
+            msg = "Git conflict during build push — manual resolution needed"
+            _telegram(msg)
+            log.error(msg)
+            return False, msg
+
+    r = _run(["git", "push", "origin", "main"])
+    if r.returncode != 0:
+        return False, f"git push failed: {r.stderr.strip()}"
+
+    return True, ""
+
+
+def _commit_and_push(dest: Path, job_path: str, built_by: str) -> tuple[bool, str]:
+    r = _run(["git", "add", str(dest)])
+    if r.returncode != 0:
+        return False, f"git add failed: {r.stderr.strip()}"
+    r = _run(["git", "commit", "-m", f"skill: {job_path} — generated by {built_by}"])
+    if r.returncode != 0:
+        return False, f"git commit failed: {r.stderr.strip()}"
+    return safe_git_push()
+
+
+# ── DB tracking ───────────────────────────────────────────────────────────────
+
+def _db_init() -> None:
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(str(DB_PATH))
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS build_attempts (
+            id           INTEGER PRIMARY KEY,
+            description  TEXT,
+            job_path     TEXT,
+            tier_reached INTEGER,
+            success      INTEGER,
+            error_1      TEXT,
+            error_2      TEXT,
+            error_3      TEXT,
+            built_by     TEXT,
+            created_at   TEXT
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+
+def _log_build(
+    description: str,
+    job_path: str,
+    tier_reached: int,
+    success: bool,
+    error_1: str = "",
+    error_2: str = "",
+    error_3: str = "",
+    built_by: str = "",
+) -> None:
+    try:
+        _db_init()
+        conn = sqlite3.connect(str(DB_PATH))
+        conn.execute(
+            "INSERT INTO build_attempts "
+            "(description, job_path, tier_reached, success, error_1, error_2, error_3, built_by, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                description, job_path, tier_reached, int(success),
+                error_1, error_2, error_3, built_by,
+                datetime.utcnow().isoformat(),
+            ),
+        )
+        conn.commit()
+        conn.close()
+    except Exception as exc:
+        log.warning("DB log failed (non-fatal): %s", exc)
+
+
+# ── Memory updates ────────────────────────────────────────────────────────────
 
 def _update_skills_json(job_path: str, description: str) -> None:
     skills_file = REPO / "memory" / "skills.json"
@@ -114,13 +260,13 @@ def _update_skills_json(job_path: str, description: str) -> None:
         skills_file.write_text(json.dumps(skills, indent=2), encoding="utf-8")
 
 
-def _update_python_memory(job_path: str, description: str) -> None:
+def _update_python_memory(job_path: str, description: str, built_by: str) -> None:
     python_md = MEMORY / "coding" / "python.md"
     if not python_md.exists():
         return
     content = python_md.read_text(encoding="utf-8")
     today = date.today().isoformat()
-    entry = f"- {job_path}: {description[:100]} (built {today})"
+    entry = f"- {job_path}: {description[:80]} (built by {built_by} on {today})"
     if "## Recently Built" in content:
         python_md.write_text(content.rstrip() + f"\n{entry}\n", encoding="utf-8")
     else:
@@ -130,60 +276,25 @@ def _update_python_memory(job_path: str, description: str) -> None:
         )
 
 
-def _run(cmd: list, **kwargs) -> subprocess.CompletedProcess:
-    return subprocess.run(cmd, cwd=str(REPO), capture_output=True, text=True, **kwargs)
+def _post_success(job_path: str, description: str, built_by: str) -> None:
+    Path(tempfile.gettempdir()).joinpath("watson_skill_draft.py").unlink(missing_ok=True)
+    try:
+        _update_python_memory(job_path, description, built_by)
+        _update_skills_json(job_path, description)
+        from jobs.memory.sync import main as sync_main
+        sync_main()
+    except Exception as exc:
+        log.warning("Memory update failed (non-fatal): %s", exc)
 
 
-def safe_git_push() -> tuple[bool, str]:
-    """Fetch, sync if behind, then push. Returns (success, error_message)."""
-    # 1. Fetch
-    r = _run(["git", "fetch", "origin"])
-    if r.returncode != 0:
-        return False, f"git fetch failed: {r.stderr.strip()}"
-
-    # 2. How far behind are we?
-    r = _run(["git", "rev-list", "HEAD..origin/main", "--count"])
-    if r.returncode != 0:
-        return False, f"git rev-list failed: {r.stderr.strip()}"
-
-    behind = int(r.stdout.strip() or "0")
-
-    if behind > 0:
-        # 3a. Stash local changes
-        _run(["git", "stash"])
-
-        # 3b. Pull
-        r = _run(["git", "pull", "origin", "main"])
-        if r.returncode != 0:
-            _run(["git", "stash", "pop"])
-            return False, f"git pull failed: {r.stderr.strip()}"
-
-        # 3c. Restore stash
-        r = _run(["git", "stash", "pop"])
-        if r.returncode != 0:
-            msg = "Git conflict during build push — manual resolution needed"
-            _telegram(msg)
-            log.error(msg)
-            return False, msg
-
-    # 4. Push
-    r = _run(["git", "push", "origin", "main"])
-    if r.returncode != 0:
-        return False, f"git push failed: {r.stderr.strip()}"
-
-    return True, ""
-
+# ── Build skill ───────────────────────────────────────────────────────────────
 
 def build_skill(description: str, job_path: str) -> bool:
     log.info("Building skill: %s → %s", description[:60], job_path)
 
-    # 1. Load memory context
     context = _load_context()
-
-    # 2. Load example jobs
     examples = _load_examples()
 
-    # 3. Build prompt
     system = (
         "You are Watson's internal code writer. You write Python jobs for the Watson "
         "assistant system running on a Beelink EQi12 (Linux Mint, Python 3, systemd). "
@@ -191,7 +302,7 @@ def build_skill(description: str, job_path: str) -> bool:
         "code — no markdown, no backticks, no explanation. The code must be complete and "
         "ready to save directly to a file."
     )
-    user = (
+    base_user = (
         f"Watson coding conventions and patterns:\n{context}\n\n"
         f"Example jobs for reference:\n{examples}\n\n"
         f"Write a complete Python job that does the following:\n{description}\n\n"
@@ -205,116 +316,166 @@ def build_skill(description: str, job_path: str) -> bool:
         "- Be complete and runnable as-is\n\n"
         "Output only the Python code. Nothing else."
     )
-    full_prompt = f"SYSTEM:\n{system}\n\nUSER:\n{user}"
 
-    # 4. Call Ollama
-    log.info("Calling %s via Ollama…", OLLAMA_MODEL)
-    try:
-        code = _call_ollama(full_prompt)
-    except Exception as exc:
-        msg = (
-            f"✗ Build failed: {job_path}\n\n"
-            f"Ollama error — {exc}\n\n"
-            f"Build failed after attempt. Say 'retry building {description[:40]}' to try again."
-        )
-        log.error(msg)
-        _telegram(msg)
-        return False
-
-    if not code:
-        msg = (
-            f"✗ Build failed: {job_path}\n\n"
-            f"Empty response from model.\n\n"
-            f"Build failed after attempt. Say 'retry building {description[:40]}' to try again."
-        )
-        log.error(msg)
-        _telegram(msg)
-        return False
-
-    # Strip any accidental markdown fences the model may have emitted
-    if code.startswith("```"):
-        lines = code.splitlines()
-        code = "\n".join(
-            line for line in lines
-            if not line.startswith("```")
-        ).strip()
-
-    # 5. Syntax check
-    ok, err = _syntax_check(code)
-    if not ok:
-        msg = (
-            f"✗ Build failed: {job_path}\n\n"
-            f"Syntax error — {err}\n\n"
-            f"Build failed after attempt. Say 'retry building {description[:40]}' to try again."
-        )
-        log.error(msg)
-        _telegram(msg)
-        return False
-
-    # 6. Save file
     dest = REPO / job_path
     dest.parent.mkdir(parents=True, exist_ok=True)
-    dest.write_text(code, encoding="utf-8")
-    log.info("Saved: %s", dest)
 
-    tmp = Path(tempfile.gettempdir()) / "watson_skill_draft.py"
-    tmp.unlink(missing_ok=True)
+    code_1 = error_1 = code_2 = error_2 = error_3 = ""
 
-    # 7. Commit and push
-    r = _run(["git", "add", str(dest)])
-    if r.returncode != 0:
-        msg = (
-            f"✗ Build failed: {job_path}\n\n"
-            f"Git error — {r.stderr.strip()}\n\n"
-            f"Build failed after attempt. Say 'retry building {description[:40]}' to try again."
+    # ── TIER 1: qwen2.5-coder:7b, first attempt ───────────────────────────
+    log.info("Tier 1: calling %s…", OLLAMA_MODEL)
+    try:
+        raw = _call_ollama(f"SYSTEM:\n{system}\n\nUSER:\n{base_user}")
+        code_1 = _strip_fences(raw)
+    except Exception as exc:
+        error_1 = str(exc)
+        log.error("Tier 1 Ollama error: %s", exc)
+        _telegram(f"Tier 1 Ollama error — skipping to Claude Sonnet.\n{exc}")
+
+    if code_1:
+        ok, err = _syntax_check(code_1)
+        if ok:
+            dest.write_text(code_1, encoding="utf-8")
+            push_ok, push_err = _commit_and_push(dest, job_path, OLLAMA_MODEL)
+            if push_ok:
+                _telegram(
+                    f"✓ Skill built: {job_path}\n\n{description}\n\n"
+                    "Review before activating. Add a cron entry or start as a service to enable."
+                )
+                _log_build(description, job_path, 1, True, built_by=OLLAMA_MODEL)
+                _post_success(job_path, description, OLLAMA_MODEL)
+                return True
+            _telegram(f"✗ Git push failed: {push_err}")
+            _log_build(description, job_path, 1, False, error_1=push_err, built_by=OLLAMA_MODEL)
+            return False
+        else:
+            error_1 = err
+            log.warning("Tier 1 syntax error: %s", err)
+
+    # ── TIER 2: qwen2.5-coder:7b, retry with error context ────────────────
+    if code_1:
+        log.info("Tier 2: retrying with error context…")
+        _telegram("First attempt failed. Trying again with error context.")
+
+        tier2_user = (
+            base_user
+            + f"\n\nYour previous attempt failed with this syntax error:\n{error_1}"
+            + f"\n\nHere was your attempt:\n{code_1}"
+            + "\n\nFix the error and rewrite the complete file."
         )
-        log.error(msg)
-        _telegram(msg)
-        return False
+        try:
+            raw = _call_ollama(f"SYSTEM:\n{system}\n\nUSER:\n{tier2_user}")
+            code_2 = _strip_fences(raw)
+        except Exception as exc:
+            error_2 = str(exc)
+            log.error("Tier 2 Ollama error: %s", exc)
 
-    r = _run(["git", "commit", "-m", f"skill: {job_path} — generated by {OLLAMA_MODEL}"])
-    if r.returncode != 0:
-        msg = (
-            f"✗ Build failed: {job_path}\n\n"
-            f"Git error — {r.stderr.strip()}\n\n"
-            f"Build failed after attempt. Say 'retry building {description[:40]}' to try again."
-        )
-        log.error(msg)
-        _telegram(msg)
-        return False
+        if code_2:
+            ok, err = _syntax_check(code_2)
+            if ok:
+                dest.write_text(code_2, encoding="utf-8")
+                push_ok, push_err = _commit_and_push(dest, job_path, OLLAMA_MODEL)
+                if push_ok:
+                    _telegram(
+                        f"✓ Skill built on second attempt: {job_path}\n\n{description}\n\n"
+                        "Review before activating."
+                    )
+                    _log_build(
+                        description, job_path, 2, True,
+                        error_1=error_1, built_by=OLLAMA_MODEL,
+                    )
+                    _post_success(job_path, description, OLLAMA_MODEL)
+                    return True
+                _telegram(f"✗ Git push failed: {push_err}")
+                _log_build(
+                    description, job_path, 2, False,
+                    error_1=error_1, error_2=push_err, built_by=OLLAMA_MODEL,
+                )
+                return False
+            else:
+                error_2 = err
+                log.warning("Tier 2 syntax error: %s", err)
 
-    ok, err = safe_git_push()
-    if not ok:
-        msg = (
-            f"✗ Build failed: {job_path}\n\n"
-            f"{err}\n\n"
-            f"Build failed after attempt. Say 'retry building {description[:40]}' to try again."
-        )
-        log.error(msg)
-        # Only send Telegram if safe_git_push didn't already send one (conflict case)
-        if "manual resolution" not in err:
-            _telegram(msg)
-        return False
+    # ── TIER 3: Claude Sonnet via Anthropic API ────────────────────────────
+    log.info("Tier 3: escalating to Claude Sonnet…")
+    _telegram("Two attempts failed. Escalating to Claude.")
 
-    # 8. Notify Bill
-    _telegram(
-        f"✓ Skill built: {job_path}\n\n"
-        f"{description}\n\n"
-        "Review before activating. Add a cron entry or start as a service to enable."
+    if not os.getenv("ANTHROPIC_API_KEY"):
+        _telegram("Anthropic API key not configured — skipping Claude escalation.")
+    else:
+        tier3_user = base_user + "\n\nTwo previous attempts by a smaller model failed."
+        if code_1:
+            tier3_user += f"\n\nAttempt 1 error:\n{error_1}\nAttempt 1 code:\n{code_1}"
+        if code_2:
+            tier3_user += f"\n\nAttempt 2 error:\n{error_2}\nAttempt 2 code:\n{code_2}"
+        tier3_user += "\n\nWrite a correct, complete implementation."
+
+        code_3 = ""
+        try:
+            code_3 = _strip_fences(_call_anthropic(system, tier3_user))
+        except Exception as exc:
+            error_3 = str(exc)
+            log.error("Tier 3 Anthropic error: %s", exc)
+
+        if code_3:
+            ok, err = _syntax_check(code_3)
+            if ok:
+                dest.write_text(code_3, encoding="utf-8")
+                push_ok, push_err = _commit_and_push(dest, job_path, "claude-sonnet")
+                if push_ok:
+                    _telegram(
+                        f"✓ Skill built by Claude Sonnet after escalation: {job_path}\n\n"
+                        f"{description}\n\nReview before activating."
+                    )
+                    _log_build(
+                        description, job_path, 3, True,
+                        error_1=error_1, error_2=error_2, built_by="claude-sonnet",
+                    )
+                    _post_success(job_path, description, "claude-sonnet")
+                    return True
+                _telegram(f"✗ Git push failed: {push_err}")
+                _log_build(
+                    description, job_path, 3, False,
+                    error_1=error_1, error_2=error_2, error_3=push_err, built_by="claude-sonnet",
+                )
+                return False
+            else:
+                error_3 = err
+                log.error("Tier 3 syntax error: %s", err)
+
+    # ── TIER 4: Claude Code prompt via Telegram ────────────────────────────
+    log.info("Tier 4: sending Claude Code prompt to Bill…")
+    _log_build(
+        description, job_path, 4, False,
+        error_1=error_1, error_2=error_2, error_3=error_3, built_by="manual",
     )
 
-    # 9. Update memory, skills registry, and sync DB
-    try:
-        _update_python_memory(job_path, description)
-        _update_skills_json(job_path, description)
-        from jobs.memory.sync import main as sync_main
-        sync_main()
-    except Exception as exc:
-        log.warning("Memory update failed (non-fatal): %s", exc)
+    failed_parts = []
+    if code_1:
+        failed_parts.append(f"Attempt 1 error:\n{error_1}\n\nAttempt 1 code (first 400 chars):\n{code_1[:400]}")
+    if code_2:
+        failed_parts.append(f"Attempt 2 error:\n{error_2}\n\nAttempt 2 code (first 400 chars):\n{code_2[:400]}")
+    if error_3:
+        failed_parts.append(f"Claude Sonnet error:\n{error_3}")
 
-    log.info("Skill build complete: %s", job_path)
-    return True
+    claude_prompt = (
+        f"Watson coding conventions (excerpt):\n{context[:600]}...\n\n"
+        f"Write a complete Python job for: {description}\n\n"
+        f"Save to: {job_path}\n\n"
+        + ("\n\n".join(failed_parts) + "\n\n" if failed_parts else "")
+        + "Output only the Python code. Nothing else."
+    )
 
+    _telegram(
+        "All automated attempts failed. Here is a Claude Code prompt ready to run manually:\n\n"
+        f"---\n{claude_prompt}\n---\n\n"
+        "Run: cd ~/watson && claude --dangerously-skip-permissions\n"
+        "Then paste the prompt above."
+    )
+    return False
+
+
+# ── Entry points ──────────────────────────────────────────────────────────────
 
 def run() -> str:
     """Prompt Bill to describe the skill he wants built."""
@@ -326,7 +487,5 @@ if __name__ == "__main__":
     if len(sys.argv) < 3:
         print("Usage: python3 -m jobs.skillbuilder.build '<description>' '<job_path>'")
         sys.exit(1)
-    description = sys.argv[1]
-    job_path = sys.argv[2]
-    success = build_skill(description, job_path)
+    success = build_skill(sys.argv[1], sys.argv[2])
     sys.exit(0 if success else 1)
