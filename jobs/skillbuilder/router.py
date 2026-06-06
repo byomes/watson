@@ -72,6 +72,21 @@ _SKILL_PRE_CHECKS: dict[str, tuple] = {
     "read_powerpoint": (
         "read powerpoint", "open presentation", "open pptx",
     ),
+    "article_reader": (
+        "read this article", "fetch this url", "read this page", "summarize this link",
+    ),
+    "vcf_importer": (
+        "import vcf", "import vcard", "load contact card",
+    ),
+    "qr_generator": (
+        "generate qr", "qr code", "create qr", "make a qr",
+    ),
+    "youtube_downloader": (
+        "download youtube", "download audio from", "download this video", "get audio from youtube",
+    ),
+    "text_processor": (
+        "summarize this text", "extract keywords", "convert to markdown", "key points from",
+    ),
 }
 
 # Matched against msg_lower BEFORE the LLM call — returns run_audit immediately, no fallthrough
