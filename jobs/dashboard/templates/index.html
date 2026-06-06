@@ -82,6 +82,10 @@
       <div style="min-width:60px"></div>
     </div>
     <div class="overlay-body" style="padding:16px">
+      <div style="display:flex;margin-bottom:14px;border-bottom:1px solid var(--border)">
+        <button class="skill-tab" data-tab="ready" onclick="switchSkillTab('ready')" style="flex:1;background:none;border:none;border-bottom:2px solid var(--accent);margin-bottom:-1px;padding:8px 0;font-size:11px;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.06em;cursor:pointer;color:var(--accent)">Ready</button>
+        <button class="skill-tab" data-tab="dev" onclick="switchSkillTab('dev')" style="flex:1;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-1px;padding:8px 0;font-size:11px;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.06em;cursor:pointer;color:var(--text-muted)">Dev</button>
+      </div>
       <div id="settings-skills-list"></div>
     </div>
   </div>
