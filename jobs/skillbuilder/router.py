@@ -60,6 +60,18 @@ _SKILL_PRE_CHECKS: dict[str, tuple] = {
     "web_search": (
         "search for", "search the web", "look it up", "google that",
     ),
+    "read_pdf": (
+        "read pdf", "open pdf",
+    ),
+    "read_word": (
+        "read word", "open doc", "open word",
+    ),
+    "read_excel": (
+        "read excel", "open spreadsheet", "open excel",
+    ),
+    "read_powerpoint": (
+        "read powerpoint", "open presentation", "open pptx",
+    ),
 }
 
 # Matched against msg_lower BEFORE the LLM call — returns run_audit immediately, no fallthrough
