@@ -327,14 +327,14 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if text_lower in ("yes", "confirm", "yes do it", "book it", "go ahead") or text_lower in _SKILL_AFFIRM:
         if chat_id in _pending_skills:
             pending_desc = _pending_skills.pop(chat_id)
-            slug = pending_desc.lower()[:40]
-            for ch in " !?:,;'\"/\\.":
-                slug = slug.replace(ch, "_")
-            slug = "_".join(p for p in slug.split("_") if p)[:30]
-            job_path = f"jobs/custom/{slug}.py"
-            from jobs.skillbuilder.build import build_skill as _build_skill
+            from jobs.skillbuilder import router as _router
+            job_path = _router._generate_job_path(pending_desc)
             import threading
-            threading.Thread(target=_build_skill, args=(pending_desc, job_path), daemon=True).start()
+            threading.Thread(
+                target=_router._build_in_background,
+                args=(pending_desc, job_path, "telegram"),
+                daemon=True,
+            ).start()
             await update.message.reply_text("Building that skill now. I'll notify you via Telegram when it's ready.")
             return
         p = pending_module.get_pending(chat_id)
@@ -363,6 +363,16 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if route_result["action"] == "skill":
         await update.message.reply_text("✓ " + route_result["result"])
+        return
+
+    if route_result["action"] == "build":
+        import threading
+        threading.Thread(
+            target=_router._build_in_background,
+            args=(route_result["description"], route_result["job_path"], "telegram"),
+            daemon=True,
+        ).start()
+        await update.message.reply_text("Building that skill now. I'll notify you via Telegram when it's ready.")
         return
 
     if route_result["action"] == "propose":

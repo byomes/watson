@@ -55,8 +55,8 @@
   },
   {
     "slug": "build_skill",
-    "description": "Build a new Watson skill using the AI code writer",
-    "triggers": ["build a skill", "new skill", "create a skill", "add a skill", "build a job"],
+    "description": "Build a new Watson skill from a natural language description using the AI code writer",
+    "triggers": ["build a skill", "create a job", "add ability", "write a job", "build something that"],
     "job_module": "jobs.skillbuilder.build",
     "function": "run",
     "interfaces": ["dashboard", "telegram"],
