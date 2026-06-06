@@ -234,7 +234,10 @@
     ],
     "job_module": "jobs.research.web_search",
     "function": "run",
-    "interfaces": ["dashboard", "telegram"],
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ],
     "status": "ready"
   },
   {
@@ -248,7 +251,10 @@
     ],
     "job_module": "jobs.people.google_contacts",
     "function": "run",
-    "interfaces": ["dashboard", "telegram"],
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ],
     "status": "ready"
   },
   {
@@ -261,5 +267,52 @@
       "dashboard",
       "telegram"
     ]
+  },
+  {
+    "slug": "both_read_pdf",
+    "description": "build a skill that can both read PDF files and extract their text content, and create new PDF files from text content",
+    "triggers": [],
+    "job_module": "jobs.misc.both_read_pdf",
+    "function": "run",
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ]
+  },
+  {
+    "slug": "read_pdf",
+    "description": "Read text from a PDF file or create a new PDF from text",
+    "triggers": ["read pdf", "open pdf", "extract pdf", "pdf text"],
+    "job_module": "jobs.documents.pdf",
+    "function": "run",
+    "interfaces": ["dashboard", "telegram"],
+    "status": "ready"
+  },
+  {
+    "slug": "read_word",
+    "description": "Read text from a Word .docx file or create a new document",
+    "triggers": ["read word", "open doc", "open word", "read docx"],
+    "job_module": "jobs.documents.word",
+    "function": "run",
+    "interfaces": ["dashboard", "telegram"],
+    "status": "ready"
+  },
+  {
+    "slug": "read_excel",
+    "description": "Read data from an Excel .xlsx file or create a new spreadsheet",
+    "triggers": ["read excel", "open spreadsheet", "open excel", "read xlsx"],
+    "job_module": "jobs.documents.excel",
+    "function": "run",
+    "interfaces": ["dashboard", "telegram"],
+    "status": "ready"
+  },
+  {
+    "slug": "read_powerpoint",
+    "description": "Read text from a PowerPoint .pptx file or create a new presentation",
+    "triggers": ["read powerpoint", "open presentation", "open pptx", "read slides"],
+    "job_module": "jobs.documents.powerpoint",
+    "function": "run",
+    "interfaces": ["dashboard", "telegram"],
+    "status": "ready"
   }
 ]
