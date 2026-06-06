@@ -232,8 +232,9 @@
   <div class="pw-topbar">
     <button class="pw-back" onclick="closeProjectWorkspace()">&#8592;</button>
     <span class="pw-title" id="pw-title"></span>
-    <div style="display:flex;gap:2px;flex-shrink:0">
-      <button class="pw-icon-btn" title="Files" onclick="openFileSidebar()">&#128193;</button>
+    <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
+      <button class="pw-ghost-btn" onclick="openFileSidebar()">&#128193; Files</button>
+      <button class="pw-ghost-btn" onclick="openProjectMemory()">&#129504; Memory</button>
       <button class="pw-icon-btn" id="pw-kebab-btn" title="More" onclick="toggleKebabMenu(event)">&#8942;</button>
     </div>
     <div class="pw-kebab-menu" id="pw-kebab-menu">
@@ -256,6 +257,22 @@
     <button id="pw-mic-btn" onclick="togglePWVoice()"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg></button>
     <input id="pw-input" type="text" placeholder="Message Watson&hellip;">
     <button id="pw-send-btn" onclick="sendPWChat()">Send</button>
+  </div>
+</div>
+
+<!-- Project memory panel -->
+<div id="project-memory-panel">
+  <div class="overlay-topbar">
+    <div style="min-width:60px"></div>
+    <span class="overlay-title">Project Memory</span>
+    <button class="overlay-close" onclick="closeProjectMemory()">&#215;</button>
+  </div>
+  <div id="pm-content" class="pm-content"></div>
+  <div class="pm-add-area">
+    <label class="pm-add-label">Add to memory</label>
+    <textarea id="pm-textarea" class="pm-textarea" placeholder="Write something to remember about this project..."></textarea>
+    <button class="pm-save-btn" onclick="saveProjectMemory()">Save</button>
+    <span id="pm-saved-msg" style="display:none;color:var(--accent);font-size:13px;margin-left:8px">Saved ✓</span>
   </div>
 </div>
 
