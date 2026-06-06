@@ -1070,6 +1070,8 @@ document.getElementById('pw-input').addEventListener('keydown', function(e) {
 
 // ── File sidebar ──────────────────────────────────────────────────────────────
 async function openFileSidebar() {
+  if (!pwSlug) return;
+  closeProjectMemory();
   document.getElementById('pw-sidebar').classList.add('open');
   await loadFileSidebar();
 }
@@ -1077,6 +1079,7 @@ function closeFileSidebar() { document.getElementById('pw-sidebar').classList.re
 
 async function openProjectMemory() {
   if (!pwSlug) return;
+  closeFileSidebar();
   const panel = document.getElementById('project-memory-panel');
   const content = document.getElementById('pm-content');
   content.textContent = 'Loading…';
