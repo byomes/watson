@@ -27,7 +27,11 @@ def _send_telegram(text: str) -> None:
 
 def create_project(slug: str, name: str) -> None:
     today = date.today().isoformat()
-    project_file = MEMORY / "projects" / f"{slug}.md"
+    project_dir = MEMORY / "projects" / slug
+    project_dir.mkdir(parents=True, exist_ok=True)
+    (project_dir / "notes").mkdir(exist_ok=True)
+    (project_dir / "files").mkdir(exist_ok=True)
+    project_file = project_dir / f"{slug}.md"
     index_file = MEMORY / "projects" / "_index.md"
 
     project_file.write_text(
@@ -55,7 +59,7 @@ def create_project(slug: str, name: str) -> None:
         index_file.write_text(index_text.rstrip() + f"\n{new_row}\n", encoding="utf-8")
 
     subprocess.run(
-        ["git", "add", str(project_file), str(index_file)],
+        ["git", "add", str(project_dir), str(index_file)],
         cwd=str(REPO),
         check=True,
     )
@@ -66,7 +70,7 @@ def create_project(slug: str, name: str) -> None:
     )
 
     _send_telegram(
-        f"Project '{name}' created. memory/projects/{slug}.md is ready."
+        f"Project '{name}' created. memory/projects/{slug}/{slug}.md is ready."
     )
 
     from jobs.memory.sync import main as sync_main
