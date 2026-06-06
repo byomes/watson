@@ -443,7 +443,7 @@ async function loadSessions() {
       const d = new Date(s.updated_at.replace(' ','T') + 'Z');
       const dateStr = d.toLocaleDateString('en-US', {month:'short', day:'numeric'}) + ' ' +
                       d.toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit'});
-      return '<div class="session-row" onclick="openSession(' + s.id + ',\'' + esc(s.title).replace(/'/g,"\\'") + '\')">' +
+      return '<div class="session-row" onclick="openSession(' + s.id + ',\\'' + esc(s.title).replace(/'/g,"\\'") + '\\')">' +
         '<div class="session-info">' +
           '<div class="session-title">' + esc(s.title) + '</div>' +
           '<div class="session-date">' + dateStr + '</div>' +
