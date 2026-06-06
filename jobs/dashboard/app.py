@@ -1266,7 +1266,7 @@ def chat():
 @app.route("/api/calendar/busy-rest-of-day", methods=["POST"])
 def calendar_busy_rest_of_day():
     import requests as _req
-    from jobs.calendar.calendar import mark_day_busy_from_now
+    from jobs.gcal.calendar import mark_day_busy_from_now
     from config.settings import WATSON_BOT_TOKEN, WATSON_CHAT_ID
     try:
         count = mark_day_busy_from_now()
@@ -1288,7 +1288,7 @@ def calendar_busy_rest_of_day():
 
 @app.route("/api/calendar/today")
 def calendar_today():
-    from jobs.calendar.calendar import get_todays_events
+    from jobs.gcal.calendar import get_todays_events
     try:
         events = get_todays_events()
         return jsonify(events)

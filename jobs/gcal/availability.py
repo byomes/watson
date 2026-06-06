@@ -1,7 +1,7 @@
 from datetime import datetime, date, timedelta
 from zoneinfo import ZoneInfo
 
-from jobs.calendar.calendar import get_events
+from jobs.gcal.calendar import get_events
 
 NY = ZoneInfo("America/New_York")
 SLOT_DURATION = 45  # minutes
