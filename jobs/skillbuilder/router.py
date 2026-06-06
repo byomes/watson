@@ -31,6 +31,11 @@ _WRAP_UP_TRIGGERS = (
     "let's wrap up", "we are done", "wrap up this session",
 )
 
+# Matched against msg_lower BEFORE the LLM call — returns run_audit immediately, no fallthrough
+_AUDIT_TRIGGERS = (
+    "run audit", "audit", "capability audit", "what am i missing", "gap analysis",
+)
+
 # Matched against msg_lower BEFORE the LLM call — guaranteed BUILD, no fallthrough
 _BUILD_TRIGGERS = (
     "build a skill", "build me a skill", "build me something that",
@@ -228,7 +233,7 @@ def route(message: str, interface: str) -> dict:
     try:
         return _route(message, interface)
     except Exception as exc:
-        log.warning("Router error (falling back to chat): %s", exc)
+        log.error("Router failed: %s", exc)
         return {"action": "chat"}
 
 
@@ -239,6 +244,10 @@ def _route(message: str, interface: str) -> dict:
         description = _last_failed_build[interface]
         job_path = _generate_job_path(description)
         return {"action": "build", "description": description, "job_path": job_path}
+
+    # Keyword pre-check: audit phrases fire run_audit immediately, no LLM call.
+    if any(trigger in msg_lower for trigger in _AUDIT_TRIGGERS):
+        return {"action": "skill", "slug": "run_audit"}
 
     # Keyword pre-check: guaranteed BUILD before the LLM sees the message.
     # Prevents build requests from ever falling through to Ollama.
