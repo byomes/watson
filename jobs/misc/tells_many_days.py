@@ -24,10 +24,15 @@ def days_until_christmas():
         christmas = datetime.date(today.year + 1, 12, 25)
     return (christmas - today).days
 
+def run() -> str:
+    days_left = days_until_christmas()
+    if days_left == 0:
+        return "🎄 Merry Christmas!"
+    return f"🎄 {days_left} days until Christmas!"
+
 def main():
     load_dotenv()
-    days_left = days_until_christmas()
-    message = f"There are {days_left} days until Christmas."
+    message = run()
     _log(message)
 
 if __name__ == "__main__":
