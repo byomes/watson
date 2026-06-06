@@ -59,6 +59,20 @@ def _bootstrap():
         status      TEXT    NOT NULL DEFAULT 'unread',
         date_added  TEXT    NOT NULL DEFAULT (datetime('now'))
     )""")
+    c.execute("""CREATE TABLE IF NOT EXISTS chat_sessions (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        title      TEXT    NOT NULL DEFAULT 'New Chat',
+        created_at TEXT    NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT    NOT NULL DEFAULT (datetime('now'))
+    )""")
+    c.execute("""CREATE TABLE IF NOT EXISTS chat_messages (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id INTEGER NOT NULL,
+        role       TEXT    NOT NULL,
+        content    TEXT    NOT NULL,
+        created_at TEXT    NOT NULL DEFAULT (datetime('now')),
+        FOREIGN KEY (session_id) REFERENCES chat_sessions(id)
+    )""")
     c.commit()
     c.close()
 
@@ -126,7 +140,7 @@ select option{background:var(--bg2)}
 .tr{display:flex;align-items:flex-start;gap:9px;padding:10px 0;border-bottom:1px solid var(--border)}
 .tc{width:20px;height:20px;border-radius:5px;border:2px solid var(--border);background:transparent;flex-shrink:0;display:flex;align-items:center;justify-content:center;margin-top:1px}
 .tc.done{background:var(--success);border-color:var(--success)}
-.tc.done::after{content:'✓';color:#fff;font-size:11px}
+.tc.done::after{content:'\\2713';color:#fff;font-size:11px}
 .tbody{flex:1;min-width:0}
 .ttitle{font-size:13px;color:var(--text);line-height:1.4;margin-bottom:3px}
 .ttitle.done{text-decoration:line-through;color:var(--text3)}
@@ -147,8 +161,22 @@ select option{background:var(--bg2)}
 .bk-sum{font-size:11px;color:var(--text2);line-height:1.5;margin-bottom:8px}
 .sk{background:var(--bg3);border-radius:4px;animation:pulse 1.4s ease-in-out infinite}
 @keyframes pulse{0%,100%{opacity:.4}50%{opacity:.8}}
+
+/* Chat tab — history list view */
 #tab-chat{padding:0;display:none;flex-direction:column;position:fixed;top:54px;left:0;right:0;bottom:calc(60px + env(safe-area-inset-bottom,0px))}
 #tab-chat.active{display:flex}
+
+.new-chat-btn{display:flex;align-items:center;gap:12px;padding:14px 16px;background:var(--accent);border:none;border-radius:14px;color:#fff;font-size:14px;font-weight:600;width:100%;text-align:left;letter-spacing:.01em;margin-bottom:4px}
+.new-chat-btn svg{flex-shrink:0;opacity:.9}
+.history-label{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin:4px 0 6px 2px}
+.session-row{display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:12px;cursor:pointer;transition:background .15s}
+.session-row:active{background:var(--bg3)}
+.session-info{flex:1;min-width:0}
+.session-title{font-size:13px;color:var(--text);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:2px}
+.session-date{font-size:11px;color:var(--text3)}
+.session-del{background:none;border:none;color:var(--text3);font-size:18px;padding:4px 6px;flex-shrink:0;border-radius:6px}
+.session-del:hover{color:var(--danger);background:rgba(218,54,51,.1)}
+
 #chat-messages{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px}
 .msg-wrap{display:flex;flex-direction:column}
 .msg-wrap.user{align-items:flex-end}
@@ -168,6 +196,7 @@ select option{background:var(--bg2)}
 #chat-mic-btn{width:40px;height:40px;background:var(--bg2);border:1px solid var(--border);border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;color:var(--text2);transition:background .2s,border-color .2s,color .2s}
 #chat-mic-btn.recording{border-color:var(--accent);background:rgba(99,102,241,.15);color:var(--accent);animation:mic-pulse 1s ease-in-out infinite}
 @keyframes mic-pulse{0%,100%{opacity:1}50%{opacity:.55}}
+
 .ctr{text-align:center;padding:40px 0;color:var(--text2);font-size:13px}
 .sbar{width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:9px;padding:11px 12px;color:var(--text);font-size:13px;outline:none;margin-bottom:10px}
 .sbar:focus{border-color:var(--accent)}
@@ -201,16 +230,30 @@ select option{background:var(--bg2)}
     <span class="theme-lbl">Contacts</span>
     <button class="theme-btn2" onclick="document.getElementById('settings-panel').style.display='none';switchTab('contacts')">Open Contacts</button>
   </div>
+  <div class="theme-row" style="margin-top:6px">
+    <span class="theme-lbl">Reading List</span>
+    <button class="theme-btn2" onclick="document.getElementById('settings-panel').style.display='none';switchTab('reading')">Open Reading</button>
+  </div>
 </div>
 
 <div id="main">
 
+  <!-- ── Chat Tab ─────────────────────────────────────────────────── -->
   <div id="tab-chat" class="tab active">
     <div id="chat-messages"></div>
     <div id="chat-input-area">
       <button id="chat-mic-btn" onclick="toggleVoice()"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg></button>
       <input id="chat-input" type="text" placeholder="Message Watson…">
       <button id="chat-send-btn" onclick="sendChat()">Send</button>
+    </div>
+  </div>
+
+  <!-- ── History Tab ────────────────────────────────────────────────── -->
+  <div id="tab-history" class="tab">
+    <div style="display:flex;flex-direction:column;gap:8px;padding:14px">
+      <button class="new-chat-btn" onclick="startNewChat()">+ Start a New Chat</button>
+      <div class="history-label">Previous Chats</div>
+      <div id="session-list"></div>
     </div>
   </div>
 
@@ -296,13 +339,16 @@ select option{background:var(--bg2)}
     <div id="rl-list"></div>
   </div>
 
-
 </div>
 
 <nav id="nav">
   <button class="nb active" id="nav-chat" onclick="switchTab('chat')">
     <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
     <span>Chat</span>
+  </button>
+  <button class="nb" id="nav-history" onclick="switchTab('history')">
+    <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.95"/></svg></span>
+    <span>History</span>
   </button>
   <button class="nb" id="nav-briefing" onclick="switchTab('briefing')">
     <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="9" x2="9" y2="21"/></svg></span>
@@ -315,10 +361,6 @@ select option{background:var(--bg2)}
   <button class="nb" id="nav-reminders" onclick="switchTab('reminders')">
     <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 15"/></svg></span>
     <span>Reminders</span>
-  </button>
-  <button class="nb" id="nav-reading" onclick="switchTab('reading')">
-    <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></span>
-    <span>Reading</span>
   </button>
 </nav>
 
@@ -371,8 +413,8 @@ async function api(url, method, body) {
 }
 
 // ── Tabs ──────────────────────────────────────────────────────────────────
-const TABS = ['chat','briefing','tasks','reminders','contacts','reading'];
-const loaded = {chat:true, briefing:false, tasks:false, reminders:false, contacts:false, reading:false};
+const TABS = ['chat','history','briefing','tasks','reminders','contacts','reading'];
+const loaded = {chat:true, history:false, briefing:false, tasks:false, reminders:false, contacts:false, reading:false};
 const loaders = {};
 
 function switchTab(name) {
@@ -384,11 +426,78 @@ function switchTab(name) {
   if (!loaded[name]) { loaded[name] = true; if (loaders[name]) loaders[name](); }
 }
 
-// ── Chat ──────────────────────────────────────────────────────────────────
+// ── Chat — session state ──────────────────────────────────────────────────
+let currentSessionId = null;
 let chatHistory = [];
 
-loaders.chat = function() {};
+// Load session list
+async function loadSessions() {
+  const el = document.getElementById('session-list');
+  try {
+    const sessions = await api('/api/chat/sessions');
+    if (!sessions.length) {
+      el.innerHTML = '<div class="ctr" style="padding:20px 0;font-size:12px">No previous chats</div>';
+      return;
+    }
+    el.innerHTML = sessions.map(s => {
+      const d = new Date(s.updated_at.replace(' ','T') + 'Z');
+      const dateStr = d.toLocaleDateString('en-US', {month:'short', day:'numeric'}) + ' ' +
+                      d.toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit'});
+      return '<div class="session-row" onclick="openSession(' + s.id + ',\'' + esc(s.title).replace(/'/g,"\\'") + '\')">' +
+        '<div class="session-info">' +
+          '<div class="session-title">' + esc(s.title) + '</div>' +
+          '<div class="session-date">' + dateStr + '</div>' +
+        '</div>' +
+        '<button class="session-del" onclick="event.stopPropagation();deleteSession(' + s.id + ')" title="Delete">&#215;</button>' +
+      '</div>';
+    }).join('');
+  } catch(_) {
+    el.innerHTML = '<div class="ctr" style="font-size:12px">Offline</div>';
+  }
+}
+loaders.history = loadSessions;
 
+// Start a brand new session
+async function startNewChat() {
+  try {
+    const s = await api('/api/chat/sessions', 'POST', {title: 'New Chat'});
+    currentSessionId = s.id;
+    chatHistory = [];
+    document.getElementById('chat-messages').innerHTML = '';
+    switchTab('chat');
+    document.getElementById('chat-input').focus();
+  } catch(_) { alert('Watson offline'); }
+}
+
+// Open an existing session
+async function openSession(id, title) {
+  currentSessionId = id;
+  chatHistory = [];
+  document.getElementById('chat-messages').innerHTML = '';
+  switchTab('chat');
+  try {
+    const msgs = await api('/api/chat/sessions/' + id + '/messages');
+    msgs.forEach(m => {
+      _appendMsg(m.role === 'assistant' ? 'watson' : 'user', m.content);
+      chatHistory.push({role: m.role, content: m.content});
+    });
+    document.getElementById('chat-messages').scrollTop = document.getElementById('chat-messages').scrollHeight;
+  } catch(_) { _appendMsg('watson', 'Could not load messages.'); }
+}
+
+// Delete a session
+async function deleteSession(id) {
+  if (!confirm('Delete this chat?')) return;
+  await api('/api/chat/sessions/' + id, 'DELETE');
+  if (currentSessionId === id) {
+    currentSessionId = null;
+    chatHistory = [];
+    document.getElementById('chat-messages').innerHTML = '';
+  }
+  loadSessions();
+}
+
+// ── Chat — messaging ──────────────────────────────────────────────────────
 function _appendMsg(role, text) {
   const msgs = document.getElementById('chat-messages');
   const wrap = document.createElement('div');
@@ -417,11 +526,22 @@ function _hideTyping() {
 }
 
 async function sendChat() {
+  if (!currentSessionId) return;
   const input = document.getElementById('chat-input');
   const text = input.value.trim();
   if (!text) return;
   input.value = '';
   _appendMsg('user', text);
+
+  // Save user message
+  api('/api/chat/sessions/' + currentSessionId + '/messages', 'POST', {role:'user', content:text});
+
+  // Auto-title from first message
+  if (chatHistory.length === 0) {
+    const title = text.length > 50 ? text.slice(0,50) + '…' : text;
+    api('/api/chat/sessions/' + currentSessionId, 'PATCH', {title});
+  }
+
   chatHistory.push({role: 'user', content: text});
   if (chatHistory.length > 40) chatHistory = chatHistory.slice(-40);
   _showTyping();
@@ -432,6 +552,8 @@ async function sendChat() {
     _appendMsg('watson', reply);
     chatHistory.push({role: 'assistant', content: reply});
     if (chatHistory.length > 40) chatHistory = chatHistory.slice(-40);
+    // Save Watson reply
+    api('/api/chat/sessions/' + currentSessionId + '/messages', 'POST', {role:'assistant', content:reply});
   } catch(_) {
     _hideTyping();
     _appendMsg('watson', 'Watson is offline.');
@@ -441,6 +563,9 @@ async function sendChat() {
 document.getElementById('chat-input').addEventListener('keydown', function(e) {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); }
 });
+
+// Load sessions on first visit
+loadSessions();
 
 // ── Voice input ───────────────────────────────────────────────────────────
 (function() {
@@ -468,6 +593,7 @@ document.getElementById('chat-input').addEventListener('keydown', function(e) {
   rec.onerror = function(e) { console.log('Speech error:', e.error); stopRec(); };
   rec.onend = function() { if (active) stopRec(); };
   window.toggleVoice = function() {
+    if (!currentSessionId) { startNewChat(); return; }
     if (active) { stopRec(); return; }
     active = true;
     btn.classList.add('recording');
@@ -531,8 +657,6 @@ async function bAction(id, action) {
   if (el) el.remove();
   bItems = bItems.filter(i => i.id !== id);
 }
-
-loaders.briefing = loadBriefing;
 
 // ── Tasks ─────────────────────────────────────────────────────────────────
 let tasks = [];
@@ -630,7 +754,7 @@ function toggleAddContact() {
   const f = document.getElementById('c-add-form');
   const show = f.style.display === 'none';
   f.style.display = show ? 'block' : 'none';
-  document.getElementById('c-add-btn').textContent = show ? '×' : '+';
+  document.getElementById('c-add-btn').textContent = show ? '\u00d7' : '+';
 }
 
 async function saveNewContact() {
@@ -1176,6 +1300,88 @@ def reminders_delete(reminder_id):
     _db().execute("DELETE FROM reminders WHERE id = ?", (reminder_id,))
     _db().commit()
     return jsonify({"ok": True})
+
+
+# ── Chat Sessions API ─────────────────────────────────────────────────────────
+
+@app.route("/api/chat/sessions")
+def chat_sessions_list():
+    rows = _db().execute(
+        "SELECT id, title, created_at, updated_at FROM chat_sessions "
+        "ORDER BY updated_at DESC LIMIT 50"
+    ).fetchall()
+    return jsonify([dict(r) for r in rows])
+
+
+@app.route("/api/chat/sessions", methods=["POST"])
+def chat_sessions_create():
+    data = request.get_json(force=True) or {}
+    title = (data.get("title") or "New Chat").strip()
+    cur = _db().execute(
+        "INSERT INTO chat_sessions (title) VALUES (?)", (title,)
+    )
+    _db().commit()
+    row = _db().execute(
+        "SELECT * FROM chat_sessions WHERE id = ?", (cur.lastrowid,)
+    ).fetchone()
+    return jsonify(dict(row)), 201
+
+
+@app.route("/api/chat/sessions/<int:session_id>", methods=["PATCH"])
+def chat_sessions_update(session_id):
+    data = request.get_json(force=True) or {}
+    title = (data.get("title") or "").strip()
+    if not title:
+        return jsonify({"error": "title required"}), 400
+    _db().execute(
+        "UPDATE chat_sessions SET title = ?, updated_at = datetime('now') WHERE id = ?",
+        (title, session_id)
+    )
+    _db().commit()
+    row = _db().execute(
+        "SELECT * FROM chat_sessions WHERE id = ?", (session_id,)
+    ).fetchone()
+    return jsonify(dict(row) if row else {"error": "not found"})
+
+
+@app.route("/api/chat/sessions/<int:session_id>", methods=["DELETE"])
+def chat_sessions_delete(session_id):
+    _db().execute("DELETE FROM chat_messages WHERE session_id = ?", (session_id,))
+    _db().execute("DELETE FROM chat_sessions WHERE id = ?", (session_id,))
+    _db().commit()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/chat/sessions/<int:session_id>/messages")
+def chat_messages_list(session_id):
+    rows = _db().execute(
+        "SELECT id, session_id, role, content, created_at FROM chat_messages "
+        "WHERE session_id = ? ORDER BY created_at ASC",
+        (session_id,)
+    ).fetchall()
+    return jsonify([dict(r) for r in rows])
+
+
+@app.route("/api/chat/sessions/<int:session_id>/messages", methods=["POST"])
+def chat_messages_create(session_id):
+    data = request.get_json(force=True) or {}
+    role = data.get("role", "").strip()
+    content = data.get("content", "").strip()
+    if role not in ("user", "assistant") or not content:
+        return jsonify({"error": "role and content required"}), 400
+    cur = _db().execute(
+        "INSERT INTO chat_messages (session_id, role, content) VALUES (?, ?, ?)",
+        (session_id, role, content)
+    )
+    _db().execute(
+        "UPDATE chat_sessions SET updated_at = datetime('now') WHERE id = ?",
+        (session_id,)
+    )
+    _db().commit()
+    row = _db().execute(
+        "SELECT * FROM chat_messages WHERE id = ?", (cur.lastrowid,)
+    ).fetchone()
+    return jsonify(dict(row)), 201
 
 
 # ── Chat API ─────────────────────────────────────────────────────────────────
