@@ -57,6 +57,9 @@ _SKILL_PRE_CHECKS: dict[str, tuple] = {
     "calendar_availability": (
         "my availability", "check calendar", "open slots", "when am i free",
     ),
+    "web_search": (
+        "search for", "search the web", "look it up", "google that",
+    ),
 }
 
 # Matched against msg_lower BEFORE the LLM call — returns run_audit immediately, no fallthrough
