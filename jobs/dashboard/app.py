@@ -380,6 +380,20 @@ select option{background:var(--surface)}
         <span class="overlay-row-label">Skills</span>
         <span class="overlay-row-chevron">&#8250;</span>
       </div>
+      <div class="overlay-row" onclick="openRemindersPanel()">
+        <span class="overlay-row-label">Reminders</span>
+        <span class="overlay-row-chevron">&#8250;</span>
+      </div>
+    </div>
+  </div>
+  <div id="settings-reminders" class="overlay-sub">
+    <div class="overlay-topbar">
+      <button class="overlay-back" onclick="closeRemindersPanel()">&#8592; Back</button>
+      <span class="overlay-title">Reminders</span>
+      <div style="min-width:60px"></div>
+    </div>
+    <div class="overlay-body" style="padding:16px">
+      <div id="settings-reminders-list"></div>
     </div>
   </div>
   <div id="settings-skills" class="overlay-sub">
@@ -532,10 +546,6 @@ select option{background:var(--surface)}
     <span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg></span>
     <span>Tasks</span>
   </button>
-  <button class="nb" id="nav-reminders" onclick="switchTab('reminders')">
-    <span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 15"/></svg></span>
-    <span>Reminders</span>
-  </button>
   <button class="nb" id="nav-projects" onclick="switchTab('projects')">
     <span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M10 4H4a2 2 0 00-2 2v12a2 2 0 002 2h16a2 2 0 002-2V8a2 2 0 00-2-2h-8l-2-2z"/></svg></span>
     <span>Projects</span>
@@ -631,6 +641,38 @@ function openSkillsPanel() {
 function closeSkillsPanel() {
   document.getElementById('settings-skills').classList.remove('open');
 }
+function openRemindersPanel() {
+  document.getElementById('settings-reminders').classList.add('open');
+  loadRemindersPanel();
+}
+function closeRemindersPanel() {
+  document.getElementById('settings-reminders').classList.remove('open');
+}
+async function loadRemindersPanel() {
+  const el = document.getElementById('settings-reminders-list');
+  el.innerHTML = '<div style="font-size:12px;color:var(--text-muted);padding:6px 0">Loading...</div>';
+  try {
+    const data = await api('/api/reminders');
+    if (!data.length) {
+      el.innerHTML = '<div style="font-size:13px;color:var(--text-muted);padding:12px 0">No reminders set.</div>';
+      return;
+    }
+    el.innerHTML = data.map(function(r) {
+      const statusCls = r.status === 'done' ? 'status-archived' : 'status-active';
+      const statusLbl = r.status === 'done' ? 'done' : 'active';
+      const due = r.due_datetime ? r.due_datetime.replace('T',' ') : '';
+      return '<div style="background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:8px">' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">' +
+          '<span style="font-size:13px;font-weight:500;color:var(--text)">' + esc(r.title) + '</span>' +
+          '<span class="' + statusCls + '">' + statusLbl + '</span>' +
+        '</div>' +
+        (due ? '<div style="font-size:11px;color:var(--text-muted);font-family:\'DM Mono\',monospace">' + esc(due) + '</div>' : '') +
+      '</div>';
+    }).join('');
+  } catch(e) {
+    el.innerHTML = '<div style="font-size:12px;color:var(--red);padding:6px 0">Failed to load reminders.</div>';
+  }
+}
 async function loadSkillsPanel() {
   const el = document.getElementById('settings-skills-list');
   el.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:6px 0">Loading...</div>';
@@ -683,8 +725,8 @@ async function api(url, method, body) {
 }
 
 // ── Tabs ──────────────────────────────────────────────────────────────────
-const TABS = ['chat','history','briefing','tasks','reminders','contacts','reading','projects'];
-const loaded = {chat:true, history:false, briefing:false, tasks:false, reminders:false, contacts:false, reading:false, projects:false};
+const TABS = ['chat','history','briefing','tasks','contacts','reading','projects'];
+const loaded = {chat:true, history:false, briefing:false, tasks:false, contacts:false, reading:false, projects:false};
 const loaders = {};
 
 const TAB_LABELS = {chat:'Chat',history:'History',briefing:'Briefing',tasks:'Tasks',reminders:'Reminders',contacts:'Contacts',reading:'Reading',projects:'Projects'};
