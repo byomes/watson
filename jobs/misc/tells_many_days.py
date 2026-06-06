@@ -6,6 +6,7 @@ import datetime
 from datetime import timedelta
 import os
 import sqlite3
+from pathlib import Path
 from dotenv import load_dotenv
 
 REPO = Path(__file__).resolve().parents[2]
