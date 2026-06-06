@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Watson</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=DM+Mono&display=swap" rel="stylesheet">
+<script>(function(){var t=localStorage.getItem('watson-theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<div id="hdr">
+  <div id="hdr-identity">
+    <svg id="hdr-mark" viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 6l4 14 4-9 4 9 4-14" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <div>
+      <div id="hdr-name">Watson</div>
+      <div id="hdr-sub">Digital Assistant to Dr. Bill Yomes</div>
+    </div>
+  </div>
+  <button id="gear-btn" onclick="toggleSettings()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
+</div>
+
+<div id="settings-panel" class="overlay-panel">
+  <div class="overlay-topbar">
+    <div style="min-width:60px"></div>
+    <span class="overlay-title">Settings</span>
+    <button class="overlay-close" onclick="closeSettings()">&#215;</button>
+  </div>
+  <div id="settings-main" class="overlay-body">
+    <div class="overlay-section">
+      <div class="overlay-section-hdr">Appearance</div>
+      <div class="overlay-row" onclick="toggleTheme()">
+        <span class="overlay-row-label" id="theme-lbl-text">Dark mode</span>
+        <span class="overlay-row-value" id="theme-toggle-btn">Switch to Light</span>
+        <span class="overlay-row-chevron">&#8250;</span>
+      </div>
+    </div>
+    <div class="overlay-section" style="margin-top:16px">
+      <div class="overlay-section-hdr">Navigate</div>
+      <div class="overlay-row" onclick="closeSettings();switchTab('contacts')">
+        <span class="overlay-row-label">Contacts</span>
+        <span class="overlay-row-chevron">&#8250;</span>
+      </div>
+      <div class="overlay-row" onclick="closeSettings();switchTab('reading')">
+        <span class="overlay-row-label">Reading List</span>
+        <span class="overlay-row-chevron">&#8250;</span>
+      </div>
+      <div class="overlay-row" onclick="openSkillsPanel()">
+        <span class="overlay-row-label">Skills</span>
+        <span class="overlay-row-chevron">&#8250;</span>
+      </div>
+      <div class="overlay-row" onclick="openRemindersPanel()">
+        <span class="overlay-row-label">Reminders</span>
+        <span class="overlay-row-chevron">&#8250;</span>
+      </div>
+    </div>
+  </div>
+  <div id="settings-reminders" class="overlay-sub">
+    <div class="overlay-topbar">
+      <button class="overlay-back" onclick="closeRemindersPanel()">&#8592; Back</button>
+      <span class="overlay-title">Reminders</span>
+      <div style="min-width:60px"></div>
+    </div>
+    <div class="overlay-body" style="padding:16px">
+      <div id="settings-reminders-list"></div>
+    </div>
+  </div>
+  <div id="settings-skills" class="overlay-sub">
+    <div class="overlay-topbar">
+      <button class="overlay-back" onclick="closeSkillsPanel()">&#8592; Back</button>
+      <span class="overlay-title">Skills</span>
+      <div style="min-width:60px"></div>
+    </div>
+    <div class="overlay-body" style="padding:16px">
+      <div id="settings-skills-list"></div>
+    </div>
+  </div>
+</div>
+
+<div id="main">
+
+  <!-- ── Chat Tab ─────────────────────────────────────────────────── -->
+  <div id="tab-chat" class="tab active">
+    <div id="chat-messages"></div>
+    <div id="chat-attach-indicator">&#128206; <span id="ai-filename"></span><button id="chat-attach-x" onclick="clearAttachment()" title="Remove">&#215;</button></div>
+    <div id="chat-input-area">
+      <input type="file" id="chat-file-input" style="display:none" onchange="handleFileSelect(this)">
+      <button id="chat-attach-btn" onclick="document.getElementById('chat-file-input').click()" title="Attach file">+</button>
+      <button id="chat-mic-btn" onclick="toggleVoice()"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg></button>
+      <input id="chat-input" type="text" placeholder="Message Watson&hellip;">
+      <button id="chat-send-btn" onclick="sendChat()">Send</button>
+    </div>
+  </div>
+
+  <!-- ── History Tab ────────────────────────────────────────────────── -->
+  <div id="tab-history" class="tab">
+    <div style="display:flex;flex-direction:column;gap:8px;padding:14px">
+      <button class="new-chat-btn" onclick="startNewChat()">+ Start a New Chat</button>
+      <div class="history-label">Previous Chats</div>
+      <div id="session-list"></div>
+    </div>
+  </div>
+
+  <div id="tab-briefing" class="tab">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em">Today's Briefing</div>
+      <span id="b-offline" style="font-size:10px;color:var(--warn);display:none">&middot; offline</span>
+    </div>
+    <div id="b-list"></div>
+  </div>
+
+  <div id="tab-tasks" class="tab">
+    <div class="fbox">
+      <div class="flabel">Add Task</div>
+      <input type="text" id="t-title" placeholder="Task title..." onkeydown="if(event.key==='Enter')addTask()">
+      <div style="display:flex;gap:6px">
+        <input type="date" id="t-due" style="flex:1">
+        <select id="t-pri" style="flex:1">
+          <option value="high">High</option>
+          <option value="medium" selected>Medium</option>
+          <option value="low">Low</option>
+        </select>
+      </div>
+      <button class="btn btn-p" style="width:100%;padding:9px;border-radius:10px;border:none;font-size:12px" onclick="addTask()">+ Add Task</button>
+    </div>
+    <div class="pills">
+      <button class="pill active" id="pill-all" onclick="setFilter('all')">All</button>
+      <button class="pill" id="pill-active" onclick="setFilter('active')">Active</button>
+      <button class="pill" id="pill-done" onclick="setFilter('done')">Done</button>
+    </div>
+    <div id="t-offline" class="ctr" style="display:none">Watson offline<br><br>
+      <button class="btn btn-gh" style="flex:none;padding:7px 14px;width:auto" onclick="loadTasks()">Retry</button>
+    </div>
+    <div id="t-list"></div>
+  </div>
+
+  <div id="tab-reminders" class="tab">
+    <div class="ph-hdr">Reminders</div>
+    <div class="fbox">
+      <div class="flabel">Add Reminder</div>
+      <input type="text" id="r-title" placeholder="Reminder title..." onkeydown="if(event.key==='Enter')addReminder()">
+      <div style="display:flex;gap:6px">
+        <input type="date" id="r-date" style="flex:1">
+        <input type="time" id="r-time" style="flex:1">
+      </div>
+      <button class="btn btn-p" style="width:100%;padding:9px;border-radius:10px;border:none;font-size:12px" onclick="addReminder()">+ Add Reminder</button>
+    </div>
+    <div class="pills">
+      <button class="pill active" id="rpill-all" onclick="setRFilter('all')">All</button>
+      <button class="pill" id="rpill-active" onclick="setRFilter('active')">Active</button>
+      <button class="pill" id="rpill-done" onclick="setRFilter('done')">Done</button>
+    </div>
+    <div id="r-offline" class="ctr" style="display:none">Watson offline<br><br>
+      <button class="btn btn-gh" style="flex:none;padding:7px 14px;width:auto" onclick="loadReminders()">Retry</button>
+    </div>
+    <div id="r-list"></div>
+  </div>
+
+  <div id="tab-contacts" class="tab">
+    <div style="display:flex;gap:8px;margin-bottom:4px">
+      <input class="sbar" id="c-search" placeholder="Search contacts..." oninput="renderContacts()" style="flex:1;margin-bottom:0">
+      <button id="c-add-btn" onclick="toggleAddContact()" style="padding:9px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:9px;color:var(--text);font-size:16px;flex-shrink:0">+</button>
+    </div>
+    <div id="c-add-form" class="fbox" style="display:none;margin-top:10px">
+      <div class="flabel">New Contact</div>
+      <input type="text" id="nc-name" placeholder="Name *">
+      <input type="text" id="nc-email" placeholder="Email">
+      <input type="text" id="nc-phone" placeholder="Phone">
+      <input type="text" id="nc-rel" placeholder="Relationship">
+      <input type="text" id="nc-notes" placeholder="Notes">
+      <button class="btn btn-p" style="width:100%;padding:9px;border:none;border-radius:10px;font-size:12px" onclick="saveNewContact()">Add Contact</button>
+    </div>
+    <div id="c-offline" class="ctr" style="display:none">Watson offline<br><br>
+      <button class="btn btn-gh" style="flex:none;padding:7px 14px;width:auto" onclick="loadContacts()">Retry</button>
+    </div>
+    <div id="c-list"></div>
+  </div>
+
+  <div id="tab-reading" class="tab">
+    <div id="rl-offline" class="ctr" style="display:none">Watson offline<br><br>
+      <button class="btn btn-gh" style="flex:none;padding:7px 14px;width:auto" onclick="loadReading()">Retry</button>
+    </div>
+    <div id="rl-list"></div>
+  </div>
+
+  <div id="tab-projects" class="tab">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <button class="arch-toggle" id="arch-toggle" onclick="toggleArchivedProjects()">Show Archived</button>
+      <button onclick="showNewProjectForm()" style="padding:7px 14px;background:var(--accent);border:none;border-radius:9px;color:#fff;font-size:12px;cursor:pointer;font-family:inherit">+ New Project</button>
+    </div>
+    <div id="proj-new-form" class="fbox" style="display:none;margin-bottom:10px">
+      <div class="flabel">New Project</div>
+      <input type="text" id="proj-new-name" placeholder="Project name..." onkeydown="if(event.key==='Enter')createProject()">
+      <button class="btn btn-p" style="width:100%;padding:9px;border:none;border-radius:10px;font-size:12px" onclick="createProject()">Create</button>
+    </div>
+    <div id="proj-list"></div>
+  </div>
+
+</div>
+
+<nav id="nav">
+  <button class="nb active" id="nav-chat" onclick="switchTab('chat')">
+    <span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M2 12C2 6.48 6.48 2 12 2s10 4.48 10 10-4.48 10-10 10H2l2.29-2.29C3.13 18.07 2 15.17 2 12z"/></svg></span>
+    <span>Chat</span>
+  </button>
+  <button class="nb" id="nav-history" onclick="switchTab('history')">
+    <span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M13 3a9 9 0 00-9 9H1l3.89 3.89.07.14L9 12H6a7 7 0 117 7c-1.93 0-3.68-.79-4.95-2.05l-1.42 1.42A8.954 8.954 0 0013 21a9 9 0 000-18zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg></span>
+    <span>History</span>
+  </button>
+  <button class="nb" id="nav-briefing" onclick="switchTab('briefing')">
+    <span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM6 20V4h5v7h7v9H6z"/></svg></span>
+    <span>Briefing</span>
+  </button>
+  <button class="nb" id="nav-tasks" onclick="switchTab('tasks')">
+    <span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg></span>
+    <span>Tasks</span>
+  </button>
+  <button class="nb" id="nav-projects" onclick="switchTab('projects')">
+    <span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M10 4H4a2 2 0 00-2 2v12a2 2 0 002 2h16a2 2 0 002-2V8a2 2 0 00-2-2h-8l-2-2z"/></svg></span>
+    <span>Projects</span>
+  </button>
+</nav>
+
+<!-- Project workspace overlay -->
+<div id="proj-workspace">
+  <div class="pw-topbar">
+    <button class="pw-back" onclick="closeProjectWorkspace()">&#8592;</button>
+    <span class="pw-title" id="pw-title"></span>
+    <div style="display:flex;gap:2px;flex-shrink:0">
+      <button class="pw-icon-btn" title="Files" onclick="openFileSidebar()">&#128193;</button>
+      <button class="pw-icon-btn" id="pw-kebab-btn" title="More" onclick="toggleKebabMenu(event)">&#8942;</button>
+    </div>
+    <div class="pw-kebab-menu" id="pw-kebab-menu">
+      <button class="pw-kebab-item" onclick="archiveProject()">Archive Project</button>
+      <button class="pw-kebab-item danger" onclick="confirmDeleteProject()">Delete Project</button>
+    </div>
+  </div>
+  <div id="pw-summary-card" style="display:none">
+    <div class="pw-summary-hdr">
+      <span class="pw-summary-lbl">Watson&#39;s summary</span>
+      <button class="pw-summary-dismiss" onclick="dismissSummary()">&#215;</button>
+    </div>
+    <div class="pw-summary-text" id="pw-summary-text"></div>
+  </div>
+  <div id="pw-messages"></div>
+  <div id="pw-attach-indicator">&#128206; <span id="pw-attach-name"></span><button id="pw-attach-x" onclick="clearPWAttachment()">&#215;</button></div>
+  <div id="pw-input-area">
+    <input type="file" id="pw-file-input" style="display:none" onchange="handlePWFileSelect(this)">
+    <button id="pw-attach-btn" onclick="document.getElementById('pw-file-input').click()">+</button>
+    <button id="pw-mic-btn" onclick="togglePWVoice()"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg></button>
+    <input id="pw-input" type="text" placeholder="Message Watson&hellip;">
+    <button id="pw-send-btn" onclick="sendPWChat()">Send</button>
+  </div>
+</div>
+
+<!-- File sidebar -->
+<div id="pw-sidebar">
+  <div class="pw-sidebar-hdr">
+    <span class="pw-sidebar-title">Project Files</span>
+    <button class="pw-sidebar-close" onclick="closeFileSidebar()">&#215;</button>
+  </div>
+  <div id="pw-sidebar-content" style="flex:1;overflow-y:auto;padding:12px"></div>
+  <div style="padding:12px;border-top:1px solid var(--border);flex-shrink:0">
+    <button class="pw-new-note-btn" onclick="openNoteModal()">+ New Note</button>
+  </div>
+</div>
+
+<!-- Note modal -->
+<div id="pw-note-modal">
+  <div class="pw-modal-inner">
+    <div class="pw-modal-title">New Note</div>
+    <textarea id="pw-note-content" placeholder="Note content..."></textarea>
+    <div class="row">
+      <button class="btn btn-p" onclick="saveNote()">Save</button>
+      <button class="btn btn-gh" onclick="closeNoteModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
