@@ -343,11 +343,19 @@ function switchTab(name) {
 
 // ── Briefing ──────────────────────────────────────────────────────────────
 let bItems = [];
+let bGeneratedAt = null;
+
+function fmtGeneratedAt(s) {
+  if (!s) return '';
+  return 'Generated ' + new Date(s.replace(' ', 'T') + 'Z').toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit'});
+}
 
 async function loadBriefing() {
   document.getElementById('b-list').innerHTML = sk(3);
   try {
-    bItems = await api('/api/briefing');
+    const [items, meta] = await Promise.all([api('/api/briefing'), api('/api/briefing/meta')]);
+    bItems = items;
+    bGeneratedAt = meta && meta.generated_at ? meta.generated_at : null;
     renderBriefing();
   } catch(_) {
     document.getElementById('b-offline').style.display = 'block';
@@ -359,9 +367,11 @@ loaders.briefing = loadBriefing;
 function renderBriefing() {
   const el = document.getElementById('b-list');
   const dateStr = new Date().toLocaleDateString('en-US', {weekday:'long', month:'long', day:'numeric', year:'numeric'});
+  const genStr = fmtGeneratedAt(bGeneratedAt);
   const header = '<div style="text-align:center;padding:18px 0 4px">' +
     '<div style="font-size:14px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;font-variant:small-caps;color:#d29922">Watson</div>' +
     '<div style="font-size:12px;font-style:italic;color:var(--text2);font-family:Georgia,serif;margin-top:5px">' + dateStr + '</div>' +
+    (genStr ? '<div style="font-size:11px;font-style:italic;color:var(--text3);font-family:Georgia,serif;margin-top:3px">' + genStr + '</div>' : '') +
     '<hr style="border:none;border-top:1px solid rgba(210,153,34,0.45);margin:12px 0 16px">' +
     '</div>';
   if (!bItems.length) { el.innerHTML = header + '<div class="ctr">No items today</div>'; return; }
@@ -813,6 +823,14 @@ def briefing_list():
         "WHERE dismissed = 0 ORDER BY score DESC, fetched_at DESC LIMIT 30"
     ).fetchall()
     return jsonify([dict(r) for r in rows])
+
+
+@app.route("/api/briefing/meta")
+def briefing_meta():
+    row = _db().execute(
+        "SELECT fetched_at FROM briefing_items ORDER BY fetched_at DESC LIMIT 1"
+    ).fetchone()
+    return jsonify({"generated_at": row["fetched_at"] if row else None})
 
 
 @app.route("/api/briefing/<int:item_id>/approve", methods=["POST"])
