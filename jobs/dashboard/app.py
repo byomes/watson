@@ -711,9 +711,11 @@ def chat_stream():
 
     def _stream_ollama(sys_prompt=system_prompt, prompt=ollama_prompt):
         try:
+            _body = {"model": "llama3.2:3b", "prompt": prompt, "system": sys_prompt, "stream": True, "num_predict": 300}
+            log.info("Ollama /api/generate request body: %s", json.dumps(_body))
             resp = _req.post(
                 "http://localhost:11434/api/generate",
-                json={"model": "gemma3:1b", "prompt": prompt, "system": sys_prompt, "stream": True, "num_predict": 300},
+                json=_body,
                 stream=True,
                 timeout=45,
             )
@@ -861,16 +863,17 @@ def chat():
         return jsonify({"response": "Building that skill now. I'll notify you via Telegram when it's ready."})
 
     # Fall through to Ollama
-    system_prompt = WATSON_SYSTEM
-    messages = [{"role": "system", "content": system_prompt}]
+    messages = []
     for h in history[-4:]:
         if h.get("role") in ("user", "assistant") and h.get("content"):
             messages.append({"role": h["role"], "content": h["content"]})
     messages.append({"role": "user", "content": message})
     try:
+        _body = {"model": "llama3.2:3b", "system": WATSON_SYSTEM, "messages": messages, "stream": True, "num_predict": 300}
+        log.info("Ollama /api/chat request body: %s", json.dumps(_body))
         resp = _req.post(
             "http://localhost:11434/api/chat",
-            json={"model": "gemma3:1b", "messages": messages, "stream": True, "num_predict": 300},
+            json=_body,
             stream=True,
             timeout=30,
         )
