@@ -16,6 +16,7 @@ Usage:
 import argparse
 import email
 import email.utils
+from email.message import Message
 import imaplib
 import os
 import sqlite3
@@ -159,7 +160,7 @@ def _parse_html(html: str) -> dict | None:
 
 # ── IMAP fetch ────────────────────────────────────────────────────────────────
 
-def _fetch_email_by_message_id(mail: imaplib.IMAP4_SSL, message_id: str) -> email.message.Message | None:
+def _fetch_email_by_message_id(mail: imaplib.IMAP4_SSL, message_id: str) -> Message | None:
     """Search ALL mail for a specific Message-ID header and return the parsed message."""
     # Strip surrounding angle brackets if present; add them for the search
     mid = message_id.strip()
