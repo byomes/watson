@@ -3,7 +3,6 @@ from pathlib import Path
 
 DB_PATH = Path.home() / "watson" / "data" / "congregation.db"
 
-
 TABLES = {
     "members": """
         CREATE TABLE IF NOT EXISTS members (
@@ -14,6 +13,8 @@ TABLES = {
             campus_preference TEXT,
             first_visit_date TEXT,
             status TEXT DEFAULT 'visitor',
+            notes TEXT,
+            updated_at TEXT DEFAULT (datetime('now')),
             created_at TEXT DEFAULT (datetime('now'))
         )
     """,
@@ -24,6 +25,7 @@ TABLES = {
             service_date TEXT NOT NULL,
             campus TEXT NOT NULL,
             raw_text TEXT,
+            questions_comments TEXT,
             processed_at TEXT DEFAULT (datetime('now')),
             email_id TEXT
         )
@@ -55,6 +57,26 @@ TABLES = {
             card_id INTEGER REFERENCES connect_cards(id),
             request_text TEXT NOT NULL,
             date TEXT,
+            created_at TEXT DEFAULT (datetime('now'))
+        )
+    """,
+    "next_steps": """
+        CREATE TABLE IF NOT EXISTS next_steps (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            member_id INTEGER REFERENCES members(id),
+            card_id INTEGER REFERENCES connect_cards(id),
+            step TEXT NOT NULL,
+            date TEXT NOT NULL,
+            created_at TEXT DEFAULT (datetime('now'))
+        )
+    """,
+    "duplicate_flags": """
+        CREATE TABLE IF NOT EXISTS duplicate_flags (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            member_id_a INTEGER REFERENCES members(id),
+            member_id_b INTEGER REFERENCES members(id),
+            reason TEXT,
+            status TEXT DEFAULT 'pending',
             created_at TEXT DEFAULT (datetime('now'))
         )
     """,
