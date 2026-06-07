@@ -622,12 +622,16 @@ def chat_stream():
             _pending_skill_request = None
             return _sse_response(_stream_simple("Got it. Let me know if you need anything else."))
 
+    _identity = _router._is_identity_query(message)
     _factual = _router._is_factual_query(message)
     _conv = _router._is_conversational(message)
-    log.info("ROUTE msg=%r factual=%s conversational=%s", message[:120], _factual, _conv)
+    log.info("ROUTE msg=%r identity=%s factual=%s conversational=%s", message[:120], _identity, _factual, _conv)
 
+    # 0. Identity questions go straight to Ollama
+    if _identity:
+        route_result = {"action": "chat"}
     # 1. Factual queries go directly to web search, bypassing Ollama
-    if _factual:
+    elif _factual:
         from jobs.research.web_search import run as web_search_run
         ws_result = web_search_run(message)
         return _sse_response(_stream_simple("✓ " + ws_result))
@@ -794,8 +798,9 @@ def chat():
             _pending_skill_request = None
             return jsonify({"response": "Got it. Let me know if you need anything else."})
 
+    # 0. Identity questions go straight to Ollama
     # Skip routing for conversational messages — go straight to Ollama
-    if _router._is_conversational(message):
+    if _router._is_identity_query(message) or _router._is_conversational(message):
         route_result = {"action": "chat"}
     else:
         try:
