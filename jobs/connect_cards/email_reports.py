@@ -41,10 +41,11 @@ SMTP_USER  = os.getenv("WATSON_GMAIL_ADDRESS", "")
 SMTP_PASS  = os.getenv("WATSON_GMAIL_APP_PASSWORD", "")
 FROM_ADDR  = os.getenv("WATSON_FROM_ADDRESS") or SMTP_USER
 
-BILL_EMAIL  = os.getenv("BILL_EMAIL", "")
-DONNA_EMAIL = os.getenv("DONNA_EMAIL", "")
-KACI_EMAIL  = os.getenv("KACI_EMAIL", "")
-REPORT_CC   = os.getenv("REPORT_CC", "")
+BILL_EMAIL    = os.getenv("BILL_EMAIL", "")
+DONNA_EMAIL   = os.getenv("DONNA_EMAIL", "")
+KACI_EMAIL    = os.getenv("KACI_EMAIL", "")
+REPORT_CC     = os.getenv("REPORT_CC", "")
+PREVIEW_EMAIL = "bill.yomes@gmail.com"
 
 DB_PATH = os.path.expanduser("~/watson/data/watson.db")
 
@@ -62,47 +63,54 @@ def _previous_monday_5am(sunday: str) -> str:
     return f"{monday.isoformat()} 05:00:00"
 
 
-def _send(to: str, subject: str, html: str) -> None:
+def _send(to: str, subject: str, html: str, preview: bool = False) -> None:
     if not SMTP_USER or not SMTP_PASS:
         raise RuntimeError("WATSON_GMAIL_ADDRESS and WATSON_GMAIL_APP_PASSWORD must be set.")
-    if not to:
-        raise RuntimeError("Recipient address is empty — check env vars.")
+
+    if preview:
+        to      = PREVIEW_EMAIL
+        subject = f"[PREVIEW] {subject}"
+        cc      = ""
+    else:
+        if not to:
+            raise RuntimeError("Recipient address is empty — check env vars.")
+        cc = REPORT_CC
 
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
     msg["From"]    = f"Watson <{FROM_ADDR}>"
     msg["To"]      = to
-    if REPORT_CC:
-        msg["Cc"] = REPORT_CC
+    if cc:
+        msg["Cc"] = cc
     msg.attach(MIMEText(html, "html"))
 
-    recipients = [to] + ([REPORT_CC] if REPORT_CC else [])
+    recipients = [to] + ([cc] if cc else [])
     with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as smtp:
         smtp.ehlo()
         smtp.starttls()
         smtp.login(SMTP_USER, SMTP_PASS)
         smtp.sendmail(FROM_ADDR, recipients, msg.as_string())
 
-    cc_note = f", CC {REPORT_CC}" if REPORT_CC else ""
+    cc_note = f", CC {cc}" if cc else ""
     print(f"Sent: {subject!r} → {to}{cc_note}")
 
 
-def send_bill_report(service_date: str | None = None, updated: bool = False) -> None:
+def send_bill_report(service_date: str | None = None, updated: bool = False, preview: bool = False) -> None:
     d = service_date or most_recent_sunday()
     subject, html = bill_report(d, updated=updated)
-    _send(BILL_EMAIL, subject, html)
+    _send(BILL_EMAIL, subject, html, preview=preview)
 
 
-def send_donna_report(service_date: str | None = None, updated: bool = False) -> None:
+def send_donna_report(service_date: str | None = None, updated: bool = False, preview: bool = False) -> None:
     d = service_date or most_recent_sunday()
     subject, html = donna_report(d, updated=updated)
-    _send(DONNA_EMAIL, subject, html)
+    _send(DONNA_EMAIL, subject, html, preview=preview)
 
 
-def send_kaci_report(service_date: str | None = None, updated: bool = False) -> None:
+def send_kaci_report(service_date: str | None = None, updated: bool = False, preview: bool = False) -> None:
     d = service_date or most_recent_sunday()
     subject, html = kaci_report(d, updated=updated)
-    _send(KACI_EMAIL, subject, html)
+    _send(KACI_EMAIL, subject, html, preview=preview)
 
 
 # ── Sunday congregation sync ──────────────────────────────────────────────────
@@ -186,6 +194,7 @@ if __name__ == "__main__":
     parser.add_argument("--updated", action="store_true", help="Mark as Thursday updated run (adds flag to subject and header note)")
     parser.add_argument("--sync",    action="store_true", help="Run congregation sync only — no emails sent")
     parser.add_argument("--date",    default=None,        help="Service date (YYYY-MM-DD); defaults to most recent Sunday")
+    parser.add_argument("--preview", action="store_true", help=f"Send all reports to {PREVIEW_EMAIL} instead of normal recipients")
     args = parser.parse_args()
 
     if not any([args.all, args.bill, args.donna, args.kaci, args.sync]):
@@ -197,9 +206,10 @@ if __name__ == "__main__":
         sync_attendance(service_date)
     else:
         updated = args.updated
+        preview = args.preview
         if args.bill or args.all:
-            send_bill_report(service_date, updated=updated)
+            send_bill_report(service_date, updated=updated, preview=preview)
         if args.donna or args.all:
-            send_donna_report(service_date, updated=updated)
+            send_donna_report(service_date, updated=updated, preview=preview)
         if args.kaci or args.all:
-            send_kaci_report(service_date, updated=updated)
+            send_kaci_report(service_date, updated=updated, preview=preview)
