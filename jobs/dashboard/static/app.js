@@ -146,7 +146,6 @@ async function approveSkill(btn) {
     btn.textContent = 'Approve';
   }
 }
-}
 function useSkill(slug) {
   const name = slug.replace(/_/g, ' ').replace(/\b\w/g, function(c){return c.toUpperCase();});
   closeSettings();
