@@ -2,8 +2,8 @@
 Connect card Gmail intake parser.
 
 Polls Watson's Gmail inbox (IMAP) for connect card submission emails from
-no-reply@snappages.com, parses each one, inserts into connect_cards, updates
-congregation records, marks email as read.
+no-reply@snappages.com, parses each one, inserts into congregation.db,
+marks email as read.
 
 Configuration:
   WATSON_GMAIL_ADDRESS      Gmail login address
@@ -32,6 +32,8 @@ from html.parser import HTMLParser
 
 from dotenv import load_dotenv
 
+from jobs.congregation.member_match import find_or_create_member
+
 load_dotenv(os.path.expanduser("~/watson/.env"))
 
 logging.basicConfig(
@@ -46,7 +48,7 @@ IMAP_PORT = 993
 GMAIL_ADDR = os.getenv("WATSON_GMAIL_ADDRESS", "")
 GMAIL_PASS = os.getenv("WATSON_GMAIL_APP_PASSWORD", "")
 
-DB_PATH = os.path.expanduser("~/watson/data/watson.db")
+DB_PATH = os.path.expanduser("~/watson/data/congregation.db")
 
 EXPECTED_SENDER     = "no-reply@snappages.com"
 EXPECTED_SUBJECT    = "Catalyst Connect Card - Submission"
@@ -57,13 +59,13 @@ CAMPUS_MAP = {
     "Online Campus":     "Online",
 }
 
-NEXT_STEP_VALUES = {
-    "I want to start following Jesus",
-    "I want to get baptized",
-    "I want help growing in my faith",
-    "I want to become a Catalyst Partner",
-    "I want to join a small group",
-    "I want to join a ministry team",
+NEXT_STEP_MAP = {
+    "I want to start following Jesus":    "follow_jesus",
+    "I want to get baptized":             "baptism",
+    "I want help growing in my faith":    "grow_faith",
+    "I want to become a Catalyst Partner": "catalyst_partner",
+    "I want to join a small group":       "small_group",
+    "I want to join a ministry team":     "ministry_team",
 }
 
 
@@ -118,7 +120,6 @@ def _decode_part(part) -> str:
 
 
 def _get_body(msg) -> str:
-    """Return plain-text body; strips HTML if no text/plain part found."""
     plain = None
     html_body = None
 
@@ -149,38 +150,30 @@ def _get_body(msg) -> str:
 # ── Body parser ───────────────────────────────────────────────────────────────
 
 def _parse_body(text: str) -> dict | None:
-    """
-    Parse connect card body using regex extraction between known label boundaries.
-    Returns None if the first non-empty line is not the Subsplash URL identifier.
-    """
     text = text.replace("\r\n", "\n").replace("\r", "\n")
 
     if "http://snappages.com" not in text or "Where did you attend with us?" not in text:
         return None
 
-    # Strip copyright footer
     copyright_idx = text.find("© 2022")
     if copyright_idx != -1:
         text = text[:copyright_idx]
 
-    # Content starts after the first blank line
     blank = re.search(r"\n\n+", text)
     body = text[blank.end():] if blank else text
-
-    # Collapse remaining newlines — the form body is one run-on string
     body = re.sub(r"[\r\n]+", " ", body).strip()
 
     fields = {
-        "campus":                None,
-        "first_name":            "",
-        "last_name":             "",
-        "email":                 "",
-        "phone":                 "",
-        "question_comment":      None,
-        "next_steps":            [],
-        "is_first_visit":        False,
+        "campus":                 None,
+        "first_name":             "",
+        "last_name":              "",
+        "email":                  "",
+        "phone":                  "",
+        "questions_comments":     None,
+        "next_steps":             [],
+        "is_first_visit":         False,
         "prayer_leadership_only": False,
-        "prayer_request":        None,
+        "prayer_request":         None,
     }
 
     if "Please restrict my request to leadership only." in body:
@@ -216,12 +209,12 @@ def _parse_body(text: str) -> dict | None:
 
     val = between("Do you have a question/comment?", "Are you ready to take a Next Step this week?")
     if val:
-        fields["question_comment"] = val
+        fields["questions_comments"] = val
 
     ns_raw = between("Are you ready to take a Next Step this week?", "Is this your first Sunday with us?")
     if ns_raw is not None:
         parts = [s.strip() for s in ns_raw.split(",")]
-        fields["next_steps"] = [p for p in parts if p in NEXT_STEP_VALUES]
+        fields["next_steps"] = [p for p in parts if p in NEXT_STEP_MAP]
 
     fv_raw = between("Is this your first Sunday with us?", "How can we pray for you this week?")
     if fv_raw is None:
@@ -234,89 +227,25 @@ def _parse_body(text: str) -> dict | None:
         prayer_raw = prayer_raw.replace("Please restrict my request to leadership only.", "").strip()
         fields["prayer_request"] = prayer_raw or None
 
-    fields["next_steps"] = ", ".join(fields["next_steps"]) or None
     return fields
 
 
 # ── Service date ──────────────────────────────────────────────────────────────
 
 def _service_date(received_dt) -> str:
-    """Most recent Sunday on or before the received date."""
     d = received_dt.date() if hasattr(received_dt, "date") else received_dt
     days_back = (d.weekday() + 1) % 7
     return (d - timedelta(days=days_back)).isoformat()
 
 
-# ── Congregation upsert ───────────────────────────────────────────────────────
-
-def _upsert_congregation(conn, fields: dict, service_date: str, dry_run: bool) -> tuple:
-    """Look up congregation by email then name; update or create. Returns (id, is_new)."""
-    email_addr = (fields.get("email") or "").strip()
-    name = f"{fields.get('first_name', '')} {fields.get('last_name', '')}".strip()
-    now  = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
-
-    cong = None
-    if email_addr:
-        cong = conn.execute(
-            "SELECT id FROM congregation WHERE email = ?", (email_addr,)
-        ).fetchone()
-    if cong is None and name:
-        cong = conn.execute(
-            "SELECT id FROM congregation WHERE name = ? COLLATE NOCASE", (name,)
-        ).fetchone()
-
-    if cong:
-        if not dry_run:
-            conn.execute(
-                """
-                UPDATE congregation
-                SET last_seen  = ?,
-                    email      = CASE WHEN TRIM(COALESCE(email, '')) = '' THEN ? ELSE email END,
-                    phone      = CASE WHEN TRIM(COALESCE(phone, '')) = '' THEN ? ELSE phone END,
-                    updated_at = ?
-                WHERE id = ?
-                """,
-                (service_date, email_addr, fields.get("phone") or "", now, cong["id"]),
-            )
-        return cong["id"], False
-
-    status = "first-time visitor" if fields.get("is_first_visit") else "regular"
-    cong_id = -1
-    if not dry_run:
-        conn.execute(
-            """
-            INSERT INTO congregation
-              (name, email, phone, status, campus, first_seen, last_seen, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                name,
-                email_addr,
-                fields.get("phone") or "",
-                status,
-                fields.get("campus") or "",
-                service_date,
-                service_date,
-                now,
-                now,
-            ),
-        )
-        cong_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
-    return cong_id, True
-
-
 # ── Process one email ─────────────────────────────────────────────────────────
 
-def _process_email(msg, dry_run: bool, conn) -> bool:
-    """Parse and insert one email. Returns True if inserted (or would insert in dry-run)."""
-
-    # Exact sender check
+def _process_email(msg, dry_run: bool, conn: sqlite3.Connection) -> bool:
     from_addr = email.utils.parseaddr(msg.get("From", ""))[1].lower()
     if from_addr != EXPECTED_SENDER:
         log.info("Skipped (sender mismatch): %r", from_addr)
         return False
 
-    # Exact subject check (decode encoded headers)
     raw_subject = msg.get("Subject", "")
     parts = email.header.decode_header(raw_subject)
     subject = "".join(
@@ -327,14 +256,12 @@ def _process_email(msg, dry_run: bool, conn) -> bool:
         log.info("Skipped (subject mismatch): %r", subject)
         return False
 
-    # Body extraction and first-line check
     body = _get_body(msg)
     fields = _parse_body(body)
     if fields is None:
-        log.warning("Skipped (first-line mismatch or parse failed): subject=%r", subject)
+        log.warning("Skipped (parse failed): subject=%r", subject)
         return False
 
-    # Received date → service_date
     try:
         received_dt = email.utils.parsedate_to_datetime(msg.get("Date", ""))
     except Exception:
@@ -349,59 +276,64 @@ def _process_email(msg, dry_run: bool, conn) -> bool:
         name, fields.get("campus"), svc_date, fields.get("is_first_visit"), email_addr,
     )
 
-    # Duplicate check (by email+date, fallback to name+date)
-    dup = conn.execute(
-        "SELECT id FROM connect_cards WHERE email = ? AND service_date = ?",
-        (email_addr, svc_date),
-    ).fetchone()
-    if not dup and not email_addr:
-        dup = conn.execute(
-            "SELECT id FROM connect_cards WHERE first_name = ? AND last_name = ? AND service_date = ?",
-            (fields["first_name"], fields["last_name"], svc_date),
-        ).fetchone()
-    if dup:
-        log.info("Skipped duplicate: email=%r service_date=%s", email_addr, svc_date)
-        return False
-
-    # Congregation upsert
-    cong_id, is_new = _upsert_congregation(conn, fields, svc_date, dry_run)
-    if is_new:
-        log.info("New congregation record: %r", name)
-    else:
-        log.info("Updated congregation record: %r", name)
-
-    prayer        = fields.get("prayer_request")
-    prayer_public = 1 if (prayer and not fields.get("prayer_leadership_only")) else 0
-
-    if not dry_run:
-        conn.execute(
-            """
-            INSERT INTO connect_cards
-              (congregation_id, first_name, last_name, email, phone, campus,
-               service_date, is_first_visit, next_steps, question_comment,
-               prayer_request, prayer_request_public, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
-            """,
-            (
-                cong_id,
-                fields["first_name"],
-                fields["last_name"],
-                email_addr,
-                fields.get("phone") or "",
-                fields.get("campus") or "",
-                svc_date,
-                1 if fields.get("is_first_visit") else 0,
-                fields.get("next_steps"),
-                fields.get("question_comment"),
-                prayer,
-                prayer_public,
-            ),
-        )
-        conn.commit()
-        log.info("Inserted connect card: %r service_date=%s", name, svc_date)
-    else:
+    if dry_run:
         log.info("[dry-run] Would insert: %r service_date=%s", name, svc_date)
+        return True
 
+    member_id = find_or_create_member(conn, name, email_addr, fields.get("phone") or "", svc_date)
+
+    # connect_cards record
+    conn.execute(
+        """
+        INSERT INTO connect_cards
+          (member_id, service_date, campus, raw_text, questions_comments)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        (
+            member_id,
+            svc_date,
+            fields.get("campus") or "",
+            body,
+            fields.get("questions_comments"),
+        ),
+    )
+    card_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+    # attendance (one row per card)
+    conn.execute(
+        """
+        INSERT INTO attendance (member_id, service_date, campus, card_id)
+        VALUES (?, ?, ?, ?)
+        """,
+        (member_id, svc_date, fields.get("campus") or "", card_id),
+    )
+
+    # next_steps
+    for ns_label in fields.get("next_steps") or []:
+        step_key = NEXT_STEP_MAP.get(ns_label)
+        if step_key:
+            conn.execute(
+                "INSERT INTO next_steps (member_id, card_id, step, date) VALUES (?, ?, ?, ?)",
+                (member_id, card_id, step_key, svc_date),
+            )
+
+    # prayer_request
+    prayer = fields.get("prayer_request")
+    if prayer:
+        conn.execute(
+            "INSERT INTO prayer_requests (member_id, card_id, request_text, date) VALUES (?, ?, ?, ?)",
+            (member_id, card_id, prayer, svc_date),
+        )
+
+    # follow_up (first-time visitor flag)
+    if fields.get("is_first_visit"):
+        conn.execute(
+            "INSERT INTO follow_ups (member_id, card_id, note) VALUES (?, ?, ?)",
+            (member_id, card_id, "First-time visitor"),
+        )
+
+    conn.commit()
+    log.info("Inserted: %r service_date=%s card_id=%d", name, svc_date, card_id)
     return True
 
 
@@ -471,9 +403,5 @@ def run(dry_run: bool = False) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Poll Gmail for connect card submissions.")
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Parse and log; do not insert into DB or mark emails as read.",
-    )
+    parser.add_argument("--dry-run", action="store_true")
     run(dry_run=parser.parse_args().dry_run)
