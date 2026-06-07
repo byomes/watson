@@ -64,14 +64,20 @@ async function loadRemindersPanel() {
 }
 var _allSkills = [];
 var _skillTab = 'ready';
+var _skillCategory = 'All';
+var _skillCategories = ['All'];
 
 async function loadSkillsPanel() {
   const el = document.getElementById('settings-skills-list');
   el.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:6px 0">Loading...</div>';
   _skillTab = 'ready';
+  _skillCategory = 'All';
   _updateSkillTabUI();
   try {
-    _allSkills = await api('/api/skills');
+    var results = await Promise.all([api('/api/skills'), api('/api/skills/categories')]);
+    _allSkills = results[0];
+    _skillCategories = ['All'].concat(results[1]);
+    _renderCategoryPills();
     _renderSkillList();
   } catch(e) {
     el.innerHTML = '<div style="font-size:12px;color:var(--danger);padding:6px 0">Failed to load skills.</div>';
@@ -80,7 +86,15 @@ async function loadSkillsPanel() {
 
 function switchSkillTab(tab) {
   _skillTab = tab;
+  _skillCategory = 'All';
   _updateSkillTabUI();
+  _renderCategoryPills();
+  _renderSkillList();
+}
+
+function switchSkillCategory(cat) {
+  _skillCategory = cat;
+  _renderCategoryPills();
   _renderSkillList();
 }
 
@@ -92,13 +106,31 @@ function _updateSkillTabUI() {
   });
 }
 
+function _renderCategoryPills() {
+  const pillsEl = document.getElementById('skill-category-pills');
+  if (!pillsEl) return;
+  if (_skillTab !== 'ready') {
+    pillsEl.innerHTML = '';
+    return;
+  }
+  pillsEl.innerHTML = _skillCategories.map(function(cat) {
+    const active = cat === _skillCategory ? ' active' : '';
+    return '<button class="skill-cat-pill' + active + '" onclick="switchSkillCategory(' + JSON.stringify(cat) + ')">' + esc(cat) + '</button>';
+  }).join('');
+}
+
 function _renderSkillList() {
   const el = document.getElementById('settings-skills-list');
-  const filtered = _allSkills.filter(function(s) {
+  var filtered = _allSkills.filter(function(s) {
     return (s.status || 'ready') === _skillTab;
   });
+  if (_skillTab === 'ready' && _skillCategory !== 'All') {
+    filtered = filtered.filter(function(s) {
+      return (s.category || 'Utilities') === _skillCategory;
+    });
+  }
   if (!filtered.length) {
-    el.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:6px 0">No ' + _skillTab + ' skills.</div>';
+    el.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:6px 0">No ' + _skillTab + ' skills' + (_skillCategory !== 'All' ? ' in ' + _skillCategory : '') + '.</div>';
     return;
   }
   el.innerHTML = filtered.map(function(s) {

@@ -510,6 +510,9 @@ def upload_file():
 
 # ── Skills API ────────────────────────────────────────────────────────────────
 
+_CATEGORY_ORDER = ["Core", "Research", "Writing", "Documents", "Design", "Watson Dev", "Utilities"]
+
+
 @app.route("/api/skills")
 def skills_list_api():
     if not SKILLS_FILE.exists():
@@ -521,9 +524,16 @@ def skills_list_api():
         for s in skills:
             if "status" not in s:
                 s["status"] = "ready"
+            if "category" not in s:
+                s["category"] = "Utilities"
         return jsonify(skills)
     except Exception:
         return jsonify([])
+
+
+@app.route("/api/skills/categories")
+def skills_categories_api():
+    return jsonify(_CATEGORY_ORDER)
 
 
 @app.route("/api/skills/<slug>/approve", methods=["POST"])
