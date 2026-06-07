@@ -19,6 +19,8 @@ OLLAMA_MODEL = "llama3.2:3b"
 PYPI_URL = "https://pypi.org/pypi/{}/json"
 GITHUB_SEARCH_URL = "https://api.github.com/search/repositories"
 
+_BLOCKED_LIBRARIES = frozenset({"send", "sms", "message", "text", "messages", "notify", "notification"})
+
 log = logging.getLogger(__name__)
 
 
@@ -122,33 +124,53 @@ def search_for_skill(capability_description: str) -> dict:
     system = (
         "You are Watson's skill researcher. Given a capability need and search results, "
         "recommend the single best Python library to use. "
+        "Only recommend libraries with active PyPI pages and real documentation. "
+        "Do not recommend libraries named after generic words like 'send', 'message', or 'text'. "
         'Return JSON only: {"library": "name", "install_name": "pip install name", '
         '"reason": "one sentence why", "skill_description": "what Watson will be able to do"}'
     )
-    user = (
+    base_user = (
         f"Capability needed: {capability_description}\n\n"
         f"PyPI results: {json.dumps(pypi_results)}\n\n"
         f"GitHub results: {json.dumps(github_results)}"
     )
-    try:
-        resp = requests.post(
-            OLLAMA_URL,
-            json={
-                "model": OLLAMA_MODEL,
-                "prompt": f"SYSTEM:\n{system}\n\nUSER:\n{user}",
-                "stream": False,
-            },
-            timeout=120,
+
+    recommendation = None
+    for attempt in range(2):
+        call_user = base_user if attempt == 0 else (
+            base_user + "\n\nIMPORTANT: Your previous suggestion was a generic or hallucinated "
+            "library name. Recommend a well-known, established Python library with active PyPI "
+            "downloads and real documentation. Examples of good answers: requests, httpx, "
+            "beautifulsoup4, pillow, pandas, pydantic."
         )
-        resp.raise_for_status()
-        raw = resp.json().get("response", "").strip()
-        match = re.search(r'\{[^{}]+\}', raw, re.DOTALL)
-        if not match:
-            log.error("Ollama returned no JSON for skill search: %s", raw[:200])
-            return {}
-        recommendation = json.loads(match.group())
-    except Exception as exc:
-        log.error("Ollama recommendation failed: %s", exc)
+        try:
+            resp = requests.post(
+                OLLAMA_URL,
+                json={
+                    "model": OLLAMA_MODEL,
+                    "prompt": f"SYSTEM:\n{system}\n\nUSER:\n{call_user}",
+                    "stream": False,
+                },
+                timeout=120,
+            )
+            resp.raise_for_status()
+            raw = resp.json().get("response", "").strip()
+            match = re.search(r'\{[^{}]+\}', raw, re.DOTALL)
+            if not match:
+                log.error("Ollama returned no JSON (attempt %d): %s", attempt + 1, raw[:200])
+                continue
+            candidate = json.loads(match.group())
+            lib = candidate.get("library", "").lower().strip()
+            if lib in _BLOCKED_LIBRARIES:
+                log.warning("Blocked library '%s' from LLM (attempt %d) — retrying", lib, attempt + 1)
+                continue
+            recommendation = candidate
+            break
+        except Exception as exc:
+            log.error("Ollama recommendation failed (attempt %d): %s", attempt + 1, exc)
+
+    if not recommendation:
+        log.error("No valid library recommendation after retries for: %s", capability_description)
         return {}
 
     return {
@@ -206,6 +228,7 @@ def propose_skill(capability_description: str) -> bool:
 
 def execute_acquisition(acquisition_id: int) -> bool:
     """Install the approved library and build the skill wrapper."""
+    log.info("execute_acquisition called: id=%d", acquisition_id)
     _ensure_table()
     conn = _db_connect()
     row = conn.execute(
