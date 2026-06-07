@@ -237,6 +237,30 @@ _BUILD_FRAME_PATTERNS = [
     r'^write\s+a\s+',
 ]
 
+_CONVERSATIONAL_STARTERS = (
+    "hi", "hey", "hello", "good", "thanks", "thank", "ok", "okay",
+    "sounds", "got it", "what", "how", "why", "who", "when", "where",
+    "is", "are", "can", "do", "does", "tell me", "explain",
+)
+
+_ACTION_KEYWORDS = frozenset({
+    "build", "create", "add", "send", "email", "search", "find",
+    "look up", "schedule", "set", "list", "show", "remind",
+    "draft", "write", "publish",
+})
+
+
+def _is_conversational(message: str) -> bool:
+    """Return True if the message is conversational and should skip the LLM router."""
+    msg_lower = message.lower().strip()
+    words = msg_lower.split()
+    if len(words) < 8 and not any(kw in msg_lower for kw in _ACTION_KEYWORDS):
+        return True
+    for starter in _CONVERSATIONAL_STARTERS:
+        if msg_lower == starter or msg_lower.startswith(starter + " ") or msg_lower.startswith(starter + ","):
+            return True
+    return False
+
 
 def _extract_build_description(message: str) -> str:
     """Strip build-request framing, return the functional description."""
@@ -433,6 +457,10 @@ def _route(message: str, interface: str) -> dict:
         description = _extract_build_description(message)
         job_path = _generate_job_path(description)
         return {"action": "build", "description": description, "job_path": job_path}
+
+    # Conversational pre-check: skip LLM router entirely for short/greeting messages.
+    if _is_conversational(message):
+        return {"action": "chat"}
 
     skills = _load_skills(interface)
     if not skills:
