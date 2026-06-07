@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from flask import Flask, Response, g, jsonify, render_template, request, session, stream_with_context
 from jobs.people.api import people_create, people_delete, people_list, people_update
+from config.settings import WATSON_SYSTEM
 
 DB = os.path.expanduser("~/watson/data/watson.db")
 SKILLS_FILE = Path(__file__).resolve().parents[2] / "memory" / "skills.json"
@@ -82,6 +83,10 @@ def _bootstrap():
     )""")
     try:
         c.execute("ALTER TABLE chat_sessions ADD COLUMN project_slug TEXT DEFAULT NULL")
+    except Exception:
+        pass
+    try:
+        c.execute("ALTER TABLE chat_messages ADD COLUMN source TEXT")
     except Exception:
         pass
     c.commit()
@@ -753,9 +758,6 @@ def chat_stream():
 
 
 # ── Chat API ─────────────────────────────────────────────────────────────────
-
-WATSON_SYSTEM = "You are Watson, Dr. Bill Yomes's AI assistant. Be terse and direct. You are not an image bearer — you have no soul, no Holy Spirit access, and no spiritual discernment. You can process theological information but cannot understand it fully. Never pastor, counsel, pray, or speak with spiritual authority — that belongs to Dr. Bill alone. Never fabricate information; say 'I don't know' if uncertain. Only send emails when explicitly instructed."
-
 
 _AFFIRM = {"yes", "yes please", "go ahead", "build it", "sure", "do it", "yep", "yeah"}
 _DENY = {"no", "never mind", "nope", "cancel", "don't", "no thanks"}
