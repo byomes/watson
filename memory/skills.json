@@ -267,7 +267,7 @@
       "dashboard",
       "telegram"
     ],
-    "status": "dev"
+    "status": "ready"
   },
   {
     "slug": "both_read_pdf",
@@ -284,307 +284,578 @@
   {
     "slug": "read_pdf",
     "description": "Read text from a PDF file or create a new PDF from text",
-    "triggers": ["read pdf", "open pdf", "extract pdf", "pdf text"],
+    "triggers": [
+      "read pdf",
+      "open pdf",
+      "extract pdf",
+      "pdf text"
+    ],
     "job_module": "jobs.documents.pdf",
     "function": "run",
-    "interfaces": ["dashboard", "telegram"],
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ],
     "status": "ready"
   },
   {
     "slug": "read_word",
     "description": "Read text from a Word .docx file or create a new document",
-    "triggers": ["read word", "open doc", "open word", "read docx"],
+    "triggers": [
+      "read word",
+      "open doc",
+      "open word",
+      "read docx"
+    ],
     "job_module": "jobs.documents.word",
     "function": "run",
-    "interfaces": ["dashboard", "telegram"],
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ],
     "status": "ready"
   },
   {
     "slug": "read_excel",
     "description": "Read data from an Excel .xlsx file or create a new spreadsheet",
-    "triggers": ["read excel", "open spreadsheet", "open excel", "read xlsx"],
+    "triggers": [
+      "read excel",
+      "open spreadsheet",
+      "open excel",
+      "read xlsx"
+    ],
     "job_module": "jobs.documents.excel",
     "function": "run",
-    "interfaces": ["dashboard", "telegram"],
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ],
     "status": "ready"
   },
   {
     "slug": "read_powerpoint",
     "description": "Read text from a PowerPoint .pptx file or create a new presentation",
-    "triggers": ["read powerpoint", "open presentation", "open pptx", "read slides"],
+    "triggers": [
+      "read powerpoint",
+      "open presentation",
+      "open pptx",
+      "read slides"
+    ],
     "job_module": "jobs.documents.powerpoint",
     "function": "run",
-    "interfaces": ["dashboard", "telegram"],
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ],
     "status": "ready"
   },
   {
     "slug": "article_reader",
     "description": "Fetch and read the full text of any article or web page from a URL",
-    "triggers": ["read this article", "fetch this url", "read this page", "summarize this link"],
+    "triggers": [
+      "read this article",
+      "fetch this url",
+      "read this page",
+      "summarize this link"
+    ],
     "job_module": "jobs.research.article_reader",
     "function": "run",
-    "interfaces": ["dashboard", "telegram"],
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ],
     "status": "dev"
   },
   {
     "slug": "feed_reader",
     "description": "Parse an RSS or Atom feed and return the latest entries",
-    "triggers": ["read this feed", "parse rss", "get latest from"],
+    "triggers": [
+      "read this feed",
+      "parse rss",
+      "get latest from"
+    ],
     "job_module": "jobs.research.feed_reader",
     "function": "run",
-    "interfaces": ["dashboard", "telegram"],
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ],
     "status": "dev"
   },
   {
     "slug": "table_extractor",
     "description": "Extract tables from a PDF file and return structured data",
-    "triggers": ["extract tables", "get tables from pdf", "read tables"],
+    "triggers": [
+      "extract tables",
+      "get tables from pdf",
+      "read tables"
+    ],
     "job_module": "jobs.data.table_extractor",
     "function": "run",
-    "interfaces": ["dashboard", "telegram"],
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ],
     "status": "dev"
   },
   {
     "slug": "data_analyzer",
     "description": "Analyze a CSV or Excel file and return a summary of its contents",
-    "triggers": ["analyze this file", "summarize this spreadsheet", "analyze csv", "analyze excel"],
+    "triggers": [
+      "analyze this file",
+      "summarize this spreadsheet",
+      "analyze csv",
+      "analyze excel"
+    ],
     "job_module": "jobs.data.data_analyzer",
     "function": "run",
-    "interfaces": ["dashboard", "telegram"],
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ],
     "status": "dev"
   },
   {
     "slug": "vcf_importer",
     "description": "Import contacts from a vCard .vcf file into the People Registry",
-    "triggers": ["import contacts", "import vcf", "load contact card", "import vcard"],
+    "triggers": [
+      "import contacts",
+      "import vcf",
+      "load contact card",
+      "import vcard"
+    ],
     "job_module": "jobs.contacts.vcf_importer",
     "function": "run",
-    "interfaces": ["dashboard", "telegram"],
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ],
     "status": "dev"
   },
   {
     "slug": "qr_generator",
     "description": "Generate a QR code for any text or URL",
-    "triggers": ["generate qr code", "create qr", "make a qr code", "qr code for"],
+    "triggers": [
+      "generate qr code",
+      "create qr",
+      "make a qr code",
+      "qr code for"
+    ],
     "job_module": "jobs.utilities.qr_generator",
     "function": "run",
-    "interfaces": ["dashboard", "telegram"],
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ],
     "status": "dev"
   },
   {
     "slug": "date_helper",
     "description": "Parse dates and calculate time differences in human-readable format",
-    "triggers": ["how many days until", "when is", "days until", "time until"],
+    "triggers": [
+      "how many days until",
+      "when is",
+      "days until",
+      "time until"
+    ],
     "job_module": "jobs.utilities.date_helper",
     "function": "run",
-    "interfaces": ["dashboard", "telegram"],
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ],
     "status": "dev"
   },
   {
     "slug": "youtube_downloader",
     "description": "Download audio from a YouTube video for transcription or listening",
-    "triggers": ["download this video", "download audio from", "get audio from youtube", "download youtube"],
+    "triggers": [
+      "download this video",
+      "download audio from",
+      "get audio from youtube",
+      "download youtube"
+    ],
     "job_module": "jobs.media.youtube_downloader",
     "function": "run",
-    "interfaces": ["dashboard", "telegram"],
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ],
     "status": "dev"
   },
   {
     "slug": "text_processor",
     "description": "Summarize text, extract keywords, or convert HTML to markdown",
-    "triggers": ["summarize this text", "extract keywords", "convert to markdown", "key points from"],
+    "triggers": [
+      "summarize this text",
+      "extract keywords",
+      "convert to markdown",
+      "key points from"
+    ],
     "job_module": "jobs.utilities.text_processor",
     "function": "run",
-    "interfaces": ["dashboard", "telegram"],
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ],
     "status": "dev"
   },
   {
     "slug": "readability_analyzer",
-    "description": "Analyze the readability of text — reading level, grade, word count, estimated reading time",
-    "triggers": ["check readability", "analyze readability", "reading level", "grade level"],
+    "description": "Analyze the readability of text \u2014 reading level, grade, word count, estimated reading time",
+    "triggers": [
+      "check readability",
+      "analyze readability",
+      "reading level",
+      "grade level"
+    ],
     "job_module": "jobs.writing.readability",
     "function": "run",
-    "interfaces": ["dashboard", "telegram"],
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ],
     "status": "dev"
   },
   {
     "slug": "audio_tools",
     "description": "Read and write audio file metadata, convert formats, and trim audio clips",
-    "triggers": ["audio metadata", "get audio info", "trim audio", "convert audio"],
+    "triggers": [
+      "audio metadata",
+      "get audio info",
+      "trim audio",
+      "convert audio"
+    ],
     "job_module": "jobs.media.audio_tools",
     "function": "run",
-    "interfaces": ["dashboard", "telegram"],
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ],
     "status": "dev"
   },
   {
     "slug": "chart_generator",
     "description": "Generate bar or line charts from data and save as PNG files",
-    "triggers": ["generate chart", "make a chart", "create graph", "bar chart", "line chart"],
+    "triggers": [
+      "generate chart",
+      "make a chart",
+      "create graph",
+      "bar chart",
+      "line chart"
+    ],
     "job_module": "jobs.data.chart_generator",
     "function": "run",
-    "interfaces": ["dashboard", "telegram"],
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ],
     "status": "dev"
   },
   {
     "slug": "template_engine",
     "description": "Render Jinja2 templates from strings or files with context variables",
-    "triggers": ["render template", "fill template", "template engine"],
+    "triggers": [
+      "render template",
+      "fill template",
+      "template engine"
+    ],
     "job_module": "jobs.utilities.template_engine",
     "function": "run",
-    "interfaces": ["dashboard", "telegram"],
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ],
     "status": "dev"
   },
   {
     "slug": "language_detector",
     "description": "Detect the language of any text",
-    "triggers": ["what language is this", "detect language", "identify language"],
+    "triggers": [
+      "what language is this",
+      "detect language",
+      "identify language"
+    ],
     "job_module": "jobs.research.language_detector",
     "function": "run",
-    "interfaces": ["dashboard", "telegram"],
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ],
     "status": "dev"
   },
   {
     "slug": "code_quality",
     "description": "Format, lint, and security scan Python code using black, pylint, and bandit",
-    "triggers": ["check code quality", "lint this code", "format code", "scan for security issues"],
+    "triggers": [
+      "check code quality",
+      "lint this code",
+      "format code",
+      "scan for security issues"
+    ],
     "job_module": "jobs.dev.code_quality",
     "function": "run",
-    "interfaces": ["dashboard", "telegram"],
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ],
     "status": "dev"
   },
   {
     "slug": "git_tools",
     "description": "Read Watson git history, find manual fixes, and analyze code changes over time",
-    "triggers": ["show recent commits", "git history", "what changed recently", "find manual fixes"],
+    "triggers": [
+      "show recent commits",
+      "git history",
+      "what changed recently",
+      "find manual fixes"
+    ],
     "job_module": "jobs.dev.git_tools",
     "function": "run",
-    "interfaces": ["dashboard", "telegram"],
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ],
     "status": "dev"
   },
   {
     "slug": "code_editor",
-    "description": "Read and edit Watson files directly — find and replace, append, add functions",
-    "triggers": ["edit this file", "modify this file", "add to this file", "find and replace in"],
+    "description": "Read and edit Watson files directly \u2014 find and replace, append, add functions",
+    "triggers": [
+      "edit this file",
+      "modify this file",
+      "add to this file",
+      "find and replace in"
+    ],
     "job_module": "jobs.dev.code_editor",
     "function": "run",
-    "interfaces": ["dashboard", "telegram"],
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ],
     "status": "dev"
   },
   {
     "slug": "system_monitor",
-    "description": "Check system health — CPU, memory, disk, and Watson service status",
-    "triggers": ["system health", "how is watson doing", "check system", "cpu usage", "memory usage"],
+    "description": "Check system health \u2014 CPU, memory, disk, and Watson service status",
+    "triggers": [
+      "system health",
+      "how is watson doing",
+      "check system",
+      "cpu usage",
+      "memory usage"
+    ],
     "job_module": "jobs.dev.system_monitor",
     "function": "run",
-    "interfaces": ["dashboard", "telegram"],
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ],
     "status": "dev"
   },
   {
     "slug": "github_tools",
-    "description": "Interact with Watson GitHub repo — issues, code search, repo info",
-    "triggers": ["github status", "open issues", "repo info", "search code"],
+    "description": "Interact with Watson GitHub repo \u2014 issues, code search, repo info",
+    "triggers": [
+      "github status",
+      "open issues",
+      "repo info",
+      "search code"
+    ],
     "job_module": "jobs.dev.github_tools",
     "function": "run",
-    "interfaces": ["dashboard", "telegram"],
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ],
     "status": "dev"
   },
   {
     "slug": "test_runner",
     "description": "Run Watson's test suite and generate tests for new skills",
-    "triggers": ["run tests", "test watson", "check tests", "run test suite"],
+    "triggers": [
+      "run tests",
+      "test watson",
+      "check tests",
+      "run test suite"
+    ],
     "job_module": "jobs.dev.test_runner",
     "function": "run",
-    "interfaces": ["dashboard", "telegram"],
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ],
     "status": "dev"
   },
   {
     "slug": "dependency_manager",
     "description": "Check for outdated packages, install new ones, find missing imports",
-    "triggers": ["check dependencies", "outdated packages", "install package", "missing imports"],
+    "triggers": [
+      "check dependencies",
+      "outdated packages",
+      "install package",
+      "missing imports"
+    ],
     "job_module": "jobs.dev.dependency_manager",
     "function": "run",
-    "interfaces": ["dashboard", "telegram"],
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ],
     "status": "dev"
   },
   {
     "slug": "code_analyzer",
-    "description": "Analyze Watson's codebase — find files missing run() functions, complexity, structure",
-    "triggers": ["analyze codebase", "check watson code", "find missing run functions", "codebase report"],
+    "description": "Analyze Watson's codebase \u2014 find files missing run() functions, complexity, structure",
+    "triggers": [
+      "analyze codebase",
+      "check watson code",
+      "find missing run functions",
+      "codebase report"
+    ],
     "job_module": "jobs.dev.code_analyzer",
     "function": "run",
-    "interfaces": ["dashboard", "telegram"],
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ],
     "status": "dev"
   },
   {
     "slug": "screenshot",
     "description": "Take a screenshot of any webpage and send it via Telegram",
-    "triggers": ["screenshot", "take a screenshot", "show me this page", "capture this url"],
+    "triggers": [
+      "screenshot",
+      "take a screenshot",
+      "show me this page",
+      "capture this url"
+    ],
     "job_module": "jobs.design.screenshot",
     "function": "run",
-    "interfaces": ["dashboard", "telegram"],
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ],
     "status": "dev"
   },
   {
     "slug": "image_tools",
     "description": "Resize, watermark, optimize, and format images for web and social media",
-    "triggers": ["resize image", "optimize image", "remove background", "optimize for instagram", "watermark"],
+    "triggers": [
+      "resize image",
+      "optimize image",
+      "remove background",
+      "optimize for instagram",
+      "watermark"
+    ],
     "job_module": "jobs.design.image_tools",
     "function": "run",
-    "interfaces": ["dashboard", "telegram"],
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ],
     "status": "dev"
   },
   {
     "slug": "svg_generator",
     "description": "Generate branded graphics, banners, quote cards, and social media images",
-    "triggers": ["create quote card", "make a banner", "generate graphic", "social graphic", "quote card"],
+    "triggers": [
+      "create quote card",
+      "make a banner",
+      "generate graphic",
+      "social graphic",
+      "quote card"
+    ],
     "job_module": "jobs.design.svg_generator",
     "function": "run",
-    "interfaces": ["dashboard", "telegram"],
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ],
     "status": "dev"
   },
   {
     "slug": "social_poster",
     "description": "Post content to Facebook page with optional image",
-    "triggers": ["post to facebook", "share on facebook", "facebook post"],
+    "triggers": [
+      "post to facebook",
+      "share on facebook",
+      "facebook post"
+    ],
     "job_module": "jobs.marketing.social_poster",
     "function": "run",
-    "interfaces": ["dashboard", "telegram"],
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ],
     "status": "dev"
   },
   {
     "slug": "seo_tools",
     "description": "Analyze a webpage for SEO issues and suggest improvements",
-    "triggers": ["seo analysis", "check seo", "analyze this page for seo", "seo report"],
+    "triggers": [
+      "seo analysis",
+      "check seo",
+      "analyze this page for seo",
+      "seo report"
+    ],
     "job_module": "jobs.marketing.seo_tools",
     "function": "run",
-    "interfaces": ["dashboard", "telegram"],
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ],
     "status": "dev"
   },
   {
     "slug": "content_calendar",
     "description": "Show upcoming scheduled content and suggest new content ideas",
-    "triggers": ["content calendar", "upcoming posts", "what is scheduled", "content ideas"],
+    "triggers": [
+      "content calendar",
+      "upcoming posts",
+      "what is scheduled",
+      "content ideas"
+    ],
     "job_module": "jobs.marketing.content_calendar",
     "function": "run",
-    "interfaces": ["dashboard", "telegram"],
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ],
     "status": "dev"
   },
   {
     "slug": "site_deployer",
     "description": "Deploy Watson web properties to Vercel and check deployment status",
-    "triggers": ["deploy wcky", "deploy watson", "push to vercel", "deployment status"],
+    "triggers": [
+      "deploy wcky",
+      "deploy watson",
+      "push to vercel",
+      "deployment status"
+    ],
     "job_module": "jobs.web.site_deployer",
     "function": "run",
-    "interfaces": ["dashboard", "telegram"],
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ],
     "status": "dev"
   },
   {
     "slug": "page_generator",
     "description": "Generate blog posts, landing pages, and web content",
-    "triggers": ["generate blog post", "create landing page", "write a page", "generate page"],
+    "triggers": [
+      "generate blog post",
+      "create landing page",
+      "write a page",
+      "generate page"
+    ],
     "job_module": "jobs.web.page_generator",
     "function": "run",
-    "interfaces": ["dashboard", "telegram"],
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ],
     "status": "dev"
   }
 ]
