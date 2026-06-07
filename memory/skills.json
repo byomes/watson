@@ -1018,5 +1018,107 @@
       "telegram"
     ],
     "status": "ready"
+  },
+  {
+    "slug": "skill_tester",
+    "description": "Test any Watson skill safely and report pass/fail results",
+    "triggers": [
+      "test skill",
+      "test this skill",
+      "run skill test",
+      "does this skill work"
+    ],
+    "job_module": "jobs.dev.skill_tester",
+    "function": "run",
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ],
+    "status": "ready"
+  },
+  {
+    "slug": "error_analyzer",
+    "description": "Analyze Python errors and tracebacks to identify root causes and fixes",
+    "triggers": [
+      "analyze this error",
+      "why is this failing",
+      "debug this error",
+      "what is wrong with"
+    ],
+    "job_module": "jobs.dev.error_analyzer",
+    "function": "run",
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ],
+    "status": "ready"
+  },
+  {
+    "slug": "auto_fixer",
+    "description": "Automatically fix common skill errors \u2014 missing run(), bad imports, tilde paths",
+    "triggers": [
+      "auto fix",
+      "fix this skill",
+      "repair this skill",
+      "fix errors in"
+    ],
+    "job_module": "jobs.dev.auto_fixer",
+    "function": "run",
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ],
+    "status": "ready"
+  },
+  {
+    "slug": "skill_validator",
+    "description": "Validate a skill against all quality checks before promoting to Ready",
+    "triggers": [
+      "validate skill",
+      "check this skill",
+      "validate all skills",
+      "ready to promote"
+    ],
+    "job_module": "jobs.dev.skill_validator",
+    "function": "run",
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ],
+    "status": "ready"
+  },
+  {
+    "slug": "performance_profiler",
+    "description": "Profile skill execution time and memory usage",
+    "triggers": [
+      "profile skill",
+      "how fast is",
+      "performance report",
+      "memory usage"
+    ],
+    "job_module": "jobs.dev.performance_profiler",
+    "function": "run",
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ],
+    "status": "ready"
+  },
+  {
+    "slug": "dependency_scanner",
+    "description": "Scan skill files for missing or conflicting dependencies",
+    "triggers": [
+      "scan dependencies",
+      "check imports",
+      "missing packages",
+      "dependency report"
+    ],
+    "job_module": "jobs.dev.dependency_scanner",
+    "function": "run",
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ],
+    "status": "ready"
   }
 ]

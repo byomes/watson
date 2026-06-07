@@ -319,6 +319,51 @@ def _update_python_memory(job_path: str, description: str, built_by: str) -> Non
         )
 
 
+def _validate_after_build(job_path: str) -> None:
+    """Run full validation after a successful build; notify and auto-fix if needed."""
+    slug = Path(job_path).stem
+    try:
+        from jobs.dev.skill_validator import validate_skill
+        result = validate_skill(slug)
+        score = result["score"]
+
+        # Log validation result to the most recent build_attempts row
+        try:
+            conn = sqlite3.connect(str(DB_PATH))
+            try:
+                conn.execute("ALTER TABLE build_attempts ADD COLUMN validation_result TEXT")
+                conn.commit()
+            except Exception:
+                pass  # column already exists
+            row = conn.execute(
+                "SELECT id FROM build_attempts WHERE job_path=? ORDER BY id DESC LIMIT 1",
+                (job_path,),
+            ).fetchone()
+            if row:
+                conn.execute(
+                    "UPDATE build_attempts SET validation_result=? WHERE id=?",
+                    (f"{score} {'pass' if result['passed'] else 'fail'}", row[0]),
+                )
+                conn.commit()
+            conn.close()
+        except Exception as db_exc:
+            log.debug("Validation DB log failed: %s", db_exc)
+
+        if result["passed"]:
+            _telegram(f"✓ Built and validated: {slug} — ready to approve ({score} checks passed)")
+        else:
+            failed = [k for k, v in result["checks"].items() if not v["passed"]]
+            _telegram(f"⚠ {slug} built but {score} checks passed. Failing: {', '.join(failed)}")
+            try:
+                from jobs.dev.auto_fixer import auto_fix_skill
+                fix_result = auto_fix_skill(slug)
+                _telegram(f"Auto-fix: {fix_result[:200]}")
+            except Exception as fx_exc:
+                log.warning("Auto-fix after build failed: %s", fx_exc)
+    except Exception as exc:
+        log.warning("Post-build validation failed (non-fatal): %s", exc)
+
+
 def _post_success(job_path: str, description: str, built_by: str, code: str = "") -> None:
     Path(tempfile.gettempdir()).joinpath("watson_skill_draft.py").unlink(missing_ok=True)
     try:
@@ -330,6 +375,7 @@ def _post_success(job_path: str, description: str, built_by: str, code: str = ""
         sync_main()
     except Exception as exc:
         log.warning("Memory update failed (non-fatal): %s", exc)
+    _validate_after_build(job_path)
 
 
 # ── Build skill ───────────────────────────────────────────────────────────────
