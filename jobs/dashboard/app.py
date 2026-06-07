@@ -617,11 +617,14 @@ def chat_stream():
             _pending_skill_request = None
             return _sse_response(_stream_simple("Got it. Let me know if you need anything else."))
 
-    # Skill routing
-    try:
-        route_result = _router.route(message, "dashboard")
-    except Exception:
+    # Skip routing for conversational messages — go straight to Ollama
+    if _router._is_conversational(message):
         route_result = {"action": "chat"}
+    else:
+        try:
+            route_result = _router.route(message, "dashboard")
+        except Exception:
+            route_result = {"action": "chat"}
 
     if route_result["action"] == "skill":
         if "result" not in route_result:
@@ -738,7 +741,7 @@ def chat_stream():
 
 # ── Chat API ─────────────────────────────────────────────────────────────────
 
-WATSON_SYSTEM = """You are Watson, Dr. Bill Yomes's AI assistant. Be terse and direct. Never pastor, counsel, or fabricate information. Never send emails autonomously — always draft for review. If asked to build a skill or job, say: "Building that now. I'll notify you via Telegram when it's ready." """
+WATSON_SYSTEM = "You are Watson, Dr. Bill Yomes's AI assistant. Be terse and direct. Never pastor, counsel, or fabricate information. Never send emails autonomously — always draft for review. If asked to build a skill or job, say: 'Building that now. I'll notify you via Telegram when it's ready.'"
 
 
 _AFFIRM = {"yes", "yes please", "go ahead", "build it", "sure", "do it", "yep", "yeah"}
@@ -776,11 +779,14 @@ def chat():
             _pending_skill_request = None
             return jsonify({"response": "Got it. Let me know if you need anything else."})
 
-    # Skill routing
-    try:
-        route_result = _router.route(message, "dashboard")
-    except Exception as exc:
+    # Skip routing for conversational messages — go straight to Ollama
+    if _router._is_conversational(message):
         route_result = {"action": "chat"}
+    else:
+        try:
+            route_result = _router.route(message, "dashboard")
+        except Exception:
+            route_result = {"action": "chat"}
 
     if route_result["action"] == "skill":
         if "result" not in route_result:
@@ -864,12 +870,25 @@ def chat():
     try:
         resp = _req.post(
             "http://localhost:11434/api/chat",
-            json={"model": "gemma3:1b", "messages": messages, "stream": False, "num_predict": 300},
-            timeout=60,
+            json={"model": "gemma3:1b", "messages": messages, "stream": True, "num_predict": 300},
+            stream=True,
+            timeout=30,
         )
         resp.raise_for_status()
-        reply = resp.json().get("message", {}).get("content", "")
-        return jsonify({"response": reply})
+        reply_parts = []
+        for line in resp.iter_lines():
+            if not line:
+                continue
+            try:
+                chunk = json.loads(line)
+            except Exception:
+                continue
+            token = chunk.get("message", {}).get("content", "")
+            if token:
+                reply_parts.append(token)
+            if chunk.get("done"):
+                break
+        return jsonify({"response": "".join(reply_parts)})
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
 
