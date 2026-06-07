@@ -772,7 +772,7 @@
       "dashboard",
       "telegram"
     ],
-    "status": "dev"
+    "status": "ready"
   },
   {
     "slug": "social_poster",
