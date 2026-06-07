@@ -876,5 +876,147 @@
       "telegram"
     ],
     "status": "ready"
+  },
+  {
+    "slug": "send",
+    "description": "Watson will be able to send SMS messages using the send library, allowing users to integrate SMS functionality into their applications.",
+    "triggers": [],
+    "job_module": "jobs.acquired.send",
+    "function": "run",
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ]
+  },
+  {
+    "slug": "chump",
+    "description": "Watson will be able to send push notifications using the Pushover API",
+    "triggers": [],
+    "job_module": "jobs.acquired.chump",
+    "function": "run",
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ]
+  },
+  {
+    "slug": "academic_search",
+    "description": "Search academic papers on arXiv and Google Scholar for research and apologetics",
+    "triggers": [
+      "search arxiv",
+      "find academic papers",
+      "scholarly search",
+      "research papers on"
+    ],
+    "job_module": "jobs.research.academic_search",
+    "function": "run",
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ],
+    "status": "dev"
+  },
+  {
+    "slug": "news_search",
+    "description": "Search recent news and trending topics from Google News",
+    "triggers": [
+      "search news",
+      "latest news on",
+      "what is trending",
+      "current events about",
+      "news about"
+    ],
+    "job_module": "jobs.research.news_search",
+    "function": "run",
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ],
+    "status": "dev"
+  },
+  {
+    "slug": "grammar_checker",
+    "description": "Check and fix grammar in text using local language tools",
+    "triggers": [
+      "check grammar",
+      "fix grammar",
+      "grammar check",
+      "proofread this"
+    ],
+    "job_module": "jobs.writing.grammar_checker",
+    "function": "run",
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ],
+    "status": "dev"
+  },
+  {
+    "slug": "semantic_search",
+    "description": "Search Watson memory files using semantic similarity to find relevant content",
+    "triggers": [
+      "search my memory",
+      "find related content",
+      "semantic search",
+      "what do I know about"
+    ],
+    "job_module": "jobs.research.semantic_search",
+    "function": "run",
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ],
+    "status": "dev"
+  },
+  {
+    "slug": "calendar_importer",
+    "description": "Import .ics calendar files into Google Calendar",
+    "triggers": [
+      "import calendar",
+      "import ics",
+      "add calendar file",
+      "import events"
+    ],
+    "job_module": "jobs.utilities.calendar_importer",
+    "function": "run",
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ],
+    "status": "dev"
+  },
+  {
+    "slug": "encryptor",
+    "description": "Encrypt and decrypt sensitive text and files",
+    "triggers": [
+      "encrypt this",
+      "decrypt this",
+      "secure this file",
+      "encryption"
+    ],
+    "job_module": "jobs.security.encryptor",
+    "function": "run",
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ],
+    "status": "dev"
+  },
+  {
+    "slug": "spell_checker",
+    "description": "Check spelling and suggest corrections in text",
+    "triggers": [
+      "check spelling",
+      "spell check",
+      "find misspellings",
+      "spelling errors"
+    ],
+    "job_module": "jobs.writing.spell_checker",
+    "function": "run",
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ],
+    "status": "dev"
   }
 ]
