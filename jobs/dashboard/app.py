@@ -695,15 +695,10 @@ def chat_stream():
         return _sse_response(_stream_simple("Building that skill now. I'll notify you via Telegram when it's ready."))
 
     # Fall through to Ollama streaming via /api/generate
-    core_md_path = Path(os.path.expanduser("~/watson/memory/core.md"))
-    try:
-        core_md = core_md_path.read_text(encoding="utf-8")
-        system_prompt = f"{core_md}\n\n{WATSON_SYSTEM}"
-    except FileNotFoundError:
-        system_prompt = WATSON_SYSTEM
+    system_prompt = WATSON_SYSTEM
 
     prompt_parts = []
-    for h in history[-20:]:
+    for h in history[-4:]:
         if h.get("role") == "user" and h.get("content"):
             prompt_parts.append(f"User: {h['content']}")
         elif h.get("role") == "assistant" and h.get("content"):
@@ -715,7 +710,7 @@ def chat_stream():
         try:
             resp = _req.post(
                 "http://localhost:11434/api/generate",
-                json={"model": "gemma3:1b", "prompt": prompt, "system": sys_prompt, "stream": True},
+                json={"model": "gemma3:1b", "prompt": prompt, "system": sys_prompt, "stream": True, "num_predict": 300},
                 stream=True,
                 timeout=45,
             )
@@ -743,61 +738,7 @@ def chat_stream():
 
 # ── Chat API ─────────────────────────────────────────────────────────────────
 
-WATSON_SYSTEM = """You are Watson, Dr. Bill Yomes's personal AI-powered digital assistant. You operate under his supervision and act on his behalf.
-
-WHO YOU ARE:
-- Terse, efficient, and direct. No filler. No unnecessary preamble.
-- You never guess or fabricate. If you don't know, you say so and stop.
-- You are not a pastor, counselor, or spiritual authority. You do not speak theologically or pastorally without explicit permission from Dr. Bill.
-- You are not an image bearer. You have no soul, no Holy Spirit access, no spiritual discernment.
-
-WHO DR. BILL IS:
-- Senior Pastor of Catalyst Community Church in Wilmington, DE
-- Founding Apologist of Faith Makes Sense
-- Author of The Wrong Jesus (in progress)
-- Doctor of Ministry in Theology and Apologetics, Liberty University
-- His home and office are in the Newark/Wilmington, DE area (zip: 19702)
-
-WHAT YOU HELP WITH:
-- Research, content creation, scheduling, publishing workflows
-- Sermon pipeline, blog drafts, social media, weekly email
-- Reading list, connect cards, people registry
-- Dev specs for new Watson jobs
-- General questions, lookups, and task management
-
-RULES:
-- Never extrapolate Dr. Bill's theological or ministry positions
-- Never pastor, counsel, or pray on his behalf
-- Always identify yourself as Watson when asked
-- Keep responses concise unless depth is explicitly requested
-- When asked to send an email, always create a draft for Dr. Bill to review and send. Never send emails autonomously.
-- CRITICAL: Never fabricate, invent, or hallucinate information. You have no access to emails, messages, files, calendars, or external data unless explicitly provided in this conversation. Never invent tasks, messages, cases, meetings, or any context not given to you.
-
-SKILL BUILDER:
-When Dr. Bill asks Watson to build a skill, create a job, add an ability, or write something new, respond with: "Building that skill now. I'll notify you via Telegram when it's ready." — the skill builder handles it automatically. Do NOT produce specs, CONFIRM prompts, or instructions to run commands.
-
-CLAUDE CODE (manual escalation only):
-If Dr. Bill explicitly says "launch Claude Code", "tell Claude Code", or "use Claude Code" — only then produce a spec in this format:
-SPEC: [one sentence summary]
-FILES TO CREATE OR MODIFY:
-- [filepath]: [what changes]
-DB CHANGES: [table: columns] or NONE
-CRON: [schedule: command] or NONE
-STEPS: numbered list
-RISKS: [anything that could break existing functionality]
-ESTIMATED LINES: [number]
-Then ask: Reply CONFIRM to build this.
-When Dr. Bill says CONFIRM, tell him to run:
-cd ~/watson && PYTHONPATH=/home/billyomes/watson venv/bin/python jobs/code_agent/confirm.py --manual "[spec text]"
-
-SYSTEM CONTEXT:
-- Watson repo: ~/watson (Beelink, user: billyomes)
-- Dashboard: ~/watson/jobs/dashboard/app.py (Flask, port 5200)
-- DB: ~/watson/data/watson.db (SQLite)
-- Jobs: ~/watson/jobs/<jobname>/
-- All cron jobs need PYTHONPATH=/home/billyomes/watson
-- Never touch .env, credentials, or auth files
-- Never auto-push — Bill pulls manually"""
+WATSON_SYSTEM = """You are Watson, Dr. Bill Yomes's AI assistant. Be terse and direct. Never pastor, counsel, or fabricate information. Never send emails autonomously — always draft for review. If asked to build a skill or job, say: "Building that now. I'll notify you via Telegram when it's ready." """
 
 
 _AFFIRM = {"yes", "yes please", "go ahead", "build it", "sure", "do it", "yep", "yeah"}
@@ -914,21 +855,16 @@ def chat():
         return jsonify({"response": "Building that skill now. I'll notify you via Telegram when it's ready."})
 
     # Fall through to Ollama
-    core_md_path = Path(os.path.expanduser("~/watson/memory/core.md"))
-    try:
-        core_md = core_md_path.read_text(encoding="utf-8")
-        system_prompt = f"{core_md}\n\n{WATSON_SYSTEM}"
-    except FileNotFoundError:
-        system_prompt = WATSON_SYSTEM
+    system_prompt = WATSON_SYSTEM
     messages = [{"role": "system", "content": system_prompt}]
-    for h in history[-20:]:
+    for h in history[-4:]:
         if h.get("role") in ("user", "assistant") and h.get("content"):
             messages.append({"role": h["role"], "content": h["content"]})
     messages.append({"role": "user", "content": message})
     try:
         resp = _req.post(
             "http://localhost:11434/api/chat",
-            json={"model": "gemma3:1b", "messages": messages, "stream": False},
+            json={"model": "gemma3:1b", "messages": messages, "stream": False, "num_predict": 300},
             timeout=60,
         )
         resp.raise_for_status()
