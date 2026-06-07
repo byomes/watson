@@ -77,6 +77,7 @@ def run(message: str = None) -> str:
     if message is None:
         return "Web search ready. Ask me to search for anything."
 
+    log.info("web_search invoked: message=%r", message[:120] if message else "")
     query = _extract_query(message)
     results = search(query)
 
