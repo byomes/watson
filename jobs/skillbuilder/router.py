@@ -247,6 +247,22 @@ _ACTION_KEYWORDS = frozenset({
     "build", "create", "add", "send", "email", "search", "find",
     "look up", "schedule", "set", "list", "show", "remind",
     "draft", "write", "publish",
+    "compare", "comparing", "vs", "versus", "difference", "better", "recommend",
+    "who", "what year", "when did", "how much", "price", "cost",
+    "current", "latest", "recent", "news",
+})
+
+_FACTUAL_KEYWORDS = frozenset({
+    "compare", "comparing", "vs", "versus", "difference", "better", "recommend",
+    "who", "current", "latest", "recent", "news", "price", "cost",
+})
+
+_FACTUAL_PHRASES = (
+    "which is", "what year", "when did", "how much",
+)
+
+_GREETING_ONLY = frozenset({
+    "hi", "hey", "hello", "good", "thanks", "thank", "ok", "okay", "sounds", "got it",
 })
 
 
@@ -260,6 +276,18 @@ def _is_conversational(message: str) -> bool:
         if msg_lower == starter or msg_lower.startswith(starter + " ") or msg_lower.startswith(starter + ","):
             return True
     return False
+
+
+def _is_factual_query(message: str) -> bool:
+    """Return True if message is a factual/lookup query that should route to web search."""
+    msg_lower = message.lower().strip()
+    first_word = msg_lower.split()[0] if msg_lower.split() else ""
+    if first_word in _GREETING_ONLY:
+        return False
+    return (
+        any(kw in msg_lower for kw in _FACTUAL_KEYWORDS)
+        or any(phrase in msg_lower for phrase in _FACTUAL_PHRASES)
+    )
 
 
 def _extract_build_description(message: str) -> str:
@@ -457,6 +485,10 @@ def _route(message: str, interface: str) -> dict:
         description = _extract_build_description(message)
         job_path = _generate_job_path(description)
         return {"action": "build", "description": description, "job_path": job_path}
+
+    # Factual query pre-check: route to web_search before LLM or conversational bypass.
+    if _is_factual_query(message):
+        return {"action": "skill", "slug": "web_search", "message": message}
 
     # Conversational pre-check: skip LLM router entirely for short/greeting messages.
     if _is_conversational(message):

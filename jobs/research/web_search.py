@@ -86,7 +86,7 @@ def run(message: str = None) -> str:
     lines = [f"🔍 Search results for: {query}\n"]
     for r in results:
         snippet = r["snippet"][:200]
-        url_line = f"  {r['url']}" if r["url"] else ""
+        url_line = f"\n  Source: {r['url']}" if r["url"] else ""
         lines.append(f"• {r['title']}\n  {snippet}{url_line}\n")
 
     return "\n".join(lines)
