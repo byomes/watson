@@ -121,6 +121,21 @@ _SKILL_PRE_CHECKS: dict[str, tuple] = {
         "find a skill", "acquire a skill", "i need you to be able to",
         "find a library", "learn to", "can you learn",
     ),
+    "news_search": (
+        "search news", "latest news", "news about", "current events about",
+    ),
+    "grammar_checker": (
+        "check grammar", "fix grammar", "grammar check", "proofread this",
+    ),
+    "spell_checker": (
+        "check spelling", "spell check", "find misspellings", "spelling errors",
+    ),
+    "semantic_search": (
+        "search my memory", "what do i know about", "find related content",
+    ),
+    "academic_search": (
+        "search arxiv", "research papers", "find academic papers", "scholarly search",
+    ),
 }
 
 # Matched against msg_lower BEFORE the LLM call — returns run_audit immediately, no fallthrough
