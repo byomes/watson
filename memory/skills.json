@@ -532,7 +532,7 @@
       "dashboard",
       "telegram"
     ],
-    "status": "dev"
+    "status": "ready"
   },
   {
     "slug": "chart_generator",
