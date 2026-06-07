@@ -178,6 +178,15 @@ _SKILL_PRE_CHECKS: dict[str, tuple] = {
     "wordcloud_generator": (
         "word cloud", "wordcloud", "word frequency cloud", "visualize words",
     ),
+    "command_executor": (
+        "restart watson", "restart the dashboard", "restart dashboard",
+        "restart the bot", "restart bot", "restart all",
+        "git pull", "pull latest", "pull latest code",
+        "check services", "are services running", "service status",
+        "check disk space", "disk usage",
+        "update packages", "upgrade packages",
+        "run command", "execute command", "run sync",
+    ),
 }
 
 # Matched against msg_lower BEFORE the LLM call — returns run_audit immediately, no fallthrough

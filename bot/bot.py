@@ -430,7 +430,20 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         route_result = {"action": "chat"}
 
     if route_result["action"] == "skill":
-        await update.message.reply_text("✓ " + route_result["result"])
+        skill_result = route_result.get("result")
+        if skill_result is None:
+            # Pre-check path: skill identified but not yet run — execute it now
+            try:
+                _skills = _router._load_skills("telegram")
+                _skill = next((s for s in _skills if s["slug"] == route_result["slug"]), None)
+                if _skill:
+                    skill_result = _router._run_skill(_skill, message=route_result.get("message", text_clean))
+                else:
+                    skill_result = f"Skill '{route_result['slug']}' not available."
+            except Exception as exc:
+                log.error("Pre-check skill run failed (%s): %s", route_result.get("slug"), exc)
+                skill_result = f"Skill error: {exc}"
+        await update.message.reply_text("✓ " + str(skill_result))
         _maybe_reflect(chat_id)
         return
 
@@ -913,6 +926,38 @@ async def handle_email_callback(update: Update, context: ContextTypes.DEFAULT_TY
         await query.edit_message_text("Discarded.", reply_markup=None)
 
 
+async def handle_command_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+
+    if not _is_authorized(update):
+        await query.answer()
+        return
+
+    if query.data.startswith("cmd_approve_"):
+        proposal_id = int(query.data[len("cmd_approve_"):])
+        await query.answer("Executing...")
+        await query.edit_message_text("⏳ Running...")
+        import threading
+        from jobs.dev.command_executor import execute_command
+        threading.Thread(
+            target=execute_command,
+            args=(proposal_id,),
+            daemon=True,
+        ).start()
+
+    elif query.data.startswith("cmd_reject_"):
+        proposal_id = int(query.data[len("cmd_reject_"):])
+        await query.answer("Cancelled")
+        import sqlite3 as _sqlite3
+        from pathlib import Path as _Path
+        _db = _Path(os.getenv("WATSON_DB", str(_Path(__file__).resolve().parents[1] / "data" / "watson.db")))
+        _conn = _sqlite3.connect(str(_db))
+        _conn.execute("UPDATE command_proposals SET status='rejected' WHERE id=?", (proposal_id,))
+        _conn.commit()
+        _conn.close()
+        await query.edit_message_text("❌ Command cancelled.", reply_markup=None)
+
+
 async def handle_acquire_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
 
@@ -1386,6 +1431,7 @@ def main():
     app.add_handler(CommandHandler("read",        handle_read))
     app.add_handler(CommandHandler("saved",       handle_saved))
     app.add_handler(CommandHandler("ask",         handle_ask))
+    app.add_handler(CallbackQueryHandler(handle_command_callback, pattern=r"^cmd_"))
     app.add_handler(CallbackQueryHandler(handle_acquire_callback, pattern=r"^acquire_"))
     app.add_handler(CallbackQueryHandler(handle_reject_callback, pattern=r"^reject:"))
     app.add_handler(CallbackQueryHandler(handle_facebook_callback, pattern=r"^fb_"))
