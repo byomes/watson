@@ -447,7 +447,7 @@
       "dashboard",
       "telegram"
     ],
-    "status": "dev"
+    "status": "ready"
   },
   {
     "slug": "date_helper",
