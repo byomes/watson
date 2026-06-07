@@ -519,7 +519,12 @@ async function sendChat() {
         } else if (data.startsWith('[CONFIRM_EMAIL]')) {
           try { confirmEmailData = JSON.parse(data.slice(15)); } catch(_) {}
         } else {
-          fullReply += data;
+          try {
+            const parsed = JSON.parse(data);
+            fullReply += (parsed.token !== undefined) ? parsed.token : data;
+          } catch(_) {
+            fullReply += data;
+          }
           textNode.textContent = fullReply;
           msgs.scrollTop = msgs.scrollHeight;
         }

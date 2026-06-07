@@ -617,8 +617,11 @@ def chat_stream():
             _pending_skill_request = None
             return _sse_response(_stream_simple("Got it. Let me know if you need anything else."))
 
+    # Factual queries go directly to web search, bypassing Ollama
+    if _router._is_factual_query(message):
+        route_result = {"action": "skill", "slug": "web_search", "message": message}
     # Skip routing for conversational messages — go straight to Ollama
-    if _router._is_conversational(message):
+    elif _router._is_conversational(message):
         route_result = {"action": "chat"}
     else:
         try:
@@ -698,6 +701,7 @@ def chat_stream():
         return _sse_response(_stream_simple("Building that skill now. I'll notify you via Telegram when it's ready."))
 
     # Fall through to Ollama streaming via /api/generate
+    # (factual query and conversational checks already handled above)
     system_prompt = WATSON_SYSTEM
 
     prompt_parts = []
@@ -729,7 +733,7 @@ def chat_stream():
                     continue
                 token = chunk.get("response", "")
                 if token:
-                    yield _sse(token)
+                    yield f"data: {json.dumps({'token': token})}\n\n"
                 if chunk.get("done"):
                     break
             yield "data: [DONE]\n\n"
