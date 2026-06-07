@@ -514,5 +514,77 @@
     "function": "run",
     "interfaces": ["dashboard", "telegram"],
     "status": "dev"
+  },
+  {
+    "slug": "screenshot",
+    "description": "Take a screenshot of any webpage and send it via Telegram",
+    "triggers": ["screenshot", "take a screenshot", "show me this page", "capture this url"],
+    "job_module": "jobs.design.screenshot",
+    "function": "run",
+    "interfaces": ["dashboard", "telegram"],
+    "status": "dev"
+  },
+  {
+    "slug": "image_tools",
+    "description": "Resize, watermark, optimize, and format images for web and social media",
+    "triggers": ["resize image", "optimize image", "remove background", "optimize for instagram", "watermark"],
+    "job_module": "jobs.design.image_tools",
+    "function": "run",
+    "interfaces": ["dashboard", "telegram"],
+    "status": "dev"
+  },
+  {
+    "slug": "svg_generator",
+    "description": "Generate branded graphics, banners, quote cards, and social media images",
+    "triggers": ["create quote card", "make a banner", "generate graphic", "social graphic", "quote card"],
+    "job_module": "jobs.design.svg_generator",
+    "function": "run",
+    "interfaces": ["dashboard", "telegram"],
+    "status": "dev"
+  },
+  {
+    "slug": "social_poster",
+    "description": "Post content to Facebook page with optional image",
+    "triggers": ["post to facebook", "share on facebook", "facebook post"],
+    "job_module": "jobs.marketing.social_poster",
+    "function": "run",
+    "interfaces": ["dashboard", "telegram"],
+    "status": "dev"
+  },
+  {
+    "slug": "seo_tools",
+    "description": "Analyze a webpage for SEO issues and suggest improvements",
+    "triggers": ["seo analysis", "check seo", "analyze this page for seo", "seo report"],
+    "job_module": "jobs.marketing.seo_tools",
+    "function": "run",
+    "interfaces": ["dashboard", "telegram"],
+    "status": "dev"
+  },
+  {
+    "slug": "content_calendar",
+    "description": "Show upcoming scheduled content and suggest new content ideas",
+    "triggers": ["content calendar", "upcoming posts", "what is scheduled", "content ideas"],
+    "job_module": "jobs.marketing.content_calendar",
+    "function": "run",
+    "interfaces": ["dashboard", "telegram"],
+    "status": "dev"
+  },
+  {
+    "slug": "site_deployer",
+    "description": "Deploy Watson web properties to Vercel and check deployment status",
+    "triggers": ["deploy wcky", "deploy watson", "push to vercel", "deployment status"],
+    "job_module": "jobs.web.site_deployer",
+    "function": "run",
+    "interfaces": ["dashboard", "telegram"],
+    "status": "dev"
+  },
+  {
+    "slug": "page_generator",
+    "description": "Generate blog posts, landing pages, and web content",
+    "triggers": ["generate blog post", "create landing page", "write a page", "generate page"],
+    "job_module": "jobs.web.page_generator",
+    "function": "run",
+    "interfaces": ["dashboard", "telegram"],
+    "status": "dev"
   }
 ]

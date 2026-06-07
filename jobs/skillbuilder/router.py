@@ -99,6 +99,24 @@ _SKILL_PRE_CHECKS: dict[str, tuple] = {
     "code_analyzer": (
         "analyze codebase", "find missing run", "codebase report",
     ),
+    "screenshot": (
+        "screenshot", "take a screenshot", "show me this page", "capture this url",
+    ),
+    "svg_generator": (
+        "create quote card", "make a banner", "generate graphic", "quote card",
+    ),
+    "social_poster": (
+        "post to facebook", "share on facebook", "facebook post",
+    ),
+    "content_calendar": (
+        "content calendar", "upcoming posts", "what is scheduled",
+    ),
+    "site_deployer": (
+        "deploy wcky", "deploy watson", "push to vercel",
+    ),
+    "seo_tools": (
+        "seo analysis", "check seo", "analyze this page for seo",
+    ),
 }
 
 # Matched against msg_lower BEFORE the LLM call — returns run_audit immediately, no fallthrough
