@@ -27,7 +27,7 @@ from telegram.ext import (
 )
 
 from briefing.builder import build_telegram_briefing
-from config.settings import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+from config.settings import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, WATSON_SYSTEM
 from core.database import get_connection, init_db
 from core.scorer import _BOOST
 from jobs.ask import ask
@@ -151,6 +151,62 @@ def _get_draft_queue() -> list:
                WHERE status = 'pending'
                ORDER BY id ASC"""
         ).fetchall()
+
+
+def _ensure_chat_tables(conn) -> None:
+    conn.execute("""CREATE TABLE IF NOT EXISTS chat_sessions (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        title      TEXT    NOT NULL DEFAULT 'New Chat',
+        created_at TEXT    NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT    NOT NULL DEFAULT (datetime('now'))
+    )""")
+    conn.execute("""CREATE TABLE IF NOT EXISTS chat_messages (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id INTEGER NOT NULL,
+        role       TEXT    NOT NULL,
+        content    TEXT    NOT NULL,
+        source     TEXT,
+        created_at TEXT    NOT NULL DEFAULT (datetime('now')),
+        FOREIGN KEY (session_id) REFERENCES chat_sessions(id)
+    )""")
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(chat_messages)").fetchall()}
+    if "source" not in cols:
+        conn.execute("ALTER TABLE chat_messages ADD COLUMN source TEXT")
+
+
+def _get_or_create_telegram_session() -> int:
+    today = date.today().strftime("%Y-%m-%d")
+    title = f"Telegram - {today}"
+    with get_connection() as conn:
+        _ensure_chat_tables(conn)
+        row = conn.execute(
+            "SELECT id FROM chat_sessions WHERE title = ?", (title,)
+        ).fetchone()
+        if row:
+            return row["id"]
+        cur = conn.execute("INSERT INTO chat_sessions (title) VALUES (?)", (title,))
+        return cur.lastrowid
+
+
+def _log_telegram_exchange(user_text: str, reply_text: str) -> None:
+    try:
+        session_id = _get_or_create_telegram_session()
+        with get_connection() as conn:
+            _ensure_chat_tables(conn)
+            conn.execute(
+                "INSERT INTO chat_messages (session_id, role, content, source) VALUES (?, ?, ?, ?)",
+                (session_id, "user", user_text, "telegram"),
+            )
+            conn.execute(
+                "INSERT INTO chat_messages (session_id, role, content, source) VALUES (?, ?, ?, ?)",
+                (session_id, "assistant", reply_text, "telegram"),
+            )
+            conn.execute(
+                "UPDATE chat_sessions SET updated_at = datetime('now') WHERE id = ?",
+                (session_id,),
+            )
+    except Exception as exc:
+        log.warning("Failed to log telegram exchange: %s", exc)
 
 
 def _is_authorized(update):
@@ -421,9 +477,28 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("Got it — cancelled.")
             return
 
-    # Skill routing — before intent classification
+    from jobs.skillbuilder import router as _router
+
+    # 1. Factual queries → web search
+    if _router._is_factual_query(text_clean):
+        from jobs.research.web_search import run as web_search_run
+        ws_result = web_search_run(text_clean)
+        reply = "✓ " + ws_result
+        await update.message.reply_text(reply)
+        _log_telegram_exchange(text_clean, reply)
+        _maybe_reflect(chat_id)
+        return
+
+    # 2. Conversational messages → Ollama with WATSON_SYSTEM
+    if _router._is_conversational(text_clean):
+        reply = await _get_general_reply(text_clean)
+        await update.message.reply_text(reply)
+        _log_telegram_exchange(text_clean, reply)
+        _maybe_reflect(chat_id)
+        return
+
+    # 3. Skill routing — before intent classification
     try:
-        from jobs.skillbuilder import router as _router
         route_result = _router.route(text_clean, "telegram")
     except Exception as exc:
         log.warning("Skill router failed: %s", exc)
@@ -432,7 +507,6 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if route_result["action"] == "skill":
         skill_result = route_result.get("result")
         if skill_result is None:
-            # Pre-check path: skill identified but not yet run — execute it now
             try:
                 _skills = _router._load_skills("telegram")
                 _skill = next((s for s in _skills if s["slug"] == route_result["slug"]), None)
@@ -443,7 +517,9 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except Exception as exc:
                 log.error("Pre-check skill run failed (%s): %s", route_result.get("slug"), exc)
                 skill_result = f"Skill error: {exc}"
-        await update.message.reply_text("✓ " + str(skill_result))
+        reply = "✓ " + str(skill_result)
+        await update.message.reply_text(reply)
+        _log_telegram_exchange(text_clean, reply)
         _maybe_reflect(chat_id)
         return
 
@@ -485,7 +561,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Building that skill now. I'll notify you via Telegram when it's ready.")
         return
 
-    # Classify intent via Ollama llama3.2:3b
+    # 4. Classify intent via Ollama llama3.2:3b
     result = _classify_intent(text_clean)
     intent = result.get("intent", "general")
     params = result.get("params", {})
@@ -508,7 +584,8 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif intent == "task_done":
         await _handle_task_done(update, context, params)
     else:
-        await _handle_general(update, context, text_clean)
+        reply = await _handle_general(update, context, text_clean)
+        _log_telegram_exchange(text_clean, reply)
         _maybe_reflect(chat_id)
 
 
@@ -630,26 +707,33 @@ async def _handle_task_done(update: Update, context: ContextTypes.DEFAULT_TYPE, 
         await update.message.reply_text(f"Error updating task: {exc}")
 
 
-async def _handle_general(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str) -> None:
+async def _get_general_reply(text: str) -> str:
     try:
         import requests as _req
         resp = _req.post(
             "http://localhost:11434/api/chat",
             json={
                 "model": "llama3.2:3b",
-                "messages": [{"role": "user", "content": text}],
+                "messages": [
+                    {"role": "system", "content": WATSON_SYSTEM},
+                    {"role": "user", "content": text},
+                ],
                 "stream": False,
             },
             timeout=60,
         )
         resp.raise_for_status()
         reply = resp.json()["message"]["content"].strip()
-        if not reply:
-            reply = "I didn't get a response."
+        return reply or "I didn't get a response."
     except Exception as exc:
         log.error("Ollama general chat failed: %s", exc)
-        reply = "I'm having trouble thinking right now. Try again in a moment."
+        return "I'm having trouble thinking right now. Try again in a moment."
+
+
+async def _handle_general(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str) -> str:
+    reply = await _get_general_reply(text)
     await update.message.reply_text(reply)
+    return reply
 
 
 async def _execute_pending(update: Update, context: ContextTypes.DEFAULT_TYPE, pending: dict) -> None:
