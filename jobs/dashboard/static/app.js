@@ -1499,43 +1499,4 @@ async function deleteProject() {
     label.textContent = '';
   }
 
-  document.addEventListener('touchstart', function(e) {
-    if (_overlayOpen() || window.scrollY !== 0) return;
-    startY = e.touches[0].clientY;
-    pulling = true;
-    triggered = false;
-    indicator.style.transition = 'none';
-  }, {passive: true});
-
-  document.addEventListener('touchmove', function(e) {
-    if (!pulling) return;
-    if (window.scrollY !== 0) { _reset(); return; }
-    const dist = e.touches[0].clientY - startY;
-    if (dist <= 0) { _reset(); return; }
-    _animate(dist);
-    if (dist >= THRESHOLD) {
-      spinner.classList.add('spinning');
-      label.textContent = 'Release';
-    } else {
-      spinner.classList.remove('spinning');
-      label.textContent = '';
-    }
-  }, {passive: true});
-
-  document.addEventListener('touchend', function(e) {
-    if (!pulling) return;
-    const dist = e.changedTouches[0].clientY - startY;
-    if (dist >= THRESHOLD && !triggered) {
-      triggered = true;
-      pulling = false;
-      indicator.style.transition = 'none';
-      indicator.style.opacity = '1';
-      indicator.style.transform = 'translateX(-50%) translateY(0)';
-      spinner.classList.add('spinning');
-      label.textContent = 'Refreshing...';
-      setTimeout(function() { location.reload(); }, 500);
-    } else {
-      _reset();
-    }
-  }, {passive: true});
 })();
