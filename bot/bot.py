@@ -913,6 +913,36 @@ async def handle_email_callback(update: Update, context: ContextTypes.DEFAULT_TY
         await query.edit_message_text("Discarded.", reply_markup=None)
 
 
+async def handle_acquire_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+
+    if not _is_authorized(update):
+        await query.answer()
+        return
+
+    if query.data.startswith("acquire_approve_"):
+        acquisition_id = int(query.data[len("acquire_approve_"):])
+        await query.answer("Acquiring skill...")
+        await query.edit_message_text("✅ Acquisition approved. Building now...")
+        import threading
+        from jobs.skillbuilder.acquire import execute_acquisition
+        threading.Thread(
+            target=execute_acquisition,
+            args=(acquisition_id,),
+            daemon=True,
+        ).start()
+
+    elif query.data.startswith("acquire_reject_"):
+        acquisition_id = int(query.data[len("acquire_reject_"):])
+        await query.answer("Rejected")
+        with get_connection() as conn:
+            conn.execute(
+                "UPDATE skill_acquisitions SET status='rejected' WHERE id=?",
+                (acquisition_id,),
+            )
+        await query.edit_message_text("❌ Acquisition rejected.")
+
+
 async def handle_emailqueue(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not _is_authorized(update):
         return
@@ -1356,6 +1386,7 @@ def main():
     app.add_handler(CommandHandler("read",        handle_read))
     app.add_handler(CommandHandler("saved",       handle_saved))
     app.add_handler(CommandHandler("ask",         handle_ask))
+    app.add_handler(CallbackQueryHandler(handle_acquire_callback, pattern=r"^acquire_"))
     app.add_handler(CallbackQueryHandler(handle_reject_callback, pattern=r"^reject:"))
     app.add_handler(CallbackQueryHandler(handle_facebook_callback, pattern=r"^fb_"))
     app.add_handler(CallbackQueryHandler(handle_email_callback, pattern=r"^email_"))

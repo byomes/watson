@@ -857,5 +857,24 @@
       "telegram"
     ],
     "status": "dev"
+  },
+  {
+    "slug": "acquire_skill",
+    "description": "Search for and autonomously acquire new Python library skills with approval",
+    "triggers": [
+      "find a skill",
+      "acquire a skill",
+      "I need you to be able to",
+      "find a library",
+      "learn to",
+      "can you learn"
+    ],
+    "job_module": "jobs.skillbuilder.acquire",
+    "function": "run",
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ],
+    "status": "ready"
   }
 ]

@@ -117,6 +117,10 @@ _SKILL_PRE_CHECKS: dict[str, tuple] = {
     "seo_tools": (
         "seo analysis", "check seo", "analyze this page for seo",
     ),
+    "acquire_skill": (
+        "find a skill", "acquire a skill", "i need you to be able to",
+        "find a library", "learn to", "can you learn",
+    ),
 }
 
 # Matched against msg_lower BEFORE the LLM call — returns run_audit immediately, no fallthrough
