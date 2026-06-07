@@ -25,11 +25,10 @@ import email.utils
 import imaplib
 import logging
 import os
-import re
 import sqlite3
 from datetime import datetime, timedelta
-from html.parser import HTMLParser
 
+from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 
 from jobs.congregation.member_match import find_or_create_member
@@ -59,57 +58,24 @@ CAMPUS_MAP = {
     "Online Campus":     "Online",
 }
 
-NEXT_STEP_MAP = {
-    "I want to start following Jesus":    "follow_jesus",
-    "I want to get baptized":             "baptism",
-    "I want help growing in my faith":    "grow_faith",
-    "I want to become a Catalyst Partner": "catalyst_partner",
-    "I want to join a small group":       "small_group",
-    "I want to join a ministry team":     "ministry_team",
-}
+NEXT_STEP_SUBSTRINGS = [
+    ("start following jesus",    "follow_jesus"),
+    ("get baptized",             "baptism"),
+    ("help growing in my faith", "grow_faith"),
+    ("become a catalyst partner","catalyst_partner"),
+    ("join a small group",       "small_group"),
+    ("join a ministry team",     "ministry_team"),
+]
+
+def _match_next_step(value: str) -> str | None:
+    v = value.lower()
+    for substr, key in NEXT_STEP_SUBSTRINGS:
+        if substr in v:
+            return key
+    return None
 
 
-# ── HTML → plain text ─────────────────────────────────────────────────────────
-
-class _HtmlToText(HTMLParser):
-    _BLOCK = {"br", "p", "div", "li", "tr", "h1", "h2", "h3", "h4", "h5", "h6"}
-    _SKIP  = {"style", "script"}
-
-    def __init__(self):
-        super().__init__(convert_charrefs=True)
-        self._parts: list = []
-        self._skip_depth = 0
-
-    def handle_starttag(self, tag, attrs):
-        if tag in self._SKIP:
-            self._skip_depth += 1
-        elif tag in self._BLOCK:
-            self._parts.append("\n")
-
-    def handle_endtag(self, tag):
-        if tag in self._SKIP:
-            self._skip_depth = max(0, self._skip_depth - 1)
-        elif tag in self._BLOCK:
-            self._parts.append("\n")
-
-    def handle_data(self, data):
-        if self._skip_depth == 0:
-            self._parts.append(data)
-
-    def get_text(self) -> str:
-        return "".join(self._parts)
-
-
-def _strip_html(html_text: str) -> str:
-    p = _HtmlToText()
-    try:
-        p.feed(html_text)
-    except Exception:
-        pass
-    return p.get_text()
-
-
-# ── Email body extraction ─────────────────────────────────────────────────────
+# ── HTML extraction ───────────────────────────────────────────────────────────
 
 def _decode_part(part) -> str:
     payload = part.get_payload(decode=True)
@@ -119,51 +85,67 @@ def _decode_part(part) -> str:
     return payload.decode(charset, errors="replace")
 
 
-def _get_body(msg) -> str:
-    plain = None
-    html_body = None
-
+def _get_html_part(msg) -> str | None:
+    """Return the text/html MIME part, or None if not found."""
     if msg.is_multipart():
         for part in msg.walk():
-            ct = part.get_content_type()
-            cd = part.get("Content-Disposition", "")
-            if "attachment" in cd:
-                continue
-            if ct == "text/plain" and plain is None:
-                plain = _decode_part(part)
-            elif ct == "text/html" and html_body is None:
-                html_body = _decode_part(part)
-    else:
-        text = _decode_part(msg)
-        if msg.get_content_type() == "text/html":
-            html_body = text
-        else:
-            plain = text
-
-    if plain is not None:
-        return plain
-    if html_body is not None:
-        return _strip_html(html_body)
-    return ""
+            if part.get_content_type() == "text/html" and "attachment" not in part.get("Content-Disposition", ""):
+                return _decode_part(part)
+    elif msg.get_content_type() == "text/html":
+        return _decode_part(msg)
+    return None
 
 
-# ── Body parser ───────────────────────────────────────────────────────────────
+# ── HTML parser ───────────────────────────────────────────────────────────────
 
-def _parse_body(text: str) -> dict | None:
-    text = text.replace("\r\n", "\n").replace("\r", "\n")
+def _parse_html(html: str) -> dict | None:
+    """
+    Parse a Subsplash connect card HTML email.
+    Structure: <b>Label</b><br>Value<br><br>  repeated inside the content div.
+    """
+    soup = BeautifulSoup(html, "html.parser")
 
-    if "http://snappages.com" not in text or "Where did you attend with us?" not in text:
+    # Find the form content div; fall back to the full body if not found
+    div = soup.find("div", attrs={"role": "module-content", "bgcolor": "#ffffff"})
+    if div is None:
+        div = soup
+
+    # Sanity check — must look like a connect card
+    if not div.find("b", string=lambda t: t and "Where did you attend" in t):
         return None
 
-    copyright_idx = text.find("© 2022")
-    if copyright_idx != -1:
-        text = text[:copyright_idx]
+    # Build label → [values] map by walking siblings after each <b> tag
+    raw: dict[str, list[str]] = {}
+    for b_tag in div.find_all("b"):
+        label = b_tag.get_text(strip=True)
+        if not label:
+            continue
+        values: list[str] = []
+        for sibling in b_tag.next_siblings:
+            if getattr(sibling, "name", None) == "b":
+                break
+            text = (
+                sibling.get_text(strip=True)
+                if hasattr(sibling, "get_text")
+                else str(sibling).strip()
+            )
+            if text:
+                values.append(text)
+        raw[label] = values
 
-    blank = re.search(r"\n\n+", text)
-    body = text[blank.end():] if blank else text
-    body = re.sub(r"[\r\n]+", " ", body).strip()
+    def get(substring: str) -> list[str]:
+        """Case-insensitive substring match on label; returns value list or []."""
+        sub = substring.lower()
+        for label, vals in raw.items():
+            if sub in label.lower():
+                return vals
+        return []
 
-    fields = {
+    def get_one(substring: str) -> str:
+        vals = get(substring)
+        return vals[0] if vals else ""
+
+    fields: dict = {
         "campus":                 None,
         "first_name":             "",
         "last_name":              "",
@@ -176,56 +158,32 @@ def _parse_body(text: str) -> dict | None:
         "prayer_request":         None,
     }
 
-    if "Please restrict my request to leadership only." in body:
-        fields["prayer_leadership_only"] = True
+    campus_raw = get_one("where did you attend")
+    fields["campus"] = CAMPUS_MAP.get(campus_raw, campus_raw) if campus_raw else None
 
-    def between(start_label, end_label):
-        m = re.search(re.escape(start_label) + r"(.*?)" + re.escape(end_label), body, re.DOTALL)
-        return m.group(1).strip() if m else None
+    fields["first_name"] = get_one("first name")
+    fields["last_name"]  = get_one("last name")
+    fields["email"]      = get_one("email")
+    fields["phone"]      = get_one("phone number")
 
-    def after(start_label):
-        m = re.search(re.escape(start_label) + r"(.*?)$", body, re.DOTALL)
-        return m.group(1).strip() if m else None
+    qc = get_one("question/comment")
+    fields["questions_comments"] = qc or None
 
-    campus_raw = between("Where did you attend with us?", "First Name")
-    if campus_raw is not None:
-        fields["campus"] = CAMPUS_MAP.get(campus_raw, campus_raw)
+    ns_values = get("next step")
+    fields["next_steps"] = [v for v in ns_values if _match_next_step(v)]
 
-    val = between("First Name", "Last Name")
-    if val is not None:
-        fields["first_name"] = val
+    fv_vals = get("first sunday")
+    if fv_vals:
+        fields["is_first_visit"] = any("yes" in v.lower() for v in fv_vals)
 
-    val = between("Last Name", "Email")
-    if val is not None:
-        fields["last_name"] = val
-
-    val = between("Email", "Phone Number")
-    if val is not None:
-        fields["email"] = val
-
-    val = between("Phone Number", "Do you have a question/comment?")
-    if val is not None:
-        fields["phone"] = val
-
-    val = between("Do you have a question/comment?", "Are you ready to take a Next Step this week?")
-    if val:
-        fields["questions_comments"] = val
-
-    ns_raw = between("Are you ready to take a Next Step this week?", "Is this your first Sunday with us?")
-    if ns_raw is not None:
-        parts = [s.strip() for s in ns_raw.split(",")]
-        fields["next_steps"] = [p for p in parts if p in NEXT_STEP_MAP]
-
-    fv_raw = between("Is this your first Sunday with us?", "How can we pray for you this week?")
-    if fv_raw is None:
-        fv_raw = after("Is this your first Sunday with us?")
-    if fv_raw is not None:
-        fields["is_first_visit"] = "Yes it is!" in fv_raw
-
-    prayer_raw = after("How can we pray for you this week?")
-    if prayer_raw:
-        prayer_raw = prayer_raw.replace("Please restrict my request to leadership only.", "").strip()
-        fields["prayer_request"] = prayer_raw or None
+    prayer_vals = get("pray for you")
+    prayer_parts = []
+    for v in prayer_vals:
+        if "restrict my request to leadership only" in v.lower():
+            fields["prayer_leadership_only"] = True
+        else:
+            prayer_parts.append(v)
+    fields["prayer_request"] = " ".join(prayer_parts).strip() or None
 
     return fields
 
@@ -256,8 +214,11 @@ def _process_email(msg, dry_run: bool, conn: sqlite3.Connection) -> bool:
         log.info("Skipped (subject mismatch): %r", subject)
         return False
 
-    body = _get_body(msg)
-    fields = _parse_body(body)
+    html = _get_html_part(msg)
+    if not html:
+        log.warning("Skipped (no HTML part): subject=%r", subject)
+        return False
+    fields = _parse_html(html)
     if fields is None:
         log.warning("Skipped (parse failed): subject=%r", subject)
         return False
@@ -303,7 +264,7 @@ def _process_email(msg, dry_run: bool, conn: sqlite3.Connection) -> bool:
             member_id,
             svc_date,
             fields.get("campus") or "",
-            body,
+            html,
             fields.get("questions_comments"),
             email_id or None,
         ),
@@ -321,7 +282,7 @@ def _process_email(msg, dry_run: bool, conn: sqlite3.Connection) -> bool:
 
     # next_steps
     for ns_label in fields.get("next_steps") or []:
-        step_key = NEXT_STEP_MAP.get(ns_label)
+        step_key = _match_next_step(ns_label)
         if step_key:
             conn.execute(
                 "INSERT INTO next_steps (member_id, card_id, step, date) VALUES (?, ?, ?, ?)",
