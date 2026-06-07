@@ -124,6 +124,49 @@ def _strip_fences(code: str) -> str:
     return code
 
 
+def _ensure_run_function(code: str, description: str) -> str:
+    """Append a minimal run() if the generated code is missing one."""
+    import ast as _ast
+    try:
+        tree = _ast.parse(code)
+        func_names = {n.name for n in _ast.walk(tree) if isinstance(n, _ast.FunctionDef)}
+        if "run" not in func_names:
+            log.info("run() missing — appending default stub")
+            stub = (
+                "\n\ndef run(message: str = None) -> str:\n"
+                f'    return "{description[:80]}"\n'
+            )
+            code = code.rstrip() + stub
+    except Exception:
+        pass
+    return code
+
+
+def _auto_format(code: str) -> str:
+    """Run black on the generated code. Returns original on failure."""
+    try:
+        import black
+        return black.format_str(code, mode=black.Mode())
+    except Exception as exc:
+        log.debug("black format skipped: %s", exc)
+        return code
+
+
+def _enhance_code(code: str, description: str) -> tuple[str, list]:
+    """Format, ensure run() exists, collect lint issues. Returns (enhanced_code, lint_issues)."""
+    code = _ensure_run_function(code, description)
+    code = _auto_format(code)
+
+    lint_issues = []
+    try:
+        from jobs.dev.code_quality import lint_code
+        lint_issues = lint_code(code)
+    except Exception as exc:
+        log.debug("lint_code skipped: %s", exc)
+
+    return code, lint_issues
+
+
 def _syntax_check(code: str) -> tuple[bool, str]:
     tmp = Path(tempfile.gettempdir()) / "watson_skill_draft.py"
     tmp.write_text(code, encoding="utf-8")
@@ -399,7 +442,9 @@ def build_skill(description: str, job_path: str) -> bool:
         log.error("Tier 1 Ollama error: %s", exc)
         _telegram(f"Tier 1 Ollama error — skipping to Claude Sonnet.\n{exc}")
 
+    lint_issues_1 = []
     if code_1:
+        code_1, lint_issues_1 = _enhance_code(code_1, description)
         ok, err = _syntax_check(code_1)
         if ok:
             dest.write_text(code_1, encoding="utf-8")
@@ -424,9 +469,14 @@ def build_skill(description: str, job_path: str) -> bool:
         log.info("Tier 2: retrying with error context…")
         _telegram("First attempt failed. Trying again with error context.")
 
+        lint_hint = ""
+        if lint_issues_1:
+            lint_hint = f"\n\nAdditional lint issues to fix:\n" + "\n".join(lint_issues_1[:5])
+
         tier2_user = (
             base_user
             + f"\n\nYour previous attempt failed with this syntax error:\n{error_1}"
+            + lint_hint
             + f"\n\nHere was your attempt:\n{code_1}"
             + "\n\nFix the error and rewrite the complete file."
         )
@@ -438,6 +488,7 @@ def build_skill(description: str, job_path: str) -> bool:
             log.error("Tier 2 Ollama error: %s", exc)
 
         if code_2:
+            code_2, _ = _enhance_code(code_2, description)
             ok, err = _syntax_check(code_2)
             if ok:
                 dest.write_text(code_2, encoding="utf-8")
@@ -485,6 +536,7 @@ def build_skill(description: str, job_path: str) -> bool:
             log.error("Tier 3 Anthropic error: %s", exc)
 
         if code_3:
+            code_3, _ = _enhance_code(code_3, description)
             ok, err = _syntax_check(code_3)
             if ok:
                 dest.write_text(code_3, encoding="utf-8")

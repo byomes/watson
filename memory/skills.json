@@ -442,5 +442,77 @@
     "function": "run",
     "interfaces": ["dashboard", "telegram"],
     "status": "dev"
+  },
+  {
+    "slug": "code_quality",
+    "description": "Format, lint, and security scan Python code using black, pylint, and bandit",
+    "triggers": ["check code quality", "lint this code", "format code", "scan for security issues"],
+    "job_module": "jobs.dev.code_quality",
+    "function": "run",
+    "interfaces": ["dashboard", "telegram"],
+    "status": "dev"
+  },
+  {
+    "slug": "git_tools",
+    "description": "Read Watson git history, find manual fixes, and analyze code changes over time",
+    "triggers": ["show recent commits", "git history", "what changed recently", "find manual fixes"],
+    "job_module": "jobs.dev.git_tools",
+    "function": "run",
+    "interfaces": ["dashboard", "telegram"],
+    "status": "dev"
+  },
+  {
+    "slug": "code_editor",
+    "description": "Read and edit Watson files directly — find and replace, append, add functions",
+    "triggers": ["edit this file", "modify this file", "add to this file", "find and replace in"],
+    "job_module": "jobs.dev.code_editor",
+    "function": "run",
+    "interfaces": ["dashboard", "telegram"],
+    "status": "dev"
+  },
+  {
+    "slug": "system_monitor",
+    "description": "Check system health — CPU, memory, disk, and Watson service status",
+    "triggers": ["system health", "how is watson doing", "check system", "cpu usage", "memory usage"],
+    "job_module": "jobs.dev.system_monitor",
+    "function": "run",
+    "interfaces": ["dashboard", "telegram"],
+    "status": "dev"
+  },
+  {
+    "slug": "github_tools",
+    "description": "Interact with Watson GitHub repo — issues, code search, repo info",
+    "triggers": ["github status", "open issues", "repo info", "search code"],
+    "job_module": "jobs.dev.github_tools",
+    "function": "run",
+    "interfaces": ["dashboard", "telegram"],
+    "status": "dev"
+  },
+  {
+    "slug": "test_runner",
+    "description": "Run Watson's test suite and generate tests for new skills",
+    "triggers": ["run tests", "test watson", "check tests", "run test suite"],
+    "job_module": "jobs.dev.test_runner",
+    "function": "run",
+    "interfaces": ["dashboard", "telegram"],
+    "status": "dev"
+  },
+  {
+    "slug": "dependency_manager",
+    "description": "Check for outdated packages, install new ones, find missing imports",
+    "triggers": ["check dependencies", "outdated packages", "install package", "missing imports"],
+    "job_module": "jobs.dev.dependency_manager",
+    "function": "run",
+    "interfaces": ["dashboard", "telegram"],
+    "status": "dev"
+  },
+  {
+    "slug": "code_analyzer",
+    "description": "Analyze Watson's codebase — find files missing run() functions, complexity, structure",
+    "triggers": ["analyze codebase", "check watson code", "find missing run functions", "codebase report"],
+    "job_module": "jobs.dev.code_analyzer",
+    "function": "run",
+    "interfaces": ["dashboard", "telegram"],
+    "status": "dev"
   }
 ]

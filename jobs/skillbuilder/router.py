@@ -87,6 +87,18 @@ _SKILL_PRE_CHECKS: dict[str, tuple] = {
     "text_processor": (
         "summarize this text", "extract keywords", "convert to markdown", "key points from",
     ),
+    "system_monitor": (
+        "system health", "how is watson doing", "check system", "cpu usage", "memory usage", "disk usage",
+    ),
+    "git_tools": (
+        "show recent commits", "git history", "what changed recently",
+    ),
+    "test_runner": (
+        "run tests", "test watson",
+    ),
+    "code_analyzer": (
+        "analyze codebase", "find missing run", "codebase report",
+    ),
 }
 
 # Matched against msg_lower BEFORE the LLM call — returns run_audit immediately, no fallthrough
