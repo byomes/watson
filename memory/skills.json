@@ -1265,5 +1265,27 @@
       "dashboard"
     ],
     "status": "dev"
+  },
+  {
+    "slug": "command_executor",
+    "description": "Propose and execute shell commands on Beelink with Bill's approval via Telegram",
+    "triggers": [
+      "restart watson",
+      "restart dashboard",
+      "restart bot",
+      "git pull",
+      "check services",
+      "run command",
+      "execute command",
+      "disk usage",
+      "update packages"
+    ],
+    "job_module": "jobs.dev.command_executor",
+    "function": "run",
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ],
+    "status": "ready"
   }
 ]
