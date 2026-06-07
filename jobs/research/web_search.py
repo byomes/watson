@@ -8,8 +8,6 @@ from dotenv import load_dotenv
 load_dotenv()
 
 SERPER_URL = "https://google.serper.dev/search"
-OLLAMA_URL = "http://localhost:11434/api/generate"
-OLLAMA_MODEL = "llama3.2:3b"
 
 log = logging.getLogger(__name__)
 
@@ -55,73 +53,23 @@ def search(query: str, max_results: int = 5) -> list[dict]:
     return results
 
 
-def _extract_query(message: str) -> str:
-    try:
-        resp = requests.post(
-            OLLAMA_URL,
-            json={
-                "model": OLLAMA_MODEL,
-                "prompt": f"Extract only the search query from this message. Return just the search terms, nothing else.\n\nMessage: {message}",
-                "stream": False,
-            },
-            timeout=30,
-        )
-        resp.raise_for_status()
-        return resp.json().get("response", "").strip() or message.strip()
-    except Exception as exc:
-        log.warning("Query extraction failed, using raw message: %s", exc)
-        return message.strip()
-
-
-def _synthesize(query: str, results: list[dict]) -> str | None:
-    context_parts = [f"Here are search results for: {query}\n"]
-    for r in results:
-        context_parts.append(f"{r['title']}\n{r['snippet']}\n{r['url']}\n")
-    context = "\n".join(context_parts)
-
-    try:
-        resp = requests.post(
-            OLLAMA_URL,
-            json={
-                "model": OLLAMA_MODEL,
-                "system": (
-                    "You are Watson, Dr. Bill Yomes's AI assistant. You have been given search results. "
-                    "Synthesize them into a clear, accurate answer. Be concise. "
-                    "Cite your sources by including the URL after each claim. "
-                    "Never add information not found in the results."
-                ),
-                "prompt": f"Based on these search results, answer this question: {query}\n\n{context}",
-                "stream": False,
-            },
-            timeout=15,
-        )
-        resp.raise_for_status()
-        return resp.json().get("response", "").strip() or None
-    except Exception as exc:
-        log.warning("Ollama synthesis failed, falling back to raw results: %s", exc)
-        return None
-
-
 def run(message: str = None) -> str:
     if message is None:
         return "Web search ready. Ask me to search for anything."
 
-    log.info("web_search invoked: message=%r", message[:120] if message else "")
-    query = _extract_query(message)
+    query = message.strip()
+    log.info("web_search invoked: query=%r", query[:120])
     results = search(query)
 
     if not results:
         return f"No results found for: {query}"
 
-    synthesis = _synthesize(query, results)
-    if synthesis:
-        sources = "\n".join(r["url"] for r in results if r["url"])
-        return f"{synthesis}\n\nSources:\n{sources}"
+    lines = []
 
-    lines = [f"🔍 Search results for: {query}\n"]
     for r in results:
-        snippet = r["snippet"][:200]
-        url_line = f"\n  Source: {r['url']}" if r["url"] else ""
-        lines.append(f"• {r['title']}\n  {snippet}{url_line}\n")
+        if r["title"] == "Direct Answer":
+            lines.append(f"**Answer:** {r['snippet']}\n")
+        else:
+            lines.append(f"**{r['title']}**\n{r['snippet']}\n{r['url']}\n")
 
-    return "\n".join(lines)
+    return "\n".join(lines).strip()
