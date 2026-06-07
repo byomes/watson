@@ -488,7 +488,9 @@ def _route(message: str, interface: str) -> dict:
 
     # Factual query pre-check: route to web_search before LLM or conversational bypass.
     if _is_factual_query(message):
-        return {"action": "skill", "slug": "web_search", "message": message}
+        from jobs.research.web_search import run as web_search_run
+        result = web_search_run(message)
+        return {"action": "skill", "slug": "web_search", "result": result}
 
     # Conversational pre-check: skip LLM router entirely for short/greeting messages.
     if _is_conversational(message):
