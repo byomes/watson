@@ -1351,3 +1351,77 @@ async function deleteProject() {
     renderProjects();
   } else { alert('Delete failed: ' + (r.error || 'Unknown error')); }
 }
+
+// ── Pull-to-refresh ────────────────────────────────────────────────────────
+(function() {
+  const THRESHOLD = 80;
+  let startY = 0, pulling = false, triggered = false;
+
+  const indicator = document.createElement('div');
+  indicator.id = 'ptr-indicator';
+  indicator.innerHTML = '<div id="ptr-spinner"></div><div id="ptr-label"></div>';
+  document.body.appendChild(indicator);
+  const spinner = document.getElementById('ptr-spinner');
+  const label = document.getElementById('ptr-label');
+
+  function _overlayOpen() {
+    return !!(document.querySelector('.overlay-panel.open') ||
+              document.querySelector('#proj-workspace.open'));
+  }
+
+  function _animate(dist) {
+    const ratio = Math.min(dist / THRESHOLD, 1);
+    indicator.style.opacity = ratio;
+    indicator.style.transform = 'translateX(-50%) translateY(' + (ratio * 20 - 20) + 'px)';
+  }
+
+  function _reset() {
+    pulling = false;
+    triggered = false;
+    indicator.style.transition = 'opacity .3s,transform .3s';
+    indicator.style.opacity = '0';
+    indicator.style.transform = 'translateX(-50%) translateY(-20px)';
+    spinner.classList.remove('spinning');
+    label.textContent = '';
+  }
+
+  document.addEventListener('touchstart', function(e) {
+    if (_overlayOpen() || window.scrollY !== 0) return;
+    startY = e.touches[0].clientY;
+    pulling = true;
+    triggered = false;
+    indicator.style.transition = 'none';
+  }, {passive: true});
+
+  document.addEventListener('touchmove', function(e) {
+    if (!pulling) return;
+    if (window.scrollY !== 0) { _reset(); return; }
+    const dist = e.touches[0].clientY - startY;
+    if (dist <= 0) { _reset(); return; }
+    _animate(dist);
+    if (dist >= THRESHOLD) {
+      spinner.classList.add('spinning');
+      label.textContent = 'Release';
+    } else {
+      spinner.classList.remove('spinning');
+      label.textContent = '';
+    }
+  }, {passive: true});
+
+  document.addEventListener('touchend', function(e) {
+    if (!pulling) return;
+    const dist = e.changedTouches[0].clientY - startY;
+    if (dist >= THRESHOLD && !triggered) {
+      triggered = true;
+      pulling = false;
+      indicator.style.transition = 'none';
+      indicator.style.opacity = '1';
+      indicator.style.transform = 'translateX(-50%) translateY(0)';
+      spinner.classList.add('spinning');
+      label.textContent = 'Refreshing...';
+      setTimeout(function() { location.reload(); }, 500);
+    } else {
+      _reset();
+    }
+  }, {passive: true});
+})();
