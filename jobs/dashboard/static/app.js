@@ -103,14 +103,49 @@ function _renderSkillList() {
   }
   el.innerHTML = filtered.map(function(s) {
     const name = s.slug.replace(/_/g, ' ').replace(/\b\w/g, function(c){return c.toUpperCase();});
-    return '<div class="skill-card">' +
+    const approveBtn = _skillTab === 'dev'
+      ? '<button class="skill-approve-btn" data-slug="' + esc(s.slug) + '" onclick="approveSkill(this)">Approve</button>'
+      : '';
+    return '<div class="skill-card" id="skill-card-' + esc(s.slug) + '">' +
       '<div class="skill-info">' +
         '<div class="skill-name">' + esc(name) + '</div>' +
         '<div class="skill-desc">' + esc(s.description) + '</div>' +
       '</div>' +
-      '<button class="skill-use-btn" data-slug="' + esc(s.slug) + '" onclick="useSkill(this.dataset.slug)">Use Skill</button>' +
+      '<div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">' +
+        approveBtn +
+        '<button class="skill-use-btn" data-slug="' + esc(s.slug) + '" onclick="useSkill(this.dataset.slug)">Use</button>' +
+      '</div>' +
     '</div>';
   }).join('');
+}
+
+async function approveSkill(btn) {
+  const slug = btn.dataset.slug;
+  btn.disabled = true;
+  btn.textContent = '…';
+  try {
+    const result = await api('/api/skills/' + slug + '/approve', {method: 'POST'});
+    if (result.success) {
+      const card = document.getElementById('skill-card-' + slug);
+      if (card) {
+        card.style.transition = 'opacity .2s';
+        card.style.opacity = '0';
+        setTimeout(function() {
+          card.outerHTML = '';
+          _allSkills = _allSkills.map(function(s) {
+            return s.slug === slug ? Object.assign({}, s, {status: 'ready'}) : s;
+          });
+        }, 200);
+      }
+    } else {
+      btn.disabled = false;
+      btn.textContent = 'Approve';
+    }
+  } catch(e) {
+    btn.disabled = false;
+    btn.textContent = 'Approve';
+  }
+}
 }
 function useSkill(slug) {
   const name = slug.replace(/_/g, ' ').replace(/\b\w/g, function(c){return c.toUpperCase();});

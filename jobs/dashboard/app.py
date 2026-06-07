@@ -526,6 +526,34 @@ def skills_list_api():
         return jsonify([])
 
 
+@app.route("/api/skills/<slug>/approve", methods=["POST"])
+def approve_skill(slug):
+    if not SKILLS_FILE.exists():
+        return jsonify({"success": False, "error": "skills.json not found"}), 404
+    try:
+        skills = json.loads(SKILLS_FILE.read_text(encoding="utf-8"))
+        skill = next((s for s in skills if s.get("slug") == slug), None)
+        if not skill:
+            return jsonify({"success": False, "error": "Skill not found"}), 404
+        skill["status"] = "ready"
+        SKILLS_FILE.write_text(json.dumps(skills, indent=2), encoding="utf-8")
+        import subprocess
+        repo = SKILLS_FILE.parents[1]
+        subprocess.run(["git", "add", str(SKILLS_FILE)], cwd=str(repo), capture_output=True)
+        subprocess.run(
+            ["git", "commit", "-m", f"skill: approved {slug} → ready"],
+            cwd=str(repo), capture_output=True,
+        )
+        try:
+            from jobs.memory.sync import main as sync_main
+            sync_main()
+        except Exception:
+            pass
+        return jsonify({"success": True})
+    except Exception as exc:
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
 # ── Chat API ─────────────────────────────────────────────────────────────────
 
 WATSON_SYSTEM = """You are Watson, Dr. Bill Yomes's personal AI-powered digital assistant. You operate under his supervision and act on his behalf.
