@@ -262,6 +262,16 @@ def _process_email(msg, dry_run: bool, conn: sqlite3.Connection) -> bool:
         log.warning("Skipped (parse failed): subject=%r", subject)
         return False
 
+    email_id = msg.get("Message-ID", "").strip()
+
+    if email_id:
+        existing = conn.execute(
+            "SELECT id FROM connect_cards WHERE email_id = ?", (email_id,)
+        ).fetchone()
+        if existing:
+            log.info("Skipped (duplicate): email_id=%r", email_id)
+            return False
+
     try:
         received_dt = email.utils.parsedate_to_datetime(msg.get("Date", ""))
     except Exception:
@@ -286,8 +296,8 @@ def _process_email(msg, dry_run: bool, conn: sqlite3.Connection) -> bool:
     conn.execute(
         """
         INSERT INTO connect_cards
-          (member_id, service_date, campus, raw_text, questions_comments)
-        VALUES (?, ?, ?, ?, ?)
+          (member_id, service_date, campus, raw_text, questions_comments, email_id)
+        VALUES (?, ?, ?, ?, ?, ?)
         """,
         (
             member_id,
@@ -295,6 +305,7 @@ def _process_email(msg, dry_run: bool, conn: sqlite3.Connection) -> bool:
             fields.get("campus") or "",
             body,
             fields.get("questions_comments"),
+            email_id or None,
         ),
     )
     card_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
@@ -333,7 +344,7 @@ def _process_email(msg, dry_run: bool, conn: sqlite3.Connection) -> bool:
         )
 
     conn.commit()
-    log.info("Inserted: %r service_date=%s card_id=%d", name, svc_date, card_id)
+    log.info("Inserted (new): name=%r service_date=%s card_id=%d email_id=%r", name, svc_date, card_id, email_id)
     return True
 
 
