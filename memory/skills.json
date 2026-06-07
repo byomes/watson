@@ -464,7 +464,7 @@
       "dashboard",
       "telegram"
     ],
-    "status": "dev"
+    "status": "ready"
   },
   {
     "slug": "youtube_downloader",
