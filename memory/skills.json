@@ -430,7 +430,7 @@
       "dashboard",
       "telegram"
     ],
-    "status": "dev"
+    "status": "ready"
   },
   {
     "slug": "qr_generator",
