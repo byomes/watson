@@ -397,5 +397,50 @@
     "function": "run",
     "interfaces": ["dashboard", "telegram"],
     "status": "dev"
+  },
+  {
+    "slug": "readability_analyzer",
+    "description": "Analyze the readability of text — reading level, grade, word count, estimated reading time",
+    "triggers": ["check readability", "analyze readability", "reading level", "grade level"],
+    "job_module": "jobs.writing.readability",
+    "function": "run",
+    "interfaces": ["dashboard", "telegram"],
+    "status": "dev"
+  },
+  {
+    "slug": "audio_tools",
+    "description": "Read and write audio file metadata, convert formats, and trim audio clips",
+    "triggers": ["audio metadata", "get audio info", "trim audio", "convert audio"],
+    "job_module": "jobs.media.audio_tools",
+    "function": "run",
+    "interfaces": ["dashboard", "telegram"],
+    "status": "dev"
+  },
+  {
+    "slug": "chart_generator",
+    "description": "Generate bar or line charts from data and save as PNG files",
+    "triggers": ["generate chart", "make a chart", "create graph", "bar chart", "line chart"],
+    "job_module": "jobs.data.chart_generator",
+    "function": "run",
+    "interfaces": ["dashboard", "telegram"],
+    "status": "dev"
+  },
+  {
+    "slug": "template_engine",
+    "description": "Render Jinja2 templates from strings or files with context variables",
+    "triggers": ["render template", "fill template", "template engine"],
+    "job_module": "jobs.utilities.template_engine",
+    "function": "run",
+    "interfaces": ["dashboard", "telegram"],
+    "status": "dev"
+  },
+  {
+    "slug": "language_detector",
+    "description": "Detect the language of any text",
+    "triggers": ["what language is this", "detect language", "identify language"],
+    "job_module": "jobs.research.language_detector",
+    "function": "run",
+    "interfaces": ["dashboard", "telegram"],
+    "status": "dev"
   }
 ]
