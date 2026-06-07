@@ -121,10 +121,11 @@ function _renderSkillList() {
 
 async function approveSkill(btn) {
   const slug = btn.dataset.slug;
+  console.log('approveSkill called:', slug);
   btn.disabled = true;
   btn.textContent = '…';
   try {
-    const result = await api('/api/skills/' + slug + '/approve', {method: 'POST'});
+    const result = await api('/api/skills/' + slug + '/approve', 'POST');
     if (result.success) {
       const card = document.getElementById('skill-card-' + slug);
       if (card) {
