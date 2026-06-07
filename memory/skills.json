@@ -1120,5 +1120,150 @@
       "telegram"
     ],
     "status": "ready"
+  },
+  {
+    "slug": "style_checker",
+    "description": "Check prose style and writing quality using proselint",
+    "triggers": [
+      "check style",
+      "style check",
+      "proselint",
+      "writing style",
+      "check my writing"
+    ],
+    "job_module": "jobs.writing.style_checker",
+    "function": "run",
+    "interfaces": [
+      "telegram",
+      "dashboard"
+    ],
+    "status": "dev"
+  },
+  {
+    "slug": "document_converter",
+    "description": "Convert documents between formats: docx, markdown, html, pdf, rst",
+    "triggers": [
+      "convert document",
+      "convert file",
+      "convert to",
+      "doc to",
+      "markdown to html",
+      "docx to"
+    ],
+    "job_module": "jobs.writing.document_converter",
+    "function": "run",
+    "interfaces": [
+      "telegram",
+      "dashboard"
+    ],
+    "status": "dev"
+  },
+  {
+    "slug": "citation_manager",
+    "description": "Fetch, format, and store citations by DOI or ISBN in Chicago style",
+    "triggers": [
+      "add citation",
+      "citation",
+      "cite doi",
+      "cite isbn",
+      "list citations",
+      "bibliography"
+    ],
+    "job_module": "jobs.writing.citation_manager",
+    "function": "run",
+    "interfaces": [
+      "telegram",
+      "dashboard"
+    ],
+    "status": "dev"
+  },
+  {
+    "slug": "manuscript_tracker",
+    "description": "Track manuscript drafts, word counts, and diffs over time",
+    "triggers": [
+      "track manuscript",
+      "manuscript",
+      "word count",
+      "draft progress",
+      "update manuscript"
+    ],
+    "job_module": "jobs.writing.manuscript_tracker",
+    "function": "run",
+    "interfaces": [
+      "telegram",
+      "dashboard"
+    ],
+    "status": "dev"
+  },
+  {
+    "slug": "epub_generator",
+    "description": "Generate EPUB ebook files from markdown or text documents",
+    "triggers": [
+      "generate epub",
+      "create epub",
+      "make epub",
+      "epub from",
+      "ebook from"
+    ],
+    "job_module": "jobs.writing.epub_generator",
+    "function": "run",
+    "interfaces": [
+      "telegram",
+      "dashboard"
+    ],
+    "status": "dev"
+  },
+  {
+    "slug": "summarizer",
+    "description": "Summarize text using LSA and extract key topics via LDA",
+    "triggers": [
+      "summarize",
+      "tldr",
+      "summary of",
+      "key points",
+      "main topics"
+    ],
+    "job_module": "jobs.research.summarizer",
+    "function": "run",
+    "interfaces": [
+      "telegram",
+      "dashboard"
+    ],
+    "status": "dev"
+  },
+  {
+    "slug": "isbn_lookup",
+    "description": "Look up book metadata by ISBN or search books by title",
+    "triggers": [
+      "isbn",
+      "lookup book",
+      "book info",
+      "find book",
+      "isbn search"
+    ],
+    "job_module": "jobs.research.isbn_lookup",
+    "function": "run",
+    "interfaces": [
+      "telegram",
+      "dashboard"
+    ],
+    "status": "dev"
+  },
+  {
+    "slug": "wordcloud_generator",
+    "description": "Generate word cloud PNG images from text or files and send to Telegram",
+    "triggers": [
+      "word cloud",
+      "wordcloud",
+      "word frequency cloud",
+      "visualize words"
+    ],
+    "job_module": "jobs.writing.wordcloud_generator",
+    "function": "run",
+    "interfaces": [
+      "telegram",
+      "dashboard"
+    ],
+    "status": "dev"
   }
 ]

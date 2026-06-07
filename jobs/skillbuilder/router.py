@@ -154,6 +154,30 @@ _SKILL_PRE_CHECKS: dict[str, tuple] = {
     "error_analyzer": (
         "analyze this error", "debug this error", "why is this failing",
     ),
+    "style_checker": (
+        "check style", "style check", "proselint", "writing style", "check my writing",
+    ),
+    "document_converter": (
+        "convert document", "convert file", "convert to", "doc to", "markdown to html", "docx to",
+    ),
+    "citation_manager": (
+        "add citation", "citation", "cite doi", "cite isbn", "list citations", "bibliography",
+    ),
+    "manuscript_tracker": (
+        "track manuscript", "manuscript", "draft progress", "update manuscript",
+    ),
+    "epub_generator": (
+        "generate epub", "create epub", "make epub", "epub from", "ebook from",
+    ),
+    "summarizer": (
+        "summarize", "tldr", "summary of", "key points", "main topics",
+    ),
+    "isbn_lookup": (
+        "isbn lookup", "lookup book", "book info", "find book", "isbn search",
+    ),
+    "wordcloud_generator": (
+        "word cloud", "wordcloud", "word frequency cloud", "visualize words",
+    ),
 }
 
 # Matched against msg_lower BEFORE the LLM call — returns run_audit immediately, no fallthrough
