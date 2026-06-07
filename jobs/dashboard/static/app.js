@@ -407,6 +407,8 @@ function clearAttachment() {
 
 async function sendChat() {
   const input = document.getElementById('chat-input');
+  const sendBtn = document.getElementById('chat-send-btn');
+  const micBtn = document.getElementById('chat-mic-btn');
   const text = input.value.trim();
   if (!text) return;
   if (!currentSessionId) {
@@ -423,11 +425,8 @@ async function sendChat() {
   if (attachedFileContent) clearAttachment();
 
   _appendMsg('user', displayMsg);
-
-  // Save user message
   api('/api/chat/sessions/' + currentSessionId + '/messages', 'POST', {role:'user', content: displayMsg});
 
-  // Auto-title from first message
   if (chatHistory.length === 0) {
     const title = text.length > 50 ? text.slice(0,50) + '…' : text;
     api('/api/chat/sessions/' + currentSessionId, 'PATCH', {title});
@@ -435,20 +434,103 @@ async function sendChat() {
 
   chatHistory.push({role: 'user', content: ollamaMsg});
   if (chatHistory.length > 40) chatHistory = chatHistory.slice(-40);
-  _showTyping();
+
+  // Disable controls while streaming
+  input.disabled = true;
+  sendBtn.disabled = true;
+  if (micBtn) micBtn.disabled = true;
+
+  // Build streaming watson bubble
+  const msgs = document.getElementById('chat-messages');
+  const wrap = document.createElement('div');
+  wrap.className = 'msg-wrap watson';
+  const bubble = document.createElement('div');
+  bubble.className = 'msg-bubble';
+  const textNode = document.createTextNode('');
+  const cursor = document.createElement('span');
+  cursor.className = 'stream-cursor';
+  cursor.textContent = '|';
+  bubble.appendChild(textNode);
+  bubble.appendChild(cursor);
+  const time = document.createElement('div');
+  time.className = 'msg-time';
+  time.textContent = _fmtTime(new Date());
+  wrap.appendChild(bubble);
+  wrap.appendChild(time);
+  msgs.appendChild(wrap);
+  msgs.scrollTop = msgs.scrollHeight;
+
+  let fullReply = '';
+  let confirmEmailData = null;
+
+  function _reEnable() {
+    input.disabled = false;
+    sendBtn.disabled = false;
+    if (micBtn) micBtn.disabled = false;
+  }
+
+  function _finish() {
+    cursor.remove();
+    if (fullReply) {
+      chatHistory.push({role: 'assistant', content: fullReply});
+      if (chatHistory.length > 40) chatHistory = chatHistory.slice(-40);
+      api('/api/chat/sessions/' + currentSessionId + '/messages', 'POST', {role:'assistant', content: fullReply});
+    }
+    if (confirmEmailData) {
+      _appendEmailConfirmCard(msgs, confirmEmailData);
+    }
+    _reEnable();
+  }
+
   try {
-    const data = await api('/api/chat', 'POST', {message: ollamaMsg, history: chatHistory.slice(0, -1), session_id: currentSessionId});
-    _hideTyping();
-    const reply = data.response || '(no response)';
-    _appendMsg('watson', reply);
-    if (data.confirm_email) _appendEmailConfirmCard(document.getElementById('chat-messages'), data.confirm_email);
-    chatHistory.push({role: 'assistant', content: reply});
-    if (chatHistory.length > 40) chatHistory = chatHistory.slice(-40);
-    // Save Watson reply
-    api('/api/chat/sessions/' + currentSessionId + '/messages', 'POST', {role:'assistant', content:reply});
-  } catch(_) {
-    _hideTyping();
-    _appendMsg('watson', 'Watson is offline.');
+    const response = await fetch('/api/chat/stream', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({message: ollamaMsg, history: chatHistory.slice(0, -1), session_id: currentSessionId})
+    });
+    if (!response.ok) {
+      textNode.textContent = 'Watson is offline.';
+      cursor.remove();
+      _reEnable();
+      return;
+    }
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    while (true) {
+      const {done, value} = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, {stream: true});
+      const events = buffer.split('\n\n');
+      buffer = events.pop();
+      for (const event of events) {
+        if (!event.trim()) continue;
+        const dataLines = event.split('\n').filter(function(l) { return l.startsWith('data: '); });
+        if (!dataLines.length) continue;
+        const data = dataLines.map(function(l) { return l.slice(6); }).join('\n');
+        if (data === '[DONE]') {
+          _finish();
+          return;
+        } else if (data.startsWith('[ERROR]')) {
+          cursor.remove();
+          textNode.textContent = data.slice(7).trim();
+          _reEnable();
+          return;
+        } else if (data.startsWith('[CONFIRM_EMAIL]')) {
+          try { confirmEmailData = JSON.parse(data.slice(15)); } catch(_) {}
+        } else {
+          fullReply += data;
+          textNode.textContent = fullReply;
+          msgs.scrollTop = msgs.scrollHeight;
+        }
+      }
+    }
+    // Stream ended without [DONE]
+    _finish();
+  } catch(e) {
+    textNode.textContent = 'Watson is offline.';
+    cursor.remove();
+    _reEnable();
   }
 }
 

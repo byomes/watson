@@ -10,7 +10,7 @@ log = logging.getLogger(__name__)
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from flask import Flask, g, jsonify, render_template, request, session
+from flask import Flask, Response, g, jsonify, render_template, request, session, stream_with_context
 from jobs.people.api import people_create, people_delete, people_list, people_update
 
 DB = os.path.expanduser("~/watson/data/watson.db")
@@ -564,6 +564,183 @@ def approve_skill(slug):
         return jsonify({"success": False, "error": str(exc)}), 500
 
 
+# ── Chat Streaming API ────────────────────────────────────────────────────────
+
+@app.route("/api/chat/stream", methods=["POST"])
+def chat_stream():
+    import requests as _req
+    from jobs.skillbuilder import router as _router
+    global _pending_skill_request
+
+    data = request.get_json(force=True) or {}
+    message = (data.get("message") or "").strip()
+    history = data.get("history") or []
+    session_id = data.get("session_id")
+    project_slug = data.get("project_slug")
+
+    def _sse(text):
+        lines = str(text).split('\n')
+        return '\n'.join(f'data: {line}' for line in lines) + '\n\n'
+
+    def _stream_simple(text):
+        yield _sse(text)
+        yield "data: [DONE]\n\n"
+
+    def _stream_error(msg):
+        yield f"data: [ERROR] {msg}\n\n"
+
+    def _sse_response(gen):
+        r = Response(stream_with_context(gen), mimetype="text/event-stream")
+        r.headers['Cache-Control'] = 'no-cache'
+        r.headers['X-Accel-Buffering'] = 'no'
+        return r
+
+    if not message:
+        return _sse_response(_stream_error("message required"))
+
+    msg_lower = message.lower().strip()
+
+    # Handle yes/no follow-up on a pending skill proposal
+    if _pending_skill_request is not None:
+        if msg_lower in _AFFIRM:
+            pending = _pending_skill_request
+            _pending_skill_request = None
+            job_path = _router._generate_job_path(pending)
+            import threading
+            threading.Thread(
+                target=_router._build_in_background,
+                args=(pending, job_path, "dashboard"),
+                daemon=True,
+            ).start()
+            return _sse_response(_stream_simple("Building that skill now. I'll notify you via Telegram when it's ready."))
+        if msg_lower in _DENY or msg_lower.startswith("no "):
+            _pending_skill_request = None
+            return _sse_response(_stream_simple("Got it. Let me know if you need anything else."))
+
+    # Skill routing
+    try:
+        route_result = _router.route(message, "dashboard")
+    except Exception:
+        route_result = {"action": "chat"}
+
+    if route_result["action"] == "skill":
+        if "result" not in route_result:
+            slug = route_result["slug"]
+            skills = _router._load_skills("dashboard")
+            skill = next((s for s in skills if s["slug"] == slug), None)
+            if skill:
+                try:
+                    route_result["result"] = _router._run_skill(
+                        skill, message=route_result.get("message")
+                    )
+                except Exception as exc:
+                    log.error("Skill execution failed for %s: %s", slug, exc)
+                    route_result["result"] = f"Skill failed: {exc}"
+            else:
+                log.error("Skill '%s' not found in registry", slug)
+                route_result["result"] = f"Skill '{slug}' not found."
+        result = route_result["result"]
+        if isinstance(result, dict) and result.get("confirm"):
+            session["pending_email"] = result
+            confirm_text = f"I found {result['to_name']} at {result['to_email']}. Confirm below to send."
+            confirm_json = json.dumps({
+                "to_name": result["to_name"],
+                "to_email": result["to_email"],
+                "subject": result["subject"],
+                "body": result["body"],
+            })
+            def _email_gen(t=confirm_text, cj=confirm_json):
+                yield _sse(t)
+                yield f"data: [CONFIRM_EMAIL]{cj}\n\n"
+                yield "data: [DONE]\n\n"
+            return _sse_response(_email_gen())
+        return _sse_response(_stream_simple("✓ " + result))
+
+    if route_result["action"] == "build":
+        import threading
+        threading.Thread(
+            target=_router._build_in_background,
+            args=(route_result["description"], route_result["job_path"], "dashboard"),
+            daemon=True,
+        ).start()
+        return _sse_response(_stream_simple("Building that skill now. I'll notify you via Telegram when it's ready."))
+
+    if route_result["action"] == "propose":
+        _pending_skill_request = message
+        return _sse_response(_stream_simple(route_result["message"]))
+
+    if route_result["action"] == "wrap_up":
+        log.info("WRAP_UP triggered — session_id=%s project_slug=%s", session_id, project_slug)
+        try:
+            import threading
+            from jobs.memory.wrap_up import wrap_up as _wrap_up
+            threading.Thread(
+                target=_wrap_up,
+                args=(session_id, project_slug),
+                daemon=True,
+            ).start()
+        except Exception as exc:
+            log.error("WRAP_UP: failed to start background thread: %s", exc)
+        return _sse_response(_stream_simple("Wrapping up this session. I'll save it to memory and notify you via Telegram."))
+
+    if any(t in msg_lower for t in _router._BUILD_TRIGGERS):
+        import threading
+        description = _router._extract_build_description(message)
+        job_path = _router._generate_job_path(description)
+        threading.Thread(
+            target=_router._build_in_background,
+            args=(description, job_path, "dashboard"),
+            daemon=True,
+        ).start()
+        return _sse_response(_stream_simple("Building that skill now. I'll notify you via Telegram when it's ready."))
+
+    # Fall through to Ollama streaming via /api/generate
+    core_md_path = Path(os.path.expanduser("~/watson/memory/core.md"))
+    try:
+        core_md = core_md_path.read_text(encoding="utf-8")
+        system_prompt = f"{core_md}\n\n{WATSON_SYSTEM}"
+    except FileNotFoundError:
+        system_prompt = WATSON_SYSTEM
+
+    prompt_parts = []
+    for h in history[-20:]:
+        if h.get("role") == "user" and h.get("content"):
+            prompt_parts.append(f"User: {h['content']}")
+        elif h.get("role") == "assistant" and h.get("content"):
+            prompt_parts.append(f"Assistant: {h['content']}")
+    prompt_parts.append(f"User: {message}")
+    ollama_prompt = "\n\n".join(prompt_parts)
+
+    def _stream_ollama(sys_prompt=system_prompt, prompt=ollama_prompt):
+        try:
+            resp = _req.post(
+                "http://localhost:11434/api/generate",
+                json={"model": "gemma3:1b", "prompt": prompt, "system": sys_prompt, "stream": True},
+                stream=True,
+                timeout=45,
+            )
+            resp.raise_for_status()
+            for line in resp.iter_lines():
+                if not line:
+                    continue
+                try:
+                    chunk = json.loads(line)
+                except Exception:
+                    continue
+                token = chunk.get("response", "")
+                if token:
+                    yield _sse(token)
+                if chunk.get("done"):
+                    break
+            yield "data: [DONE]\n\n"
+        except _req.exceptions.Timeout:
+            yield "data: [ERROR] Watson timed out. Try again.\n\n"
+        except Exception:
+            yield "data: [ERROR] Watson timed out. Try again.\n\n"
+
+    return _sse_response(_stream_ollama())
+
+
 # ── Chat API ─────────────────────────────────────────────────────────────────
 
 WATSON_SYSTEM = """You are Watson, Dr. Bill Yomes's personal AI-powered digital assistant. You operate under his supervision and act on his behalf.
@@ -751,7 +928,7 @@ def chat():
     try:
         resp = _req.post(
             "http://localhost:11434/api/chat",
-            json={"model": "llama3.2:3b", "messages": messages, "stream": False},
+            json={"model": "gemma3:1b", "messages": messages, "stream": False},
             timeout=60,
         )
         resp.raise_for_status()
