@@ -252,6 +252,13 @@ select option{background:var(--surface)}
 .pm-textarea:focus{border-color:var(--accent)}
 .pm-save-btn{align-self:flex-start;padding:8px 18px;background:var(--accent);border:none;border-radius:6px;color:#fff;font-size:13px;font-family:inherit;font-weight:500;cursor:pointer}
 
+/* Pull-to-refresh indicator */
+#ptr-indicator{position:fixed;top:calc(66px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%) translateY(-20px);z-index:9;opacity:0;pointer-events:none;display:flex;flex-direction:column;align-items:center;gap:5px}
+#ptr-spinner{width:22px;height:22px;border:2.5px solid var(--accent-soft);border-top-color:var(--accent);border-radius:50%}
+#ptr-spinner.spinning{animation:ptr-spin .7s linear infinite}
+@keyframes ptr-spin{to{transform:rotate(360deg)}}
+#ptr-label{font-size:10px;color:var(--accent);font-family:'DM Mono',monospace;letter-spacing:.05em;text-transform:uppercase;white-space:nowrap}
+
 /* Email confirmation card */
 .email-confirm-card{margin:8px 12px 4px;padding:14px 16px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;display:flex;flex-direction:column;gap:8px;max-width:420px}
 .email-confirm-row{font-size:13px;color:var(--text)}
