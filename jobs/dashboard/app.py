@@ -617,12 +617,17 @@ def chat_stream():
             _pending_skill_request = None
             return _sse_response(_stream_simple("Got it. Let me know if you need anything else."))
 
-    # Factual queries go directly to web search, bypassing Ollama
-    if _router._is_factual_query(message):
+    _factual = _router._is_factual_query(message)
+    _conv = _router._is_conversational(message)
+    log.info("ROUTE msg=%r factual=%s conversational=%s", message[:120], _factual, _conv)
+
+    # 1. Factual queries go directly to web search, bypassing Ollama
+    if _factual:
         route_result = {"action": "skill", "slug": "web_search", "message": message}
-    # Skip routing for conversational messages — go straight to Ollama
-    elif _router._is_conversational(message):
+    # 2. Conversational messages go straight to Ollama
+    elif _conv:
         route_result = {"action": "chat"}
+    # 3. Everything else goes through the skill router
     else:
         try:
             route_result = _router.route(message, "dashboard")
