@@ -156,6 +156,7 @@ select option{background:var(--surface)}
 .skill-name{font-size:13px;font-weight:600;color:var(--text);margin-bottom:2px}
 .skill-desc{font-size:11px;color:var(--text-muted);line-height:1.4}
 .skill-use-btn{flex-shrink:0;padding:5px 12px;background:var(--accent-soft);border:1px solid var(--accent);border-radius:6px;color:var(--accent);font-size:11px;cursor:pointer;font-family:'DM Mono',monospace}
+.skill-approve-btn{flex-shrink:0;padding:5px 12px;background:var(--accent);border:1px solid var(--accent);border-radius:6px;color:var(--bg);font-size:11px;cursor:pointer;font-family:'DM Mono',monospace;font-weight:600}
 
 /* Projects tab */
 .proj-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:8px;cursor:pointer;transition:opacity .15s}
