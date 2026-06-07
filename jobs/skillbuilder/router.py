@@ -278,6 +278,18 @@ def _is_conversational(message: str) -> bool:
     return False
 
 
+_IDENTITY_PHRASES = (
+    "who are you", "what are you", "who is watson", "what is watson",
+    "introduce yourself", "tell me about yourself", "how many skills",
+    "what can you do", "what do you do",
+)
+
+
+def _is_identity_query(message: str) -> bool:
+    msg_lower = message.lower().strip()
+    return any(phrase in msg_lower for phrase in _IDENTITY_PHRASES)
+
+
 def _is_factual_query(message: str) -> bool:
     """Return True if message is a factual/lookup query that should route to web search."""
     msg_lower = message.lower().strip()
@@ -485,6 +497,10 @@ def _route(message: str, interface: str) -> dict:
         description = _extract_build_description(message)
         job_path = _generate_job_path(description)
         return {"action": "build", "description": description, "job_path": job_path}
+
+    # Identity pre-check: route to conversational before factual or LLM.
+    if _is_identity_query(message):
+        return {"action": "conversational"}
 
     # Factual query pre-check: route to web_search before LLM or conversational bypass.
     if _is_factual_query(message):
