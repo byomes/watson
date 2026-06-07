@@ -222,6 +222,8 @@ def execute_acquisition(acquisition_id: int) -> bool:
     install_name = row["install_name"]
     skill_description = row["skill_description"]
 
+    install_name = install_name.replace("pip install ", "").replace("pip ", "").strip().split()[0]
+
     result = subprocess.run(
         ["pip", "install", install_name, "--break-system-packages"],
         capture_output=True,
