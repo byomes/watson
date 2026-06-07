@@ -623,7 +623,9 @@ def chat_stream():
 
     # 1. Factual queries go directly to web search, bypassing Ollama
     if _factual:
-        route_result = {"action": "skill", "slug": "web_search", "message": message}
+        from jobs.research.web_search import run as web_search_run
+        ws_result = web_search_run(message)
+        return _sse_response(_stream_simple("✓ " + ws_result))
     # 2. Conversational messages go straight to Ollama
     elif _conv:
         route_result = {"action": "chat"}
