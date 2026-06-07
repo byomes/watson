@@ -115,7 +115,7 @@ function _renderCategoryPills() {
   }
   pillsEl.innerHTML = _skillCategories.map(function(cat) {
     const active = cat === _skillCategory ? ' active' : '';
-    return '<button class="skill-cat-pill' + active + '" onclick="switchSkillCategory(' + JSON.stringify(cat) + ')">' + esc(cat) + '</button>';
+    return '<button class="skill-cat-pill' + active + '" data-cat="' + esc(cat) + '" onclick="switchSkillCategory(this.dataset.cat)">' + esc(cat) + '</button>';
   }).join('');
 }
 
