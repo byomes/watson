@@ -136,6 +136,24 @@ _SKILL_PRE_CHECKS: dict[str, tuple] = {
     "academic_search": (
         "search arxiv", "research papers", "find academic papers", "scholarly search",
     ),
+    "skill_tester": (
+        "test skill", "test this skill", "run skill test", "does this skill work",
+    ),
+    "auto_fixer": (
+        "auto fix", "fix this skill", "repair this skill",
+    ),
+    "skill_validator": (
+        "validate skill", "validate all", "ready to promote",
+    ),
+    "performance_profiler": (
+        "profile skill", "performance report",
+    ),
+    "dependency_scanner": (
+        "scan dependencies", "missing packages", "check imports",
+    ),
+    "error_analyzer": (
+        "analyze this error", "debug this error", "why is this failing",
+    ),
 }
 
 # Matched against msg_lower BEFORE the LLM call — returns run_audit immediately, no fallthrough
