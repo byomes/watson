@@ -66,12 +66,16 @@ var _allSkills = [];
 var _skillTab = 'ready';
 var _skillCategory = 'All';
 var _skillCategories = ['All'];
+var _skillSearch = '';
 
 async function loadSkillsPanel() {
   const el = document.getElementById('settings-skills-list');
   el.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:6px 0">Loading...</div>';
   _skillTab = 'ready';
   _skillCategory = 'All';
+  _skillSearch = '';
+  const _ss = document.getElementById('skill-search');
+  if (_ss) _ss.value = '';
   _updateSkillTabUI();
   try {
     var results = await Promise.all([api('/api/skills'), api('/api/skills/categories')]);
@@ -87,6 +91,9 @@ async function loadSkillsPanel() {
 function switchSkillTab(tab) {
   _skillTab = tab;
   _skillCategory = 'All';
+  _skillSearch = '';
+  const _ss = document.getElementById('skill-search');
+  if (_ss) _ss.value = '';
   _updateSkillTabUI();
   _renderCategoryPills();
   _renderSkillList();
@@ -94,6 +101,12 @@ function switchSkillTab(tab) {
 
 function switchSkillCategory(cat) {
   _skillCategory = cat;
+  _renderCategoryPills();
+  _renderSkillList();
+}
+
+function onSkillSearch(value) {
+  _skillSearch = value;
   _renderCategoryPills();
   _renderSkillList();
 }
@@ -109,7 +122,7 @@ function _updateSkillTabUI() {
 function _renderCategoryPills() {
   const pillsEl = document.getElementById('skill-category-pills');
   if (!pillsEl) return;
-  if (_skillTab !== 'ready') {
+  if (_skillTab !== 'ready' || _skillSearch) {
     pillsEl.innerHTML = '';
     return;
   }
@@ -124,13 +137,22 @@ function _renderSkillList() {
   var filtered = _allSkills.filter(function(s) {
     return (s.status || 'ready') === _skillTab;
   });
-  if (_skillTab === 'ready' && _skillCategory !== 'All') {
+  const query = _skillSearch.trim().toLowerCase();
+  if (query) {
+    filtered = filtered.filter(function(s) {
+      const name = s.slug.replace(/_/g, ' ');
+      return name.includes(query) || (s.description || '').toLowerCase().includes(query);
+    });
+  } else if (_skillTab === 'ready' && _skillCategory !== 'All') {
     filtered = filtered.filter(function(s) {
       return (s.category || 'Utilities') === _skillCategory;
     });
   }
   if (!filtered.length) {
-    el.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:6px 0">No ' + _skillTab + ' skills' + (_skillCategory !== 'All' ? ' in ' + _skillCategory : '') + '.</div>';
+    const emptyMsg = query
+      ? 'No skills matching “' + esc(query) + '”.'
+      : 'No ' + _skillTab + ' skills' + (_skillCategory !== 'All' ? ' in ' + _skillCategory : '') + '.';
+    el.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:6px 0">' + emptyMsg + '</div>';
     return;
   }
   el.innerHTML = filtered.map(function(s) {
