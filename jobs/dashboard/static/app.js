@@ -1618,3 +1618,76 @@ async function savePastoralNote() {
   document.getElementById('pn-add-form').style.display = 'none';
   await loadPastoralNotes();
 }
+
+function openReportsPanel() {
+  document.getElementById('settings-main').style.display = 'none';
+  document.getElementById('settings-reports').style.display = 'flex';
+  loadReportsList();
+}
+
+function closeReportsPanel() {
+  document.getElementById('settings-reports').style.display = 'none';
+  document.getElementById('settings-main').style.display = '';
+}
+
+function loadReportsList() {
+  const reports = [
+    { key: 'next_steps', label: 'Next Steps (12 weeks)' },
+    { key: 'missed_weeks', label: 'Absent 3+ Weeks' },
+    { key: 'missed_weeks_6', label: 'Absent 6+ Weeks' },
+    { key: 'first_time_visitors', label: 'First-Time Visitors (4 weeks)' },
+    { key: 'lapsed_visitors', label: 'Visitors Not Seen Since' },
+    { key: 'next_steps_followup', label: 'Next Steps — Needs Follow-Up' },
+    { key: 'new_faces', label: 'New Faces (4 weeks)' },
+    { key: 'attendance_trends', label: 'Attendance Trends (8 weeks)' },
+    { key: 'overview', label: 'Congregation Overview' },
+  ];
+  const list = document.getElementById('settings-reports-list');
+  list.innerHTML = reports.map(r => `
+    <div class="overlay-row" onclick="runReportFromMenu('${r.key}')">
+      <span class="overlay-row-label">${r.label}</span>
+      <span class="overlay-row-chevron">&#8250;</span>
+    </div>
+  `).join('');
+}
+
+function runReportFromMenu(key) {
+  closeReportsPanel();
+  closeSettings();
+  switchTab('chat');
+  fetch('/api/chat', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ message: 'run report: ' + key, history: [], session_id: currentSessionId })
+  }).then(response => {
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    function read() {
+      reader.read().then(({ done, value }) => {
+        if (done) return;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop();
+        for (const line of lines) {
+          if (line.startsWith('data: ') && line !== 'data: [DONE]') {
+            const text = line.slice(6);
+            appendReportToChat(text);
+          }
+        }
+        read();
+      });
+    }
+    read();
+  });
+}
+
+function appendReportToChat(html) {
+  const container = document.getElementById('chat-messages');
+  if (!container) return;
+  const bubble = document.createElement('div');
+  bubble.className = 'msg assistant';
+  bubble.innerHTML = html;
+  container.appendChild(bubble);
+  container.scrollTop = container.scrollHeight;
+}
