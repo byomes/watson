@@ -125,7 +125,7 @@ def generate(clean_path: Path, sermon_slug: str) -> None:
     today      = date.today().strftime("%Y-%m-%d")
 
     # Strip any existing date prefix from slug, then apply today's date
-    clean_slug = _strip_date_prefix(sermon_slug)
+    clean_slug = _strip_date_prefix(sermon_slug).replace(" ", "-")
     dated_slug = f"{today}-{clean_slug}"
     filename   = f"{dated_slug}.md"
 
