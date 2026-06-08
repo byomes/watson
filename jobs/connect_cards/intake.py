@@ -327,7 +327,7 @@ def run(dry_run: bool = False) -> None:
         mail.select('"connect-cards"')
         status, data = mail.search(
             None,
-            f'(UNSEEN FROM "{EXPECTED_SENDER}" SUBJECT "{EXPECTED_SUBJECT}")',
+            f'(FROM "{EXPECTED_SENDER}" SUBJECT "{EXPECTED_SUBJECT}")',
         )
         if status != "OK":
             log.error("IMAP search failed: %s", status)
