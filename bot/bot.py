@@ -477,6 +477,24 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("Got it — cancelled.")
             return
 
+    # Member lookup — "lookup <name>", "find <name>", "who is <name>"
+    _lookup_match = re.match(r'^(?:lookup|find|who is)\s+(.+)', text_lower)
+    if _lookup_match:
+        from jobs.people.lookup import lookup_member
+        _lq = text_clean[_lookup_match.start(1):].strip()
+        members = lookup_member(_lq)
+        if not members:
+            reply = f"No members found matching '{_lq}'."
+        else:
+            lines = []
+            for m in members:
+                contact = " | ".join(filter(None, [m.get("email"), m.get("phone"), m.get("campus_preference")]))
+                lines.append(f"*{m['name']}* — {contact}" if contact else f"*{m['name']}*")
+            reply = "\n".join(lines)
+        await update.message.reply_text(reply, parse_mode="Markdown")
+        _log_telegram_exchange(text_clean, reply)
+        return
+
     from jobs.skillbuilder import router as _router
 
     # 1. Factual queries → web search

@@ -758,6 +758,20 @@ def chat_stream():
         except Exception as exc:
             return _sse_response(_stream_simple(f"Failed to send email: {exc}"))
 
+    # Member lookup — "lookup <name>", "find <name>", "who is <name>"
+    _lookup_match = _re.match(r'^(?:lookup|find|who is)\s+(.+)', msg_lower)
+    if _lookup_match:
+        from jobs.people.lookup import lookup_member
+        _lq = message[_lookup_match.start(1):].strip()
+        members = lookup_member(_lq)
+        if not members:
+            return _sse_response(_stream_simple(f"No members found matching '{_lq}'."))
+        lines = []
+        for m in members:
+            contact = " | ".join(filter(None, [m.get("email"), m.get("phone"), m.get("campus_preference")]))
+            lines.append(f"<strong>{m['name']}</strong> — {contact}" if contact else f"<strong>{m['name']}</strong>")
+        return _sse_response(_stream_simple("\n".join(lines)))
+
     _identity = _router._is_identity_query(message)
     _factual = _router._is_factual_query(message)
     _conv = _router._is_conversational(message)
