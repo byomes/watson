@@ -760,7 +760,10 @@ def chat_stream():
     # Member lookup
     _lookup_triggers = ("contact info", "contact", "lookup", "find member", "who is")
     if any(t in msg_lower for t in _lookup_triggers):
-        _name_match = _re.search(r'\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b', message)
+        _msg_clean = _re.sub(r'^watson[,\s]+', '', message, flags=_re.IGNORECASE).strip()
+        _name_match = _re.search(r'\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b', _msg_clean)
+        if not _name_match:
+            _name_match = _re.search(r'\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b', _msg_clean.title())
         if _name_match:
             from jobs.people.lookup import lookup_member
             _lq = _name_match.group(1)
