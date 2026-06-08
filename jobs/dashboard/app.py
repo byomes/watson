@@ -709,15 +709,14 @@ def chat_stream():
         contact_name = _send_contact.group(1).strip()
         recipient_name = _send_contact.group(2).strip().rstrip('.')
 
-        contact = _db().execute(
-            "SELECT name, email, phone FROM congregation WHERE name LIKE ? LIMIT 1",
+        import sqlite3 as _sqlite3
+        _cong_conn = _sqlite3.connect(os.path.expanduser("~/watson/data/congregation.db"))
+        _cong_conn.row_factory = _sqlite3.Row
+        contact = _cong_conn.execute(
+            "SELECT name, email, phone FROM members WHERE name LIKE ? LIMIT 1",
             (f"%{contact_name}%",)
         ).fetchone()
-        if not contact:
-            contact = _db().execute(
-                "SELECT name, email, phone FROM people WHERE name LIKE ? LIMIT 1",
-                (f"%{contact_name}%",)
-            ).fetchone()
+        _cong_conn.close()
 
         recipient = _db().execute(
             "SELECT name, email FROM people WHERE name LIKE ? LIMIT 1",
@@ -758,19 +757,21 @@ def chat_stream():
         except Exception as exc:
             return _sse_response(_stream_simple(f"Failed to send email: {exc}"))
 
-    # Member lookup — "lookup <name>", "find <name>", "who is <name>"
-    _lookup_match = _re.match(r'^(?:lookup|find|who is)\s+(.+)', msg_lower)
-    if _lookup_match:
-        from jobs.people.lookup import lookup_member
-        _lq = message[_lookup_match.start(1):].strip()
-        members = lookup_member(_lq)
-        if not members:
-            return _sse_response(_stream_simple(f"No members found matching '{_lq}'."))
-        lines = []
-        for m in members:
-            contact = " | ".join(filter(None, [m.get("email"), m.get("phone"), m.get("campus_preference")]))
-            lines.append(f"<strong>{m['name']}</strong> — {contact}" if contact else f"<strong>{m['name']}</strong>")
-        return _sse_response(_stream_simple("\n".join(lines)))
+    # Member lookup
+    _lookup_triggers = ("contact info", "contact", "lookup", "find member", "who is")
+    if any(t in msg_lower for t in _lookup_triggers):
+        _name_match = _re.search(r'\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b', message)
+        if _name_match:
+            from jobs.people.lookup import lookup_member
+            _lq = _name_match.group(1)
+            members = lookup_member(_lq)
+            if not members:
+                return _sse_response(_stream_simple(f"No members found matching '{_lq}'."))
+            lines = []
+            for m in members:
+                contact = " | ".join(filter(None, [m.get("email"), m.get("phone"), m.get("campus_preference")]))
+                lines.append(f"<strong>{m['name']}</strong> — {contact or 'no contact info on file'}")
+            return _sse_response(_stream_simple("\n".join(lines)))
 
     _identity = _router._is_identity_query(message)
     _factual = _router._is_factual_query(message)
