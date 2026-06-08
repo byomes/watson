@@ -92,3 +92,14 @@ December 6, 2023
 2. No decisions were made regarding the service provider to use; Bill suggested using either Twilio or MessageBird, and asked Watson to research ways to deliver SMS messages from a web-browser.
 3. Next steps depend on Bill's choice, but would involve integrating the chosen service with Watson's system and potentially exploring Twilio's Webhooks or MessageBird's API for SMS messaging.
 4. The current price of bitcoin was retrieved and provided to Bill, currently standing at $62,236.46 USD as of the search query date.
+
+---
+2026-06-07 | Session 70
+December 10, 2023
+
+1. A QR code was generated for the address "williamckyomes.com" and shared with Bill.
+2. No decisions were made as the conversation focused on providing alternatives to share the image and updating Watson's capabilities.
+3. Next steps identified include:
+ * Updating Watson's capabilities to deliver images in chat messages.
+ * Providing temporary links for direct QR code access from Watson's server.
+4. Worth remembering: The current system prompt, which includes a Beelink EQi12 home server and Ollama models, will be updated accordingly.
