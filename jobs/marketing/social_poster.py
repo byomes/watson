@@ -7,15 +7,15 @@ load_dotenv()
 
 log = logging.getLogger(__name__)
 
-FB_PAGE_ACCESS_TOKEN = os.getenv("FACEBOOK_PAGE_ACCESS_TOKEN")
-FB_PAGE_ID = os.getenv("FACEBOOK_PAGE_ID")
+FB_PAGE_ACCESS_TOKEN = os.getenv("FB_ACCESS_TOKEN")
+FB_PAGE_ID = os.getenv("FB_PAGE_ID")
 FB_GRAPH_URL = "https://graph.facebook.com/v19.0"
 
 
 def post_to_facebook(message: str, image_path: str = None) -> bool:
     import requests
     if not FB_PAGE_ACCESS_TOKEN or not FB_PAGE_ID:
-        log.error("FACEBOOK_PAGE_ACCESS_TOKEN or FACEBOOK_PAGE_ID not set")
+        log.error("FB_ACCESS_TOKEN or FB_PAGE_ID not set")
         return False
     try:
         if image_path:
@@ -65,6 +65,6 @@ def run(message: str = None) -> str:
     if not message:
         return "Social poster ready. Provide post content."
     if not FB_PAGE_ACCESS_TOKEN:
-        return "Facebook credentials not configured (FACEBOOK_PAGE_ACCESS_TOKEN missing)."
+        return "Facebook credentials not configured (FB_ACCESS_TOKEN missing)."
     success = post_to_facebook(message)
     return "Posted to Facebook." if success else "Facebook post failed — check logs."
