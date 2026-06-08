@@ -6,11 +6,8 @@ from jobs.connect_cards import pastoral_reports as _pr
 
 REPORTS = [
     ("next_steps",          "Next Steps",                  _pr.next_steps_report),
-    ("missed_weeks",        "Missed Weeks",                _pr.missed_weeks_report),
+    ("missed_weeks",        "Absent Members",              _pr.missed_weeks_report),
     ("first_time_visitors", "First-Time Visitors",         _pr.first_time_visitors_report),
-    ("lapsed_visitors",     "Visitors Not Seen Since",     _pr.lapsed_visitors_report),
-    ("next_steps_followup", "Next Steps Follow-Up",        _pr.next_steps_followup_report),
-    ("new_faces",           "New Faces",                   _pr.new_faces_report),
     ("attendance_trends",   "Attendance Trends",           _pr.attendance_trends_report),
     ("overview",            "Congregation Overview",       _pr.congregation_overview_report),
 ]
@@ -31,19 +28,34 @@ def get_menu_html() -> str:
     )
 
 
-def run_report(name: str) -> tuple[str, str] | None:
-    name_clean = name.strip().lower()
+def run_report(key: str, weeks: int | None = None) -> tuple[str, str]:
+    key_clean = key.strip().lower()
+    match = None
     for i, (slug, label, fn) in enumerate(REPORTS):
         if (
-            name_clean == slug
-            or name_clean == label.lower()
-            or name_clean == str(i + 1)
+            key_clean == slug
+            or key_clean == label.lower()
+            or key_clean == str(i + 1)
         ):
-            return fn()
-    for slug, label, fn in REPORTS:
-        if name_clean in slug or name_clean in label.lower():
-            return fn()
-    return None
+            match = (slug, fn)
+            break
+    if match is None:
+        for slug, label, fn in REPORTS:
+            if key_clean in slug or key_clean in label.lower():
+                match = (slug, fn)
+                break
+    if match is None:
+        raise ValueError(f"No report found matching '{key}'")
+    slug, fn = match
+    _defaults = {
+        "next_steps":          12,
+        "missed_weeks":        3,
+        "first_time_visitors": 4,
+        "attendance_trends":   8,
+    }
+    if slug in _defaults:
+        return fn(weeks=weeks or _defaults[slug])
+    return fn()
 
 
 def get_telegram_menu() -> str:

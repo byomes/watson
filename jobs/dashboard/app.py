@@ -786,20 +786,23 @@ def chat_stream():
             return _sse_response(_stream_simple("\n".join(lines)))
 
     # Report menu
-    from jobs.connect_cards.report_menu import get_menu_html as _get_menu_html, run_report as _run_report
+    from jobs.connect_cards.report_menu import get_menu_html as _get_menu_html
     if msg_lower in ("reports", "report menu", "pastoral reports"):
         return _sse_response(_stream_simple(_get_menu_html()))
 
-    _run_report_match = msg_lower.startswith("run report:")
-    if _run_report_match:
-        _report_name = message[len("run report:"):].strip()
-        _report_result = _run_report(_report_name)
-        if _report_result is None:
-            return _sse_response(_stream_simple(f"No report found matching '{_report_name}'."))
-        _, _report_html = _report_result
-        _body_match = _re.search(r'<body>(.*?)</body>', _report_html, _re.DOTALL)
-        _report_body = _body_match.group(1).strip() if _body_match else _report_html
-        return _sse_response(_stream_simple(_report_body))
+    _report_match = _re.match(r'^run report:\s*(\S+)(?:\s+(\d+))?', msg_lower)
+    if _report_match:
+        from jobs.connect_cards.report_menu import run_report
+        _report_key = _report_match.group(1).strip()
+        _report_weeks = int(_report_match.group(2)) if _report_match.group(2) else None
+        try:
+            subject, html = run_report(_report_key, weeks=_report_weeks)
+        except Exception as exc:
+            return _sse_response(_stream_simple(f"Report error: {exc}"))
+        import re as _re2
+        body_match = _re2.search(r'<body[^>]*>(.*?)</body>', html, _re2.DOTALL)
+        body = body_match.group(1) if body_match else html
+        return _sse_response(_stream_simple(body))
 
     _identity = _router._is_identity_query(message)
     _factual = _router._is_factual_query(message)
