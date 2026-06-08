@@ -1632,14 +1632,10 @@ function closeReportsPanel() {
 
 function loadReportsList() {
   const reports = [
-    { key: 'next_steps', label: 'Next Steps (12 weeks)' },
-    { key: 'missed_weeks', label: 'Absent 3+ Weeks' },
-    { key: 'missed_weeks_6', label: 'Absent 6+ Weeks' },
-    { key: 'first_time_visitors', label: 'First-Time Visitors (4 weeks)' },
-    { key: 'lapsed_visitors', label: 'Visitors Not Seen Since' },
-    { key: 'next_steps_followup', label: 'Next Steps — Needs Follow-Up' },
-    { key: 'new_faces', label: 'New Faces (4 weeks)' },
-    { key: 'attendance_trends', label: 'Attendance Trends (8 weeks)' },
+    { key: 'next_steps', label: 'Next Steps' },
+    { key: 'missed_weeks', label: 'Absent Members' },
+    { key: 'first_time_visitors', label: 'First-Time Visitors' },
+    { key: 'attendance_trends', label: 'Attendance Trends' },
     { key: 'overview', label: 'Congregation Overview' },
   ];
   const list = document.getElementById('settings-reports-list');
@@ -1651,18 +1647,82 @@ function loadReportsList() {
   `).join('');
 }
 
+const REPORT_TIME_PARAMS = {
+  'next_steps': { label: 'Next Steps', param: 'weeks', default: 12 },
+  'missed_weeks': { label: 'Absent Members', param: 'weeks', default: 3 },
+  'first_time_visitors': { label: 'First-Time Visitors', param: 'weeks', default: 4 },
+  'attendance_trends': { label: 'Attendance Trends', param: 'weeks', default: 8 },
+  'overview': { label: 'Congregation Overview', param: null, default: null },
+};
+
 function runReportFromMenu(key) {
+  const config = REPORT_TIME_PARAMS[key] || { param: null };
+  if (config.param === 'weeks') {
+    showReportTimePicker(key, config);
+  } else {
+    executeReport(key, null);
+  }
+}
+
+function showReportTimePicker(key, config) {
+  const existing = document.getElementById('report-time-picker');
+  if (existing) existing.remove();
+  const modal = document.createElement('div');
+  modal.id = 'report-time-picker';
+  modal.style.cssText = 'position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.6);display:flex;align-items:flex-end;justify-content:center';
+  modal.innerHTML = `
+    <div style="background:var(--bg);border-radius:16px 16px 0 0;padding:24px;width:100%;max-width:480px;padding-bottom:max(24px,env(safe-area-inset-bottom))">
+      <div style="font-size:1em;font-weight:600;margin-bottom:16px">${config.label}</div>
+      <div style="font-size:.85em;color:var(--text-muted);margin-bottom:12px">How many weeks back?</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px">
+        ${[2,4,6,8,12,16,24].map(w => `
+          <button onclick="pickReportWeeks('${key}',${w})"
+            style="padding:8px 16px;border-radius:8px;border:1px solid var(--border);background:${w===config.default?'var(--accent)':'var(--surface-2)'};color:${w===config.default?'#fff':'var(--text)'};font-size:.9em;cursor:pointer">
+            ${w}w
+          </button>`).join('')}
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:16px">
+        <input id="report-weeks-custom" type="number" min="1" max="104" placeholder="Custom weeks"
+          style="flex:1;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2);color:var(--text);font-size:.9em">
+        <button onclick="pickReportWeeks('${key}', parseInt(document.getElementById('report-weeks-custom').value)||${config.default})"
+          style="padding:10px 18px;border-radius:8px;border:none;background:var(--accent);color:#fff;font-size:.9em;cursor:pointer">Go</button>
+      </div>
+      <button onclick="document.getElementById('report-time-picker').remove()"
+        style="width:100%;padding:12px;border-radius:8px;border:1px solid var(--border);background:none;color:var(--text-muted);font-size:.9em;cursor:pointer">Cancel</button>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+}
+
+function pickReportWeeks(key, weeks) {
+  const modal = document.getElementById('report-time-picker');
+  if (modal) modal.remove();
+  executeReport(key, weeks);
+}
+
+function executeReport(key, weeks) {
   closeReportsPanel();
   closeSettings();
   switchTab('chat');
-  fetch('/api/chat', {
+  const message = weeks ? `run report: ${key} ${weeks}` : `run report: ${key}`;
+  const container = document.getElementById('chat-messages');
+  if (container) {
+    const userBubble = document.createElement('div');
+    userBubble.className = 'msg user';
+    userBubble.textContent = message;
+    container.appendChild(userBubble);
+    container.scrollTop = container.scrollHeight;
+  }
+  fetch('/api/chat/stream', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({ message: 'run report: ' + key, history: [], session_id: currentSessionId })
+    body: JSON.stringify({ message: message, history: [], session_id: currentSessionId || 0 })
   }).then(response => {
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
+    let bubble = null;
     function read() {
       reader.read().then(({ done, value }) => {
         if (done) return;
@@ -1670,9 +1730,19 @@ function runReportFromMenu(key) {
         const lines = buffer.split('\n');
         buffer = lines.pop();
         for (const line of lines) {
-          if (line.startsWith('data: ') && line !== 'data: [DONE]') {
+          if (line.startsWith('data: ') && line !== 'data: [DONE]' && !line.startsWith('data: [ERROR]')) {
             const text = line.slice(6);
-            appendReportToChat(text);
+            if (!bubble) {
+              bubble = document.createElement('div');
+              bubble.className = 'msg assistant';
+              bubble.style.maxWidth = '100%';
+              if (container) {
+                container.appendChild(bubble);
+                container.scrollTop = container.scrollHeight;
+              }
+            }
+            bubble.innerHTML += text;
+            if (container) container.scrollTop = container.scrollHeight;
           }
         }
         read();
@@ -1680,14 +1750,4 @@ function runReportFromMenu(key) {
     }
     read();
   });
-}
-
-function appendReportToChat(html) {
-  const container = document.getElementById('chat-messages');
-  if (!container) return;
-  const bubble = document.createElement('div');
-  bubble.className = 'msg assistant';
-  bubble.innerHTML = html;
-  container.appendChild(bubble);
-  container.scrollTop = container.scrollHeight;
 }
