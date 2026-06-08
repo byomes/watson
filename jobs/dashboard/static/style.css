@@ -280,3 +280,4 @@ select option{background:var(--surface)}
 .pn-date{font-size:0.75rem;color:var(--text-muted)}
 .pn-note{color:var(--text);font-size:0.9rem;line-height:1.5}
 .pn-archive-btn{margin-top:0.75rem;background:transparent;border:1px solid var(--border);color:var(--text-muted);border-radius:4px;padding:0.25rem 0.75rem;cursor:pointer;font-size:0.8rem}
+#settings-reports{padding-top:max(60px,env(safe-area-inset-top))}

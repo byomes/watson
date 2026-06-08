@@ -1621,12 +1621,12 @@ async function savePastoralNote() {
 
 function openReportsPanel() {
   document.getElementById('settings-main').style.display = 'none';
-  document.getElementById('settings-reports').style.display = 'flex';
+  document.getElementById('settings-reports').classList.add('open');
   loadReportsList();
 }
 
 function closeReportsPanel() {
-  document.getElementById('settings-reports').style.display = 'none';
+  document.getElementById('settings-reports').classList.remove('open');
   document.getElementById('settings-main').style.display = '';
 }
 
