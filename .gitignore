@@ -11,7 +11,7 @@ data/*.log
 data/reading_list.json
 
 # Transcripts (generated at runtime)
-kb/transcripts/
+
 
 # Python environment
 venv/
