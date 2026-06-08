@@ -495,6 +495,28 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         _log_telegram_exchange(text_clean, reply)
         return
 
+    # Report menu
+    if text_lower in ("reports", "report menu"):
+        from jobs.connect_cards.report_menu import get_telegram_menu
+        menu = get_telegram_menu()
+        await update.message.reply_text(menu, parse_mode="Markdown")
+        _log_telegram_exchange(text_clean, menu)
+        return
+
+    _report_match = re.match(r'^report\s+(.+)', text_lower)
+    if _report_match:
+        from jobs.connect_cards.report_menu import run_report, report_to_telegram
+        _rname = text_clean[_report_match.start(1):].strip()
+        _result = run_report(_rname)
+        if _result is None:
+            reply = f"No report found matching '{_rname}'."
+        else:
+            _, _html = _result
+            reply = report_to_telegram(_html)
+        await update.message.reply_text(reply, parse_mode="Markdown")
+        _log_telegram_exchange(text_clean, reply)
+        return
+
     from jobs.skillbuilder import router as _router
 
     # 1. Factual queries → web search
