@@ -53,3 +53,59 @@ A run() function should never call the Telegram API directly.
 ## Recently Built
 - jobs/monitoring/weather_every_morning.py: build a skill that checks the weather and sends it to me every morning at 6am via Telegram (built 2026-06-06)
 - jobs/misc/tells_many_days.py: build a skill that tells me how many days until Christmas (built by qwen2.5-coder:7b on 2026-06-06)
+- jobs/monitoring/adds_memory_files.py: build a skill that adds Memory and Files buttons to the top of the project works (built by qwen2.5-coder:7b on 2026-06-06)
+
+
+## Pattern: build a skill that adds Memory and Files buttons to the top  (2026-06-06)
+The key coding pattern demonstrated in this code is the Observer design pattern, specifically through the use of callbacks and handlers. The `button` function serves as an observer that responds to changes in the state of the application, triggered by a callback from the Telegram bot's callback query handler. This allows for decoupling between the main logic of the application and the specific actions taken in response to user input, promoting modularity and reusability.
+```python
+import logging
+from os import environ
+from telegram.ext import Updater, CommandHandler, CallbackContext
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from sqlite3 import connect
+
+# Load environment variables from .env file
+from dotenv import load_dotenv
+load_dotenv()
+
+# Configure logging
+logging.basicConfig(filename='~/watson/logs/error.log', level=logging.ERROR)
+
+TOKEN = environ.get('TELEGRAM_BOT_TOKEN')
+
+def start(update: Update, context: CallbackContext) -> None:
+    keyboard = [
+        [InlineKeyboardButton("Files", callback_data='files')],
+        [InlineKeyboardButton("Memory", callback_data='memory')]
+    ]
+```
+- jobs/misc/both_read_pdf.py: build a skill that can both read PDF files and extract their text content, and c (built by qwen2.5-coder:7b on 2026-06-06)
+- jobs/acquired/send.py: Watson will be able to send SMS messages using the send library, allowing users  (built by qwen2.5-coder:7b on 2026-06-06)
+- jobs/acquired/chump.py: Watson will be able to send push notifications using the Pushover API (built by qwen2.5-coder:7b on 2026-06-06)
+
+
+## Pattern: Watson will be able to send push notifications using the Pus (2026-06-06)
+The key coding pattern demonstrated in this code is the Observer Pattern, specifically a variation of it known as the "Notification" or "Publish-Subscribe" pattern. This pattern allows objects (in this case, the `send_pushover_notification` function) to be notified of events (the notification being sent), without having a direct reference to each other. The `run` function serves as the subject, and the `send_pushover_notification` function acts as the observer, receiving notifications from the subject when an event occurs.
+```python
+import os
+import sqlite3
+import requests
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# Constants
+DB_PATH = '~/watson/data/watson.db'
+LOG_PATH = '~/watson/logs/'
+PUSHOVER_API_URL = 'https://api.pushover.net/1/messages.json'
+
+def send_pushover_notification(message):
+    token = os.getenv('PUSHOVER_APP_TOKEN')
+    user_key = os.getenv('PUSHOVER_USER_KEY')
+
+    if not token or not user_key:
+        raise ValueError("Pushover API token and user key must be set in environment variables.")
+
+    payload = {
+```
