@@ -69,6 +69,10 @@
         <span class="overlay-row-label">Pastoral Notes</span>
         <span class="overlay-row-chevron">&#8250;</span>
       </div>
+      <div class="overlay-row" onclick="openReportsPanel()">
+        <span class="overlay-row-label">Reports</span>
+        <span class="overlay-row-chevron">&#8250;</span>
+      </div>
     </div>
   </div>
   <div id="settings-reminders" class="overlay-sub">
@@ -95,6 +99,16 @@
       <input id="skill-search" class="sbar" type="text" placeholder="Search skills&#8230;" oninput="onSkillSearch(this.value)" style="margin-bottom:10px">
       <div id="skill-category-pills" class="skill-category-pills"></div>
       <div id="settings-skills-list"></div>
+    </div>
+  </div>
+  <div id="settings-reports" class="overlay-sub">
+    <div class="overlay-topbar">
+      <button class="overlay-back" onclick="closeReportsPanel()">&#8592; Back</button>
+      <span class="overlay-title">Reports</span>
+      <div style="min-width:60px"></div>
+    </div>
+    <div class="overlay-body" style="padding:16px">
+      <div id="settings-reports-list"></div>
     </div>
   </div>
 </div>
