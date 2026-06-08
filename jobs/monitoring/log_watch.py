@@ -45,7 +45,7 @@ def main():
     job_queue.run_repeating(send_telegram_summary, interval=3600, first=0, context=TELEGRAM_BOT_CHAT_ID)
 
     load_dotenv()
-    TELEGRAM_BOT_CHAT_ID = os.getenv("TELEGRAM_BOT_CHAT_ID")
+    TELEGRAM_BOT_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
     updater.start_polling()
 
