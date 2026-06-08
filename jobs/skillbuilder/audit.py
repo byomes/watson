@@ -1,8 +1,13 @@
-"""jobs/skillbuilder/audit.py — weekly capability gap audit."""
+"""jobs/skillbuilder/audit.py — skill health audit + capability gap audit."""
+import argparse
+import importlib
 import json
 import logging
 import os
+import re
 import sqlite3
+import sys
+from datetime import datetime
 from pathlib import Path
 
 import requests
@@ -12,7 +17,9 @@ load_dotenv()
 
 REPO = Path(__file__).resolve().parents[2]
 MEMORY = REPO / "memory"
-DB_PATH = Path(os.getenv("WATSON_DB", str(REPO / "data" / "watson.db")))
+DATA_DIR = REPO / "data"
+AUDIT_FILE = DATA_DIR / "skill_audit.json"
+DB_PATH = Path(os.getenv("WATSON_DB", str(DATA_DIR / "watson.db")))
 OLLAMA_URL = "http://localhost:11434/api/generate"
 OLLAMA_MODEL = "llama3.2:3b"
 
@@ -80,6 +87,8 @@ def _call_ollama(prompt: str) -> str:
     resp.raise_for_status()
     return resp.json().get("response", "").strip()
 
+
+# ── Capability gap audit (existing) ──────────────────────────────────────────
 
 def run_audit() -> str:
     skills_file = MEMORY / "skills.json"
@@ -190,7 +199,120 @@ def run_audit() -> str:
     return summary
 
 
+# ── Skill health audit ────────────────────────────────────────────────────────
+
+_ENV_PATTERN = re.compile(
+    r'os\.(?:getenv|environ\.get)\(\s*["\']([^"\']+)["\']'
+    r'|os\.environ\[\s*["\']([^"\']+)["\']'
+)
+
+_FALLBACK_PATTERN = re.compile(
+    r'os\.(?:getenv|environ\.get)\(\s*["\']([^"\']+)["\'][^)]*\)'
+    r'\s*or\s*'
+    r'os\.(?:getenv|environ\.get)\(\s*["\']([^"\']+)["\']'
+)
+
+
+def _find_missing_env(text: str) -> list:
+    satisfied = set()
+    for m in _FALLBACK_PATTERN.finditer(text):
+        a, b = m.group(1), m.group(2)
+        if os.environ.get(a) or os.environ.get(b):
+            satisfied.add(a)
+            satisfied.add(b)
+    all_refs = set()
+    for m in _ENV_PATTERN.finditer(text):
+        all_refs.add(m.group(1) or m.group(2))
+    return sorted(v for v in all_refs if v not in satisfied and not os.environ.get(v))
+
+
+def _classify_skill(skill: dict) -> tuple:
+    """Return (status, detail) for a single skill entry."""
+    slug = skill.get("slug", "")
+    job_module = skill.get("job_module", "")
+
+    # Locate job file
+    job_file = None
+    if job_module:
+        job_file = REPO / (job_module.replace(".", "/") + ".py")
+    else:
+        matches = list(REPO.glob(f"jobs/**/{slug}.py"))
+        if matches:
+            job_file = matches[0]
+
+    if job_file is None or not job_file.exists():
+        return "prompt_only", "no job file"
+
+    # Attempt import
+    if job_module:
+        try:
+            importlib.import_module(job_module)
+        except (ImportError, ModuleNotFoundError) as exc:
+            return "missing_deps", str(exc)
+        except Exception as exc:
+            return "broken", str(exc)
+
+    # Scan for missing env vars
+    try:
+        text = job_file.read_text(encoding='utf-8')
+        missing = _find_missing_env(text)
+        if missing:
+            return 'missing_creds', f'missing: {', '.join(missing)}'
+    except Exception as exc:
+        log.warning('Env scan failed for %s: %s', slug, exc)
+
+    return "functional", ""
+
+
+def run_skill_audit(dry_run: bool = False) -> dict:
+    """Check every skill in skills.json for health and write ~/watson/data/skill_audit.json."""
+    skills_file = MEMORY / "skills.json"
+    if not skills_file.exists():
+        raise FileNotFoundError("memory/skills.json not found")
+
+    skills = json.loads(skills_file.read_text(encoding="utf-8"))
+    summary = {"functional": 0, "prompt_only": 0, "broken": 0, "missing_deps": 0, "missing_creds": 0}
+    skill_results = []
+
+    for skill in skills:
+        slug = skill.get("slug", "unknown")
+        status, detail = _classify_skill(skill)
+        summary[status] = summary.get(status, 0) + 1
+        skill_results.append({"slug": slug, "status": status, "detail": detail})
+        log.info("%-40s %s  %s", slug, status, detail)
+
+    report = {
+        "run_at": datetime.utcnow().isoformat(),
+        "summary": summary,
+        "skills": skill_results,
+    }
+
+    if dry_run:
+        print("Skill Audit — dry run")
+        print(f"  ✅ Functional:     {summary['functional']}")
+        print(f"  📝 Prompt-only:    {summary['prompt_only']}")
+        print(f"  ❌ Broken:         {summary['broken']}")
+        print(f"  📦 Missing deps:   {summary['missing_deps']}")
+        print(f"  🔑 Missing creds:  {summary['missing_creds']}")
+    else:
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        AUDIT_FILE.write_text(json.dumps(report, indent=2), encoding="utf-8")
+        log.info("Skill audit written to %s", AUDIT_FILE)
+        _telegram(
+            "Skill audit complete.\n"
+            f"✅ Functional: {summary['functional']}\n"
+            f"📝 Prompt-only: {summary['prompt_only']}\n"
+            f"❌ Broken: {summary['broken']}\n"
+            f"📦 Missing deps: {summary['missing_deps']}\n"
+            f"🔑 Missing creds: {summary['missing_creds']}\n"
+            "Say 'show skill audit' for the full report."
+        )
+
+    return report
+
+
 def run() -> str:
+    """Capability gap audit — called by the skill router."""
     return run_audit()
 
 
@@ -200,4 +322,11 @@ if __name__ == "__main__":
         format="%(asctime)s %(levelname)s %(message)s",
         datefmt="%H:%M:%S",
     )
-    print(run_audit())
+    parser = argparse.ArgumentParser(description="Watson skill health audit")
+    parser.add_argument("--dry-run", action="store_true", help="Print summary instead of writing file and notifying Telegram")
+    args = parser.parse_args()
+    try:
+        run_skill_audit(dry_run=args.dry_run)
+    except Exception as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        sys.exit(1)
