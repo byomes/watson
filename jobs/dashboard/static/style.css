@@ -271,3 +271,12 @@ select option{background:var(--surface)}
 .email-confirm-btns{display:flex;gap:8px;margin-top:4px}
 .email-confirm-send{padding:7px 16px;background:var(--accent);border:none;border-radius:6px;color:#fff;font-size:13px;font-family:inherit;font-weight:500;cursor:pointer}
 .email-confirm-cancel{padding:7px 16px;background:none;border:1px solid var(--red,#e05c5c);border-radius:6px;color:var(--red,#e05c5c);font-size:13px;font-family:inherit;cursor:pointer}
+
+/* Pastoral Notes */
+#pastoral-panel{position:fixed;inset:0;background:var(--bg);display:none;flex-direction:column;z-index:200;padding-top:max(12px,env(safe-area-inset-top))}
+.pastoral-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:1rem;margin-bottom:0.75rem}
+.pn-header{display:flex;justify-content:space-between;margin-bottom:0.4rem}
+.pn-name{font-weight:600;color:var(--text)}
+.pn-date{font-size:0.75rem;color:var(--text-muted)}
+.pn-note{color:var(--text);font-size:0.9rem;line-height:1.5}
+.pn-archive-btn{margin-top:0.75rem;background:transparent;border:1px solid var(--border);color:var(--text-muted);border-radius:4px;padding:0.25rem 0.75rem;cursor:pointer;font-size:0.8rem}

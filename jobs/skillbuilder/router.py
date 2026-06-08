@@ -187,6 +187,12 @@ _SKILL_PRE_CHECKS: dict[str, tuple] = {
         "update packages", "upgrade packages",
         "run command", "execute command", "run sync",
     ),
+    "pastoral_notes": (
+        "pastoral note", "pastoral notes", "make a note that", "note that",
+    ),
+    "send_contact_info": (
+        "send contact info", "contact info to", "send their contact",
+    ),
 }
 
 # Matched against msg_lower BEFORE the LLM call — returns run_audit immediately, no fallthrough

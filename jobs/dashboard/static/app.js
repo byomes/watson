@@ -1527,3 +1527,94 @@ async function deleteProject() {
   }
 
 })();
+
+// ── Pastoral Notes ────────────────────────────────────────────────────────────
+
+let _pastoralStatus = 'active';
+
+async function openPastoralNotes() {
+  _pastoralStatus = 'active';
+  const panel = document.getElementById('pastoral-panel');
+  panel.style.display = 'flex';
+  _syncPastoralTabs();
+  await loadPastoralNotes();
+}
+
+function closePastoralNotes() {
+  document.getElementById('pastoral-panel').style.display = 'none';
+}
+
+function _syncPastoralTabs() {
+  const active = document.getElementById('pn-tab-active');
+  const archived = document.getElementById('pn-tab-archived');
+  if (!active || !archived) return;
+  if (_pastoralStatus === 'active') {
+    active.style.borderBottomColor = 'var(--accent)';
+    active.style.color = 'var(--accent)';
+    archived.style.borderBottomColor = 'transparent';
+    archived.style.color = 'var(--text-muted)';
+  } else {
+    archived.style.borderBottomColor = 'var(--accent)';
+    archived.style.color = 'var(--accent)';
+    active.style.borderBottomColor = 'transparent';
+    active.style.color = 'var(--text-muted)';
+  }
+}
+
+async function loadPastoralNotes() {
+  const res = await fetch(`/api/pastoral-notes?status=${_pastoralStatus}`);
+  const notes = await res.json();
+  const container = document.getElementById('pastoral-notes-list');
+  if (!notes.length) {
+    container.innerHTML = '<p style="color:var(--text-muted);padding:1rem;">No notes.</p>';
+    return;
+  }
+  container.innerHTML = notes.map(n => `
+    <div class="pastoral-card" id="pn-${n.id}">
+      <div class="pn-header">
+        <span class="pn-name">${n.person_name}</span>
+        <span class="pn-date">${n.created_at.slice(0,16)}</span>
+      </div>
+      <div class="pn-note">${n.note}</div>
+      ${_pastoralStatus === 'active' ? `<button class="pn-archive-btn" onclick="archivePastoralNote(${n.id})">Archive</button>` : ''}
+    </div>
+  `).join('');
+}
+
+async function archivePastoralNote(id) {
+  await fetch(`/api/pastoral-notes/${id}/archive`, { method: 'POST' });
+  const card = document.getElementById(`pn-${id}`);
+  if (card) card.remove();
+  const container = document.getElementById('pastoral-notes-list');
+  if (container && !container.querySelector('.pastoral-card')) {
+    container.innerHTML = '<p style="color:var(--text-muted);padding:1rem;">No notes.</p>';
+  }
+}
+
+async function setPastoralView(status) {
+  _pastoralStatus = status;
+  _syncPastoralTabs();
+  await loadPastoralNotes();
+}
+
+function togglePastoralForm() {
+  const form = document.getElementById('pn-add-form');
+  const visible = form.style.display !== 'none';
+  form.style.display = visible ? 'none' : 'flex';
+  if (!visible) document.getElementById('pn-name-input').focus();
+}
+
+async function savePastoralNote() {
+  const name = document.getElementById('pn-name-input').value.trim();
+  const note = document.getElementById('pn-note-input').value.trim();
+  if (!name || !note) return;
+  await fetch('/api/pastoral-notes', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ person_name: name, note })
+  });
+  document.getElementById('pn-name-input').value = '';
+  document.getElementById('pn-note-input').value = '';
+  document.getElementById('pn-add-form').style.display = 'none';
+  await loadPastoralNotes();
+}

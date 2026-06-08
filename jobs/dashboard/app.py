@@ -89,6 +89,13 @@ def _bootstrap():
         c.execute("ALTER TABLE chat_messages ADD COLUMN source TEXT")
     except Exception:
         pass
+    c.execute("""CREATE TABLE IF NOT EXISTS pastoral_notes (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        person_name TEXT    NOT NULL,
+        note        TEXT    NOT NULL,
+        status      TEXT    NOT NULL DEFAULT 'active',
+        created_at  TEXT    NOT NULL DEFAULT (datetime('now', 'localtime'))
+    )""")
     c.commit()
     c.close()
 
@@ -477,6 +484,43 @@ def chat_messages_create(session_id):
     return jsonify(dict(row)), 201
 
 
+# ── Pastoral Notes API ───────────────────────────────────────────────────────
+
+@app.route("/api/pastoral-notes", methods=["GET"])
+def pastoral_notes_list():
+    status = request.args.get("status", "active")
+    rows = _db().execute(
+        "SELECT id, person_name, note, status, created_at FROM pastoral_notes WHERE status = ? ORDER BY created_at DESC",
+        (status,)
+    ).fetchall()
+    return jsonify([dict(r) for r in rows])
+
+
+@app.route("/api/pastoral-notes", methods=["POST"])
+def pastoral_notes_create():
+    data = request.get_json()
+    person_name = (data.get("person_name") or "").strip()
+    note = (data.get("note") or "").strip()
+    if not person_name or not note:
+        return jsonify({"error": "person_name and note are required"}), 400
+    cur = _db().execute(
+        "INSERT INTO pastoral_notes (person_name, note) VALUES (?, ?)",
+        (person_name, note)
+    )
+    _db().commit()
+    return jsonify({"id": cur.lastrowid, "ok": True})
+
+
+@app.route("/api/pastoral-notes/<int:note_id>/archive", methods=["POST"])
+def pastoral_notes_archive(note_id):
+    _db().execute(
+        "UPDATE pastoral_notes SET status = 'archived' WHERE id = ?",
+        (note_id,)
+    )
+    _db().commit()
+    return jsonify({"ok": True})
+
+
 # ── Upload API ────────────────────────────────────────────────────────────────
 
 _TEXT_EXTS = {".txt", ".md", ".csv", ".json", ".py", ".html", ".xml"}
@@ -621,6 +665,98 @@ def chat_stream():
         if msg_lower in _DENY or msg_lower.startswith("no "):
             _pending_skill_request = None
             return _sse_response(_stream_simple("Got it. Let me know if you need anything else."))
+
+    # Pastoral notes — create
+    import re as _re
+    _pn_create = _re.search(
+        r'pastoral note[s]?\s+(?:that|for|about)?\s*(.+)',
+        message, _re.IGNORECASE
+    )
+    if _pn_create:
+        raw = _pn_create.group(1).strip()
+        name_match = _re.match(r'^([A-Z][a-z]+(?: [A-Z][a-z]+)?)\s+(?:is|has|was|will|needs|received)', raw)
+        if name_match:
+            person_name = name_match.group(1)
+            note_text = raw
+        else:
+            person_name = "Unknown"
+            note_text = raw
+        _db().execute(
+            "INSERT INTO pastoral_notes (person_name, note) VALUES (?, ?)",
+            (person_name, note_text)
+        )
+        _db().commit()
+        return _sse_response(_stream_simple(f"Pastoral note saved for {person_name}."))
+
+    # Pastoral notes — show
+    if any(p in msg_lower for p in ("show pastoral notes", "pastoral notes", "show me the pastoral notes")):
+        rows = _db().execute(
+            "SELECT person_name, note, created_at FROM pastoral_notes WHERE status = 'active' ORDER BY created_at DESC"
+        ).fetchall()
+        if not rows:
+            return _sse_response(_stream_simple("No active pastoral notes."))
+        lines = ["**Pastoral Notes**\n"]
+        for r in rows:
+            lines.append(f"**{r['person_name']}** — {r['created_at'][:16]}\n{r['note']}\n")
+        return _sse_response(_stream_simple("\n".join(lines)))
+
+    # Send contact info
+    _send_contact = _re.search(
+        r"send (.+?)'s contact info to (.+)",
+        message, _re.IGNORECASE
+    )
+    if _send_contact:
+        contact_name = _send_contact.group(1).strip()
+        recipient_name = _send_contact.group(2).strip().rstrip('.')
+
+        contact = _db().execute(
+            "SELECT name, email, phone FROM congregation WHERE name LIKE ? LIMIT 1",
+            (f"%{contact_name}%",)
+        ).fetchone()
+        if not contact:
+            contact = _db().execute(
+                "SELECT name, email, phone FROM people WHERE name LIKE ? LIMIT 1",
+                (f"%{contact_name}%",)
+            ).fetchone()
+
+        recipient = _db().execute(
+            "SELECT name, email FROM people WHERE name LIKE ? LIMIT 1",
+            (f"%{recipient_name}%",)
+        ).fetchone()
+
+        if not contact:
+            return _sse_response(_stream_simple(f"I couldn't find contact info for {contact_name}."))
+        if not recipient or not recipient["email"]:
+            return _sse_response(_stream_simple(f"I couldn't find an email address for {recipient_name} in the people registry."))
+
+        lines = [f"Contact info for {contact['name']}:"]
+        if contact["phone"]:
+            lines.append(f"Phone: {contact['phone']}")
+        if contact["email"]:
+            lines.append(f"Email: {contact['email']}")
+        body = "\n".join(lines)
+
+        import smtplib
+        from email.mime.text import MIMEText
+        smtp_host = os.getenv("WATSON_SMTP_HOST", "smtp.gmail.com")
+        smtp_port = int(os.getenv("WATSON_SMTP_PORT", 587))
+        smtp_user = os.getenv("WATSON_GMAIL_ADDRESS")
+        smtp_pass = os.getenv("WATSON_GMAIL_APP_PASSWORD")
+        from_addr = os.getenv("WATSON_FROM_ADDRESS", smtp_user)
+
+        msg = MIMEText(body)
+        msg["Subject"] = f"Contact info: {contact['name']}"
+        msg["From"] = f"Watson <{from_addr}>"
+        msg["To"] = recipient["email"]
+
+        try:
+            with smtplib.SMTP(smtp_host, smtp_port) as server:
+                server.starttls()
+                server.login(smtp_user, smtp_pass)
+                server.sendmail(from_addr, [recipient["email"]], msg.as_string())
+            return _sse_response(_stream_simple(f"Sent {contact['name']}'s contact info to {recipient['name']} at {recipient['email']}."))
+        except Exception as exc:
+            return _sse_response(_stream_simple(f"Failed to send email: {exc}"))
 
     _identity = _router._is_identity_query(message)
     _factual = _router._is_factual_query(message)

@@ -293,8 +293,10 @@ def _process_email(msg, dry_run: bool, conn: sqlite3.Connection) -> bool:
     prayer = fields.get("prayer_request")
     if prayer:
         conn.execute(
-            "INSERT INTO prayer_requests (member_id, card_id, request_text, date) VALUES (?, ?, ?, ?)",
-            (member_id, card_id, prayer, svc_date),
+            "INSERT INTO prayer_requests (member_id, card_id, request_text, date, leadership_only)"
+            " VALUES (?, ?, ?, ?, ?)",
+            (member_id, card_id, prayer, svc_date,
+             1 if fields.get("prayer_leadership_only") else 0),
         )
 
     # follow_up (first-time visitor flag)

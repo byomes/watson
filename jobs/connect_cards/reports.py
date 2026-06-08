@@ -1,19 +1,13 @@
 """
 Connect card weekly reports — three distinct views of the same dataset.
 
-Table: connect_cards
-  id                    INTEGER PRIMARY KEY
-  service_date          DATE
-  campus                TEXT  ('Wilmington' | 'Online')
-  name                  TEXT
-  email                 TEXT
-  phone                 TEXT
-  is_first_visit        INTEGER  (1 = yes, 0 = returning)
-  next_steps            TEXT     (NULL if none selected)
-  question_comment   TEXT     (NULL if none)
-  prayer_request        TEXT     (NULL if none)
-  prayer_request_public INTEGER  (1 = public, 0 = leadership-only)
-  created_at            DATETIME
+Normalized schema in congregation.db:
+  connect_cards:    id, member_id, service_date, campus, questions_comments, email_id
+  members:          id, name, email, phone, first_visit_date
+  next_steps:       id, member_id, card_id, step, date
+  prayer_requests:  id, member_id, card_id, request_text, date
+  attendance:       id, member_id, service_date, campus, card_id
+  follow_ups:       id, member_id, card_id, note  (note='First-time visitor' flags first visits)
 
 All queries filter by service_date, never created_at, so late-arriving cards
 are always attributed to the correct Sunday regardless of submission time.
@@ -22,7 +16,7 @@ are always attributed to the correct Sunday regardless of submission time.
 import os
 import sqlite3
 
-DB_PATH = os.path.expanduser("~/watson/data/watson.db")
+DB_PATH = os.path.expanduser("~/watson/data/congregation.db")
 
 _CSS = (
     "body{font-family:Georgia,serif;max-width:620px;margin:0 auto;padding:24px;color:#222;background:#fff}"
@@ -83,13 +77,19 @@ def bill_report(service_date: str, updated: bool = False) -> tuple[str, str]:
     with _conn() as conn:
         rows = conn.execute(
             """
-            SELECT first_name || ' ' || last_name AS name,
-                   email, phone, campus, is_first_visit,
-                   next_steps, question_comment
-            FROM connect_cards
-            WHERE service_date = ?
-              AND (next_steps IS NOT NULL OR question_comment IS NOT NULL)
-            ORDER BY is_first_visit DESC, name
+            SELECT m.name, m.email, m.phone, cc.campus,
+                   cc.questions_comments,
+                   GROUP_CONCAT(ns.step, ', ') AS next_steps,
+                   MAX(fu.id IS NOT NULL) AS is_first_visit
+            FROM connect_cards cc
+            JOIN members m ON m.id = cc.member_id
+            LEFT JOIN next_steps ns ON ns.card_id = cc.id
+            LEFT JOIN follow_ups fu ON fu.card_id = cc.id
+                                   AND fu.note = 'First-time visitor'
+            WHERE cc.service_date = ?
+            GROUP BY cc.id
+            HAVING next_steps IS NOT NULL OR cc.questions_comments IS NOT NULL
+            ORDER BY is_first_visit DESC, m.name
             """,
             (service_date,),
         ).fetchall()
@@ -126,8 +126,8 @@ def bill_report(service_date: str, updated: bool = False) -> tuple[str, str]:
             f"<div class='note'>{r['next_steps']}</div>" if r["next_steps"] else "—"
         )
         comment_cell = (
-            f"<div class='note'>{r['question_comment']}</div>"
-            if r["question_comment"]
+            f"<div class='note'>{r['questions_comments']}</div>"
+            if r["questions_comments"]
             else "—"
         )
         table_rows += (
@@ -154,12 +154,15 @@ def donna_report(service_date: str, updated: bool = False) -> tuple[str, str]:
     with _conn() as conn:
         rows = conn.execute(
             """
-            SELECT campus, is_first_visit,
-                   first_name || ' ' || last_name AS name,
-                   email, phone
-            FROM connect_cards
-            WHERE service_date = ?
-            ORDER BY campus, is_first_visit DESC, name
+            SELECT m.name, m.email, m.phone, cc.campus,
+                   MAX(fu.id IS NOT NULL) AS is_first_visit
+            FROM connect_cards cc
+            JOIN members m ON m.id = cc.member_id
+            LEFT JOIN follow_ups fu ON fu.card_id = cc.id
+                                   AND fu.note = 'First-time visitor'
+            WHERE cc.service_date = ?
+            GROUP BY cc.id
+            ORDER BY cc.campus, is_first_visit DESC, m.name
             """,
             (service_date,),
         ).fetchall()
@@ -218,16 +221,16 @@ def donna_report(service_date: str, updated: bool = False) -> tuple[str, str]:
 # ── Kaci: prayer requests ─────────────────────────────────────────────────────
 
 def kaci_report(service_date: str, updated: bool = False) -> tuple[str, str]:
-    """Return (subject, html) for Kaci — prayer requests with public/private flag."""
+    """Return (subject, html) for Kaci — prayer requests."""
     with _conn() as conn:
         rows = conn.execute(
             """
-            SELECT first_name || ' ' || last_name AS name,
-                   campus, prayer_request, prayer_request_public
-            FROM connect_cards
-            WHERE service_date = ?
-              AND prayer_request IS NOT NULL
-            ORDER BY prayer_request_public DESC, name
+            SELECT m.name, cc.campus, pr.request_text, pr.leadership_only
+            FROM connect_cards cc
+            JOIN members m ON m.id = cc.member_id
+            JOIN prayer_requests pr ON pr.card_id = cc.id
+            WHERE cc.service_date = ?
+            ORDER BY pr.leadership_only DESC, m.name
             """,
             (service_date,),
         ).fetchall()
@@ -247,30 +250,30 @@ def kaci_report(service_date: str, updated: bool = False) -> tuple[str, str]:
         )
         return subject, _wrap("Prayer Requests", service_date, body)
 
-    public_count = sum(1 for r in rows if r["prayer_request_public"])
-    private_count = len(rows) - public_count
+    leadership_count = sum(1 for r in rows if r["leadership_only"])
+    public_count = len(rows) - leadership_count
 
     stats = (
         f"<div style='margin:16px 0'>"
         f"<div class='stat-box'><div class='stat'>{len(rows)}</div><div class='stat-label'>Prayer Requests</div></div>"
         f"<div class='stat-box'><div class='stat'>{public_count}</div><div class='stat-label'>Public</div></div>"
-        f"<div class='stat-box'><div class='stat'>{private_count}</div><div class='stat-label'>Leadership Only</div></div>"
+        f"<div class='stat-box'><div class='stat'>{leadership_count}</div><div class='stat-label'>Leadership Only</div></div>"
         f"</div>"
     )
 
     table_rows = ""
     for r in rows:
         privacy_badge = (
-            "<span class='badge public'>Public</span>"
-            if r["prayer_request_public"]
-            else "<span class='badge private'>Leadership only</span>"
+            "<span class='badge private'>Leadership only</span>"
+            if r["leadership_only"]
+            else "<span class='badge public'>Public</span>"
         )
         campus_badge = f"<span class='badge campus'>{r['campus'] or '—'}</span>"
         table_rows += (
             f"<tr>"
             f"<td><strong>{r['name'] or '(no name)'}</strong><br>{campus_badge}</td>"
             f"<td>{privacy_badge}</td>"
-            f"<td><div class='note'>{r['prayer_request']}</div></td>"
+            f"<td><div class='note'>{r['request_text']}</div></td>"
             f"</tr>"
         )
 
