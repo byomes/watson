@@ -481,7 +481,8 @@ def _route(message: str, interface: str) -> dict:
         skill = next((s for s in skills if s["slug"] == slug), None)
         if skill:
             try:
-                result = _run_skill(skill, message=slug)
+                skill_message = message[4:].strip()
+                result = _run_skill(skill, message=skill_message)
             except Exception as exc:
                 result = f"Skill error: {exc}"
             return {"action": "skill", "slug": slug, "result": result}

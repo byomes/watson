@@ -1087,7 +1087,9 @@ def chat_stream():
         skill = next((s for s in skills if s["slug"] == slug), None)
         if skill:
             try:
-                result = _router._run_skill(skill, message=slug)
+                # Pass everything after "run:<slug>" as the message parameter
+                skill_message = message[4:].strip()  # full text after "run:"
+                result = _router._run_skill(skill, message=skill_message)
             except Exception as exc:
                 result = f"Skill error: {exc}"
             return _sse_response(_stream_simple(str(result)))
