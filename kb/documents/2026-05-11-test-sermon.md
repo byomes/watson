@@ -1,0 +1,6 @@
+# Transcript: Test Sermon
+Date: 2026-05-11
+
+---
+
+﻿Today we look at Matthew 5. Jesus says blessed are the poor in spirit. This means those who recognize their spiritual bankruptcy before God. The kingdom belongs to those who know they have nothing to offer. We must come empty handed to receive what God freely gives.

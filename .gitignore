@@ -1,6 +1,7 @@
 .env
 data/watson.db
 data/archive/
+data/qr/
 __pycache__/
 *.pyc
 .claude/settings.local.json
