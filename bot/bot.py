@@ -517,6 +517,109 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         _log_telegram_exchange(text_clean, reply)
         return
 
+    # QR code generation
+    _QR_TRIGGERS = ('qr code', 'qr-code', 'make a qr', 'give me a qr',
+                    'generate a qr', 'create a qr', 'make qr', 'qr for')
+    if any(t in text_lower for t in _QR_TRIGGERS):
+        import io as _io
+        from jobs.qr.qr_generate import generate_qr as _gen_qr
+        _qr_patterns = [
+            r'(?:make a|give me a|generate a|create a|make|give me)\s+qr\s+(?:code\s+)?(?:for\s+)?(.+)',
+            r'qr\s+(?:code\s+)?(?:for\s+)?(.+)',
+        ]
+        _qr_content = None
+        for _pat in _qr_patterns:
+            _m = re.search(_pat, text_lower)
+            if _m:
+                _qr_content = text_clean[_m.start(1):].strip()
+                break
+        if _qr_content:
+            try:
+                _filepath, _png = _gen_qr(_qr_content)
+                context.user_data['last_qr'] = {'content': _qr_content, 'png_bytes': _png}
+                await update.message.reply_photo(
+                    photo=_io.BytesIO(_png),
+                    caption=f'QR code for: {_qr_content}',
+                )
+                _log_telegram_exchange(text_clean, f'[QR code generated for: {_qr_content}]')
+            except Exception as _exc:
+                log.error("QR generation failed: %s", _exc)
+                await update.message.reply_text(f'QR generation failed: {_exc}')
+        else:
+            await update.message.reply_text('What should the QR code contain?')
+        return
+
+    # QR email follow-up: "email this to [name]" / "send this to [name]"
+    _email_qr_match = re.search(r'(?:email|send)\s+this\s+(?:qr\s+)?to\s+(.+)', text_lower)
+    _last_qr = context.user_data.get('last_qr') if context.user_data else None
+    if _email_qr_match and _last_qr:
+        _contact_name = _email_qr_match.group(1).strip().rstrip('.')
+        from jobs.people.lookup import lookup_member as _lm
+        _hits = _lm(_contact_name)
+        _contact = next((c for c in _hits if c.get('email')), None)
+        if _contact:
+            from jobs.qr.qr_generate import send_qr_email as _send_qr_email
+            try:
+                _send_qr_email(
+                    _contact['email'], _contact['name'],
+                    _last_qr['content'], bytes(_last_qr['png_bytes']),
+                )
+                await update.message.reply_text(
+                    f"QR code sent to {_contact['name']} ({_contact['email']})."
+                )
+            except Exception as _exc:
+                await update.message.reply_text(f'Failed to send email: {_exc}')
+        else:
+            await update.message.reply_text(
+                f"No contact found for '{_contact_name}'. Check the name and try again."
+            )
+        return
+
+    # SMS interception
+    _sms_triggers = (
+        'text ', 'send a text', 'send text', 'shoot a text',
+        'shoot them a text', 'shoot her a text', 'shoot him a text',
+    )
+    if any(t in text_lower for t in _sms_triggers):
+        from jobs.sms.sms_send import send_sms_to_contact as _sms_to_contact, send_sms as _sms_direct
+
+        _sms_me = re.search(
+            r'(?:text|send a text to)\s+me\s+(?:that\s+|saying\s+)?(.+)',
+            text_clean, re.IGNORECASE,
+        )
+        _sms_contact_m = re.search(
+            r'(?:text|send a text to|send text to|shoot a text to)\s+(\w+(?:\s+\w+)?)\s+(?:that\s+|saying\s+|to say\s+)?(.+)',
+            text_clean, re.IGNORECASE,
+        )
+
+        if _sms_me:
+            _sms_msg = _sms_me.group(1).strip()
+            _owner_phone = os.environ.get('WATSON_OWNER_PHONE')
+            _owner_carrier = os.environ.get('WATSON_OWNER_CARRIER', 'verizon')
+            if _owner_phone:
+                _result = _sms_direct('Dr. Bill', _owner_phone, _owner_carrier, _sms_msg)
+                reply = f"Text sent to you." if _result['success'] else f"Failed: {_result['error']}"
+            else:
+                reply = "WATSON_OWNER_PHONE not set in .env."
+            await update.message.reply_text(reply)
+            _log_telegram_exchange(text_clean, reply)
+            return
+
+        elif _sms_contact_m:
+            _sms_name = _sms_contact_m.group(1).strip()
+            _sms_msg = _sms_contact_m.group(2).strip()
+            from jobs.people.lookup import lookup_member as _lm_sms
+            _hits = _lm_sms(_sms_name)
+            _contact = next((c for c in _hits if c.get('phone')), None)
+            if _contact:
+                _result = _sms_to_contact(_contact, _sms_msg)
+                reply = f"Text sent to {_contact['name']}." if _result['success'] else f"Failed: {_result['error']}"
+            else:
+                reply = f"No contact found for '{_sms_name}'."
+            await update.message.reply_text(reply)
+            _log_telegram_exchange(text_clean, reply)
+            return
+
     from jobs.skillbuilder import router as _router
 
     # 1. Factual queries → web search
