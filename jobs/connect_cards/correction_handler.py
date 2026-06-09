@@ -45,6 +45,7 @@ GMAIL_PASS = os.getenv("WATSON_GMAIL_APP_PASSWORD", "")
 
 DONNA_EMAIL          = os.getenv("DONNA_EMAIL", "").lower()
 BILL_CORRECTION_EMAIL = os.getenv("BILL_CORRECTION_EMAIL", "").lower()
+REPORT_EMAIL         = os.getenv("REPORT_EMAIL", "").lower()
 
 DB_PATH = os.path.expanduser("~/watson/data/congregation.db")
 
@@ -247,7 +248,7 @@ def run() -> None:
         log.error("WATSON_GMAIL_ADDRESS and WATSON_GMAIL_APP_PASSWORD must be set.")
         return
 
-    authorized = {a for a in [DONNA_EMAIL, BILL_CORRECTION_EMAIL] if a}
+    authorized = {a for a in [DONNA_EMAIL, BILL_CORRECTION_EMAIL, REPORT_EMAIL] if a}
     if not authorized:
         log.error("DONNA_EMAIL and/or BILL_CORRECTION_EMAIL must be set.")
         return
