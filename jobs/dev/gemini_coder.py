@@ -89,7 +89,22 @@ def _call_gemini(description: str) -> dict:
     # Remove control characters that break JSON parsing
     text = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', text)
     try:
-        return json.loads(text)
+        # Strip control characters that break JSON parsing
+        text = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', text)
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError:
+            # Try extracting just the JSON object
+            match = re.search(r'\{.*\}', text, re.DOTALL)
+            if match:
+                clean = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', match.group())
+                try:
+                    return json.loads(clean)
+                except json.JSONDecodeError:
+                    # Replace literal newlines inside strings
+                    clean = re.sub(r'(?<=: ")(.*?)(?=")', lambda m: m.group().replace('\n', '\\n').replace('\r', ''), clean, flags=re.DOTALL)
+                    return json.loads(clean)
+            raise
     except json.JSONDecodeError:
         # Try extracting just the JSON object
         match = re.search(r'\{.*\}', text, re.DOTALL)
