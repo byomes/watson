@@ -4,7 +4,7 @@ from io import BytesIO
 from pdfminer.high_level import extract_text_to_fp
 from pdfminer.layout import LAParams
 from requests import post
-from python_dotenv import load_dotenv
+from dotenv import load_dotenv
 
 load_dotenv()
 
