@@ -124,8 +124,23 @@ def run():
     passed, filter_stats = filter_pool(pool)
     log.info("Filter passed %d/%d items", len(passed), len(pool))
 
+    try:
+        from jobs.briefing.gemini_relevance import score_items
+        passed = score_items(passed)
+        log.info("Gemini relevance scoring complete")
+    except Exception as exc:
+        log.warning("Gemini relevance scoring skipped: %s", exc)
+
     top, score_stats = score_and_select(passed)
     log.info("Scorer selected %d item(s) for briefing", len(top))
+
+    narrative = ""
+    try:
+        from jobs.briefing.gemini_narrative import generate_narrative
+        narrative = generate_narrative(top)
+        log.info("Gemini narrative generated")
+    except Exception as exc:
+        log.warning("Gemini narrative skipped: %s", exc)
 
     _write_briefing_items(top)
 
@@ -133,7 +148,7 @@ def run():
 
     _log_summary(fetch, filter_stats, score_stats, len(top), archived_total)
 
-    build_briefing()
+    build_briefing(narrative=narrative)
     log.info("Static briefing built")
 
     published = publish()
