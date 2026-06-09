@@ -184,7 +184,7 @@ def _attendance_exists(conn: sqlite3.Connection, member_id: int, service_date: s
 def _sender_name(addr: str) -> str:
     if addr == DONNA_EMAIL:
         return "Donna"
-    if addr == BILL_CORRECTION_EMAIL:
+    if addr in (BILL_CORRECTION_EMAIL, REPORT_EMAIL):
         return "Dr. Bill"
     return addr
 
