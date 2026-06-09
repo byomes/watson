@@ -100,6 +100,10 @@ def _bootstrap():
         status      TEXT    NOT NULL DEFAULT 'active',
         created_at  TEXT    NOT NULL DEFAULT (datetime('now', 'localtime'))
     )""")
+    try:
+        c.execute("ALTER TABLE people ADD COLUMN carrier TEXT")
+    except Exception:
+        pass
     c.execute("""CREATE TABLE IF NOT EXISTS qr_cache (
         id         INTEGER PRIMARY KEY AUTOINCREMENT,
         content    TEXT    NOT NULL,

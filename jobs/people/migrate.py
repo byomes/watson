@@ -24,7 +24,7 @@ def run():
 
     # Safely add columns that older schema versions may be missing
     existing = {row[1] for row in conn.execute("PRAGMA table_info(people)").fetchall()}
-    for col, defn in [("relationship", "TEXT"), ("notes", "TEXT")]:
+    for col, defn in [("relationship", "TEXT"), ("notes", "TEXT"), ("carrier", "TEXT")]:
         if col not in existing:
             conn.execute(f"ALTER TABLE people ADD COLUMN {col} {defn}")
 

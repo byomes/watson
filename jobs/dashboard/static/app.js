@@ -266,17 +266,32 @@ async function loadSessions() {
       const proj = s.project_slug ? projects.find(p => p.slug === s.project_slug) : null;
       const projLabel = proj ? proj.name : s.project_slug;
       const badge = s.project_slug ? '<span class="proj-badge">' + esc(projLabel || s.project_slug) + '</span>' : '';
-      const onclick = s.project_slug
-        ? 'openProjectWorkspace(\'' + esc(s.project_slug) + '\',\'' + esc(projLabel || s.project_slug).replace(/'/g,"\'") + '\')'
-        : 'openSession(' + s.id + ',\'' + esc(s.title).replace(/'/g,"\'") + '\')';
-      return '<div class="session-row" onclick="' + onclick + '">' +
+      const dataAttrs = s.project_slug
+        ? 'data-project-slug="' + esc(s.project_slug) + '" data-project-name="' + esc(projLabel || s.project_slug) + '"'
+        : 'data-session-id="' + s.id + '" data-session-title="' + esc(s.title) + '"';
+      return '<div class="session-row" ' + dataAttrs + '>' +
         '<div class="session-info">' +
           '<div class="session-title">' + esc(s.title) + badge + '</div>' +
           '<div class="session-date">' + dateStr + '</div>' +
         '</div>' +
-        '<button class="session-del" onclick="event.stopPropagation();deleteSession(' + s.id + ')" title="Delete">&#215;</button>' +
+        '<button class="session-del" data-del-id="' + s.id + '" title="Delete">&#215;</button>' +
       '</div>';
     }).join('');
+    el.querySelectorAll('.session-row').forEach(row => {
+      row.addEventListener('click', () => {
+        if (row.dataset.projectSlug) {
+          openProjectWorkspace(row.dataset.projectSlug, row.dataset.projectName);
+        } else {
+          openSession(Number(row.dataset.sessionId), row.dataset.sessionTitle);
+        }
+      });
+    });
+    el.querySelectorAll('.session-del').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        deleteSession(Number(btn.dataset.delId));
+      });
+    });
   } catch(_) {
     el.innerHTML = '<div class="ctr" style="font-size:12px">Offline</div>';
   }
@@ -540,6 +555,12 @@ async function sendChat() {
           return;
         } else if (data.startsWith('[CONFIRM_EMAIL]')) {
           try { confirmEmailData = JSON.parse(data.slice(15)); } catch(_) {}
+        } else if (data.startsWith('[QR_IMAGE]')) {
+          const img = document.createElement('img');
+          img.src = 'data:image/png;base64,' + data.slice(10);
+          img.alt = 'QR Code';
+          img.style.cssText = 'max-width:280px;border-radius:8px;margin-top:12px;display:block;';
+          bubble.appendChild(img);
         } else {
           try {
             const parsed = JSON.parse(data);
@@ -779,12 +800,14 @@ async function saveNewContact() {
     email: document.getElementById('nc-email').value.trim() || null,
     phone: document.getElementById('nc-phone').value.trim() || null,
     relationship: document.getElementById('nc-rel').value.trim() || null,
+    carrier: document.getElementById('nc-carrier').value || null,
     notes: document.getElementById('nc-notes').value.trim() || null,
   });
   if (!c.error) {
     contacts = [...contacts, c].sort((a,b) => a.name.localeCompare(b.name));
     ['nc-name','nc-email','nc-phone','nc-rel','nc-notes'].forEach(id =>
       document.getElementById(id).value = '');
+    document.getElementById('nc-carrier').value = '';
     toggleAddContact();
     renderContacts();
   }
@@ -815,6 +838,12 @@ function renderContacts() {
         '<input type="text" id="ec-e-' + c.id + '" value="' + esc(c.email||'') + '" placeholder="Email">' +
         '<input type="text" id="ec-p-' + c.id + '" value="' + esc(c.phone||'') + '" placeholder="Phone">' +
         '<input type="text" id="ec-r-' + c.id + '" value="' + esc(c.relationship||'') + '" placeholder="Relationship">' +
+        (function(){
+          var opts = ['','AT&T','Verizon','T-Mobile','Sprint','US Cellular','Cricket','Boost','Metro PCS','Other'];
+          var sel = '<select id="ec-ca-' + c.id + '" style="width:100%;padding:9px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:13px;font-family:inherit">';
+          opts.forEach(function(o){ sel += '<option value="' + o + '"' + (c.carrier===o?' selected':'') + '>' + (o||'Carrier (Unknown)') + '</option>'; });
+          return sel + '</select>';
+        })() +
         '<input type="text" id="ec-no-' + c.id + '" value="' + esc(c.notes||'') + '" placeholder="Notes">' +
         '<div class="row"><button class="btn btn-p" onclick="saveEdit(' + c.id + ')">Save</button>' +
         '<button class="btn btn-gh" onclick="cancelEdit()">Cancel</button></div>'
@@ -822,6 +851,7 @@ function renderContacts() {
         (c.email ? '<div class="dl">&#9993; ' + esc(c.email) + '</div>' : '') +
         (c.phone ? '<div class="dl">&#128222; ' + esc(c.phone) + '</div>' : '') +
         (c.relationship ? '<div class="dl">' + esc(c.relationship) + '</div>' : '') +
+        (c.carrier ? '<div class="dl" style="color:var(--text3);font-size:11px">&#128246; ' + esc(c.carrier) + '</div>' : '') +
         (c.notes ? '<div class="dl" style="color:var(--text3);font-size:11px">' + esc(c.notes) + '</div>' : '') +
         '<div class="row" style="margin-top:8px">' +
           '<button class="btn btn-gh" onclick="startEdit(' + c.id + ')">Edit</button>' +
@@ -848,6 +878,7 @@ async function saveEdit(id) {
     email: document.getElementById('ec-e-' + id).value.trim() || null,
     phone: document.getElementById('ec-p-' + id).value.trim() || null,
     relationship: document.getElementById('ec-r-' + id).value.trim() || null,
+    carrier: document.getElementById('ec-ca-' + id).value || null,
     notes: document.getElementById('ec-no-' + id).value.trim() || null,
   });
   if (!c.error) {

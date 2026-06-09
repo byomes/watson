@@ -15,11 +15,11 @@ def _row_to_dict(row):
     return dict(row) if row else None
 
 
-def add_person(name, email=None, phone=None, info=None):
+def add_person(name, email=None, phone=None, info=None, carrier=None):
     with _conn() as conn:
         cur = conn.execute(
-            "INSERT INTO people (name, email, phone, info) VALUES (?, ?, ?, ?)",
-            (name, email, phone, info),
+            "INSERT INTO people (name, email, phone, info, carrier) VALUES (?, ?, ?, ?, ?)",
+            (name, email, phone, info, carrier),
         )
         return cur.lastrowid
 
@@ -50,7 +50,7 @@ def get_person_by_email(email):
 
 
 def update_person(person_id, **kwargs):
-    allowed = {"name", "email", "phone", "info"}
+    allowed = {"name", "email", "phone", "info", "carrier"}
     fields = {k: v for k, v in kwargs.items() if k in allowed}
     if not fields:
         return
