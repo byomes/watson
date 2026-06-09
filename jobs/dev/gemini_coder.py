@@ -60,6 +60,11 @@ CRITICAL RULES:
 - Frontend JS: Watson uses vanilla JS, no frameworks, no npm
 - Always read the target file before modifying it
 - Never add a print() or file path return where a rendered result is expected
+- NEVER modify jobs/dashboard/static/app.js — this file is off-limits
+- NEVER modify jobs/dashboard/templates/index.html — off-limits
+- NEVER modify bot/bot.py directly — off-limits
+- If a fix requires frontend changes, describe what needs to change in the summary but do not include app.js or index.html in the files array
+- If a fix requires bot.py changes, describe what needs to change in the summary but do not include bot.py in the files array
 
 WHEN FIXING DASHBOARD SKILLS:
 - Skill run() functions must return a string result
