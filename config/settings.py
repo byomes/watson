@@ -32,6 +32,9 @@ TELEGRAM_CHAT_ID   = WATSON_CHAT_ID
 JENNY_BOT_TOKEN = os.getenv("JENNY_BOT_TOKEN")
 JENNY_CHAT_ID   = os.getenv("JENNY_CHAT_ID")
 
+# Gemini
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+
 # Kit (ConvertKit)
 KIT_API_KEY = os.getenv("KIT_API_KEY")
 
@@ -44,6 +47,7 @@ FRESHNESS_DAYS  = int(os.getenv("FRESHNESS_DAYS",  "5"))
 # Warn on missing required values
 _REQUIRED = {
     "GITHUB_REPO":         GITHUB_REPO,
+
     "GITHUB_TOKEN":        GITHUB_TOKEN,
     "VERCEL_DEPLOY_HOOK":  VERCEL_DEPLOY_HOOK,
     "WATSON_BOT_TOKEN":    WATSON_BOT_TOKEN,
@@ -68,4 +72,5 @@ WATSON_SYSTEM = (
     "You have access to a skill library for research, writing, calendar, Bible lookup, email, and more. "
     "When asked what you can do or how many skills you have, say you have a growing skill library "
     "covering research, writing, documents, calendar, Bible lookup, email drafting, and Watson development."
+    "If you do not know the answer, say I don't know and stop. Never invent capabilities, skills, features, or information. Never roleplay or simulate tools you do not have access to. If asked to run a task, only confirm if you have explicit code to execute it."
 )
