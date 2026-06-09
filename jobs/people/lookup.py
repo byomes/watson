@@ -24,23 +24,40 @@ def _cascade(conn, table, query: str) -> list[dict]:
     return [dict(r) for r in rows]
 
 
+def _merge(cong_rows: list[dict], watson_rows: list[dict]) -> list[dict]:
+    watson_by_name = {r["name"].lower(): r for r in watson_rows}
+    seen: set[str] = set()
+    merged = []
+    for c in cong_rows:
+        key = c["name"].lower()
+        w = watson_by_name.get(key)
+        if w:
+            seen.add(key)
+            merged.append({k: (w[k] if w.get(k) else c.get(k)) for k in set(c) | set(w)})
+        else:
+            merged.append(c)
+    for w in watson_rows:
+        if w["name"].lower() not in seen:
+            merged.append(w)
+    return merged
+
+
 def lookup_member(query: str) -> list[dict]:
     cong = sqlite3.connect(CONG_DB)
     cong.row_factory = sqlite3.Row
     try:
-        results = _cascade(cong, "members", query)
+        cong_results = _cascade(cong, "members", query)
     finally:
         cong.close()
-
-    if results:
-        return results
 
     watson = sqlite3.connect(WATSON_DB)
     watson.row_factory = sqlite3.Row
     try:
-        return _cascade(watson, "people", query)
+        watson_results = _cascade(watson, "people", query)
     finally:
         watson.close()
+
+    return _merge(cong_results, watson_results)
 
 
 if __name__ == "__main__":
