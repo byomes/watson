@@ -79,7 +79,8 @@ _SKILL_PRE_CHECKS: dict[str, tuple] = {
         "import vcf", "import vcard", "load contact card",
     ),
     "qr_generator": (
-        "generate qr", "qr code", "create qr", "make a qr",
+        "generate qr", "qr code", "qr-code", "create qr", "make a qr",
+        "give me a qr", "generate a qr", "create a qr", "make qr", "qr for",
     ),
     "youtube_downloader": (
         "download youtube", "download audio from", "download this video", "get audio from youtube",

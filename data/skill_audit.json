@@ -1,0 +1,372 @@
+{
+  "run_at": "2026-06-09T00:25:44.049911",
+  "summary": {
+    "functional": 70,
+    "prompt_only": 1,
+    "broken": 0,
+    "missing_deps": 0,
+    "missing_creds": 1
+  },
+  "skills": [
+    {
+      "slug": "log_watch",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "bible_lookup",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "calendar_availability",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "people_registry",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "send_email",
+      "status": "prompt_only",
+      "detail": "no job file"
+    },
+    {
+      "slug": "new_project",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "build_skill",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "weather_every_morning",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "wrap_up",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "reflect",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "tells_many_days",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "run_audit",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "web_search",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "import_contacts",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "both_read_pdf",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "read_pdf",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "read_word",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "read_excel",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "read_powerpoint",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "article_reader",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "feed_reader",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "table_extractor",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "data_analyzer",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "vcf_importer",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "qr_generator",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "date_helper",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "youtube_downloader",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "text_processor",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "readability_analyzer",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "audio_tools",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "chart_generator",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "template_engine",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "language_detector",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "code_quality",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "git_tools",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "code_editor",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "system_monitor",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "github_tools",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "test_runner",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "dependency_manager",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "code_analyzer",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "screenshot",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "image_tools",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "svg_generator",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "social_poster",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "seo_tools",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "content_calendar",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "site_deployer",
+      "status": "missing_creds",
+      "detail": "missing: VERCEL_ADMIN_PROJECT, VERCEL_TOKEN, VERCEL_UI_PROJECT, VERCEL_WCKY_PROJECT"
+    },
+    {
+      "slug": "page_generator",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "acquire_skill",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "academic_search",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "news_search",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "grammar_checker",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "semantic_search",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "calendar_importer",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "encryptor",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "spell_checker",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "skill_tester",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "error_analyzer",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "auto_fixer",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "skill_validator",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "performance_profiler",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "dependency_scanner",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "style_checker",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "document_converter",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "citation_manager",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "manuscript_tracker",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "epub_generator",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "summarizer",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "isbn_lookup",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "wordcloud_generator",
+      "status": "functional",
+      "detail": ""
+    },
+    {
+      "slug": "command_executor",
+      "status": "functional",
+      "detail": ""
+    }
+  ]
+}
