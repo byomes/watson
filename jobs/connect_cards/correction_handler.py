@@ -122,18 +122,41 @@ _SKIP_PATTERNS = re.compile(
 )
 
 
-def _parse_names(body: str) -> list[str]:
-    names = []
-    for line in body.splitlines():
-        s = line.strip()
-        if not s or len(s) < 3:
-            continue
-        if _SKIP_PATTERNS.search(s):
-            continue
-        if s.isupper() and len(s) > 20:
-            continue
-        names.append(s)
-    return names
+def _valid_name(s: str) -> bool:
+    if len(s) < 3:
+        return False
+    if s.startswith(">") or s.lower().startswith("on "):
+        return False
+    if _SKIP_PATTERNS.search(s):
+        return False
+    if s.isupper() and len(s) > 20:
+        return False
+    return True
+
+
+def _split_reply_sections(body: str) -> tuple[list[str], list[str]]:
+    """
+    Split reply body into (correction_names, inactive_names).
+    Splits on a line that is exactly 'non-active' (case-insensitive).
+    """
+    lines = [l.strip() for l in body.splitlines()]
+
+    split_idx = None
+    for i, line in enumerate(lines):
+        if line.lower() == "non-active":
+            split_idx = i
+            break
+
+    if split_idx is None:
+        correction_lines = lines
+        inactive_lines = []
+    else:
+        correction_lines = lines[:split_idx]
+        inactive_lines = lines[split_idx + 1:]
+
+    corrections = [l for l in correction_lines if _valid_name(l)]
+    inactives   = [l for l in inactive_lines   if _valid_name(l)]
+    return corrections, inactives
 
 
 def _find_or_create_member(conn: sqlite3.Connection, name: str) -> int:
@@ -165,8 +188,8 @@ def _sender_name(addr: str) -> str:
     return addr
 
 
-def _process_email(msg, conn: sqlite3.Connection) -> tuple[int, str, str]:
-    """Returns (inserted_count, service_date, sender_name)."""
+def _process_email(msg, conn: sqlite3.Connection) -> tuple[int, int, list[str], str, str]:
+    """Returns (inserted_count, inactive_count, not_found, service_date, sender_name)."""
     from_addr = email.utils.parseaddr(msg.get("From", ""))[1].lower()
     subject   = _decode_subject(msg.get("Subject", ""))
     body      = _get_plain_text(msg)
@@ -177,11 +200,16 @@ def _process_email(msg, conn: sqlite3.Connection) -> tuple[int, str, str]:
         service_date_obj = most_recent_sunday()
     service_date = service_date_obj.isoformat()
 
-    names = _parse_names(body)
-    log.info("Parsed %d correction name(s) for %s from %s", len(names), service_date, from_addr)
+    correction_names, inactive_names = _split_reply_sections(body)
+    log.info(
+        "Parsed %d correction(s), %d inactive(s) for %s from %s",
+        len(correction_names), len(inactive_names), service_date, from_addr,
+    )
 
     inserted = 0
-    for name in names:
+    not_found: list[str] = []
+
+    for name in correction_names:
         try:
             member_id = _find_or_create_member(conn, name)
             if not _attendance_exists(conn, member_id, service_date):
@@ -193,8 +221,25 @@ def _process_email(msg, conn: sqlite3.Connection) -> tuple[int, str, str]:
         except Exception as exc:
             log.error("Error processing correction name %r: %s", name, exc)
 
+    inactive_count = 0
+    for name in inactive_names:
+        try:
+            row = conn.execute(
+                "SELECT id FROM members WHERE LOWER(name) = LOWER(?)", (name,)
+            ).fetchone()
+            if row:
+                conn.execute(
+                    "UPDATE members SET active = 0, updated_at = datetime('now') WHERE id = ?",
+                    (row["id"],),
+                )
+                inactive_count += 1
+            else:
+                not_found.append(name)
+        except Exception as exc:
+            log.error("Error processing inactive name %r: %s", name, exc)
+
     conn.commit()
-    return inserted, service_date, _sender_name(from_addr)
+    return inserted, inactive_count, not_found, service_date, _sender_name(from_addr)
 
 
 def run() -> None:
@@ -250,7 +295,7 @@ def run() -> None:
                     continue
 
                 try:
-                    inserted, service_date, sender_name = _process_email(msg, conn)
+                    inserted, inactive_count, not_found, service_date, sender_name = _process_email(msg, conn)
                 except Exception as exc:
                     log.exception("Error processing email id %s: %s", eid, exc)
                     continue
@@ -260,10 +305,15 @@ def run() -> None:
                 date_label = format_date_for_subject(
                     __import__("datetime").date.fromisoformat(service_date)
                 )
-                _send_telegram(
-                    f"✏️ Corrections applied — {inserted} attendance records updated "
-                    f"for {date_label} (from {sender_name})"
-                )
+                lines = [
+                    f"✏️ Corrections applied for {date_label} (from {sender_name}):",
+                    f"• {inserted} attendance records updated",
+                ]
+                if inactive_count:
+                    lines.append(f"• {inactive_count} members marked inactive")
+                if not_found:
+                    lines.append(f"⚠️ Not found: {', '.join(not_found)}")
+                _send_telegram("\n".join(lines))
         finally:
             conn.close()
 
