@@ -349,7 +349,16 @@ function _appendMsg(role, text) {
   wrap.className = 'msg-wrap ' + role;
   const bubble = document.createElement('div');
   bubble.className = 'msg-bubble';
-  bubble.textContent = text;
+  if (text.trim().startsWith('data:image/')) {
+    const img = document.createElement('img');
+    img.src = text.trim();
+    img.style.maxWidth = '100%';
+    img.style.borderRadius = '8px';
+    img.style.marginTop = '8px';
+    bubble.appendChild(img);
+  } else {
+    bubble.textContent = text;
+  }
   const time = document.createElement('div');
   time.className = 'msg-time';
   time.textContent = _fmtTime(new Date());
