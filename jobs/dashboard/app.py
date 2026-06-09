@@ -102,6 +102,32 @@ def _bootstrap():
 
 _bootstrap()
 
+_EMAIL_SIGNATURE = "---\nWatson\nAI-powered digital assistant\nOffice of Dr. Bill Yomes\nwilliamckyomes.com/start"
+
+
+def _build_email_body(content: str) -> str:
+    return f"Dr. Bill asked me to send this to you:\n\n{content}\n\n{_EMAIL_SIGNATURE}"
+
+
+def _send_qr_telegram(png_bytes: bytes, content: str) -> None:
+    """Send QR code photo via Telegram."""
+    import io as _io
+    import requests as _rq
+    token = os.getenv("WATSON_BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
+    chat_id = os.getenv("WATSON_CHAT_ID") or os.getenv("TELEGRAM_CHAT_ID")
+    if not token or not chat_id:
+        return
+    try:
+        _rq.post(
+            f"https://api.telegram.org/bot{token}/sendPhoto",
+            files={'photo': ('qr_code.png', _io.BytesIO(png_bytes), 'image/png')},
+            data={'chat_id': chat_id, 'caption': f'QR code for: {content}'},
+            timeout=10,
+        )
+    except Exception:
+        pass
+
+
 # Pending skill proposal keyed by a single user (single-user system)
 _pending_skill_request: str | None = None
 
@@ -649,6 +675,63 @@ def chat_stream():
 
     msg_lower = message.lower().strip()
 
+    # QR code generation
+    _QR_TRIGGERS = ('qr code', 'qr-code', 'make a qr', 'give me a qr',
+                    'generate a qr', 'create a qr', 'make qr', 'qr for')
+    if any(t in msg_lower for t in _QR_TRIGGERS):
+        import base64 as _b64
+        import re as _re2
+        from jobs.qr.qr_generate import generate_qr as _gen_qr
+        _qr_patterns = [
+            r'(?:make a|give me a|generate a|create a|make|give me)\s+qr\s+(?:code\s+)?(?:for\s+)?(.+)',
+            r'qr\s+(?:code\s+)?(?:for\s+)?(.+)',
+        ]
+        _qr_content = None
+        for _pat in _qr_patterns:
+            _m = _re2.search(_pat, msg_lower)
+            if _m:
+                _qr_content = message[_m.start(1):].strip()
+                break
+        if _qr_content:
+            try:
+                _filepath, _png = _gen_qr(_qr_content)
+                _img_b64 = _b64.b64encode(_png).decode('utf-8')
+                session['last_qr'] = {'content': _qr_content, 'png_bytes': _png}
+                _send_qr_telegram(_png, _qr_content)
+
+                def _qr_stream(content=_qr_content, b64=_img_b64):
+                    yield _sse(f'QR code generated for: {content}')
+                    yield f'data: [QR_IMAGE]{b64}\n\n'
+                    yield 'data: [DONE]\n\n'
+
+                return _sse_response(_qr_stream())
+            except Exception as _exc:
+                return _sse_response(_stream_simple(f'QR generation failed: {_exc}'))
+        else:
+            return _sse_response(_stream_simple('What should the QR code contain?'))
+
+    # QR email follow-up: "email this to [name]"
+    _email_qr_match = _re.search(r'(?:email|send)\s+this\s+(?:qr\s+)?to\s+(.+)', msg_lower)
+    if _email_qr_match and session.get('last_qr'):
+        _contact_name = _email_qr_match.group(1).strip().rstrip('.')
+        from jobs.people.lookup import lookup_member as _lm
+        _hits = _lm(_contact_name)
+        _contact = next((c for c in _hits if c.get('email')), None)
+        if _contact:
+            from jobs.qr.qr_generate import send_qr_email as _send_qr_email
+            _lq = session['last_qr']
+            try:
+                _send_qr_email(_contact['email'], _contact['name'], _lq['content'], bytes(_lq['png_bytes']))
+                return _sse_response(_stream_simple(
+                    f"QR code sent to {_contact['name']} ({_contact['email']})."
+                ))
+            except Exception as _exc:
+                return _sse_response(_stream_simple(f'Failed to send email: {_exc}'))
+        else:
+            return _sse_response(_stream_simple(
+                f"No contact found for '{_contact_name}'. Check the name and try again."
+            ))
+
     # Handle yes/no follow-up on a pending skill proposal
     if _pending_skill_request is not None:
         if msg_lower in _AFFIRM:
@@ -709,19 +792,12 @@ def chat_stream():
         contact_name = _send_contact.group(1).strip()
         recipient_name = _send_contact.group(2).strip().rstrip('.')
 
-        import sqlite3 as _sqlite3
-        _cong_conn = _sqlite3.connect(os.path.expanduser("~/watson/data/congregation.db"))
-        _cong_conn.row_factory = _sqlite3.Row
-        contact = _cong_conn.execute(
-            "SELECT name, email, phone FROM members WHERE name LIKE ? LIMIT 1",
-            (f"%{contact_name}%",)
-        ).fetchone()
-        _cong_conn.close()
+        from jobs.people.lookup import lookup_member as _lookup_member
+        _contact_results = _lookup_member(contact_name)
+        contact = _contact_results[0] if _contact_results else None
 
-        recipient = _db().execute(
-            "SELECT name, email FROM people WHERE name LIKE ? LIMIT 1",
-            (f"%{recipient_name}%",)
-        ).fetchone()
+        _recip_results = _lookup_member(recipient_name)
+        recipient = _recip_results[0] if _recip_results else None
 
         if not contact:
             return _sse_response(_stream_simple(f"I couldn't find contact info for {contact_name}."))
@@ -743,7 +819,7 @@ def chat_stream():
         smtp_pass = os.getenv("WATSON_GMAIL_APP_PASSWORD")
         from_addr = os.getenv("WATSON_FROM_ADDRESS", smtp_user)
 
-        msg = MIMEText(body)
+        msg = MIMEText(_build_email_body(body))
         msg["Subject"] = f"Contact info: {contact['name']}"
         msg["From"] = f"Watson <{from_addr}>"
         msg["To"] = recipient["email"]
@@ -768,22 +844,93 @@ def chat_stream():
                        "on", "about", "and", "or", "of", "in", "to", "s"}
         _msg_clean = _re.sub(r'^watson[,\s]+', '', message, flags=_re.IGNORECASE).strip()
         _words = _re.findall(r"[a-zA-Z']+", _msg_clean)
-        _name_words = [w for w in _words if w.lower().rstrip("'s") not in _SKIP_WORDS and len(w) > 1]
+        _name_words = [w for w in (_re.sub(r"'s\b", "", w) for w in _words)
+                       if w and w.lower() not in _SKIP_WORDS and len(w) > 1]
         if _name_words:
             _lq = " ".join(_name_words[:2])
             from jobs.people.lookup import lookup_member
             members = lookup_member(_lq)
             if not members and len(_name_words) > 1:
-                members = lookup_member(_name_words[1])
+                members = lookup_member(_name_words[-1])
             if not members:
                 members = lookup_member(_name_words[0])
             if not members:
                 return _sse_response(_stream_simple(f"No members found matching '{_lq}'."))
-            lines = []
+            session['last_contact_lookup'] = [
+                {"name": m["name"], "phone": m.get("phone") or "", "email": m.get("email") or ""}
+                for m in members
+            ]
+            blocks = []
             for m in members:
-                contact = " | ".join(filter(None, [m.get("email"), m.get("phone"), m.get("campus_preference")]))
-                lines.append(f"<strong>{m['name']}</strong> — {contact or 'no contact info on file'}")
-            return _sse_response(_stream_simple("\n".join(lines)))
+                contact_lines = [m['name']]
+                if m.get("phone"):
+                    contact_lines.append(m["phone"])
+                if m.get("email"):
+                    contact_lines.append(m["email"])
+                blocks.append("\n".join(contact_lines))
+            return _sse_response(_stream_simple("\n\n".join(blocks)))
+
+    # Send last contact lookup result
+    _send_that = _re.search(r"send that to[:\s]+(.+)", message, _re.IGNORECASE)
+    if _send_that:
+        _last = session.get('last_contact_lookup')
+        if not _last:
+            return _sse_response(_stream_simple(
+                "I don't have a recent contact lookup to send. Ask me for someone's contact info first."
+            ))
+        _target = _send_that.group(1).strip().rstrip('.')
+        _to_email = None
+        _to_label = _target
+        if '@' in _target:
+            _to_email = _target
+        elif _target.lower() in ("me", "myself"):
+            _to_email = os.getenv("WATSON_OWNER_EMAIL")
+            if not _to_email:
+                return _sse_response(_stream_simple("WATSON_OWNER_EMAIL is not set."))
+        else:
+            from jobs.people.lookup import lookup_member as _lookup_member
+            _recip_hits = _lookup_member(_target)
+            _recip = next((r for r in _recip_hits if r.get("email")), None)
+            if not _recip or not _recip["email"]:
+                return _sse_response(_stream_simple(
+                    f"I couldn't find an email address for {_target} in the people registry."
+                ))
+            _to_email = _recip["email"]
+            _to_label = _recip["name"]
+
+        _body_blocks = []
+        for _c in _last:
+            _clines = [_c["name"]]
+            if _c.get("phone"):
+                _clines.append(_c["phone"])
+            if _c.get("email"):
+                _clines.append(_c["email"])
+            _body_blocks.append("\n".join(_clines))
+        _body = "\n\n".join(_body_blocks)
+        _names = ", ".join(_c["name"] for _c in _last)
+        _subject = f"Contact info: {_names}"
+
+        import smtplib
+        from email.mime.text import MIMEText
+        _smtp_host = os.getenv("WATSON_SMTP_HOST", "smtp.gmail.com")
+        _smtp_port = int(os.getenv("WATSON_SMTP_PORT", 587))
+        _smtp_user = os.getenv("WATSON_GMAIL_ADDRESS")
+        _smtp_pass = os.getenv("WATSON_GMAIL_APP_PASSWORD")
+        _from_addr = os.getenv("WATSON_FROM_ADDRESS", _smtp_user)
+        _emsg = MIMEText(_build_email_body(_body))
+        _emsg["Subject"] = _subject
+        _emsg["From"] = f"Watson <{_from_addr}>"
+        _emsg["To"] = _to_email
+        try:
+            with smtplib.SMTP(_smtp_host, _smtp_port) as _srv:
+                _srv.starttls()
+                _srv.login(_smtp_user, _smtp_pass)
+                _srv.sendmail(_from_addr, [_to_email], _emsg.as_string())
+            return _sse_response(_stream_simple(
+                f"Sent {_names}'s contact info to {_to_label} at {_to_email}."
+            ))
+        except Exception as _exc:
+            return _sse_response(_stream_simple(f"Failed to send email: {_exc}"))
 
     # Report menu
     from jobs.connect_cards.report_menu import get_menu_html as _get_menu_html
@@ -803,6 +950,50 @@ def chat_stream():
         body_match = _re2.search(r'<body[^>]*>(.*?)</body>', html, _re2.DOTALL)
         body = body_match.group(1) if body_match else html
         return _sse_response(_stream_simple(body))
+
+    # Skill audit — show report
+    if any(p in msg_lower for p in ("show skill audit", "skill audit report")):
+        _audit_path = Path(os.path.expanduser("~/watson/data/skill_audit.json"))
+        if not _audit_path.exists():
+            return _sse_response(_stream_simple(
+                "No skill audit on file. Say 'run skill audit' to generate one."
+            ))
+        try:
+            _audit = json.loads(_audit_path.read_text(encoding="utf-8"))
+            _s = _audit.get("summary", {})
+            _lines = [
+                f"Skill Audit — run {_audit.get('run_at', 'unknown')[:19]}\n",
+                f"✅ Functional: {_s.get('functional', 0)}",
+                f"📝 Prompt-only: {_s.get('prompt_only', 0)}",
+                f"❌ Broken: {_s.get('broken', 0)}",
+                f"📦 Missing deps: {_s.get('missing_deps', 0)}",
+                f"🔑 Missing creds: {_s.get('missing_creds', 0)}",
+            ]
+            _issues = [
+                sk for sk in _audit.get("skills", [])
+                if sk.get("status") != "functional" and sk.get("status") != "prompt_only"
+            ]
+            if _issues:
+                _lines.append("\nBroken/Issues:")
+                for _sk in _issues:
+                    _lines.append(f"{_sk['slug']} — {_sk['status']}: {_sk['detail']}")
+            return _sse_response(_stream_simple("\n".join(_lines)))
+        except Exception as _exc:
+            return _sse_response(_stream_simple(f"Failed to load skill audit: {_exc}"))
+
+    # Skill audit — run in background
+    if any(p in msg_lower for p in ("run skill audit", "audit skills", "audit my skills")):
+        import threading as _threading
+        def _run_audit():
+            try:
+                from jobs.skillbuilder.audit import run_skill_audit
+                run_skill_audit()
+            except Exception as _exc:
+                log.error("Skill audit background run failed: %s", _exc)
+        _threading.Thread(target=_run_audit, daemon=True).start()
+        return _sse_response(_stream_simple(
+            "Running skill audit in the background. I'll send a Telegram when it's done."
+        ))
 
     _identity = _router._is_identity_query(message)
     _factual = _router._is_factual_query(message)
@@ -979,6 +1170,46 @@ def chat():
         if msg_lower in _DENY or msg_lower.startswith("no "):
             _pending_skill_request = None
             return jsonify({"response": "Got it. Let me know if you need anything else."})
+
+    # Skill audit — show report
+    if any(p in msg_lower for p in ("show skill audit", "skill audit report")):
+        _audit_path = Path(os.path.expanduser("~/watson/data/skill_audit.json"))
+        if not _audit_path.exists():
+            return jsonify({"response": "No skill audit on file. Say 'run skill audit' to generate one."})
+        try:
+            _audit = json.loads(_audit_path.read_text(encoding="utf-8"))
+            _s = _audit.get("summary", {})
+            _lines = [
+                f"Skill Audit — run {_audit.get('run_at', 'unknown')[:19]}\n",
+                f"✅ Functional: {_s.get('functional', 0)}",
+                f"📝 Prompt-only: {_s.get('prompt_only', 0)}",
+                f"❌ Broken: {_s.get('broken', 0)}",
+                f"📦 Missing deps: {_s.get('missing_deps', 0)}",
+                f"🔑 Missing creds: {_s.get('missing_creds', 0)}",
+            ]
+            _issues = [
+                sk for sk in _audit.get("skills", [])
+                if sk.get("status") != "functional" and sk.get("status") != "prompt_only"
+            ]
+            if _issues:
+                _lines.append("\nBroken/Issues:")
+                for _sk in _issues:
+                    _lines.append(f"{_sk['slug']} — {_sk['status']}: {_sk['detail']}")
+            return jsonify({"response": "\n".join(_lines)})
+        except Exception as _exc:
+            return jsonify({"response": f"Failed to load skill audit: {_exc}"})
+
+    # Skill audit — run in background
+    if any(p in msg_lower for p in ("run skill audit", "audit skills", "audit my skills")):
+        import threading as _threading
+        def _run_audit():
+            try:
+                from jobs.skillbuilder.audit import run_skill_audit
+                run_skill_audit()
+            except Exception as _exc:
+                log.error("Skill audit background run failed: %s", _exc)
+        _threading.Thread(target=_run_audit, daemon=True).start()
+        return jsonify({"response": "Running skill audit in the background. I'll send a Telegram when it's done."})
 
     # 0. Identity questions go straight to Ollama
     # Skip routing for conversational messages — go straight to Ollama
