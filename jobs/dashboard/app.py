@@ -1080,6 +1080,18 @@ def chat_stream():
             "Running skill audit in the background. I'll send a Telegram when it's done."
         ))
 
+    # Direct slug dispatch — from dashboard Use button (run:<slug>)
+    if msg_lower.startswith("run:"):
+        slug = message[4:].strip()
+        skills = _router._load_skills("dashboard")
+        skill = next((s for s in skills if s["slug"] == slug), None)
+        if skill:
+            try:
+                result = _router._run_skill(skill, message=slug)
+            except Exception as exc:
+                result = f"Skill error: {exc}"
+            return _sse_response(_stream_simple(str(result)))
+
     _identity = _router._is_identity_query(message)
     _factual = _router._is_factual_query(message)
     _conv = _router._is_conversational(message)
