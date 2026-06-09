@@ -1082,17 +1082,19 @@ def chat_stream():
 
     # Direct slug dispatch — from dashboard Use button (run:<slug>)
     if msg_lower.startswith("run:"):
-        slug = message[4:].strip()
+        run_body = message[4:].strip()
+        slug = run_body.split()[0] if run_body else ""
+        skill_message = run_body
         skills = _router._load_skills("dashboard")
         skill = next((s for s in skills if s["slug"] == slug), None)
         if skill:
             try:
-                # Pass everything after "run:<slug>" as the message parameter
-                skill_message = message[4:].strip()  # full text after "run:"
                 result = _router._run_skill(skill, message=skill_message)
             except Exception as exc:
                 result = f"Skill error: {exc}"
             return _sse_response(_stream_simple(str(result)))
+        else:
+            return _sse_response(_stream_simple(f"Skill not found: {slug}"))
 
     _identity = _router._is_identity_query(message)
     _factual = _router._is_factual_query(message)
