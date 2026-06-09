@@ -95,7 +95,8 @@ def run() -> None:
             """
             SELECT m.id, m.name, m.campus_preference
             FROM members m
-            WHERE NOT EXISTS (
+            WHERE m.active = 1
+              AND NOT EXISTS (
                 SELECT 1 FROM attendance a
                 WHERE a.member_id = m.id
                   AND a.service_date = ?
