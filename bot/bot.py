@@ -900,10 +900,10 @@ async def _execute_pending(update: Update, context: ContextTypes.DEFAULT_TYPE, p
         display = slot.get("display", "")
 
         if action_type == "block_time":
-            from jobs.gcal.calendar import mark_busy
+            from jobs.gcal.gcal_service import mark_busy
             mark_busy(start_dt, end_dt, title)
         else:
-            from jobs.gcal.calendar import create_event
+            from jobs.gcal.gcal_service import create_event
             create_event(title, start_dt, end_dt, "", params.get("email", ""))
 
         pending_module.confirm_pending(pending_id)
@@ -1564,7 +1564,7 @@ async def handle_ask(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def _handle_calendar_day(update: Update, context: ContextTypes.DEFAULT_TYPE, params: dict) -> None:
     from zoneinfo import ZoneInfo
-    from jobs.gcal.calendar import get_events
+    from jobs.gcal.gcal_service import get_events
     ny = ZoneInfo("America/New_York")
     day_str = (params or {}).get("day") if params else None
     try:
@@ -1599,7 +1599,7 @@ async def _handle_calendar_day(update: Update, context: ContextTypes.DEFAULT_TYP
 
 
 async def _handle_mark_busy(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    from jobs.gcal.calendar import mark_day_busy_from_now
+    from jobs.gcal.gcal_service import mark_day_busy_from_now
     try:
         mark_day_busy_from_now()
         await update.message.reply_text("🚫 Done — marked rest of today as busy.")

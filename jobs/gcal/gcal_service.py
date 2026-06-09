@@ -9,8 +9,8 @@ from googleapiclient.discovery import build
 NY = ZoneInfo("America/New_York")
 CALENDAR_ID = "bill.yomes@gmail.com"
 TOKEN_FILE = Path.home() / "watson" / "config" / "token.json"
+CREDENTIALS_FILE = Path.home() / "watson" / "config" / "credentials.json"
 SCOPES = [
-    "https://www.googleapis.com/auth/gmail.modify",
     "https://www.googleapis.com/auth/calendar",
 ]
 
@@ -24,7 +24,16 @@ def get_service():
             creds.refresh(Request())
             TOKEN_FILE.write_text(creds.to_json())
         else:
-            raise RuntimeError("Calendar credentials missing or invalid. Run OAuth flow.")
+            from google_auth_oauthlib.flow import InstalledAppFlow
+            flow = InstalledAppFlow.from_client_secrets_file(str(CREDENTIALS_FILE), SCOPES)
+            auth_url, _ = flow.authorization_url(prompt='consent')
+            print("\nOpen this URL in any browser to authorize Watson:\n")
+            print(auth_url)
+            print()
+            code = input("Paste the authorization code here: ").strip()
+            flow.fetch_token(code=code)
+            creds = flow.credentials
+            TOKEN_FILE.write_text(creds.to_json())
     return build("calendar", "v3", credentials=creds)
 
 

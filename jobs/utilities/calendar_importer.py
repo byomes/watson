@@ -40,7 +40,7 @@ def import_to_google(path: str) -> str:
         return "No events found in the file."
 
     try:
-        from jobs.gcal.calendar import get_service
+        from jobs.gcal.gcal_service import get_service
         service = get_service()
     except Exception as exc:
         log.error("Google Calendar auth failed: %s", exc)
