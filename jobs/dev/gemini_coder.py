@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import re
 import sqlite3
 import subprocess
 from datetime import datetime
@@ -85,7 +86,17 @@ def _call_gemini(description: str) -> dict:
     text = response.text.strip()
     if text.startswith("```"):
         text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
-    return json.loads(text)
+    # Remove control characters that break JSON parsing
+    text = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', text)
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        # Try extracting just the JSON object
+        match = re.search(r'\{.*\}', text, re.DOTALL)
+        if match:
+            clean = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', match.group())
+            return json.loads(clean)
+        raise
 
 
 def request_build(description: str) -> int:
