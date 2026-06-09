@@ -18,7 +18,11 @@ DB = os.path.expanduser("~/watson/data/watson.db")
 SKILLS_FILE = Path(__file__).resolve().parents[2] / "memory" / "skills.json"
 MEMORY = Path(__file__).resolve().parents[2] / "memory"
 app = Flask(__name__, static_folder='static', template_folder='templates')
-app.secret_key = os.getenv("FLASK_SECRET_KEY", "watson-dashboard-secret")
+_secret_key = os.getenv("FLASK_SECRET_KEY")
+if not _secret_key:
+    log.warning("FLASK_SECRET_KEY is not set — using insecure default. Set it in .env.")
+    _secret_key = "watson-dashboard-secret"
+app.secret_key = _secret_key
 
 
 def _db():
@@ -95,6 +99,12 @@ def _bootstrap():
         note        TEXT    NOT NULL,
         status      TEXT    NOT NULL DEFAULT 'active',
         created_at  TEXT    NOT NULL DEFAULT (datetime('now', 'localtime'))
+    )""")
+    c.execute("""CREATE TABLE IF NOT EXISTS qr_cache (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        content    TEXT    NOT NULL,
+        filepath   TEXT    NOT NULL,
+        created_at TEXT    NOT NULL DEFAULT (datetime('now'))
     )""")
     c.commit()
     c.close()
@@ -697,7 +707,11 @@ def chat_stream():
             try:
                 _filepath, _png = _gen_qr(_qr_content)
                 _img_b64 = _b64.b64encode(_png).decode('utf-8')
-                session['last_qr'] = {'content': _qr_content, 'filepath': _filepath}
+                _db().execute(
+                    "INSERT INTO qr_cache (content, filepath) VALUES (?, ?)",
+                    (_qr_content, _filepath),
+                )
+                _db().commit()
                 _send_qr_telegram(_png, _qr_content)
 
                 def _qr_stream(content=_qr_content, b64=_img_b64):
@@ -713,25 +727,30 @@ def chat_stream():
 
     # QR email follow-up: "email this to [name]"
     _email_qr_match = _re.search(r'(?:email|send)\s+this\s+(?:qr\s+)?to\s+(.+)', msg_lower)
-    if _email_qr_match and session.get('last_qr'):
-        _contact_name = _email_qr_match.group(1).strip().rstrip('.')
-        from jobs.people.lookup import lookup_member as _lm
-        _hits = _lm(_contact_name)
-        _contact = next((c for c in _hits if c.get('email')), None)
-        if _contact:
-            from jobs.qr.qr_generate import send_qr_email as _send_qr_email
-            _lq = session['last_qr']
-            try:
-                _send_qr_email(_contact['email'], _contact['name'], _lq['content'], open(_lq['filepath'], 'rb').read())
+    if _email_qr_match:
+        _db().execute("DELETE FROM qr_cache WHERE created_at < datetime('now', '-24 hours')")
+        _db().commit()
+        _lq = _db().execute(
+            "SELECT content, filepath FROM qr_cache ORDER BY created_at DESC LIMIT 1"
+        ).fetchone()
+        if _lq:
+            _contact_name = _email_qr_match.group(1).strip().rstrip('.')
+            from jobs.people.lookup import lookup_member as _lm
+            _hits = _lm(_contact_name)
+            _contact = next((c for c in _hits if c.get('email')), None)
+            if _contact:
+                from jobs.qr.qr_generate import send_qr_email as _send_qr_email
+                try:
+                    _send_qr_email(_contact['email'], _contact['name'], _lq['content'], open(_lq['filepath'], 'rb').read())
+                    return _sse_response(_stream_simple(
+                        f"QR code sent to {_contact['name']} ({_contact['email']})."
+                    ))
+                except Exception as _exc:
+                    return _sse_response(_stream_simple(f'Failed to send email: {_exc}'))
+            else:
                 return _sse_response(_stream_simple(
-                    f"QR code sent to {_contact['name']} ({_contact['email']})."
+                    f"No contact found for '{_contact_name}'. Check the name and try again."
                 ))
-            except Exception as _exc:
-                return _sse_response(_stream_simple(f'Failed to send email: {_exc}'))
-        else:
-            return _sse_response(_stream_simple(
-                f"No contact found for '{_contact_name}'. Check the name and try again."
-            ))
 
     # Handle yes/no follow-up on a pending skill proposal
     if _pending_skill_request is not None:
