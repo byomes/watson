@@ -409,14 +409,8 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not text.strip():
         return
 
-    if text.startswith("\U0001f4d8 TO FACEBOOK"):
-        await _handle_facebook_share(update, text)
-        return
-
-    chat_id = update.effective_chat.id
-
     # Normalize smart quotes from mobile keyboards
-    text_clean = text.replace("’", "'").replace("‘", "'")
+    text_clean = text.replace("‘", "’").replace("’", "’")
     text_lower = text_clean.lower().strip()
 
     # Strip "watson" prefix if present
@@ -429,7 +423,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Watson build: request — route to Gemini coder
     if text_lower.startswith("build:") or text_lower.startswith("watson build:"):
         from jobs.dev.gemini_coder import request_build
-        description = re.sub(r'^(?:watson\s+)?build:\s*', '', text_clean, flags=re.IGNORECASE).strip()
+        description = re.sub(r’^(?:watson\s+)?build:\s*’, ‘’, text_clean, flags=re.IGNORECASE).strip()
         await update.message.reply_text("Sending to Gemini...")
         import asyncio
         loop = asyncio.get_event_loop()
@@ -437,8 +431,8 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     # apply/cancel gemini build
-    _apply_match = re.match(r'^apply\s+(\d+)$', text_lower)
-    _cancel_match = re.match(r'^cancel\s+(\d+)$', text_lower)
+    _apply_match = re.match(r’^apply\s+(\d+)$’, text_lower)
+    _cancel_match = re.match(r’^cancel\s+(\d+)$’, text_lower)
     if _apply_match:
         from jobs.dev.gemini_coder import apply_build
         build_id = int(_apply_match.group(1))
@@ -454,6 +448,12 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(None, cancel_build, build_id)
         return
+
+    if text.startswith("\U0001f4d8 TO FACEBOOK"):
+        await _handle_facebook_share(update, text)
+        return
+
+    chat_id = update.effective_chat.id
 
     # Pastoral notes reply handling
     from jobs.pastoral_notes.db import get_db
