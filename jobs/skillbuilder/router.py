@@ -474,6 +474,18 @@ def route(message: str, interface: str) -> dict:
 
 
 def _route(message: str, interface: str) -> dict:
+    # Direct slug dispatch — from dashboard Use button (run:<slug>)
+    if message.lower().startswith("run:"):
+        slug = message[4:].strip()
+        skills = _load_skills(interface)
+        skill = next((s for s in skills if s["slug"] == slug), None)
+        if skill:
+            try:
+                result = _run_skill(skill, message=slug)
+            except Exception as exc:
+                result = f"Skill error: {exc}"
+            return {"action": "skill", "slug": slug, "result": result}
+
     # Retry check: if Bill is retrying after a failed build, skip the LLM
     msg_lower = message.lower().strip()
     if any(phrase in msg_lower for phrase in _RETRY_PHRASES) and interface in _last_failed_build:

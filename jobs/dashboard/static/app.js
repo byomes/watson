@@ -202,11 +202,17 @@ async function approveSkill(btn) {
   }
 }
 function useSkill(slug) {
-  const name = slug.replace(/_/g, ' ').replace(/\b\w/g, function(c){return c.toUpperCase();});
   closeSettings();
   switchTab('chat');
-  document.getElementById('chat-input').value = 'Watson, run ' + name;
-  document.getElementById('chat-input').focus();
+  const input = document.getElementById('chat-input');
+  input.value = 'run:' + slug;
+  const form = document.getElementById('chat-form');
+  if (form) {
+    form.dispatchEvent(new Event('submit', {bubbles: true, cancelable: true}));
+  } else {
+    const sendBtn = document.querySelector('#chat-send, .send-btn, button[type="submit"]');
+    if (sendBtn) sendBtn.click();
+  }
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────
