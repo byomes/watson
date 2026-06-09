@@ -1,0 +1,2 @@
+*/15 * * * * PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python /home/billyomes/watson/jobs/pastoral_notes/prompt.py >> /home/billyomes/watson/logs/pastoral_notes.log 2>&1
+*/15 * * * * PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python /home/billyomes/watson/jobs/pastoral_notes/reminder.py >> /home/billyomes/watson/logs/pastoral_notes.log 2>&1
