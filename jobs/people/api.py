@@ -57,10 +57,10 @@ def people_create(data):
     try:
         with _conn() as conn:
             cur = conn.execute(
-                """INSERT INTO people (name, email, phone, relationship, notes)
-                   VALUES (?, ?, ?, ?, ?)""",
+                """INSERT INTO people (name, email, phone, relationship, notes, carrier)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
                 (data.get("name"), data.get("email"), data.get("phone"),
-                 data.get("relationship"), data.get("notes")),
+                 data.get("relationship"), data.get("notes"), data.get("carrier") or None),
             )
             row = conn.execute(
                 "SELECT * FROM people WHERE id = ?", (cur.lastrowid,)
@@ -71,7 +71,7 @@ def people_create(data):
 
 
 def people_update(id, data):
-    allowed = {"name", "email", "phone", "relationship", "notes"}
+    allowed = {"name", "email", "phone", "relationship", "notes", "carrier"}
     fields = {k: v for k, v in data.items() if k in allowed}
     if not fields:
         return {"error": "No valid fields to update"}

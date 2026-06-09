@@ -206,6 +206,18 @@
       <input type="text" id="nc-email" placeholder="Email">
       <input type="text" id="nc-phone" placeholder="Phone">
       <input type="text" id="nc-rel" placeholder="Relationship">
+      <select id="nc-carrier" style="width:100%;padding:9px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:13px;font-family:inherit">
+        <option value="">Carrier (Unknown)</option>
+        <option value="AT&T">AT&amp;T</option>
+        <option value="Verizon">Verizon</option>
+        <option value="T-Mobile">T-Mobile</option>
+        <option value="Sprint">Sprint</option>
+        <option value="US Cellular">US Cellular</option>
+        <option value="Cricket">Cricket</option>
+        <option value="Boost">Boost</option>
+        <option value="Metro PCS">Metro PCS</option>
+        <option value="Other">Other</option>
+      </select>
       <input type="text" id="nc-notes" placeholder="Notes">
       <button class="btn btn-p" style="width:100%;padding:9px;border:none;border-radius:10px;font-size:12px" onclick="saveNewContact()">Add Contact</button>
     </div>
