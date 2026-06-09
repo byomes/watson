@@ -771,7 +771,7 @@ def chat_stream():
             msg_lower,
         )
         _sms_pattern = _sms_re.search(
-            r'(?:text|send a text to|send text to|shoot a text to)\s+(\w+(?:\s+\w+)?)\s+(?:that\s+|saying\s+|to say\s+)?(.+)',
+            r'(?:text|send a text to|send text to|shoot a text to)\s+(\w+(?:\s+\w+)?)\s*(?::|that\s+|saying\s+|to say\s+)?\s*(.+)',
             msg_lower,
         )
 

@@ -588,7 +588,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text_clean, re.IGNORECASE,
         )
         _sms_contact_m = re.search(
-            r'(?:text|send a text to|send text to|shoot a text to)\s+(\w+(?:\s+\w+)?)\s+(?:that\s+|saying\s+|to say\s+)?(.+)',
+            r'(?:text|send a text to|send text to|shoot a text to)\s+(\w+(?:\s+\w+)?)\s*(?::|that\s+|saying\s+|to say\s+)?\s*(.+)',
             text_clean, re.IGNORECASE,
         )
 
