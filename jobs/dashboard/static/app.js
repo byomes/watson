@@ -202,10 +202,11 @@ async function approveSkill(btn) {
   }
 }
 function useSkill(slug) {
+  const input = prompt('Input for ' + slug.replace(/_/g, ' ') + ' (or leave blank):');
   closeSettings();
   switchTab('chat');
-  const input = document.getElementById('chat-input');
-  input.value = 'run:' + slug;
+  const chatInput = document.getElementById('chat-input');
+  chatInput.value = input ? 'run:' + slug + ' ' + input : 'run:' + slug;
   const form = document.getElementById('chat-form');
   if (form) {
     form.dispatchEvent(new Event('submit', {bubbles: true, cancelable: true}));
