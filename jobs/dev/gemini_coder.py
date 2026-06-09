@@ -15,8 +15,6 @@ log = logging.getLogger(__name__)
 WATSON_ROOT = Path.home() / "watson"
 DB_PATH = WATSON_ROOT / "data" / "watson.db"
 
-GEMINI_MODEL = "gemini-2.5-flash-preview-05-20"
-GEMINI_MAX_TOKENS = 8192
 
 _SYSTEM_PROMPT = """
 You are a Python code assistant for Watson, a personal AI assistant system \
@@ -75,21 +73,18 @@ def _send_telegram(text: str) -> None:
 
 
 def _call_gemini(description: str) -> dict:
-    import google.generativeai as genai
+    from google import genai
 
-    genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
-    model = genai.GenerativeModel(
-        model_name=GEMINI_MODEL,
-        system_instruction=_SYSTEM_PROMPT,
-        generation_config=genai.types.GenerationConfig(max_output_tokens=GEMINI_MAX_TOKENS),
+    client = genai.Client(
+        api_key=os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_AI_STUDIO_API_KEY")
     )
-    response = model.generate_content(description)
+    response = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=_SYSTEM_PROMPT + "\n\nBuild request: " + description,
+    )
     text = response.text.strip()
-    # Strip markdown code fences if Gemini wraps the JSON anyway
     if text.startswith("```"):
-        lines = text.splitlines()
-        end = -1 if lines[-1].strip() == "```" else len(lines)
-        text = "\n".join(lines[1:end])
+        text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
     return json.loads(text)
 
 
