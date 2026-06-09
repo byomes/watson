@@ -696,7 +696,7 @@ def chat_stream():
             try:
                 _filepath, _png = _gen_qr(_qr_content)
                 _img_b64 = _b64.b64encode(_png).decode('utf-8')
-                session['last_qr'] = {'content': _qr_content, 'png_bytes': _png}
+                session['last_qr'] = {'content': _qr_content, 'filepath': _filepath}
                 _send_qr_telegram(_png, _qr_content)
 
                 def _qr_stream(content=_qr_content, b64=_img_b64):
@@ -721,7 +721,7 @@ def chat_stream():
             from jobs.qr.qr_generate import send_qr_email as _send_qr_email
             _lq = session['last_qr']
             try:
-                _send_qr_email(_contact['email'], _contact['name'], _lq['content'], bytes(_lq['png_bytes']))
+                _send_qr_email(_contact['email'], _contact['name'], _lq['content'], open(_lq['filepath'], 'rb').read())
                 return _sse_response(_stream_simple(
                     f"QR code sent to {_contact['name']} ({_contact['email']})."
                 ))
