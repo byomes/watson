@@ -142,6 +142,10 @@ def apply_build(build_id: int) -> None:
     subprocess.run(
         ["git", "-C", str(WATSON_ROOT), "push", "origin", "main"], check=True
     )
+    subprocess.run(
+        ["git", "-C", "/home/billyomes/watson", "pull"],
+        capture_output=True, text=True
+    )
 
     with _get_db() as conn:
         conn.execute(
@@ -149,7 +153,7 @@ def apply_build(build_id: int) -> None:
         )
 
     _send_telegram(
-        f"Applied and pushed. {len(files)} file(s) written. Pull on Beelink to deploy."
+        f"Applied and deployed. {len(files)} file(s) written."
     )
     log.info("build %d applied (%d file(s))", build_id, len(files))
 
