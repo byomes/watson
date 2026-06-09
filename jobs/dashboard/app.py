@@ -674,6 +674,7 @@ def chat_stream():
         return _sse_response(_stream_error("message required"))
 
     msg_lower = message.lower().strip()
+    import re as _re
 
     # QR code generation
     _QR_TRIGGERS = ('qr code', 'qr-code', 'make a qr', 'give me a qr',
@@ -750,7 +751,6 @@ def chat_stream():
             return _sse_response(_stream_simple("Got it. Let me know if you need anything else."))
 
     # Pastoral notes — create
-    import re as _re
     _pn_create = _re.search(
         r'pastoral note[s]?\s+(?:that|for|about)?\s*(.+)',
         message, _re.IGNORECASE
