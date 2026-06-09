@@ -1194,13 +1194,19 @@ def chat_stream():
                 contents=prompt,
                 config={'max_output_tokens': 500}
             )
+            import time
             text = response.text or ''
-            # Stream word by word to match Ollama SSE feel
+            # Split into small chunks for streaming feel
+            chunk_size = 4
             words = text.split(' ')
-            for i, word in enumerate(words):
-                token = word if i == 0 else ' ' + word
-                yield f"data: {json.dumps({'token': token})}\n\n"
-            yield "data: [DONE]\n\n"
+            try:
+                for i in range(0, len(words), chunk_size):
+                    chunk = ' '.join(words[i:i+chunk_size])
+                    if i > 0:
+                        chunk = ' ' + chunk
+                    yield f'data: {json.dumps({"token": chunk})}\n\n'
+            finally:
+                yield 'data: [DONE]\n\n'
         except Exception as _gemma_err:
             log.warning("Gemma 4 failed (%s), falling back to Ollama", _gemma_err)
             # Fallback to Ollama
