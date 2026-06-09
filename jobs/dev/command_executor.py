@@ -1,257 +1,371 @@
-"""jobs/dev/command_executor.py — propose shell commands via Telegram; execute on approval."""
+#!/usr/bin/env python3
+"""jobs/dev/command_executor.py — terminal agent using Claude Haiku with tiered safety."""
+from __future__ import annotations
+
 import json
-import logging
 import os
-import sqlite3
-from datetime import datetime
+import re
+import subprocess
+import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
-import requests
+import anthropic
+from dotenv import load_dotenv
 
-log = logging.getLogger(__name__)
+# ─── Bootstrap ────────────────────────────────────────────────────────────────
+
+load_dotenv(Path.home() / "watson" / ".env")
+
 REPO = Path(__file__).resolve().parents[2]
-DB_PATH = Path(os.getenv("WATSON_DB", str(REPO / "data" / "watson.db")))
+LOG_PATH = REPO / "logs" / "terminal_agent.log"
+MODEL = "claude-haiku-4-5-20251001"
+MAX_COMMANDS = 5
+OUTPUT_TRUNCATE = 4000
+TIMEOUT = 30
 
-_BLOCKED = [
-    "rm -rf", "rm -r /", "dd if=", "mkfs", ":(){:|:&};:",
-    "chmod 777 /", "chown root", "curl | bash", "wget | bash",
-    "> /dev/sda", "shred", "fdisk", "parted",
-    "cat /etc/shadow", "cat /etc/passwd",
-    "git push --force", "git reset --hard origin",
-    "DROP TABLE", "DELETE FROM", "TRUNCATE",
-    "SECRETS.md", ".env", "watson.key",
+_session_history: list[str] = []  # last 3 executed commands for Haiku context
+
+# ─── Haiku system prompt ──────────────────────────────────────────────────────
+
+_SYSTEM = (
+    "You are Watson, Dr. Bill Yomes's AI assistant. You generate safe shell commands "
+    "for a Linux Mint server. You never generate commands that could damage the system "
+    "or expose credentials.\n\n"
+    "When given a natural language instruction, respond ONLY with valid JSON "
+    "(no markdown fences, no preamble):\n"
+    '{"commands": ["cmd1", "cmd2"], "tier": "1", "reasoning": "...", "expected_output": "..."}\n\n'
+    "Tier rules:\n"
+    "  '1' = read-only: cat/tail/head/grep/ls/find, systemctl status, "
+    "git status/log/diff, crontab -l, df/free/ps, top -bn1, python3 check_*/status_*\n"
+    "  '2' = state-changing: systemctl restart, git pull/push, file writes/edits, "
+    "pip/apt install, other python3 scripts, any rm/mv/chmod/chown\n\n"
+    f"Max {MAX_COMMANDS} commands. No interactive commands (vim, nano, ssh, less, more)."
+)
+
+# ─── Safety classification ────────────────────────────────────────────────────
+
+_PROTECTED_FILES = frozenset({".env", "credentials.json", "token.json"})
+_TIER1_BASE = frozenset({"cat", "tail", "head", "grep", "ls", "find", "df", "free", "ps"})
+_TIER2_WORDS = frozenset({"rm", "mv", "chmod", "chown"})
+
+_T1_RE = [
+    re.compile(r"^systemctl\s+status\b"),
+    re.compile(r"^git\s+(status|log|diff)\b"),
+    re.compile(r"^crontab\s+-l\b"),
+    re.compile(r"^top\s+.*-b"),
+    re.compile(r"^python3?\s+\S*(check_|status_)\S*"),
+]
+_T2_RE = [
+    re.compile(r"^systemctl\s+restart\b"),
+    re.compile(r"^git\s+(pull|push)\b"),
+    re.compile(r"\bpip3?\s+(install|uninstall)\b"),
+    re.compile(r"\bapt(-get)?\s+(install|remove|purge|upgrade)\b"),
+    re.compile(r"^python3?\b"),
 ]
 
+_ALLOWED_SUDO = re.compile(r"^sudo\s+systemctl\s+restart\s+watson-\S+")
+_PIPE_SHELL = re.compile(r"\|\s*(bash|sh)\b")
+_REDIR_SHELL = re.compile(r">\s*(bash|sh)\b")
 
-def _get_connection() -> sqlite3.Connection:
-    conn = sqlite3.connect(str(DB_PATH))
-    conn.row_factory = sqlite3.Row
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS command_proposals (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            description TEXT NOT NULL,
-            command     TEXT NOT NULL,
-            reason      TEXT DEFAULT '',
-            status      TEXT NOT NULL DEFAULT 'pending',
-            output      TEXT,
-            created_at  TEXT NOT NULL DEFAULT (datetime('now')),
-            executed_at TEXT
+
+def _classify(cmd: str) -> tuple[str, str | None]:
+    """Return ('1'|'2'|'blocked', reason_or_None)."""
+    c = cmd.strip()
+
+    # rm -rf: blocked unless the target path is under /tmp
+    if re.search(r"\brm\b", c) and re.search(
+        r"-[a-zA-Z]*r[a-zA-Z]*f\b|-[a-zA-Z]*f[a-zA-Z]*r\b", c
+    ):
+        if "/tmp" not in c:
+            return "blocked", "rm -rf is blocked outside /tmp"
+
+    # Protected file references
+    if any(f in c for f in _PROTECTED_FILES):
+        return "blocked", "command references a protected file (.env, credentials.json, token.json)"
+
+    # git push --force (allow --force-with-lease)
+    if "git push" in c and "--force" in c and "--force-with-lease" not in c:
+        return "blocked", "git push --force is blocked"
+
+    # sudo: only systemctl restart watson-* services
+    if "sudo" in c and not _ALLOWED_SUDO.match(c):
+        return "blocked", "sudo is only allowed for: sudo systemctl restart watson-* services"
+
+    # Pipe or redirect to bash/sh
+    if _PIPE_SHELL.search(c) or _REDIR_SHELL.search(c):
+        return "blocked", "piping or redirecting to bash or sh is blocked"
+
+    # Tier 1
+    first = c.split()[0] if c.split() else ""
+    if first in _TIER1_BASE:
+        return "1", None
+    for pat in _T1_RE:
+        if pat.match(c):
+            return "1", None
+
+    # Tier 2 — keyword check first, then patterns
+    words = set(re.findall(r"\b\w+\b", c))
+    if words & _TIER2_WORDS:
+        return "2", None
+    for pat in _T2_RE:
+        if pat.search(c):
+            return "2", None
+
+    # Unknown command: conservative default
+    return "2", None
+
+
+# ─── Audit log ────────────────────────────────────────────────────────────────
+
+
+def _log(tier: str, cmd: str, outcome: str) -> None:
+    LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    with open(LOG_PATH, "a") as f:
+        f.write(f"{ts} | {tier.upper()} | {cmd[:200]} | {outcome}\n")
+
+
+# ─── Haiku interaction ────────────────────────────────────────────────────────
+
+_client: anthropic.Anthropic | None = None
+
+
+def _api() -> anthropic.Anthropic:
+    global _client
+    if _client is None:
+        _client = anthropic.Anthropic()
+    return _client
+
+
+def _plan(instruction: str, error_ctx: str = "") -> dict:
+    """Ask Haiku for commands. Raises ValueError on bad response."""
+    parts = [f"Instruction: {instruction}"]
+    if _session_history:
+        parts.append("Recent commands:\n" + "\n".join(f"  {c}" for c in _session_history[-3:]))
+    if error_ctx:
+        parts.append(
+            f"Previous command failed with:\n{error_ctx[:500]}\n"
+            "Please revise to fix the issue."
         )
-    """)
-    conn.commit()
-    return conn
 
-
-def _is_blocked(command: str) -> bool:
-    return any(pattern in command for pattern in _BLOCKED)
-
-
-def _telegram(text: str, reply_markup: dict = None) -> None:
-    bot_token = os.getenv("WATSON_BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
-    chat_id = os.getenv("WATSON_CHAT_ID") or os.getenv("TELEGRAM_CHAT_ID")
-    if not (bot_token and chat_id):
-        return
-    payload = {"chat_id": chat_id, "text": text[:4096], "parse_mode": "Markdown"}
-    if reply_markup:
-        payload["reply_markup"] = json.dumps(reply_markup)
-    try:
-        requests.post(
-            f"https://api.telegram.org/bot{bot_token}/sendMessage",
-            json=payload,
-            timeout=15,
-        )
-    except Exception as exc:
-        log.warning("Telegram send failed: %s", exc)
-
-
-def propose_command(description: str, command: str, reason: str = "") -> int:
-    if _is_blocked(command):
-        _telegram("❌ Blocked: that command contains a restricted pattern.")
-        return -1
-
-    conn = _get_connection()
-    try:
-        cur = conn.execute(
-            "INSERT INTO command_proposals (description, command, reason) VALUES (?, ?, ?)",
-            (description, command, reason or ""),
-        )
-        proposal_id = cur.lastrowid
-        conn.commit()
-    finally:
-        conn.close()
-
-    reason_text = reason or "Requested by Bill"
-    _telegram(
-        f"⚙️ Command Proposal\n\n{description}\n\nCommand:\n`{command}`\n\nReason: {reason_text}\n\nApprove to execute on Beelink?",
-        reply_markup={
-            "inline_keyboard": [[
-                {"text": "✅ Run", "callback_data": f"cmd_approve_{proposal_id}"},
-                {"text": "❌ Cancel", "callback_data": f"cmd_reject_{proposal_id}"},
-            ]]
-        },
+    resp = _api().messages.create(
+        model=MODEL,
+        max_tokens=512,
+        system=_SYSTEM,
+        messages=[{"role": "user", "content": "\n\n".join(parts)}],
     )
-    log.info("Command proposal #%d: %s", proposal_id, description)
-    return proposal_id
 
+    raw = resp.content[0].text.strip()
+    # Strip markdown fences if Haiku wraps the JSON
+    if raw.startswith("```"):
+        raw = re.sub(r"^```[a-z]*\n?", "", raw)
+        raw = re.sub(r"\n?```$", "", raw).strip()
 
-def execute_command(proposal_id: int) -> dict:
-    import subprocess
-
-    conn = _get_connection()
     try:
-        row = conn.execute(
-            "SELECT * FROM command_proposals WHERE id=?", (proposal_id,)
-        ).fetchone()
-    finally:
-        conn.close()
+        data = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Haiku returned invalid JSON: {exc}\nRaw: {raw[:300]}") from exc
 
-    if not row:
-        return {"success": False, "output": "", "return_code": -1}
+    if not isinstance(data.get("commands"), list):
+        raise ValueError(f"Haiku response missing 'commands' list: {raw[:300]}")
 
-    command = row["command"]
+    return data
 
-    if _is_blocked(command):
-        _telegram(f"🚫 Execution blocked: `{command[:200]}` contains a restricted pattern.")
-        conn = _get_connection()
-        conn.execute("UPDATE command_proposals SET status='blocked' WHERE id=?", (proposal_id,))
-        conn.commit()
-        conn.close()
-        return {"success": False, "output": "blocked", "return_code": -1}
 
+def _summarize(instruction: str, combined_output: str) -> str:
+    """Return a plain-English summary of command results from Haiku."""
+    resp = _api().messages.create(
+        model=MODEL,
+        max_tokens=256,
+        system=_SYSTEM,
+        messages=[{
+            "role": "user",
+            "content": (
+                f"Task: {instruction}\n\n"
+                f"Output:\n{combined_output[:OUTPUT_TRUNCATE]}\n\n"
+                "Summarize what was found or done in 1-3 concise sentences."
+            ),
+        }],
+    )
+    return resp.content[0].text.strip()
+
+
+# ─── Execution helpers ────────────────────────────────────────────────────────
+
+
+def _run(cmd: str) -> tuple[bool, str]:
+    """Run a shell command. Returns (success, combined_stdout_stderr)."""
     try:
         result = subprocess.run(
-            command,
+            cmd,
             shell=True,
             capture_output=True,
             text=True,
-            timeout=60,
-            cwd=str(Path.home() / "watson"),
+            timeout=TIMEOUT,
+            cwd=str(REPO),
         )
-        combined_output = (result.stdout + result.stderr).strip()
-        success = result.returncode == 0
-        executed_at = datetime.utcnow().isoformat()
-
-        conn = _get_connection()
-        conn.execute(
-            "UPDATE command_proposals SET status='completed', output=?, executed_at=? WHERE id=?",
-            (combined_output[:4000], executed_at, proposal_id),
-        )
-        conn.commit()
-        conn.close()
-
-        prefix = "✓ Command executed" if success else "⚠️ Completed with errors"
-        _telegram(f"{prefix}\n\n`{command}`\n\nOutput:\n{combined_output[:2000]}")
-
-        return {"success": success, "output": combined_output, "return_code": result.returncode}
-
+        output = (result.stdout + result.stderr).strip()
+        return result.returncode == 0, output
     except subprocess.TimeoutExpired:
-        conn = _get_connection()
-        conn.execute(
-            "UPDATE command_proposals SET status='timeout' WHERE id=?", (proposal_id,)
-        )
-        conn.commit()
-        conn.close()
-        _telegram(f"⏱ Command timed out after 60s:\n`{command}`")
-        return {"success": False, "output": "timeout", "return_code": -1}
-
+        return False, f"Command timed out after {TIMEOUT}s"
     except Exception as exc:
-        log.error("execute_command #%d failed: %s", proposal_id, exc)
-        return {"success": False, "output": str(exc), "return_code": -1}
+        return False, str(exc)
 
 
-# --- Pre-built proposals ---------------------------------------------------
-
-def restart_dashboard() -> int:
-    return propose_command(
-        "Restart Watson dashboard",
-        "sudo systemctl restart watson-dashboard.service",
-        "Reload dashboard after code changes",
-    )
-
-
-def restart_bot() -> int:
-    return propose_command(
-        "Restart Telegram bot",
-        "sudo systemctl restart watson-bot.service",
-        "Reload bot after code changes",
-    )
+def _prompt_confirm(cmd: str, reasoning: str) -> bool:
+    """Print tier-2 confirmation prompt. Returns True if user confirms."""
+    print(f"\n[tier 2 — confirmation required]")
+    print(f"  Command   : {cmd}")
+    if reasoning:
+        print(f"  Reasoning : {reasoning}")
+    try:
+        answer = input("  Type 'confirm' to run (anything else cancels): ").strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        print()
+        return False
+    return answer == "confirm"
 
 
-def restart_all() -> int:
-    return propose_command(
-        "Restart all Watson services",
-        "sudo systemctl restart watson-dashboard.service && sudo systemctl restart watson-bot.service && sudo systemctl restart watson-people.service",
-        "Full Watson restart",
-    )
+def _execute_one(cmd: str, tier: str, reasoning: str, instruction: str) -> tuple[bool, str]:
+    """
+    Execute a single classified command with retry-on-failure.
+    Returns (success, output).  Output is '' on cancel.
+    """
+    if tier == "2" and not _prompt_confirm(cmd, reasoning):
+        _log("2", cmd, "CANCELLED")
+        return False, ""
+
+    label = "auto" if tier == "1" else "executing"
+    print(f"[{label}] {cmd}")
+    success, output = _run(cmd)
+
+    _session_history.append(cmd)
+    if len(_session_history) > 3:
+        _session_history.pop(0)
+
+    if success:
+        _log(tier, cmd, "SUCCESS")
+        return True, output
+
+    # First failure: ask Haiku for a revised command
+    _log(tier, cmd, f"FAILED: {output[:100]}")
+    print(f"[failed] {output[:300]}")
+    print("[watson] Retrying with error context …")
+
+    try:
+        retry_data = _plan(instruction, error_ctx=output)
+    except ValueError as exc:
+        print(f"[error] Haiku retry error: {exc}")
+        return False, output
+
+    retry_cmds = retry_data.get("commands", [])[:MAX_COMMANDS]
+    if not retry_cmds:
+        print("[error] Haiku produced no retry commands.")
+        return False, output
+
+    r_cmd = retry_cmds[0]
+    r_tier, r_block = _classify(r_cmd)
+
+    if r_block:
+        print(f"[blocked on retry] {r_cmd}\n  Reason: {r_block}")
+        _log("blocked", r_cmd, f"BLOCKED-RETRY: {r_block}")
+        return False, output
+
+    if r_tier == "2" and not _prompt_confirm(r_cmd, retry_data.get("reasoning", "")):
+        _log("2", r_cmd, "CANCELLED-RETRY")
+        return False, ""
+
+    print(f"[retry] {r_cmd}")
+    ok2, out2 = _run(r_cmd)
+
+    _session_history.append(r_cmd)
+    if len(_session_history) > 3:
+        _session_history.pop(0)
+
+    if ok2:
+        _log(r_tier, r_cmd, "SUCCESS-RETRY")
+        return True, out2
+
+    _log(r_tier, r_cmd, f"FAILED-RETRY: {out2[:100]}")
+    print("[error] Retry also failed. Full output:")
+    print(out2[:2000])
+    return False, out2
 
 
-def git_pull() -> int:
-    return propose_command(
-        "Pull latest Watson code",
-        "cd ~/watson && git pull origin main",
-        "Sync Beelink with latest GitHub commits",
-    )
+# ─── Main flow ────────────────────────────────────────────────────────────────
 
 
-def run_sync() -> int:
-    return propose_command(
-        "Run memory sync",
-        "PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python3 -m jobs.memory.sync",
-        "Sync memory files to DB",
-    )
+def execute(instruction: str) -> None:
+    """Process a natural language instruction end-to-end."""
+    print(f"\n[watson] {instruction}")
+
+    try:
+        plan = _plan(instruction)
+    except ValueError as exc:
+        print(f"[error] {exc}")
+        return
+
+    commands: list[str] = plan.get("commands", [])[:MAX_COMMANDS]
+    haiku_tier: str = str(plan.get("tier", "2"))
+    reasoning: str = plan.get("reasoning", "")
+
+    if not commands:
+        print("[watson] No commands generated.")
+        return
+
+    all_outputs: list[str] = []
+
+    for cmd in commands:
+        our_tier, block_reason = _classify(cmd)
+
+        if our_tier == "blocked":
+            print(f"[blocked] {cmd}")
+            print(f"  Reason: {block_reason}")
+            _log("blocked", cmd, f"BLOCKED: {block_reason}")
+            return
+
+        # Use the more restrictive of Haiku's tier and our classification
+        eff_tier = "2" if haiku_tier == "2" or our_tier == "2" else "1"
+
+        success, output = _execute_one(cmd, eff_tier, reasoning, instruction)
+
+        if output:
+            all_outputs.append(f"$ {cmd}\n{output}")
+
+        if not success:
+            return
+
+    # Natural language summary from Haiku
+    if all_outputs:
+        combined = "\n\n".join(all_outputs)
+        summary = _summarize(instruction, combined)
+        print(f"\n[watson] {summary}")
 
 
-def check_services() -> int:
-    return propose_command(
-        "Check service status",
-        "systemctl status watson-dashboard watson-bot watson-people --no-pager",
-        "Check all Watson services are running",
-    )
+# ─── Entry point ─────────────────────────────────────────────────────────────
 
 
-def disk_usage() -> int:
-    return propose_command(
-        "Check disk usage",
-        "df -h ~ && du -sh ~/watson/",
-        "Check available disk space",
-    )
+def main() -> None:
+    if not os.getenv("ANTHROPIC_API_KEY"):
+        print("[error] ANTHROPIC_API_KEY not found — check ~/watson/.env")
+        sys.exit(1)
 
-
-def update_packages() -> int:
-    return propose_command(
-        "Update Watson Python packages",
-        "cd ~/watson && source venv/bin/activate && pip install -r requirements.txt --upgrade --break-system-packages",
-        "Update all Watson dependencies",
-    )
-
-
-# --- run() entry point ------------------------------------------------------
-
-def run(message: str = None) -> str:
-    if not message:
-        return "Command executor ready. Tell me what you need done and I'll propose the command for your approval."
-
-    msg = message.lower()
-
-    if any(k in msg for k in ("restart all", "restart watson", "full restart")):
-        proposal_id = restart_all()
-    elif "restart dashboard" in msg:
-        proposal_id = restart_dashboard()
-    elif "restart bot" in msg:
-        proposal_id = restart_bot()
-    elif any(k in msg for k in ("git pull", "pull latest", "pull code", "pull origin")):
-        proposal_id = git_pull()
-    elif any(k in msg for k in ("run sync", "memory sync")):
-        proposal_id = run_sync()
-    elif any(k in msg for k in ("check services", "services running", "service status", "are services")):
-        proposal_id = check_services()
-    elif any(k in msg for k in ("disk space", "disk usage")):
-        proposal_id = disk_usage()
-    elif any(k in msg for k in ("update packages", "upgrade packages", "update dependencies")):
-        proposal_id = update_packages()
+    if len(sys.argv) > 1:
+        instruction = " ".join(sys.argv[1:])
     else:
-        return "Command executor ready. Tell me what you need done and I'll propose the command for your approval."
+        try:
+            instruction = input("instruction> ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            sys.exit(0)
 
-    if proposal_id == -1:
-        return "Command blocked — contains a restricted pattern."
-    return f"Proposed command #{proposal_id}. Check Telegram to approve or cancel."
+    if not instruction:
+        print("No instruction provided.")
+        sys.exit(1)
+
+    execute(instruction)
+
+
+if __name__ == "__main__":
+    main()
