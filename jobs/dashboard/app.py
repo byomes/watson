@@ -756,6 +756,68 @@ def chat_stream():
                     f"No contact found for '{_contact_name}'. Check the name and try again."
                 ))
 
+    # SMS pre-check
+    _SMS_TRIGGERS = (
+        'text ', 'send a text', 'send text', 'shoot a text',
+        'shoot them a text', 'shoot her a text', 'shoot him a text',
+    )
+    if any(t in msg_lower for t in _SMS_TRIGGERS):
+        import re as _sms_re
+        from jobs.people.lookup import lookup_member as _lookup_sms
+        from jobs.sms.sms_send import send_sms_to_contact as _send_sms
+
+        _sms_me_pattern = _sms_re.search(
+            r'(?:text|send a text to)\s+me\s+(?:that\s+|saying\s+)?(.+)',
+            msg_lower,
+        )
+        _sms_pattern = _sms_re.search(
+            r'(?:text|send a text to|send text to|shoot a text to)\s+(\w+(?:\s+\w+)?)\s+(?:that\s+|saying\s+|to say\s+)?(.+)',
+            msg_lower,
+        )
+
+        if _sms_me_pattern:
+            _sms_msg_raw = message[_sms_me_pattern.start(1):].strip()
+            _recent_qr = _db().execute(
+                "SELECT content FROM qr_cache ORDER BY created_at DESC LIMIT 1"
+            ).fetchone()
+            if 'qr' in msg_lower and _recent_qr:
+                _sms_msg_raw = f"QR code content: {_recent_qr['content']}"
+            _owner_phone = os.getenv('WATSON_OWNER_PHONE')
+            _owner_carrier = os.getenv('WATSON_OWNER_CARRIER', 'verizon')
+            if not _owner_phone:
+                return _sse_response(_stream_simple(
+                    "WATSON_OWNER_PHONE is not set in .env. Add your phone number to send texts to yourself."
+                ))
+            from jobs.sms.sms_send import send_sms as _send_sms_direct
+            _sms_result = _send_sms_direct('Dr. Bill', _owner_phone, _owner_carrier, _sms_msg_raw)
+            if _sms_result['success']:
+                return _sse_response(_stream_simple(f"Text sent to you: {_sms_msg_raw}"))
+            else:
+                return _sse_response(_stream_simple(f"Failed to send text: {_sms_result['error']}"))
+
+        elif _sms_pattern:
+            _contact_raw = _sms_pattern.group(1).strip()
+            _sms_msg_start = _sms_pattern.start(2)
+            _sms_message = message[_sms_msg_start:].strip()
+            _recent_qr = _db().execute(
+                "SELECT content FROM qr_cache ORDER BY created_at DESC LIMIT 1"
+            ).fetchone()
+            if 'qr' in msg_lower and _recent_qr:
+                _sms_message = f"QR code: {_recent_qr['content']}"
+            _sms_hits = _lookup_sms(_contact_raw)
+            _sms_contact = next((c for c in _sms_hits if c.get('phone')), None)
+            if not _sms_contact:
+                return _sse_response(_stream_simple(
+                    f"No contact found for '{_contact_raw}'. Check the name and try again."
+                ))
+            _sms_result = _send_sms(_sms_contact, _sms_message)
+            if _sms_result['success']:
+                return _sse_response(_stream_simple(
+                    f"Text sent to {_sms_contact['name']} ({_sms_contact.get('phone', '')})."
+                ))
+            else:
+                return _sse_response(_stream_simple(f"Failed: {_sms_result['error']}"))
+
     # Handle yes/no follow-up on a pending skill proposal
     if _pending_skill_request is not None:
         if msg_lower in _AFFIRM:
