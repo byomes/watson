@@ -219,6 +219,10 @@
     {% endif %}
   </header><span id="jt" data-v="{{ jenny_token }}" style="display:none"></span><span id="jc" data-v="{{ jenny_chat_id }}" style="display:none"></span>
 
+  {% if narrative %}
+  <p style="font-style:italic; color:var(--text-muted); margin-bottom:24px; line-height:1.6;">{{ narrative }}</p>
+  {% endif %}
+
   {% if sections %}
     {% for section in sections %}
     <h2 class="section-label">{{ section.label }}</h2>

@@ -72,7 +72,7 @@ def _fetch_briefing_items():
     return items
 
 
-def build_briefing():
+def build_briefing(narrative: str = ""):
     """
     Build docs/briefing.html — the static deployable page with inline JS
     that calls the Telegram Bot API directly from the browser.
@@ -103,6 +103,7 @@ def build_briefing():
         date_str=date_str,
         jenny_token=TELEGRAM_BOT_TOKEN or "",
         jenny_chat_id=TELEGRAM_CHAT_ID or "",
+        narrative=narrative,
     )
 
     DOCS_DIR.mkdir(parents=True, exist_ok=True)
