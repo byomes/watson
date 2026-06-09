@@ -1174,10 +1174,8 @@ def chat_stream():
         ).start()
         return _sse_response(_stream_simple("Building that skill now. I'll notify you via Telegram when it's ready."))
 
-    # Fall through to Ollama streaming via /api/generate
-    # (factual query and conversational checks already handled above)
+    # Fall through to LLM — try Gemma 4 via Google AI, fall back to Ollama
     system_prompt = WATSON_SYSTEM
-
     prompt_parts = []
     for h in history[-4:]:
         if h.get("role") == "user" and h.get("content"):
@@ -1185,38 +1183,48 @@ def chat_stream():
         elif h.get("role") == "assistant" and h.get("content"):
             prompt_parts.append(f"Assistant: {h['content']}")
     prompt_parts.append(f"User: {message}")
-    ollama_prompt = "\n\n".join(prompt_parts)
+    combined_prompt = system_prompt + "\n\n" + "\n\n".join(prompt_parts)
 
-    def _stream_ollama(sys_prompt=system_prompt, prompt=ollama_prompt):
+    def _stream_gemma(prompt=combined_prompt):
         try:
-            _body = {"model": "llama3.2:3b", "prompt": prompt, "system": sys_prompt, "stream": True, "num_predict": 300}
-            log.info("Ollama /api/generate request body: %s", json.dumps(_body))
-            resp = _req.post(
-                "http://localhost:11434/api/generate",
-                json=_body,
-                stream=True,
-                timeout=45,
+            from google import genai as _genai
+            _gclient = _genai.Client(api_key=os.environ['GOOGLE_AI_STUDIO_API_KEY'])
+            response = _gclient.models.generate_content(
+                model='gemma-4-26b-a4b-it',
+                contents=prompt,
+                config={'max_output_tokens': 500}
             )
-            resp.raise_for_status()
-            for line in resp.iter_lines():
-                if not line:
-                    continue
-                try:
-                    chunk = json.loads(line)
-                except Exception:
-                    continue
-                token = chunk.get("response", "")
-                if token:
-                    yield f"data: {json.dumps({'token': token})}\n\n"
-                if chunk.get("done"):
-                    break
+            text = response.text or ''
+            # Stream word by word to match Ollama SSE feel
+            words = text.split(' ')
+            for i, word in enumerate(words):
+                token = word if i == 0 else ' ' + word
+                yield f"data: {json.dumps({'token': token})}\n\n"
             yield "data: [DONE]\n\n"
-        except _req.exceptions.Timeout:
-            yield "data: [ERROR] Watson timed out. Try again.\n\n"
-        except Exception:
-            yield "data: [ERROR] Watson timed out. Try again.\n\n"
+        except Exception as _gemma_err:
+            log.warning("Gemma 4 failed (%s), falling back to Ollama", _gemma_err)
+            # Fallback to Ollama
+            try:
+                _body = {"model": "llama3.2:3b", "prompt": prompt, "stream": True, "num_predict": 300}
+                resp = _req.post("http://localhost:11434/api/generate", json=_body, stream=True, timeout=45)
+                resp.raise_for_status()
+                for line in resp.iter_lines():
+                    if not line:
+                        continue
+                    try:
+                        chunk = json.loads(line)
+                    except Exception:
+                        continue
+                    token = chunk.get("response", "")
+                    if token:
+                        yield f"data: {json.dumps({'token': token})}\n\n"
+                    if chunk.get("done"):
+                        break
+                yield "data: [DONE]\n\n"
+            except Exception:
+                yield "data: [ERROR] Watson timed out. Try again.\n\n"
 
-    return _sse_response(_stream_ollama())
+    return _sse_response(_stream_gemma())
 
 
 # ── Chat API ─────────────────────────────────────────────────────────────────
@@ -1378,38 +1386,48 @@ def chat():
         ).start()
         return jsonify({"response": "Building that skill now. I'll notify you via Telegram when it's ready."})
 
-    # Fall through to Ollama
-    messages = []
+    # Fall through to LLM — try Gemma 4 via Google AI, fall back to Ollama
+    system_prompt = WATSON_SYSTEM
+    prompt_parts = []
     for h in history[-4:]:
-        if h.get("role") in ("user", "assistant") and h.get("content"):
-            messages.append({"role": h["role"], "content": h["content"]})
-    messages.append({"role": "user", "content": message})
+        if h.get("role") == "user" and h.get("content"):
+            prompt_parts.append(f"User: {h['content']}")
+        elif h.get("role") == "assistant" and h.get("content"):
+            prompt_parts.append(f"Assistant: {h['content']}")
+    prompt_parts.append(f"User: {message}")
+    combined_prompt = system_prompt + "\n\n" + "\n\n".join(prompt_parts)
+
     try:
-        _body = {"model": "llama3.2:3b", "system": WATSON_SYSTEM, "messages": messages, "stream": True, "num_predict": 300}
-        log.info("Ollama /api/chat request body: %s", json.dumps(_body))
-        resp = _req.post(
-            "http://localhost:11434/api/chat",
-            json=_body,
-            stream=True,
-            timeout=30,
+        from google import genai as _genai
+        _gclient = _genai.Client(api_key=os.environ['GOOGLE_AI_STUDIO_API_KEY'])
+        response = _gclient.models.generate_content(
+            model='gemma-4-26b-a4b-it',
+            contents=combined_prompt,
+            config={'max_output_tokens': 500}
         )
-        resp.raise_for_status()
-        reply_parts = []
-        for line in resp.iter_lines():
-            if not line:
-                continue
-            try:
-                chunk = json.loads(line)
-            except Exception:
-                continue
-            token = chunk.get("message", {}).get("content", "")
-            if token:
-                reply_parts.append(token)
-            if chunk.get("done"):
-                break
-        return jsonify({"response": "".join(reply_parts)})
-    except Exception as exc:
-        return jsonify({"error": str(exc)}), 500
+        return jsonify({"response": response.text or ""})
+    except Exception as _gemma_err:
+        log.warning("Gemma 4 failed (%s), falling back to Ollama", _gemma_err)
+        try:
+            _body = {"model": "llama3.2:3b", "prompt": combined_prompt, "stream": True, "num_predict": 300}
+            resp = _req.post("http://localhost:11434/api/generate", json=_body, stream=True, timeout=45)
+            resp.raise_for_status()
+            reply_parts = []
+            for line in resp.iter_lines():
+                if not line:
+                    continue
+                try:
+                    chunk = json.loads(line)
+                except Exception:
+                    continue
+                token = chunk.get("response", "")
+                if token:
+                    reply_parts.append(token)
+                if chunk.get("done"):
+                    break
+            return jsonify({"response": "".join(reply_parts)})
+        except Exception as exc:
+            return jsonify({"error": str(exc)}), 500
 
 
 # ── Calendar API ──────────────────────────────────────────────────────────────
