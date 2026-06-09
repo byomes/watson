@@ -426,6 +426,48 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text_clean = text_clean[len(prefix):].strip()
             break
 
+    # Watson build: request — route to Gemini coder
+    if text_lower.startswith("build:") or text_lower.startswith("watson build:"):
+        from jobs.dev.gemini_coder import request_build
+        description = re.sub(r'^(?:watson\s+)?build:\s*', '', text_clean, flags=re.IGNORECASE).strip()
+        await update.message.reply_text("Sending to Gemini...")
+        import asyncio
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, request_build, description)
+        return
+
+    # apply/cancel gemini build
+    _apply_match = re.match(r'^apply\s+(\d+)$', text_lower)
+    _cancel_match = re.match(r'^cancel\s+(\d+)$', text_lower)
+    if _apply_match:
+        from jobs.dev.gemini_coder import apply_build
+        build_id = int(_apply_match.group(1))
+        await update.message.reply_text(f"Applying build {build_id}...")
+        import asyncio
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, apply_build, build_id)
+        return
+    if _cancel_match:
+        from jobs.dev.gemini_coder import cancel_build
+        build_id = int(_cancel_match.group(1))
+        import asyncio
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, cancel_build, build_id)
+        return
+
+    # Pastoral notes reply handling
+    from jobs.pastoral_notes.db import get_db
+    _notes_db = get_db()
+    _pending_note = _notes_db.execute(
+        "SELECT * FROM notes_pending WHERE status='pending' ORDER BY prompted_at DESC LIMIT 1"
+    ).fetchone()
+    if _pending_note:
+        from jobs.pastoral_notes.handler import handle_notes_reply
+        import asyncio
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, handle_notes_reply, text_clean)
+        return
+
     # Handle CONFIRM / CANCEL for pending actions (calendar, skill proposals, capability gaps)
     if text_lower in ("yes", "confirm", "yes do it", "book it", "go ahead") or text_lower in _SKILL_AFFIRM:
         if chat_id in _pending_skills:
