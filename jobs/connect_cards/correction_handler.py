@@ -267,7 +267,9 @@ def run() -> None:
         for sender in authorized:
             status, data = mail.search(
                 None,
-                f'(UNSEEN FROM "{sender}" SUBJECT "Re: Missed")',
+                "UNSEEN",
+                f'FROM "{sender}"',
+                'SUBJECT "Re: Missed"',
             )
             if status == "OK" and data[0]:
                 matched_ids.update(data[0].split())
