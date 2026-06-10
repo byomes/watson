@@ -243,5 +243,25 @@
     "requires_auth": false,
     "is_user_facing": true,
     "accepts_input": true
+  },
+  {
+    "slug": "image_search",
+    "description": "Search for a stock image by topic or keywords",
+    "triggers": [
+      "find an image",
+      "search for image",
+      "get an image",
+      "image search",
+      "find image for",
+      "stock image"
+    ],
+    "job_module": "jobs.social.image_search",
+    "function": "run",
+    "interfaces": [
+      "dashboard",
+      "telegram"
+    ],
+    "status": "ready",
+    "category": "Research"
   }
 ]
