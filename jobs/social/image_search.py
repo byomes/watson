@@ -88,6 +88,17 @@ def run(message: str = None) -> str:
         return 'Provide a topic to find an image for.'
     keywords = extract_keywords(message)
     image = find_image(keywords)
-    if image:
-        return f"Image: {image['url']}\nPhotographer: {image['photographer']} ({image['source']})"
-    return 'No image found.'
+    if not image:
+        return 'No image found.'
+
+    try:
+        import base64
+        resp = requests.get(image['url'], timeout=15)
+        resp.raise_for_status()
+        b64 = base64.b64encode(resp.content).decode()
+        content_type = resp.headers.get('content-type', 'image/jpeg').split(';')[0]
+        data_url = f"data:{content_type};base64,{b64}"
+        return f"{data_url}\n{image['url']}\nPhoto by {image['photographer']} on {image['source'].title()}"
+    except Exception as exc:
+        log.error('Image fetch failed: %s', exc)
+        return f"{image['url']}\nPhoto by {image['photographer']} on {image['source'].title()}"

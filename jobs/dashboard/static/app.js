@@ -380,11 +380,18 @@ function _appendMsg(role, text) {
   const bubble = document.createElement('div');
   bubble.className = 'msg-bubble';
   if (text.trim().startsWith('data:image/')) {
+    const lines = text.trim().split('\n');
     const img = document.createElement('img');
-    img.src = text.trim();
+    img.src = lines[0];
     img.style.maxWidth = '100%';
     img.style.borderRadius = '8px';
     bubble.appendChild(img);
+    if (lines.length > 1) {
+      const caption = document.createElement('div');
+      caption.style.cssText = 'font-size:12px;color:var(--text-muted);margin-top:6px';
+      caption.textContent = lines.slice(1).join('\n');
+      bubble.appendChild(caption);
+    }
   } else {
     bubble.innerHTML = _renderContent(text);
   }
@@ -568,11 +575,18 @@ async function sendChat() {
       const content = watsonTextNode.textContent;
       if (content.trim().startsWith('data:image/')) {
         watsonTextNode.textContent = '';
+        const lines = content.trim().split('\n');
         const img = document.createElement('img');
-        img.src = content.trim();
+        img.src = lines[0];
         img.style.maxWidth = '100%';
         img.style.borderRadius = '8px';
         watsonBubble.appendChild(img);
+        if (lines.length > 1) {
+          const caption = document.createElement('div');
+          caption.style.cssText = 'font-size:12px;color:var(--text-muted);margin-top:6px';
+          caption.textContent = lines.slice(1).join('\n');
+          watsonBubble.appendChild(caption);
+        }
       } else {
         watsonBubble.innerHTML = _renderContent(content);
       }
