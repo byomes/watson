@@ -693,6 +693,30 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         _log_telegram_exchange(text_clean, reply)
         return
 
+    # Remind me intake
+    _remind_timed_m = _re.match(r'^remind me at\s+(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)\s+(.+)', text_lower)
+    _remind_plain_m = None if _remind_timed_m else _re.match(r'^remind me\s+(.+)', text_lower)
+    if _remind_timed_m or _remind_plain_m:
+        from jobs.reminders import parse_reminder_time
+        if _remind_timed_m:
+            _rt = parse_reminder_time(_remind_timed_m.group(1))
+            _title = text_clean[_remind_timed_m.start(2):].strip() if _rt else text_clean[len("remind me at "):].strip()
+        else:
+            _rt = None
+            _title = text_clean[_remind_plain_m.start(1):].strip()
+        if _title:
+            with get_connection() as conn:
+                _ensure_reminders_table(conn)
+                conn.execute(
+                    "INSERT INTO reminders (title, due_datetime, reminder_time, status, created_at, updated_at) "
+                    "VALUES (?, datetime('now'), ?, 'active', datetime('now'), datetime('now'))",
+                    (_title, _rt),
+                )
+            reply = f"⏰ Reminder set for {_rt}: {_title}" if _rt else f"⏰ Reminder saved: {_title}"
+            await update.message.reply_text(reply)
+            _log_telegram_exchange(text_clean, reply)
+            return
+
     from jobs.skillbuilder import router as _router
 
     # 1. Factual queries → web search
@@ -855,16 +879,8 @@ async def _handle_book_appointment(update: Update, context: ContextTypes.DEFAULT
 
 
 def _ensure_reminders_table(conn) -> None:
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS reminders (
-            id           INTEGER PRIMARY KEY AUTOINCREMENT,
-            title        TEXT    NOT NULL,
-            due_datetime TEXT    NOT NULL,
-            status       TEXT    NOT NULL DEFAULT 'active',
-            sort_order   INTEGER DEFAULT 0,
-            created_at   TEXT    NOT NULL DEFAULT (datetime('now'))
-        )
-    """)
+    from jobs.reminders import ensure_reminders_schema
+    ensure_reminders_schema(conn)
 
 
 async def _handle_reminder_create(update: Update, context: ContextTypes.DEFAULT_TYPE, params: dict) -> None:
@@ -873,17 +889,23 @@ async def _handle_reminder_create(update: Update, context: ContextTypes.DEFAULT_
     if not title:
         await update.message.reply_text("What should I remind you about?")
         return
-    if not due:
-        # "remind me later" or no time specified — default to 2 hours from now
-        from datetime import timedelta
-        due = (datetime.now() + timedelta(hours=2)).strftime("%Y-%m-%d %H:%M:%S")
+    # Extract HH:MM from due_datetime if present
+    reminder_time = None
+    if due:
+        try:
+            reminder_time = datetime.fromisoformat(due).strftime("%H:%M")
+        except Exception:
+            pass
     try:
         with get_connection() as conn:
             _ensure_reminders_table(conn)
             conn.execute(
-                "INSERT INTO reminders (title, due_datetime) VALUES (?, ?)", (title, due)
+                "INSERT INTO reminders (title, due_datetime, reminder_time, status, created_at, updated_at) "
+                "VALUES (?, ?, ?, 'active', datetime('now'), datetime('now'))",
+                (title, due or "", reminder_time),
             )
-        await update.message.reply_text(f"⏰ Reminder set: '{title}' at {due}.")
+        reply = f"⏰ Reminder set for {reminder_time}: {title}" if reminder_time else f"⏰ Reminder saved: {title}"
+        await update.message.reply_text(reply)
     except Exception as exc:
         log.error("Reminder create failed: %s", exc)
         await update.message.reply_text(f"Error saving reminder: {exc}")
