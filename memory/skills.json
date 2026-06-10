@@ -1,13 +1,17 @@
 [
   {
+    "slug": "calendar_availability",
     "skill_name": "calendar_availability",
     "description": "Checks the user's Google Calendar for available slots for a given day or time range.",
+    "job_module": "jobs.calendar.calendar_skill",
     "module": "jobs.calendar.calendar_skill",
     "function": "check_availability",
     "requires_auth": true,
     "is_user_facing": true,
     "accepts_input": true,
-    "natural_language_triggers": [
+    "interfaces": ["dashboard"],
+    "status": "ready",
+    "triggers": [
       "check availability",
       "what's available",
       "show availability",
@@ -19,248 +23,334 @@
     ]
   },
   {
+    "slug": "create_blog_draft",
     "skill_name": "create_blog_draft",
     "description": "Creates a new blog draft entry in the database. Requires a title and content.",
+    "job_module": "jobs.blog.blog_skill",
     "module": "jobs.blog.blog_skill",
     "function": "create_draft",
     "requires_auth": false,
     "is_user_facing": true,
-    "accepts_input": true
+    "accepts_input": true,
+    "interfaces": ["dashboard"],
+    "status": "ready"
   },
   {
+    "slug": "list_blog_drafts",
     "skill_name": "list_blog_drafts",
     "description": "Lists all existing blog drafts.",
+    "job_module": "jobs.blog.blog_skill",
     "module": "jobs.blog.blog_skill",
     "function": "list_drafts",
     "requires_auth": false,
     "is_user_facing": true,
-    "accepts_input": false
+    "accepts_input": false,
+    "interfaces": ["dashboard"],
+    "status": "ready"
   },
   {
+    "slug": "delete_blog_draft",
     "skill_name": "delete_blog_draft",
     "description": "Deletes a blog draft by its ID.",
+    "job_module": "jobs.blog.blog_skill",
     "module": "jobs.blog.blog_skill",
     "function": "delete_draft",
     "requires_auth": false,
     "is_user_facing": true,
-    "accepts_input": true
+    "accepts_input": true,
+    "interfaces": ["dashboard"],
+    "status": "ready"
   },
   {
+    "slug": "add_to_reading_list",
     "skill_name": "add_to_reading_list",
     "description": "Adds a URL to the reading list with an optional title.",
+    "job_module": "jobs.reading_list.reading_list_skill",
     "module": "jobs.reading_list.reading_list_skill",
     "function": "add_item",
     "requires_auth": false,
     "is_user_facing": true,
-    "accepts_input": true
+    "accepts_input": true,
+    "interfaces": ["dashboard"],
+    "status": "ready"
   },
   {
+    "slug": "get_reading_list",
     "skill_name": "get_reading_list",
     "description": "Retrieves items from the reading list, optionally filtered by read status.",
+    "job_module": "jobs.reading_list.reading_list_skill",
     "module": "jobs.reading_list.reading_list_skill",
     "function": "get_items",
     "requires_auth": false,
     "is_user_facing": true,
-    "accepts_input": true
+    "accepts_input": true,
+    "interfaces": ["dashboard"],
+    "status": "ready"
   },
   {
+    "slug": "mark_reading_item_read",
     "skill_name": "mark_reading_item_read",
     "description": "Marks an item in the reading list as read by its ID.",
+    "job_module": "jobs.reading_list.reading_list_skill",
     "module": "jobs.reading_list.reading_list_skill",
     "function": "mark_as_read",
     "requires_auth": false,
     "is_user_facing": true,
-    "accepts_input": true
+    "accepts_input": true,
+    "interfaces": ["dashboard"],
+    "status": "ready"
   },
   {
+    "slug": "remove_reading_item",
     "skill_name": "remove_reading_item",
     "description": "Removes an item from the reading list by its ID.",
+    "job_module": "jobs.reading_list.reading_list_skill",
     "module": "jobs.reading_list.reading_list_skill",
     "function": "remove_item",
     "requires_auth": false,
     "is_user_facing": true,
-    "accepts_input": true
+    "accepts_input": true,
+    "interfaces": ["dashboard"],
+    "status": "ready"
   },
   {
+    "slug": "get_all_chat_sessions",
     "skill_name": "get_all_chat_sessions",
     "description": "Retrieves all chat sessions.",
+    "job_module": "jobs.chat.chat_session_skill",
     "module": "jobs.chat.chat_session_skill",
     "function": "get_all_sessions",
     "requires_auth": false,
     "is_user_facing": true,
-    "accepts_input": false
+    "accepts_input": false,
+    "interfaces": ["dashboard"],
+    "status": "ready"
   },
   {
+    "slug": "get_chat_session_messages",
     "skill_name": "get_chat_session_messages",
     "description": "Retrieves all messages for a specific chat session ID.",
+    "job_module": "jobs.chat.chat_session_skill",
     "module": "jobs.chat.chat_session_skill",
     "function": "get_session_messages",
     "requires_auth": false,
     "is_user_facing": true,
-    "accepts_input": true
+    "accepts_input": true,
+    "interfaces": ["dashboard"],
+    "status": "ready"
   },
   {
+    "slug": "delete_chat_session",
     "skill_name": "delete_chat_session",
     "description": "Deletes a chat session by its ID and all associated messages.",
+    "job_module": "jobs.chat.chat_session_skill",
     "module": "jobs.chat.chat_session_skill",
     "function": "delete_session",
     "requires_auth": false,
     "is_user_facing": true,
-    "accepts_input": true
+    "accepts_input": true,
+    "interfaces": ["dashboard"],
+    "status": "ready"
   },
   {
+    "slug": "get_server_time",
     "skill_name": "get_server_time",
     "description": "Returns the current server time.",
+    "job_module": "jobs.server_utils.server_time_skill",
     "module": "jobs.server_utils.server_time_skill",
     "function": "get_time",
     "requires_auth": false,
     "is_user_facing": true,
     "accepts_input": false,
-    "natural_language_triggers": [
+    "interfaces": ["dashboard"],
+    "status": "ready",
+    "triggers": [
       "what time is it",
       "current time",
       "server time"
     ]
   },
   {
+    "slug": "send_telegram_message",
     "skill_name": "send_telegram_message",
     "description": "Sends a message to a specific Telegram chat ID.",
+    "job_module": "jobs.telegram.telegram_skill",
     "module": "jobs.telegram.telegram_skill",
     "function": "send_message",
     "requires_auth": false,
     "is_user_facing": false,
-    "accepts_input": true
+    "accepts_input": true,
+    "interfaces": ["dashboard"],
+    "status": "ready"
   },
   {
+    "slug": "get_facebook_queue",
     "skill_name": "get_facebook_queue",
     "description": "Retrieves items from the Facebook posting queue.",
+    "job_module": "jobs.facebook.facebook_skill",
     "module": "jobs.facebook.facebook_skill",
     "function": "get_queue",
     "requires_auth": false,
     "is_user_facing": true,
-    "accepts_input": false
+    "accepts_input": false,
+    "interfaces": ["dashboard"],
+    "status": "ready"
   },
   {
+    "slug": "add_to_facebook_queue",
     "skill_name": "add_to_facebook_queue",
     "description": "Adds an item to the Facebook posting queue.",
+    "job_module": "jobs.facebook.facebook_skill",
     "module": "jobs.facebook.facebook_skill",
     "function": "add_to_queue",
     "requires_auth": false,
     "is_user_facing": true,
-    "accepts_input": true
+    "accepts_input": true,
+    "interfaces": ["dashboard"],
+    "status": "ready"
   },
   {
+    "slug": "remove_from_facebook_queue",
     "skill_name": "remove_from_facebook_queue",
     "description": "Removes an item from the Facebook posting queue by ID.",
+    "job_module": "jobs.facebook.facebook_skill",
     "module": "jobs.facebook.facebook_skill",
     "function": "remove_from_queue",
     "requires_auth": false,
     "is_user_facing": true,
-    "accepts_input": true
+    "accepts_input": true,
+    "interfaces": ["dashboard"],
+    "status": "ready"
   },
   {
+    "slug": "post_facebook_item",
     "skill_name": "post_facebook_item",
     "description": "Immediately posts an item from the Facebook queue by ID.",
+    "job_module": "jobs.facebook.facebook_skill",
     "module": "jobs.facebook.facebook_skill",
     "function": "post_item",
     "requires_auth": false,
     "is_user_facing": true,
-    "accepts_input": true
+    "accepts_input": true,
+    "interfaces": ["dashboard"],
+    "status": "ready"
   },
   {
+    "slug": "search_ollama_knowledge",
     "skill_name": "search_ollama_knowledge",
     "description": "Searches the Ollama knowledge base for information based on a query.",
+    "job_module": "jobs.ollama.ollama_rag",
     "module": "jobs.ollama.ollama_rag",
     "function": "search_knowledge_base",
     "requires_auth": false,
     "is_user_facing": true,
     "accepts_input": true,
-    "natural_language_triggers": [
+    "interfaces": ["dashboard"],
+    "status": "ready",
+    "triggers": [
       "search ollama",
       "ask ollama",
       "ollama search"
     ]
   },
   {
+    "slug": "add_ollama_document",
     "skill_name": "add_ollama_document",
     "description": "Adds a document to the Ollama knowledge base for RAG. Requires a file path.",
+    "job_module": "jobs.ollama.ollama_rag",
     "module": "jobs.ollama.ollama_rag",
     "function": "add_document",
     "requires_auth": false,
     "is_user_facing": true,
-    "accepts_input": true
+    "accepts_input": true,
+    "interfaces": ["dashboard"],
+    "status": "ready"
   },
   {
+    "slug": "list_ollama_documents",
     "skill_name": "list_ollama_documents",
     "description": "Lists all documents currently in the Ollama knowledge base.",
+    "job_module": "jobs.ollama.ollama_rag",
     "module": "jobs.ollama.ollama_rag",
     "function": "list_documents",
     "requires_auth": false,
     "is_user_facing": true,
-    "accepts_input": false
+    "accepts_input": false,
+    "interfaces": ["dashboard"],
+    "status": "ready"
   },
   {
+    "slug": "remove_ollama_document",
     "skill_name": "remove_ollama_document",
     "description": "Removes a document from the Ollama knowledge base by its ID.",
+    "job_module": "jobs.ollama.ollama_rag",
     "module": "jobs.ollama.ollama_rag",
     "function": "remove_document",
     "requires_auth": false,
     "is_user_facing": true,
-    "accepts_input": true
+    "accepts_input": true,
+    "interfaces": ["dashboard"],
+    "status": "ready"
   },
   {
+    "slug": "create_ollama_chat_session",
     "skill_name": "create_ollama_chat_session",
     "description": "Creates a new chat session with the Ollama model.",
+    "job_module": "jobs.ollama.ollama_chat",
     "module": "jobs.ollama.ollama_chat",
     "function": "create_session",
     "requires_auth": false,
     "is_user_facing": true,
-    "accepts_input": false
+    "accepts_input": false,
+    "interfaces": ["dashboard"],
+    "status": "ready"
   },
   {
+    "slug": "send_ollama_chat_message",
     "skill_name": "send_ollama_chat_message",
     "description": "Sends a message to an active Ollama chat session and gets a response.",
+    "job_module": "jobs.ollama.ollama_chat",
     "module": "jobs.ollama.ollama_chat",
     "function": "send_message",
     "requires_auth": false,
     "is_user_facing": true,
-    "accepts_input": true
+    "accepts_input": true,
+    "interfaces": ["dashboard"],
+    "status": "ready"
   },
   {
+    "slug": "get_ollama_chat_history",
     "skill_name": "get_ollama_chat_history",
     "description": "Retrieves the message history for a specific Ollama chat session.",
+    "job_module": "jobs.ollama.ollama_chat",
     "module": "jobs.ollama.ollama_chat",
     "function": "get_history",
     "requires_auth": false,
     "is_user_facing": true,
-    "accepts_input": true
+    "accepts_input": true,
+    "interfaces": ["dashboard"],
+    "status": "ready"
   },
   {
+    "slug": "delete_ollama_chat_session",
     "skill_name": "delete_ollama_chat_session",
     "description": "Deletes an Ollama chat session by its ID.",
+    "job_module": "jobs.ollama.ollama_chat",
     "module": "jobs.ollama.ollama_chat",
     "function": "delete_session",
     "requires_auth": false,
     "is_user_facing": true,
-    "accepts_input": true
+    "accepts_input": true,
+    "interfaces": ["dashboard"],
+    "status": "ready"
   },
   {
-    "skill_name": "image_search",
-    "description": "Search for up to 5 stock images by topic or keywords. Returns base64 data URLs with photographer credit.",
-    "module": "jobs.social.image_search",
-    "function": "run",
-    "natural_language_triggers": [
-      "find an image",
-      "search for image",
-      "get an image",
-      "image search",
-      "find image for",
-      "stock image",
-      "find images",
-      "search images"
-    ],
     "slug": "image_search",
+    "description": "Search for up to 5 stock images by topic or keywords. Returns base64 data URLs with photographer credit.",
     "job_module": "jobs.social.image_search",
+    "function": "run",
+    "interfaces": ["dashboard"],
+    "status": "ready",
     "triggers": [
       "find an image",
       "search for image",
