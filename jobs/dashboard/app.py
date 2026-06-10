@@ -1176,8 +1176,9 @@ def chat_stream():
     # Direct slug dispatch — from dashboard Use button (run:<slug>)
     if msg_lower.startswith("run:"):
         run_body = message[4:].strip()
-        slug = run_body.split()[0] if run_body else ""
-        skill_message = run_body
+        _run_parts = run_body.split(None, 1)
+        slug = _run_parts[0] if _run_parts else ""
+        skill_message = _run_parts[1] if len(_run_parts) > 1 else ""
         skills = _router._load_skills("dashboard")
         skill = next((s for s in skills if s["slug"] == slug), None)
         if skill:
