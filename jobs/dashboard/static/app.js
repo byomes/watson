@@ -1072,20 +1072,56 @@ function fmtDt(s) {
 }
 
 function renderReminders() {
-  const el = document.getElementById('r-list');
-  const vis = rFilter === 'all' ? reminders : reminders.filter(r => r.status === rFilter);
+  var el = document.getElementById('r-list');
+  var vis = rFilter === 'all' ? reminders : reminders.filter(function(r) { return r.status === rFilter; });
   if (!vis.length) { el.innerHTML = '<div class="ctr">No reminders</div>'; return; }
-  el.innerHTML = vis.map(r => `
-    <div class="tr" data-drag-id="${r.id}" id="rem-${r.id}">
-      <button class="tc ${r.status === 'done' ? 'done' : ''}" onclick="toggleReminder(${r.id})"></button>
-      <div class="tbody">
-        <div class="ttitle ${r.status === 'done' ? 'done' : ''}">${esc(r.title)}</div>
-        <div class="tmeta">
-          <span style="font-size:10px;color:var(--text3)">&#9200; ${esc(fmtDt(r.due_datetime))}</span>
-        </div>
-      </div>
-      <button class="tdel" onclick="deleteReminder(${r.id})">&#215;</button>
-    </div>`).join('');
+  el.innerHTML = vis.map(function(r) {
+    return '<div class="tr" data-drag-id="' + r.id + '" id="rem-' + r.id + '">' +
+      '<span class="r-drag" draggable="true" title="Drag to reorder">&#10495;</span>' +
+      '<div class="tbody">' +
+        '<div class="ttitle' + (r.status === 'done' ? ' done' : '') + '" id="rtitle-' + r.id + '">' + esc(r.title) + '</div>' +
+        (r.due_datetime ? '<div class="tmeta"><span style="font-size:10px;color:var(--text3)">&#9200; ' + esc(fmtDt(r.due_datetime)) + '</span></div>' : '') +
+      '</div>' +
+      '<div class="r-btns">' +
+        '<button class="r-btn r-edit" onclick="editReminder(' + r.id + ')" title="Edit">&#9998;</button>' +
+        '<button class="r-btn r-done" onclick="doneReminder(' + r.id + ')" title="Done">&#10003;</button>' +
+        '<button class="r-btn r-del" onclick="deleteReminder(' + r.id + ')" title="Delete">&#215;</button>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function editReminder(id) {
+  var titleEl = document.getElementById('rtitle-' + id);
+  var r = reminders.find(function(x) { return x.id === id; });
+  if (!r || !titleEl) return;
+  var inp = document.createElement('input');
+  inp.type = 'text';
+  inp.value = r.title;
+  inp.className = 'r-inline-edit';
+  inp.onblur = function() { _saveReminderEdit(id, inp.value); };
+  inp.onkeydown = function(e) {
+    if (e.key === 'Enter') { e.preventDefault(); inp.blur(); }
+    else if (e.key === 'Escape') { inp.onblur = null; renderReminders(); }
+  };
+  titleEl.replaceWith(inp);
+  inp.focus(); inp.select();
+}
+
+function _saveReminderEdit(id, val) {
+  val = (val || '').trim();
+  var r = reminders.find(function(x) { return x.id === id; });
+  if (!r) return;
+  if (!val || val === r.title) { renderReminders(); return; }
+  reminders = reminders.map(function(x) { return x.id === id ? Object.assign({}, x, {title: val}) : x; });
+  renderReminders();
+  api('/api/reminders/' + id, 'PATCH', {title: val});
+}
+
+function doneReminder(id) {
+  reminders = reminders.filter(function(r) { return r.id !== id; });
+  renderReminders();
+  api('/api/reminders/' + id, 'PATCH', {status: 'done'});
 }
 
 async function addReminder() {
@@ -1204,6 +1240,62 @@ attachDrag('r-list', function(id, order) {
   reminders = reminders.map(r => r.id === id ? Object.assign({}, r, {sort_order: order}) : r);
   api('/api/reminders/' + id, 'PATCH', {sort_order: order});
 });
+
+(function() {
+  var list = document.getElementById('r-list');
+  var _rdrag = null;
+
+  list.addEventListener('dragstart', function(e) {
+    if (!e.target.classList.contains('r-drag')) return;
+    var row = e.target.closest('[data-drag-id]');
+    if (!row) return;
+    _rdrag = row;
+    row.classList.add('r-dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setDragImage(row, 20, 20);
+  });
+
+  list.addEventListener('dragover', function(e) {
+    e.preventDefault();
+    var row = e.target.closest('[data-drag-id]');
+    if (!row || row === _rdrag) return;
+    list.querySelectorAll('.r-over-top,.r-over-bot').forEach(function(x) { x.classList.remove('r-over-top','r-over-bot'); });
+    var rect = row.getBoundingClientRect();
+    row.classList.add(e.clientY < rect.top + rect.height / 2 ? 'r-over-top' : 'r-over-bot');
+  });
+
+  list.addEventListener('dragleave', function(e) {
+    if (!list.contains(e.relatedTarget)) {
+      list.querySelectorAll('.r-over-top,.r-over-bot').forEach(function(x) { x.classList.remove('r-over-top','r-over-bot'); });
+    }
+  });
+
+  list.addEventListener('drop', function(e) {
+    e.preventDefault();
+    var target = e.target.closest('[data-drag-id]');
+    list.querySelectorAll('.r-over-top,.r-over-bot').forEach(function(x) { x.classList.remove('r-over-top','r-over-bot'); });
+    if (!target || !_rdrag || target === _rdrag) { _rdrag = null; return; }
+    var rect = target.getBoundingClientRect();
+    var before = e.clientY < rect.top + rect.height / 2;
+    var dragId = parseInt(_rdrag.dataset.dragId);
+    var targetId = parseInt(target.dataset.dragId);
+    var dragIdx = reminders.findIndex(function(r) { return r.id === dragId; });
+    if (dragIdx === -1) { _rdrag = null; return; }
+    var item = reminders.splice(dragIdx, 1)[0];
+    var newTargetIdx = reminders.findIndex(function(r) { return r.id === targetId; });
+    if (newTargetIdx === -1) { reminders.splice(dragIdx, 0, item); _rdrag = null; return; }
+    reminders.splice(before ? newTargetIdx : newTargetIdx + 1, 0, item);
+    _rdrag = null;
+    renderReminders();
+    reminders.forEach(function(r, i) { api('/api/reminders/' + r.id, 'PATCH', {sort_order: i}); });
+  });
+
+  list.addEventListener('dragend', function() {
+    if (_rdrag) _rdrag.classList.remove('r-dragging');
+    list.querySelectorAll('.r-over-top,.r-over-bot').forEach(function(x) { x.classList.remove('r-over-top','r-over-bot'); });
+    _rdrag = null;
+  });
+})();
 
 // ── Projects tab ──────────────────────────────────────────────────────────────
 let projShowArchived = false;
