@@ -675,10 +675,18 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             _log_telegram_exchange(text_clean, reply)
             return
 
+    import re as _re
+    if _re.search(r'what.*(time|hour).*is it|what time|current time', text_clean.lower()):
+        from jobs.time_check import run as _time_run
+        reply = _time_run()
+        await update.message.reply_text(reply)
+        _log_telegram_exchange(text_clean, reply)
+        return
+
     from jobs.skillbuilder import router as _router
 
     # 1. Factual queries → web search
-    if _router._is_factual_query(text_clean):
+    if getattr(_router, '_is_factual_query', None) and _router._is_factual_query(text_clean):
         from jobs.research.web_search import run as web_search_run
         ws_result = web_search_run(text_clean)
         reply = "✓ " + ws_result

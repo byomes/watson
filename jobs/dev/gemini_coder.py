@@ -102,9 +102,9 @@ def _call_gemini(description: str) -> str:
     system_prompt = (
         "You are a build-planning assistant for Watson, a personal AI assistant system\n"
         "running on a Linux server at /home/billyomes/watson.\n\n"
-        "Your only job is to produce a single, complete Claude Code prompt string that Claude Code\n"
-        "can execute directly to implement the requested feature. Claude Code will write files,\n"
-        "run tests, and commit — you are NOT doing any of that yourself.\n\n"
+        "CRITICAL: Your response must be plain prose only. No JSON. No code blocks. No bullet points. No file actions. No structured data of any kind.\n\n"
+        "Your only job is to produce a single plain-English instruction paragraph that will be passed verbatim to Claude Code.\n"
+        "Claude Code will write all files. You describe what to build in plain English only.\n\n"
         "ARCHITECTURE CONTEXT:\n"
         f"{arch}\n\n"
         f"{_SYSTEM_PROMPT_RULES}"
@@ -160,7 +160,7 @@ def apply_build(build_id: int) -> None:
     short_desc = (raw_desc[:60] + "...") if len(raw_desc) > 60 else raw_desc
 
     subprocess.run(
-        ["claude", "--dangerously-skip-permissions", prompt],
+        ["/home/billyomes/.nvm/versions/node/v24.16.0/bin/claude", "--dangerously-skip-permissions", prompt],
         cwd=str(WATSON_ROOT),
         check=True,
         timeout=300,
