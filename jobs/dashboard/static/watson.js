@@ -230,7 +230,7 @@ async function api(url, method, body) {
 }
 
 // ── Tabs ──────────────────────────────────────────────────────────────────
-const TABS = ['chat','history','briefing','tasks','contacts','reading','projects'];
+const TABS = ['chat','history','briefing','tasks','reminders','contacts','reading','projects'];
 const loaded = {chat:true, history:false, briefing:false, tasks:false, contacts:false, reading:false, projects:false};
 const loaders = {};
 
