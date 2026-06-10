@@ -11,6 +11,15 @@
         "tell me the time"
       ],
       "endpoint": "jobs.time_check.run"
+    },
+    {
+      "name": "dad_joke_skill",
+      "description": "Tells a random dad joke.",
+      "triggers": [
+        "tell me a joke"
+      ],
+      "module": "jobs.dadjoke.joke",
+      "function": "get_dad_joke"
     }
   ]
 }
