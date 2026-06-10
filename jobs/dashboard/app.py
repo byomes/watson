@@ -161,9 +161,21 @@ _pending_skill_request: str | None = None
 # ── Shell ─────────────────────────────────────────────────────────────────────
 
 
+
+@app.route("/static/app.js")
+def serve_appjs():
+    path = Path(__file__).parent / "static" / "app.js"
+    content = path.read_bytes()
+    response = Response(content, mimetype="application/javascript")
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
+
 @app.route("/")
 def index():
-    return render_template('index.html')
+    import time
+    return render_template('index.html', app_js_ts=int(time.time()))
 
 
 # ── Briefing API ──────────────────────────────────────────────────────────────
