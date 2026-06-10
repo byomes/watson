@@ -55,13 +55,22 @@ def _bootstrap():
     except Exception:
         pass
     c.execute("""CREATE TABLE IF NOT EXISTS reminders (
-        id           INTEGER PRIMARY KEY AUTOINCREMENT,
-        title        TEXT    NOT NULL,
-        due_datetime TEXT    NOT NULL,
-        status       TEXT    NOT NULL DEFAULT 'active',
-        sort_order   INTEGER DEFAULT 0,
-        created_at   TEXT    NOT NULL DEFAULT (datetime('now'))
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        title         TEXT    NOT NULL,
+        due_datetime  TEXT    NOT NULL DEFAULT '',
+        reminder_time TEXT,
+        status        TEXT    NOT NULL DEFAULT 'active',
+        created_at    TEXT    NOT NULL DEFAULT (datetime('now')),
+        updated_at    TEXT
     )""")
+    try:
+        c.execute("ALTER TABLE reminders ADD COLUMN reminder_time TEXT")
+    except Exception:
+        pass
+    try:
+        c.execute("ALTER TABLE reminders ADD COLUMN updated_at TEXT")
+    except Exception:
+        pass
     c.execute("""CREATE TABLE IF NOT EXISTS reading_list (
         id          INTEGER PRIMARY KEY AUTOINCREMENT,
         title       TEXT    NOT NULL,
@@ -373,7 +382,7 @@ def reading_update(entry_id):
 @app.route("/api/reminders")
 def reminders_list():
     rows = _db().execute(
-        "SELECT * FROM reminders ORDER BY sort_order ASC, due_datetime ASC"
+        "SELECT * FROM reminders WHERE status = 'active' ORDER BY created_at DESC"
     ).fetchall()
     return jsonify([dict(r) for r in rows])
 
@@ -382,12 +391,13 @@ def reminders_list():
 def reminders_create():
     data = request.get_json(force=True)
     title = (data.get("title") or "").strip()
-    due_datetime = (data.get("due_datetime") or "").strip()
-    if not title or not due_datetime:
-        return jsonify({"error": "title and due_datetime required"}), 400
+    if not title:
+        return jsonify({"error": "title required"}), 400
+    reminder_time = (data.get("reminder_time") or "").strip() or None
     cur = _db().execute(
-        "INSERT INTO reminders (title, due_datetime, status, sort_order) VALUES (?, ?, ?, ?)",
-        (title, due_datetime, "active", data.get("sort_order", 0)),
+        "INSERT INTO reminders (title, due_datetime, reminder_time, status, created_at, updated_at) "
+        "VALUES (?, datetime('now'), ?, 'active', datetime('now'), datetime('now'))",
+        (title, reminder_time),
     )
     _db().commit()
     row = _db().execute("SELECT * FROM reminders WHERE id = ?", (cur.lastrowid,)).fetchone()
@@ -397,11 +407,12 @@ def reminders_create():
 @app.route("/api/reminders/<int:reminder_id>", methods=["PATCH"])
 def reminders_update(reminder_id):
     data = request.get_json(force=True)
-    allowed = {"title", "due_datetime", "status", "sort_order"}
+    allowed = {"title", "status", "reminder_time"}
     fields = {k: v for k, v in data.items() if k in allowed}
     if not fields:
         return jsonify({"error": "nothing to update"}), 400
-    set_clause = ", ".join(f"{k} = ?" for k in fields)
+    set_parts = [f"{k} = ?" for k in fields] + ["updated_at = datetime('now')"]
+    set_clause = ", ".join(set_parts)
     _db().execute(
         f"UPDATE reminders SET {set_clause} WHERE id = ?", (*fields.values(), reminder_id)
     )
@@ -689,6 +700,27 @@ def chat_stream():
 
     msg_lower = message.lower().strip()
     import re as _re
+
+    # Remind me intake
+    _remind_timed_m = _re.match(r'^remind me at\s+(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)\s+(.+)', msg_lower)
+    _remind_plain_m = None if _remind_timed_m else _re.match(r'^remind me\s+(.+)', msg_lower)
+    if _remind_timed_m or _remind_plain_m:
+        from jobs.reminders import parse_reminder_time
+        if _remind_timed_m:
+            _rt = parse_reminder_time(_remind_timed_m.group(1))
+            _title = message[_remind_timed_m.start(2):].strip() if _rt else message[len("remind me at "):].strip()
+        else:
+            _rt = None
+            _title = message[_remind_plain_m.start(1):].strip()
+        if _title:
+            _db().execute(
+                "INSERT INTO reminders (title, due_datetime, reminder_time, status, created_at, updated_at) "
+                "VALUES (?, datetime('now'), ?, 'active', datetime('now'), datetime('now'))",
+                (_title, _rt),
+            )
+            _db().commit()
+            _reply = f"Reminder set for {_rt}: {_title}" if _rt else f"Reminder saved: {_title}"
+            return _sse_response(_stream_simple(_reply))
 
     # build: dispatch — route to Gemini coder
     if msg_lower.startswith('build:'):
