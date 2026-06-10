@@ -1110,6 +1110,10 @@ def chat_stream():
         else:
             return _sse_response(_stream_simple(f"Skill not found: {slug}"))
 
+    # Time query pre-check
+    if _re.search(r"what.*(time|hour).*is it|what time|current time", msg_lower):
+        from jobs.time_check import run as _time_run
+        return _sse_response(_stream_simple(_time_run()))
     _identity = _router._is_identity_query(message)
     _factual = _router._is_factual_query(message)
     _conv = _router._is_conversational(message)
