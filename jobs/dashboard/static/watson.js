@@ -643,62 +643,64 @@ async function sendChat() {
         if (!event.trim()) continue;
         const dataLines = event.split('\n').filter(function(l) { return l.startsWith('data: '); });
         if (!dataLines.length) continue;
-        const data = dataLines.map(function(l) { return l.slice(6); }).join('\n');
-        if (data === '[DONE]') {
-          _finish();
-          return;
-        } else if (data.startsWith('[ERROR]')) {
-          _hideTyping();
-          _createWatsonBubble();
-          if (watsonCursor) watsonCursor.remove();
-          if (watsonTextNode) watsonTextNode.textContent = data.slice(7).trim();
-          _reEnable();
-          return;
-        } else if (data.startsWith('[CONFIRM_EMAIL]')) {
-          try { confirmEmailData = JSON.parse(data.slice(15)); } catch(_) {}
-        } else if (data.startsWith('[QR_IMAGE]')) {
-          _createWatsonBubble();
-          const img = document.createElement('img');
-          img.src = 'data:image/png;base64,' + data.slice(10);
-          img.alt = 'QR Code';
-          img.style.cssText = 'max-width:280px;border-radius:8px;margin-top:12px;display:block;';
-          if (watsonBubble) watsonBubble.appendChild(img);
-        } else if (data.startsWith('[IMAGE_URL]')) {
-          _createWatsonBubble();
-          _imgCount++;
-          const imgWrap = document.createElement('div');
-          imgWrap.style.cssText = 'margin:10px 0;';
-          const imgNum = document.createElement('div');
-          imgNum.style.cssText = 'font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:4px;letter-spacing:.04em';
-          imgNum.textContent = _imgCount + '.';
-          const img = document.createElement('img');
-          img.src = data.slice(11).trim();
-          img.style.cssText = 'max-width:100%;border-radius:8px;display:block;';
-          imgWrap.appendChild(imgNum);
-          imgWrap.appendChild(img);
-          if (watsonBubble) watsonBubble.appendChild(imgWrap);
-          _lastImgContainer = imgWrap;
-        } else if (data.startsWith('[IMAGE_LINK]')) {
-          const url = data.slice(12).trim();
-          if (_lastImgContainer) {
-            const link = document.createElement('a');
-            link.href = url;
-            link.target = '_blank';
-            link.rel = 'noopener noreferrer';
-            link.textContent = 'Open ↗';
-            link.style.cssText = 'display:inline-block;margin-top:6px;font-size:12px;color:var(--accent);text-decoration:none;padding:4px 12px;border:1px solid var(--accent);border-radius:6px;';
-            _lastImgContainer.appendChild(link);
+        for (const dataLine of dataLines) {
+          const data = dataLine.slice(6);
+          if (data === '[DONE]') {
+            _finish();
+            return;
+          } else if (data.startsWith('[ERROR]')) {
+            _hideTyping();
+            _createWatsonBubble();
+            if (watsonCursor) watsonCursor.remove();
+            if (watsonTextNode) watsonTextNode.textContent = data.slice(7).trim();
+            _reEnable();
+            return;
+          } else if (data.startsWith('[CONFIRM_EMAIL]')) {
+            try { confirmEmailData = JSON.parse(data.slice(15)); } catch(_) {}
+          } else if (data.startsWith('[QR_IMAGE]')) {
+            _createWatsonBubble();
+            const img = document.createElement('img');
+            img.src = 'data:image/png;base64,' + data.slice(10);
+            img.alt = 'QR Code';
+            img.style.cssText = 'max-width:280px;border-radius:8px;margin-top:12px;display:block;';
+            if (watsonBubble) watsonBubble.appendChild(img);
+          } else if (data.startsWith('[IMAGE_URL]')) {
+            _createWatsonBubble();
+            _imgCount++;
+            const imgWrap = document.createElement('div');
+            imgWrap.style.cssText = 'margin:10px 0;';
+            const imgNum = document.createElement('div');
+            imgNum.style.cssText = 'font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:4px;letter-spacing:.04em';
+            imgNum.textContent = _imgCount + '.';
+            const img = document.createElement('img');
+            img.src = data.slice(11).trim();
+            img.style.cssText = 'max-width:100%;border-radius:8px;display:block;';
+            imgWrap.appendChild(imgNum);
+            imgWrap.appendChild(img);
+            if (watsonBubble) watsonBubble.appendChild(imgWrap);
+            _lastImgContainer = imgWrap;
+          } else if (data.startsWith('[IMAGE_LINK]')) {
+            const url = data.slice(12).trim();
+            if (_lastImgContainer) {
+              const link = document.createElement('a');
+              link.href = url;
+              link.target = '_blank';
+              link.rel = 'noopener noreferrer';
+              link.textContent = 'Open ↗';
+              link.style.cssText = 'display:inline-block;margin-top:6px;font-size:12px;color:var(--accent);text-decoration:none;padding:4px 12px;border:1px solid var(--accent);border-radius:6px;';
+              _lastImgContainer.appendChild(link);
+            }
+          } else {
+            _createWatsonBubble();
+            try {
+              const parsed = JSON.parse(data);
+              fullReply += (parsed.token !== undefined) ? parsed.token : data;
+            } catch(_) {
+              fullReply += data;
+            }
+            if (watsonTextNode) watsonTextNode.textContent = fullReply;
+            msgs.scrollTop = msgs.scrollHeight;
           }
-        } else {
-          _createWatsonBubble();
-          try {
-            const parsed = JSON.parse(data);
-            fullReply += (parsed.token !== undefined) ? parsed.token : data;
-          } catch(_) {
-            fullReply += data;
-          }
-          if (watsonTextNode) watsonTextNode.textContent = fullReply;
-          msgs.scrollTop = msgs.scrollHeight;
         }
       }
     }
