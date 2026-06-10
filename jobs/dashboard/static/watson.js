@@ -572,6 +572,8 @@ async function sendChat() {
 
   let fullReply = '';
   let confirmEmailData = null;
+  let _imgCount = 0;
+  let _lastImgContainer = null;
 
   function _reEnable() {
     input.disabled = false;
@@ -663,10 +665,30 @@ async function sendChat() {
           if (watsonBubble) watsonBubble.appendChild(img);
         } else if (data.startsWith('[IMAGE_URL]')) {
           _createWatsonBubble();
+          _imgCount++;
+          const imgWrap = document.createElement('div');
+          imgWrap.style.cssText = 'margin:10px 0;';
+          const imgNum = document.createElement('div');
+          imgNum.style.cssText = 'font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:4px;letter-spacing:.04em';
+          imgNum.textContent = _imgCount + '.';
           const img = document.createElement('img');
           img.src = data.slice(11).trim();
-          img.style.cssText = 'max-width:100%;border-radius:8px;display:block;margin:8px 0';
-          if (watsonBubble) watsonBubble.appendChild(img);
+          img.style.cssText = 'max-width:100%;border-radius:8px;display:block;';
+          imgWrap.appendChild(imgNum);
+          imgWrap.appendChild(img);
+          if (watsonBubble) watsonBubble.appendChild(imgWrap);
+          _lastImgContainer = imgWrap;
+        } else if (data.startsWith('[IMAGE_LINK]')) {
+          const url = data.slice(12).trim();
+          if (_lastImgContainer) {
+            const link = document.createElement('a');
+            link.href = url;
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            link.textContent = 'Open ↗';
+            link.style.cssText = 'display:inline-block;margin-top:6px;font-size:12px;color:var(--accent);text-decoration:none;padding:4px 12px;border:1px solid var(--accent);border-radius:6px;';
+            _lastImgContainer.appendChild(link);
+          }
         } else {
           _createWatsonBubble();
           try {
