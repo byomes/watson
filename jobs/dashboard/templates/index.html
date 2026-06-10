@@ -122,9 +122,9 @@
     <div id="chat-attach-indicator">&#128206; <span id="ai-filename"></span><button id="chat-attach-x" onclick="clearAttachment()" title="Remove">&#215;</button></div>
     <div id="chat-input-area">
       <input type="file" id="chat-file-input" style="display:none" onchange="handleFileSelect(this)">
-      <button id="chat-attach-btn" onclick="document.getElementById('chat-file-input').click()" title="Attach file">+</button>
       <button id="chat-mic-btn" onclick="toggleVoice()"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg></button>
-      <input id="chat-input" type="text" placeholder="Message Watson&hellip;">
+      <button id="chat-attach-btn" onclick="document.getElementById('chat-file-input').click()" title="Attach file">+</button>
+      <textarea id="chat-input" rows="1" placeholder="Message Watson&hellip;"></textarea>
       <button id="chat-send-btn" onclick="sendChat()">Send</button>
     </div>
   </div>
@@ -251,7 +251,7 @@
 
 <nav id="nav">
   <button class="nb active" id="nav-chat" onclick="switchTab('chat')">
-    <span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M2 12C2 6.48 6.48 2 12 2s10 4.48 10 10-4.48 10-10 10H2l2.29-2.29C3.13 18.07 2 15.17 2 12z"/></svg></span>
+    <span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M2 12C2 6.48 6.48 2 12 2s10 4.48 10 10-4.48 10-10 10H2l2.29-2.29C3.13 18.07 2 15.17 2 12z"/></svg><span class="chat-nav-badge" id="chat-nav-badge"></span></span>
     <span>Chat</span>
   </button>
   <button class="nb" id="nav-history" onclick="switchTab('history')">
