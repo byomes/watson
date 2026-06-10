@@ -413,6 +413,19 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text_clean = text.replace("'", "'").replace("'", "'")
     text_lower = text_clean.lower().strip()
 
+    # Store every incoming message for resend capability
+    from jobs.telegram.resend_last import store_message, get_last_message
+    if text_lower != 'resend':
+        store_message(text_clean)
+    else:
+        last = get_last_message()
+        if last:
+            text_clean = last
+            text_lower = last.lower()
+        else:
+            await update.message.reply_text("No previous message to resend.")
+            return
+
     # Strip "watson" prefix if present
     for prefix in ("watson,", "watson"):
         if text_lower.startswith(prefix):
