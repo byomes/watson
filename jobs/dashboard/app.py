@@ -136,6 +136,23 @@ def _build_email_body(content: str) -> str:
     return f"Dr. Bill asked me to send this to you:\n\n{content}\n\n{_EMAIL_SIGNATURE}"
 
 
+def _send_telegram(text: str) -> None:
+    """Send a plain text message via Telegram."""
+    import requests as _rq
+    token = os.getenv("WATSON_BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
+    chat_id = os.getenv("WATSON_CHAT_ID") or os.getenv("TELEGRAM_CHAT_ID")
+    if not token or not chat_id:
+        return
+    try:
+        _rq.post(
+            f"https://api.telegram.org/bot{token}/sendMessage",
+            json={"chat_id": chat_id, "text": text},
+            timeout=10,
+        )
+    except Exception:
+        pass
+
+
 def _send_qr_telegram(png_bytes: bytes, content: str) -> None:
     """Send QR code photo via Telegram."""
     import io as _io
@@ -1312,6 +1329,152 @@ def chat_stream():
             yield "data: [ERROR] Watson timed out. Try again.\n\n"
 
     return _sse_response(_stream_ollama())
+
+
+# ── Siri API ──────────────────────────────────────────────────────────────────
+
+@app.route("/api/siri", methods=["POST"])
+def siri():
+    import re as _siri_re
+    import requests as _siri_req
+    import threading as _siri_threading
+    from jobs.skillbuilder import router as _siri_router
+
+    data = request.get_json(force=True) or {}
+    message = (data.get("message") or "").strip()
+    if not message:
+        return jsonify({"status": "error", "error": "message required"}), 400
+
+    def _process(msg=message):
+        msg_lower = msg.lower().strip()
+
+        def _reply(text):
+            _send_telegram(text or "No response from Watson.")
+
+        # Remind me intake
+        _remind_timed_m = _siri_re.match(r'^remind me at\s+(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)\s+(.+)', msg_lower)
+        _remind_plain_m = None if _remind_timed_m else _siri_re.match(r'^remind me\s+(.+)', msg_lower)
+        if _remind_timed_m or _remind_plain_m:
+            from jobs.reminders import parse_reminder_time
+            if _remind_timed_m:
+                _rt = parse_reminder_time(_remind_timed_m.group(1))
+                _title = msg[_remind_timed_m.start(2):].strip() if _rt else msg[len("remind me at "):].strip()
+            else:
+                _rt = None
+                _title = msg[_remind_plain_m.start(1):].strip()
+            if _title:
+                with sqlite3.connect(DB) as _c:
+                    _c.execute(
+                        "INSERT INTO reminders (title, due_datetime, reminder_time, status, created_at, updated_at) "
+                        "VALUES (?, datetime('now'), ?, 'active', datetime('now'), datetime('now'))",
+                        (_title, _rt),
+                    )
+                return _reply(f"Reminder set for {_rt}: {_title}" if _rt else f"Reminder saved: {_title}")
+
+        # build: dispatch
+        if msg_lower.startswith('build:'):
+            from jobs.dev.gemini_coder import request_build
+            _siri_threading.Thread(target=request_build, args=(msg[6:].strip(),), daemon=True).start()
+            return _reply("Sending to Gemini... I'll notify you via Telegram when the build is ready.")
+
+        # debug: dispatch
+        if msg_lower.startswith('debug:'):
+            from jobs.dev.gemini_coder import request_debug
+            _siri_threading.Thread(target=request_debug, args=(msg[6:].strip(),), daemon=True).start()
+            return _reply("Sending to Gemini debugger... I'll notify you via Telegram when the debug prompt is ready.")
+
+        # Time query
+        if _siri_re.search(r"what.*(time|hour).*is it|what time|current time", msg_lower):
+            from jobs.time_check import run as _time_run
+            return _reply(_time_run())
+
+        # Identity / factual / conversational routing
+        _identity = _siri_router._is_identity_query(msg)
+        _factual = _siri_router._is_factual_query(msg)
+        _conv = _siri_router._is_conversational(msg)
+
+        if _identity:
+            route_result = {"action": "chat"}
+        elif _factual:
+            from jobs.research.web_search import run as web_search_run
+            return _reply("✓ " + web_search_run(msg))
+        elif _conv:
+            route_result = {"action": "chat"}
+        else:
+            try:
+                route_result = _siri_router.route(msg, "dashboard")
+            except Exception:
+                route_result = {"action": "chat"}
+
+        if route_result["action"] == "skill":
+            if "result" not in route_result:
+                slug = route_result["slug"]
+                skills = _siri_router._load_skills("dashboard")
+                skill = next((s for s in skills if s["slug"] == slug), None)
+                if skill:
+                    try:
+                        route_result["result"] = _siri_router._run_skill(skill, message=route_result.get("message"))
+                    except Exception as exc:
+                        route_result["result"] = f"Skill failed: {exc}"
+                else:
+                    route_result["result"] = f"Skill '{slug}' not found."
+            return _reply("✓ " + str(route_result["result"]))
+
+        if route_result["action"] == "build":
+            _siri_threading.Thread(
+                target=_siri_router._build_in_background,
+                args=(route_result["description"], route_result["job_path"], "dashboard"),
+                daemon=True,
+            ).start()
+            return _reply("Building that skill now. I'll notify you via Telegram when it's ready.")
+
+        if route_result["action"] == "propose":
+            return _reply(route_result["message"])
+
+        if any(t in msg_lower for t in _siri_router._BUILD_TRIGGERS):
+            description = _siri_router._extract_build_description(msg)
+            job_path = _siri_router._generate_job_path(description)
+            _siri_threading.Thread(
+                target=_siri_router._build_in_background,
+                args=(description, job_path, "dashboard"),
+                daemon=True,
+            ).start()
+            return _reply("Building that skill now. I'll notify you via Telegram when it's ready.")
+
+        # Ollama fallback
+        try:
+            resp = _siri_req.post(
+                "http://localhost:11434/api/chat",
+                json={
+                    "model": "llama3.2:3b",
+                    "system": WATSON_SYSTEM,
+                    "messages": [{"role": "user", "content": msg}],
+                    "stream": True,
+                    "num_predict": 300,
+                },
+                stream=True,
+                timeout=45,
+            )
+            resp.raise_for_status()
+            parts = []
+            for line in resp.iter_lines():
+                if not line:
+                    continue
+                try:
+                    chunk = json.loads(line)
+                except Exception:
+                    continue
+                token = chunk.get("message", {}).get("content", "")
+                if token:
+                    parts.append(token)
+                if chunk.get("done"):
+                    break
+            return _reply("".join(parts) or "No response from Watson.")
+        except Exception as exc:
+            return _reply(f"Watson error: {exc}")
+
+    _siri_threading.Thread(target=_process, daemon=True).start()
+    return jsonify({"status": "ok"})
 
 
 # ── Chat API ─────────────────────────────────────────────────────────────────
