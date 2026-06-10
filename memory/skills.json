@@ -10,7 +10,12 @@
         "time check",
         "tell me the time"
       ],
-      "endpoint": "jobs.time_check.run"
+      "endpoint": "jobs.time_check.run",
+      "interfaces": [
+        "telegram",
+        "dashboard"
+      ],
+      "status": "ready"
     },
     {
       "name": "dad_joke_skill",
@@ -19,7 +24,12 @@
         "tell me a joke"
       ],
       "module": "jobs.dadjoke.joke",
-      "function": "get_dad_joke"
+      "function": "get_dad_joke",
+      "interfaces": [
+        "telegram",
+        "dashboard"
+      ],
+      "status": "ready"
     }
   ]
 }
