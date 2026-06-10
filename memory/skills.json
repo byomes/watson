@@ -258,6 +258,18 @@
       "stock image",
       "find images",
       "search images"
+    ],
+    "slug": "image_search",
+    "job_module": "jobs.social.image_search",
+    "triggers": [
+      "find an image",
+      "search for image",
+      "get an image",
+      "image search",
+      "find image for",
+      "stock image",
+      "find images",
+      "search images"
     ]
   }
 ]
