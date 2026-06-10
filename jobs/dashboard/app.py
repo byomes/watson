@@ -1106,11 +1106,7 @@ def chat_stream():
                 result = _router._run_skill(skill, message=skill_message)
             except Exception as exc:
                 result = f"Skill error: {exc}"
-            if str(result).startswith('data:image/'):
-                b64 = str(result).split(',', 1)[1] if ',' in str(result) else str(result)
-                return _sse_response(_stream_simple('[QR_IMAGE]' + b64))
-            else:
-                return _sse_response(_stream_simple(str(result)))
+            return _sse_response(_stream_simple(str(result)))
         else:
             return _sse_response(_stream_simple(f"Skill not found: {slug}"))
 
