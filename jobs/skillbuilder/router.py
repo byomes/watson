@@ -476,12 +476,13 @@ def route(message: str, interface: str) -> dict:
 def _route(message: str, interface: str) -> dict:
     # Direct slug dispatch — from dashboard Use button (run:<slug>)
     if message.lower().startswith("run:"):
-        slug = message[4:].strip()
+        run_body = message[4:].strip()
+        slug = run_body.split()[0] if run_body else ""
         skills = _load_skills(interface)
         skill = next((s for s in skills if s["slug"] == slug), None)
         if skill:
             try:
-                skill_message = message[4:].strip()
+                skill_message = run_body
                 result = _run_skill(skill, message=skill_message)
             except Exception as exc:
                 result = f"Skill error: {exc}"
