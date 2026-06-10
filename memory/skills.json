@@ -1,1329 +1,247 @@
 [
   {
-    "slug": "log_watch",
-    "description": "Check Watson logs for errors in the last hour and send a Telegram summary",
-    "triggers": [
-      "check logs",
-      "any errors",
-      "log report",
-      "what errors",
-      "error summary",
-      "check for errors"
-    ],
-    "job_module": "jobs.monitoring.log_watch",
-    "function": "run",
-    "interfaces": [
-      "dashboard",
-      "telegram"
-    ],
-    "status": "ready",
-    "category": "Core"
-  },
-  {
-    "slug": "bible_lookup",
-    "description": "Look up a Bible verse in NIV, CSB, or NASB translation",
-    "triggers": [
-      "bible",
-      "verse",
-      "look up",
-      "scripture",
-      "read me",
-      "what does the bible say"
-    ],
-    "job_module": "jobs.bible",
-    "function": "run",
-    "interfaces": [
-      "dashboard",
-      "telegram"
-    ],
-    "status": "ready",
-    "category": "Core"
-  },
-  {
-    "slug": "calendar_availability",
-    "description": "Check Watson calendar availability and open booking slots",
-    "triggers": [
-      "availability",
-      "open slots",
-      "when am I free",
-      "check calendar",
-      "what's on my calendar",
-      "my schedule"
-    ],
-    "job_module": "jobs.gcal.availability",
-    "function": "run",
-    "interfaces": [
-      "dashboard",
-      "telegram"
-    ],
-    "status": "ready",
-    "category": "Core"
-  },
-  {
-    "slug": "people_registry",
-    "description": "Check the People Registry contact count or look up a contact",
-    "triggers": [
-      "people",
-      "contacts",
-      "how many contacts",
-      "people registry",
-      "look up contact"
-    ],
-    "job_module": "jobs.people.server",
-    "function": "run",
-    "interfaces": [
-      "dashboard",
-      "telegram"
-    ],
-    "status": "ready",
-    "category": "Core"
-  },
-  {
-    "slug": "send_email",
-    "description": "Send an email \u2014 Watson saves a draft to Gmail for review before sending",
-    "triggers": [
-      "send an email",
-      "email",
-      "draft an email",
-      "write an email",
-      "send email"
-    ],
-    "job_module": "jobs.email.send",
-    "function": "run",
-    "interfaces": [
-      "dashboard",
-      "telegram"
-    ],
-    "status": "ready",
-    "category": "Core"
-  },
-  {
-    "slug": "new_project",
-    "description": "Create a new Watson project with memory files and index entry",
-    "triggers": [
-      "new project",
-      "create project",
-      "start a project",
-      "add project"
-    ],
-    "job_module": "jobs.memory.new_project",
-    "function": "run",
-    "interfaces": [
-      "dashboard",
-      "telegram"
-    ],
-    "status": "ready",
-    "category": "Core"
-  },
-  {
-    "slug": "build_skill",
-    "description": "Build a new Watson skill from a natural language description using the AI code writer",
-    "triggers": [
-      "build a skill",
-      "create a job",
-      "add ability",
-      "write a job",
-      "build something that"
-    ],
-    "job_module": "jobs.skillbuilder.build",
-    "function": "run",
-    "interfaces": [
-      "dashboard",
-      "telegram"
-    ],
-    "status": "ready",
-    "category": "Watson Dev"
-  },
-  {
-    "slug": "weather_every_morning",
-    "description": "Check the weather forecast for today and send an hourly summary via Telegram",
-    "triggers": [
-      "weather",
-      "forecast",
-      "what's the weather",
-      "weather today",
-      "will it rain",
-      "temperature today",
-      "what should I wear"
-    ],
-    "job_module": "jobs.monitoring.weather_every_morning",
-    "function": "run",
-    "interfaces": [
-      "dashboard",
-      "telegram"
-    ],
-    "status": "ready",
-    "category": "Core"
-  },
-  {
-    "slug": "wrap_up",
-    "description": "Summarize and save the current working session to project memory",
-    "triggers": [
-      "wrap up",
-      "we're done",
-      "save session",
-      "end session",
-      "save to memory",
-      "summarize and save"
-    ],
-    "job_module": "jobs.memory.wrap_up",
-    "function": "run",
-    "interfaces": [
-      "dashboard",
-      "telegram"
-    ],
-    "status": "ready",
-    "category": "Core"
-  },
-  {
-    "slug": "reflect",
-    "description": "Reflect on recent conversations and store key insights to memory",
-    "triggers": [
-      "reflect",
-      "what have we discussed",
-      "summarize recent chats",
-      "what do you remember"
-    ],
-    "job_module": "jobs.memory.reflect",
-    "function": "run",
-    "interfaces": [
-      "dashboard",
-      "telegram"
-    ],
-    "status": "ready",
-    "category": "Core"
-  },
-  {
-    "slug": "tells_many_days",
-    "description": "Calculate and report how many days until Christmas",
-    "triggers": [
-      "days until christmas",
-      "how many days until christmas",
-      "christmas countdown",
-      "when is christmas"
-    ],
-    "job_module": "jobs.misc.tells_many_days",
-    "function": "run",
-    "interfaces": [
-      "dashboard",
-      "telegram"
-    ],
-    "status": "ready",
-    "category": "Core"
-  },
-  {
-    "slug": "run_audit",
-    "description": "Run a capability gap audit and send gap proposals via Telegram",
-    "triggers": [
-      "run audit",
-      "capability audit",
-      "what gaps do you have",
-      "audit watson",
-      "what should you build next"
-    ],
-    "job_module": "jobs.skillbuilder.audit",
-    "function": "run",
-    "interfaces": [
-      "dashboard",
-      "telegram"
-    ],
-    "status": "ready",
-    "category": "Watson Dev"
-  },
-  {
-    "slug": "web_search",
-    "description": "Search the web using Serper.dev (Google) and return relevant results",
-    "triggers": [
-      "search for",
-      "look up",
-      "find information about",
-      "search the web",
-      "google",
-      "what is",
-      "who is",
-      "when did",
-      "how does"
-    ],
-    "job_module": "jobs.research.web_search",
-    "function": "run",
-    "interfaces": [
-      "dashboard",
-      "telegram"
-    ],
-    "status": "ready",
-    "category": "Core"
-  },
-  {
-    "slug": "import_contacts",
-    "description": "Import or sync contacts from Google Contacts into the People Registry",
-    "triggers": [
-      "import contacts",
-      "sync contacts",
-      "update contacts",
-      "pull contacts from google"
-    ],
-    "job_module": "jobs.people.google_contacts",
-    "function": "run",
-    "interfaces": [
-      "dashboard",
-      "telegram"
-    ],
-    "status": "ready",
-    "category": "Core"
-  },
-  {
-    "slug": "both_read_pdf",
-    "description": "build a skill that can both read PDF files and extract their text content, and create new PDF files from text content",
-    "triggers": [],
-    "job_module": "jobs.misc.both_read_pdf",
-    "function": "run",
-    "interfaces": [
-      "dashboard",
-      "telegram"
-    ],
-    "status": "ready",
-    "category": "Documents"
-  },
-  {
-    "slug": "read_pdf",
-    "description": "Read text from a PDF file or create a new PDF from text",
-    "triggers": [
-      "read pdf",
-      "open pdf",
-      "extract pdf",
-      "pdf text"
-    ],
-    "job_module": "jobs.documents.pdf",
-    "function": "run",
-    "interfaces": [
-      "dashboard",
-      "telegram"
-    ],
-    "status": "ready",
-    "category": "Documents"
-  },
-  {
-    "slug": "read_word",
-    "description": "Read text from a Word .docx file or create a new document",
-    "triggers": [
-      "read word",
-      "open doc",
-      "open word",
-      "read docx"
-    ],
-    "job_module": "jobs.documents.word",
-    "function": "run",
-    "interfaces": [
-      "dashboard",
-      "telegram"
-    ],
-    "status": "ready",
-    "category": "Documents"
-  },
-  {
-    "slug": "read_excel",
-    "description": "Read data from an Excel .xlsx file or create a new spreadsheet",
-    "triggers": [
-      "read excel",
-      "open spreadsheet",
-      "open excel",
-      "read xlsx"
-    ],
-    "job_module": "jobs.documents.excel",
-    "function": "run",
-    "interfaces": [
-      "dashboard",
-      "telegram"
-    ],
-    "status": "ready",
-    "category": "Documents"
-  },
-  {
-    "slug": "read_powerpoint",
-    "description": "Read text from a PowerPoint .pptx file or create a new presentation",
-    "triggers": [
-      "read powerpoint",
-      "open presentation",
-      "open pptx",
-      "read slides"
-    ],
-    "job_module": "jobs.documents.powerpoint",
-    "function": "run",
-    "interfaces": [
-      "dashboard",
-      "telegram"
-    ],
-    "status": "ready",
-    "category": "Documents"
-  },
-  {
-    "slug": "article_reader",
-    "description": "Fetch and read the full text of any article or web page from a URL",
-    "triggers": [
-      "read this article",
-      "fetch this url",
-      "read this page",
-      "summarize this link"
-    ],
-    "job_module": "jobs.research.article_reader",
-    "function": "run",
-    "interfaces": [
-      "dashboard",
-      "telegram"
-    ],
-    "status": "ready",
-    "category": "Research"
-  },
-  {
-    "slug": "feed_reader",
-    "description": "Parse an RSS or Atom feed and return the latest entries",
-    "triggers": [
-      "read this feed",
-      "parse rss",
-      "get latest from"
-    ],
-    "job_module": "jobs.research.feed_reader",
-    "function": "run",
-    "interfaces": [
-      "dashboard",
-      "telegram"
-    ],
-    "status": "ready",
-    "category": "Research"
-  },
-  {
-    "slug": "table_extractor",
-    "description": "Extract tables from a PDF file and return structured data",
-    "triggers": [
-      "extract tables",
-      "get tables from pdf",
-      "read tables"
-    ],
-    "job_module": "jobs.data.table_extractor",
-    "function": "run",
-    "interfaces": [
-      "dashboard",
-      "telegram"
-    ],
-    "status": "ready",
-    "category": "Documents"
-  },
-  {
-    "slug": "data_analyzer",
-    "description": "Analyze a CSV or Excel file and return a summary of its contents",
-    "triggers": [
-      "analyze this file",
-      "summarize this spreadsheet",
-      "analyze csv",
-      "analyze excel"
-    ],
-    "job_module": "jobs.data.data_analyzer",
-    "function": "run",
-    "interfaces": [
-      "dashboard",
-      "telegram"
-    ],
-    "status": "ready",
-    "category": "Documents"
-  },
-  {
-    "slug": "vcf_importer",
-    "description": "Import contacts from a vCard .vcf file into the People Registry",
-    "triggers": [
-      "import contacts",
-      "import vcf",
-      "load contact card",
-      "import vcard"
-    ],
-    "job_module": "jobs.contacts.vcf_importer",
-    "function": "run",
-    "interfaces": [
-      "dashboard",
-      "telegram"
-    ],
-    "status": "ready",
-    "category": "Utilities"
-  },
-  {
-    "slug": "qr_generator",
-    "description": "Generate a QR code for any text or URL",
-    "triggers": [
-      "generate qr code",
-      "create qr",
-      "make a qr code",
-      "qr code for"
-    ],
-    "job_module": "jobs.utilities.qr_generator",
-    "function": "run",
-    "interfaces": [
-      "dashboard",
-      "telegram"
-    ],
-    "status": "ready",
-    "category": "Documents"
-  },
-  {
-    "slug": "date_helper",
-    "description": "Parse dates and calculate time differences in human-readable format",
-    "triggers": [
-      "how many days until",
-      "when is",
-      "days until",
-      "time until"
-    ],
-    "job_module": "jobs.utilities.date_helper",
-    "function": "run",
-    "interfaces": [
-      "dashboard",
-      "telegram"
-    ],
-    "status": "ready",
-    "category": "Research"
-  },
-  {
-    "slug": "youtube_downloader",
-    "description": "Download audio from a YouTube video for transcription or listening",
-    "triggers": [
-      "download this video",
-      "download audio from",
-      "get audio from youtube",
-      "download youtube"
-    ],
-    "job_module": "jobs.media.youtube_downloader",
-    "function": "run",
-    "interfaces": [
-      "dashboard",
-      "telegram"
-    ],
-    "status": "ready",
-    "category": "Documents"
-  },
-  {
-    "slug": "text_processor",
-    "description": "Summarize text, extract keywords, or convert HTML to markdown",
-    "triggers": [
-      "summarize this text",
-      "extract keywords",
-      "convert to markdown",
-      "key points from"
-    ],
-    "job_module": "jobs.utilities.text_processor",
-    "function": "run",
-    "interfaces": [
-      "dashboard",
-      "telegram"
-    ],
-    "status": "ready",
-    "category": "Research"
-  },
-  {
-    "slug": "readability_analyzer",
-    "description": "Analyze the readability of text \u2014 reading level, grade, word count, estimated reading time",
-    "triggers": [
-      "check readability",
-      "analyze readability",
-      "reading level",
-      "grade level"
-    ],
-    "job_module": "jobs.writing.readability",
-    "function": "run",
-    "interfaces": [
-      "dashboard",
-      "telegram"
-    ],
-    "status": "ready",
-    "category": "Writing"
-  },
-  {
-    "slug": "audio_tools",
-    "description": "Read and write audio file metadata, convert formats, and trim audio clips",
-    "triggers": [
-      "audio metadata",
-      "get audio info",
-      "trim audio",
-      "convert audio"
-    ],
-    "job_module": "jobs.media.audio_tools",
-    "function": "run",
-    "interfaces": [
-      "dashboard",
-      "telegram"
-    ],
-    "status": "ready",
-    "category": "Documents"
-  },
-  {
-    "slug": "chart_generator",
-    "description": "Generate bar or line charts from data and save as PNG files",
-    "triggers": [
-      "generate chart",
-      "make a chart",
-      "create graph",
-      "bar chart",
-      "line chart"
-    ],
-    "job_module": "jobs.data.chart_generator",
-    "function": "run",
-    "interfaces": [
-      "dashboard",
-      "telegram"
-    ],
-    "status": "ready",
-    "category": "Documents"
-  },
-  {
-    "slug": "template_engine",
-    "description": "Render Jinja2 templates from strings or files with context variables",
-    "triggers": [
-      "render template",
-      "fill template",
-      "template engine"
-    ],
-    "job_module": "jobs.utilities.template_engine",
-    "function": "run",
-    "interfaces": [
-      "dashboard",
-      "telegram"
-    ],
-    "status": "ready",
-    "category": "Writing"
-  },
-  {
-    "slug": "language_detector",
-    "description": "Detect the language of any text",
-    "triggers": [
-      "what language is this",
-      "detect language",
-      "identify language"
-    ],
-    "job_module": "jobs.research.language_detector",
-    "function": "run",
-    "interfaces": [
-      "dashboard",
-      "telegram"
-    ],
-    "status": "ready",
-    "category": "Research"
-  },
-  {
-    "slug": "code_quality",
-    "description": "Format, lint, and security scan Python code using black, pylint, and bandit",
-    "triggers": [
-      "check code quality",
-      "lint this code",
-      "format code",
-      "scan for security issues"
-    ],
-    "job_module": "jobs.dev.code_quality",
-    "function": "run",
-    "interfaces": [
-      "dashboard",
-      "telegram"
-    ],
-    "status": "ready",
-    "category": "Watson Dev"
-  },
-  {
-    "slug": "git_tools",
-    "description": "Read Watson git history, find manual fixes, and analyze code changes over time",
-    "triggers": [
-      "show recent commits",
-      "git history",
-      "what changed recently",
-      "find manual fixes"
-    ],
-    "job_module": "jobs.dev.git_tools",
-    "function": "run",
-    "interfaces": [
-      "dashboard",
-      "telegram"
-    ],
-    "status": "ready",
-    "category": "Watson Dev"
-  },
-  {
-    "slug": "code_editor",
-    "description": "Read and edit Watson files directly \u2014 find and replace, append, add functions",
-    "triggers": [
-      "edit this file",
-      "modify this file",
-      "add to this file",
-      "find and replace in"
-    ],
-    "job_module": "jobs.dev.code_editor",
-    "function": "run",
-    "interfaces": [
-      "dashboard",
-      "telegram"
-    ],
-    "status": "ready",
-    "category": "Watson Dev"
-  },
-  {
-    "slug": "system_monitor",
-    "description": "Check system health \u2014 CPU, memory, disk, and Watson service status",
-    "triggers": [
-      "system health",
-      "how is watson doing",
-      "check system",
-      "cpu usage",
-      "memory usage"
-    ],
-    "job_module": "jobs.dev.system_monitor",
-    "function": "run",
-    "interfaces": [
-      "dashboard",
-      "telegram"
-    ],
-    "status": "ready",
-    "category": "Watson Dev"
-  },
-  {
-    "slug": "github_tools",
-    "description": "Interact with Watson GitHub repo \u2014 issues, code search, repo info",
-    "triggers": [
-      "github status",
-      "open issues",
-      "repo info",
-      "search code"
-    ],
-    "job_module": "jobs.dev.github_tools",
-    "function": "run",
-    "interfaces": [
-      "dashboard",
-      "telegram"
-    ],
-    "status": "ready",
-    "category": "Watson Dev"
-  },
-  {
-    "slug": "test_runner",
-    "description": "Run Watson's test suite and generate tests for new skills",
-    "triggers": [
-      "run tests",
-      "test watson",
-      "check tests",
-      "run test suite"
-    ],
-    "job_module": "jobs.dev.test_runner",
-    "function": "run",
-    "interfaces": [
-      "dashboard",
-      "telegram"
-    ],
-    "status": "ready",
-    "category": "Watson Dev"
-  },
-  {
-    "slug": "dependency_manager",
-    "description": "Check for outdated packages, install new ones, find missing imports",
-    "triggers": [
-      "check dependencies",
-      "outdated packages",
-      "install package",
-      "missing imports"
-    ],
-    "job_module": "jobs.dev.dependency_manager",
-    "function": "run",
-    "interfaces": [
-      "dashboard",
-      "telegram"
-    ],
-    "status": "ready",
-    "category": "Watson Dev"
-  },
-  {
-    "slug": "code_analyzer",
-    "description": "Analyze Watson's codebase \u2014 find files missing run() functions, complexity, structure",
-    "triggers": [
-      "analyze codebase",
-      "check watson code",
-      "find missing run functions",
-      "codebase report"
-    ],
-    "job_module": "jobs.dev.code_analyzer",
-    "function": "run",
-    "interfaces": [
-      "dashboard",
-      "telegram"
-    ],
-    "status": "ready",
-    "category": "Watson Dev"
-  },
-  {
-    "slug": "screenshot",
-    "description": "Take a screenshot of any webpage and send it via Telegram",
-    "triggers": [
-      "screenshot",
-      "take a screenshot",
-      "show me this page",
-      "capture this url"
-    ],
-    "job_module": "jobs.design.screenshot",
-    "function": "run",
-    "interfaces": [
-      "dashboard",
-      "telegram"
-    ],
-    "status": "ready",
-    "category": "Design"
-  },
-  {
-    "slug": "image_tools",
-    "description": "Resize, watermark, optimize, and format images for web and social media",
-    "triggers": [
-      "resize image",
-      "optimize image",
-      "remove background",
-      "optimize for instagram",
-      "watermark"
-    ],
-    "job_module": "jobs.design.image_tools",
-    "function": "run",
-    "interfaces": [
-      "dashboard",
-      "telegram"
-    ],
-    "status": "ready",
-    "category": "Design"
-  },
-  {
-    "slug": "svg_generator",
-    "description": "Generate branded graphics, banners, quote cards, and social media images",
-    "triggers": [
-      "create quote card",
-      "make a banner",
-      "generate graphic",
-      "social graphic",
-      "quote card"
-    ],
-    "job_module": "jobs.design.svg_generator",
-    "function": "run",
-    "interfaces": [
-      "dashboard",
-      "telegram"
-    ],
-    "status": "ready",
-    "category": "Design"
-  },
-  {
-    "slug": "social_poster",
-    "description": "Post content to Facebook page with optional image",
-    "triggers": [
-      "post to facebook",
-      "share on facebook",
-      "facebook post"
-    ],
-    "job_module": "jobs.marketing.social_poster",
-    "function": "run",
-    "interfaces": [
-      "dashboard",
-      "telegram"
-    ],
-    "status": "ready",
-    "category": "Design"
-  },
-  {
-    "slug": "seo_tools",
-    "description": "Analyze a webpage for SEO issues and suggest improvements",
-    "triggers": [
-      "seo analysis",
-      "check seo",
-      "analyze this page for seo",
-      "seo report"
-    ],
-    "job_module": "jobs.marketing.seo_tools",
-    "function": "run",
-    "interfaces": [
-      "dashboard",
-      "telegram"
-    ],
-    "status": "ready",
-    "category": "Design"
-  },
-  {
-    "slug": "content_calendar",
-    "description": "Show upcoming scheduled content and suggest new content ideas",
-    "triggers": [
-      "content calendar",
-      "upcoming posts",
-      "what is scheduled",
-      "content ideas"
-    ],
-    "job_module": "jobs.marketing.content_calendar",
-    "function": "run",
-    "interfaces": [
-      "dashboard",
-      "telegram"
-    ],
-    "status": "ready",
-    "category": "Design"
-  },
-  {
-    "slug": "site_deployer",
-    "description": "Deploy Watson web properties to Vercel and check deployment status",
-    "triggers": [
-      "deploy wcky",
-      "deploy watson",
-      "push to vercel",
-      "deployment status"
-    ],
-    "job_module": "jobs.web.site_deployer",
-    "function": "run",
-    "interfaces": [
-      "dashboard",
-      "telegram"
-    ],
-    "status": "ready",
-    "category": "Design"
-  },
-  {
-    "slug": "page_generator",
-    "description": "Generate blog posts, landing pages, and web content",
-    "triggers": [
-      "generate blog post",
-      "create landing page",
-      "write a page",
-      "generate page"
-    ],
-    "job_module": "jobs.web.page_generator",
-    "function": "run",
-    "interfaces": [
-      "dashboard",
-      "telegram"
-    ],
-    "status": "ready",
-    "category": "Writing"
-  },
-  {
-    "slug": "acquire_skill",
-    "description": "Search for and autonomously acquire new Python library skills with approval",
-    "triggers": [
-      "find a skill",
-      "acquire a skill",
-      "I need you to be able to",
-      "find a library",
-      "learn to",
-      "can you learn"
-    ],
-    "job_module": "jobs.skillbuilder.acquire",
-    "function": "run",
-    "interfaces": [
-      "dashboard",
-      "telegram"
-    ],
-    "status": "ready",
-    "category": "Watson Dev"
-  },
-  {
-    "slug": "academic_search",
-    "description": "Search academic papers on arXiv and Google Scholar for research and apologetics",
-    "triggers": [
-      "search arxiv",
-      "find academic papers",
-      "scholarly search",
-      "research papers on"
-    ],
-    "job_module": "jobs.research.academic_search",
-    "function": "run",
-    "interfaces": [
-      "dashboard",
-      "telegram"
-    ],
-    "status": "ready",
-    "category": "Research"
-  },
-  {
-    "slug": "news_search",
-    "description": "Search recent news and trending topics from Google News",
-    "triggers": [
-      "search news",
-      "latest news on",
-      "what is trending",
-      "current events about",
-      "news about"
-    ],
-    "job_module": "jobs.research.news_search",
-    "function": "run",
-    "interfaces": [
-      "dashboard",
-      "telegram"
-    ],
-    "status": "ready",
-    "category": "Research"
-  },
-  {
-    "slug": "grammar_checker",
-    "description": "Check and fix grammar in text using local language tools",
-    "triggers": [
-      "check grammar",
-      "fix grammar",
-      "grammar check",
-      "proofread this"
-    ],
-    "job_module": "jobs.writing.grammar_checker",
-    "function": "run",
-    "interfaces": [
-      "dashboard",
-      "telegram"
-    ],
-    "status": "ready",
-    "category": "Writing"
-  },
-  {
-    "slug": "semantic_search",
-    "description": "Search Watson memory files using semantic similarity to find relevant content",
-    "triggers": [
-      "search my memory",
-      "find related content",
-      "semantic search",
-      "what do I know about"
-    ],
-    "job_module": "jobs.research.semantic_search",
-    "function": "run",
-    "interfaces": [
-      "dashboard",
-      "telegram"
-    ],
-    "status": "ready",
-    "category": "Research"
-  },
-  {
-    "slug": "calendar_importer",
-    "description": "Import .ics calendar files into Google Calendar",
-    "triggers": [
-      "import calendar",
-      "import ics",
-      "add calendar file",
-      "import events"
-    ],
-    "job_module": "jobs.utilities.calendar_importer",
-    "function": "run",
-    "interfaces": [
-      "dashboard",
-      "telegram"
-    ],
-    "status": "ready",
-    "category": "Utilities"
-  },
-  {
-    "slug": "encryptor",
-    "description": "Encrypt and decrypt sensitive text and files",
-    "triggers": [
-      "encrypt this",
-      "decrypt this",
-      "secure this file",
-      "encryption"
-    ],
-    "job_module": "jobs.security.encryptor",
-    "function": "run",
-    "interfaces": [
-      "dashboard",
-      "telegram"
-    ],
-    "status": "ready",
-    "category": "Utilities"
-  },
-  {
-    "slug": "spell_checker",
-    "description": "Check spelling and suggest corrections in text",
-    "triggers": [
-      "check spelling",
-      "spell check",
-      "find misspellings",
-      "spelling errors"
-    ],
-    "job_module": "jobs.writing.spell_checker",
-    "function": "run",
-    "interfaces": [
-      "dashboard",
-      "telegram"
-    ],
-    "status": "ready",
-    "category": "Writing"
-  },
-  {
-    "slug": "skill_tester",
-    "description": "Test any Watson skill safely and report pass/fail results",
-    "triggers": [
-      "test skill",
-      "test this skill",
-      "run skill test",
-      "does this skill work"
-    ],
-    "job_module": "jobs.dev.skill_tester",
-    "function": "run",
-    "interfaces": [
-      "dashboard",
-      "telegram"
-    ],
-    "status": "ready",
-    "category": "Watson Dev"
-  },
-  {
-    "slug": "error_analyzer",
-    "description": "Analyze Python errors and tracebacks to identify root causes and fixes",
-    "triggers": [
-      "analyze this error",
-      "why is this failing",
-      "debug this error",
-      "what is wrong with"
-    ],
-    "job_module": "jobs.dev.error_analyzer",
-    "function": "run",
-    "interfaces": [
-      "dashboard",
-      "telegram"
-    ],
-    "status": "ready",
-    "category": "Watson Dev"
-  },
-  {
-    "slug": "auto_fixer",
-    "description": "Automatically fix common skill errors \u2014 missing run(), bad imports, tilde paths",
-    "triggers": [
-      "auto fix",
-      "fix this skill",
-      "repair this skill",
-      "fix errors in"
-    ],
-    "job_module": "jobs.dev.auto_fixer",
-    "function": "run",
-    "interfaces": [
-      "dashboard",
-      "telegram"
-    ],
-    "status": "ready",
-    "category": "Watson Dev"
-  },
-  {
-    "slug": "skill_validator",
-    "description": "Validate a skill against all quality checks before promoting to Ready",
-    "triggers": [
-      "validate skill",
-      "check this skill",
-      "validate all skills",
-      "ready to promote"
-    ],
-    "job_module": "jobs.dev.skill_validator",
-    "function": "run",
-    "interfaces": [
-      "dashboard",
-      "telegram"
-    ],
-    "status": "ready",
-    "category": "Watson Dev"
-  },
-  {
-    "slug": "performance_profiler",
-    "description": "Profile skill execution time and memory usage",
-    "triggers": [
-      "profile skill",
-      "how fast is",
-      "performance report",
-      "memory usage"
-    ],
-    "job_module": "jobs.dev.performance_profiler",
-    "function": "run",
-    "interfaces": [
-      "dashboard",
-      "telegram"
-    ],
-    "status": "ready",
-    "category": "Watson Dev"
-  },
-  {
-    "slug": "dependency_scanner",
-    "description": "Scan skill files for missing or conflicting dependencies",
-    "triggers": [
-      "scan dependencies",
-      "check imports",
-      "missing packages",
-      "dependency report"
-    ],
-    "job_module": "jobs.dev.dependency_scanner",
-    "function": "run",
-    "interfaces": [
-      "dashboard",
-      "telegram"
-    ],
-    "status": "ready",
-    "category": "Watson Dev"
-  },
-  {
-    "slug": "style_checker",
-    "description": "Check prose style and writing quality using proselint",
-    "triggers": [
-      "check style",
-      "style check",
-      "proselint",
-      "writing style",
-      "check my writing"
-    ],
-    "job_module": "jobs.writing.style_checker",
-    "function": "run",
-    "interfaces": [
-      "telegram",
-      "dashboard"
-    ],
-    "status": "ready",
-    "category": "Writing"
-  },
-  {
-    "slug": "document_converter",
-    "description": "Convert documents between formats: docx, markdown, html, pdf, rst",
-    "triggers": [
-      "convert document",
-      "convert file",
-      "convert to",
-      "doc to",
-      "markdown to html",
-      "docx to"
-    ],
-    "job_module": "jobs.writing.document_converter",
-    "function": "run",
-    "interfaces": [
-      "telegram",
-      "dashboard"
-    ],
-    "status": "ready",
-    "category": "Writing"
-  },
-  {
-    "slug": "citation_manager",
-    "description": "Fetch, format, and store citations by DOI or ISBN in Chicago style",
-    "triggers": [
-      "add citation",
-      "citation",
-      "cite doi",
-      "cite isbn",
-      "list citations",
-      "bibliography"
-    ],
-    "job_module": "jobs.writing.citation_manager",
-    "function": "run",
-    "interfaces": [
-      "telegram",
-      "dashboard"
-    ],
-    "status": "ready",
-    "category": "Writing"
-  },
-  {
-    "slug": "manuscript_tracker",
-    "description": "Track manuscript drafts, word counts, and diffs over time",
-    "triggers": [
-      "track manuscript",
-      "manuscript",
-      "word count",
-      "draft progress",
-      "update manuscript"
-    ],
-    "job_module": "jobs.writing.manuscript_tracker",
-    "function": "run",
-    "interfaces": [
-      "telegram",
-      "dashboard"
-    ],
-    "status": "ready",
-    "category": "Writing"
-  },
-  {
-    "slug": "epub_generator",
-    "description": "Generate EPUB ebook files from markdown or text documents",
-    "triggers": [
-      "generate epub",
-      "create epub",
-      "make epub",
-      "epub from",
-      "ebook from"
-    ],
-    "job_module": "jobs.writing.epub_generator",
-    "function": "run",
-    "interfaces": [
-      "telegram",
-      "dashboard"
-    ],
-    "status": "ready",
-    "category": "Writing"
-  },
-  {
-    "slug": "summarizer",
-    "description": "Summarize text using LSA and extract key topics via LDA",
-    "triggers": [
-      "summarize",
-      "tldr",
-      "summary of",
-      "key points",
-      "main topics"
-    ],
-    "job_module": "jobs.research.summarizer",
-    "function": "run",
-    "interfaces": [
-      "telegram",
-      "dashboard"
-    ],
-    "status": "ready",
-    "category": "Research"
-  },
-  {
-    "slug": "isbn_lookup",
-    "description": "Look up book metadata by ISBN or search books by title",
-    "triggers": [
-      "isbn",
-      "lookup book",
-      "book info",
-      "find book",
-      "isbn search"
-    ],
-    "job_module": "jobs.research.isbn_lookup",
-    "function": "run",
-    "interfaces": [
-      "telegram",
-      "dashboard"
-    ],
-    "status": "ready",
-    "category": "Research"
-  },
-  {
-    "slug": "wordcloud_generator",
-    "description": "Generate word cloud PNG images from text or files and send to Telegram",
-    "triggers": [
-      "word cloud",
-      "wordcloud",
-      "word frequency cloud",
-      "visualize words"
-    ],
-    "job_module": "jobs.writing.wordcloud_generator",
-    "function": "run",
-    "interfaces": [
-      "telegram",
-      "dashboard"
-    ],
-    "status": "ready",
-    "category": "Writing"
-  },
-  {
-    "slug": "command_executor",
-    "description": "Propose and execute shell commands on Beelink with Bill's approval via Telegram",
-    "triggers": [
-      "restart watson",
-      "restart dashboard",
-      "restart bot",
-      "git pull",
-      "check services",
-      "run command",
-      "execute command",
-      "disk usage",
-      "update packages"
-    ],
-    "job_module": "jobs.dev.command_executor",
-    "function": "run",
-    "interfaces": [
-      "dashboard",
-      "telegram"
-    ],
-    "status": "ready",
-    "category": "Watson Dev"
+    "skill_name": "calendar_availability",
+    "description": "Checks the user's Google Calendar for available slots for a given day or time range.",
+    "module": "jobs.calendar.calendar_skill",
+    "function": "check_availability",
+    "requires_auth": true,
+    "is_user_facing": true,
+    "accepts_input": true,
+    "natural_language_triggers": [
+      "check availability",
+      "what's available",
+      "show availability",
+      "run calendar availability",
+      "calendar availability",
+      "when am I available",
+      "available slots",
+      "open slots"
+    ]
+  },
+  {
+    "skill_name": "create_blog_draft",
+    "description": "Creates a new blog draft entry in the database. Requires a title and content.",
+    "module": "jobs.blog.blog_skill",
+    "function": "create_draft",
+    "requires_auth": false,
+    "is_user_facing": true,
+    "accepts_input": true
+  },
+  {
+    "skill_name": "list_blog_drafts",
+    "description": "Lists all existing blog drafts.",
+    "module": "jobs.blog.blog_skill",
+    "function": "list_drafts",
+    "requires_auth": false,
+    "is_user_facing": true,
+    "accepts_input": false
+  },
+  {
+    "skill_name": "delete_blog_draft",
+    "description": "Deletes a blog draft by its ID.",
+    "module": "jobs.blog.blog_skill",
+    "function": "delete_draft",
+    "requires_auth": false,
+    "is_user_facing": true,
+    "accepts_input": true
+  },
+  {
+    "skill_name": "add_to_reading_list",
+    "description": "Adds a URL to the reading list with an optional title.",
+    "module": "jobs.reading_list.reading_list_skill",
+    "function": "add_item",
+    "requires_auth": false,
+    "is_user_facing": true,
+    "accepts_input": true
+  },
+  {
+    "skill_name": "get_reading_list",
+    "description": "Retrieves items from the reading list, optionally filtered by read status.",
+    "module": "jobs.reading_list.reading_list_skill",
+    "function": "get_items",
+    "requires_auth": false,
+    "is_user_facing": true,
+    "accepts_input": true
+  },
+  {
+    "skill_name": "mark_reading_item_read",
+    "description": "Marks an item in the reading list as read by its ID.",
+    "module": "jobs.reading_list.reading_list_skill",
+    "function": "mark_as_read",
+    "requires_auth": false,
+    "is_user_facing": true,
+    "accepts_input": true
+  },
+  {
+    "skill_name": "remove_reading_item",
+    "description": "Removes an item from the reading list by its ID.",
+    "module": "jobs.reading_list.reading_list_skill",
+    "function": "remove_item",
+    "requires_auth": false,
+    "is_user_facing": true,
+    "accepts_input": true
+  },
+  {
+    "skill_name": "get_all_chat_sessions",
+    "description": "Retrieves all chat sessions.",
+    "module": "jobs.chat.chat_session_skill",
+    "function": "get_all_sessions",
+    "requires_auth": false,
+    "is_user_facing": true,
+    "accepts_input": false
+  },
+  {
+    "skill_name": "get_chat_session_messages",
+    "description": "Retrieves all messages for a specific chat session ID.",
+    "module": "jobs.chat.chat_session_skill",
+    "function": "get_session_messages",
+    "requires_auth": false,
+    "is_user_facing": true,
+    "accepts_input": true
+  },
+  {
+    "skill_name": "delete_chat_session",
+    "description": "Deletes a chat session by its ID and all associated messages.",
+    "module": "jobs.chat.chat_session_skill",
+    "function": "delete_session",
+    "requires_auth": false,
+    "is_user_facing": true,
+    "accepts_input": true
+  },
+  {
+    "skill_name": "get_server_time",
+    "description": "Returns the current server time.",
+    "module": "jobs.server_utils.server_time_skill",
+    "function": "get_time",
+    "requires_auth": false,
+    "is_user_facing": true,
+    "accepts_input": false,
+    "natural_language_triggers": [
+      "what time is it",
+      "current time",
+      "server time"
+    ]
+  },
+  {
+    "skill_name": "send_telegram_message",
+    "description": "Sends a message to a specific Telegram chat ID.",
+    "module": "jobs.telegram.telegram_skill",
+    "function": "send_message",
+    "requires_auth": false,
+    "is_user_facing": false,
+    "accepts_input": true
+  },
+  {
+    "skill_name": "get_facebook_queue",
+    "description": "Retrieves items from the Facebook posting queue.",
+    "module": "jobs.facebook.facebook_skill",
+    "function": "get_queue",
+    "requires_auth": false,
+    "is_user_facing": true,
+    "accepts_input": false
+  },
+  {
+    "skill_name": "add_to_facebook_queue",
+    "description": "Adds an item to the Facebook posting queue.",
+    "module": "jobs.facebook.facebook_skill",
+    "function": "add_to_queue",
+    "requires_auth": false,
+    "is_user_facing": true,
+    "accepts_input": true
+  },
+  {
+    "skill_name": "remove_from_facebook_queue",
+    "description": "Removes an item from the Facebook posting queue by ID.",
+    "module": "jobs.facebook.facebook_skill",
+    "function": "remove_from_queue",
+    "requires_auth": false,
+    "is_user_facing": true,
+    "accepts_input": true
+  },
+  {
+    "skill_name": "post_facebook_item",
+    "description": "Immediately posts an item from the Facebook queue by ID.",
+    "module": "jobs.facebook.facebook_skill",
+    "function": "post_item",
+    "requires_auth": false,
+    "is_user_facing": true,
+    "accepts_input": true
+  },
+  {
+    "skill_name": "search_ollama_knowledge",
+    "description": "Searches the Ollama knowledge base for information based on a query.",
+    "module": "jobs.ollama.ollama_rag",
+    "function": "search_knowledge_base",
+    "requires_auth": false,
+    "is_user_facing": true,
+    "accepts_input": true,
+    "natural_language_triggers": [
+      "search ollama",
+      "ask ollama",
+      "ollama search"
+    ]
+  },
+  {
+    "skill_name": "add_ollama_document",
+    "description": "Adds a document to the Ollama knowledge base for RAG. Requires a file path.",
+    "module": "jobs.ollama.ollama_rag",
+    "function": "add_document",
+    "requires_auth": false,
+    "is_user_facing": true,
+    "accepts_input": true
+  },
+  {
+    "skill_name": "list_ollama_documents",
+    "description": "Lists all documents currently in the Ollama knowledge base.",
+    "module": "jobs.ollama.ollama_rag",
+    "function": "list_documents",
+    "requires_auth": false,
+    "is_user_facing": true,
+    "accepts_input": false
+  },
+  {
+    "skill_name": "remove_ollama_document",
+    "description": "Removes a document from the Ollama knowledge base by its ID.",
+    "module": "jobs.ollama.ollama_rag",
+    "function": "remove_document",
+    "requires_auth": false,
+    "is_user_facing": true,
+    "accepts_input": true
+  },
+  {
+    "skill_name": "create_ollama_chat_session",
+    "description": "Creates a new chat session with the Ollama model.",
+    "module": "jobs.ollama.ollama_chat",
+    "function": "create_session",
+    "requires_auth": false,
+    "is_user_facing": true,
+    "accepts_input": false
+  },
+  {
+    "skill_name": "send_ollama_chat_message",
+    "description": "Sends a message to an active Ollama chat session and gets a response.",
+    "module": "jobs.ollama.ollama_chat",
+    "function": "send_message",
+    "requires_auth": false,
+    "is_user_facing": true,
+    "accepts_input": true
+  },
+  {
+    "skill_name": "get_ollama_chat_history",
+    "description": "Retrieves the message history for a specific Ollama chat session.",
+    "module": "jobs.ollama.ollama_chat",
+    "function": "get_history",
+    "requires_auth": false,
+    "is_user_facing": true,
+    "accepts_input": true
+  },
+  {
+    "skill_name": "delete_ollama_chat_session",
+    "description": "Deletes an Ollama chat session by its ID.",
+    "module": "jobs.ollama.ollama_chat",
+    "function": "delete_session",
+    "requires_auth": false,
+    "is_user_facing": true,
+    "accepts_input": true
   }
 ]
