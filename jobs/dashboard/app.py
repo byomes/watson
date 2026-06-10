@@ -690,6 +690,20 @@ def chat_stream():
     msg_lower = message.lower().strip()
     import re as _re
 
+    # build: dispatch — route to Gemini coder
+    if msg_lower.startswith('build:'):
+        description = message[6:].strip()
+        import threading
+        from jobs.dev.gemini_coder import request_build
+
+        def _run_build():
+            request_build(description)
+
+        threading.Thread(target=_run_build, daemon=True).start()
+        return _sse_response(_stream_simple(
+            "Sending to Gemini... I'll notify you via Telegram when the build is ready."
+        ))
+
     # QR code generation
     _QR_TRIGGERS = ('qr code', 'qr-code', 'make a qr', 'give me a qr',
                     'generate a qr', 'create a qr', 'make qr', 'qr for')
