@@ -775,6 +775,8 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await _handle_block_time(update, context, params)
     elif intent == "book_appointment":
         await _handle_book_appointment(update, context, params)
+    elif intent == "reminder_create":
+        await _handle_reminder_create(update, context, params)
     elif intent == "task_create":
         await _handle_task_create(update, context, params)
     elif intent == "task_list":
@@ -832,6 +834,41 @@ async def _handle_book_appointment(update: Update, context: ContextTypes.DEFAULT
     except Exception as exc:
         log.error("Book appointment failed: %s", exc)
         await update.message.reply_text(f"Error finding slot: {exc}")
+
+
+def _ensure_reminders_table(conn) -> None:
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS reminders (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            title        TEXT    NOT NULL,
+            due_datetime TEXT    NOT NULL,
+            status       TEXT    NOT NULL DEFAULT 'active',
+            sort_order   INTEGER DEFAULT 0,
+            created_at   TEXT    NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+
+
+async def _handle_reminder_create(update: Update, context: ContextTypes.DEFAULT_TYPE, params: dict) -> None:
+    title = params.get("title", "")
+    due = params.get("due_datetime")
+    if not title:
+        await update.message.reply_text("What should I remind you about?")
+        return
+    if not due:
+        # "remind me later" or no time specified — default to 2 hours from now
+        from datetime import timedelta
+        due = (datetime.now() + timedelta(hours=2)).strftime("%Y-%m-%d %H:%M:%S")
+    try:
+        with get_connection() as conn:
+            _ensure_reminders_table(conn)
+            conn.execute(
+                "INSERT INTO reminders (title, due_datetime) VALUES (?, ?)", (title, due)
+            )
+        await update.message.reply_text(f"⏰ Reminder set: '{title}' at {due}.")
+    except Exception as exc:
+        log.error("Reminder create failed: %s", exc)
+        await update.message.reply_text(f"Error saving reminder: {exc}")
 
 
 def _ensure_tasks_table(conn) -> None:
