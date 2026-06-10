@@ -1,75 +1,63 @@
 import os
-import re
 import httpx
+from dotenv import load_dotenv
+import logging
 
-def extract_keywords(text: str) -> list[str]:
-    if not text:
-        return []
-    words = re.findall(r'\b[a-zA-Z]{3,}\b', text.lower())
-    stopwords = {
-        "the", "and", "a", "an", "of", "to", "in", "is", "you", "that", "it", "he", "was",
-        "for", "on", "are", "as", "with", "his", "they", "i", "at", "be", "this", "have",
-        "from", "or", "one", "had", "by", "word", "but", "not", "what", "all", "were", "we",
-        "when", "your", "can", "said", "there", "use", "an", "each", "which", "she", "do",
-        "how", "their", "if", "will", "up", "other", "about", "out", "many", "then", "them",
-        "these", "so", "some", "her", "would", "make", "like", "him", "into", "time", "has",
-        "look", "two", "more", "write", "go", "see", "number", "no", "way", "could", "people",
-        "my", "than", "first", "water", "been", "call", "who", "oil", "its", "now", "find"
-    }
-    filtered = [w for w in words if w not in stopwords]
-    seen = set()
-    unique = []
-    for w in filtered:
-        if w not in seen:
-            seen.add(w)
-            unique.append(w)
-    return unique[:5]
+# Load environment variables at the top of the script
+load_dotenv()
 
-def find_image(keywords: list[str]) -> dict | None:
-    if not keywords:
+logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s')
+
+def find_image(query: str) -> str | None:
+    """
+    Searches for an image using SerpAPI's Google Images API.
+    Returns the URL of the first image found or None if no image is found or an error occurs.
+    """
+    api_key = os.environ.get('SERPAPI_API_KEY')
+    if not api_key:
+        logging.error("SERPAPI_API_KEY not found in environment variables.")
         return None
-    query = " ".join(keywords)
 
-    unsplash_key = os.environ.get("UNSPLASH_ACCESS_KEY")
-    if unsplash_key:
-        try:
-            with httpx.Client(timeout=10.0) as client:
-                response = client.get(
-                    "https://api.unsplash.com/search/photos",
-                    headers={"Authorization": f"Client-ID {unsplash_key}"},
-                    params={"query": query, "per_page": 1}
-                )
-                if response.status_code == 200:
-                    data = response.json()
-                    if data.get("results"):
-                        first = data["results"][0]
-                        return {
-                            "url": first["urls"]["regular"],
-                            "photographer": first["user"]["name"],
-                            "source": "Unsplash"
-                        }
-        except Exception:
-            pass
+    params = {
+        "engine": "google_images",
+        "q": query,
+        """tbm": "isch", # Image search
+        "api_key": api_key
+    }
 
-    pexels_key = os.environ.get("PEXELS_API_KEY")
-    if pexels_key:
-        try:
-            with httpx.Client(timeout=10.0) as client:
-                response = client.get(
-                    "https://api.pexels.com/v1/search",
-                    headers={"Authorization": pexels_key},
-                    params={"query": query, "per_page": 1}
-                )
-                if response.status_code == 200:
-                    data = response.json()
-                    if data.get("photos"):
-                        first = data["photos"][0]
-                        return {
-                            "url": first["src"]["large"],
-                            "photographer": first["photographer"],
-                            "source": "Pexels"
-                        }
-        except Exception:
-            pass
+    try:
+        # httpx MUST stay pinned at 0.25.2
+        response = httpx.get("https://serpapi.com/search", params=params, timeout=10)
+        response.raise_for_status()  # Raise an exception for HTTP errors (4xx or 5xx)
+        data = response.json()
 
-    return None
+        if "images_results" in data and data["images_results"]:
+            # Return the URL of the first image found
+            return data["images_results"][0].get("original")
+        else:
+            logging.info(f"No image results found for query: {query}")
+            return None
+
+    except httpx.RequestError as e:
+        logging.error(f"An error occurred while requesting SerpAPI for query '{query}': {e}")
+        return None
+    except httpx.HTTPStatusError as e:
+        logging.error(f"SerpAPI returned an HTTP error for query '{query}': {e.response.status_code} - {e.response.text}")
+        return None
+    except Exception as e:
+        logging.error(f"An unexpected error occurred in find_image for query '{query}': {e}")
+        return None
+
+if __name__ == '__main__':
+    # Example usage:
+    image_url = find_image("cat meme")
+    if image_url:
+        print(f"Found image: {image_url}")
+    else:
+        print("No image found.")
+
+    image_url_fail = find_image("a very specific non-existent image that should fail")
+    if image_url_fail:
+        print(f"Found image: {image_url_fail}")
+    else:
+        print("No image found for failure test.")
