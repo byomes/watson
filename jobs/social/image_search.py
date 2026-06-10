@@ -1,4 +1,3 @@
-import base64
 import logging
 import os
 
@@ -86,25 +85,8 @@ def run(message: str = None) -> str:
     if not message:
         return 'Provide a topic to find images for.'
     keywords = extract_keywords(message)
-    images = find_images(keywords, count=5)
+    images = find_images(keywords, count=3)
     if not images:
         return 'No images found.'
 
-    blocks = []
-    for image in images:
-        try:
-            resp = requests.get(image['url'], timeout=15)
-            resp.raise_for_status()
-            b64 = base64.b64encode(resp.content).decode()
-            content_type = resp.headers.get('content-type', 'image/jpeg').split(';')[0]
-            data_url = f"data:{content_type};base64,{b64}"
-            blocks.append(
-                f"{data_url}\nURL: {image['url']}\nPhoto by {image['photographer']} on {image['source'].title()}"
-            )
-        except Exception as exc:
-            log.error('Image fetch failed for %s: %s', image['url'], exc)
-            blocks.append(
-                f"URL: {image['url']}\nPhoto by {image['photographer']} on {image['source'].title()}"
-            )
-
-    return '\n\n'.join(blocks)
+    return '\n'.join(f"[IMAGE_URL] {img['url']}" for img in images)
