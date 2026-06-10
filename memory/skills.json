@@ -30,6 +30,24 @@
         "dashboard"
       ],
       "status": "ready"
+    },
+    {
+      "slug": "image_search",
+      "name": "Image Search",
+      "description": "Searches for images matching a query.",
+      "triggers": [
+        "find image",
+        "search image",
+        "find a photo",
+        "image of"
+      ],
+      "module": "jobs.social.image_search",
+      "function": "run",
+      "interfaces": [
+        "dashboard",
+        "telegram"
+      ],
+      "status": "ready"
     }
   ]
 }
