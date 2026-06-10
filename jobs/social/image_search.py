@@ -1,75 +1,93 @@
-import os
-import httpx
-import base64
 import logging
+import os
 
-from core.database import get_connection
+import requests
+from dotenv import load_dotenv
 
-logger = logging.getLogger(__name__)
+load_dotenv('/home/billyomes/watson/.env')
 
-"""
-This module implements an image search skill for Watson.
-It leverages the Google Custom Search API to find and retrieve images.
-The search query is passed to the API, and the first result's image content
-is fetched and returned as a base64 encoded string.
-This makes it suitable for direct embedding in HTML img tags
-on the dashboard, for example.
-Credentials (GOOGLE_CUSTOM_SEARCH_API_KEY and GOOGLE_CUSTOM_SEARCH_ENGINE_ID)
-must be set in the environment.
-The `run` function is the primary entry point for skill execution.
-"""
-def image_search(query: str) -> str:
-    """
-    Searches for an image using a web service and returns its base64 encoded string.
-    """
-    API_KEY = os.environ.get("GOOGLE_CUSTOM_SEARCH_API_KEY")
-    CSE_ID = os.environ.get("GOOGLE_CUSTOM_SEARCH_ENGINE_ID")
+log = logging.getLogger(__name__)
 
-    if not API_KEY or not CSE_ID:
-        logger.error("Google Custom Search API key or CSE ID not found in environment variables.")
-        return "Error: Google Custom Search API key or CSE ID not configured."
-
-    search_url = "https://www.googleapis.com/customsearch/v1"
-    params = {
-        "q": query,
-        "cx": CSE_ID,
-        "key": API_KEY,
-        "searchType": "image",
-        "num": 1
-    }
-
-    try:
-        response = httpx.get(search_url, params=params, timeout=10)
-        response.raise_for_status()
-        data = response.json()
-
-        if "items" in data and data["items"]:
-            image_url = data["items"][0]["link"]
-            logger.info(f"Found image URL: {image_url}")
-
-            image_response = httpx.get(image_url, timeout=10)
-            image_response.raise_for_status()
-            image_content = image_response.content
-            base64_image = base64.b64encode(image_content).decode('utf-8')
-            mime_type = image_response.headers.get("Content-Type", "image/jpeg")
-
-            return f"data:{mime_type};base64,{base64_image}"
-        else:
-            return "No image found for the given query."
-
-    except httpx.HTTPStatusError as e:
-        logger.error(f"HTTP error searching for image: {e.response.status_code} - {e.response.text}")
-        return f"Error: Failed to search for image (HTTP status {e.response.status_code})."
-    except httpx.RequestError as e:
-        logger.error(f"Request error searching for image: {e}")
-        return "Error: Failed to connect to image search service."
-    except Exception as e:
-        logger.error(f"An unexpected error occurred during image search: {e}", exc_info=True)
-        return "Error: An unexpected error occurred."
+_STOP_WORDS = {
+    'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
+    'of', 'with', 'by', 'from', 'is', 'are', 'was', 'were', 'be', 'been',
+    'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could',
+    'should', 'may', 'might', 'that', 'this', 'it', 'its', 'we', 'our',
+    'you', 'your', 'he', 'she', 'they', 'their', 'what', 'which', 'who',
+    'how', 'when', 'where', 'why', 'not', 'no', 'so', 'as', 'if', 'than',
+}
 
 
-def run(query: str) -> str:
-    """
-    Skill entry point for image search.
-    """
-    return image_search(query)
+def extract_keywords(text: str) -> list:
+    words = text.lower().replace(',', ' ').replace('.', ' ').split()
+    keywords = [w for w in words if w not in _STOP_WORDS and len(w) > 3]
+    seen = []
+    for k in keywords:
+        if k not in seen:
+            seen.append(k)
+    return seen[:5]
+
+
+def find_image(keywords: list) -> dict:
+    query = ' '.join(keywords)
+
+    # Try Unsplash first
+    unsplash_key = os.environ.get('UNSPLASH_ACCESS_KEY')
+    if unsplash_key:
+        try:
+            resp = requests.get(
+                'https://api.unsplash.com/search/photos',
+                params={'query': query, 'per_page': 1},
+                headers={'Authorization': f'Client-ID {unsplash_key}'},
+                timeout=10,
+            )
+            if resp.status_code == 200:
+                results = resp.json().get('results', [])
+                if results:
+                    photo = results[0]
+                    return {
+                        'url': photo['urls']['regular'],
+                        'photographer': photo['user']['name'],
+                        'source': 'unsplash',
+                    }
+            else:
+                log.warning('Unsplash error %s: %s', resp.status_code, resp.text[:200])
+        except Exception as exc:
+            log.error('Unsplash request failed: %s', exc)
+
+    # Fall back to Pexels
+    pexels_key = os.environ.get('PEXELS_API_KEY')
+    if pexels_key:
+        try:
+            resp = requests.get(
+                'https://api.pexels.com/v1/search',
+                params={'query': query, 'per_page': 1},
+                headers={'Authorization': pexels_key},
+                timeout=10,
+            )
+            if resp.status_code == 200:
+                photos = resp.json().get('photos', [])
+                if photos:
+                    photo = photos[0]
+                    return {
+                        'url': photo['src']['large'],
+                        'photographer': photo['photographer'],
+                        'source': 'pexels',
+                    }
+            else:
+                log.warning('Pexels error %s: %s', resp.status_code, resp.text[:200])
+        except Exception as exc:
+            log.error('Pexels request failed: %s', exc)
+
+    log.warning('No image found for keywords: %s', keywords)
+    return None
+
+
+def run(message: str = None) -> str:
+    if not message:
+        return 'Provide a topic to find an image for.'
+    keywords = extract_keywords(message)
+    image = find_image(keywords)
+    if image:
+        return f"Image: {image['url']}\nPhotographer: {image['photographer']} ({image['source']})"
+    return 'No image found.'
