@@ -1,3 +1,14 @@
+// ── Mobile-friendly reminder button overrides ────────────────────────────
+(function() {
+  var s = document.createElement('style');
+  s.textContent = [
+    '.r-drag{min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:center;padding:0;font-size:18px;}',
+    '.r-btns{gap:12px;}',
+    '.r-btn{min-height:36px;min-width:44px;font-size:18px;padding:6px 8px;}'
+  ].join('');
+  document.head.appendChild(s);
+})();
+
 // ── Theme ─────────────────────────────────────────────────────────────────
 const root = document.documentElement;
 function _syncThemeUI() {
