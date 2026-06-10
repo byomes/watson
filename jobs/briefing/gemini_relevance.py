@@ -10,7 +10,7 @@ api_key = os.environ.get("GEMINI_API_KEY") or \
 if api_key:
     genai.configure(api_key=api_key)
 
-GEMINI_MODEL_NAME = "gemini-2.5-flash"
+GEMINI_MODEL_NAME = "gemini-3.5-flash"
 
 def score_items(items: list[dict]) -> list[dict]:
     """

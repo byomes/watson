@@ -129,7 +129,7 @@ def _call_gemini(description: str) -> dict:
         api_key=os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_AI_STUDIO_API_KEY")
     )
     response = client.models.generate_content(
-        model="gemini-2.5-flash",
+        model="gemini-3.5-flash",
         contents=_SYSTEM_PROMPT + "\n\nBuild request: " + description,
     )
     text = response.text.strip()
