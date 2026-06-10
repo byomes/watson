@@ -71,6 +71,10 @@ def _bootstrap():
         c.execute("ALTER TABLE reminders ADD COLUMN updated_at TEXT")
     except Exception:
         pass
+    try:
+        c.execute("ALTER TABLE reminders ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0")
+    except Exception:
+        pass
     c.execute("""CREATE TABLE IF NOT EXISTS reading_list (
         id          INTEGER PRIMARY KEY AUTOINCREMENT,
         title       TEXT    NOT NULL,
@@ -382,7 +386,7 @@ def reading_update(entry_id):
 @app.route("/api/reminders")
 def reminders_list():
     rows = _db().execute(
-        "SELECT * FROM reminders WHERE status = 'active' ORDER BY created_at DESC"
+        "SELECT * FROM reminders WHERE status = 'active' ORDER BY sort_order ASC, created_at DESC"
     ).fetchall()
     return jsonify([dict(r) for r in rows])
 
@@ -407,7 +411,7 @@ def reminders_create():
 @app.route("/api/reminders/<int:reminder_id>", methods=["PATCH"])
 def reminders_update(reminder_id):
     data = request.get_json(force=True)
-    allowed = {"title", "status", "reminder_time"}
+    allowed = {"title", "status", "reminder_time", "sort_order"}
     fields = {k: v for k, v in data.items() if k in allowed}
     if not fields:
         return jsonify({"error": "nothing to update"}), 400
