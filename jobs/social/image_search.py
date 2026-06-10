@@ -1,3 +1,4 @@
+import base64
 import logging
 import os
 
@@ -28,77 +29,82 @@ def extract_keywords(text: str) -> list:
     return seen[:5]
 
 
-def find_image(keywords: list) -> dict:
+def find_images(keywords: list[str], count: int = 5) -> list[dict]:
     query = ' '.join(keywords)
+    results = []
 
-    # Try Unsplash first
     unsplash_key = os.environ.get('UNSPLASH_ACCESS_KEY')
     if unsplash_key:
         try:
             resp = requests.get(
                 'https://api.unsplash.com/search/photos',
-                params={'query': query, 'per_page': 1},
+                params={'query': query, 'per_page': count},
                 headers={'Authorization': f'Client-ID {unsplash_key}'},
                 timeout=10,
             )
             if resp.status_code == 200:
-                results = resp.json().get('results', [])
-                if results:
-                    photo = results[0]
-                    return {
+                for photo in resp.json().get('results', []):
+                    results.append({
                         'url': photo['urls']['regular'],
                         'photographer': photo['user']['name'],
                         'source': 'unsplash',
-                    }
+                    })
             else:
                 log.warning('Unsplash error %s: %s', resp.status_code, resp.text[:200])
         except Exception as exc:
             log.error('Unsplash request failed: %s', exc)
 
-    # Fall back to Pexels
-    pexels_key = os.environ.get('PEXELS_API_KEY')
-    if pexels_key:
-        try:
-            resp = requests.get(
-                'https://api.pexels.com/v1/search',
-                params={'query': query, 'per_page': 1},
-                headers={'Authorization': pexels_key},
-                timeout=10,
-            )
-            if resp.status_code == 200:
-                photos = resp.json().get('photos', [])
-                if photos:
-                    photo = photos[0]
-                    return {
-                        'url': photo['src']['large'],
-                        'photographer': photo['photographer'],
-                        'source': 'pexels',
-                    }
-            else:
-                log.warning('Pexels error %s: %s', resp.status_code, resp.text[:200])
-        except Exception as exc:
-            log.error('Pexels request failed: %s', exc)
+    remaining = count - len(results)
+    if remaining > 0:
+        pexels_key = os.environ.get('PEXELS_API_KEY')
+        if pexels_key:
+            try:
+                resp = requests.get(
+                    'https://api.pexels.com/v1/search',
+                    params={'query': query, 'per_page': remaining},
+                    headers={'Authorization': pexels_key},
+                    timeout=10,
+                )
+                if resp.status_code == 200:
+                    for photo in resp.json().get('photos', []):
+                        results.append({
+                            'url': photo['src']['large'],
+                            'photographer': photo['photographer'],
+                            'source': 'pexels',
+                        })
+                else:
+                    log.warning('Pexels error %s: %s', resp.status_code, resp.text[:200])
+            except Exception as exc:
+                log.error('Pexels request failed: %s', exc)
 
-    log.warning('No image found for keywords: %s', keywords)
-    return None
+    if not results:
+        log.warning('No images found for keywords: %s', keywords)
+    return results
 
 
 def run(message: str = None) -> str:
     if not message:
-        return 'Provide a topic to find an image for.'
+        return 'Provide a topic to find images for.'
     keywords = extract_keywords(message)
-    image = find_image(keywords)
-    if not image:
-        return 'No image found.'
+    images = find_images(keywords, count=5)
+    if not images:
+        return 'No images found.'
 
-    try:
-        import base64
-        resp = requests.get(image['url'], timeout=15)
-        resp.raise_for_status()
-        b64 = base64.b64encode(resp.content).decode()
-        content_type = resp.headers.get('content-type', 'image/jpeg').split(';')[0]
-        data_url = f"data:{content_type};base64,{b64}"
-        return f"{data_url}\n{image['url']}\nPhoto by {image['photographer']} on {image['source'].title()}"
-    except Exception as exc:
-        log.error('Image fetch failed: %s', exc)
-        return f"{image['url']}\nPhoto by {image['photographer']} on {image['source'].title()}"
+    blocks = []
+    for image in images:
+        try:
+            resp = requests.get(image['url'], timeout=15)
+            resp.raise_for_status()
+            b64 = base64.b64encode(resp.content).decode()
+            content_type = resp.headers.get('content-type', 'image/jpeg').split(';')[0]
+            data_url = f"data:{content_type};base64,{b64}"
+            blocks.append(
+                f"{data_url}\nURL: {image['url']}\nPhoto by {image['photographer']} on {image['source'].title()}"
+            )
+        except Exception as exc:
+            log.error('Image fetch failed for %s: %s', image['url'], exc)
+            blocks.append(
+                f"URL: {image['url']}\nPhoto by {image['photographer']} on {image['source'].title()}"
+            )
+
+    return '\n\n'.join(blocks)

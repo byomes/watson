@@ -245,23 +245,19 @@
     "accepts_input": true
   },
   {
-    "slug": "image_search",
-    "description": "Search for a stock image by topic or keywords",
-    "triggers": [
+    "skill_name": "image_search",
+    "description": "Search for up to 5 stock images by topic or keywords. Returns base64 data URLs with photographer credit.",
+    "module": "jobs.social.image_search",
+    "function": "run",
+    "natural_language_triggers": [
       "find an image",
       "search for image",
       "get an image",
       "image search",
       "find image for",
-      "stock image"
-    ],
-    "job_module": "jobs.social.image_search",
-    "function": "run",
-    "interfaces": [
-      "dashboard",
-      "telegram"
-    ],
-    "status": "ready",
-    "category": "Research"
+      "stock image",
+      "find images",
+      "search images"
+    ]
   }
 ]
