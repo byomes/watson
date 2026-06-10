@@ -665,7 +665,7 @@ async function sendChat() {
             img.style.cssText = 'max-width:280px;border-radius:8px;margin-top:12px;display:block;';
             if (watsonBubble) watsonBubble.appendChild(img);
           } else if (data.startsWith('[IMAGE_URL]')) {
-            _createWatsonBubble();
+            if (!watsonBubble) _createWatsonBubble();
             const img = document.createElement('img');
             img.src = data.slice(11).trim();
             img.style.cssText = 'max-width:100%;border-radius:8px;display:block;margin:10px 0 4px;';
