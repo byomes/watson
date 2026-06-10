@@ -122,7 +122,7 @@ select option{background:var(--surface)}
 .msg-wrap.watson .msg-bubble{background:var(--surface-2);color:var(--text)}
 .msg-time{font-size:10px;color:var(--text-muted);font-family:'DM Mono',monospace;margin-top:3px;padding:0 2px}
 /* Chat + PW: avatar + col layout */
-#chat-messages .msg-wrap.watson,#pw-messages .msg-wrap.watson{flex-direction:row;align-items:flex-end;gap:8px}
+#chat-messages .msg-wrap.watson,#pw-messages .msg-wrap.watson{flex-direction:row;align-items:flex-start;gap:8px}
 .msg-col{display:flex;flex-direction:column;min-width:0}
 .msg-col .msg-bubble{max-width:100%}
 #chat-messages .msg-wrap.watson .msg-col,#pw-messages .msg-wrap.watson .msg-col{align-items:flex-start;max-width:calc(80% - 36px)}
