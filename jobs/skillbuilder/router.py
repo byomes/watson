@@ -372,14 +372,21 @@ def _load_skills(interface: str) -> list:
     if not SKILLS_FILE.exists():
         return []
     try:
-        skills = json.loads(SKILLS_FILE.read_text(encoding="utf-8"))
+        data = json.loads(SKILLS_FILE.read_text(encoding="utf-8"))
+        raw = data["skills"] if isinstance(data, dict) and "skills" in data else data
     except Exception:
         return []
-    return [
-        s for s in skills
-        if interface in s.get("interfaces", [])
-        and s.get("status", "ready") == "ready"
-    ]
+    result = []
+    for s in raw:
+        if interface not in s.get("interfaces", []) or s.get("status", "ready") != "ready":
+            continue
+        # Normalize field names so the rest of the router can use slug/job_module uniformly.
+        if "slug" not in s:
+            s = dict(s, slug=s.get("name", ""))
+        if "job_module" not in s and "module" in s:
+            s = dict(s, job_module=s["module"])
+        result.append(s)
+    return result
 
 
 def _ask_router(message: str, skills: list) -> str:
@@ -529,11 +536,24 @@ def _route(message: str, interface: str) -> dict:
         result = web_search_run(message)
         return {"action": "skill", "slug": "web_search", "result": result}
 
+    # Skill trigger pre-check: if any ready skill's trigger is an exact substring of
+    # the message, execute it immediately — no LLM call needed. Runs before the
+    # conversational bypass so short trigger phrases like "tell me a joke" aren't lost.
+    skills = _load_skills(interface)
+    for skill in skills:
+        for trigger in skill.get("triggers", []):
+            if trigger.lower() in msg_lower:
+                slug = skill["slug"]
+                try:
+                    result = _run_skill(skill, message=message)
+                except Exception as exc:
+                    result = f"Skill failed: {exc}"
+                return {"action": "skill", "slug": slug, "result": result}
+
     # Conversational pre-check: skip LLM router entirely for short/greeting messages.
     if _is_conversational(message):
         return {"action": "chat"}
 
-    skills = _load_skills(interface)
     if not skills:
         return {"action": "chat"}
 
