@@ -162,9 +162,9 @@ _pending_skill_request: str | None = None
 
 
 
-@app.route("/static/app.js")
+@app.route("/static/watson.js")
 def serve_appjs():
-    path = Path(__file__).parent / "static" / "app.js"
+    path = Path(__file__).parent / "static" / "watson.js"
     content = path.read_bytes()
     response = Response(content, mimetype="application/javascript")
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
