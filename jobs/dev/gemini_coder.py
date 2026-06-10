@@ -95,20 +95,23 @@ def _send_telegram(text: str) -> None:
     requests.post(url, json={"chat_id": TELEGRAM_CHAT_ID, "text": text}, timeout=10)
 
 
-def _call_gemini(description: str) -> str:
+def _call_gemini(description: str, system_prompt_override: str | None = None) -> str:
     from google import genai
 
     arch = _load_arch_context()
-    system_prompt = (
-        "You are a build-planning assistant for Watson, a personal AI assistant system\n"
-        "running on a Linux server at /home/billyomes/watson.\n\n"
-        "CRITICAL: Your response must be plain prose only. No JSON. No code blocks. No bullet points. No file actions. No structured data of any kind.\n\n"
-        "Your only job is to produce a single plain-English instruction paragraph that will be passed verbatim to Claude Code.\n"
-        "Claude Code will write all files. You describe what to build in plain English only.\n\n"
-        "ARCHITECTURE CONTEXT:\n"
-        f"{arch}\n\n"
-        f"{_SYSTEM_PROMPT_RULES}"
-    )
+    if system_prompt_override is not None:
+        system_prompt = system_prompt_override
+    else:
+        system_prompt = (
+            "You are a build-planning assistant for Watson, a personal AI assistant system\n"
+            "running on a Linux server at /home/billyomes/watson.\n\n"
+            "CRITICAL: Your response must be plain prose only. No JSON. No code blocks. No bullet points. No file actions. No structured data of any kind.\n\n"
+            "Your only job is to produce a single plain-English instruction paragraph that will be passed verbatim to Claude Code.\n"
+            "Claude Code will write all files. You describe what to build in plain English only.\n\n"
+            "ARCHITECTURE CONTEXT:\n"
+            f"{arch}\n\n"
+            f"{_SYSTEM_PROMPT_RULES}"
+        )
 
     client = genai.Client(
         api_key=os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_AI_STUDIO_API_KEY")
@@ -138,6 +141,43 @@ def request_build(description: str) -> int:
         f"Reply apply {build_id} to run or cancel {build_id} to discard."
     )
     log.info("builds row %d created", build_id)
+    return build_id
+
+
+def request_debug(description: str) -> int:
+    """Call Gemini with a debug-focused prompt, store result, notify via Telegram. Returns build id."""
+    arch = _load_arch_context()
+    debug_system_prompt = (
+        "You are a debugging assistant for Watson, a personal AI assistant system\n"
+        "running on a Linux server at /home/billyomes/watson.\n\n"
+        "The user has reported a problem. Your job is to produce a single Claude Code prompt\n"
+        "that diagnoses and fixes the issue.\n\n"
+        "CRITICAL: Your response must be plain prose only. No JSON. No code blocks. No bullet points. "
+        "No file actions. No structured data of any kind.\n\n"
+        "The prompt you produce MUST instruct Claude Code to:\n"
+        "1. Read all relevant files first before making any changes.\n"
+        "2. Identify the root cause of the reported problem.\n"
+        "3. Apply the fix.\n\n"
+        "ARCHITECTURE CONTEXT:\n"
+        f"{arch}\n\n"
+        f"{_SYSTEM_PROMPT_RULES}"
+    )
+    prompt = _call_gemini(description, system_prompt_override=debug_system_prompt)
+
+    prefixed = f"debug: {description}"
+    with _get_db() as conn:
+        cur = conn.execute(
+            """INSERT INTO builds (description, generated_prompt, status, created_at)
+               VALUES (?, ?, 'pending', ?)""",
+            (prefixed, prompt, datetime.utcnow().isoformat()),
+        )
+        build_id = cur.lastrowid
+
+    _send_telegram(
+        f"Debug prompt ready:\n\n{prompt}\n\n"
+        f"Reply apply {build_id} to run or cancel {build_id} to discard."
+    )
+    log.info("debug build row %d created", build_id)
     return build_id
 
 

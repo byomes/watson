@@ -443,6 +443,16 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await loop.run_in_executor(None, request_build, description)
         return
 
+    # Watson debug: request — route to Gemini debugger
+    if text_lower.startswith("debug:") or text_lower.startswith("watson debug:"):
+        from jobs.dev.gemini_coder import request_debug
+        description = re.sub(r'^(?:watson\s+)?debug:\s*', '', text_clean, flags=re.IGNORECASE).strip()
+        await update.message.reply_text("Sending to Gemini debugger...")
+        import asyncio
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, request_debug, description)
+        return
+
     # apply/cancel gemini build
     _apply_match = re.match(r'^apply\s+(\d+)$', text_lower)
     _cancel_match = re.match(r'^cancel\s+(\d+)$', text_lower)
