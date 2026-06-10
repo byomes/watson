@@ -235,13 +235,24 @@ const loaded = {chat:true, history:false, briefing:false, tasks:false, contacts:
 const loaders = {};
 
 const TAB_LABELS = {chat:'Chat',history:'History',briefing:'Briefing',tasks:'Tasks',reminders:'Reminders',contacts:'Contacts',reading:'Reading',projects:'Projects'};
+let _activeTab = 'chat';
 function switchTab(name) {
+  _activeTab = name;
+  if (name === 'chat') _clearChatBadge();
   TABS.forEach(t => {
     document.getElementById('tab-' + t).classList.toggle('active', t === name);
     const navEl = document.getElementById('nav-' + t);
     if (navEl) navEl.classList.toggle('active', t === name);
   });
   if (!loaded[name]) { loaded[name] = true; if (loaders[name]) loaders[name](); }
+}
+function _showChatBadge() {
+  const b = document.getElementById('chat-nav-badge');
+  if (b) b.style.display = 'block';
+}
+function _clearChatBadge() {
+  const b = document.getElementById('chat-nav-badge');
+  if (b) b.style.display = 'none';
 }
 
 // ── Chat — session state ──────────────────────────────────────────────────
@@ -339,6 +350,22 @@ async function deleteSession(id) {
 }
 
 // ── Chat — messaging ──────────────────────────────────────────────────────
+function _renderContent(text) {
+  const e = text
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return e
+    .replace(/\*\*([^*\n]+)\*\*/g,'<strong>$1</strong>')
+    .replace(/\n/g,'<br>');
+}
+function _createAvatarEl() {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
+  svg.setAttribute('viewBox','0 0 512 512');
+  svg.setAttribute('width','28');
+  svg.setAttribute('height','28');
+  svg.setAttribute('class','watson-avatar');
+  svg.innerHTML = '<rect width="512" height="512" rx="51" fill="#111827"/><text x="256" y="400" font-family="Georgia,serif" font-size="360" font-weight="700" fill="white" text-anchor="middle">W</text>';
+  return svg;
+}
 function _fmtTime(d) {
   const h = d.getHours(), m = d.getMinutes();
   return (h % 12 || 12) + ':' + String(m).padStart(2,'0') + (h < 12 ? ' am' : ' pm');
@@ -347,6 +374,9 @@ function _appendMsg(role, text) {
   const msgs = document.getElementById('chat-messages');
   const wrap = document.createElement('div');
   wrap.className = 'msg-wrap ' + role;
+  if (role === 'watson') wrap.appendChild(_createAvatarEl());
+  const col = document.createElement('div');
+  col.className = 'msg-col';
   const bubble = document.createElement('div');
   bubble.className = 'msg-bubble';
   if (text.trim().startsWith('data:image/')) {
@@ -354,18 +384,19 @@ function _appendMsg(role, text) {
     img.src = text.trim();
     img.style.maxWidth = '100%';
     img.style.borderRadius = '8px';
-    img.style.marginTop = '8px';
     bubble.appendChild(img);
   } else {
-    bubble.textContent = text;
+    bubble.innerHTML = _renderContent(text);
   }
   const time = document.createElement('div');
   time.className = 'msg-time';
   time.textContent = _fmtTime(new Date());
-  wrap.appendChild(bubble);
-  wrap.appendChild(time);
+  col.appendChild(bubble);
+  col.appendChild(time);
+  wrap.appendChild(col);
   msgs.appendChild(wrap);
   msgs.scrollTop = msgs.scrollHeight;
+  if (role === 'watson' && _activeTab !== 'chat') _showChatBadge();
 }
 
 function _appendEmailConfirmCard(container, em) {
@@ -412,7 +443,11 @@ function _showTyping() {
   const wrap = document.createElement('div');
   wrap.className = 'msg-wrap watson';
   wrap.id = 'typing-wrap';
-  wrap.innerHTML = '<div class="typing-indicator"><span></span><span></span><span></span></div>';
+  wrap.appendChild(_createAvatarEl());
+  const ind = document.createElement('div');
+  ind.className = 'typing-indicator';
+  ind.innerHTML = '<span></span><span></span><span></span>';
+  wrap.appendChild(ind);
   msgs.appendChild(wrap);
   msgs.scrollTop = msgs.scrollHeight;
 }
@@ -463,6 +498,7 @@ async function sendChat() {
     currentSessionId = sess.id;
   }
   input.value = '';
+  input.style.height = '';
 
   const displayMsg = attachedFileName ? text + '\n📎 ' + attachedFileName : text;
   const ollamaMsg = attachedFileContent
@@ -481,30 +517,40 @@ async function sendChat() {
   chatHistory.push({role: 'user', content: ollamaMsg});
   if (chatHistory.length > 40) chatHistory = chatHistory.slice(-40);
 
-  // Disable controls while streaming
   input.disabled = true;
   sendBtn.disabled = true;
   if (micBtn) micBtn.disabled = true;
 
-  // Build streaming watson bubble
+  // Show typing indicator; watson bubble created lazily on first token
+  _showTyping();
   const msgs = document.getElementById('chat-messages');
-  const wrap = document.createElement('div');
-  wrap.className = 'msg-wrap watson';
-  const bubble = document.createElement('div');
-  bubble.className = 'msg-bubble';
-  const textNode = document.createTextNode('');
-  const cursor = document.createElement('span');
-  cursor.className = 'stream-cursor';
-  cursor.textContent = '|';
-  bubble.appendChild(textNode);
-  bubble.appendChild(cursor);
-  const time = document.createElement('div');
-  time.className = 'msg-time';
-  time.textContent = _fmtTime(new Date());
-  wrap.appendChild(bubble);
-  wrap.appendChild(time);
-  msgs.appendChild(wrap);
-  msgs.scrollTop = msgs.scrollHeight;
+  let watsonBubble = null, watsonTextNode = null, watsonCursor = null;
+
+  function _createWatsonBubble() {
+    if (watsonBubble) return;
+    _hideTyping();
+    const wrap = document.createElement('div');
+    wrap.className = 'msg-wrap watson';
+    wrap.appendChild(_createAvatarEl());
+    const col = document.createElement('div');
+    col.className = 'msg-col';
+    watsonBubble = document.createElement('div');
+    watsonBubble.className = 'msg-bubble';
+    watsonTextNode = document.createTextNode('');
+    watsonCursor = document.createElement('span');
+    watsonCursor.className = 'stream-cursor';
+    watsonCursor.textContent = '|';
+    watsonBubble.appendChild(watsonTextNode);
+    watsonBubble.appendChild(watsonCursor);
+    const time = document.createElement('div');
+    time.className = 'msg-time';
+    time.textContent = _fmtTime(new Date());
+    col.appendChild(watsonBubble);
+    col.appendChild(time);
+    wrap.appendChild(col);
+    msgs.appendChild(wrap);
+    msgs.scrollTop = msgs.scrollHeight;
+  }
 
   let fullReply = '';
   let confirmEmailData = null;
@@ -516,11 +562,26 @@ async function sendChat() {
   }
 
   function _finish() {
-    cursor.remove();
+    _hideTyping();
+    if (watsonCursor) watsonCursor.remove();
+    if (watsonBubble && watsonTextNode && watsonTextNode.textContent && watsonBubble.children.length === 0) {
+      const content = watsonTextNode.textContent;
+      if (content.trim().startsWith('data:image/')) {
+        watsonTextNode.textContent = '';
+        const img = document.createElement('img');
+        img.src = content.trim();
+        img.style.maxWidth = '100%';
+        img.style.borderRadius = '8px';
+        watsonBubble.appendChild(img);
+      } else {
+        watsonBubble.innerHTML = _renderContent(content);
+      }
+    }
     if (fullReply) {
       chatHistory.push({role: 'assistant', content: fullReply});
       if (chatHistory.length > 40) chatHistory = chatHistory.slice(-40);
       api('/api/chat/sessions/' + currentSessionId + '/messages', 'POST', {role:'assistant', content: fullReply});
+      if (_activeTab !== 'chat') _showChatBadge();
     }
     if (confirmEmailData) {
       _appendEmailConfirmCard(msgs, confirmEmailData);
@@ -535,8 +596,10 @@ async function sendChat() {
       body: JSON.stringify({message: ollamaMsg, history: chatHistory.slice(0, -1), session_id: currentSessionId})
     });
     if (!response.ok) {
-      textNode.textContent = 'Watson is offline.';
-      cursor.remove();
+      _hideTyping();
+      _createWatsonBubble();
+      if (watsonTextNode) watsonTextNode.textContent = 'Watson is offline.';
+      if (watsonCursor) watsonCursor.remove();
       _reEnable();
       return;
     }
@@ -558,42 +621,54 @@ async function sendChat() {
           _finish();
           return;
         } else if (data.startsWith('[ERROR]')) {
-          cursor.remove();
-          textNode.textContent = data.slice(7).trim();
+          _hideTyping();
+          _createWatsonBubble();
+          if (watsonCursor) watsonCursor.remove();
+          if (watsonTextNode) watsonTextNode.textContent = data.slice(7).trim();
           _reEnable();
           return;
         } else if (data.startsWith('[CONFIRM_EMAIL]')) {
           try { confirmEmailData = JSON.parse(data.slice(15)); } catch(_) {}
         } else if (data.startsWith('[QR_IMAGE]')) {
+          _createWatsonBubble();
           const img = document.createElement('img');
           img.src = 'data:image/png;base64,' + data.slice(10);
           img.alt = 'QR Code';
           img.style.cssText = 'max-width:280px;border-radius:8px;margin-top:12px;display:block;';
-          bubble.appendChild(img);
+          if (watsonBubble) watsonBubble.appendChild(img);
         } else {
+          _createWatsonBubble();
           try {
             const parsed = JSON.parse(data);
             fullReply += (parsed.token !== undefined) ? parsed.token : data;
           } catch(_) {
             fullReply += data;
           }
-          textNode.textContent = fullReply;
+          if (watsonTextNode) watsonTextNode.textContent = fullReply;
           msgs.scrollTop = msgs.scrollHeight;
         }
       }
     }
-    // Stream ended without [DONE]
     _finish();
   } catch(e) {
-    textNode.textContent = 'Watson is offline.';
-    cursor.remove();
+    _hideTyping();
+    _createWatsonBubble();
+    if (watsonTextNode) watsonTextNode.textContent = 'Watson is offline.';
+    if (watsonCursor) watsonCursor.remove();
     _reEnable();
   }
 }
 
 document.getElementById('chat-input').addEventListener('keydown', function(e) {
-  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); }
+  if (e.key === 'Enter' && e.shiftKey) { e.preventDefault(); sendChat(); }
 });
+(function() {
+  const ta = document.getElementById('chat-input');
+  ta.addEventListener('input', function() {
+    this.style.height = 'auto';
+    this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+  });
+})();
 
 // Load sessions on first visit
 loadSessions();
@@ -1257,14 +1332,18 @@ function _appendPWMsg(role, text) {
   const msgs = document.getElementById('pw-messages');
   const wrap = document.createElement('div');
   wrap.className = 'msg-wrap ' + role;
+  if (role === 'watson') wrap.appendChild(_createAvatarEl());
+  const col = document.createElement('div');
+  col.className = 'msg-col';
   const bubble = document.createElement('div');
   bubble.className = 'msg-bubble';
-  bubble.textContent = text;
+  bubble.innerHTML = _renderContent(text);
   const time = document.createElement('div');
   time.className = 'msg-time';
   time.textContent = _fmtTime(new Date());
-  wrap.appendChild(bubble);
-  wrap.appendChild(time);
+  col.appendChild(bubble);
+  col.appendChild(time);
+  wrap.appendChild(col);
   msgs.appendChild(wrap);
   msgs.scrollTop = msgs.scrollHeight;
 }
@@ -1273,7 +1352,11 @@ function _showPWTyping() {
   const wrap = document.createElement('div');
   wrap.className = 'msg-wrap watson';
   wrap.id = 'pw-typing-wrap';
-  wrap.innerHTML = '<div class="typing-indicator"><span></span><span></span><span></span></div>';
+  wrap.appendChild(_createAvatarEl());
+  const ind = document.createElement('div');
+  ind.className = 'typing-indicator';
+  ind.innerHTML = '<span></span><span></span><span></span>';
+  wrap.appendChild(ind);
   msgs.appendChild(wrap);
   msgs.scrollTop = msgs.scrollHeight;
 }
