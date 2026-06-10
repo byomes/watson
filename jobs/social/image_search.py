@@ -89,4 +89,7 @@ def run(message: str = None) -> str:
     if not images:
         return 'No images found.'
 
-    return '\n'.join(f"[IMAGE_URL] {img['url']}" for img in images)
+    blocks = []
+    for img in images:
+        blocks.append(f"[IMAGE_URL]{img['url']}\n[IMAGE_LINK]{img['url']}")
+    return '\n'.join(blocks)
