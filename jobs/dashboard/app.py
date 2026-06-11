@@ -809,7 +809,7 @@ def chat_stream():
         import re as _re2
         from jobs.qr.qr_generate import generate_qr as _gen_qr
         _qr_patterns = [
-            r'(?:make a|give me a|generate a|create a|make|give me)\s+qr\s+(?:code\s+)?(?:for\s+)?(.+)',
+            r'(?:make a|give me a|generate a|create a|make|give me)\s+qr\s+(?:code\s+)?(?:for[: ]+)?(.+)',
             r'qr\s+(?:code\s+)?(?:for\s+)?(.+)',
         ]
         _qr_content = None
