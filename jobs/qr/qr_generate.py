@@ -20,7 +20,7 @@ def generate_qr(content: str) -> tuple[str, bytes]:
 
     qr = qrcode.QRCode(
         version=None,
-        error_correction=qrcode.constants.ERROR_CORRECT_H,
+        error_correction=qrcode.constants.ERROR_CORRECT_M,
         box_size=10,
         border=4,
     )
