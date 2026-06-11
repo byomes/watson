@@ -141,6 +141,26 @@ def _bootstrap():
         filepath   TEXT    NOT NULL,
         created_at TEXT    NOT NULL DEFAULT (datetime('now'))
     )""")
+    c.execute("""CREATE TABLE IF NOT EXISTS appointment_bookings (
+        id               INTEGER PRIMARY KEY AUTOINCREMENT,
+        confirmation_id  TEXT    NOT NULL UNIQUE,
+        event_id         TEXT    NOT NULL,
+        guest_name       TEXT    NOT NULL,
+        guest_email      TEXT    NOT NULL,
+        appointment_type TEXT    NOT NULL DEFAULT '',
+        scheduled_at     TEXT    NOT NULL DEFAULT '',
+        status           TEXT    NOT NULL DEFAULT 'confirmed',
+        cancelled_at     TEXT,
+        created_at       TEXT    NOT NULL DEFAULT (datetime('now'))
+    )""")
+    try:
+        c.execute("ALTER TABLE appointment_bookings ADD COLUMN status TEXT NOT NULL DEFAULT 'confirmed'")
+    except Exception:
+        pass
+    try:
+        c.execute("ALTER TABLE appointment_bookings ADD COLUMN cancelled_at TEXT")
+    except Exception:
+        pass
     c.commit()
     c.close()
 
@@ -1720,6 +1740,82 @@ def calendar_today():
         return jsonify(events)
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
+
+
+# ── Appointments API ──────────────────────────────────────────────────────────
+
+@app.route("/api/cancel-appointment")
+def cancel_appointment():
+    import smtplib
+    from email.mime.text import MIMEText
+
+    confirmation_id = request.args.get("id", "").strip()
+    if not confirmation_id:
+        return jsonify({"ok": False, "error": "id required"})
+
+    db = _db()
+    row = db.execute(
+        "SELECT * FROM appointment_bookings WHERE confirmation_id = ?",
+        (confirmation_id,),
+    ).fetchone()
+
+    if not row:
+        return jsonify({"ok": False, "error": "not found"})
+
+    if row["status"] == "cancelled":
+        return jsonify({"ok": False, "error": "already_cancelled"})
+
+    # Delete Google Calendar event
+    try:
+        from jobs.gcal.gcal_service import cancel_event
+        cancel_event(row["event_id"])
+    except Exception as exc:
+        log.error("cancel_appointment: failed to delete calendar event %s: %s", row["event_id"], exc)
+
+    # Mark as cancelled
+    db.execute(
+        "UPDATE appointment_bookings SET status = 'cancelled', cancelled_at = datetime('now') "
+        "WHERE confirmation_id = ?",
+        (confirmation_id,),
+    )
+    db.commit()
+
+    # Send cancellation email to guest
+    guest_name = row["guest_name"] or ""
+    first_name = guest_name.split()[0] if guest_name else "there"
+    smtp_user = os.getenv("WATSON_GMAIL_ADDRESS")
+    smtp_pass = os.getenv("WATSON_GMAIL_APP_PASSWORD")
+    from_addr = os.getenv("WATSON_FROM_ADDRESS", smtp_user)
+    email_body = (
+        f"Hi {first_name},\n\n"
+        "Your appointment with Dr. Bill Yomes has been cancelled.\n\n"
+        "To book a new appointment, visit:\n"
+        "williamckyomes.com/meet\n\n"
+        "Watson\n"
+        "AI-powered digital assistant\n"
+        "Office of Dr. Bill Yomes\n"
+        "williamckyomes.com/start"
+    )
+    msg = MIMEText(email_body)
+    msg["Subject"] = "Your Appointment Has Been Cancelled"
+    msg["From"] = f"Watson <{from_addr}>"
+    msg["To"] = row["guest_email"]
+    try:
+        with smtplib.SMTP("smtp.gmail.com", 587) as server:
+            server.starttls()
+            server.login(smtp_user, smtp_pass)
+            server.sendmail(from_addr, [row["guest_email"]], msg.as_string())
+    except Exception as exc:
+        log.error("cancel_appointment: failed to send email to %s: %s", row["guest_email"], exc)
+
+    # Send Telegram notification
+    appt_type = row["appointment_type"] or "appointment"
+    scheduled = row["scheduled_at"] or "unknown time"
+    _send_telegram(
+        f"\U0001f4c5 {guest_name} cancelled their {appt_type} appointment scheduled for {scheduled}"
+    )
+
+    return jsonify({"ok": True})
 
 
 # ── Projects ──────────────────────────────────────────────────────────────────
