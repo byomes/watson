@@ -492,7 +492,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     # Email reply approval — "send" / "change: [text]" / "cancel"
-    if text_lower.strip() == "send":
+    if text_lower.strip() == "go":
         from jobs.email_reply.handler import resolve_send
         result = resolve_send()
         await update.message.reply_text(result["msg"])

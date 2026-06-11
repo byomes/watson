@@ -104,7 +104,7 @@ def send_telegram_notification(email: dict, draft: str) -> None:
         f"{draft}\n"
         f"---\n\n"
         f"Reply with:\n"
-        f"• send — send this reply\n"
+        f"• go — send this reply\n"
         f"• change: [your text] — send your version instead\n"
         f"• cancel — discard, do nothing"
     )

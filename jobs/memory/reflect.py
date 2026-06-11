@@ -10,7 +10,6 @@ import requests
 REPO = Path(__file__).resolve().parents[2]
 MEMORY = REPO / "memory"
 DB_PATH = REPO / "data" / "watson.db"
-OLLAMA_URL = "http://localhost:11434/api/generate"
 OLLAMA_MODEL = "llama3.2:3b"
 
 log = logging.getLogger(__name__)
@@ -59,14 +58,21 @@ def _format_transcript(messages: list[dict]) -> str:
     return "\n".join(lines)
 
 
-def _call_ollama(prompt: str) -> str:
+def _call_ollama_chat(system: str, user: str) -> str:
     resp = requests.post(
-        OLLAMA_URL,
-        json={"model": OLLAMA_MODEL, "prompt": prompt, "stream": False},
+        "http://localhost:11434/api/chat",
+        json={
+            "model": OLLAMA_MODEL,
+            "stream": False,
+            "messages": [
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+        },
         timeout=60,
     )
     resp.raise_for_status()
-    return resp.json().get("response", "").strip()
+    return resp.json()["message"]["content"].strip()
 
 
 def _git_commit(files: list[Path], message: str) -> None:
@@ -88,18 +94,18 @@ def reflect(session_id, project_slug: str = None) -> str | None:
     today = date.today().isoformat()
     sid_short = str(session_id)[:8]
 
-    prompt = (
-        "SYSTEM: You are Watson's memory system. Summarize this conversation concisely. Extract:\n"
+    system = (
+        "You are Watson's memory system. Summarize the conversation below concisely. Extract:\n"
         "1. What was discussed or worked on\n"
         "2. Any decisions made\n"
         "3. Any next steps identified\n"
         "4. Anything worth remembering long-term\n\n"
-        "Be brief. 3-5 sentences maximum. Write in past tense. Start with the date.\n\n"
-        f"USER: {transcript}"
+        "Be brief. 3-5 sentences maximum. Write in past tense. "
+        "Do not invent dates, context, or content not present in the transcript."
     )
 
     try:
-        summary = _call_ollama(prompt)
+        summary = _call_ollama_chat(system, transcript)
     except Exception as exc:
         log.error("reflect: Ollama failed: %s", exc)
         return None
