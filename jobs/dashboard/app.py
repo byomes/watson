@@ -1306,24 +1306,45 @@ def chat_stream():
         ).start()
         return _sse_response(_stream_simple("Building that skill now. I'll notify you via Telegram when it's ready."))
 
-    # Fall through to Gemini Flash
-    system_prompt = WATSON_SYSTEM
-
+    # Fall through to Ollama
     messages = []
     for h in history[-4:]:
         if h.get("role") in ("user", "assistant") and h.get("content"):
             messages.append({"role": h["role"], "content": h["content"]})
     messages.append({"role": "user", "content": message})
 
-    def _stream_gemini(msgs=messages, sys_prompt=system_prompt):
+    def _stream_ollama(msgs=messages):
         try:
-            reply = call_gemini(msgs, sys_prompt)
-            yield _sse(reply)
+            resp = _req.post(
+                "http://localhost:11434/api/chat",
+                json={
+                    "model": "llama3.2:3b",
+                    "system": WATSON_SYSTEM,
+                    "messages": msgs,
+                    "stream": True,
+                    "num_predict": 300,
+                },
+                stream=True,
+                timeout=30,
+            )
+            resp.raise_for_status()
+            for line in resp.iter_lines():
+                if not line:
+                    continue
+                try:
+                    chunk = json.loads(line)
+                except Exception:
+                    continue
+                token = chunk.get("message", {}).get("content", "")
+                if token:
+                    yield _sse(token)
+                if chunk.get("done"):
+                    break
             yield "data: [DONE]\n\n"
         except Exception:
             yield "data: [ERROR] Watson timed out. Try again.\n\n"
 
-    return _sse_response(_stream_gemini())
+    return _sse_response(_stream_ollama())
 
 
 # ── Siri API ──────────────────────────────────────────────────────────────────
