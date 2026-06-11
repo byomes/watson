@@ -194,6 +194,10 @@ _SKILL_PRE_CHECKS: dict[str, tuple] = {
     "send_contact_info": (
         "send contact info", "contact info to", "send their contact",
     ),
+    "add_task": (
+        "add a task", "add task", "new task", "create a task",
+        "remind me to", "put on my task list", "add to my tasks",
+    ),
 }
 
 # Matched against msg_lower BEFORE the LLM call — returns run_audit immediately, no fallthrough
@@ -260,7 +264,7 @@ _ACTION_KEYWORDS = frozenset({
 })
 
 _FACTUAL_KEYWORDS = frozenset({
-    "compare", "comparing", "vs", "versus", "difference", "better", "recommend",
+    "compare", "comparing", "vs", "versus", "difference",
     "who", "current", "latest", "recent", "news", "price", "cost",
 })
 
