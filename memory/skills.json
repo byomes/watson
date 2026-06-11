@@ -49,5 +49,17 @@
       ],
       "status": "ready"
     }
+    ,{
+      "slug": "add_task",
+      "name": "Add Task",
+      "description": "Adds a task from natural language, parsing title, due date, and priority.",
+      "triggers": [
+        "add a task", "new task", "remind me to", "add to my tasks"
+      ],
+      "module": "jobs.tasks.add_task",
+      "function": "run",
+      "interfaces": ["telegram", "dashboard"],
+      "status": "ready"
+    }
   ]
 }
