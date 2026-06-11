@@ -491,6 +491,21 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await loop.run_in_executor(None, handle_notes_reply, text_clean)
         return
 
+    # Email reply approval — "send" / "change: [text]" / "cancel"
+    if text_lower.strip() == "send":
+        from jobs.email_reply.handler import resolve_send
+        result = resolve_send()
+        await update.message.reply_text(result["msg"])
+        return
+
+    if text_lower.startswith("change:"):
+        changed_text = text_clean[text_clean.lower().index("change:") + len("change:"):].strip()
+        if changed_text:
+            from jobs.email_reply.handler import resolve_change
+            result = resolve_change(changed_text)
+            await update.message.reply_text(result["msg"])
+            return
+
     # Handle CONFIRM / CANCEL for pending actions (calendar, skill proposals, capability gaps)
     if text_lower in ("yes", "confirm", "yes do it", "book it", "go ahead") or text_lower in _SKILL_AFFIRM:
         if chat_id in _pending_skills:
@@ -527,6 +542,12 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
     if text_lower in ("no", "cancel", "don't book", "never mind") or text_lower in _SKILL_DENY:
+        if text_lower == "cancel":
+            from jobs.email_reply.handler import resolve_cancel
+            _er = resolve_cancel()
+            if _er["ok"]:
+                await update.message.reply_text(_er["msg"])
+                return
         if chat_id in _pending_skills:
             del _pending_skills[chat_id]
             await update.message.reply_text("Got it. Let me know if you need anything else.")
@@ -1773,6 +1794,8 @@ def main():
     init_fb_db()
     init_email_db()
     init_gmail_inbox()
+    from jobs.email_reply.handler import init_table as init_email_reply_table
+    init_email_reply_table()
 
     app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
     app.add_handler(CommandHandler("start",    handle_start))
