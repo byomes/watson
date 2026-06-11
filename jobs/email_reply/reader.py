@@ -1,9 +1,8 @@
 """
 reader.py — Email reply job entry point (cron target).
 
-Polls watson.wcky@gmail.com for unread emails not yet labeled
-"watson-processed", drafts a reply via qwen2.5:7b, sends the draft to
-Bill via Telegram for approval, then labels the email processed.
+Polls INBOX via IMAP for UNSEEN emails, drafts a reply via qwen2.5:7b,
+sends the draft to Bill via Telegram for approval, then marks the email SEEN.
 
 Cron (every 15 min):
     */15 * * * * set -a && . /home/billyomes/watson/.env && set +a && \
@@ -13,16 +12,17 @@ Cron (every 15 min):
       >> /home/billyomes/watson/logs/email_reply.log 2>&1
 """
 
-import base64
+import email
+import imaplib
 import logging
+import os
 import re
 import sys
+from email.header import decode_header, make_header
 from pathlib import Path
 
-# Ensure project root is on PYTHONPATH when run directly
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from jobs.email_job.gmail import get_service
 from jobs.email_reply.drafter import draft_reply
 from jobs.email_reply.handler import init_table, save_pending, send_telegram_notification
 
@@ -33,108 +33,102 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-PROCESSED_LABEL = "watson-processed"
+IMAP_HOST = "imap.gmail.com"
+IMAP_PORT = 993
 
 
-# ── Gmail helpers ─────────────────────────────────────────────────────────────
-
-def _get_or_create_label(service) -> str:
-    """Return the label ID for PROCESSED_LABEL, creating it if needed."""
-    result = service.users().labels().list(userId="me").execute()
-    for label in result.get("labels", []):
-        if label["name"].lower() == PROCESSED_LABEL.lower():
-            return label["id"]
-    # Create it
-    created = service.users().labels().create(
-        userId="me",
-        body={
-            "name": PROCESSED_LABEL,
-            "labelListVisibility": "labelShow",
-            "messageListVisibility": "show",
-        },
-    ).execute()
-    log.info("Created Gmail label: %s (%s)", PROCESSED_LABEL, created["id"])
-    return created["id"]
+def _connect() -> imaplib.IMAP4_SSL:
+    address = os.environ["WATSON_GMAIL_ADDRESS"]
+    password = os.environ["WATSON_GMAIL_APP_PASSWORD"]
+    mail = imaplib.IMAP4_SSL(IMAP_HOST, IMAP_PORT)
+    mail.login(address, password)
+    mail.select("INBOX")
+    return mail
 
 
-def _apply_label(service, gmail_id: str, label_id: str) -> None:
-    service.users().messages().modify(
-        userId="me",
-        id=gmail_id,
-        body={"addLabelIds": [label_id]},
-    ).execute()
-
-
-def _extract_body(payload: dict) -> str:
-    """Recursively extract plain-text body, falling back to HTML → stripped."""
-    if "parts" in payload:
-        # Prefer plain text
-        for part in payload["parts"]:
-            if part.get("mimeType") == "text/plain":
-                data = part["body"].get("data", "")
-                if data:
-                    return base64.urlsafe_b64decode(data).decode("utf-8", errors="replace")
-        # Fall back: recurse into nested multipart
-        for part in payload["parts"]:
-            result = _extract_body(part)
-            if result:
-                return result
-        return ""
-
-    data = payload.get("body", {}).get("data", "")
-    if not data:
-        return ""
-    text = base64.urlsafe_b64decode(data).decode("utf-8", errors="replace")
-    if payload.get("mimeType") == "text/html":
-        text = re.sub(r"<[^>]+>", " ", text)
-        text = re.sub(r"\s{2,}", " ", text).strip()
-    return text
+def _decode_header_value(value: str) -> str:
+    return str(make_header(decode_header(value)))
 
 
 def _parse_sender(from_header: str) -> tuple[str, str]:
-    """Return (display_name, email_address) from a From: header value."""
     m = re.match(r'^(.+?)\s*<([^>]+)>$', from_header.strip())
     if m:
         return m.group(1).strip().strip('"'), m.group(2).strip()
-    # bare address
     addr = from_header.strip()
     return addr, addr
 
 
-def _fetch_unprocessed(service) -> list[dict]:
-    """Return list of email dicts for unread messages not labeled watson-processed."""
-    resp = service.users().messages().list(
-        userId="me",
-        q=f"is:unread -label:{PROCESSED_LABEL}",
-        maxResults=10,
-    ).execute()
+def _extract_body(msg: email.message.Message) -> str:
+    plain = None
+    html = None
+    if msg.is_multipart():
+        for part in msg.walk():
+            ct = part.get_content_type()
+            if ct == "text/plain" and plain is None:
+                payload = part.get_payload(decode=True)
+                if payload:
+                    plain = payload.decode(
+                        part.get_content_charset() or "utf-8", errors="replace"
+                    )
+            elif ct == "text/html" and html is None:
+                payload = part.get_payload(decode=True)
+                if payload:
+                    html = payload.decode(
+                        part.get_content_charset() or "utf-8", errors="replace"
+                    )
+    else:
+        payload = msg.get_payload(decode=True)
+        text = payload.decode(msg.get_content_charset() or "utf-8", errors="replace") if payload else ""
+        if msg.get_content_type() == "text/html":
+            html = text
+        else:
+            plain = text
 
-    messages = resp.get("messages", [])
+    if plain:
+        return plain
+    if html:
+        text = re.sub(r"<[^>]+>", " ", html)
+        return re.sub(r"\s{2,}", " ", text).strip()
+    return ""
+
+
+def _fetch_unseen(mail: imaplib.IMAP4_SSL) -> list[dict]:
+    status, data = mail.search(None, "UNSEEN")
+    if status != "OK":
+        return []
+
+    uids = data[0].split()
     results = []
 
-    for stub in messages:
-        gmail_id = stub["id"]
-        msg = service.users().messages().get(
-            userId="me", id=gmail_id, format="full"
-        ).execute()
+    for uid in uids:
+        status, msg_data = mail.fetch(uid, "(RFC822)")
+        if status != "OK" or not msg_data or msg_data[0] is None:
+            continue
 
-        headers = {h["name"]: h["value"] for h in msg["payload"].get("headers", [])}
-        from_header = headers.get("From", "")
+        raw = msg_data[0][1]
+        msg = email.message_from_bytes(raw)
+
+        message_id = msg.get("Message-ID", "").strip()
+        from_header = _decode_header_value(msg.get("From", ""))
+        subject = _decode_header_value(msg.get("Subject", "(no subject)"))
         sender_name, sender_email = _parse_sender(from_header)
-        subject = headers.get("Subject", "(no subject)")
-        body = _extract_body(msg["payload"])
+        body = _extract_body(msg)
 
         results.append({
-            "gmail_id":    gmail_id,           # Gmail API ID — used for labeling only
-            "message_id":  gmail_id,           # stored in DB per schema
-            "thread_id":   msg.get("threadId"),
-            "sender_name": sender_name,
+            "uid":          uid,
+            "message_id":   message_id,
+            "thread_id":    None,
+            "sender_name":  sender_name,
             "sender_email": sender_email,
-            "subject":     subject,
-            "body":        body,
+            "subject":      subject,
+            "body":         body,
         })
 
     return results
+
+
+def _mark_seen(mail: imaplib.IMAP4_SSL, uid: bytes) -> None:
+    mail.store(uid, "+FLAGS", "\\Seen")
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
@@ -143,34 +137,41 @@ def run() -> None:
     init_table()
 
     try:
-        service = get_service()
+        mail = _connect()
     except Exception as exc:
-        log.error("Gmail auth failed: %s", exc)
+        log.error("IMAP connection failed: %s", exc)
         return
 
-    label_id = _get_or_create_label(service)
-    emails = _fetch_unprocessed(service)
+    try:
+        emails = _fetch_unseen(mail)
+    except Exception as exc:
+        log.error("Failed to fetch unseen emails: %s", exc)
+        mail.logout()
+        return
 
     if not emails:
-        log.info("No unprocessed emails found.")
+        log.info("No unseen emails found.")
+        mail.logout()
         return
 
-    log.info("Found %d unprocessed email(s).", len(emails))
+    log.info("Found %d unseen email(s).", len(emails))
 
-    for email in emails:
-        log.info("Processing: %s from %s", email["subject"], email["sender_email"])
+    for em in emails:
+        log.info("Processing: %s from %s", em["subject"], em["sender_email"])
 
-        draft = draft_reply(email)
+        draft = draft_reply(em)
         if not draft:
-            log.warning("Empty draft for message %s; skipping.", email["gmail_id"])
-            _apply_label(service, email["gmail_id"], label_id)
+            log.warning("Empty draft for %s; skipping.", em["message_id"])
+            _mark_seen(mail, em["uid"])
             continue
 
-        save_pending(email, draft)
-        send_telegram_notification(email, draft)
-        _apply_label(service, email["gmail_id"], label_id)
+        save_pending(em, draft)
+        send_telegram_notification(em, draft)
+        _mark_seen(mail, em["uid"])
 
-        log.info("Processed and labeled: %s", email["gmail_id"])
+        log.info("Processed and marked SEEN: %s", em["message_id"])
+
+    mail.logout()
 
 
 if __name__ == "__main__":
