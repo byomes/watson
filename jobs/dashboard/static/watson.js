@@ -26,10 +26,12 @@ function toggleTheme() {
   _syncThemeUI();
 }
 function toggleSettings() {
-  document.getElementById('settings-panel').classList.toggle('open');
+  const isOpen = document.getElementById('settings-panel').classList.toggle('open');
+  document.getElementById('overlay-backdrop').style.display = isOpen ? 'block' : 'none';
 }
 function closeSettings() {
   document.getElementById('settings-panel').classList.remove('open');
+  document.getElementById('overlay-backdrop').style.display = 'none';
   closeSkillsPanel();
 }
 
@@ -670,17 +672,16 @@ async function sendChat() {
             img.src = data.slice(11).trim();
             img.style.cssText = 'max-width:100%;border-radius:8px;display:block;margin:10px 0 4px;';
             if (watsonBubble) watsonBubble.appendChild(img);
-            _lastImgContainer = img;
           } else if (data.startsWith('[IMAGE_LINK]')) {
             const url = data.slice(12).trim();
-            if (_lastImgContainer) {
+            if (watsonBubble) {
               const link = document.createElement('a');
               link.href = url;
               link.target = '_blank';
               link.rel = 'noopener noreferrer';
               link.textContent = 'Open ↗';
               link.style.cssText = 'display:inline-block;margin-bottom:10px;font-size:12px;color:var(--accent);text-decoration:none;padding:4px 12px;border:1px solid var(--accent);border-radius:6px;';
-              _lastImgContainer.insertAdjacentElement('afterend', link);
+              watsonBubble.appendChild(link);
             }
           } else {
             _createWatsonBubble();
