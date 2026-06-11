@@ -20,7 +20,7 @@ NY = ZoneInfo("America/New_York")
 
 _SKIP_KEYWORDS = {
     "deep work", "sermon study", "sabbath", "family",
-    "elder meeting", "staff meeting", "lunch",
+    "elder meeting", "staff meeting", "lunch", "hair",
 }
 
 

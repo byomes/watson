@@ -109,3 +109,12 @@ def send_pushover_notification(message):
 
     payload = {
 ```
+- jobs/misc/im_trying_file.py: I’m trying to give you a file to read that is longer than 8000 characters and yo (built by qwen2.5-coder:7b on 2026-06-10)
+- jobs/misc/update_your_own.py: build a skill to update your own system prompt from chat (built by qwen2.5-coder:7b on 2026-06-11)
+
+### Telegram prompts expecting a reply — always batch multiple pending items (2026-06-11)
+When a job sends a Telegram prompt and waits for a reply, always check for multiple
+pending items of the same type before sending. If more than one exists, send a single
+consolidated numbered message instead of separate prompts. Parse the reply line by line
+routing each numbered response to its corresponding record.
+Never assume only one pending item will exist at a time.
