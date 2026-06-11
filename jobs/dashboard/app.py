@@ -816,7 +816,7 @@ def chat_stream():
         for _pat in _qr_patterns:
             _m = _re2.search(_pat, msg_lower)
             if _m:
-                _qr_content = message[_m.start(1):].strip()
+                _qr_content = _m.group(1).strip()
                 break
         if _qr_content:
             try:
