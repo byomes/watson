@@ -86,3 +86,37 @@ members, connect_cards, attendance, follow_ups, prayer_requests, next_steps, dup
 - jobs/dashboard/static/app.js
 - jobs/dashboard/templates/index.html
 - bot/bot.py
+
+## Recent Changes (June 10, 2026)
+
+### New Jobs
+- `jobs/time_check.py` — returns current Eastern time. Triggered by "what time is it" via pre-check in app.py and bot.py before skill router.
+- `jobs/dadjoke/joke.py` — returns random dad joke. Triggered by "tell me a joke". Registered in memory/skills.json.
+- `jobs/reminders/daily_summary.py` — sends active reminder list via Telegram. Cron: 10am, 1:30pm, 5pm Mon-Thu/Sat.
+- `jobs/reminders/check_timed.py` — fires timed reminders within ±5 min window. Cron: every 5 min.
+- `jobs/dev/gemini_coder.py` — updated. Gemini now outputs plain English descriptions only. Claude Code handles all implementation. build: and debug: prefixes supported.
+
+### New Endpoints
+- `POST /api/siri` — receives message from Siri Shortcut, processes through Watson routing, responds via Telegram. Background thread, returns immediately.
+
+### Static Files
+- `app.js` renamed to `watson.js`. Flask serves with no-cache headers via custom route to prevent browser caching.
+
+### Gemini Rules (Hardcoded)
+- Gemini outputs plain English "what to build" descriptions only
+- No code, no file paths, no function names, no JSON, no implementation details
+- Claude Code owns all implementation
+- Gemini never touches app.js (watson.js), index.html, or bot.py
+
+### Image Search
+- `jobs/social/image_search.py` — returns 3 image URLs (not base64). Format: [IMAGE_URL] and [IMAGE_LINK] lines.
+- Dashboard renders all 3 inline with Open links.
+
+### Reminders System
+- watson.db reminders table: id, title, created_at, reminder_time, status, sort_order, updated_at
+- Intake: "remind me [thing]" and "remind me at [time] [thing]" via Telegram and dashboard
+- Dashboard reminders tab: edit, mark done, delete, drag reorder
+- Summaries: Mon/Tue/Wed/Thu/Sat only. No Fri/Sun.
+
+### Siri Shortcut
+- "Hey Siri, Tell Watson" → Dictate Text → POST to http://192.168.1.204:5200/api/siri → Watson responds in Telegram
