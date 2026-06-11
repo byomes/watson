@@ -232,7 +232,7 @@ select option{background:var(--surface)}
 #pw-mic-btn.recording{border-color:var(--accent);color:var(--accent);animation:mic-pulse 1s ease-in-out infinite}
 
 /* File sidebar */
-#pw-sidebar{position:fixed;top:0;right:0;bottom:0;width:280px;max-width:90vw;background:var(--surface);border-left:1px solid var(--border);z-index:102;transform:translateX(100%);transition:transform .2s ease-out;display:flex;flex-direction:column}
+#pw-sidebar{position:fixed;top:env(safe-area-inset-top);right:0;bottom:0;width:280px;max-width:90vw;background:var(--surface);border-left:1px solid var(--border);z-index:102;transform:translateX(100%);transition:transform .2s ease-out;display:flex;flex-direction:column}
 #pw-sidebar.open{transform:translateX(0)}
 .pw-sidebar-hdr{height:54px;border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 14px;flex-shrink:0;gap:8px}
 .pw-sidebar-title{flex:1;font-size:13px;font-weight:600}
