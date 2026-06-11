@@ -89,6 +89,9 @@
       </div>
     </div>
   </div>
+  <div class="overlay-footer">
+    <button class="overlay-footer-btn" onclick="closeSettings()">&#215; Close Settings</button>
+  </div>
   <div id="settings-reminders" class="overlay-sub">
     <div class="overlay-topbar">
       <button class="overlay-back" onclick="closeRemindersPanel()">&#8592; Back</button>
@@ -97,6 +100,9 @@
     </div>
     <div class="overlay-body" style="padding:16px">
       <div id="settings-reminders-list"></div>
+    </div>
+    <div class="overlay-footer">
+      <button class="overlay-footer-btn" onclick="closeRemindersPanel()">&#8592; Back</button>
     </div>
   </div>
   <div id="settings-skills" class="overlay-sub">
@@ -114,6 +120,9 @@
       <div id="skill-category-pills" class="skill-category-pills"></div>
       <div id="settings-skills-list"></div>
     </div>
+    <div class="overlay-footer">
+      <button class="overlay-footer-btn" onclick="closeSkillsPanel()">&#8592; Back</button>
+    </div>
   </div>
   <div id="settings-reports" class="overlay-sub">
     <div class="overlay-topbar">
@@ -123,6 +132,9 @@
     </div>
     <div class="overlay-body" style="padding:16px">
       <div id="settings-reports-list"></div>
+    </div>
+    <div class="overlay-footer">
+      <button class="overlay-footer-btn" onclick="closeReportsPanel()">&#8592; Back</button>
     </div>
   </div>
 </div>
