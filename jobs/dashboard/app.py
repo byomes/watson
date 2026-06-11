@@ -14,6 +14,24 @@ from flask import Flask, Response, g, jsonify, render_template, request, session
 from jobs.people.api import people_create, people_delete, people_list, people_update
 from config.settings import WATSON_SYSTEM
 
+def call_gemini(messages, system_prompt):
+    import requests, os
+    api_key = os.getenv("GEMINI_API_KEY")
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
+    contents = []
+    for msg in messages:
+        role = "user" if msg["role"] == "user" else "model"
+        contents.append({"role": role, "parts": [{"text": msg["content"]}]})
+    payload = {
+        "system_instruction": {"parts": [{"text": system_prompt}]},
+        "contents": contents
+    }
+    response = requests.post(url, json=payload, timeout=30)
+    response.raise_for_status()
+    data = response.json()
+    return data["candidates"][0]["content"]["parts"][0]["text"]
+
+
 DB = os.path.expanduser("~/watson/data/watson.db")
 SKILLS_FILE = Path(__file__).resolve().parents[2] / "memory" / "skills.json"
 MEMORY = Path(__file__).resolve().parents[2] / "memory"
@@ -1288,48 +1306,24 @@ def chat_stream():
         ).start()
         return _sse_response(_stream_simple("Building that skill now. I'll notify you via Telegram when it's ready."))
 
-    # Fall through to Ollama streaming via /api/generate
+    # Fall through to Gemini Flash
     system_prompt = WATSON_SYSTEM
 
-    prompt_parts = []
+    messages = []
     for h in history[-4:]:
-        if h.get("role") == "user" and h.get("content"):
-            prompt_parts.append(f"User: {h['content']}")
-        elif h.get("role") == "assistant" and h.get("content"):
-            prompt_parts.append(f"Assistant: {h['content']}")
-    prompt_parts.append(f"User: {message}")
-    ollama_prompt = "\n\n".join(prompt_parts)
+        if h.get("role") in ("user", "assistant") and h.get("content"):
+            messages.append({"role": h["role"], "content": h["content"]})
+    messages.append({"role": "user", "content": message})
 
-    def _stream_ollama(sys_prompt=system_prompt, prompt=ollama_prompt):
+    def _stream_gemini(msgs=messages, sys_prompt=system_prompt):
         try:
-            _body = {"model": "llama3.2:3b", "prompt": prompt, "system": sys_prompt, "stream": True, "num_predict": 300}
-            log.info("Ollama /api/generate request body: %s", json.dumps(_body))
-            resp = _req.post(
-                "http://localhost:11434/api/generate",
-                json=_body,
-                stream=True,
-                timeout=45,
-            )
-            resp.raise_for_status()
-            for line in resp.iter_lines():
-                if not line:
-                    continue
-                try:
-                    chunk = json.loads(line)
-                except Exception:
-                    continue
-                token = chunk.get("response", "")
-                if token:
-                    yield f"data: {json.dumps({'token': token})}\n\n"
-                if chunk.get("done"):
-                    break
+            reply = call_gemini(msgs, sys_prompt)
+            yield _sse(reply)
             yield "data: [DONE]\n\n"
-        except _req.exceptions.Timeout:
-            yield "data: [ERROR] Watson timed out. Try again.\n\n"
         except Exception:
             yield "data: [ERROR] Watson timed out. Try again.\n\n"
 
-    return _sse_response(_stream_ollama())
+    return _sse_response(_stream_gemini())
 
 
 # ── Siri API ──────────────────────────────────────────────────────────────────
