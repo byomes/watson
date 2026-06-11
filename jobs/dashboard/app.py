@@ -1249,24 +1249,24 @@ def chat_stream():
                     log.error("Skill execution failed for %s: %s", slug, exc)
                     route_result["result"] = f"Skill failed: {exc}"
             else:
-                log.error("Skill '%s' not found in registry", slug)
-                route_result["result"] = f"Skill '{slug}' not found."
-        result = route_result["result"]
-        if isinstance(result, dict) and result.get("confirm"):
-            session["pending_email"] = result
-            confirm_text = f"I found {result['to_name']} at {result['to_email']}. Confirm below to send."
-            confirm_json = json.dumps({
-                "to_name": result["to_name"],
-                "to_email": result["to_email"],
-                "subject": result["subject"],
-                "body": result["body"],
-            })
-            def _email_gen(t=confirm_text, cj=confirm_json):
-                yield _sse(t)
-                yield f"data: [CONFIRM_EMAIL]{cj}\n\n"
-                yield "data: [DONE]\n\n"
-            return _sse_response(_email_gen())
-        return _sse_response(_stream_simple("✓ " + result))
+                log.warning("Skill '%s' not found in registry — falling through to Gemini", slug)
+        if "result" in route_result:
+            result = route_result["result"]
+            if isinstance(result, dict) and result.get("confirm"):
+                session["pending_email"] = result
+                confirm_text = f"I found {result['to_name']} at {result['to_email']}. Confirm below to send."
+                confirm_json = json.dumps({
+                    "to_name": result["to_name"],
+                    "to_email": result["to_email"],
+                    "subject": result["subject"],
+                    "body": result["body"],
+                })
+                def _email_gen(t=confirm_text, cj=confirm_json):
+                    yield _sse(t)
+                    yield f"data: [CONFIRM_EMAIL]{cj}\n\n"
+                    yield "data: [DONE]\n\n"
+                return _sse_response(_email_gen())
+            return _sse_response(_stream_simple("✓ " + result))
 
     if route_result["action"] == "build":
         import threading
