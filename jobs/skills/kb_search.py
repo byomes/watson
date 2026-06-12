@@ -24,16 +24,28 @@ _KB_DEFAULT = Path.home() / "watson" / "kb" / "documents"
 _MAX_FILE_BYTES = 500 * 1024  # 500 KB
 
 
+_STRIP_LEAD_WORDS = frozenset({
+    "and", "summarize", "my", "teaching", "on", "the", "about",
+    "position", "please", "can", "you", "tell", "me", "what", "is",
+})
+
+
 def _extract_query(message: str) -> str:
     msg = message.strip()
     msg_lower = msg.lower()
     for phrase in sorted(_TRIGGER_PHRASES, key=len, reverse=True):
         if msg_lower.startswith(phrase):
-            return msg[len(phrase):].strip()
+            msg = msg[len(phrase):].strip()
+            break
         idx = msg_lower.find(phrase)
         if idx != -1:
-            return (msg[:idx] + msg[idx + len(phrase):]).strip()
-    return msg
+            msg = (msg[:idx] + msg[idx + len(phrase):]).strip()
+            break
+    # Strip filler words from the start word by word
+    words = msg.split()
+    while words and words[0].lower() in _STRIP_LEAD_WORDS:
+        words = words[1:]
+    return " ".join(words)
 
 
 def _score_text(text: str, terms: list[str]) -> int:
@@ -96,7 +108,7 @@ def run(message: str) -> str:
         resp = _req.post(
             "http://localhost:11434/api/generate",
             json={
-                "model": "qwen2.5:7b",
+                "model": "llama3.2:3b",
                 "prompt": (
                     "You are reviewing the personal sermons, Bible studies, and ministry notes of "
                     "Dr. Bill Yomes, pastor of Catalyst Community Church in Wilmington, DE. "
