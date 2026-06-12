@@ -60,6 +60,20 @@
       "function": "run",
       "interfaces": ["telegram", "dashboard"],
       "status": "ready"
+    },
+    {
+      "slug": "kb_search",
+      "name": "KB Search",
+      "description": "Searches personal notes, sermons, and documents in the knowledge base.",
+      "triggers": [
+        "search kb", "search my notes", "search my sermons",
+        "what have i said about", "what did i preach on",
+        "find in my notes", "look in my sermons", "kb search"
+      ],
+      "module": "jobs.skills.kb_search",
+      "function": "run",
+      "interfaces": ["dashboard", "telegram"],
+      "status": "ready"
     }
   ]
 }
