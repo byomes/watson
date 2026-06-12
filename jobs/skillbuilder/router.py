@@ -198,6 +198,11 @@ _SKILL_PRE_CHECKS: dict[str, tuple] = {
         "add a task", "add task", "new task", "create a task",
         "remind me to", "put on my task list", "add to my tasks",
     ),
+    "kb_search": (
+        "search kb", "search my notes", "search my sermons",
+        "what have i said about", "what did i preach on",
+        "find in my notes", "look in my sermons", "kb search",
+    ),
 }
 
 # Matched against msg_lower BEFORE the LLM call — returns run_audit immediately, no fallthrough
