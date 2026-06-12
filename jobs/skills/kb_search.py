@@ -83,14 +83,48 @@ def run(message: str) -> str:
     if not top_files:
         return f"No matches found in your notes for '{query}'."
 
-    lines = [f"Found {len(top_files)} relevant document(s) for '{query}':\n"]
+    all_excerpts = []
+    filenames = []
     for _, filepath, excerpts in top_files:
-        lines.append(f"📄 {filepath.stem}")
-        for excerpt in excerpts:
-            short = excerpt[:500]
-            if len(excerpt) > 500:
-                short += "..."
-            lines.append(short)
-        lines.append("---")
+        filenames.append(filepath.stem)
+        all_excerpts.extend(excerpts)
 
-    return "\n".join(lines).rstrip("\n-").strip()
+    context = "\n\n---\n\n".join(all_excerpts)[:4000]
+
+    try:
+        import requests as _req
+        resp = _req.post(
+            "http://localhost:11434/api/generate",
+            json={
+                "model": "qwen2.5:7b",
+                "prompt": (
+                    "You are reviewing the personal sermons, Bible studies, and ministry notes of "
+                    "Dr. Bill Yomes, pastor of Catalyst Community Church in Wilmington, DE. "
+                    "Based only on the following excerpts from his work, answer this question or "
+                    f"summarize what his materials say about this topic: '{query}'\n\n"
+                    f"Excerpts:\n{context}\n\n"
+                    "Provide a clear, concise summary in 3-5 sentences. "
+                    "Speak in third person about Dr. Bill's teaching."
+                ),
+                "stream": False,
+            },
+            timeout=45,
+        )
+        resp.raise_for_status()
+        summary = resp.json().get("response", "").strip()
+        sources = ", ".join(filenames)
+        return f"📚 From your notes on '{query}':\n\n{summary}\n\n---\nSources: {sources}"
+    except Exception:
+        lines = [
+            f"Found {len(top_files)} relevant document(s) for '{query}':\n",
+            "(Summary unavailable — showing raw excerpts)",
+        ]
+        for _, filepath, excerpts in top_files:
+            lines.append(f"📄 {filepath.stem}")
+            for excerpt in excerpts:
+                short = excerpt[:500]
+                if len(excerpt) > 500:
+                    short += "..."
+                lines.append(short)
+            lines.append("---")
+        return "\n".join(lines).rstrip("\n-").strip()
