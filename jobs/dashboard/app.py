@@ -315,7 +315,7 @@ def briefing_email(item_id):
     ).fetchone()
     if row:
         db.execute(
-            "INSERT INTO email_queue (subject, body, url, status, created_at) VALUES (?, ?, ?, 'pending', ?)",
+            "INSERT INTO email_queue (title, summary, url, status, created_at) VALUES (?, ?, ?, 'pending', ?)",
             (row["title"], row["summary"], row["url"], _dt.now().isoformat()),
         )
         db.commit()

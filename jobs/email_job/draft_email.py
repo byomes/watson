@@ -1,8 +1,8 @@
 """
 draft_email.py — Watson weekly email drafter.
-Runs every Thursday at 9am via cron.
+Runs every Thursday at 7am via cron.
 Pulls queued articles, drafts a newsletter email, creates a broadcast in Kit.
-Cron: 0 9 * * 4 cd /home/billyomes/watson && python3 -m jobs.email.draft_email >> /home/billyomes/watson/logs/email_draft.log 2>&1
+Cron: 0 7 * * 4 cd /home/billyomes/watson && python3 -m jobs.email.draft_email >> /home/billyomes/watson/logs/email_draft.log 2>&1
 """
 
 import logging
@@ -20,6 +20,7 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
 log = logging.getLogger(__name__)
 
+
 def get_queued_articles():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
@@ -31,6 +32,7 @@ def get_queued_articles():
     conn.close()
     return [dict(r) for r in rows]
 
+
 def mark_articles_used(article_ids, draft_id):
     conn = sqlite3.connect(DB_PATH)
     conn.executemany(
@@ -40,17 +42,74 @@ def mark_articles_used(article_ids, draft_id):
     conn.commit()
     conn.close()
 
+
+def fetch_and_summarize(article):
+    """Fetch article URL, extract text, and summarize with Ollama. Falls back to DB summary on error."""
+    try:
+        from bs4 import BeautifulSoup
+        resp = requests.get(
+            article["url"],
+            timeout=10,
+            headers={"User-Agent": "Mozilla/5.0 (compatible; Watson/1.0)"},
+        )
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, "html.parser")
+        for tag in soup(["script", "style"]):
+            tag.decompose()
+        text = soup.get_text(separator=" ", strip=True)[:3000]
+        result = requests.post(
+            "http://localhost:11434/api/generate",
+            json={
+                "model": "qwen2.5:7b",
+                "prompt": (
+                    "Write 1-2 sentences summarizing this article for a Christian pastor's weekly email newsletter. "
+                    f"Be concise and clear.\n\n{text}"
+                ),
+                "stream": False,
+            },
+            timeout=60,
+        )
+        result.raise_for_status()
+        return result.json().get("response", "").strip()
+    except Exception as exc:
+        log.warning("fetch_and_summarize failed for %s: %s", article.get("url"), exc)
+        return article.get("summary") or ""
+
+
+def draft_intro(articles):
+    """Draft an intro paragraph using Ollama. Falls back to hardcoded intro on error."""
+    try:
+        titles = ", ".join(a["title"] for a in articles if a.get("title"))
+        result = requests.post(
+            "http://localhost:11434/api/generate",
+            json={
+                "model": "qwen2.5:7b",
+                "prompt": (
+                    "Write a 2-3 sentence intro paragraph for a Christian pastor's weekly email newsletter. "
+                    f"The articles this week cover: {titles}. "
+                    "Keep it warm, pastoral, and brief."
+                ),
+                "stream": False,
+            },
+            timeout=60,
+        )
+        result.raise_for_status()
+        return result.json().get("response", "").strip()
+    except Exception as exc:
+        log.warning("draft_intro failed: %s", exc)
+        return "Here's what caught my attention this week — articles, podcasts, and resources worth your time."
+
+
 def build_email_body(articles):
     today = datetime.now().strftime("%B %d, %Y")
     subject = f"Faith & Ideas — {today}"
 
-    body_lines = [
-        f"Here's what caught my attention this week — articles, podcasts, and resources worth your time.\n"
-    ]
+    intro = draft_intro(articles)
+    body_lines = [f"{intro}\n"]
 
     for article in articles:
         title = article["title"] or "Untitled"
-        summary = (article["summary"] or "")[:300]
+        summary = fetch_and_summarize(article)
         url = article["url"] or ""
         body_lines.append(f"<h3>{title}</h3>")
         if summary:
@@ -62,6 +121,7 @@ def build_email_body(articles):
     body_lines.append("<p>— Bill</p>")
     body = "\n".join(body_lines)
     return subject, body
+
 
 def create_kit_broadcast(subject, body):
     """Create a draft broadcast in Kit (ConvertKit)."""
@@ -77,6 +137,7 @@ def create_kit_broadcast(subject, body):
     )
     return response.json()
 
+
 def notify_telegram(message):
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         return
@@ -84,6 +145,7 @@ def notify_telegram(message):
         f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
         data={"chat_id": TELEGRAM_CHAT_ID, "text": message, "parse_mode": "HTML"}
     )
+
 
 def run():
     articles = get_queued_articles()
@@ -112,6 +174,7 @@ def run():
         error = result.get("message") or str(result)
         notify_telegram(f"📧 Email draft failed: {error}")
         log.error("Kit broadcast failed: %s", result)
+
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
