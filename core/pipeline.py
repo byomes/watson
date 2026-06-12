@@ -108,6 +108,38 @@ def _log_summary(fetch: dict, filter_stats: dict, score_stats: dict,
     log.info(sep)
 
 
+def save_to_research_db(items: list[dict]):
+    import sqlite3
+    from config.settings import DB_PATH
+    from datetime import datetime as _dt
+    saved = 0
+    with sqlite3.connect(DB_PATH) as conn:
+        for item in items:
+            url = item.get("url")
+            if not url:
+                continue
+            exists = conn.execute(
+                "SELECT 1 FROM research_sources WHERE url = ?", (url,)
+            ).fetchone()
+            if exists:
+                continue
+            conn.execute(
+                """INSERT INTO research_sources
+                       (title, author, source_name, url, summary, content_type, added_at)
+                   VALUES (?, ?, ?, ?, ?, 'article', ?)""",
+                (
+                    item.get("title"),
+                    item.get("source_name"),
+                    item.get("source_name"),
+                    url,
+                    item.get("summary"),
+                    _dt.utcnow().isoformat(),
+                ),
+            )
+            saved += 1
+    log.info("research_sources: saved %d new item(s)", saved)
+
+
 def run():
     import requests as _requests
     from core.database import init_db
@@ -121,6 +153,8 @@ def run():
     fetch        = fetch_all()
     pool         = fetch["pool"]
     log.info("Fetched %d candidate(s) across all sources", len(pool))
+
+    save_to_research_db(pool)
 
     passed, filter_stats = filter_pool(pool)
     log.info("Filter passed %d/%d items", len(passed), len(pool))
