@@ -109,11 +109,12 @@ def _log_summary(fetch: dict, filter_stats: dict, score_stats: dict,
 
 
 def run():
+    import requests as _requests
     from core.database import init_db
     from core.fetcher import fetch_all
     from core.scorer import filter_pool, score_and_select
     from briefing.builder import build_briefing
-    from briefing.publisher import publish
+    from config.settings import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 
     init_db()
 
@@ -151,15 +152,20 @@ def run():
     build_briefing(narrative=narrative)
     log.info("Static briefing built")
 
-    published = publish()
-    log.info("Published: %s", published)
+    try:
+        _requests.post(
+            f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+            json={"chat_id": TELEGRAM_CHAT_ID, "text": "📋 Your briefing is ready at williamckyomes.com/dashboard"},
+            timeout=10,
+        )
+    except Exception as exc:
+        log.warning("Telegram notification failed: %s", exc)
 
     return {
         "fetched":    len(pool),
         "filtered":   len(passed),
         "selected":   len(top),
         "archived":   archived_total,
-        "published":  published,
     }
 
 
@@ -174,7 +180,6 @@ if __name__ == "__main__":
         f"\nDone — fetched={result['fetched']} "
         f"filtered={result['filtered']} "
         f"selected={result['selected']} "
-        f"archive_total={result['archived']} "
-        f"published={result['published']}"
+        f"archive_total={result['archived']}"
     )
     sys.exit(0)

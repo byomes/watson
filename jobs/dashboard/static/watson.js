@@ -807,7 +807,8 @@ function renderBriefing() {
 async function bAction(id, action) {
   const el = document.getElementById('bi-' + id);
   if (el) el.style.opacity = '0.3';
-  await api('/api/briefing/' + id + '/' + action, 'POST');
+  const result = await api('/api/briefing/' + id + '/' + action, 'POST');
+  if (action === 'approve' && result && result.url) window.open(result.url, '_blank');
   if (el) el.remove();
   bItems = bItems.filter(i => i.id !== id);
 }
