@@ -1274,6 +1274,11 @@ def chat_stream():
     if _re.search(r"what.*(time|hour).*is it|what time|current time", msg_lower):
         from jobs.time_check import run as _time_run
         return _sse_response(_stream_simple(_time_run()))
+    # KB search pre-check — must fire before conversational/factual intercepts
+    _kb_triggers = ("search kb", "search my notes", "search my sermons", "what have i said about", "what did i preach on", "find in my notes", "look in my sermons", "kb search", "search my kb", "summarize my")
+    if any(t in message.lower() for t in _kb_triggers):
+        from jobs.skills.kb_search import run as _kb_run
+        return _sse_response(_stream_simple(_kb_run(message)))
     _identity = _router._is_identity_query(message)
     _factual = _router._is_factual_query(message)
     _conv = _router._is_conversational(message)
