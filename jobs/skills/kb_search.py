@@ -87,8 +87,8 @@ def run(message: str) -> str:
     for _, filepath, excerpts in top_files:
         lines.append(f"📄 {filepath.stem}")
         for excerpt in excerpts:
-            short = excerpt[:300]
-            if len(excerpt) > 300:
+            short = excerpt[:500]
+            if len(excerpt) > 500:
                 short += "..."
             lines.append(short)
         lines.append("---")
