@@ -1388,13 +1388,56 @@ def chat_stream():
             messages.append({"role": h["role"], "content": h["content"]})
     messages.append({"role": "user", "content": message})
 
-    def _stream_ollama(msgs=messages):
+    # Inject project memory into system prompt if a project is active
+    _proj_mem_path = None
+    _proj_mem_contents = ""
+    if project_slug:
+        _proj_mem_path = Path(os.path.expanduser(
+            f"~/watson/memory/projects/{project_slug}/{project_slug}.md"
+        ))
+        if _proj_mem_path.exists():
+            try:
+                _proj_mem_contents = _proj_mem_path.read_text(encoding="utf-8")
+            except Exception:
+                _proj_mem_contents = ""
+    _system = (
+        f"PROJECT CONTEXT:\n{_proj_mem_contents}\n\n---\n\n{WATSON_SYSTEM}"
+        if _proj_mem_contents else WATSON_SYSTEM
+    )
+
+    def _update_project_memory(slug, mem_path, current_mem, user_msg, reply):
+        try:
+            import requests as _mreq
+            prompt = (
+                "You are Watson, Dr. Bill's AI assistant. Based on this exchange, update the project memory file. "
+                "Return ONLY the updated markdown file contents, nothing else.\n\n"
+                f"Current memory:\n{current_mem}\n\n"
+                f"New exchange:\nDr. Bill: {user_msg}\nWatson: {reply}\n\n"
+                "Return the complete updated memory file, preserving all existing sections and updating "
+                "Current State and Next Steps as appropriate."
+            )
+            _r = _mreq.post(
+                "http://localhost:11434/api/generate",
+                json={"model": "llama3.2:3b", "prompt": prompt, "stream": False},
+                timeout=60,
+            )
+            _r.raise_for_status()
+            updated = (_r.json().get("response") or "").strip()
+            if updated:
+                mem_path.parent.mkdir(parents=True, exist_ok=True)
+                mem_path.write_text(updated, encoding="utf-8")
+        except Exception as _exc:
+            log.error("project memory update failed for %s: %s", slug, _exc)
+
+    def _stream_ollama(msgs=messages, sys=_system):
+        import threading
+        full_reply = []
         try:
             resp = _req.post(
                 "http://localhost:11434/api/chat",
                 json={
                     "model": "llama3.2:3b",
-                    "system": WATSON_SYSTEM,
+                    "system": sys,
                     "messages": msgs,
                     "stream": True,
                     "num_predict": 300,
@@ -1412,12 +1455,20 @@ def chat_stream():
                     continue
                 token = chunk.get("message", {}).get("content", "")
                 if token:
+                    full_reply.append(token)
                     yield _sse(token)
                 if chunk.get("done"):
                     break
             yield "data: [DONE]\n\n"
         except Exception:
             yield "data: [ERROR] Watson timed out. Try again.\n\n"
+            return
+        if project_slug and _proj_mem_path:
+            threading.Thread(
+                target=_update_project_memory,
+                args=(project_slug, _proj_mem_path, _proj_mem_contents, message, "".join(full_reply)),
+                daemon=True,
+            ).start()
 
     return _sse_response(_stream_ollama())
 
