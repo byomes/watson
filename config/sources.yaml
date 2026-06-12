@@ -6,8 +6,6 @@
 briefing_feeds:
   - name: "The Gospel Coalition"
     rss: "https://www.thegospelcoalition.org/feed"
-  - name: "Desiring God"
-    rss: "https://www.desiringgod.org/blog.rss"
   - name: "Christianity Today (Pastors)"
     rss: "https://www.christianitytoday.com/pastors/feed/"
   - name: "Apologetics315"
@@ -55,7 +53,11 @@ authors:
     active: false
     # Site consistently times out — re-enable when connectivity confirmed
 
-  # Wesley Huff — no RSS or scrapeable site; monitor via YouTube and social manually
+  - name: "Wesley Huff"
+    url: "https://www.wesleyhuff.com/blog"
+    scrape: true
+    source_type: article
+    priority: 1
 
   - name: "Frank Turek"
     rss: "https://crossexamined.org/feed/"
@@ -72,12 +74,6 @@ authors:
   - name: "John Lennox"
     url: "https://johnlennox.org"
     scrape: true
-    source_type: article
-    priority: 2
-
-  - name: "John MacArthur"
-    rss: "https://gty.org/library/rss/"
-    url: "https://www.gty.org/library/blog"
     source_type: article
     priority: 2
 
@@ -140,6 +136,22 @@ authors:
     source_type: article
     priority: 2
 
+  - name: "Alisa Childers"
+    rss: "https://feeds.blubrry.com/feeds/the_alisa_childers.xml"
+    source_type: podcast
+    priority: 2
+
+  - name: "Mike Winger (BibleThinker)"
+    url: "https://biblethinker.org/blog"
+    scrape: true
+    source_type: article
+    priority: 2
+
+  - name: "Capturing Christianity (Bertuzzi)"
+    rss: "https://feeds.soundcloud.com/users/soundcloud:users:366256949/sounds.rss"
+    source_type: podcast
+    priority: 2
+
   # Justin W. Bass — no RSS; monitor via publisher and social manually
   # Mark Middleburg — site/feed unverified; add when confirmed
   # Douglas McDowell — site/feed unverified; add when confirmed
@@ -149,12 +161,6 @@ authors:
 # ── Organizations ──────────────────────────────────────────────────────────
 
 organizations:
-
-  - name: "Answers in Genesis"
-    rss: "https://answersingenesis.org/blogs/feed/"
-    url: "https://answersingenesis.org"
-    source_type: publication
-    priority: 3
 
   - name: "Answers in Genesis (Podcast)"
     rss: "https://answersingenesis.org/feeds/answers-magazine-audio/"
@@ -166,17 +172,22 @@ organizations:
     source_type: publication
     priority: 2
 
-  - name: "Stand to Reason"
-    rss: "https://str.org/w/articles-feed"
-    url: "https://str.org"
-    source_type: publication
-    priority: 3
-
   - name: "Stand to Reason (Podcast)"
     rss: "https://feed.podbean.com/strweekly/feed.xml"
     url: "https://str.org"
     source_type: podcast
     priority: 3
+
+  - name: "Apologetics Canada (AC Podcast)"
+    rss: "https://apologeticscanada.com/feed/podcast"
+    source_type: podcast
+    priority: 2
+
+  - name: "James Tour (The James Tour Podcast)"
+    url: "https://jmtour.com"
+    scrape: true
+    source_type: article
+    priority: 2
 
 
 # ── Journals ───────────────────────────────────────────────────────────────
@@ -200,6 +211,8 @@ journals:
     scrape: true
     source_type: journal
     priority: 3
+    active: false
+    # 403 blocks bots
 
   - name: "Southeastern Theological Review"
     url: "https://www.southeasternreview.org"

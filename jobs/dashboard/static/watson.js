@@ -798,6 +798,7 @@ function renderBriefing() {
         <button class="btn btn-g" onclick="bAction(${i.id},'approve')">Read</button>
         <button class="btn btn-b" onclick="bAction(${i.id},'email')">Email</button>
         <button class="btn btn-b" onclick="bAction(${i.id},'facebook')">Facebook</button>
+        <button class="btn btn-b" onclick="bAction(${i.id},'research')">Research</button>
         <button class="btn btn-gh" onclick="bAction(${i.id},'tolist')">To List</button>
         <button class="btn btn-r" onclick="bAction(${i.id},'reject')">Reject</button>
       </div>
