@@ -273,6 +273,7 @@ let currentSessionId = null;
 let chatHistory = [];
 let attachedFileContent = null;
 let attachedFileName = null;
+let activeProjectSlug = null;
 
 // Load session list
 async function loadSessions() {
@@ -622,7 +623,7 @@ async function sendChat() {
     const response = await fetch('/api/chat/stream', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({message: ollamaMsg, history: chatHistory.slice(0, -1), session_id: currentSessionId})
+      body: JSON.stringify({message: ollamaMsg, history: chatHistory.slice(0, -1), session_id: currentSessionId, project_slug: activeProjectSlug})
     });
     if (!response.ok) {
       _hideTyping();
@@ -1417,6 +1418,7 @@ let pwAttachedContent = null;
 let pwAttachedName = null;
 
 async function openProjectWorkspace(slug, name) {
+  activeProjectSlug = slug;
   pwSlug = slug;
   pwSessionId = null;
   pwChatHistory = [];
@@ -1462,6 +1464,7 @@ function closeProjectWorkspace() {
   document.getElementById('nav').classList.remove('hidden');
   document.body.style.overflow = '';
   pwSlug = null;
+  activeProjectSlug = null;
 }
 
 function dismissSummary() {
