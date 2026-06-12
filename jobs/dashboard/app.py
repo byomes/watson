@@ -254,9 +254,12 @@ def briefing_meta():
 
 @app.route("/api/briefing/<int:item_id>/approve", methods=["POST"])
 def briefing_approve(item_id):
-    _db().execute("UPDATE briefing_items SET dismissed = 1 WHERE id = ?", (item_id,))
-    _db().commit()
-    return jsonify({"ok": True})
+    db = _db()
+    db.execute("UPDATE briefing_items SET dismissed = 1 WHERE id = ?", (item_id,))
+    db.commit()
+    row = db.execute("SELECT url FROM briefing_items WHERE id = ?", (item_id,)).fetchone()
+    url = row["url"] if row else None
+    return jsonify({"ok": True, "url": url})
 
 
 @app.route("/api/briefing/<int:item_id>/reject", methods=["POST"])
@@ -271,22 +274,52 @@ def briefing_reject(item_id):
 
 @app.route("/api/briefing/<int:item_id>/facebook", methods=["POST"])
 def briefing_facebook(item_id):
-    _db().execute(
+    db = _db()
+    db.execute(
         "UPDATE briefing_items SET dismissed = 1, reject_reason = 'facebook' WHERE id = ?",
         (item_id,),
     )
-    _db().commit()
-    return jsonify({"ok": True})
+    db.commit()
+    row = db.execute(
+        "SELECT title, summary, url FROM briefing_items WHERE id = ?", (item_id,)
+    ).fetchone()
+    if row:
+        draft = f"{row['title']}\n\n{row['summary']}\n\n{row['url']}\n\n#Apologetics #Theology #Faith"
+        db.execute(
+            "INSERT INTO facebook_queue (title, summary, url, draft_text, status) VALUES (?, ?, ?, ?, 'pending')",
+            (row["title"], row["summary"], row["url"], draft),
+        )
+        db.commit()
+    return jsonify({"ok": True, "queued": True})
 
 
 @app.route("/api/briefing/<int:item_id>/email", methods=["POST"])
 def briefing_email(item_id):
-    _db().execute(
+    from datetime import datetime as _dt
+    db = _db()
+    db.execute(
         "UPDATE briefing_items SET dismissed = 1, reject_reason = 'email' WHERE id = ?",
         (item_id,),
     )
-    _db().commit()
-    return jsonify({"ok": True})
+    db.commit()
+    db.execute("""CREATE TABLE IF NOT EXISTS email_queue (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        subject    TEXT    NOT NULL,
+        body       TEXT,
+        url        TEXT,
+        status     TEXT    NOT NULL DEFAULT 'pending',
+        created_at TEXT    NOT NULL
+    )""")
+    row = db.execute(
+        "SELECT title, url, summary FROM briefing_items WHERE id = ?", (item_id,)
+    ).fetchone()
+    if row:
+        db.execute(
+            "INSERT INTO email_queue (subject, body, url, status, created_at) VALUES (?, ?, ?, 'pending', ?)",
+            (row["title"], row["summary"], row["url"], _dt.now().isoformat()),
+        )
+        db.commit()
+    return jsonify({"ok": True, "queued": True})
 
 
 @app.route("/api/briefing/<int:item_id>/tolist", methods=["POST"])
