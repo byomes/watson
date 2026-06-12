@@ -708,7 +708,7 @@ async function sendChat() {
 }
 
 document.getElementById('chat-input').addEventListener('keydown', function(e) {
-  if (e.key === 'Enter' && e.shiftKey) { e.preventDefault(); sendChat(); }
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); }
 });
 (function() {
   const ta = document.getElementById('chat-input');
