@@ -157,6 +157,22 @@ def init_db():
                 count       INTEGER NOT NULL DEFAULT 1,
                 last_seen   TEXT NOT NULL DEFAULT (datetime('now'))
             );
+
+            CREATE TABLE IF NOT EXISTS research_sources (
+                id               INTEGER PRIMARY KEY AUTOINCREMENT,
+                title            TEXT NOT NULL,
+                author           TEXT,
+                source_name      TEXT,
+                url              TEXT,
+                publication_date TEXT,
+                content_type     TEXT,
+                topic_tags       TEXT,
+                summary          TEXT,
+                quote            TEXT,
+                relevance_notes  TEXT,
+                added_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
+                used_in          TEXT
+            );
         """)
     _migrate()
 
