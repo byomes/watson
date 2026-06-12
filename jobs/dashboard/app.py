@@ -339,27 +339,6 @@ def briefing_tolist(item_id):
     return jsonify({"ok": True})
 
 
-@app.route("/api/briefing/<int:item_id>/research", methods=["POST"])
-def briefing_research(item_id):
-    db = _db()
-    item = db.execute(
-        "SELECT title, url, source_name, summary FROM briefing_items WHERE id = ?",
-        (item_id,)
-    ).fetchone()
-    if not item:
-        return jsonify({"ok": False, "error": "not found"}), 404
-    db.execute(
-        "INSERT INTO research_sources (title, source_name, url, summary, content_type) "
-        "VALUES (?, ?, ?, ?, 'article')",
-        (item["title"], item["source_name"], item["url"], item["summary"])
-    )
-    db.execute(
-        "UPDATE briefing_items SET dismissed = 1, reject_reason = 'research' WHERE id = ?",
-        (item_id,)
-    )
-    db.commit()
-    return jsonify({"ok": True, "saved": True})
-
 
 @app.route("/api/research")
 def research_list():
