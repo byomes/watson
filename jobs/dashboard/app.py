@@ -2208,6 +2208,43 @@ def shepherding_email():
         return jsonify({"error": str(exc)}), 500
 
 
+@app.route("/api/shepherding/report")
+def shepherding_report():
+    import re as _re2
+    from jobs.connect_cards.shepherding_report import generate_shepherding_report
+    try:
+        _, html = generate_shepherding_report()
+        body_match = _re2.search(r'<body[^>]*>(.*?)</body>', html, _re2.DOTALL)
+        body = body_match.group(1) if body_match else html
+        return jsonify({"html": body})
+    except Exception as exc:
+        log.error("shepherding/report failed: %s", exc)
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/shepherding/exempt", methods=["POST"])
+def shepherding_exempt():
+    CONG_DB = os.path.expanduser("~/watson/data/congregation.db")
+    data = request.get_json(force=True) or {}
+    member_id = data.get("member_id")
+    if not member_id:
+        return jsonify({"error": "member_id required"}), 400
+    try:
+        conn = sqlite3.connect(CONG_DB)
+        conn.row_factory = sqlite3.Row
+        conn.execute(
+            "UPDATE members SET shepherding_exempt = 1 WHERE id = ?", (member_id,)
+        )
+        conn.commit()
+        row = conn.execute("SELECT name FROM members WHERE id = ?", (member_id,)).fetchone()
+        conn.close()
+        name = row["name"] if row else str(member_id)
+        return jsonify({"ok": True, "name": name})
+    except Exception as exc:
+        log.error("shepherding/exempt failed: %s", exc)
+        return jsonify({"error": str(exc)}), 500
+
+
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
