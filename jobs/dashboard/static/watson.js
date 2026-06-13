@@ -1993,6 +1993,211 @@ async function emailShepherdingReport() {
   }
 }
 
+// ── Data Audit ────────────────────────────────────────────────────────────────
+
+let _auditData = null;
+
+async function runDataAudit() {
+  const container = document.getElementById('audit-results');
+  container.innerHTML = '<p style="font-size:12px;color:#888;margin:8px 0">Running audit…</p>';
+  try {
+    _auditData = await api('/api/audit/run', 'POST');
+    renderAuditResults(_auditData);
+  } catch (e) {
+    container.innerHTML = `<p style="font-size:12px;color:#e74c3c;margin:8px 0">Error: ${e.message}</p>`;
+  }
+}
+
+function renderAuditResults(data) {
+  const container = document.getElementById('audit-results');
+  const dupes  = data.duplicates     || [];
+  const incons = data.inconsistencies || [];
+  let html = '';
+
+  html += `<h3 style="font-size:11px;color:#f0c040;margin:10px 0 6px;text-transform:uppercase;letter-spacing:.06em">&#128269; Likely Duplicates (${dupes.length})</h3>`;
+  if (!dupes.length) {
+    html += `<p style="font-size:12px;color:#555;margin:0 0 4px">No likely duplicates found.</p>`;
+  } else {
+    dupes.forEach((pair, idx) => { html += _renderDupePair(pair, idx); });
+  }
+
+  html += `<h3 style="font-size:11px;color:#f0c040;margin:14px 0 6px;text-transform:uppercase;letter-spacing:.06em">&#9888; Data Inconsistencies (${incons.length})</h3>`;
+  if (!incons.length) {
+    html += `<p style="font-size:12px;color:#555;margin:0">No data inconsistencies found.</p>`;
+  } else {
+    incons.forEach((member, idx) => { html += _renderInconsistencyCard(member, idx); });
+  }
+
+  container.innerHTML = html;
+}
+
+function _renderDupePair(pair, idx) {
+  const a = pair.a, b = pair.b;
+  const confColor = pair.confidence === 'high' ? '#c0392b' : '#b8860b';
+  const FIELDS = [
+    { key: 'name',              label: 'Name'      },
+    { key: 'email',             label: 'Email'     },
+    { key: 'phone',             label: 'Phone'     },
+    { key: 'campus_preference', label: 'Campus'    },
+    { key: 'card_count',        label: 'Cards'     },
+    { key: 'last_seen',         label: 'Last Seen' },
+  ];
+  const CHOICE_FIELDS = new Set(['name', 'email', 'phone', 'campus_preference']);
+
+  let rows = '';
+  FIELDS.forEach(f => {
+    const va = a[f.key] || '—', vb = b[f.key] || '—';
+    const diff = String(va) !== String(vb);
+    const bg = diff ? 'background:#1c1500;' : '';
+    let radios = '';
+    if (diff && CHOICE_FIELDS.has(f.key)) {
+      radios =
+        `<label style="font-size:10px;margin-left:3px"><input type="radio" name="pair-${idx}-${f.key}" value="a" checked> A</label>` +
+        `<label style="font-size:10px;margin-left:3px"><input type="radio" name="pair-${idx}-${f.key}" value="b"> B</label>`;
+    }
+    rows +=
+      `<tr style="${bg}">` +
+        `<td style="font-size:10px;color:#555;padding:3px 4px;white-space:nowrap">${f.label}</td>` +
+        `<td style="font-size:11px;padding:3px 4px;color:${diff?'#f0c040':'#888'};word-break:break-all">${va}</td>` +
+        `<td style="font-size:11px;padding:3px 4px;color:${diff?'#f0c040':'#888'};word-break:break-all">${vb}</td>` +
+        `<td style="padding:3px 4px;white-space:nowrap">${radios}</td>` +
+      `</tr>`;
+  });
+
+  return (
+    `<div id="dupe-pair-${idx}" style="background:#141414;border:1px solid #2a2a2a;border-radius:6px;padding:10px;margin-bottom:10px">` +
+      `<div style="display:flex;gap:6px;align-items:center;margin-bottom:8px">` +
+        `<span style="background:${confColor};color:#fff;font-size:9px;padding:1px 5px;border-radius:3px;font-weight:bold;text-transform:uppercase">${pair.confidence}</span>` +
+        `<span style="font-size:11px;color:#555">${pair.match_reason}</span>` +
+      `</div>` +
+      `<table style="width:100%;border-collapse:collapse">` +
+        `<tr>` +
+          `<th style="font-size:9px;color:#444;padding:2px 4px;text-align:left;font-weight:normal"></th>` +
+          `<th style="font-size:9px;color:#777;padding:2px 4px;text-align:left;font-weight:normal">A — id:${a.id}</th>` +
+          `<th style="font-size:9px;color:#777;padding:2px 4px;text-align:left;font-weight:normal">B — id:${b.id}</th>` +
+          `<th></th>` +
+        `</tr>` +
+        `${rows}` +
+      `</table>` +
+      `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:8px">` +
+        `<span style="font-size:11px;color:#555">Survivor:</span>` +
+        `<label style="font-size:12px"><input type="radio" name="pair-${idx}-survivor" value="${a.id}" onchange="updateMergeBtn(${idx})"> Keep A</label>` +
+        `<label style="font-size:12px"><input type="radio" name="pair-${idx}-survivor" value="${b.id}" onchange="updateMergeBtn(${idx})"> Keep B</label>` +
+        `<button id="merge-btn-${idx}" onclick="executeMerge(${idx})" disabled ` +
+          `style="margin-left:auto;background:transparent;color:#444;border:1px solid #333;font-size:11px;padding:3px 10px;border-radius:4px;cursor:default">` +
+          `Merge` +
+        `</button>` +
+      `</div>` +
+    `</div>`
+  );
+}
+
+function updateMergeBtn(idx) {
+  const sel = document.querySelector(`input[name="pair-${idx}-survivor"]:checked`);
+  const btn = document.getElementById(`merge-btn-${idx}`);
+  if (sel) {
+    btn.disabled = false;
+    btn.style.color = '#e74c3c';
+    btn.style.borderColor = '#c0392b';
+    btn.style.cursor = 'pointer';
+  }
+}
+
+async function executeMerge(idx) {
+  const pair = _auditData.duplicates[idx];
+  const sel  = document.querySelector(`input[name="pair-${idx}-survivor"]:checked`);
+  if (!sel) return;
+  const winnerId = parseInt(sel.value);
+  const loserId  = winnerId === pair.a.id ? pair.b.id : pair.a.id;
+  const fieldChoices = {};
+  ['name', 'email', 'phone', 'campus_preference'].forEach(f => {
+    const inp = document.querySelector(`input[name="pair-${idx}-${f}"]:checked`);
+    if (inp) fieldChoices[f] = inp.value;
+  });
+  const btn = document.getElementById(`merge-btn-${idx}`);
+  btn.textContent = '…'; btn.disabled = true;
+  try {
+    const data = await api('/api/audit/merge', 'POST', {
+      winner_id: winnerId, loser_id: loserId,
+      field_choices: fieldChoices,
+      a_id: pair.a.id, b_id: pair.b.id,
+    });
+    if (data.ok) {
+      const card = document.getElementById(`dupe-pair-${idx}`);
+      card.style.opacity = '0.35';
+      card.style.pointerEvents = 'none';
+      btn.textContent = '✓ Merged';
+    } else {
+      btn.textContent = data.error || 'Error';
+      btn.disabled = false;
+    }
+  } catch (e) {
+    btn.textContent = 'Error';
+    btn.disabled = false;
+  }
+}
+
+function _renderInconsistencyCard(member, idx) {
+  let fieldsHtml = '';
+  member.inconsistencies.forEach((inc, fIdx) => {
+    let varHtml = '';
+    inc.variations.forEach((v, vIdx) => {
+      const isSug = v.value === inc.suggested;
+      const isCur = v.value === inc.current_value && !isSug;
+      const badge = isSug
+        ? `<span style="font-size:9px;color:#4caf8a;margin-left:3px">[suggested]</span>`
+        : (isCur ? `<span style="font-size:9px;color:#666;margin-left:3px">[current]</span>` : '');
+      varHtml +=
+        `<label style="display:flex;align-items:center;gap:4px;font-size:12px;padding:2px 0;cursor:pointer">` +
+          `<input type="radio" name="member-${idx}-field-${fIdx}" value="${vIdx}" ${isSug ? 'checked' : ''}>` +
+          `<span style="word-break:break-all">${v.value || '(empty)'}</span>` +
+          `<span style="color:#555;font-size:11px">(${v.count}×)</span>${badge}` +
+        `</label>`;
+    });
+    fieldsHtml +=
+      `<div style="margin-bottom:10px">` +
+        `<div style="font-size:10px;color:#555;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">${inc.field}</div>` +
+        `${varHtml}` +
+      `</div>`;
+  });
+
+  return (
+    `<div id="inconsistency-card-${idx}" style="background:#141414;border:1px solid #2a2a2a;border-radius:6px;padding:10px;margin-bottom:10px">` +
+      `<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">` +
+        `<strong style="font-size:13px;color:#ccc">${member.member_name || '(no name)'}</strong>` +
+        `<span style="font-size:11px;color:#444">${member.card_count} cards</span>` +
+      `</div>` +
+      `${fieldsHtml}` +
+      `<button onclick="applyCorrections(${idx})" ` +
+        `style="background:transparent;color:#4caf8a;border:1px solid #2d6b52;font-size:11px;padding:3px 10px;border-radius:4px;cursor:pointer">` +
+        `Apply Corrections` +
+      `</button>` +
+    `</div>`
+  );
+}
+
+async function applyCorrections(idx) {
+  const member = _auditData.inconsistencies[idx];
+  const btn = document.querySelector(`#inconsistency-card-${idx} button`);
+  btn.textContent = '…'; btn.disabled = true;
+  try {
+    for (let fIdx = 0; fIdx < member.inconsistencies.length; fIdx++) {
+      const inc = member.inconsistencies[fIdx];
+      const inp = document.querySelector(`input[name="member-${idx}-field-${fIdx}"]:checked`);
+      if (!inp) continue;
+      const value = inc.variations[parseInt(inp.value)].value;
+      await api('/api/audit/correct-field', 'POST', { member_id: member.member_id, field: inc.field, value });
+    }
+    const card = document.getElementById(`inconsistency-card-${idx}`);
+    card.style.opacity = '0.35';
+    card.style.pointerEvents = 'none';
+    btn.textContent = '✓ Corrected';
+  } catch (e) {
+    btn.textContent = 'Error';
+    btn.disabled = false;
+  }
+}
+
 function loadReportsList() {
   const reports = [
     { key: 'next_steps', label: 'Next Steps' },

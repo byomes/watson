@@ -149,6 +149,9 @@
       <div style="min-width:60px"></div>
     </div>
     <div class="overlay-body" style="padding:16px" onclick="event.stopPropagation()">
+      <button class="btn btn-p" style="width:100%;padding:10px;border:none;border-radius:10px;font-size:13px;margin-bottom:10px;background:#1e1800;color:#f0c040" onclick="runDataAudit()">&#128269; Run Data Audit</button>
+      <div id="audit-results"></div>
+      <hr style="border:none;border-top:1px solid #333;margin:16px 0">
       <button class="btn btn-p" style="width:100%;padding:10px;border:none;border-radius:10px;font-size:13px;margin-bottom:10px" onclick="runShepherdingReport()">&#128203; Run Report Now</button>
       <button class="btn btn-p" style="width:100%;padding:10px;border:none;border-radius:10px;font-size:13px;margin-bottom:16px;background:var(--bg3);color:var(--text)" onclick="emailShepherdingReport()">&#9993; Email Report to Me</button>
       <div id="shepherding-output" style="font-size:13px;color:var(--text-muted);white-space:pre-line;line-height:1.6"></div>
