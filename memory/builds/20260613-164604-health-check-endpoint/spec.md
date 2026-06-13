@@ -1,0 +1,1 @@
+Add a /health endpoint to the dashboard that returns {status: ok}.
