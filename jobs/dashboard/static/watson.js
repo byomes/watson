@@ -1931,10 +1931,36 @@ async function runShepherdingReport() {
         btn.onmouseleave = () => { btn.style.color = '#888'; btn.style.borderColor = '#444'; };
         btn.onclick = () => exemptMember(parseInt(memberId), nameCell.textContent.trim(), btn, row);
         nameCell.appendChild(btn);
+
+        const seenBtn = document.createElement('button');
+        seenBtn.textContent = 'Seen Sunday';
+        seenBtn.style.cssText = 'background:transparent;color:#4caf8a;border:1px solid #2d6b52;font-size:11px;padding:2px 8px;border-radius:4px;cursor:pointer;margin-left:6px;';
+        seenBtn.onmouseenter = () => { seenBtn.style.color = '#6fcfaa'; seenBtn.style.borderColor = '#4caf8a'; };
+        seenBtn.onmouseleave = () => { seenBtn.style.color = '#4caf8a'; seenBtn.style.borderColor = '#2d6b52'; };
+        seenBtn.onclick = () => checkInMember(parseInt(memberId), nameCell.textContent.trim(), seenBtn, row);
+        nameCell.appendChild(seenBtn);
       });
     }
   } catch (e) {
     out.textContent = 'Error: ' + e.message;
+  }
+}
+
+async function checkInMember(memberId, name, btn, row) {
+  btn.disabled = true;
+  btn.textContent = '…';
+  try {
+    const data = await api('/api/shepherding/checkin', 'POST', { member_id: memberId });
+    if (data.ok) {
+      btn.textContent = `✓ Checked In ${data.date}`;
+      row.style.opacity = '0.5';
+    } else {
+      btn.textContent = 'Error';
+      btn.disabled = false;
+    }
+  } catch (e) {
+    btn.textContent = 'Error';
+    btn.disabled = false;
   }
 }
 

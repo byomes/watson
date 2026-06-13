@@ -2245,6 +2245,44 @@ def shepherding_exempt():
         return jsonify({"error": str(exc)}), 500
 
 
+@app.route("/api/shepherding/checkin", methods=["POST"])
+def shepherding_checkin():
+    from datetime import timedelta
+    CONG_DB = os.path.expanduser("~/watson/data/congregation.db")
+    data = request.get_json(force=True) or {}
+    member_id = data.get("member_id")
+    if not member_id:
+        return jsonify({"error": "member_id required"}), 400
+    try:
+        today = _date.today()
+        # Sunday = weekday 6; roll back to most recent Sunday
+        days_back = (today.weekday() + 1) % 7
+        prev_sunday = (today - timedelta(days=days_back)).isoformat()
+
+        conn = sqlite3.connect(CONG_DB)
+        conn.row_factory = sqlite3.Row
+        row = conn.execute(
+            "SELECT name, campus_preference FROM members WHERE id = ?", (member_id,)
+        ).fetchone()
+        if not row:
+            conn.close()
+            return jsonify({"error": "member not found"}), 404
+        name   = row["name"]
+        campus = row["campus_preference"] or "Wilmington"
+        conn.execute(
+            "INSERT INTO attendance (member_id, service_date, campus, card_id) VALUES (?, ?, ?, NULL)",
+            (member_id, prev_sunday, campus),
+        )
+        conn.commit()
+        conn.close()
+
+        from jobs.connect_cards.shepherding_report import _fmt_date
+        return jsonify({"ok": True, "name": name, "date": _fmt_date(prev_sunday)})
+    except Exception as exc:
+        log.error("shepherding/checkin failed: %s", exc)
+        return jsonify({"error": str(exc)}), 500
+
+
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
