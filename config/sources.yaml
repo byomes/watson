@@ -142,7 +142,7 @@ authors:
     priority: 2
 
   - name: "Mike Winger (BibleThinker)"
-    url: "https://biblethinker.org/blog"
+    url: "https://biblethinker.org"
     scrape: true
     source_type: article
     priority: 2
@@ -182,6 +182,8 @@ organizations:
     rss: "https://apologeticscanada.com/feed/podcast"
     source_type: podcast
     priority: 2
+    active: false
+    # 403 blocks bots — find working feed URL
 
   - name: "James Tour (The James Tour Podcast)"
     url: "https://jmtour.com"

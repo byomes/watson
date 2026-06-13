@@ -70,6 +70,11 @@
         <span class="overlay-row-chevron">&#8250;</span>
       </div>
       <div class="overlay-row" draggable="false" data-menu-key="reading" onclick="closeSettings();switchTab('reading')">
+      <div class="overlay-row" draggable="false" data-menu-key="tasks" onclick="closeSettings();switchTab('tasks')">
+        <span class="drag-handle" style="color:#555;margin-right:10px;cursor:grab">⠿</span>
+        <span class="overlay-row-label">Tasks</span>
+        <span class="overlay-row-chevron">&#8250;</span>
+      </div>
         <span class="drag-handle" style="color:#555;margin-right:10px;cursor:grab">⠿</span>
         <span class="overlay-row-label">Reading List</span>
         <span class="overlay-row-chevron">&#8250;</span>
@@ -290,6 +295,104 @@
     <div id="rl-list"></div>
   </div>
 
+  <div id="tab-voice" class="tab">
+    <div style="max-width:600px;margin:0 auto;padding:16px;">
+
+      <!-- Session controls -->
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:16px;flex-wrap:wrap;">
+        <input id="voice-session-title" type="text" placeholder="Session title..."
+          style="flex:1;min-width:160px;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:14px;font-family:inherit;">
+        <select id="voice-project-select"
+          style="padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:14px;font-family:inherit;">
+          <option value="">No project</option>
+        </select>
+        <button onclick="voiceStartSession()"
+          style="padding:8px 16px;border-radius:8px;background:var(--accent);color:#fff;border:none;cursor:pointer;font-size:14px;font-family:inherit;">
+          New Session
+        </button>
+      </div>
+
+      <!-- Push-to-hold mic button -->
+      <div style="text-align:center;margin:32px 0;">
+        <button id="voice-mic-btn"
+          style="
+            width:140px;
+            height:140px;
+            border-radius:50%;
+            border:4px solid var(--accent);
+            background:var(--card-bg);
+            font-size:52px;
+            cursor:pointer;
+            transition:all 0.15s;
+            touch-action:none;
+            user-select:none;
+            -webkit-user-select:none;
+          "
+          onmousedown="voicePressStart(event)"
+          onmouseup="voicePressEnd(event)"
+          onmouseleave="voicePressEnd(event)"
+          ontouchstart="voicePressStart(event)"
+          ontouchend="voicePressEnd(event)"
+          ontouchcancel="voicePressEnd(event)"
+        >🎙</button>
+        <div id="voice-status"
+          style="margin-top:16px;font-size:15px;color:var(--muted);min-height:24px;">
+          Start a session, then hold to speak
+        </div>
+      </div>
+
+      <!-- Transcript -->
+      <div id="voice-transcript-box"
+        style="min-height:80px;padding:12px;background:var(--bg2);border-radius:8px;border:1px solid var(--border);margin-bottom:12px;font-size:14px;color:var(--text);">
+        <em style="color:var(--text3);">Your words will appear here...</em>
+      </div>
+
+      <!-- Response -->
+      <div id="voice-response-box"
+        style="min-height:80px;padding:12px;background:var(--bg2);border-radius:8px;border:1px solid var(--border);margin-bottom:16px;font-size:14px;color:var(--text);">
+        <em style="color:var(--text3);">Watson's response will appear here...</em>
+      </div>
+
+      <!-- Wrap up + history controls -->
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:24px;">
+        <button onclick="voiceWrapUp()"
+          style="padding:8px 16px;border-radius:8px;background:#e67e22;color:#fff;border:none;cursor:pointer;font-size:14px;font-family:inherit;">
+          Wrap Up Session
+        </button>
+        <button onclick="voiceShowHistory()"
+          style="padding:8px 16px;border-radius:8px;background:var(--bg2);color:var(--text);border:1px solid var(--border);cursor:pointer;font-size:14px;font-family:inherit;">
+          History
+        </button>
+      </div>
+
+      <!-- Session history panel -->
+      <div id="voice-history-panel" style="display:none;">
+        <h3 style="font-size:15px;margin-bottom:8px;">Conversation History</h3>
+        <div id="voice-history-list" style="display:flex;flex-direction:column;gap:8px;"></div>
+      </div>
+
+      <!-- File dialog (shown after wrap up if project suggested) -->
+      <div id="voice-file-dialog" style="display:none;padding:16px;background:var(--bg2);border-radius:8px;border:1px solid var(--accent);">
+        <p id="voice-file-prompt" style="margin:0 0 12px;font-size:14px;"></p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button id="voice-file-confirm" onclick="voiceFileConfirm()"
+            style="padding:8px 16px;border-radius:8px;background:var(--accent);color:#fff;border:none;cursor:pointer;font-family:inherit;">
+            Yes, file it
+          </button>
+          <button onclick="voiceFileDismiss()"
+            style="padding:8px 16px;border-radius:8px;background:var(--bg2);color:var(--text);border:1px solid var(--border);cursor:pointer;font-family:inherit;">
+            Not this time
+          </button>
+          <select id="voice-file-project-override"
+            style="padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:14px;font-family:inherit;">
+            <option value="">Choose different project...</option>
+          </select>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
   <div id="tab-projects" class="tab">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
       <button class="arch-toggle" id="arch-toggle" onclick="toggleArchivedProjects()">Show Archived</button>
@@ -318,13 +421,13 @@
     <span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM6 20V4h5v7h7v9H6z"/></svg></span>
     <span>Briefing</span>
   </button>
-  <button class="nb" id="nav-tasks" onclick="switchTab('tasks')">
-    <span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg></span>
-    <span>Tasks</span>
-  </button>
   <button class="nb" id="nav-projects" onclick="switchTab('projects')">
     <span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M10 4H4a2 2 0 00-2 2v12a2 2 0 002 2h16a2 2 0 002-2V8a2 2 0 00-2-2h-8l-2-2z"/></svg></span>
     <span>Projects</span>
+  </button>
+  <button class="nb" id="nav-voice" onclick="switchTab('voice')">
+    <span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg></span>
+    <span class="label">VOICE</span>
   </button>
 </nav>
 
@@ -427,6 +530,347 @@
 </div>
 
 <script src="{{ url_for('serve_appjs') }}?v={{ app_js_ts }}"></script>
+
+<script>
+// ── Voice System ──────────────────────────────────────────────────────────
+
+const voiceState = {
+  sessionId: null,
+  projectSlug: null,
+  suggestedSlug: null,
+  history: [],
+  recognition: null,
+  pressing: false,
+  audioUnlocked: false,
+  pendingTranscript: '',
+  synth: window.speechSynthesis,
+};
+
+// iOS requires a user-gesture to unlock audio — call this on first button press
+function voiceUnlockAudio() {
+  if (voiceState.audioUnlocked) return;
+  try {
+    const utt = new SpeechSynthesisUtterance('');
+    utt.volume = 0;
+    voiceState.synth.speak(utt);
+    voiceState.audioUnlocked = true;
+  } catch(e) {}
+}
+
+// Populate project dropdowns
+async function voiceLoadProjects() {
+  try {
+    const res = await fetch('/api/projects');
+    const projects = await res.json();
+    ['voice-project-select', 'voice-file-project-override'].forEach(id => {
+      const sel = document.getElementById(id);
+      if (!sel) return;
+      projects.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.slug;
+        opt.textContent = p.name || p.slug;
+        sel.appendChild(opt);
+      });
+    });
+  } catch(e) { console.warn('voiceLoadProjects:', e); }
+}
+
+async function voiceStartSession() {
+  const title = document.getElementById('voice-session-title').value.trim() || 'Voice Session';
+  const projectSlug = document.getElementById('voice-project-select').value || null;
+  try {
+    const res = await fetch('/api/sessions', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({title, project_slug: projectSlug, source: 'voice'}),
+    });
+    const data = await res.json();
+    voiceState.sessionId = data.id;
+    voiceState.projectSlug = projectSlug;
+    voiceState.history = [];
+    document.getElementById('voice-status').textContent = 'Session started. Hold mic to speak.';
+    document.getElementById('voice-mic-btn').style.borderColor = '#27ae60';
+  } catch(e) {
+    document.getElementById('voice-status').textContent = 'Failed to start session.';
+  }
+}
+
+// ── Push-to-hold handlers ─────────────────────────────────────────────────
+
+function voicePressStart(e) {
+  e.preventDefault();
+  voiceUnlockAudio(); // unlock iOS audio on gesture
+
+  if (!voiceState.sessionId) {
+    document.getElementById('voice-status').textContent = 'Start a session first.';
+    return;
+  }
+  if (voiceState.pressing) return;
+
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    document.getElementById('voice-status').textContent = 'Speech recognition not supported.';
+    return;
+  }
+
+  voiceState.pressing = true;
+  voiceState.pendingTranscript = '';
+
+  const btn = document.getElementById('voice-mic-btn');
+  btn.textContent = '⏺';
+  btn.style.background = '#e74c3c33';
+  btn.style.borderColor = '#e74c3c';
+  btn.style.boxShadow = '0 0 0 8px #e74c3c22';
+  document.getElementById('voice-status').textContent = 'Listening...';
+
+  const rec = new SpeechRecognition();
+  rec.lang = 'en-US';
+  rec.continuous = true;
+  rec.interimResults = true;
+
+  rec.onresult = (e) => {
+    const transcript = Array.from(e.results)
+      .map(r => r[0].transcript)
+      .join('');
+    voiceState.pendingTranscript = transcript;
+    document.getElementById('voice-transcript-box').textContent = transcript;
+  };
+
+  rec.onerror = (e) => {
+    console.warn('Speech error:', e.error);
+    voicePressClear();
+  };
+
+  rec.onend = () => {
+    // Only send if we're still in a press — avoids double-send
+    if (voiceState.pressing) {
+      voiceState.pressing = false;
+      if (voiceState.pendingTranscript.trim()) {
+        voiceSend(voiceState.pendingTranscript.trim());
+      }
+    }
+    voicePressClear();
+  };
+
+  voiceState.recognition = rec;
+  try { rec.start(); } catch(e) { voicePressClear(); }
+}
+
+function voicePressEnd(e) {
+  if (e) e.preventDefault();
+  if (!voiceState.pressing) return;
+  voiceState.pressing = false;
+
+  if (voiceState.recognition) {
+    try { voiceState.recognition.stop(); } catch(e) {}
+    // onend will fire and call voiceSend
+  }
+}
+
+function voicePressClear() {
+  const btn = document.getElementById('voice-mic-btn');
+  if (!btn) return;
+  btn.textContent = '🎙';
+  btn.style.background = '';
+  btn.style.borderColor = voiceState.sessionId ? '#27ae60' : 'var(--accent)';
+  btn.style.boxShadow = '';
+}
+
+// ── Send + TTS ────────────────────────────────────────────────────────────
+
+async function voiceSend(text) {
+  document.getElementById('voice-status').textContent = 'Watson is thinking...';
+  document.getElementById('voice-response-box').textContent = '';
+  try {
+    const res = await fetch('/api/voice', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        message: text,
+        session_id: voiceState.sessionId,
+        project_slug: voiceState.projectSlug,
+        history: voiceState.history,
+      }),
+    });
+    const data = await res.json();
+    const reply = data.response || '';
+    document.getElementById('voice-response-box').textContent = reply;
+    voiceState.history.push({role: 'user', content: text});
+    voiceState.history.push({role: 'assistant', content: reply});
+    if (voiceState.history.length > 20) voiceState.history = voiceState.history.slice(-20);
+    document.getElementById('voice-status').textContent = 'Hold to speak again.';
+    voiceSpeak(reply);
+  } catch(e) {
+    document.getElementById('voice-status').textContent = 'Error: ' + e.message;
+  }
+}
+
+function voiceSpeak(text) {
+  if (!voiceState.synth) return;
+  voiceState.synth.cancel();
+  // Small delay gives iOS time to process the cancel before speaking
+  setTimeout(() => {
+    const utt = new SpeechSynthesisUtterance(text);
+    utt.rate = 1.05;
+    utt.pitch = 1.0;
+    utt.lang = 'en-US';
+    voiceState.synth.speak(utt);
+  }, 100);
+}
+
+// ── Wrap up + history ─────────────────────────────────────────────────────
+
+async function voiceWrapUp() {
+  if (!voiceState.sessionId) {
+    alert('No active session to wrap up.');
+    return;
+  }
+  document.getElementById('voice-status').textContent = 'Wrapping up...';
+  try {
+    const res = await fetch(`/api/sessions/${voiceState.sessionId}/close`, {method: 'POST'});
+    const data = await res.json();
+    document.getElementById('voice-status').textContent = 'Session saved.';
+
+    if (data.suggested_project_slug && !voiceState.projectSlug) {
+      voiceState.suggestedSlug = data.suggested_project_slug;
+      document.getElementById('voice-file-prompt').textContent =
+        `This looks like it belongs in "${data.suggested_project_slug}". File it there?`;
+      document.getElementById('voice-file-dialog').style.display = 'block';
+    }
+
+    const closedId = voiceState.sessionId;
+    voiceState.sessionId = null;
+    voiceState.projectSlug = null;
+    voiceState.history = [];
+    voicePressClear();
+
+    // Store closed session id for filing
+    voiceState._lastClosedId = closedId;
+  } catch(e) {
+    document.getElementById('voice-status').textContent = 'Wrap up failed: ' + e.message;
+  }
+}
+
+async function voiceFileConfirm() {
+  const override = document.getElementById('voice-file-project-override').value;
+  const slug = override || voiceState.suggestedSlug;
+  const sid = voiceState._lastClosedId;
+  if (!slug || !sid) return;
+  try {
+    await fetch(`/api/sessions/${sid}/file`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({project_slug: slug}),
+    });
+    document.getElementById('voice-file-dialog').style.display = 'none';
+    document.getElementById('voice-status').textContent = `Filed under ${slug}.`;
+  } catch(e) {
+    alert('Filing failed: ' + e.message);
+  }
+}
+
+function voiceFileDismiss() {
+  document.getElementById('voice-file-dialog').style.display = 'none';
+  voiceState.suggestedSlug = null;
+}
+
+async function voiceShowHistory() {
+  const panel = document.getElementById('voice-history-panel');
+  const list = document.getElementById('voice-history-list');
+  if (panel.style.display !== 'none') { panel.style.display = 'none'; return; }
+  try {
+    const res = await fetch('/api/sessions');
+    const sessions = await res.json();
+    list.innerHTML = sessions.map(s => `
+      <div style="padding:12px;background:var(--card-bg);border-radius:8px;border:1px solid var(--border);cursor:pointer;"
+        onclick="voiceLoadSession(${s.id})">
+        <div style="font-weight:600;font-size:14px;">${s.title}</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:4px;">
+          ${(s.created_at||'').slice(0,16)}
+          ${s.project_slug ? ' · ' + s.project_slug : ''}
+          · ${s.message_count} messages
+        </div>
+      </div>
+    `).join('');
+    panel.style.display = 'block';
+  } catch(e) { list.innerHTML = 'Failed to load history.'; }
+}
+
+async function voiceLoadSession(id) {
+  try {
+    const res = await fetch(`/api/sessions/${id}`);
+    const data = await res.json();
+    const msgs = data.messages || [];
+    document.getElementById('voice-history-panel').style.display = 'none';
+    document.getElementById('voice-transcript-box').innerHTML =
+      msgs.filter(m => m.role === 'user').map(m =>
+        `<div style="margin-bottom:8px;"><strong>Bill:</strong> ${m.content}</div>`
+      ).join('') || '<em>No messages</em>';
+    document.getElementById('voice-response-box').innerHTML =
+      msgs.filter(m => m.role === 'assistant').map(m =>
+        `<div style="margin-bottom:8px;"><strong>Watson:</strong> ${m.content}</div>`
+      ).join('') || '<em>No responses</em>';
+  } catch(e) { alert('Failed to load session.'); }
+}
+
+// ── Project workspace voice (fills pw-input, clicks pw-send-btn) ──────────
+
+const projMicState = { listening: false, recognition: null };
+
+function projToggleMic() {
+  if (projMicState.listening) {
+    projStopListening();
+  } else {
+    projStartListening();
+  }
+}
+
+function projStartListening() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) { alert('Speech recognition not supported.'); return; }
+  const rec = new SpeechRecognition();
+  rec.lang = 'en-US';
+  rec.continuous = false;
+  rec.interimResults = false;
+
+  rec.onstart = () => {
+    projMicState.listening = true;
+    const btn = document.getElementById('proj-mic-btn');
+    if (btn) { btn.textContent = '⏹'; btn.style.background = '#e74c3c22'; }
+  };
+
+  rec.onresult = (e) => {
+    const transcript = e.results[0][0].transcript;
+    const input = document.getElementById('pw-input');
+    if (input) {
+      input.value = transcript;
+      const sendBtn = document.getElementById('pw-send-btn');
+      if (sendBtn) sendBtn.click();
+    }
+  };
+
+  rec.onerror = () => { projStopListening(); };
+  rec.onend = () => { projStopListening(); };
+
+  projMicState.recognition = rec;
+  rec.start();
+}
+
+function projStopListening() {
+  projMicState.listening = false;
+  if (projMicState.recognition) {
+    try { projMicState.recognition.stop(); } catch(e) {}
+    projMicState.recognition = null;
+  }
+  const btn = document.getElementById('proj-mic-btn');
+  if (btn) { btn.textContent = '🎙'; btn.style.background = ''; }
+}
+
+// Init
+document.addEventListener('DOMContentLoaded', () => {
+  voiceLoadProjects();
+});
+</script>
 
 </body>
 </html>

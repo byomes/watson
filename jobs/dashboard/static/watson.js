@@ -4,7 +4,9 @@
   s.textContent = [
     '.r-drag{min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:center;padding:0;font-size:18px;color:#ffffff;}',
     '.r-btns{gap:12px;}',
-    '.r-btn{min-height:36px;min-width:44px;font-size:22px;padding:6px 8px;color:#ffffff;}'
+    '.r-btn{min-height:36px;min-width:44px;font-size:22px;padding:6px 8px;color:#ffffff;}',
+    '.working-steps{margin:2px 0;padding:0;}',
+    '.working-steps p{margin:1px 0;font-size:11px;color:var(--text-muted,#888);font-family:"DM Mono",monospace;line-height:1.6;}'
   ].join('');
   document.head.appendChild(s);
 })();
@@ -384,7 +386,7 @@ async function api(url, method, body) {
 }
 
 // ── Tabs ──────────────────────────────────────────────────────────────────
-const TABS = ['chat','history','briefing','tasks','reminders','contacts','reading','projects'];
+const TABS = ['chat','history','briefing','tasks','reminders','contacts','reading','projects','voice'];
 const loaded = {chat:true, history:false, briefing:false, tasks:false, contacts:false, reading:false, projects:false};
 const loaders = {};
 
@@ -718,6 +720,34 @@ async function sendChat() {
   let confirmEmailData = null;
   let _imgCount = 0;
   let _lastImgContainer = null;
+  let workingBubble = null, workingSteps = null;
+
+  function _createWorkingBubble() {
+    if (workingBubble) return;
+    _hideTyping();
+    const wrap = document.createElement('div');
+    wrap.className = 'msg-wrap watson';
+    wrap.id = 'working-wrap';
+    wrap.appendChild(_createAvatarEl());
+    const col = document.createElement('div');
+    col.className = 'msg-col';
+    workingBubble = document.createElement('div');
+    workingBubble.className = 'msg-bubble';
+    workingSteps = document.createElement('div');
+    workingSteps.className = 'working-steps';
+    workingBubble.appendChild(workingSteps);
+    col.appendChild(workingBubble);
+    wrap.appendChild(col);
+    msgs.appendChild(wrap);
+    msgs.scrollTop = msgs.scrollHeight;
+  }
+
+  function _removeWorkingBubble() {
+    const el = document.getElementById('working-wrap');
+    if (el) el.remove();
+    workingBubble = null;
+    workingSteps = null;
+  }
 
   function _reEnable() {
     input.disabled = false;
@@ -727,6 +757,7 @@ async function sendChat() {
 
   function _finish() {
     _hideTyping();
+    if (workingBubble) _removeWorkingBubble();
     if (watsonCursor) watsonCursor.remove();
     if (watsonBubble && watsonTextNode && watsonTextNode.textContent && watsonBubble.children.length === 0) {
       const content = watsonTextNode.textContent;
@@ -826,15 +857,21 @@ async function sendChat() {
               watsonBubble.appendChild(link);
             }
           } else {
-            _createWatsonBubble();
-            try {
-              const parsed = JSON.parse(data);
-              fullReply += (parsed.token !== undefined) ? parsed.token : data;
-            } catch(_) {
-              fullReply += data;
+            let _parsed = null;
+            try { _parsed = JSON.parse(data); } catch(_) {}
+            if (_parsed && _parsed.type === 'status') {
+              _createWorkingBubble();
+              const p = document.createElement('p');
+              p.textContent = _parsed.text;
+              if (workingSteps) workingSteps.appendChild(p);
+              msgs.scrollTop = msgs.scrollHeight;
+            } else {
+              if (workingBubble) _removeWorkingBubble();
+              _createWatsonBubble();
+              fullReply += (_parsed !== null && _parsed.token !== undefined) ? _parsed.token : data;
+              if (watsonTextNode) watsonTextNode.textContent = fullReply;
+              msgs.scrollTop = msgs.scrollHeight;
             }
-            if (watsonTextNode) watsonTextNode.textContent = fullReply;
-            msgs.scrollTop = msgs.scrollHeight;
           }
         }
       }

@@ -802,6 +802,9 @@ def chat_stream():
     def _stream_error(msg):
         yield f"data: [ERROR] {msg}\n\n"
 
+    def _emit_status(text):
+        return f'data: {json.dumps({"type": "status", "text": text})}\n\n'
+
     def _sse_response(gen):
         r = Response(stream_with_context(gen), mimetype="text/event-stream")
         r.headers['Cache-Control'] = 'no-cache'
@@ -892,6 +895,7 @@ def chat_stream():
                 _send_qr_telegram(_png, _qr_content)
 
                 def _qr_stream(content=_qr_content, b64=_img_b64):
+                    yield _emit_status("→ Generating QR code...")
                     yield _sse(f'QR code generated for: {content}')
                     yield f'data: [QR_IMAGE]{b64}\n\n'
                     yield 'data: [DONE]\n\n'
@@ -1279,7 +1283,7 @@ def chat_stream():
     if any(t in message.lower() for t in _kb_triggers):
         from jobs.skills.kb_search import run as _kb_run
         def _kb_stream():
-            yield _sse("🔍 Searching your notes...")
+            yield _emit_status("→ Searching your notes...")
             try:
                 result = _kb_run(message)
                 yield _sse(result)
@@ -1297,9 +1301,13 @@ def chat_stream():
         route_result = {"action": "chat"}
     # 1. Factual queries go directly to web search, bypassing Ollama
     elif _factual:
-        from jobs.research.web_search import run as web_search_run
-        ws_result = web_search_run(message)
-        return _sse_response(_stream_simple("✓ " + ws_result))
+        def _web_search_stream():
+            yield _emit_status("→ Searching the web...")
+            from jobs.research.web_search import run as web_search_run
+            ws_result = web_search_run(message)
+            yield _sse("✓ " + ws_result)
+            yield "data: [DONE]\n\n"
+        return _sse_response(_web_search_stream())
     # 2. Conversational messages go straight to Ollama
     elif _conv:
         route_result = {"action": "chat"}
@@ -1326,6 +1334,17 @@ def chat_stream():
             else:
                 log.warning("Skill '%s' not found in registry — falling through to Gemini", slug)
         if "result" in route_result:
+            _slug = route_result.get("slug", "")
+            _SKILL_STATUS_LABELS = {
+                "calendar": "→ Checking your calendar...",
+                "bible": "→ Looking up scripture...",
+                "bible_lookup": "→ Looking up scripture...",
+                "reminders": "→ Checking reminders...",
+                "web_search": "→ Searching the web...",
+            }
+            _skill_status = _SKILL_STATUS_LABELS.get(
+                _slug, f"→ Running {_slug.replace('_', ' ')}..."
+            )
             result = route_result["result"]
             if isinstance(result, dict) and result.get("confirm"):
                 session["pending_email"] = result
@@ -1336,12 +1355,17 @@ def chat_stream():
                     "subject": result["subject"],
                     "body": result["body"],
                 })
-                def _email_gen(t=confirm_text, cj=confirm_json):
+                def _email_gen(t=confirm_text, cj=confirm_json, st=_skill_status):
+                    yield _emit_status(st)
                     yield _sse(t)
                     yield f"data: [CONFIRM_EMAIL]{cj}\n\n"
                     yield "data: [DONE]\n\n"
                 return _sse_response(_email_gen())
-            return _sse_response(_stream_simple("✓ " + result))
+            def _skill_result_gen(st=_skill_status, res=result):
+                yield _emit_status(st)
+                yield _sse("✓ " + str(res))
+                yield "data: [DONE]\n\n"
+            return _sse_response(_skill_result_gen())
 
     if route_result["action"] == "build":
         import threading
@@ -1432,6 +1456,8 @@ def chat_stream():
     def _stream_ollama(msgs=messages, sys=_system):
         import threading
         full_reply = []
+        yield _emit_status("→ Thinking...")
+        first_token = True
         try:
             resp = _req.post(
                 "http://localhost:11434/api/chat",
@@ -1455,6 +1481,9 @@ def chat_stream():
                     continue
                 token = chunk.get("message", {}).get("content", "")
                 if token:
+                    if first_token:
+                        yield _emit_status("→ Response streaming...")
+                        first_token = False
                     full_reply.append(token)
                     yield _sse(token)
                 if chunk.get("done"):
@@ -2399,6 +2428,368 @@ def audit_correct_field():
     except Exception as exc:
         log.error("audit/correct-field failed: %s", exc)
         return jsonify({"error": str(exc)}), 500
+
+
+# ── Sessions ─────────────────────────────────────────────────────────────────
+
+@app.route("/api/sessions", methods=["POST"])
+def sessions_create():
+    data = request.get_json(force=True) or {}
+    title = (data.get("title") or "New Conversation").strip()
+    project_slug = (data.get("project_slug") or "").strip() or None
+    source = (data.get("source") or "voice").strip()
+    db = _db()
+    cur = db.execute(
+        "INSERT INTO chat_sessions (title, project_slug) VALUES (?, ?)",
+        (title, project_slug),
+    )
+    db.commit()
+    row = dict(db.execute(
+        "SELECT * FROM chat_sessions WHERE id = ?", (cur.lastrowid,)
+    ).fetchone())
+    return jsonify(row), 201
+
+
+@app.route("/api/sessions", methods=["GET"])
+def sessions_list():
+    db = _db()
+    rows = db.execute(
+        "SELECT s.id, s.title, s.project_slug, s.created_at, s.ended_at, "
+        "COUNT(m.id) as message_count "
+        "FROM chat_sessions s "
+        "LEFT JOIN chat_messages m ON m.session_id = s.id "
+        "GROUP BY s.id ORDER BY s.created_at DESC LIMIT 100"
+    ).fetchall()
+    return jsonify([dict(r) for r in rows])
+
+
+@app.route("/api/sessions/<int:session_id>", methods=["GET"])
+def sessions_get(session_id):
+    db = _db()
+    row = db.execute(
+        "SELECT * FROM chat_sessions WHERE id = ?", (session_id,)
+    ).fetchone()
+    if not row:
+        return jsonify({"error": "not found"}), 404
+    messages = db.execute(
+        "SELECT * FROM chat_messages WHERE session_id = ? ORDER BY created_at ASC",
+        (session_id,),
+    ).fetchall()
+    return jsonify({"session": dict(row), "messages": [dict(m) for m in messages]})
+
+
+@app.route("/api/sessions/<int:session_id>/messages", methods=["POST"])
+def sessions_message_add(session_id):
+    db = _db()
+    row = db.execute(
+        "SELECT id FROM chat_sessions WHERE id = ?", (session_id,)
+    ).fetchone()
+    if not row:
+        return jsonify({"error": "session not found"}), 404
+    data = request.get_json(force=True) or {}
+    role = (data.get("role") or "user").strip()
+    content = (data.get("content") or "").strip()
+    source = (data.get("source") or "voice").strip()
+    if not content:
+        return jsonify({"error": "content required"}), 400
+    cur = db.execute(
+        "INSERT INTO chat_messages (session_id, role, content, source) VALUES (?, ?, ?, ?)",
+        (session_id, role, content, source),
+    )
+    db.execute(
+        "UPDATE chat_sessions SET updated_at = datetime('now') WHERE id = ?",
+        (session_id,),
+    )
+    db.commit()
+    return jsonify({"id": cur.lastrowid, "ok": True})
+
+
+@app.route("/api/sessions/<int:session_id>/title", methods=["PATCH"])
+def sessions_title_update(session_id):
+    data = request.get_json(force=True) or {}
+    title = (data.get("title") or "").strip()
+    if not title:
+        return jsonify({"error": "title required"}), 400
+    db = _db()
+    db.execute(
+        "UPDATE chat_sessions SET title = ?, updated_at = datetime('now') WHERE id = ?",
+        (title, session_id),
+    )
+    db.commit()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/sessions/<int:session_id>/close", methods=["POST"])
+def sessions_close(session_id):
+    import requests as _req
+    db = _db()
+    row = db.execute(
+        "SELECT * FROM chat_sessions WHERE id = ?", (session_id,)
+    ).fetchone()
+    if not row:
+        return jsonify({"error": "not found"}), 404
+
+    db.execute(
+        "UPDATE chat_sessions SET ended_at = datetime('now'), updated_at = datetime('now') WHERE id = ?",
+        (session_id,),
+    )
+    db.commit()
+
+    messages = db.execute(
+        "SELECT role, content, created_at FROM chat_messages WHERE session_id = ? ORDER BY created_at ASC",
+        (session_id,),
+    ).fetchall()
+
+    history_dir = Path(os.path.expanduser("~/watson/data/history"))
+    history_dir.mkdir(parents=True, exist_ok=True)
+    session_data = dict(row)
+    md_lines = [
+        f"# {session_data['title']}",
+        f"Session ID: {session_id}",
+        f"Started: {session_data['created_at']}",
+        f"Project: {session_data['project_slug'] or 'None'}",
+        "",
+    ]
+    for m in messages:
+        label = "Bill" if m["role"] == "user" else "Watson"
+        md_lines.append(f"**{label}** ({m['created_at'][:16]})")
+        md_lines.append(m["content"])
+        md_lines.append("")
+
+    md_path = history_dir / f"{session_id}.md"
+    md_path.write_text("\n".join(md_lines), encoding="utf-8")
+
+    suggested_slug = None
+    if not session_data.get("project_slug") and messages:
+        conversation_text = " ".join(m["content"] for m in messages[:10])
+        projects = _parse_projects_index()
+        project_names = [f"{p.get('slug','')}: {p.get('name','')}" for p in projects]
+        if project_names:
+            try:
+                detect_resp = _req.post(
+                    "http://localhost:11434/api/generate",
+                    json={
+                        "model": "qwen2.5:7b",
+                        "prompt": (
+                            f"Given this conversation excerpt, which project does it most likely belong to?\n\n"
+                            f"Projects: {', '.join(project_names)}\n\n"
+                            f"Conversation: {conversation_text[:500]}\n\n"
+                            f"Reply with only the project slug, or 'none' if no clear match."
+                        ),
+                        "stream": False,
+                    },
+                    timeout=15,
+                )
+                detected = detect_resp.json().get("response", "none").strip().lower().split()[0]
+                valid_slugs = [p.get("slug", "") for p in projects]
+                if detected in valid_slugs:
+                    suggested_slug = detected
+            except Exception as exc:
+                log.warning("Project auto-detect failed: %s", exc)
+
+    return jsonify({
+        "ok": True,
+        "session_id": session_id,
+        "markdown_path": str(md_path),
+        "suggested_project_slug": suggested_slug,
+    })
+
+
+@app.route("/api/sessions/<int:session_id>/file", methods=["POST"])
+def sessions_file(session_id):
+    import subprocess as _sp
+    data = request.get_json(force=True) or {}
+    project_slug = (data.get("project_slug") or "").strip()
+    project_name = (data.get("project_name") or "").strip()
+
+    if not project_slug:
+        return jsonify({"error": "project_slug required"}), 400
+
+    db = _db()
+    session_row = db.execute(
+        "SELECT * FROM chat_sessions WHERE id = ?", (session_id,)
+    ).fetchone()
+    if not session_row:
+        return jsonify({"error": "session not found"}), 404
+
+    project_dir = MEMORY / "projects" / project_slug
+    if not project_dir.exists():
+        if not project_name:
+            return jsonify({"error": "project_name required for new project"}), 400
+        try:
+            from jobs.memory.new_project import create_project
+            create_project(project_slug, project_name)
+        except Exception as exc:
+            return jsonify({"error": f"Failed to create project: {exc}"}), 500
+
+    history_path = Path(os.path.expanduser(f"~/watson/data/history/{session_id}.md"))
+    if not history_path.exists():
+        messages = db.execute(
+            "SELECT role, content, created_at FROM chat_messages WHERE session_id = ? ORDER BY created_at ASC",
+            (session_id,),
+        ).fetchall()
+        session_data = dict(session_row)
+        md_lines = [
+            f"# {session_data['title']}",
+            f"Session ID: {session_id}",
+            f"Started: {session_data['created_at']}",
+            "",
+        ]
+        for m in messages:
+            label = "Bill" if m["role"] == "user" else "Watson"
+            md_lines.append(f"**{label}** ({m['created_at'][:16]})")
+            md_lines.append(m["content"])
+            md_lines.append("")
+        history_path.parent.mkdir(parents=True, exist_ok=True)
+        history_path.write_text("\n".join(md_lines), encoding="utf-8")
+
+    notes_dir = project_dir / "notes"
+    notes_dir.mkdir(exist_ok=True)
+    date_str = session_row["created_at"][:10]
+    dest = notes_dir / f"{date_str}-session-{session_id}.md"
+    import shutil
+    shutil.copy2(str(history_path), str(dest))
+
+    db.execute(
+        "UPDATE chat_sessions SET project_slug = ?, auto_filed = 1, updated_at = datetime('now') WHERE id = ?",
+        (project_slug, session_id),
+    )
+    db.commit()
+
+    try:
+        _sp.run(["git", "add", str(dest)], cwd=str(MEMORY.parent), check=True)
+        _sp.run(
+            ["git", "commit", "-m", f"session({session_id}): filed under {project_slug}"],
+            cwd=str(MEMORY.parent), check=True,
+        )
+    except Exception as exc:
+        log.warning("Git commit for session file failed: %s", exc)
+
+    _send_telegram(f"📁 Session '{session_row['title']}' filed under {project_slug}")
+
+    return jsonify({"ok": True, "filed_to": project_slug, "note_file": dest.name})
+
+
+@app.route("/api/voice", methods=["POST"])
+def voice():
+    import requests as _req
+    data = request.get_json(force=True) or {}
+    message = (data.get("message") or "").strip()
+    session_id = data.get("session_id")
+    project_slug = (data.get("project_slug") or "").strip() or None
+    history = data.get("history") or []
+
+    if not message:
+        return jsonify({"error": "message required"}), 400
+
+    project_context = ""
+    if project_slug:
+        mem_path = MEMORY / "projects" / project_slug / "memory.md"
+        if mem_path.exists():
+            project_context = mem_path.read_text(encoding="utf-8")[:2000]
+
+    db = _db()
+    if session_id:
+        try:
+            db.execute(
+                "INSERT INTO chat_messages (session_id, role, content, source) VALUES (?, 'user', ?, 'voice')",
+                (session_id, message),
+            )
+            db.execute(
+                "UPDATE chat_sessions SET updated_at = datetime('now') WHERE id = ?",
+                (session_id,),
+            )
+            db.commit()
+        except Exception as exc:
+            log.warning("Failed to persist user voice message: %s", exc)
+
+    CLAUDE_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+
+    if CLAUDE_API_KEY:
+        try:
+            import urllib.request, json as _json
+            system = WATSON_SYSTEM
+            if project_context:
+                system += f"\n\nPROJECT CONTEXT:\n{project_context}"
+
+            messages_payload = []
+            for h in history[-6:]:
+                if h.get("role") in ("user", "assistant") and h.get("content"):
+                    messages_payload.append({"role": h["role"], "content": h["content"]})
+            messages_payload.append({"role": "user", "content": message})
+
+            payload = _json.dumps({
+                "model": "claude-sonnet-4-6",
+                "max_tokens": 1024,
+                "system": system,
+                "messages": messages_payload,
+            }).encode()
+
+            req = urllib.request.Request(
+                "https://api.anthropic.com/v1/messages",
+                data=payload,
+                headers={
+                    "x-api-key": CLAUDE_API_KEY,
+                    "anthropic-version": "2023-06-01",
+                    "content-type": "application/json",
+                },
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                result = _json.loads(resp.read())
+            reply = result["content"][0]["text"]
+        except Exception as exc:
+            log.error("Claude API voice call failed: %s", exc)
+            reply = f"Claude API error: {exc}"
+    else:
+        messages_payload = []
+        for h in history[-4:]:
+            if h.get("role") in ("user", "assistant") and h.get("content"):
+                messages_payload.append({"role": h["role"], "content": h["content"]})
+        messages_payload.append({"role": "user", "content": message})
+        system = WATSON_SYSTEM
+        if project_context:
+            system += f"\n\nPROJECT CONTEXT:\n{project_context}"
+        try:
+            resp = _req.post(
+                "http://localhost:11434/api/chat",
+                json={"model": "llama3.2:3b", "system": system, "messages": messages_payload, "stream": True, "num_predict": 400},
+                stream=True,
+                timeout=30,
+            )
+            resp.raise_for_status()
+            parts = []
+            for line in resp.iter_lines():
+                if not line:
+                    continue
+                try:
+                    chunk = json.loads(line)
+                except Exception:
+                    continue
+                token = chunk.get("message", {}).get("content", "")
+                if token:
+                    parts.append(token)
+                if chunk.get("done"):
+                    break
+            reply = "".join(parts) or "No response."
+        except Exception as exc:
+            reply = f"Watson error: {exc}"
+
+    if session_id:
+        try:
+            db.execute(
+                "INSERT INTO chat_messages (session_id, role, content, source) VALUES (?, 'assistant', ?, 'voice')",
+                (session_id, reply),
+            )
+            db.execute(
+                "UPDATE chat_sessions SET updated_at = datetime('now') WHERE id = ?",
+                (session_id,),
+            )
+            db.commit()
+        except Exception as exc:
+            log.warning("Failed to persist assistant voice message: %s", exc)
+
+    return jsonify({"response": reply, "session_id": session_id})
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────

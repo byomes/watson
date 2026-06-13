@@ -32,7 +32,7 @@ log = logging.getLogger(__name__)
 DB_PATH = WATSON_ROOT / "data" / "watson.db"
 PIPELINE_LOG_DIR = WATSON_ROOT / "logs" / "build-pipeline"
 
-_CLAUDE_CMD = shutil.which("claude") or "/usr/local/bin/claude"
+_CLAUDE_CMD = shutil.which("claude") or "/home/billyomes/.nvm/versions/node/v24.16.0/bin/claude"
 _GIT_CMD = shutil.which("git") or "/usr/bin/git"
 _PYTHON_CMD = shutil.which("python3") or "/usr/bin/python3"
 
