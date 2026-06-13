@@ -28,6 +28,19 @@ from jobs.connect_cards.reports import _CSS, _wrap, _conn
 
 load_dotenv(os.path.expanduser("~/watson/.env"))
 
+
+def _ensure_schema():
+    try:
+        with _conn() as db:
+            db.execute(
+                "ALTER TABLE members ADD COLUMN shepherding_exempt INTEGER NOT NULL DEFAULT 0"
+            )
+    except Exception:
+        pass
+
+
+_ensure_schema()
+
 DB_PATH    = os.path.expanduser("~/watson/data/congregation.db")
 SMTP_HOST  = "smtp.gmail.com"
 SMTP_PORT  = 587
@@ -69,13 +82,14 @@ def _build_absent_section(days: int, is_critical: bool) -> tuple[str, int]:
     with _conn() as conn:
         rows = conn.execute(
             """
-            SELECT m.name, m.campus_preference,
+            SELECT m.id, m.name, m.campus_preference,
                    MAX(cc.service_date) AS last_seen,
                    CAST((julianday('now') - julianday(MAX(cc.service_date))) / 7 AS INTEGER)
                        AS weeks_absent
             FROM members m
             JOIN connect_cards cc ON cc.member_id = m.id
             WHERE m.status != 'inactive'
+              AND (m.shepherding_exempt IS NULL OR m.shepherding_exempt = 0)
             GROUP BY m.id
             HAVING MAX(cc.service_date) < ?
             ORDER BY weeks_absent DESC
@@ -103,7 +117,7 @@ def _build_absent_section(days: int, is_critical: bool) -> tuple[str, int]:
         if is_critical:
             name_cell = f"<span style='{_ALERT_STYLE}'>Critical</span>&nbsp; " + name_cell
         table_rows += (
-            f"<tr>"
+            f"<tr data-member-id='{r['id']}'>"
             f"<td>{name_cell}</td>"
             f"<td>{r['campus_preference'] or '—'}</td>"
             f"<td>{r['last_seen'] or '—'}</td>"
@@ -131,7 +145,7 @@ def _build_visitors_section() -> tuple[str, int]:
     with _conn() as conn:
         rows = conn.execute(
             """
-            SELECT m.name, m.email, m.phone, cc.campus,
+            SELECT m.id, m.name, m.email, m.phone, cc.campus,
                    cc.service_date AS visit_date,
                    CAST((julianday('now') - julianday(cc.service_date)) / 7 AS INTEGER)
                        AS weeks_since
@@ -142,6 +156,7 @@ def _build_visitors_section() -> tuple[str, int]:
               AND cc.service_date <= ?
               AND cc.service_date >= ?
               AND (SELECT COUNT(*) FROM connect_cards WHERE member_id = m.id) = 1
+              AND (m.shepherding_exempt IS NULL OR m.shepherding_exempt = 0)
             ORDER BY cc.service_date
             """,
             (cutoff_near, cutoff_far),
@@ -164,7 +179,7 @@ def _build_visitors_section() -> tuple[str, int]:
         if r["phone"]:
             contact += ("<br>" if contact else "") + r["phone"]
         table_rows += (
-            f"<tr>"
+            f"<tr data-member-id='{r['id']}'>"
             f"<td><strong>{r['name'] or '(no name)'}</strong></td>"
             f"<td><small>{contact or '—'}</small></td>"
             f"<td>{r['campus'] or '—'}</td>"

@@ -1909,12 +1909,48 @@ function closeShepherdingPanel() {
 
 async function runShepherdingReport() {
   const out = document.getElementById('shepherding-output');
+  const view = document.getElementById('shepherding-report-view');
   out.textContent = 'Generating report…';
+  view.innerHTML = '';
   try {
-    const data = await api('/api/shepherding/run');
-    out.textContent = data.summary || data.error || 'Done.';
+    const [summaryData, reportData] = await Promise.all([
+      api('/api/shepherding/run'),
+      api('/api/shepherding/report'),
+    ]);
+    out.textContent = summaryData.summary || summaryData.error || 'Done.';
+    if (reportData.html) {
+      view.innerHTML = reportData.html;
+      view.querySelectorAll('tr[data-member-id]').forEach(row => {
+        const memberId = row.getAttribute('data-member-id');
+        const nameCell = row.querySelector('td:first-child');
+        if (!nameCell) return;
+        const btn = document.createElement('button');
+        btn.textContent = 'Exempt';
+        btn.style.cssText = 'margin-left:8px;font-size:.75em;padding:2px 7px;border-radius:4px;border:1px solid #ccc;background:#f5f5f5;cursor:pointer;color:#555';
+        btn.onclick = () => exemptMember(parseInt(memberId), nameCell.textContent.trim(), btn, row);
+        nameCell.appendChild(btn);
+      });
+    }
   } catch (e) {
     out.textContent = 'Error: ' + e.message;
+  }
+}
+
+async function exemptMember(memberId, name, btn, row) {
+  btn.disabled = true;
+  btn.textContent = '…';
+  try {
+    const data = await api('/api/shepherding/exempt', 'POST', { member_id: memberId });
+    if (data.ok) {
+      btn.textContent = 'Exempted';
+      row.style.opacity = '0.5';
+    } else {
+      btn.textContent = 'Error';
+      btn.disabled = false;
+    }
+  } catch (e) {
+    btn.textContent = 'Error';
+    btn.disabled = false;
   }
 }
 
