@@ -1897,6 +1897,38 @@ function closeReportsPanel() {
   document.getElementById('settings-main').style.display = '';
 }
 
+function openShepherdingPanel() {
+  document.getElementById('settings-main').style.display = 'none';
+  document.getElementById('settings-shepherding').classList.add('open');
+}
+
+function closeShepherdingPanel() {
+  document.getElementById('settings-shepherding').classList.remove('open');
+  document.getElementById('settings-main').style.display = '';
+}
+
+async function runShepherdingReport() {
+  const out = document.getElementById('shepherding-output');
+  out.textContent = 'Generating report…';
+  try {
+    const data = await api('/api/shepherding/run');
+    out.textContent = data.summary || data.error || 'Done.';
+  } catch (e) {
+    out.textContent = 'Error: ' + e.message;
+  }
+}
+
+async function emailShepherdingReport() {
+  const out = document.getElementById('shepherding-output');
+  out.textContent = 'Sending…';
+  try {
+    const data = await api('/api/shepherding/email', 'POST');
+    out.textContent = data.message || data.error || 'Report sent.';
+  } catch (e) {
+    out.textContent = 'Error: ' + e.message;
+  }
+}
+
 function loadReportsList() {
   const reports = [
     { key: 'next_steps', label: 'Next Steps' },
