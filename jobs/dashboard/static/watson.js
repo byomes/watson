@@ -92,6 +92,7 @@ function _initNavDrag() {
     row.setAttribute('draggable', 'false');
 
     row.addEventListener('touchstart', e => {
+      e.preventDefault();
       console.log('[drag] touchstart fired', e.target);
       const touch = e.touches[0];
       const onHandle = !!e.target.closest('.drag-handle');
@@ -104,7 +105,7 @@ function _initNavDrag() {
           _activateDrag(row, touch);
         }, 150);
       }
-    }, { passive: true });
+    }, { passive: false });
 
     row.addEventListener('touchmove', e => {
       console.log('[drag] touchmove', e.touches[0].clientY);
