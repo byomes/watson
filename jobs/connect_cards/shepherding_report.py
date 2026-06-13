@@ -257,31 +257,26 @@ def _build_critical_section() -> tuple[str, int]:
 # ── Section 3: First-Time Visitors Not Followed Up ─────────────────────────────
 
 def _build_visitors_section() -> tuple[str, int]:
-    """First-time visitors from the last 3 weeks (0–21 days)."""
-    cutoff = _cutoff(21)
-
+    """Members with exactly one connect card, visited within the last 21 days."""
     with _conn() as conn:
         rows = conn.execute(
             """
-            SELECT m.id, m.name, m.email, m.phone, cc.campus,
-                   cc.service_date AS visit_date,
+            SELECT m.id, m.name, m.email, m.phone, cc.service_date AS visit_date,
                    CAST((julianday('now') - julianday(cc.service_date)) / 7 AS INTEGER)
                        AS weeks_since
-            FROM follow_ups fu
-            JOIN members m  ON m.id  = fu.member_id
-            JOIN connect_cards cc ON cc.id = fu.card_id
-            WHERE fu.note = 'First-time visitor'
-              AND cc.service_date >= ?
-              AND (SELECT COUNT(*) FROM connect_cards WHERE member_id = m.id) = 1
-              AND (m.shepherding_exempt IS NULL OR m.shepherding_exempt = 0)
-            ORDER BY cc.service_date
+            FROM members m
+            JOIN connect_cards cc ON cc.member_id = m.id
+            WHERE (m.shepherding_exempt IS NULL OR m.shepherding_exempt = 0)
+            GROUP BY m.id
+            HAVING COUNT(cc.id) = 1
+              AND MAX(cc.service_date) >= date('now', '-21 days')
+            ORDER BY cc.service_date DESC
             """,
-            (cutoff,),
         ).fetchall()
         campus_map = {r["id"]: _get_member_campus(r["id"], conn) for r in rows}
 
     count   = len(rows)
-    heading = f"<h2>First-Time Visitors — Last 3 Weeks ({count})</h2>"
+    heading = f"<h2>👋 First-Time Visitors — Last 3 Weeks ({count})</h2>"
 
     if not rows:
         return (
