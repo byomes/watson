@@ -45,27 +45,76 @@ async function loadMenuOrder() {
 function _initNavDrag() {
   const container = document.getElementById('settings-nav-list');
   if (!container) return;
+  let ghost = null;
+  let ghostOffsetY = 0;
+
+  function _clearInsertionLines() {
+    container.querySelectorAll('.overlay-row[data-menu-key]').forEach(r => {
+      r.style.borderTop = '';
+    });
+  }
+
+  function _rowAtPoint(x, y) {
+    const el = document.elementFromPoint(x, y);
+    if (!el) return null;
+    return el.closest('.overlay-row[data-menu-key]');
+  }
+
   container.querySelectorAll('.overlay-row[data-menu-key]').forEach(row => {
-    row.addEventListener('dragstart', e => {
+    row.setAttribute('draggable', 'false');
+
+    row.addEventListener('touchstart', e => {
+      const touch = e.touches[0];
       _draggedNavRow = row;
-      row.style.opacity = '0.4';
-      e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/plain', row.getAttribute('data-menu-key'));
-    });
-    row.addEventListener('dragend', () => {
-      row.style.opacity = '';
+      row.classList.add('dragging');
+
+      const rect = row.getBoundingClientRect();
+      ghostOffsetY = touch.clientY - rect.top;
+
+      ghost = row.cloneNode(true);
+      ghost.style.cssText = [
+        'position:fixed',
+        `top:${rect.top}px`,
+        `left:${rect.left}px`,
+        `width:${rect.width}px`,
+        'opacity:0.85',
+        'background:var(--surface)',
+        'z-index:9999',
+        'pointer-events:none',
+        'box-shadow:0 4px 12px rgba(0,0,0,0.3)',
+      ].join(';');
+      document.body.appendChild(ghost);
+    }, { passive: true });
+
+    row.addEventListener('touchmove', e => {
+      if (!_draggedNavRow) return;
+      e.preventDefault();
+      const touch = e.touches[0];
+      ghost.style.top = (touch.clientY - ghostOffsetY) + 'px';
+
+      _clearInsertionLines();
+      const target = _rowAtPoint(touch.clientX, touch.clientY);
+      if (target && target !== _draggedNavRow) {
+        target.style.borderTop = '2px solid #c9a84c';
+      }
+    }, { passive: false });
+
+    row.addEventListener('touchend', e => {
+      if (!_draggedNavRow) return;
+      const touch = e.changedTouches[0];
+
+      if (ghost) { ghost.remove(); ghost = null; }
+      _draggedNavRow.classList.remove('dragging');
+      _clearInsertionLines();
+
+      const target = _rowAtPoint(touch.clientX, touch.clientY);
+      if (target && target !== _draggedNavRow) {
+        const mid = target.getBoundingClientRect().top + target.getBoundingClientRect().height / 2;
+        container.insertBefore(_draggedNavRow, touch.clientY < mid ? target : target.nextSibling);
+        _saveMenuOrder();
+      }
+
       _draggedNavRow = null;
-    });
-    row.addEventListener('dragover', e => {
-      e.preventDefault();
-      e.dataTransfer.dropEffect = 'move';
-      if (!_draggedNavRow || _draggedNavRow === row) return;
-      const mid = row.getBoundingClientRect().top + row.getBoundingClientRect().height / 2;
-      container.insertBefore(_draggedNavRow, e.clientY < mid ? row : row.nextSibling);
-    });
-    row.addEventListener('drop', e => {
-      e.preventDefault();
-      _saveMenuOrder();
     });
   });
 }
