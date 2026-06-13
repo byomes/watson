@@ -91,15 +91,14 @@ _CAMPUS_DISPLAY = {
 
 def _get_member_campus(member_id: int, db) -> str:
     """
-    Classify campus from last 8 weeks of connect cards.
+    Classify campus from full attendance history.
     - 3+ Wilmington AND 3+ Online → "Hybrid"
     - Otherwise → whichever appears most
     - No cards → "Unknown"
     """
-    cutoff = _cutoff(56)
     rows = db.execute(
-        "SELECT campus FROM connect_cards WHERE member_id = ? AND service_date >= ?",
-        (member_id, cutoff),
+        "SELECT campus FROM connect_cards WHERE member_id = ?",
+        (member_id,),
     ).fetchall()
 
     if not rows:
@@ -118,17 +117,17 @@ def _get_member_campus(member_id: int, db) -> str:
     return result
 
 
-# ── Section 1 & 2: Absent Members ─────────────────────────────────────────────
+# ── Section 1: At Risk (3–5 weeks absent) ─────────────────────────────────────
 
-def _build_absent_section(days: int, is_critical: bool) -> tuple[str, int]:
-    """Build HTML for absent members. days=21 → 3+ weeks, days=42 → 6+ weeks."""
-    cutoff = _cutoff(days)
-    weeks  = days // 7
+def _build_at_risk_section() -> tuple[str, int]:
+    """Members whose last connect card was 21–41 days ago (3–5 weeks)."""
+    cutoff_near = _cutoff(21)
+    cutoff_far  = _cutoff(42)
 
     with _conn() as conn:
         rows = conn.execute(
             """
-            SELECT m.id, m.name, m.campus_preference,
+            SELECT m.id, m.name,
                    MAX(cc.service_date) AS last_seen,
                    CAST((julianday('now') - julianday(MAX(cc.service_date))) / 7 AS INTEGER)
                        AS weeks_absent
@@ -137,43 +136,95 @@ def _build_absent_section(days: int, is_critical: bool) -> tuple[str, int]:
             WHERE m.status != 'inactive'
               AND (m.shepherding_exempt IS NULL OR m.shepherding_exempt = 0)
             GROUP BY m.id
-            HAVING MAX(cc.service_date) < ?
+            HAVING MAX(cc.service_date) < ? AND MAX(cc.service_date) > ?
             ORDER BY weeks_absent DESC
             """,
-            (cutoff,),
+            (cutoff_near, cutoff_far),
         ).fetchall()
         campus_map = {r["id"]: _get_member_campus(r["id"], conn) for r in rows}
 
-    count = len(rows)
-
-    if is_critical:
-        heading = (
-            f"<h2 style='color:#c0392b'>&#128308; Critical Care — Absent 6+ Weeks ({count})</h2>"
-            f"<p style='color:#c0392b;font-size:.85em;margin-top:-8px'>"
-            f"These members require immediate pastoral attention.</p>"
-        )
-    else:
-        heading = f"<h2>Absent {weeks}+ Weeks ({count})</h2>"
+    count   = len(rows)
+    heading = f"<h2>⚠️ At Risk — Absent 3–5 Weeks ({count})</h2>"
 
     if not rows:
         return heading + "<p class='empty'>No members in this category.</p>", count
 
     table_rows = ""
     for r in rows:
-        name_cell = f"<strong>{r['name'] or '(no name)'}</strong>"
-        if is_critical:
-            name_cell += " <span style='color:#ff6b6b;font-size:11px'>&#9679; Critical</span>"
         campus = _CAMPUS_DISPLAY.get(campus_map[r["id"]], "—")
         campus_badge = (
             f"<span style='display:inline-block;background:#1e3a5f;color:#7eb8f7;"
             f"font-size:11px;padding:2px 8px;border-radius:4px;margin-top:4px'>{campus}</span>"
         )
-        wks_style = "color:#ff6b6b;font-weight:bold" if is_critical else "color:#f0c040"
+        table_rows += (
+            f"<tr data-member-id='{r['id']}'>"
+            f"<td><strong>{r['name'] or '(no name)'}</strong><br>{campus_badge}</td>"
+            f"<td><span style='font-size:12px;color:#aaa'>Last seen: {_fmt_date(r['last_seen'])}</span></td>"
+            f"<td><span style='color:#f0c040'>{r['weeks_absent']} wks</span></td>"
+            f"</tr>"
+        )
+
+    html = (
+        heading
+        + "<table><thead><tr>"
+        + "<th>Name</th><th>Last Seen</th><th>Absent</th>"
+        + "</tr></thead>"
+        + f"<tbody>{table_rows}</tbody></table>"
+    )
+    return html, count
+
+
+# ── Section 2: Critical Care (6+ weeks absent) ────────────────────────────────
+
+def _build_critical_section() -> tuple[str, int]:
+    """Members whose last connect card was 42+ days ago (6+ weeks)."""
+    cutoff = _cutoff(42)
+
+    with _conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT m.id, m.name,
+                   MAX(cc.service_date) AS last_seen,
+                   CAST((julianday('now') - julianday(MAX(cc.service_date))) / 7 AS INTEGER)
+                       AS weeks_absent
+            FROM members m
+            JOIN connect_cards cc ON cc.member_id = m.id
+            WHERE m.status != 'inactive'
+              AND (m.shepherding_exempt IS NULL OR m.shepherding_exempt = 0)
+            GROUP BY m.id
+            HAVING MAX(cc.service_date) <= ?
+            ORDER BY weeks_absent DESC
+            """,
+            (cutoff,),
+        ).fetchall()
+        campus_map = {r["id"]: _get_member_campus(r["id"], conn) for r in rows}
+
+    count   = len(rows)
+    heading = (
+        f"<h2 style='color:#c0392b'>\U0001f534 Critical Care — Absent 6+ Weeks ({count})</h2>"
+        f"<p style='color:#c0392b;font-size:.85em;margin-top:-8px'>"
+        f"These members require immediate pastoral attention.</p>"
+    )
+
+    if not rows:
+        return heading + "<p class='empty'>No members in this category.</p>", count
+
+    table_rows = ""
+    for r in rows:
+        name_cell = (
+            f"<strong>{r['name'] or '(no name)'}</strong>"
+            f" <span style='color:#ff6b6b;font-size:11px'>&#9679; Critical</span>"
+        )
+        campus = _CAMPUS_DISPLAY.get(campus_map[r["id"]], "—")
+        campus_badge = (
+            f"<span style='display:inline-block;background:#1e3a5f;color:#7eb8f7;"
+            f"font-size:11px;padding:2px 8px;border-radius:4px;margin-top:4px'>{campus}</span>"
+        )
         table_rows += (
             f"<tr data-member-id='{r['id']}'>"
             f"<td>{name_cell}<br>{campus_badge}</td>"
             f"<td><span style='font-size:12px;color:#aaa'>Last seen: {_fmt_date(r['last_seen'])}</span></td>"
-            f"<td><span style='{wks_style}'>{r['weeks_absent']} wks</span></td>"
+            f"<td><span style='color:#ff6b6b;font-weight:bold'>{r['weeks_absent']} wks</span></td>"
             f"</tr>"
         )
 
@@ -372,8 +423,8 @@ def generate_shepherding_report() -> tuple[str, str]:
     today   = _today()
     subject = f"Shepherding Report — {today}"
 
-    s1_html, _  = _build_absent_section(21, is_critical=False)
-    s2_html, _  = _build_absent_section(42, is_critical=True)
+    s1_html, _  = _build_at_risk_section()
+    s2_html, _  = _build_critical_section()
     s3_html, _  = _build_visitors_section()
     s4_html, _  = _build_next_steps_section()
     s5_html, _  = _build_prayer_section()
@@ -386,18 +437,16 @@ def telegram_shepherding_summary() -> str:
     """Return a short plain-text summary for Telegram."""
     today = _today()
 
-    _, absent_3  = _build_absent_section(21, is_critical=False)
-    _, absent_6  = _build_absent_section(42, is_critical=True)
+    _, at_risk   = _build_at_risk_section()
+    _, critical  = _build_critical_section()
     _, visitors  = _build_visitors_section()
     _, steps     = _build_next_steps_section()
     _, prayers   = _build_prayer_section()
 
-    absent_3_5 = absent_3 - absent_6
-
     return (
         f"\U0001f4cb Shepherding Report — {today}\n"
-        f"\U0001f534 Absent 6+ weeks: {absent_6} people\n"
-        f"\U0001f7e1 Absent 3–5 weeks: {absent_3_5} people\n"
+        f"\U0001f534 Critical Care (6+ weeks): {critical} people\n"
+        f"⚠️ At Risk (3–5 weeks): {at_risk} people\n"
         f"\U0001f44b Visitors needing follow-up: {visitors}\n"
         f"✋ Next steps this month: {steps}\n"
         f"\U0001f64f Prayer requests this week: {prayers}\n"
