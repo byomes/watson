@@ -4,6 +4,7 @@ import logging
 import os
 import sqlite3
 import sys
+from datetime import datetime
 from pathlib import Path
 
 log = logging.getLogger(__name__)
@@ -2790,6 +2791,13 @@ def voice():
             log.warning("Failed to persist assistant voice message: %s", exc)
 
     return jsonify({"response": reply, "session_id": session_id})
+
+
+# ── Status API ────────────────────────────────────────────────────────────────
+
+@app.route("/api/status", methods=["GET"])
+def api_status():
+    return jsonify({"current_time": datetime.utcnow().isoformat()})
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────
