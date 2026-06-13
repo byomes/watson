@@ -234,6 +234,11 @@ def index():
     return render_template('index.html', app_js_ts=int(time.time()))
 
 
+@app.route("/api/status", methods=["GET"])
+def status():
+    return jsonify({"current_time": datetime.now().isoformat()})
+
+
 # ── Briefing API ──────────────────────────────────────────────────────────────
 
 @app.route("/api/briefing")
