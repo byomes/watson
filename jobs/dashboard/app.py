@@ -2184,6 +2184,36 @@ def projects_memory_post(slug):
     return jsonify({"ok": True})
 
 
+# ── Dashboard prefs ───────────────────────────────────────────────────────────
+
+_PREFS_PATH = os.path.expanduser("~/watson/data/dashboard_prefs.json")
+
+
+@app.route("/api/prefs", methods=["GET"])
+def prefs_get():
+    try:
+        if not os.path.exists(_PREFS_PATH):
+            return jsonify({"menu_order": []})
+        with open(_PREFS_PATH) as f:
+            return jsonify(json.load(f))
+    except Exception as exc:
+        log.error("prefs GET failed: %s", exc)
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/prefs", methods=["POST"])
+def prefs_post():
+    try:
+        data = request.get_json(force=True) or {}
+        os.makedirs(os.path.dirname(_PREFS_PATH), exist_ok=True)
+        with open(_PREFS_PATH, "w") as f:
+            json.dump(data, f)
+        return jsonify({"ok": True})
+    except Exception as exc:
+        log.error("prefs POST failed: %s", exc)
+        return jsonify({"error": str(exc)}), 500
+
+
 # ── Shepherding report ────────────────────────────────────────────────────────
 
 @app.route("/api/shepherding/run")
