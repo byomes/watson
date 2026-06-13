@@ -257,9 +257,8 @@ def _build_critical_section() -> tuple[str, int]:
 # ── Section 3: First-Time Visitors Not Followed Up ─────────────────────────────
 
 def _build_visitors_section() -> tuple[str, int]:
-    """Visitors with only one card, dated 3–8 weeks ago (21–56 days)."""
-    cutoff_near = _cutoff(21)   # 3 weeks ago (upper bound — they came at least 3 wks ago)
-    cutoff_far  = _cutoff(56)   # 8 weeks ago (lower bound — not older than 8 wks)
+    """First-time visitors from the last 3 weeks (0–21 days)."""
+    cutoff = _cutoff(21)
 
     with _conn() as conn:
         rows = conn.execute(
@@ -272,22 +271,21 @@ def _build_visitors_section() -> tuple[str, int]:
             JOIN members m  ON m.id  = fu.member_id
             JOIN connect_cards cc ON cc.id = fu.card_id
             WHERE fu.note = 'First-time visitor'
-              AND cc.service_date <= ?
               AND cc.service_date >= ?
               AND (SELECT COUNT(*) FROM connect_cards WHERE member_id = m.id) = 1
               AND (m.shepherding_exempt IS NULL OR m.shepherding_exempt = 0)
             ORDER BY cc.service_date
             """,
-            (cutoff_near, cutoff_far),
+            (cutoff,),
         ).fetchall()
         campus_map = {r["id"]: _get_member_campus(r["id"], conn) for r in rows}
 
     count   = len(rows)
-    heading = f"<h2>First-Time Visitors Needing Follow-Up ({count})</h2>"
+    heading = f"<h2>First-Time Visitors — Last 3 Weeks ({count})</h2>"
 
     if not rows:
         return (
-            heading + "<p class='empty'>No first-time visitors in the 3–8 week window.</p>",
+            heading + "<p class='empty'>No first-time visitors in the last 3 weeks.</p>",
             count,
         )
 
@@ -463,7 +461,7 @@ def telegram_shepherding_summary() -> str:
         f"\U0001f4cb Shepherding Report — {today}\n"
         f"\U0001f534 Critical Care (6+ weeks): {critical} people\n"
         f"⚠️ At Risk (3–5 weeks): {at_risk} people\n"
-        f"\U0001f44b Visitors needing follow-up: {visitors}\n"
+        f"\U0001f44b First-time visitors (last 3 weeks): {visitors}\n"
         f"✋ Next steps this month: {steps}\n"
         f"\U0001f64f Prayer requests this week: {prayers}\n"
         f"\nFull report sent to your email."
