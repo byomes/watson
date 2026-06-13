@@ -288,31 +288,58 @@ def run(build_request: str, chat_id: int) -> None:
         return
     _tg_send(chat_id, "📋 Spec drafted. Sending to Claude for review...")
 
-    # ── Step 2: Claude API spec review ──────────────────────────────────────
-    try:
-        spec_review = _review_spec(spec_draft)
-    except Exception as exc:
-        _tg_send(chat_id, f"Build pipeline failed at spec review: {exc}")
-        return
+    # ── Step 2: Claude API spec review (up to 2 attempts with auto-revision) ─
+    auto_revised = False
+    for attempt in range(1, 3):
+        try:
+            spec_review = _review_spec(spec_draft)
+        except Exception as exc:
+            _tg_send(chat_id, f"Build pipeline failed at spec review: {exc}")
+            return
 
-    if spec_review.get("recommendation") != "approve":
+        if spec_review.get("recommendation") == "approve":
+            break
+
         changes = spec_review.get("required_changes") or []
-        changes_text = (
-            "\n".join(f"• {c}" for c in changes)
+        changes_numbered = (
+            "\n".join(f"{i + 1}. {c}" for i, c in enumerate(changes))
             if changes
             else spec_review.get("assessment", "No details provided.")
         )
-        _tg_send(
-            chat_id,
-            f"🔄 Spec needs revision before build can proceed.\n\n"
-            f"Assessment: {spec_review.get('assessment', '')}\n\n"
-            f"Required changes:\n{changes_text}\n\n"
-            f"Please re-trigger with a refined request.",
+
+        if attempt == 2:
+            changes_text = (
+                "\n".join(f"• {c}" for c in changes)
+                if changes
+                else spec_review.get("assessment", "No details provided.")
+            )
+            _tg_send(
+                chat_id,
+                f"⚠️ Spec revision failed after 2 attempts. Required changes:\n{changes_text}\n\n"
+                f"Re-trigger with: build [refined request]",
+            )
+            return
+
+        # attempt == 1: auto-revise spec and loop back for second review
+        revision_prompt = (
+            f"You are Watson's spec writer. Revise the following spec based on required changes.\n\n"
+            f"ORIGINAL REQUEST: {build_request}\n\n"
+            f"PREVIOUS SPEC:\n{spec_draft}\n\n"
+            f"REQUIRED CHANGES:\n{changes_numbered}\n\n"
+            f"Produce a corrected spec incorporating all required changes."
         )
-        return
+        try:
+            spec_draft = _draft_spec(revision_prompt)
+        except Exception as exc:
+            _tg_send(chat_id, f"Build pipeline failed at spec auto-revision: {exc}")
+            return
+        auto_revised = True
 
     refined_spec = spec_draft
-    _tg_send(chat_id, "✅ Spec approved by Claude. Running Claude Code...")
+    if auto_revised:
+        _tg_send(chat_id, "🔄 Spec auto-revised and approved. Continuing build...")
+    else:
+        _tg_send(chat_id, "✅ Spec approved by Claude. Running Claude Code...")
 
     # ── Step 3: Claude Code execution ───────────────────────────────────────
     try:
