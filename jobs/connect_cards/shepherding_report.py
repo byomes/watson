@@ -127,16 +127,24 @@ def _build_at_risk_section() -> tuple[str, int]:
     with _conn() as conn:
         rows = conn.execute(
             """
-            SELECT m.id, m.name,
-                   MAX(cc.service_date) AS last_seen,
-                   CAST((julianday('now') - julianday(MAX(cc.service_date))) / 7 AS INTEGER)
-                       AS weeks_absent
-            FROM members m
-            JOIN connect_cards cc ON cc.member_id = m.id
-            WHERE m.status != 'inactive'
-              AND (m.shepherding_exempt IS NULL OR m.shepherding_exempt = 0)
-            GROUP BY m.id
-            HAVING MAX(cc.service_date) < ? AND MAX(cc.service_date) > ?
+            WITH base AS (
+                SELECT m.id, m.name,
+                       MAX(
+                         COALESCE((SELECT MAX(service_date) FROM connect_cards WHERE member_id = m.id), '1900-01-01'),
+                         COALESCE((SELECT MAX(service_date) FROM attendance  WHERE member_id = m.id), '1900-01-01')
+                       ) AS last_seen
+                FROM members m
+                WHERE m.status != 'inactive'
+                  AND (m.shepherding_exempt IS NULL OR m.shepherding_exempt = 0)
+                  AND (
+                    EXISTS (SELECT 1 FROM connect_cards WHERE member_id = m.id)
+                    OR EXISTS (SELECT 1 FROM attendance WHERE member_id = m.id)
+                  )
+            )
+            SELECT id, name, last_seen,
+                   CAST((julianday('now') - julianday(last_seen)) / 7 AS INTEGER) AS weeks_absent
+            FROM base
+            WHERE last_seen < ? AND last_seen > ?
             ORDER BY weeks_absent DESC
             """,
             (cutoff_near, cutoff_far),
@@ -183,16 +191,24 @@ def _build_critical_section() -> tuple[str, int]:
     with _conn() as conn:
         rows = conn.execute(
             """
-            SELECT m.id, m.name,
-                   MAX(cc.service_date) AS last_seen,
-                   CAST((julianday('now') - julianday(MAX(cc.service_date))) / 7 AS INTEGER)
-                       AS weeks_absent
-            FROM members m
-            JOIN connect_cards cc ON cc.member_id = m.id
-            WHERE m.status != 'inactive'
-              AND (m.shepherding_exempt IS NULL OR m.shepherding_exempt = 0)
-            GROUP BY m.id
-            HAVING MAX(cc.service_date) <= ?
+            WITH base AS (
+                SELECT m.id, m.name,
+                       MAX(
+                         COALESCE((SELECT MAX(service_date) FROM connect_cards WHERE member_id = m.id), '1900-01-01'),
+                         COALESCE((SELECT MAX(service_date) FROM attendance  WHERE member_id = m.id), '1900-01-01')
+                       ) AS last_seen
+                FROM members m
+                WHERE m.status != 'inactive'
+                  AND (m.shepherding_exempt IS NULL OR m.shepherding_exempt = 0)
+                  AND (
+                    EXISTS (SELECT 1 FROM connect_cards WHERE member_id = m.id)
+                    OR EXISTS (SELECT 1 FROM attendance WHERE member_id = m.id)
+                  )
+            )
+            SELECT id, name, last_seen,
+                   CAST((julianday('now') - julianday(last_seen)) / 7 AS INTEGER) AS weeks_absent
+            FROM base
+            WHERE last_seen <= ?
             ORDER BY weeks_absent DESC
             """,
             (cutoff,),
