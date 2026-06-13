@@ -72,6 +72,38 @@ def _cutoff(days: int) -> str:
     return (date.today() - timedelta(days=days)).isoformat()
 
 
+_CAMPUS_DISPLAY = {
+    "Wilmington": "Wilmington",
+    "Online":     "Online",
+    "Hybrid":     "Hybrid \U0001f500",
+    "Unknown":    "—",
+}
+
+
+def _get_member_campus(member_id: int, db) -> str:
+    """
+    Classify campus from last 8 weeks of connect cards.
+    - 3+ Wilmington AND 3+ Online → "Hybrid"
+    - Otherwise → whichever appears most
+    - No cards → "Unknown"
+    """
+    cutoff = _cutoff(56)
+    rows = db.execute(
+        "SELECT campus FROM connect_cards WHERE member_id = ? AND service_date >= ?",
+        (member_id, cutoff),
+    ).fetchall()
+
+    if not rows:
+        return "Unknown"
+
+    wilm   = sum(1 for r in rows if r["campus"] == "Wilmington")
+    online = sum(1 for r in rows if r["campus"] == "Online")
+
+    if wilm >= 3 and online >= 3:
+        return "Hybrid"
+    return "Wilmington" if wilm >= online else "Online"
+
+
 # ── Section 1 & 2: Absent Members ─────────────────────────────────────────────
 
 def _build_absent_section(days: int, is_critical: bool) -> tuple[str, int]:
@@ -96,6 +128,7 @@ def _build_absent_section(days: int, is_critical: bool) -> tuple[str, int]:
             """,
             (cutoff,),
         ).fetchall()
+        campus_map = {r["id"]: _get_member_campus(r["id"], conn) for r in rows}
 
     count = len(rows)
 
@@ -116,10 +149,11 @@ def _build_absent_section(days: int, is_critical: bool) -> tuple[str, int]:
         name_cell = f"<strong>{r['name'] or '(no name)'}</strong>"
         if is_critical:
             name_cell = f"<span style='{_ALERT_STYLE}'>Critical</span>&nbsp; " + name_cell
+        campus = _CAMPUS_DISPLAY.get(campus_map[r["id"]], "—")
         table_rows += (
             f"<tr data-member-id='{r['id']}'>"
             f"<td>{name_cell}</td>"
-            f"<td>{r['campus_preference'] or '—'}</td>"
+            f"<td>{campus}</td>"
             f"<td>{r['last_seen'] or '—'}</td>"
             f"<td>{r['weeks_absent']} wks</td>"
             f"</tr>"
@@ -161,6 +195,7 @@ def _build_visitors_section() -> tuple[str, int]:
             """,
             (cutoff_near, cutoff_far),
         ).fetchall()
+        campus_map = {r["id"]: _get_member_campus(r["id"], conn) for r in rows}
 
     count   = len(rows)
     heading = f"<h2>First-Time Visitors Needing Follow-Up ({count})</h2>"
@@ -178,11 +213,12 @@ def _build_visitors_section() -> tuple[str, int]:
             contact += f"<a href='mailto:{r['email']}'>{r['email']}</a>"
         if r["phone"]:
             contact += ("<br>" if contact else "") + r["phone"]
+        campus = _CAMPUS_DISPLAY.get(campus_map[r["id"]], "—")
         table_rows += (
             f"<tr data-member-id='{r['id']}'>"
             f"<td><strong>{r['name'] or '(no name)'}</strong></td>"
             f"<td><small>{contact or '—'}</small></td>"
-            f"<td>{r['campus'] or '—'}</td>"
+            f"<td>{campus}</td>"
             f"<td>{r['visit_date']}</td>"
             f"<td>{r['weeks_since']} wks</td>"
             f"</tr>"
