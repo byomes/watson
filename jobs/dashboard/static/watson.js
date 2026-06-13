@@ -19,6 +19,67 @@ function _syncThemeUI() {
   if (lbl) lbl.textContent = isDark ? 'Dark mode' : 'Light mode';
 }
 _syncThemeUI();
+
+// ── Settings nav drag-to-reorder ──────────────────────────────────────────────
+
+let _draggedNavRow = null;
+
+async function loadMenuOrder() {
+  try {
+    const prefs = await api('/api/prefs');
+    const order = (prefs && prefs.menu_order) || [];
+    const container = document.getElementById('settings-nav-list');
+    if (container && order.length) {
+      const rows = [...container.querySelectorAll('.overlay-row[data-menu-key]')];
+      const keyMap = Object.fromEntries(rows.map(r => [r.getAttribute('data-menu-key'), r]));
+      const sorted = [
+        ...order.filter(k => keyMap[k]).map(k => keyMap[k]),
+        ...rows.filter(r => !order.includes(r.getAttribute('data-menu-key'))),
+      ];
+      sorted.forEach(r => container.appendChild(r));
+    }
+  } catch (e) { /* silently ignore on load */ }
+  _initNavDrag();
+}
+
+function _initNavDrag() {
+  const container = document.getElementById('settings-nav-list');
+  if (!container) return;
+  container.querySelectorAll('.overlay-row[data-menu-key]').forEach(row => {
+    row.addEventListener('dragstart', e => {
+      _draggedNavRow = row;
+      row.style.opacity = '0.4';
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', row.getAttribute('data-menu-key'));
+    });
+    row.addEventListener('dragend', () => {
+      row.style.opacity = '';
+      _draggedNavRow = null;
+    });
+    row.addEventListener('dragover', e => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      if (!_draggedNavRow || _draggedNavRow === row) return;
+      const mid = row.getBoundingClientRect().top + row.getBoundingClientRect().height / 2;
+      container.insertBefore(_draggedNavRow, e.clientY < mid ? row : row.nextSibling);
+    });
+    row.addEventListener('drop', e => {
+      e.preventDefault();
+      _saveMenuOrder();
+    });
+  });
+}
+
+async function _saveMenuOrder() {
+  const container = document.getElementById('settings-nav-list');
+  if (!container) return;
+  const order = [...container.querySelectorAll('.overlay-row[data-menu-key]')]
+    .map(r => r.getAttribute('data-menu-key'));
+  try {
+    await api('/api/prefs', 'POST', { menu_order: order });
+  } catch (e) { console.error('Failed to save menu order', e); }
+}
+
 function toggleTheme() {
   const next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
   root.setAttribute('data-theme', next);
