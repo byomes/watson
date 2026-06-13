@@ -1366,8 +1366,7 @@ def chat_stream():
         return _sse_response(_stream_simple("Building that skill now. I'll notify you via Telegram when it's ready."))
 
     if route_result["action"] == "propose":
-        _pending_skill_request = message
-        return _sse_response(_stream_simple(route_result["message"]))
+        route_result = {"action": "chat"}
 
     if route_result["action"] == "wrap_up":
         log.info("WRAP_UP triggered — session_id=%s project_slug=%s", session_id, project_slug)
