@@ -2283,6 +2283,69 @@ def shepherding_checkin():
         return jsonify({"error": str(exc)}), 500
 
 
+# ── Data audit ────────────────────────────────────────────────────────────────
+
+@app.route("/api/audit/run", methods=["POST"])
+def audit_run():
+    try:
+        from jobs.connect_cards.data_audit import find_likely_duplicates, find_data_inconsistencies
+        return jsonify({
+            "duplicates":      find_likely_duplicates(),
+            "inconsistencies": find_data_inconsistencies(),
+        })
+    except Exception as exc:
+        log.error("audit/run failed: %s", exc)
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/audit/merge", methods=["POST"])
+def audit_merge():
+    try:
+        from jobs.connect_cards.data_audit import merge_members, update_member_field
+        data      = request.get_json(force=True) or {}
+        winner_id = data.get("winner_id")
+        loser_id  = data.get("loser_id")
+        if not winner_id or not loser_id:
+            return jsonify({"error": "winner_id and loser_id required"}), 400
+        field_choices = data.get("field_choices", {})
+        a_id = data.get("a_id", winner_id)
+        b_id = data.get("b_id", loser_id)
+
+        CONG_DB = os.path.expanduser("~/watson/data/congregation.db")
+        conn = sqlite3.connect(CONG_DB)
+        conn.row_factory = sqlite3.Row
+        loser_row = conn.execute("SELECT * FROM members WHERE id = ?", (loser_id,)).fetchone()
+        conn.close()
+
+        for field, choice in field_choices.items():
+            chosen_id = a_id if choice == "a" else b_id
+            if chosen_id == loser_id and loser_row:
+                update_member_field(int(winner_id), field, loser_row[field] or "")
+
+        return jsonify(merge_members(int(winner_id), int(loser_id)))
+    except Exception as exc:
+        log.error("audit/merge failed: %s", exc)
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/audit/correct-field", methods=["POST"])
+def audit_correct_field():
+    try:
+        from jobs.connect_cards.data_audit import update_member_field
+        data      = request.get_json(force=True) or {}
+        member_id = data.get("member_id")
+        field     = data.get("field")
+        value     = data.get("value", "")
+        if not member_id or not field:
+            return jsonify({"error": "member_id and field required"}), 400
+        return jsonify(update_member_field(int(member_id), field, value))
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except Exception as exc:
+        log.error("audit/correct-field failed: %s", exc)
+        return jsonify({"error": str(exc)}), 500
+
+
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
