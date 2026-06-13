@@ -15,23 +15,6 @@ from flask import Flask, Response, g, jsonify, render_template, request, session
 from jobs.people.api import people_create, people_delete, people_list, people_update
 from config.settings import WATSON_SYSTEM
 
-def call_gemini(messages, system_prompt):
-    import requests, os
-    api_key = os.getenv("GEMINI_API_KEY")
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
-    contents = []
-    for msg in messages:
-        role = "user" if msg["role"] == "user" else "model"
-        contents.append({"role": role, "parts": [{"text": msg["content"]}]})
-    payload = {
-        "system_instruction": {"parts": [{"text": system_prompt}]},
-        "contents": contents
-    }
-    response = requests.post(url, json=payload, timeout=30)
-    response.raise_for_status()
-    data = response.json()
-    return data["candidates"][0]["content"]["parts"][0]["text"]
-
 
 DB = os.path.expanduser("~/watson/data/watson.db")
 SKILLS_FILE = Path(__file__).resolve().parents[2] / "memory" / "skills.json"
@@ -1411,12 +1394,26 @@ def chat_stream():
         ).start()
         return _sse_response(_stream_simple("Building that skill now. I'll notify you via Telegram when it's ready."))
 
-    # Fall through to Ollama
-    messages = []
-    for h in history[-4:]:
-        if h.get("role") in ("user", "assistant") and h.get("content"):
-            messages.append({"role": h["role"], "content": h["content"]})
-    messages.append({"role": "user", "content": message})
+    # ── LLM inference — Claude (primary) with Ollama fallback ────────────────
+    # Build message history — last 20 from DB session if available
+    if session_id:
+        _db_rows = _db().execute(
+            "SELECT role, content FROM chat_messages WHERE session_id = ? ORDER BY created_at ASC",
+            (session_id,),
+        ).fetchall()
+        messages = [
+            {"role": r["role"], "content": r["content"]}
+            for r in _db_rows[-20:]
+            if r["role"] in ("user", "assistant") and r["content"]
+        ]
+        if not messages or messages[-1].get("content") != message:
+            messages.append({"role": "user", "content": message})
+    else:
+        messages = []
+        for h in history[-20:]:
+            if h.get("role") in ("user", "assistant") and h.get("content"):
+                messages.append({"role": h["role"], "content": h["content"]})
+        messages.append({"role": "user", "content": message})
 
     # Inject project memory into system prompt if a project is active
     _proj_mem_path = None
@@ -1459,10 +1456,25 @@ def chat_stream():
         except Exception as _exc:
             log.error("project memory update failed for %s: %s", slug, _exc)
 
-    def _stream_ollama(msgs=messages, sys=_system):
+    def _save_reply(reply_text):
+        if not session_id or not reply_text:
+            return
+        try:
+            with sqlite3.connect(DB) as _c:
+                _c.execute(
+                    "INSERT INTO chat_messages (session_id, role, content) VALUES (?, 'assistant', ?)",
+                    (session_id, reply_text),
+                )
+                _c.execute(
+                    "UPDATE chat_sessions SET updated_at = datetime('now') WHERE id = ?",
+                    (session_id,),
+                )
+        except Exception as _exc:
+            log.error("Failed to save assistant reply to DB: %s", _exc)
+
+    def _stream_ollama_fallback(msgs=messages, sys=_system):
         import threading
         full_reply = []
-        yield _emit_status("→ Thinking...")
         first_token = True
         try:
             resp = _req.post(
@@ -1498,14 +1510,56 @@ def chat_stream():
         except Exception:
             yield "data: [ERROR] Watson timed out. Try again.\n\n"
             return
+        reply_text = "".join(full_reply)
+        _save_reply(reply_text)
         if project_slug and _proj_mem_path:
             threading.Thread(
                 target=_update_project_memory,
-                args=(project_slug, _proj_mem_path, _proj_mem_contents, message, "".join(full_reply)),
+                args=(project_slug, _proj_mem_path, _proj_mem_contents, message, reply_text),
                 daemon=True,
             ).start()
 
-    return _sse_response(_stream_ollama())
+    def _stream_claude(msgs=messages, sys=_system):
+        import anthropic
+        import threading
+        api_key = os.environ.get("ANTHROPIC_API_KEY")
+        if not api_key:
+            log.warning("ANTHROPIC_API_KEY not set — falling back to Ollama")
+            yield from _stream_ollama_fallback(msgs, sys)
+            return
+        full_reply = []
+        yield _emit_status("→ Thinking...")
+        first_token = True
+        try:
+            client = anthropic.Anthropic(api_key=api_key)
+            with client.messages.stream(
+                model="claude-sonnet-4-6",
+                max_tokens=1024,
+                system=sys,
+                messages=msgs,
+            ) as stream:
+                for text in stream.text_stream:
+                    if text:
+                        if first_token:
+                            yield _emit_status("→ Response streaming...")
+                            first_token = False
+                        full_reply.append(text)
+                        yield _sse(text)
+            yield "data: [DONE]\n\n"
+        except Exception as exc:
+            log.warning("Claude API failed (%s) — falling back to Ollama", exc)
+            yield from _stream_ollama_fallback(msgs, sys)
+            return
+        reply_text = "".join(full_reply)
+        _save_reply(reply_text)
+        if project_slug and _proj_mem_path:
+            threading.Thread(
+                target=_update_project_memory,
+                args=(project_slug, _proj_mem_path, _proj_mem_contents, message, reply_text),
+                daemon=True,
+            ).start()
+
+    return _sse_response(_stream_claude())
 
 
 # ── Siri API ──────────────────────────────────────────────────────────────────
