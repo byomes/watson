@@ -2328,6 +2328,31 @@ def audit_merge():
         return jsonify({"error": str(exc)}), 500
 
 
+@app.route("/api/audit/keep-separate", methods=["POST"])
+def audit_keep_separate():
+    try:
+        data = request.get_json(force=True) or {}
+        a_id = data.get("member_a_id")
+        b_id = data.get("member_b_id")
+        if not a_id or not b_id:
+            return jsonify({"error": "member_a_id and member_b_id required"}), 400
+        lo, hi = sorted([int(a_id), int(b_id)])
+        CONG_DB = os.path.expanduser("~/watson/data/congregation.db")
+        conn = sqlite3.connect(CONG_DB)
+        try:
+            conn.execute(
+                "INSERT OR IGNORE INTO audit_exemptions (member_a_id, member_b_id) VALUES (?, ?)",
+                (lo, hi),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+        return jsonify({"ok": True})
+    except Exception as exc:
+        log.error("audit/keep-separate failed: %s", exc)
+        return jsonify({"error": str(exc)}), 500
+
+
 @app.route("/api/audit/correct-field", methods=["POST"])
 def audit_correct_field():
     try:
