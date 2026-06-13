@@ -1926,7 +1926,9 @@ async function runShepherdingReport() {
         if (!nameCell) return;
         const btn = document.createElement('button');
         btn.textContent = 'Exempt';
-        btn.style.cssText = 'margin-left:8px;font-size:.75em;padding:2px 7px;border-radius:4px;border:1px solid #ccc;background:#f5f5f5;cursor:pointer;color:#555';
+        btn.style.cssText = 'background:transparent;color:#888;border:1px solid #444;font-size:11px;padding:2px 8px;border-radius:4px;cursor:pointer;margin-left:6px;';
+        btn.onmouseenter = () => { btn.style.color = '#fff'; btn.style.borderColor = '#888'; };
+        btn.onmouseleave = () => { btn.style.color = '#888'; btn.style.borderColor = '#444'; };
         btn.onclick = () => exemptMember(parseInt(memberId), nameCell.textContent.trim(), btn, row);
         nameCell.appendChild(btn);
       });
