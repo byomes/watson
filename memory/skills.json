@@ -74,6 +74,21 @@
       "function": "run",
       "interfaces": ["dashboard", "telegram"],
       "status": "ready"
+    },
+    {
+      "slug": "gemini_fetch",
+      "name": "Gemini Fetch",
+      "description": "Fetch a webpage and process its content with Gemini 2.0 Flash",
+      "triggers": [
+        "fetch this",
+        "read this url",
+        "scrape this",
+        "summarize this url",
+        "get this page"
+      ],
+      "interfaces": ["dashboard", "telegram"],
+      "enabled": true,
+      "module_path": "jobs/research/gemini_fetch"
     }
   ]
 }

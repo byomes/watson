@@ -118,3 +118,4 @@ pending items of the same type before sending. If more than one exists, send a s
 consolidated numbered message instead of separate prompts. Parse the reply line by line
 routing each numbered response to its corresponding record.
 Never assume only one pending item will exist at a time.
+- jobs/misc/here_link_book.py: here is a link to a book that is free and hosted online in HTML format. I would  (built by qwen2.5-coder:7b on 2026-06-13)

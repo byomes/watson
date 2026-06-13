@@ -1,0 +1,22 @@
+commit 240ff68644fb58b1aa9c4aab627640ef14728b8f
+Author: Bill Yomes <bill.yomes@gmail.com>
+Date:   Sat Jun 13 15:15:49 2026 -0400
+
+    Add GET /api/status endpoint with current time
+
+diff --git a/jobs/dashboard/app.py b/jobs/dashboard/app.py
+index 41ac35a..d9da1ac 100644
+--- a/jobs/dashboard/app.py
++++ b/jobs/dashboard/app.py
+@@ -234,6 +234,11 @@ def index():
+     return render_template('index.html', app_js_ts=int(time.time()))
+ 
+ 
++@app.route("/api/status", methods=["GET"])
++def status():
++    return jsonify({"current_time": datetime.now().isoformat()})
++
++
+ # ── Briefing API ──────────────────────────────────────────────────────────────
+ 
+ @app.route("/api/briefing")
