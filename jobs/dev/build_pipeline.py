@@ -39,14 +39,14 @@ _PYTHON_CMD = shutil.which("python3") or "/usr/bin/python3"
 _BLOCKED_WORDS = {"auth", "password", "secret", "token", "credentials"}
 
 _SPEC_SYSTEM_PROMPT = (
-    "You are Watson's spec writer. Given a natural language build request, "
-    "produce a structured Claude Code build spec. Include: "
-    "file to create or modify, "
-    "exact requirements as a numbered list, "
-    "error handling requirements, "
-    "whether to include if __name__ == '__main__': run() block, "
-    "PYTHONPATH-safe import note, "
-    "and end with: git add -A && git commit -m '[description]' && git push origin main"
+    "You are a spec writer for Watson, a Python-based AI assistant running on a Beelink mini PC "
+    "(Linux Mint, user billyomes, path ~/watson). "
+    "Write Claude Code build specs in plain text only — no YAML, no markdown code blocks, no invented filenames. "
+    "A spec is a plain English numbered list of requirements. "
+    "Always: use the exact file path provided, import at module level not inside functions, "
+    "reuse existing Flask app instances never create new ones, "
+    "end with: git add -A && git commit -m '[description]' && git push origin main. "
+    "Never: create test files unless asked, pip install stdlib modules, force push, touch auth or credentials."
 )
 
 _SPEC_REVIEW_SYSTEM = (
@@ -113,24 +113,45 @@ def _strip_json_fences(raw: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Step 1 — Draft spec via Ollama
+# Step 1 — Draft spec via Claude Haiku
 # ---------------------------------------------------------------------------
 
-def _draft_spec(build_request: str) -> str:
-    resp = requests.post(
-        "http://localhost:11434/api/chat",
-        json={
-            "model": "llama3.2:3b",
-            "messages": [
-                {"role": "system", "content": _SPEC_SYSTEM_PROMPT},
-                {"role": "user", "content": build_request},
-            ],
-            "stream": False,
-        },
-        timeout=120,
-    )
-    resp.raise_for_status()
-    return resp.json()["message"]["content"].strip()
+def _draft_spec(build_request: str, chat_id: int | None = None) -> str:
+    import anthropic
+    try:
+        client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+        msg = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=1024,
+            system=_SPEC_SYSTEM_PROMPT,
+            messages=[{
+                "role": "user",
+                "content": (
+                    f"Build request: {build_request}\n\n"
+                    "Write a Claude Code spec for this. Be specific about the exact file "
+                    "to modify and the exact changes needed."
+                ),
+            }],
+        )
+        return msg.content[0].text.strip()
+    except Exception as exc:
+        log.warning("Claude Haiku spec draft failed (%s), falling back to Ollama", exc)
+        if chat_id is not None:
+            _tg_send(chat_id, f"⚠️ Claude spec draft unavailable ({exc}), falling back to Ollama...")
+        resp = requests.post(
+            "http://localhost:11434/api/chat",
+            json={
+                "model": "llama3.2:3b",
+                "messages": [
+                    {"role": "system", "content": _SPEC_SYSTEM_PROMPT},
+                    {"role": "user", "content": build_request},
+                ],
+                "stream": False,
+            },
+            timeout=120,
+        )
+        resp.raise_for_status()
+        return resp.json()["message"]["content"].strip()
 
 
 # ---------------------------------------------------------------------------
@@ -282,7 +303,7 @@ def run(build_request: str, chat_id: int) -> None:
 
     # ── Step 1: Draft spec ──────────────────────────────────────────────────
     try:
-        spec_draft = _draft_spec(build_request)
+        spec_draft = _draft_spec(build_request, chat_id)
     except Exception as exc:
         _tg_send(chat_id, f"Build pipeline failed at spec draft: {exc}")
         return
@@ -329,7 +350,7 @@ def run(build_request: str, chat_id: int) -> None:
             f"Produce a corrected spec incorporating all required changes."
         )
         try:
-            spec_draft = _draft_spec(revision_prompt)
+            spec_draft = _draft_spec(revision_prompt, chat_id)
         except Exception as exc:
             _tg_send(chat_id, f"Build pipeline failed at spec auto-revision: {exc}")
             return
