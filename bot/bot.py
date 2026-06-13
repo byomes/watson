@@ -472,6 +472,19 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await loop.run_in_executor(None, cancel_build, build_id)
         return
 
+    # Build pipeline — natural language trigger "build <request>" (no colon)
+    if text_lower.startswith("build ") and not text_lower.startswith("build:"):
+        from jobs.dev import build_pipeline as _bp
+        import threading
+        _build_req = text_clean[6:].strip()
+        threading.Thread(
+            target=_bp.run,
+            args=(_build_req, update.effective_chat.id),
+            daemon=True,
+        ).start()
+        await update.message.reply_text("🔨 Build pipeline started...")
+        return
+
     if text.startswith("\U0001f4d8 TO FACEBOOK"):
         await _handle_facebook_share(update, text)
         return
@@ -504,6 +517,15 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             from jobs.email_reply.handler import resolve_change
             result = resolve_change(changed_text)
             await update.message.reply_text(result["msg"])
+            return
+
+    # Build pipeline approval: "approve" or "refine: [feedback]"
+    if text_lower == "approve" or text_lower.startswith("refine:"):
+        from jobs.dev import build_pipeline as _bp
+        if _bp.has_pending_approval(chat_id):
+            import asyncio
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(None, _bp.handle_approval, chat_id, text_clean)
             return
 
     # Handle CONFIRM / CANCEL for pending actions (calendar, skill proposals, capability gaps)
