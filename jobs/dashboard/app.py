@@ -2184,6 +2184,30 @@ def projects_memory_post(slug):
     return jsonify({"ok": True})
 
 
+# ── Shepherding report ────────────────────────────────────────────────────────
+
+@app.route("/api/shepherding/run")
+def shepherding_run():
+    from jobs.connect_cards.shepherding_report import telegram_shepherding_summary
+    try:
+        summary = telegram_shepherding_summary()
+        return jsonify({"summary": summary})
+    except Exception as exc:
+        log.error("shepherding/run failed: %s", exc)
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/shepherding/email", methods=["POST"])
+def shepherding_email():
+    from jobs.connect_cards.shepherding_report import send_shepherding_report
+    try:
+        send_shepherding_report()
+        return jsonify({"message": "Shepherding report sent to your email ✓"})
+    except Exception as exc:
+        log.error("shepherding/email failed: %s", exc)
+        return jsonify({"error": str(exc)}), 500
+
+
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":

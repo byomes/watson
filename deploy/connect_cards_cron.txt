@@ -12,3 +12,6 @@
 
 # Every 30 minutes — poll Gmail for new connect cards
 */30 * * * * cd /home/billyomes/watson && PYTHONPATH=/home/billyomes/watson python3 -m jobs.connect_cards.intake >> /home/billyomes/watson/logs/connect_cards.log 2>&1
+
+# Monday 6am — shepherding report to Bill (after connect cards reports at 5am)
+0 6 * * 1 PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python3 -m jobs.connect_cards.shepherding_report >> /home/billyomes/watson/logs/shepherding_report.log 2>&1
