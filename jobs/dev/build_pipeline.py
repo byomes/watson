@@ -202,30 +202,14 @@ def _run_claude_code(spec: str, timestamp: str) -> tuple[int, str]:
 # Step 4 — Local test
 # ---------------------------------------------------------------------------
 
-def _extract_file_path(claude_output: str) -> str | None:
-    patterns = [
-        r'(?:Create[d]?|Modif(?:y|ied)|Writ(?:e|ten)|Update[d]?)[:\s]+(/home/billyomes/watson/\S+\.py)',
-        r'(?:Create[d]?|Modif(?:y|ied)|Writ(?:e|ten)|Update[d]?)[:\s]+(~/watson/\S+\.py)',
-        r'`(/home/billyomes/watson/[^`]+\.py)`',
-        r'`(~/watson/[^`]+\.py)`',
-    ]
-    for pat in patterns:
-        m = re.search(pat, claude_output, re.IGNORECASE)
-        if m:
-            return m.group(1).replace("~/", str(Path.home()) + "/")
-
-    # Fallback: first new/modified Python file in git status
-    try:
-        result = subprocess.run(
-            [_GIT_CMD, "status", "--porcelain"],
-            capture_output=True, text=True, cwd=str(WATSON_ROOT), timeout=10,
-        )
-        for line in result.stdout.splitlines():
-            if line.endswith(".py"):
-                rel_path = line[3:].strip()
-                return str(WATSON_ROOT / rel_path)
-    except Exception:
-        pass
+def _detect_modified_file() -> str | None:
+    result = subprocess.run(
+        [_GIT_CMD, "diff", "HEAD~1", "--name-only"],
+        capture_output=True, text=True, cwd=str(WATSON_ROOT), timeout=10,
+    )
+    for line in result.stdout.splitlines():
+        if line.strip().endswith(".py"):
+            return str(WATSON_ROOT / line.strip())
     return None
 
 
@@ -386,11 +370,11 @@ def run(build_request: str, chat_id: int) -> None:
     _tg_send(chat_id, "🔨 Claude Code finished. Running local test...")
 
     # ── Step 4: Local test ──────────────────────────────────────────────────
-    file_path = _extract_file_path(claude_code_output)
+    file_path = _detect_modified_file()
     if not file_path:
         _tg_send(
             chat_id,
-            "Build pipeline failed: could not determine which file was created or modified.",
+            "⚠️ Could not detect modified Python file. Check ~/watson/logs/build-pipeline/ and test manually.",
         )
         return
 
