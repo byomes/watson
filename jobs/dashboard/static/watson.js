@@ -47,6 +47,8 @@ function _initNavDrag() {
   if (!container) return;
   let ghost = null;
   let ghostOffsetY = 0;
+  let _dragActive = false;
+  let _dragPressTimer = null;
 
   function _clearInsertionLines() {
     container.querySelectorAll('.overlay-row[data-menu-key]').forEach(r => {
@@ -60,34 +62,57 @@ function _initNavDrag() {
     return el.closest('.overlay-row[data-menu-key]');
   }
 
-  container.querySelectorAll('.overlay-row[data-menu-key]').forEach(row => {
+  function _activateDrag(row, touch) {
+    _draggedNavRow = row;
+    _dragActive = true;
+    row.classList.add('dragging');
+
+    const rect = row.getBoundingClientRect();
+    ghostOffsetY = touch.clientY - rect.top;
+
+    ghost = row.cloneNode(true);
+    ghost.style.cssText = [
+      'position:fixed',
+      `top:${rect.top}px`,
+      `left:${rect.left}px`,
+      `width:${rect.width}px`,
+      'opacity:0.85',
+      'background:var(--surface)',
+      'z-index:9999',
+      'pointer-events:none',
+      'box-shadow:0 4px 12px rgba(0,0,0,0.3)',
+    ].join(';');
+    document.body.appendChild(ghost);
+  }
+
+  const rows = container.querySelectorAll('.overlay-row[data-menu-key]');
+  console.log('[drag] initNavDrag wired', rows.length, 'rows');
+
+  rows.forEach(row => {
     row.setAttribute('draggable', 'false');
 
     row.addEventListener('touchstart', e => {
+      console.log('[drag] touchstart fired', e.target);
       const touch = e.touches[0];
-      _draggedNavRow = row;
-      row.classList.add('dragging');
+      const onHandle = !!e.target.closest('.drag-handle');
 
-      const rect = row.getBoundingClientRect();
-      ghostOffsetY = touch.clientY - rect.top;
-
-      ghost = row.cloneNode(true);
-      ghost.style.cssText = [
-        'position:fixed',
-        `top:${rect.top}px`,
-        `left:${rect.left}px`,
-        `width:${rect.width}px`,
-        'opacity:0.85',
-        'background:var(--surface)',
-        'z-index:9999',
-        'pointer-events:none',
-        'box-shadow:0 4px 12px rgba(0,0,0,0.3)',
-      ].join(';');
-      document.body.appendChild(ghost);
+      if (onHandle) {
+        _activateDrag(row, touch);
+      } else {
+        _dragPressTimer = setTimeout(() => {
+          _dragPressTimer = null;
+          _activateDrag(row, touch);
+        }, 150);
+      }
     }, { passive: true });
 
     row.addEventListener('touchmove', e => {
-      if (!_draggedNavRow) return;
+      console.log('[drag] touchmove', e.touches[0].clientY);
+      if (!_dragActive) {
+        clearTimeout(_dragPressTimer);
+        _dragPressTimer = null;
+        return;
+      }
       e.preventDefault();
       const touch = e.touches[0];
       ghost.style.top = (touch.clientY - ghostOffsetY) + 'px';
@@ -100,9 +125,13 @@ function _initNavDrag() {
     }, { passive: false });
 
     row.addEventListener('touchend', e => {
-      if (!_draggedNavRow) return;
-      const touch = e.changedTouches[0];
+      console.log('[drag] touchend');
+      clearTimeout(_dragPressTimer);
+      _dragPressTimer = null;
 
+      if (!_dragActive) return;
+
+      const touch = e.changedTouches[0];
       if (ghost) { ghost.remove(); ghost = null; }
       _draggedNavRow.classList.remove('dragging');
       _clearInsertionLines();
@@ -115,6 +144,7 @@ function _initNavDrag() {
       }
 
       _draggedNavRow = null;
+      _dragActive = false;
     });
   });
 }
