@@ -2797,7 +2797,7 @@ def voice():
 
 @app.route("/api/status", methods=["GET"])
 def api_status():
-    return jsonify({"current_time": datetime.utcnow().isoformat()})
+    return jsonify({"current_time": datetime.now().isoformat()})
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────
