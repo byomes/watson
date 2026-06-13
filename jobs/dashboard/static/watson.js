@@ -2083,10 +2083,16 @@ function _renderDupePair(pair, idx) {
         `<span style="font-size:11px;color:#555">Survivor:</span>` +
         `<label style="font-size:12px"><input type="radio" name="pair-${idx}-survivor" value="${a.id}" onchange="updateMergeBtn(${idx})"> Keep A</label>` +
         `<label style="font-size:12px"><input type="radio" name="pair-${idx}-survivor" value="${b.id}" onchange="updateMergeBtn(${idx})"> Keep B</label>` +
-        `<button id="merge-btn-${idx}" onclick="executeMerge(${idx})" disabled ` +
-          `style="margin-left:auto;background:transparent;color:#444;border:1px solid #333;font-size:11px;padding:3px 10px;border-radius:4px;cursor:default">` +
-          `Merge` +
-        `</button>` +
+        `<div style="margin-left:auto;display:flex;gap:6px">` +
+          `<button id="keep-sep-btn-${idx}" onclick="keepSeparate(${idx})" ` +
+            `style="background:transparent;color:#888;border:1px solid #444;font-size:12px;padding:4px 12px;border-radius:4px;cursor:pointer">` +
+            `Keep Separate` +
+          `</button>` +
+          `<button id="merge-btn-${idx}" onclick="executeMerge(${idx})" disabled ` +
+            `style="background:transparent;color:#444;border:1px solid #333;font-size:11px;padding:3px 10px;border-radius:4px;cursor:default">` +
+            `Merge` +
+          `</button>` +
+        `</div>` +
       `</div>` +
     `</div>`
   );
@@ -2127,6 +2133,30 @@ async function executeMerge(idx) {
       card.style.opacity = '0.35';
       card.style.pointerEvents = 'none';
       btn.textContent = '✓ Merged';
+    } else {
+      btn.textContent = data.error || 'Error';
+      btn.disabled = false;
+    }
+  } catch (e) {
+    btn.textContent = 'Error';
+    btn.disabled = false;
+  }
+}
+
+async function keepSeparate(idx) {
+  const pair = _auditData.duplicates[idx];
+  const btn  = document.getElementById(`keep-sep-btn-${idx}`);
+  btn.textContent = '…'; btn.disabled = true;
+  try {
+    const data = await api('/api/audit/keep-separate', 'POST', {
+      member_a_id: pair.a.id,
+      member_b_id: pair.b.id,
+    });
+    if (data.ok) {
+      const card = document.getElementById(`dupe-pair-${idx}`);
+      card.style.opacity = '0.35';
+      card.style.pointerEvents = 'none';
+      btn.textContent = '✓ Kept Separate';
     } else {
       btn.textContent = data.error || 'Error';
       btn.disabled = false;

@@ -17,6 +17,28 @@ DB_PATH = os.path.expanduser("~/watson/data/congregation.db")
 _ALLOWED_FIELDS = {"name", "email", "phone", "campus_preference"}
 
 
+def _ensure_audit_schema():
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS audit_exemptions (
+              id          INTEGER PRIMARY KEY AUTOINCREMENT,
+              member_a_id INTEGER NOT NULL,
+              member_b_id INTEGER NOT NULL,
+              created_at  TEXT DEFAULT (datetime('now')),
+              UNIQUE(member_a_id, member_b_id)
+            )
+            """
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+_ensure_audit_schema()
+
+
 def _strip_phone(phone) -> str:
     return re.sub(r"\D", "", phone or "")
 
@@ -101,7 +123,17 @@ def find_likely_duplicates() -> list[dict]:
                 conf = "high" if ratio >= 0.92 else "medium"
                 _add(candidates[i], candidates[j], "name", conf)
 
-    result = list(pairs.values())
+    # Filter pairs exempted by "Keep Separate"
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        exempt = {
+            (r[0], r[1])
+            for r in conn.execute("SELECT member_a_id, member_b_id FROM audit_exemptions").fetchall()
+        }
+    finally:
+        conn.close()
+
+    result = [p for p in pairs.values() if (p["a"]["id"], p["b"]["id"]) not in exempt]
     result.sort(key=lambda p: (0 if p["confidence"] == "high" else 1, p["match_reason"]))
     return result
 
