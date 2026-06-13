@@ -148,21 +148,25 @@ def _build_absent_section(days: int, is_critical: bool) -> tuple[str, int]:
     for r in rows:
         name_cell = f"<strong>{r['name'] or '(no name)'}</strong>"
         if is_critical:
-            name_cell = f"<span style='{_ALERT_STYLE}'>Critical</span>&nbsp; " + name_cell
+            name_cell += " <span style='color:#ff6b6b;font-size:11px'>&#9679; Critical</span>"
         campus = _CAMPUS_DISPLAY.get(campus_map[r["id"]], "—")
+        campus_badge = (
+            f"<span style='display:inline-block;background:#1e3a5f;color:#7eb8f7;"
+            f"font-size:11px;padding:2px 8px;border-radius:4px;margin-top:4px'>{campus}</span>"
+        )
+        wks_style = "color:#ff6b6b;font-weight:bold" if is_critical else "color:#f0c040"
         table_rows += (
             f"<tr data-member-id='{r['id']}'>"
-            f"<td>{name_cell}</td>"
-            f"<td>{campus}</td>"
-            f"<td>{r['last_seen'] or '—'}</td>"
-            f"<td>{r['weeks_absent']} wks</td>"
+            f"<td>{name_cell}<br>{campus_badge}</td>"
+            f"<td><span style='font-size:12px;color:#aaa'>Last seen: {r['last_seen'] or '—'}</span></td>"
+            f"<td><span style='{wks_style}'>{r['weeks_absent']} wks</span></td>"
             f"</tr>"
         )
 
     html = (
         heading
         + "<table><thead><tr>"
-        + "<th>Name</th><th>Campus</th><th>Last Seen</th><th>Absent</th>"
+        + "<th>Name</th><th>Last Seen</th><th>Absent</th>"
         + "</tr></thead>"
         + f"<tbody>{table_rows}</tbody></table>"
     )
@@ -208,26 +212,23 @@ def _build_visitors_section() -> tuple[str, int]:
 
     table_rows = ""
     for r in rows:
-        contact = ""
-        if r["email"]:
-            contact += f"<a href='mailto:{r['email']}'>{r['email']}</a>"
-        if r["phone"]:
-            contact += ("<br>" if contact else "") + r["phone"]
         campus = _CAMPUS_DISPLAY.get(campus_map[r["id"]], "—")
+        campus_badge = (
+            f"<span style='display:inline-block;background:#1e3a5f;color:#7eb8f7;"
+            f"font-size:11px;padding:2px 8px;border-radius:4px;margin-top:4px'>{campus}</span>"
+        )
         table_rows += (
             f"<tr data-member-id='{r['id']}'>"
-            f"<td><strong>{r['name'] or '(no name)'}</strong></td>"
-            f"<td><small>{contact or '—'}</small></td>"
-            f"<td>{campus}</td>"
-            f"<td>{r['visit_date']}</td>"
-            f"<td>{r['weeks_since']} wks</td>"
+            f"<td><strong>{r['name'] or '(no name)'}</strong><br>{campus_badge}</td>"
+            f"<td><span style='font-size:12px;color:#aaa'>Visited: {r['visit_date']}</span></td>"
+            f"<td><span style='color:#f0c040'>{r['weeks_since']} wks ago</span></td>"
             f"</tr>"
         )
 
     html = (
         heading
         + "<table><thead><tr>"
-        + "<th>Name</th><th>Contact</th><th>Campus</th><th>Visit Date</th><th>Weeks Ago</th>"
+        + "<th>Name</th><th>Visit Date</th><th>Weeks Ago</th>"
         + "</tr></thead>"
         + f"<tbody>{table_rows}</tbody></table>"
     )
@@ -273,16 +274,20 @@ def _build_next_steps_section() -> tuple[str, int]:
         )
         parts.append(
             "<table><thead><tr>"
-            "<th>Name</th><th>Campus</th><th>Date</th><th>Contact</th>"
+            "<th>Name</th><th>Date</th><th>Contact</th>"
             "</tr></thead><tbody>"
         )
         for r in step_rows:
             contact = r["email"] or r["phone"] or "—"
+            campus = _CAMPUS_DISPLAY.get(r["campus"], r["campus"] or "—")
+            campus_badge = (
+                f"<span style='display:inline-block;background:#1e3a5f;color:#7eb8f7;"
+                f"font-size:11px;padding:2px 8px;border-radius:4px;margin-top:4px'>{campus}</span>"
+            )
             parts.append(
                 f"<tr>"
-                f"<td>{r['name'] or '(no name)'}</td>"
-                f"<td>{r['campus'] or '—'}</td>"
-                f"<td>{r['date']}</td>"
+                f"<td><strong>{r['name'] or '(no name)'}</strong><br>{campus_badge}</td>"
+                f"<td><span style='font-size:12px;color:#aaa'>{r['date']}</span></td>"
                 f"<td><small>{contact}</small></td>"
                 f"</tr>"
             )
