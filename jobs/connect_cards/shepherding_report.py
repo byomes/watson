@@ -72,6 +72,15 @@ def _cutoff(days: int) -> str:
     return (date.today() - timedelta(days=days)).isoformat()
 
 
+def _fmt_date(d: str) -> str:
+    """Convert YYYY-MM-DD to Mon D, YYYY. Return as-is if parse fails."""
+    try:
+        from datetime import datetime
+        return datetime.strptime(d, "%Y-%m-%d").strftime("%b %-d, %Y")
+    except Exception:
+        return d or "—"
+
+
 _CAMPUS_DISPLAY = {
     "Wilmington": "Wilmington",
     "Online":     "Online",
@@ -100,8 +109,13 @@ def _get_member_campus(member_id: int, db) -> str:
     online = sum(1 for r in rows if r["campus"] == "Online")
 
     if wilm >= 3 and online >= 3:
-        return "Hybrid"
-    return "Wilmington" if wilm >= online else "Online"
+        result = "Hybrid"
+    elif wilm >= online:
+        result = "Wilmington"
+    else:
+        result = "Online"
+    print(f"[campus] member={member_id} wilm={wilm} online={online} total={len(rows)} → {result}")
+    return result
 
 
 # ── Section 1 & 2: Absent Members ─────────────────────────────────────────────
@@ -158,7 +172,7 @@ def _build_absent_section(days: int, is_critical: bool) -> tuple[str, int]:
         table_rows += (
             f"<tr data-member-id='{r['id']}'>"
             f"<td>{name_cell}<br>{campus_badge}</td>"
-            f"<td><span style='font-size:12px;color:#aaa'>Last seen: {r['last_seen'] or '—'}</span></td>"
+            f"<td><span style='font-size:12px;color:#aaa'>Last seen: {_fmt_date(r['last_seen'])}</span></td>"
             f"<td><span style='{wks_style}'>{r['weeks_absent']} wks</span></td>"
             f"</tr>"
         )
@@ -220,7 +234,7 @@ def _build_visitors_section() -> tuple[str, int]:
         table_rows += (
             f"<tr data-member-id='{r['id']}'>"
             f"<td><strong>{r['name'] or '(no name)'}</strong><br>{campus_badge}</td>"
-            f"<td><span style='font-size:12px;color:#aaa'>Visited: {r['visit_date']}</span></td>"
+            f"<td><span style='font-size:12px;color:#aaa'>Visited: {_fmt_date(r['visit_date'])}</span></td>"
             f"<td><span style='color:#f0c040'>{r['weeks_since']} wks ago</span></td>"
             f"</tr>"
         )
@@ -287,7 +301,7 @@ def _build_next_steps_section() -> tuple[str, int]:
             parts.append(
                 f"<tr>"
                 f"<td><strong>{r['name'] or '(no name)'}</strong><br>{campus_badge}</td>"
-                f"<td><span style='font-size:12px;color:#aaa'>{r['date']}</span></td>"
+                f"<td><span style='font-size:12px;color:#aaa'>{_fmt_date(r['date'])}</span></td>"
                 f"<td><small>{contact}</small></td>"
                 f"</tr>"
             )
