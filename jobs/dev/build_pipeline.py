@@ -216,13 +216,21 @@ def _detect_modified_file() -> str | None:
 def _run_local_test(file_path: str) -> tuple[bool, str]:
     env = os.environ.copy()
     env["PYTHONPATH"] = "/home/billyomes/watson"
+    import_snippet = (
+        "import importlib.util; "
+        f"spec = importlib.util.spec_from_file_location('mod', '{file_path}'); "
+        "mod = importlib.util.module_from_spec(spec); "
+        "spec.loader.exec_module(mod); "
+        "print('Import OK')"
+    )
     result = subprocess.run(
-        [_PYTHON_CMD, file_path],
+        [_PYTHON_CMD, "-c", import_snippet],
         capture_output=True, text=True, timeout=60, env=env,
         cwd=str(WATSON_ROOT),
     )
     combined = result.stdout + ("\n" + result.stderr if result.stderr else "")
-    return result.returncode == 0, combined.strip()
+    test_passed = result.returncode == 0 and "Import OK" in result.stdout
+    return test_passed, combined.strip()
 
 
 # ---------------------------------------------------------------------------
