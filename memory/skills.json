@@ -89,6 +89,18 @@
       "interfaces": ["dashboard", "telegram"],
       "enabled": true,
       "module_path": "jobs/research/gemini_fetch"
+    },
+    {
+      "slug": "claude_debug",
+      "name": "Claude Debug",
+      "description": "Diagnose a Watson problem: gathers logs, calls Claude API for diagnosis, runs Claude Code fix, reviews result, notifies Dr. Bill via Telegram.",
+      "triggers": [
+        "debug:", "diagnose this", "watson debug", "fix this"
+      ],
+      "module": "jobs.dev.claude_debug",
+      "function": "run",
+      "interfaces": ["dashboard", "telegram"],
+      "status": "ready"
     }
   ]
 }
