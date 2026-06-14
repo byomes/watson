@@ -14,7 +14,7 @@ load_dotenv(WATSON_ROOT / ".env")
 
 log = logging.getLogger(__name__)
 
-MAX_ITERATIONS = 3
+MAX_ITERATIONS = 6
 
 _DIAGNOSE_SYSTEM = (
     "You are diagnosing a problem in Watson, an AI assistant system running on a Beelink Linux server. "
@@ -103,6 +103,69 @@ def _run_claude_code(prompt: str) -> str:
         return f"Error running Claude Code: {exc}"
 
 
+def _ask_bill_continue(problem: str, iteration: int, summary: str) -> bool:
+    """Send Bill a check-in and wait up to 30 min for 'continue' or 'stop'."""
+    import time
+    import requests
+
+    token = os.getenv("TELEGRAM_BOT_TOKEN")
+    chat_id = os.getenv("TELEGRAM_CHAT_ID")
+    if not token or not chat_id:
+        log.warning("Telegram credentials not set — halting loop")
+        return False
+
+    check_msg = (
+        f"🔧 Debug loop on {problem} — attempt {iteration}. "
+        f"Claude says: {summary}. Continue? Reply 'continue' or 'stop'."
+    )
+    _send_telegram(check_msg)
+
+    # Grab offset so we only see replies sent after the check-in
+    try:
+        resp = requests.get(
+            f"https://api.telegram.org/bot{token}/getUpdates",
+            params={"limit": 1, "timeout": 0},
+            timeout=10,
+        )
+        updates = resp.json().get("result", [])
+        offset = (updates[-1]["update_id"] + 1) if updates else 0
+    except Exception:
+        offset = 0
+
+    deadline = time.time() + 30 * 60
+    while time.time() < deadline:
+        poll_timeout = min(60, int(deadline - time.time()))
+        if poll_timeout <= 0:
+            break
+        try:
+            resp = requests.get(
+                f"https://api.telegram.org/bot{token}/getUpdates",
+                params={"offset": offset, "timeout": poll_timeout, "allowed_updates": ["message"]},
+                timeout=poll_timeout + 10,
+            )
+            updates = resp.json().get("result", [])
+        except Exception as exc:
+            log.warning("getUpdates error: %s", exc)
+            time.sleep(5)
+            continue
+
+        for update in updates:
+            offset = update["update_id"] + 1
+            msg = update.get("message", {})
+            if str(msg.get("chat", {}).get("id", "")) == str(chat_id):
+                text = msg.get("text", "").strip().lower()
+                if text == "continue":
+                    log.info("Bill approved continuation at iteration %d", iteration)
+                    return True
+                if text == "stop":
+                    log.info("Bill halted loop at iteration %d", iteration)
+                    return False
+
+    log.info("No reply from Bill within 30 minutes — halting loop")
+    _send_telegram(f"🔧 Debug loop halted: no reply within 30 minutes.\nProblem: {problem}")
+    return False
+
+
 def _send_telegram(message: str) -> None:
     import asyncio
     from telegram import Bot
@@ -131,9 +194,11 @@ def debug(problem: str) -> str:
     diagnosis = "unknown"
     summary = "no review"
     follow_up = False
+    iteration = 0
 
-    for iteration in range(1, MAX_ITERATIONS + 1):
-        log.info("Debug iteration %d/%d", iteration, MAX_ITERATIONS)
+    while True:
+        iteration += 1
+        log.info("Debug iteration %d", iteration)
 
         # Step 1: Claude API diagnosis
         try:
@@ -180,15 +245,20 @@ def debug(problem: str) -> str:
         if success and not follow_up:
             break
 
-        if follow_up and iteration < MAX_ITERATIONS:
-            context += (
-                f"\n\n=== Iteration {iteration} result ===\n"
-                f"Diagnosis: {diagnosis}\n"
-                f"Code output: {code_output}\n"
-                f"Review: {summary}\n"
-            )
-        else:
+        if not follow_up:
             break
+
+        # follow_up is True — check in with Bill at and beyond iteration 6
+        if iteration >= MAX_ITERATIONS:
+            if not _ask_bill_continue(problem, iteration, summary):
+                break
+
+        context += (
+            f"\n\n=== Iteration {iteration} result ===\n"
+            f"Diagnosis: {diagnosis}\n"
+            f"Code output: {code_output}\n"
+            f"Review: {summary}\n"
+        )
 
     telegram_msg = (
         f"🔧 Debug complete: {problem}\n"

@@ -122,3 +122,6 @@ Never assume only one pending item will exist at a time.
 
 ### Watson debug loop pattern (2026-06-13)
 Watson debug loop: gather logs first (journalctl for watson-dashboard.service and watson-bot.service), send to Claude API for diagnosis, run Claude Code fix via subprocess with shlex.quote() to safely escape the prompt, send result back to Claude for review, notify Bill with summary. Never loop more than 3 times.
+
+### Watson debug loop cap (2026-06-13)
+Watson debug loop cap: 6 iterations before checking in with Bill. After loop 6, send Telegram approval request and wait up to 30 minutes. Bill replies continue or stop. No hard cap — Bill stays in control.
