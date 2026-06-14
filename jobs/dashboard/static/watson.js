@@ -378,5 +378,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (dateEl) {
     dateEl.textContent = new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
   }
+  const wMark = document.getElementById('hdr-mark');
+  if (wMark) wMark.addEventListener('click', () => location.reload(true));
   switchTab('home');
 });
