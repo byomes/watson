@@ -119,3 +119,6 @@ consolidated numbered message instead of separate prompts. Parse the reply line 
 routing each numbered response to its corresponding record.
 Never assume only one pending item will exist at a time.
 - jobs/misc/here_link_book.py: here is a link to a book that is free and hosted online in HTML format. I would  (built by qwen2.5-coder:7b on 2026-06-13)
+
+### Watson debug loop pattern (2026-06-13)
+Watson debug loop: gather logs first (journalctl for watson-dashboard.service and watson-bot.service), send to Claude API for diagnosis, run Claude Code fix via subprocess with shlex.quote() to safely escape the prompt, send result back to Claude for review, notify Bill with summary. Never loop more than 3 times.
