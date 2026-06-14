@@ -2,863 +2,392 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Watson">
-<meta name="theme-color" content="#0d0f12">
+<meta name="theme-color" content="#0f0f0f">
 <title>Watson</title>
-<link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
-<link rel="apple-touch-icon" href="/static/favicon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=DM+Mono&display=swap" rel="stylesheet">
-<script>(function(){var t=localStorage.getItem('watson-theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
-<link rel="stylesheet" href="/static/style.css">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-.r-drag { cursor: grab; color: var(--text3); font-size: 14px; flex-shrink: 0; padding: 0 4px 0 0; user-select: none; line-height: 1; }
-.r-drag:active { cursor: grabbing; }
-.r-btns { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
-.r-btn { background: none; border: none; font-size: 15px; cursor: pointer; padding: 4px 5px; border-radius: 6px; color: var(--text-muted); line-height: 1; font-family: inherit; }
-.r-btn:hover { background: var(--bg3); }
-.r-done:hover { color: var(--accent); }
-.r-del:hover { color: #e55; }
-.r-inline-edit { background: var(--bg3); border: 1px solid var(--accent); border-radius: 5px; padding: 2px 6px; font-size: 13px; color: var(--text); font-family: inherit; width: 100%; outline: none; box-sizing: border-box; }
-.r-dragging { opacity: .35; }
-.r-over-top { box-shadow: 0 -2px 0 var(--accent); }
-.r-over-bot { box-shadow: 0 2px 0 var(--accent); }
+/* ── Design tokens ───────────────────────────────────────────────────────── */
+:root {
+  --bg:       #0f0f0f;
+  --surface:  #1a1a1a;
+  --border:   #2a2a2a;
+  --gold:     #c9a84c;
+  --gold-dim: #8a6f2e;
+  --muted:    #666;
+  --green:    #4caf7d;
+  --red:      #c9504c;
+  --blue:     #4c7ec9;
+  --text:     #e8e8e8;
+  --r-card:   12px;
+  --r-btn:    6px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'DM Sans', -apple-system, sans-serif;
+  font-size: 15px;
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
+}
+
+/* ── Header ─────────────────────────────────────────────────────────────── */
+#hdr {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 100;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  height: 57px;
+}
+
+#hdr-mark {
+  width: 36px; height: 36px;
+  background: #111827;
+  border-radius: 8px;
+  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-family: Georgia, serif;
+  font-size: 22px; font-weight: 700;
+  color: var(--gold); line-height: 1;
+}
+
+#hdr-text { flex: 1; min-width: 0; }
+#hdr-title { font-size: 14px; font-weight: 600; color: var(--gold); letter-spacing: .05em; }
+#hdr-sub { font-size: 11px; color: var(--muted); margin-top: 1px; }
+#hdr-date { font-size: 11px; color: var(--muted); flex-shrink: 0; text-align: right; white-space: nowrap; }
+
+/* ── Scrollable page area ────────────────────────────────────────────────── */
+#page-content {
+  position: fixed;
+  top: 57px; left: 0; right: 0;
+  bottom: calc(60px + env(safe-area-inset-bottom));
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 16px;
+}
+
+/* Extra bottom padding on tasks page for sticky add bar */
+#page-content.has-add-bar {
+  padding-bottom: 68px;
+}
+
+/* ── Add-task bar (tasks page only) ─────────────────────────────────────── */
+#add-task-bar {
+  display: none;
+  position: fixed;
+  left: 0; right: 0;
+  bottom: calc(60px + env(safe-area-inset-bottom));
+  z-index: 90;
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+  padding: 10px 16px;
+  gap: 8px;
+  align-items: center;
+}
+#add-task-bar.visible { display: flex; }
+
+#add-task-input {
+  flex: 1;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-btn);
+  padding: 9px 12px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 14px;
+  outline: none;
+  min-width: 0;
+}
+#add-task-input:focus { border-color: var(--gold); }
+#add-task-input::placeholder { color: var(--muted); }
+
+#add-task-btn {
+  background: var(--gold);
+  color: #0f0f0f;
+  border: none;
+  border-radius: var(--r-btn);
+  padding: 9px 18px;
+  font-weight: 600;
+  font-family: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  flex-shrink: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+#add-task-btn:active { opacity: .8; }
+
+/* ── Bottom nav ──────────────────────────────────────────────────────────── */
+#nav {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  z-index: 100;
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+  display: flex;
+  height: 60px;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.nb {
+  flex: 1;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  font-family: inherit;
+  color: var(--muted);
+  transition: color .15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.nb .ni { font-size: 20px; line-height: 1; }
+.nb .nl { font-size: 10px; letter-spacing: .03em; }
+.nb.active { color: var(--gold); }
+
+/* ── Section labels ──────────────────────────────────────────────────────── */
+.sec-label {
+  font-size: 10px;
+  font-family: 'DM Mono', monospace;
+  letter-spacing: .1em;
+  color: var(--muted);
+  text-transform: uppercase;
+  margin: 20px 0 8px;
+}
+.sec-label:first-child { margin-top: 0; }
+
+/* ── Base card ───────────────────────────────────────────────────────────── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  padding: 14px;
+  margin-bottom: 8px;
+}
+.card-title { font-size: 14px; font-weight: 500; line-height: 1.4; }
+.card-sub   { font-size: 12px; color: var(--muted); margin-top: 3px; }
+
+/* ── Type badges (pending) ───────────────────────────────────────────────── */
+.badge {
+  display: inline-block;
+  font-size: 10px;
+  font-family: 'DM Mono', monospace;
+  padding: 2px 7px;
+  border-radius: 4px;
+  margin-top: 6px;
+  font-weight: 500;
+  letter-spacing: .04em;
+}
+.badge-EMAIL    { background: rgba(201,168,76,.12);  color: var(--gold);  border: 1px solid rgba(201,168,76,.3); }
+.badge-NOTE     { background: rgba(76,126,201,.12);  color: var(--blue);  border: 1px solid rgba(76,126,201,.3); }
+.badge-CALENDAR { background: rgba(76,175,125,.12);  color: var(--green); border: 1px solid rgba(76,175,125,.3); }
+
+/* ── Stats row ───────────────────────────────────────────────────────────── */
+.stats-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  padding: 14px 10px;
+  text-align: center;
+}
+.stat-num { font-size: 30px; font-weight: 600; color: var(--gold); line-height: 1; }
+.stat-lbl { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+/* ── Task / reminder cards ───────────────────────────────────────────────── */
+.task-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  padding: 12px 14px;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.task-check {
+  width: 18px; height: 18px;
+  border: 1.5px solid var(--border);
+  border-radius: 4px;
+  flex-shrink: 0;
+  margin-top: 2px;
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+  position: relative;
+  -webkit-tap-highlight-color: transparent;
+}
+.task-check:hover { border-color: var(--gold); }
+.task-check.is-done {
+  background: var(--green);
+  border-color: var(--green);
+}
+.task-check.is-done::after {
+  content: '';
+  position: absolute;
+  left: 4px; top: 2px;
+  width: 7px; height: 4px;
+  border-left: 2px solid #fff;
+  border-bottom: 2px solid #fff;
+  transform: rotate(-45deg);
+}
+.task-check.display-only { cursor: default; }
+.task-body  { flex: 1; min-width: 0; }
+.task-title { font-size: 14px; line-height: 1.4; }
+.task-title.struck { color: var(--muted); text-decoration: line-through; }
+
+.pri {
+  display: inline-block;
+  font-size: 10px;
+  font-family: 'DM Mono', monospace;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-top: 5px;
+  letter-spacing: .02em;
+}
+.pri-high   { background: rgba(201,80,76,.12);  color: var(--red); }
+.pri-medium { background: rgba(201,168,76,.10); color: var(--gold-dim); }
+.pri-low    { background: rgba(76,175,125,.10); color: var(--green); }
+.pri-normal { background: rgba(102,102,102,.10);color: var(--muted); }
+
+/* ── Calendar grouped card ───────────────────────────────────────────────── */
+.cal-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+.cal-row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.cal-row:last-child { border-bottom: none; }
+.cal-time  { font-size: 12px; font-family: 'DM Mono', monospace; color: var(--muted); flex-shrink: 0; width: 62px; }
+.cal-event { font-size: 14px; font-weight: 500; flex: 1; }
+
+/* ── Briefing ────────────────────────────────────────────────────────────── */
+.b-hdr {
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.b-hdr-title { font-size: 22px; font-weight: 600; color: var(--gold); letter-spacing: .06em; }
+.b-hdr-date  { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.b-hdr-gen   { font-size: 11px; color: var(--muted); opacity: .6; margin-top: 2px; font-family: 'DM Mono', monospace; }
+
+.b-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  padding: 14px;
+  margin-bottom: 10px;
+}
+.b-source  { font-size: 10px; font-family: 'DM Mono', monospace; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 5px; }
+.b-title   { font-size: 14px; font-weight: 500; line-height: 1.4; margin-bottom: 10px; }
+.b-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.b-btn {
+  font-size: 12px;
+  padding: 5px 12px;
+  border-radius: var(--r-btn);
+  border: 1px solid var(--border);
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+  font-family: inherit;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity .15s;
+}
+.b-btn:active { opacity: .7; }
+.b-btn-read   { border-color: var(--gold); color: var(--gold); }
+.b-btn-reject { border-color: var(--red);  color: var(--red);  }
+.b-btn.sent   { opacity: .4; pointer-events: none; }
+
+/* ── Reading list card ────────────────────────────────────────────────────── */
+.rl-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  padding: 14px;
+  margin-bottom: 8px;
+}
+.rl-source { font-size: 10px; font-family: 'DM Mono', monospace; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 4px; }
+.rl-title  { font-size: 14px; font-weight: 500; line-height: 1.4; }
+.rl-status { font-size: 10px; font-family: 'DM Mono', monospace; margin-top: 6px; }
+.rl-unread  { color: var(--muted); }
+.rl-reading { color: var(--gold); }
+.rl-finished{ color: var(--green); }
+
+/* ── View-all link ───────────────────────────────────────────────────────── */
+.view-all {
+  display: block;
+  text-align: center;
+  padding: 10px;
+  font-size: 12px;
+  color: var(--gold);
+  cursor: pointer;
+  font-family: 'DM Mono', monospace;
+  letter-spacing: .04em;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ── Empty / loading states ──────────────────────────────────────────────── */
+.empty   { text-align: center; color: var(--muted); font-size: 13px; padding: 24px 0; }
+.loading { text-align: center; color: var(--muted); font-size: 12px; padding: 20px 0; font-family: 'DM Mono', monospace; }
 </style>
 </head>
 <body>
 
-<div id="hdr">
-  <div id="hdr-identity">
-    <button onclick="location.reload()" title="Refresh Watson" style="background:none;border:none;padding:0;cursor:pointer;flex-shrink:0;line-height:0;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="36" height="36" style="border-radius:7px;display:block;">
-      <rect x="0" y="0" width="512" height="512" rx="51" fill="#111827"/>
-      <text x="256" y="400" font-family="Georgia, serif" font-size="360" font-weight="700" fill="white" text-anchor="middle">W</text>
-    </svg></button>
-    <div>
-      <div id="hdr-name">Watson</div>
-      <div id="hdr-sub">Digital Assistant to Dr. Bill Yomes</div>
-    </div>
+<header id="hdr">
+  <div id="hdr-mark">W</div>
+  <div id="hdr-text">
+    <div id="hdr-title">WATSON</div>
+    <div id="hdr-sub">Digital Assistant</div>
   </div>
-  <button id="gear-btn" onclick="toggleSettings()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
-</div>
+  <div id="hdr-date"></div>
+</header>
 
-<div id="overlay-backdrop" onclick="closeSettings()"></div>
-<div id="settings-panel" class="overlay-panel" onclick="closeSettings()">
-  <div class="overlay-topbar" onclick="event.stopPropagation()">
-    <div style="min-width:60px"></div>
-    <span class="overlay-title">Settings</span>
-    <button class="overlay-close" onclick="closeSettings()">&#215;</button>
-  </div>
-  <div id="settings-main" class="overlay-body" onclick="event.stopPropagation()">
-    <div class="overlay-section">
-      <div class="overlay-section-hdr">Appearance</div>
-      <div class="overlay-row" onclick="toggleTheme()">
-        <span class="overlay-row-label" id="theme-lbl-text">Dark mode</span>
-        <span class="overlay-row-value" id="theme-toggle-btn">Switch to Light</span>
-        <span class="overlay-row-chevron">&#8250;</span>
-      </div>
-    </div>
-    <div id="settings-nav-list" class="overlay-section" style="margin-top:16px">
-      <div class="overlay-section-hdr">Navigate</div>
-      <div class="overlay-row" draggable="false" data-menu-key="contacts" data-drag-id="contacts" onclick="closeSettings();switchTab('contacts')"><span class="drag-handle" style="color:#555;margin-right:10px;cursor:grab">⠿</span><span class="overlay-row-label">Contacts</span><span class="overlay-row-chevron">&#8250;</span></div>
-      <div class="overlay-row" draggable="false" data-menu-key="reading" data-drag-id="reading" onclick="closeSettings();switchTab('reading')"><span class="drag-handle" style="color:#555;margin-right:10px;cursor:grab">⠿</span><span class="overlay-row-label">Reading List</span><span class="overlay-row-chevron">&#8250;</span></div>
-      <div class="overlay-row" draggable="false" data-menu-key="tasks" data-drag-id="tasks" onclick="closeSettings();switchTab('tasks')"><span class="drag-handle" style="color:#555;margin-right:10px;cursor:grab">⠿</span><span class="overlay-row-label">Tasks</span><span class="overlay-row-chevron">&#8250;</span></div>
-      <div class="overlay-row" draggable="false" data-menu-key="skills" onclick="openSkillsPanel()">
-        <span class="drag-handle" style="color:#555;margin-right:10px;cursor:grab">⠿</span>
-        <span class="overlay-row-label">Skills</span>
-        <span class="overlay-row-chevron">&#8250;</span>
-      </div>
-      <div class="overlay-row" draggable="false" data-menu-key="reminders" onclick="closeSettings();switchTab('reminders')">
-        <span class="drag-handle" style="color:#555;margin-right:10px;cursor:grab">⠿</span>
-        <span class="overlay-row-label">Reminders</span>
-        <span class="overlay-row-chevron">&#8250;</span>
-      </div>
-      <div class="overlay-row" draggable="false" data-menu-key="pastoral-notes" onclick="closeSettings();openPastoralNotes()">
-        <span class="drag-handle" style="color:#555;margin-right:10px;cursor:grab">⠿</span>
-        <span class="overlay-row-label">Pastoral Notes</span>
-        <span class="overlay-row-chevron">&#8250;</span>
-      </div>
-      <div class="overlay-row" draggable="false" data-menu-key="reports" onclick="openReportsPanel()">
-        <span class="drag-handle" style="color:#555;margin-right:10px;cursor:grab">⠿</span>
-        <span class="overlay-row-label">Reports</span>
-        <span class="overlay-row-chevron">&#8250;</span>
-      </div>
-      <div class="overlay-row" draggable="false" data-menu-key="shepherding" onclick="openShepherdingPanel()">
-        <span class="drag-handle" style="color:#555;margin-right:10px;cursor:grab">⠿</span>
-        <span class="overlay-row-label">Shepherding</span>
-        <span class="overlay-row-chevron">&#8250;</span>
-      </div>
-    </div>
-  </div>
-  <div class="overlay-footer" onclick="event.stopPropagation()">
-    <button class="overlay-footer-btn" onclick="closeSettings()">&#215; Close Settings</button>
-  </div>
-  <div id="settings-reminders" class="overlay-sub" onclick="closeRemindersPanel(); event.stopPropagation()">
-    <div class="overlay-topbar" onclick="event.stopPropagation()">
-      <button class="overlay-back" onclick="closeRemindersPanel()">&#8592; Back</button>
-      <span class="overlay-title">Reminders</span>
-      <div style="min-width:60px"></div>
-    </div>
-    <div class="overlay-body" style="padding:16px" onclick="event.stopPropagation()">
-      <div id="settings-reminders-list"></div>
-    </div>
-    <div class="overlay-footer" onclick="event.stopPropagation()">
-      <button class="overlay-footer-btn" onclick="closeRemindersPanel()">&#8592; Back</button>
-    </div>
-  </div>
-  <div id="settings-skills" class="overlay-sub" onclick="closeSkillsPanel(); event.stopPropagation()">
-    <div class="overlay-topbar" onclick="event.stopPropagation()">
-      <button class="overlay-back" onclick="closeSkillsPanel()">&#8592; Back</button>
-      <span class="overlay-title">Skills</span>
-      <div style="min-width:60px"></div>
-    </div>
-    <div class="overlay-body" style="padding:16px" onclick="event.stopPropagation()">
-      <div style="display:flex;margin-bottom:14px;border-bottom:1px solid var(--border)">
-        <button class="skill-tab" data-tab="ready" onclick="switchSkillTab('ready')" style="flex:1;background:none;border:none;border-bottom:2px solid var(--accent);margin-bottom:-1px;padding:8px 0;font-size:11px;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.06em;cursor:pointer;color:var(--accent)">Ready</button>
-        <button class="skill-tab" data-tab="dev" onclick="switchSkillTab('dev')" style="flex:1;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-1px;padding:8px 0;font-size:11px;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.06em;cursor:pointer;color:var(--text-muted)">Dev</button>
-      </div>
-      <input id="skill-search" class="sbar" type="text" placeholder="Search skills&#8230;" oninput="onSkillSearch(this.value)" style="margin-bottom:10px">
-      <div id="skill-category-pills" class="skill-category-pills"></div>
-      <div id="settings-skills-list"></div>
-    </div>
-    <div class="overlay-footer" onclick="event.stopPropagation()">
-      <button class="overlay-footer-btn" onclick="closeSkillsPanel()">&#8592; Back</button>
-    </div>
-  </div>
-  <div id="settings-reports" class="overlay-sub" onclick="closeReportsPanel(); event.stopPropagation()">
-    <div class="overlay-topbar" onclick="event.stopPropagation()">
-      <button class="overlay-back" onclick="closeReportsPanel()">&#8592; Back</button>
-      <span class="overlay-title">Reports</span>
-      <div style="min-width:60px"></div>
-    </div>
-    <div class="overlay-body" style="padding:16px" onclick="event.stopPropagation()">
-      <div id="settings-reports-list"></div>
-    </div>
-    <div class="overlay-footer" onclick="event.stopPropagation()">
-      <button class="overlay-footer-btn" onclick="closeReportsPanel()">&#8592; Back</button>
-    </div>
-  </div>
-  <div id="settings-shepherding" class="overlay-sub" onclick="closeShepherdingPanel(); event.stopPropagation()">
-    <div class="overlay-topbar" onclick="event.stopPropagation()">
-      <button class="overlay-back" onclick="closeShepherdingPanel()">&#8592; Back</button>
-      <span class="overlay-title">Shepherding Report</span>
-      <div style="min-width:60px"></div>
-    </div>
-    <div class="overlay-body" style="padding:16px" onclick="event.stopPropagation()">
-      <button class="btn btn-p" style="width:100%;padding:10px;border:none;border-radius:10px;font-size:13px;margin-bottom:10px;background:#1e1800;color:#f0c040" onclick="runDataAudit()">&#128269; Run Data Audit</button>
-      <div id="audit-results"></div>
-      <hr style="border:none;border-top:1px solid #333;margin:16px 0">
-      <button class="btn btn-p" style="width:100%;padding:10px;border:none;border-radius:10px;font-size:13px;margin-bottom:10px" onclick="runShepherdingReport()">&#128203; Run Report Now</button>
-      <button class="btn btn-p" style="width:100%;padding:10px;border:none;border-radius:10px;font-size:13px;margin-bottom:16px;background:var(--bg3);color:var(--text)" onclick="emailShepherdingReport()">&#9993; Email Report to Me</button>
-      <div id="shepherding-output" style="font-size:13px;color:var(--text-muted);white-space:pre-line;line-height:1.6"></div>
-      <div id="shepherding-report-view" style="margin-top:16px"></div>
-    </div>
-    <div class="overlay-footer" onclick="event.stopPropagation()">
-      <button class="overlay-footer-btn" onclick="closeShepherdingPanel()">&#8592; Back</button>
-    </div>
-  </div>
-</div>
+<div id="page-content"><div class="loading">Loading&hellip;</div></div>
 
-<div id="main">
-
-  <!-- ── Chat Tab ─────────────────────────────────────────────────── -->
-  <div id="tab-chat" class="tab active">
-    <div id="chat-messages"></div>
-    <div id="chat-attach-indicator">&#128206; <span id="ai-filename"></span><button id="chat-attach-x" onclick="clearAttachment()" title="Remove">&#215;</button></div>
-    <div id="chat-input-area">
-      <input type="file" id="chat-file-input" style="display:none" onchange="handleFileSelect(this)">
-      <button id="chat-mic-btn" onclick="toggleVoice()"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg></button>
-      <button id="chat-attach-btn" onclick="document.getElementById('chat-file-input').click()" title="Attach file">+</button>
-      <textarea id="chat-input" rows="1" placeholder="Message Watson&hellip;"></textarea>
-      <button id="chat-send-btn" onclick="sendChat()">Send</button>
-    </div>
-  </div>
-
-  <!-- ── History Tab ────────────────────────────────────────────────── -->
-  <div id="tab-history" class="tab">
-    <div style="display:flex;flex-direction:column;gap:8px;padding:14px">
-      <button class="new-chat-btn" onclick="startNewChat()">+ Start a New Chat</button>
-      <div class="history-label">Previous Chats</div>
-      <div id="session-list"></div>
-    </div>
-  </div>
-
-  <div id="tab-briefing" class="tab">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-      <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em">Today's Briefing</div>
-      <span id="b-offline" style="font-size:10px;color:var(--warn);display:none">&middot; offline</span>
-    </div>
-    <div id="b-list"></div>
-  </div>
-
-  <div id="tab-tasks" class="tab">
-    <div class="fbox">
-      <div class="flabel">Add Task</div>
-      <input type="text" id="t-title" placeholder="Task title..." onkeydown="if(event.key==='Enter')addTask()">
-      <div style="display:flex;gap:6px">
-        <input type="date" id="t-due" style="flex:1">
-        <select id="t-pri" style="flex:1">
-          <option value="high">High</option>
-          <option value="medium" selected>Medium</option>
-          <option value="low">Low</option>
-        </select>
-      </div>
-      <button class="btn btn-p" style="width:100%;padding:9px;border-radius:10px;border:none;font-size:12px" onclick="addTask()">+ Add Task</button>
-    </div>
-    <div class="pills">
-      <button class="pill active" id="pill-all" onclick="setFilter('all')">All</button>
-      <button class="pill" id="pill-active" onclick="setFilter('active')">Active</button>
-      <button class="pill" id="pill-done" onclick="setFilter('done')">Done</button>
-    </div>
-    <div id="t-offline" class="ctr" style="display:none">Watson offline<br><br>
-      <button class="btn btn-gh" style="flex:none;padding:7px 14px;width:auto" onclick="loadTasks()">Retry</button>
-    </div>
-    <div id="t-list"></div>
-  </div>
-
-  <div id="tab-reminders" class="tab">
-    <div class="ph-hdr">Reminders</div>
-    <div class="fbox">
-      <div class="flabel">Add Reminder</div>
-      <input type="text" id="r-title" placeholder="Reminder title..." onkeydown="if(event.key==='Enter')addReminder()">
-      <div style="display:flex;gap:6px">
-        <input type="date" id="r-date" style="flex:1">
-        <input type="time" id="r-time" style="flex:1">
-      </div>
-      <button class="btn btn-p" style="width:100%;padding:9px;border-radius:10px;border:none;font-size:12px" onclick="addReminder()">+ Add Reminder</button>
-    </div>
-    <div class="pills">
-      <button class="pill active" id="rpill-all" onclick="setRFilter('all')">All</button>
-      <button class="pill" id="rpill-active" onclick="setRFilter('active')">Active</button>
-      <button class="pill" id="rpill-done" onclick="setRFilter('done')">Done</button>
-    </div>
-    <div id="r-offline" class="ctr" style="display:none">Watson offline<br><br>
-      <button class="btn btn-gh" style="flex:none;padding:7px 14px;width:auto" onclick="loadReminders()">Retry</button>
-    </div>
-    <div id="r-list"></div>
-  </div>
-
-  <div id="tab-contacts" class="tab">
-    <button onclick="importGoogleContacts()" style="width:100%;margin-bottom:10px;padding:10px;background:var(--accent-soft);border:1px solid var(--accent);border-radius:8px;color:var(--accent);font-size:13px;font-weight:500;cursor:pointer;font-family:inherit">&#8681; Import from Google</button>
-    <div id="c-import-msg" style="display:none;font-size:12px;color:var(--text-muted);margin-bottom:8px;text-align:center"></div>
-    <div style="display:flex;gap:8px;margin-bottom:4px">
-      <input class="sbar" id="c-search" placeholder="Search contacts..." oninput="renderContacts()" style="flex:1;margin-bottom:0">
-      <button id="c-add-btn" onclick="toggleAddContact()" style="padding:9px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:9px;color:var(--text);font-size:16px;flex-shrink:0">+</button>
-    </div>
-    <div id="c-add-form" class="fbox" style="display:none;margin-top:10px">
-      <div class="flabel">New Contact</div>
-      <input type="text" id="nc-name" placeholder="Name *">
-      <input type="text" id="nc-email" placeholder="Email">
-      <input type="text" id="nc-phone" placeholder="Phone">
-      <input type="text" id="nc-rel" placeholder="Relationship">
-      <select id="nc-carrier" style="width:100%;padding:9px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:13px;font-family:inherit">
-        <option value="">Carrier (Unknown)</option>
-        <option value="AT&T">AT&amp;T</option>
-        <option value="Verizon">Verizon</option>
-        <option value="T-Mobile">T-Mobile</option>
-        <option value="Sprint">Sprint</option>
-        <option value="US Cellular">US Cellular</option>
-        <option value="Cricket">Cricket</option>
-        <option value="Boost">Boost</option>
-        <option value="Metro PCS">Metro PCS</option>
-        <option value="Other">Other</option>
-      </select>
-      <input type="text" id="nc-notes" placeholder="Notes">
-      <button class="btn btn-p" style="width:100%;padding:9px;border:none;border-radius:10px;font-size:12px" onclick="saveNewContact()">Add Contact</button>
-    </div>
-    <div id="c-offline" class="ctr" style="display:none">Watson offline<br><br>
-      <button class="btn btn-gh" style="flex:none;padding:7px 14px;width:auto" onclick="loadContacts()">Retry</button>
-    </div>
-    <div id="c-list"></div>
-  </div>
-
-  <div id="tab-reading" class="tab">
-    <div id="rl-offline" class="ctr" style="display:none">Watson offline<br><br>
-      <button class="btn btn-gh" style="flex:none;padding:7px 14px;width:auto" onclick="loadReading()">Retry</button>
-    </div>
-    <div id="rl-list"></div>
-  </div>
-
-  <div id="tab-voice" class="tab">
-    <div style="max-width:600px;margin:0 auto;padding:16px;">
-
-      <!-- Session controls -->
-      <div style="display:flex;gap:8px;align-items:center;margin-bottom:16px;flex-wrap:wrap;">
-        <input id="voice-session-title" type="text" placeholder="Session title..."
-          style="flex:1;min-width:160px;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:14px;font-family:inherit;">
-        <select id="voice-project-select"
-          style="padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:14px;font-family:inherit;">
-          <option value="">No project</option>
-        </select>
-        <button onclick="voiceStartSession()"
-          style="padding:8px 16px;border-radius:8px;background:var(--accent);color:#fff;border:none;cursor:pointer;font-size:14px;font-family:inherit;">
-          New Session
-        </button>
-      </div>
-
-      <!-- Push-to-hold mic button -->
-      <div style="text-align:center;margin:32px 0;">
-        <button id="voice-mic-btn"
-          style="
-            width:140px;
-            height:140px;
-            border-radius:50%;
-            border:4px solid var(--accent);
-            background:var(--card-bg);
-            font-size:52px;
-            cursor:pointer;
-            transition:all 0.15s;
-            touch-action:none;
-            user-select:none;
-            -webkit-user-select:none;
-          "
-          onmousedown="voicePressStart(event)"
-          onmouseup="voicePressEnd(event)"
-          onmouseleave="voicePressEnd(event)"
-          ontouchstart="voicePressStart(event)"
-          ontouchend="voicePressEnd(event)"
-          ontouchcancel="voicePressEnd(event)"
-        >🎙</button>
-        <div id="voice-status"
-          style="margin-top:16px;font-size:15px;color:var(--muted);min-height:24px;">
-          Start a session, then hold to speak
-        </div>
-      </div>
-
-      <!-- Transcript -->
-      <div id="voice-transcript-box"
-        style="min-height:80px;padding:12px;background:var(--bg2);border-radius:8px;border:1px solid var(--border);margin-bottom:12px;font-size:14px;color:var(--text);">
-        <em style="color:var(--text3);">Your words will appear here...</em>
-      </div>
-
-      <!-- Response -->
-      <div id="voice-response-box"
-        style="min-height:80px;padding:12px;background:var(--bg2);border-radius:8px;border:1px solid var(--border);margin-bottom:16px;font-size:14px;color:var(--text);">
-        <em style="color:var(--text3);">Watson's response will appear here...</em>
-      </div>
-
-      <!-- Wrap up + history controls -->
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:24px;">
-        <button onclick="voiceWrapUp()"
-          style="padding:8px 16px;border-radius:8px;background:#e67e22;color:#fff;border:none;cursor:pointer;font-size:14px;font-family:inherit;">
-          Wrap Up Session
-        </button>
-        <button onclick="voiceShowHistory()"
-          style="padding:8px 16px;border-radius:8px;background:var(--bg2);color:var(--text);border:1px solid var(--border);cursor:pointer;font-size:14px;font-family:inherit;">
-          History
-        </button>
-      </div>
-
-      <!-- Session history panel -->
-      <div id="voice-history-panel" style="display:none;">
-        <h3 style="font-size:15px;margin-bottom:8px;">Conversation History</h3>
-        <div id="voice-history-list" style="display:flex;flex-direction:column;gap:8px;"></div>
-      </div>
-
-      <!-- File dialog (shown after wrap up if project suggested) -->
-      <div id="voice-file-dialog" style="display:none;padding:16px;background:var(--bg2);border-radius:8px;border:1px solid var(--accent);">
-        <p id="voice-file-prompt" style="margin:0 0 12px;font-size:14px;"></p>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          <button id="voice-file-confirm" onclick="voiceFileConfirm()"
-            style="padding:8px 16px;border-radius:8px;background:var(--accent);color:#fff;border:none;cursor:pointer;font-family:inherit;">
-            Yes, file it
-          </button>
-          <button onclick="voiceFileDismiss()"
-            style="padding:8px 16px;border-radius:8px;background:var(--bg2);color:var(--text);border:1px solid var(--border);cursor:pointer;font-family:inherit;">
-            Not this time
-          </button>
-          <select id="voice-file-project-override"
-            style="padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:14px;font-family:inherit;">
-            <option value="">Choose different project...</option>
-          </select>
-        </div>
-      </div>
-
-    </div>
-  </div>
-
-  <div id="tab-projects" class="tab">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-      <button class="arch-toggle" id="arch-toggle" onclick="toggleArchivedProjects()">Show Archived</button>
-      <button onclick="showNewProjectForm()" style="padding:7px 14px;background:var(--accent);border:none;border-radius:9px;color:#fff;font-size:12px;cursor:pointer;font-family:inherit">+ New Project</button>
-    </div>
-    <div id="proj-new-form" class="fbox" style="display:none;margin-bottom:10px">
-      <div class="flabel">New Project</div>
-      <input type="text" id="proj-new-name" placeholder="Project name..." onkeydown="if(event.key==='Enter')createProject()">
-      <button class="btn btn-p" style="width:100%;padding:9px;border:none;border-radius:10px;font-size:12px" onclick="createProject()">Create</button>
-    </div>
-    <div id="proj-list"></div>
-  </div>
-
+<!-- Add-task bar (shown only on Tasks page) -->
+<div id="add-task-bar">
+  <input id="add-task-input" type="text" placeholder="New task&hellip;" autocomplete="off">
+  <button id="add-task-btn" onclick="addTask()">Submit</button>
 </div>
 
 <nav id="nav">
-  <button class="nb active" id="nav-chat" onclick="switchTab('chat')">
-    <span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M2 12C2 6.48 6.48 2 12 2s10 4.48 10 10-4.48 10-10 10H2l2.29-2.29C3.13 18.07 2 15.17 2 12z"/></svg><span class="chat-nav-badge" id="chat-nav-badge"></span></span>
-    <span>Chat</span>
-  </button>
-  <button class="nb" id="nav-history" onclick="switchTab('history')">
-    <span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M13 3a9 9 0 00-9 9H1l3.89 3.89.07.14L9 12H6a7 7 0 117 7c-1.93 0-3.68-.79-4.95-2.05l-1.42 1.42A8.954 8.954 0 0013 21a9 9 0 000-18zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg></span>
-    <span>History</span>
-  </button>
-  <button class="nb" id="nav-briefing" onclick="switchTab('briefing')">
-    <span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM6 20V4h5v7h7v9H6z"/></svg></span>
-    <span>Briefing</span>
-  </button>
-  <button class="nb" id="nav-projects" onclick="switchTab('projects')">
-    <span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M10 4H4a2 2 0 00-2 2v12a2 2 0 002 2h16a2 2 0 002-2V8a2 2 0 00-2-2h-8l-2-2z"/></svg></span>
-    <span>Projects</span>
-  </button>
-  <button class="nb" id="nav-voice" onclick="switchTab('voice')">
-    <span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg></span>
-    <span class="label">VOICE</span>
-  </button>
+  <button class="nb active" id="nav-home"      onclick="switchTab('home')">     <span class="ni">⌂</span><span class="nl">Home</span></button>
+  <button class="nb"        id="nav-briefing"  onclick="switchTab('briefing')"> <span class="ni">☀</span><span class="nl">Briefing</span></button>
+  <button class="nb"        id="nav-tasks"     onclick="switchTab('tasks')">    <span class="ni">✓</span><span class="nl">Tasks</span></button>
+  <button class="nb"        id="nav-reminders" onclick="switchTab('reminders')"><span class="ni">◎</span><span class="nl">Reminders</span></button>
+  <button class="nb"        id="nav-reading"   onclick="switchTab('reading')">  <span class="ni">☰</span><span class="nl">Reading</span></button>
 </nav>
 
-<!-- Project workspace overlay -->
-<div id="proj-workspace">
-  <div class="pw-topbar">
-    <button class="pw-back" onclick="closeProjectWorkspace()">&#8592;</button>
-    <span class="pw-title" id="pw-title"></span>
-    <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
-      <button class="pw-ghost-btn" onclick="openFileSidebar()"><svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 6a2 2 0 012-2h4l2 2h6a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"/></svg> Files</button>
-      <button class="pw-ghost-btn" onclick="openProjectMemory()"><svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10" cy="10" r="3"/><path d="M10 3v2M10 15v2M3 10h2M15 10h2M5.05 5.05l1.41 1.41M13.54 13.54l1.41 1.41M5.05 14.95l1.41-1.41M13.54 6.46l1.41-1.41"/></svg> Memory</button>
-      <button class="pw-icon-btn" id="pw-kebab-btn" title="More" onclick="toggleKebabMenu(event)">&#8942;</button>
-    </div>
-    <div class="pw-kebab-menu" id="pw-kebab-menu">
-      <button class="pw-kebab-item" onclick="archiveProject()">Archive Project</button>
-      <button class="pw-kebab-item danger" onclick="confirmDeleteProject()">Delete Project</button>
-    </div>
-  </div>
-  <div id="pw-summary-card" style="display:none">
-    <div class="pw-summary-hdr">
-      <span class="pw-summary-lbl">Watson&#39;s summary</span>
-      <button class="pw-summary-dismiss" onclick="dismissSummary()">&#215;</button>
-    </div>
-    <div class="pw-summary-text" id="pw-summary-text"></div>
-  </div>
-  <div id="pw-messages"></div>
-  <div id="pw-attach-indicator">&#128206; <span id="pw-attach-name"></span><button id="pw-attach-x" onclick="clearPWAttachment()">&#215;</button></div>
-  <div id="pw-input-area">
-    <input type="file" id="pw-file-input" style="display:none" onchange="handlePWFileSelect(this)">
-    <button id="pw-attach-btn" onclick="document.getElementById('pw-file-input').click()">+</button>
-    <button id="pw-mic-btn" onclick="togglePWVoice()"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg></button>
-    <input id="pw-input" type="text" placeholder="Message Watson&hellip;">
-    <button id="pw-send-btn" onclick="sendPWChat()">Send</button>
-  </div>
-</div>
-
-<!-- Project memory panel -->
-<div id="project-memory-panel">
-  <div class="overlay-topbar">
-    <div style="min-width:60px"></div>
-    <span class="overlay-title">Project Memory</span>
-    <button class="overlay-close" onclick="closeProjectMemory()">&#215;</button>
-  </div>
-  <div id="pm-content" class="pm-content"></div>
-  <div class="pm-add-area">
-    <label class="pm-add-label">Add to memory</label>
-    <textarea id="pm-textarea" class="pm-textarea" placeholder="Write something to remember about this project..."></textarea>
-    <button class="pm-save-btn" onclick="saveProjectMemory()">Save</button>
-    <span id="pm-saved-msg" style="display:none;color:var(--accent);font-size:13px;margin-left:8px">Saved ✓</span>
-  </div>
-</div>
-
-<!-- File sidebar -->
-<div id="pw-sidebar">
-  <div class="pw-sidebar-hdr">
-    <span class="pw-sidebar-title">Project Files</span>
-    <button class="pw-sidebar-close" onclick="closeFileSidebar()">&#215;</button>
-  </div>
-  <div id="pw-sidebar-content" style="flex:1;overflow-y:auto;padding:12px"></div>
-  <div style="padding:12px;border-top:1px solid var(--border);flex-shrink:0;display:flex;flex-direction:column;gap:8px">
-    <button class="pw-new-note-btn" onclick="openNoteModal()">+ New Note</button>
-    <input type="file" id="pw-sidebar-file-input" style="display:none" onchange="handleSidebarFileUpload(this)">
-    <button class="pw-new-note-btn" style="background:none;color:var(--text-muted);border-color:var(--border)" onclick="document.getElementById('pw-sidebar-file-input').click()">&#8593; Upload File</button>
-    <span id="pw-upload-msg" style="display:none;color:var(--accent);font-size:12px;text-align:center">Uploaded ✓</span>
-  </div>
-</div>
-
-<!-- Note modal -->
-<div id="pw-note-modal" onclick="closeNoteModal()">
-  <div class="pw-modal-inner" onclick="event.stopPropagation()">
-    <div class="pw-modal-title">New Note</div>
-    <textarea id="pw-note-content" placeholder="Note content..."></textarea>
-    <div class="row">
-      <button class="btn btn-p" onclick="saveNote()">Save</button>
-      <button class="btn btn-gh" onclick="closeNoteModal()">Cancel</button>
-    </div>
-  </div>
-</div>
-
-<!-- Pastoral Notes panel -->
-<div id="pastoral-panel" style="display:none">
-  <div class="overlay-topbar">
-    <div style="min-width:60px"></div>
-    <span class="overlay-title">Pastoral Notes</span>
-    <div style="min-width:60px;display:flex;justify-content:flex-end;gap:4px">
-      <button onclick="togglePastoralForm()" style="background:none;border:none;color:var(--accent);font-size:22px;padding:4px 0 4px 8px;cursor:pointer;line-height:1;font-weight:300" title="Add note">+</button>
-      <button class="overlay-close" onclick="closePastoralNotes()" style="padding:4px 0 4px 4px">&#215;</button>
-    </div>
-  </div>
-  <div id="pn-add-form" style="display:none;flex-shrink:0;padding:12px 16px;border-bottom:1px solid var(--border);flex-direction:column;gap:8px">
-    <input id="pn-name-input" type="text" placeholder="Person name..." style="margin-bottom:0">
-    <textarea id="pn-note-input" placeholder="Note..." style="height:80px;resize:none;margin-bottom:0"></textarea>
-    <button onclick="savePastoralNote()" class="btn btn-p" style="align-self:flex-end;padding:7px 20px;border-radius:8px;border:none;font-size:13px">Save</button>
-  </div>
-  <div style="display:flex;gap:0;border-bottom:1px solid var(--border);flex-shrink:0">
-    <button id="pn-tab-active" onclick="setPastoralView('active')" style="flex:1;padding:10px 0;background:none;border:none;border-bottom:2px solid var(--accent);font-size:11px;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.06em;cursor:pointer;color:var(--accent)">Active</button>
-    <button id="pn-tab-archived" onclick="setPastoralView('archived')" style="flex:1;padding:10px 0;background:none;border:none;border-bottom:2px solid transparent;font-size:11px;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.06em;cursor:pointer;color:var(--text-muted)">Archived</button>
-  </div>
-  <div id="pastoral-notes-list" style="flex:1;overflow-y:auto;padding:1rem"></div>
-</div>
-
 <script src="{{ url_for('serve_appjs') }}?v={{ app_js_ts }}"></script>
-
-<script>
-// ── Voice System ──────────────────────────────────────────────────────────
-
-const voiceState = {
-  sessionId: null,
-  projectSlug: null,
-  suggestedSlug: null,
-  history: [],
-  recognition: null,
-  pressing: false,
-  audioUnlocked: false,
-  pendingTranscript: '',
-  synth: window.speechSynthesis,
-};
-
-// iOS requires a user-gesture to unlock audio — call this on first button press
-function voiceUnlockAudio() {
-  if (voiceState.audioUnlocked) return;
-  try {
-    const utt = new SpeechSynthesisUtterance('');
-    utt.volume = 0;
-    voiceState.synth.speak(utt);
-    voiceState.audioUnlocked = true;
-  } catch(e) {}
-}
-
-// Populate project dropdowns
-async function voiceLoadProjects() {
-  try {
-    const res = await fetch('/api/projects');
-    const projects = await res.json();
-    ['voice-project-select', 'voice-file-project-override'].forEach(id => {
-      const sel = document.getElementById(id);
-      if (!sel) return;
-      projects.forEach(p => {
-        const opt = document.createElement('option');
-        opt.value = p.slug;
-        opt.textContent = p.name || p.slug;
-        sel.appendChild(opt);
-      });
-    });
-  } catch(e) { console.warn('voiceLoadProjects:', e); }
-}
-
-async function voiceStartSession() {
-  const title = document.getElementById('voice-session-title').value.trim() || 'Voice Session';
-  const projectSlug = document.getElementById('voice-project-select').value || null;
-  try {
-    const res = await fetch('/api/sessions', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({title, project_slug: projectSlug, source: 'voice'}),
-    });
-    const data = await res.json();
-    voiceState.sessionId = data.id;
-    voiceState.projectSlug = projectSlug;
-    voiceState.history = [];
-    document.getElementById('voice-status').textContent = 'Session started. Hold mic to speak.';
-    document.getElementById('voice-mic-btn').style.borderColor = '#27ae60';
-  } catch(e) {
-    document.getElementById('voice-status').textContent = 'Failed to start session.';
-  }
-}
-
-// ── Push-to-hold handlers ─────────────────────────────────────────────────
-
-function voicePressStart(e) {
-  e.preventDefault();
-  voiceUnlockAudio(); // unlock iOS audio on gesture
-
-  if (!voiceState.sessionId) {
-    document.getElementById('voice-status').textContent = 'Start a session first.';
-    return;
-  }
-  if (voiceState.pressing) return;
-
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SpeechRecognition) {
-    document.getElementById('voice-status').textContent = 'Speech recognition not supported.';
-    return;
-  }
-
-  voiceState.pressing = true;
-  voiceState.pendingTranscript = '';
-
-  const btn = document.getElementById('voice-mic-btn');
-  btn.textContent = '⏺';
-  btn.style.background = '#e74c3c33';
-  btn.style.borderColor = '#e74c3c';
-  btn.style.boxShadow = '0 0 0 8px #e74c3c22';
-  document.getElementById('voice-status').textContent = 'Listening...';
-
-  const rec = new SpeechRecognition();
-  rec.lang = 'en-US';
-  rec.continuous = true;
-  rec.interimResults = true;
-
-  rec.onresult = (e) => {
-    const transcript = Array.from(e.results)
-      .map(r => r[0].transcript)
-      .join('');
-    voiceState.pendingTranscript = transcript;
-    document.getElementById('voice-transcript-box').textContent = transcript;
-  };
-
-  rec.onerror = (e) => {
-    console.warn('Speech error:', e.error);
-    voicePressClear();
-  };
-
-  rec.onend = () => {
-    // Only send if we're still in a press — avoids double-send
-    if (voiceState.pressing) {
-      voiceState.pressing = false;
-      if (voiceState.pendingTranscript.trim()) {
-        voiceSend(voiceState.pendingTranscript.trim());
-      }
-    }
-    voicePressClear();
-  };
-
-  voiceState.recognition = rec;
-  try { rec.start(); } catch(e) { voicePressClear(); }
-}
-
-function voicePressEnd(e) {
-  if (e) e.preventDefault();
-  if (!voiceState.pressing) return;
-  voiceState.pressing = false;
-
-  if (voiceState.recognition) {
-    try { voiceState.recognition.stop(); } catch(e) {}
-    // onend will fire and call voiceSend
-  }
-}
-
-function voicePressClear() {
-  const btn = document.getElementById('voice-mic-btn');
-  if (!btn) return;
-  btn.textContent = '🎙';
-  btn.style.background = '';
-  btn.style.borderColor = voiceState.sessionId ? '#27ae60' : 'var(--accent)';
-  btn.style.boxShadow = '';
-}
-
-// ── Send + TTS ────────────────────────────────────────────────────────────
-
-async function voiceSend(text) {
-  document.getElementById('voice-status').textContent = 'Watson is thinking...';
-  document.getElementById('voice-response-box').textContent = '';
-  try {
-    const res = await fetch('/api/voice', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        message: text,
-        session_id: voiceState.sessionId,
-        project_slug: voiceState.projectSlug,
-        history: voiceState.history,
-      }),
-    });
-    const data = await res.json();
-    const reply = data.response || '';
-    document.getElementById('voice-response-box').textContent = reply;
-    voiceState.history.push({role: 'user', content: text});
-    voiceState.history.push({role: 'assistant', content: reply});
-    if (voiceState.history.length > 20) voiceState.history = voiceState.history.slice(-20);
-    document.getElementById('voice-status').textContent = 'Hold to speak again.';
-    voiceSpeak(reply);
-  } catch(e) {
-    document.getElementById('voice-status').textContent = 'Error: ' + e.message;
-  }
-}
-
-function voiceSpeak(text) {
-  if (!voiceState.synth) return;
-  voiceState.synth.cancel();
-  // Small delay gives iOS time to process the cancel before speaking
-  setTimeout(() => {
-    const utt = new SpeechSynthesisUtterance(text);
-    utt.rate = 1.05;
-    utt.pitch = 1.0;
-    utt.lang = 'en-US';
-    voiceState.synth.speak(utt);
-  }, 100);
-}
-
-// ── Wrap up + history ─────────────────────────────────────────────────────
-
-async function voiceWrapUp() {
-  if (!voiceState.sessionId) {
-    alert('No active session to wrap up.');
-    return;
-  }
-  document.getElementById('voice-status').textContent = 'Wrapping up...';
-  try {
-    const res = await fetch(`/api/sessions/${voiceState.sessionId}/close`, {method: 'POST'});
-    const data = await res.json();
-    document.getElementById('voice-status').textContent = 'Session saved.';
-
-    if (data.suggested_project_slug && !voiceState.projectSlug) {
-      voiceState.suggestedSlug = data.suggested_project_slug;
-      document.getElementById('voice-file-prompt').textContent =
-        `This looks like it belongs in "${data.suggested_project_slug}". File it there?`;
-      document.getElementById('voice-file-dialog').style.display = 'block';
-    }
-
-    const closedId = voiceState.sessionId;
-    voiceState.sessionId = null;
-    voiceState.projectSlug = null;
-    voiceState.history = [];
-    voicePressClear();
-
-    // Store closed session id for filing
-    voiceState._lastClosedId = closedId;
-  } catch(e) {
-    document.getElementById('voice-status').textContent = 'Wrap up failed: ' + e.message;
-  }
-}
-
-async function voiceFileConfirm() {
-  const override = document.getElementById('voice-file-project-override').value;
-  const slug = override || voiceState.suggestedSlug;
-  const sid = voiceState._lastClosedId;
-  if (!slug || !sid) return;
-  try {
-    await fetch(`/api/sessions/${sid}/file`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({project_slug: slug}),
-    });
-    document.getElementById('voice-file-dialog').style.display = 'none';
-    document.getElementById('voice-status').textContent = `Filed under ${slug}.`;
-  } catch(e) {
-    alert('Filing failed: ' + e.message);
-  }
-}
-
-function voiceFileDismiss() {
-  document.getElementById('voice-file-dialog').style.display = 'none';
-  voiceState.suggestedSlug = null;
-}
-
-async function voiceShowHistory() {
-  const panel = document.getElementById('voice-history-panel');
-  const list = document.getElementById('voice-history-list');
-  if (panel.style.display !== 'none') { panel.style.display = 'none'; return; }
-  try {
-    const res = await fetch('/api/sessions');
-    const sessions = await res.json();
-    list.innerHTML = sessions.map(s => `
-      <div style="padding:12px;background:var(--card-bg);border-radius:8px;border:1px solid var(--border);cursor:pointer;"
-        onclick="voiceLoadSession(${s.id})">
-        <div style="font-weight:600;font-size:14px;">${s.title}</div>
-        <div style="font-size:12px;color:var(--muted);margin-top:4px;">
-          ${(s.created_at||'').slice(0,16)}
-          ${s.project_slug ? ' · ' + s.project_slug : ''}
-          · ${s.message_count} messages
-        </div>
-      </div>
-    `).join('');
-    panel.style.display = 'block';
-  } catch(e) { list.innerHTML = 'Failed to load history.'; }
-}
-
-async function voiceLoadSession(id) {
-  try {
-    const res = await fetch(`/api/sessions/${id}`);
-    const data = await res.json();
-    const msgs = data.messages || [];
-    document.getElementById('voice-history-panel').style.display = 'none';
-    document.getElementById('voice-transcript-box').innerHTML =
-      msgs.filter(m => m.role === 'user').map(m =>
-        `<div style="margin-bottom:8px;"><strong>Bill:</strong> ${m.content}</div>`
-      ).join('') || '<em>No messages</em>';
-    document.getElementById('voice-response-box').innerHTML =
-      msgs.filter(m => m.role === 'assistant').map(m =>
-        `<div style="margin-bottom:8px;"><strong>Watson:</strong> ${m.content}</div>`
-      ).join('') || '<em>No responses</em>';
-  } catch(e) { alert('Failed to load session.'); }
-}
-
-// ── Project workspace voice (fills pw-input, clicks pw-send-btn) ──────────
-
-const projMicState = { listening: false, recognition: null };
-
-function projToggleMic() {
-  if (projMicState.listening) {
-    projStopListening();
-  } else {
-    projStartListening();
-  }
-}
-
-function projStartListening() {
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SpeechRecognition) { alert('Speech recognition not supported.'); return; }
-  const rec = new SpeechRecognition();
-  rec.lang = 'en-US';
-  rec.continuous = false;
-  rec.interimResults = false;
-
-  rec.onstart = () => {
-    projMicState.listening = true;
-    const btn = document.getElementById('proj-mic-btn');
-    if (btn) { btn.textContent = '⏹'; btn.style.background = '#e74c3c22'; }
-  };
-
-  rec.onresult = (e) => {
-    const transcript = e.results[0][0].transcript;
-    const input = document.getElementById('pw-input');
-    if (input) {
-      input.value = transcript;
-      const sendBtn = document.getElementById('pw-send-btn');
-      if (sendBtn) sendBtn.click();
-    }
-  };
-
-  rec.onerror = () => { projStopListening(); };
-  rec.onend = () => { projStopListening(); };
-
-  projMicState.recognition = rec;
-  rec.start();
-}
-
-function projStopListening() {
-  projMicState.listening = false;
-  if (projMicState.recognition) {
-    try { projMicState.recognition.stop(); } catch(e) {}
-    projMicState.recognition = null;
-  }
-  const btn = document.getElementById('proj-mic-btn');
-  if (btn) { btn.textContent = '🎙'; btn.style.background = ''; }
-}
-
-// Init
-document.addEventListener('DOMContentLoaded', () => {
-  voiceLoadProjects();
-});
-</script>
-
 </body>
 </html>
