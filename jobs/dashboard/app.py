@@ -2495,6 +2495,89 @@ def audit_correct_field():
         return jsonify({"error": str(exc)}), 500
 
 
+# ── Reports ───────────────────────────────────────────────────────────────────
+
+@app.route("/api/reports/run")
+def reports_run():
+    report_type = request.args.get("type", "").strip()
+    weeks       = request.args.get("weeks", 4, type=int)
+    if not report_type:
+        return jsonify({"error": "type required"}), 400
+    try:
+        if report_type == "shepherding":
+            from jobs.connect_cards.shepherding_report import telegram_shepherding_summary
+            content = telegram_shepherding_summary()
+        else:
+            content = f"[{report_type.replace('_', ' ').title()} — last {weeks} weeks]\n\nReport generation for this type is not yet implemented."
+        return jsonify({"type": report_type, "weeks": weeks, "content": content})
+    except Exception as exc:
+        log.error("reports/run failed: %s", exc)
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/reports/telegram", methods=["POST"])
+def reports_telegram():
+    data    = request.get_json(force=True) or {}
+    rtype   = data.get("type", "report")
+    weeks   = data.get("weeks", "")
+    content = data.get("content", "")
+    if not content:
+        return jsonify({"error": "content required"}), 400
+    try:
+        label = rtype.replace("_", " ").title()
+        header = f"*{label}*" + (f" — {weeks}w" if weeks else "")
+        _send_telegram(f"{header}\n\n{content}")
+        return jsonify({"ok": True})
+    except Exception as exc:
+        log.error("reports/telegram failed: %s", exc)
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/reports/email", methods=["POST"])
+def reports_email():
+    import smtplib
+    from email.mime.text import MIMEText
+    data    = request.get_json(force=True) or {}
+    rtype   = data.get("type", "report")
+    weeks   = data.get("weeks", "")
+    content = data.get("content", "")
+    if not content:
+        return jsonify({"error": "content required"}), 400
+    try:
+        smtp_host = os.getenv("WATSON_SMTP_HOST", "smtp.gmail.com")
+        smtp_port = int(os.getenv("WATSON_SMTP_PORT", 587))
+        smtp_user = os.getenv("WATSON_GMAIL_ADDRESS")
+        smtp_pass = os.getenv("WATSON_GMAIL_APP_PASSWORD")
+        from_addr = os.getenv("WATSON_FROM_ADDRESS", smtp_user)
+        to_addr   = "bill.yomes@gmail.com"
+        label     = rtype.replace("_", " ").title()
+        subject   = f"Watson Report: {label}" + (f" ({weeks}w)" if weeks else "")
+        msg = MIMEText(content)
+        msg["Subject"] = subject
+        msg["From"]    = f"Watson <{from_addr}>"
+        msg["To"]      = to_addr
+        with smtplib.SMTP(smtp_host, smtp_port) as server:
+            server.starttls()
+            server.login(smtp_user, smtp_pass)
+            server.sendmail(from_addr, [to_addr], msg.as_string())
+        return jsonify({"ok": True})
+    except Exception as exc:
+        log.error("reports/email failed: %s", exc)
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/shepherding/telegram", methods=["POST"])
+def shepherding_telegram():
+    from jobs.connect_cards.shepherding_report import telegram_shepherding_summary
+    try:
+        summary = telegram_shepherding_summary()
+        _send_telegram(summary)
+        return jsonify({"ok": True})
+    except Exception as exc:
+        log.error("shepherding/telegram failed: %s", exc)
+        return jsonify({"error": str(exc)}), 500
+
+
 # ── Sessions ─────────────────────────────────────────────────────────────────
 
 @app.route("/api/sessions", methods=["POST"])
