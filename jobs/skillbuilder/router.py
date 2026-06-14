@@ -281,6 +281,8 @@ _GREETING_ONLY = frozenset({
     "hi", "hey", "hello", "good", "thanks", "thank", "ok", "okay", "sounds", "got it",
 })
 
+_WATSON_PREFIX_RE = re.compile(r'^watson[,\s]+', re.IGNORECASE)
+
 
 def _is_conversational(message: str) -> bool:
     """Return True if the message is conversational and should skip the LLM router."""
@@ -558,6 +560,14 @@ def _route(message: str, interface: str) -> dict:
                 except Exception as exc:
                     result = f"Skill failed: {exc}"
                 return {"action": "skill", "slug": slug, "result": result}
+
+    # Watson-addressed question messages that matched no skill trigger route to chat,
+    # not the LLM router. Prevents misrouting of "Watson, what's/how/why/..." questions
+    # by an unreliable small model when no skill is actually relevant.
+    if _WATSON_PREFIX_RE.match(msg_lower):
+        _unwatson = _WATSON_PREFIX_RE.sub('', msg_lower).strip()
+        if re.match(r'^(what|how|why|where|when|who)\b', _unwatson):
+            return {"action": "chat"}
 
     # Conversational pre-check: skip LLM router entirely for short/greeting messages.
     if _is_conversational(message):
