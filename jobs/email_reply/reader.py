@@ -159,6 +159,11 @@ def run() -> None:
     for em in emails:
         log.info("Processing: %s from %s", em["subject"], em["sender_email"])
 
+        if "snappages.com" in em["sender_email"].lower():
+            log.info("Skipping connect card from %s (snappages.com)", em["sender_email"])
+            _mark_seen(mail, em["uid"])
+            continue
+
         draft = draft_reply(em)
         if not draft:
             log.warning("Empty draft for %s; skipping.", em["message_id"])
