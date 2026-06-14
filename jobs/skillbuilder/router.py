@@ -203,6 +203,9 @@ _SKILL_PRE_CHECKS: dict[str, tuple] = {
         "what have i said about", "what did i preach on",
         "find in my notes", "look in my sermons", "kb search",
     ),
+    "contacts_lookup": (
+        "find ", "look up", "lookup", "who is", "pull up", "contact for",
+    ),
 }
 
 # Matched against msg_lower BEFORE the LLM call — returns run_audit immediately, no fallthrough

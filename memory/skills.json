@@ -91,6 +91,19 @@
       "module_path": "jobs/research/gemini_fetch"
     },
     {
+      "slug": "contacts_lookup",
+      "name": "Contacts Lookup",
+      "description": "Searches congregation and contacts by name.",
+      "triggers": [
+        "find ", "look up", "lookup", "who is", "contact for",
+        "search for", "pull up", "get info on"
+      ],
+      "module": "jobs.skills.contacts_lookup",
+      "function": "run",
+      "interfaces": ["telegram", "dashboard"],
+      "status": "ready"
+    },
+    {
       "slug": "claude_debug",
       "name": "Claude Debug",
       "description": "Diagnose a Watson problem: gathers logs, calls Claude API for diagnosis, runs Claude Code fix, reviews result, notifies Dr. Bill via Telegram.",
