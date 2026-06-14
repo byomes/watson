@@ -413,6 +413,17 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text_clean = text.replace("'", "'").replace("'", "'")
     text_lower = text_clean.lower().strip()
 
+    # Reply-threading: route replies to Watson-sent messages before any other logic
+    if update.message.reply_to_message:
+        replied_id = update.message.reply_to_message.message_id
+        from jobs.telegram.pending import get_pending_by_message_id
+        tg_pending = get_pending_by_message_id(replied_id)
+        if tg_pending:
+            handled = await _route_tg_pending_reply(update, context, text_clean, tg_pending)
+            if handled:
+                _log_telegram_exchange(text_clean, f"[reply-threaded: {tg_pending['type']}]")
+                return
+
     # Store every incoming message for resend capability
     from jobs.telegram.resend_last import store_message, get_last_message
     if text_lower != 'resend':
@@ -763,6 +774,14 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     from jobs.skillbuilder import router as _router
 
     # 1. Factual queries → web search
+    from jobs.skillbuilder.router import _SKILL_PRE_CHECKS
+    msg_lower_check = text_clean.lower().strip()
+    for slug, triggers in _SKILL_PRE_CHECKS.items():
+        if any(trigger in msg_lower_check for trigger in triggers):
+            result = await _dispatch_skill(slug, text_clean)
+            await update.message.reply_text(result)
+            return
+
     if getattr(_router, '_is_factual_query', None) and _router._is_factual_query(text_clean):
         from jobs.research.web_search import run as web_search_run
         ws_result = web_search_run(text_clean)
@@ -887,9 +906,14 @@ async def _handle_block_time(update: Update, context: ContextTypes.DEFAULT_TYPE,
             await update.message.reply_text(slot["message"])
             return
         pending_module.save_pending(chat_id, "block_time", params, slot)
-        await update.message.reply_text(
+        sent = await update.message.reply_text(
             f"📅 I found a slot for {title}:\n\n{slot['display']}\n\nReply YES to book it or NO to cancel."
         )
+        try:
+            from jobs.telegram.pending import store_pending_action
+            store_pending_action("calendar_booking", sent.message_id, {"chat_id": chat_id})
+        except Exception:
+            pass
     except Exception as exc:
         log.error("Block time failed: %s", exc)
         await update.message.reply_text(f"Error finding slot: {exc}")
@@ -913,9 +937,14 @@ async def _handle_book_appointment(update: Update, context: ContextTypes.DEFAULT
             await update.message.reply_text(slot["message"])
             return
         pending_module.save_pending(chat_id, "book_appointment", params, slot)
-        await update.message.reply_text(
+        sent = await update.message.reply_text(
             f"📅 I found a slot for {name}:\n\n{slot['display']}\n\nReply YES to book it or NO to cancel."
         )
+        try:
+            from jobs.telegram.pending import store_pending_action
+            store_pending_action("calendar_booking", sent.message_id, {"chat_id": chat_id})
+        except Exception:
+            pass
     except Exception as exc:
         log.error("Book appointment failed: %s", exc)
         await update.message.reply_text(f"Error finding slot: {exc}")
@@ -1052,6 +1081,74 @@ async def _handle_general(update: Update, context: ContextTypes.DEFAULT_TYPE, te
     reply = await _get_general_reply(text)
     await update.message.reply_text(reply)
     return reply
+
+
+async def _route_tg_pending_reply(
+    update: Update, context: ContextTypes.DEFAULT_TYPE, text: str, tg_pending: dict
+) -> bool:
+    """Dispatch a reply-to-Watson-message to the correct pending action handler.
+
+    Returns True if consumed, False to fall through to normal routing.
+    """
+    from jobs.telegram.pending import mark_done, mark_cancelled
+
+    action_type = tg_pending["type"]
+    payload = tg_pending["payload"]
+    pending_id = tg_pending["id"]
+    text_lower = text.lower().strip()
+
+    if action_type == "email_draft":
+        record_id = payload.get("record_id")
+        if text_lower == "go":
+            from jobs.email_reply.handler import resolve_send_by_id
+            result = resolve_send_by_id(record_id)
+            await update.message.reply_text(result["msg"])
+            if result["ok"]:
+                mark_done(pending_id)
+            return True
+        if text_lower.startswith("change:"):
+            changed = text[text_lower.index("change:") + len("change:"):].strip()
+            from jobs.email_reply.handler import resolve_change_by_id
+            result = resolve_change_by_id(record_id, changed)
+            await update.message.reply_text(result["msg"])
+            if result["ok"]:
+                mark_done(pending_id)
+            return True
+        if text_lower in ("cancel", "no", "never mind"):
+            from jobs.email_reply.handler import resolve_cancel_by_id
+            result = resolve_cancel_by_id(record_id)
+            if result["ok"]:
+                await update.message.reply_text(result["msg"])
+                mark_cancelled(pending_id)
+            return True
+        return False
+
+    if action_type == "pastoral_note":
+        from jobs.pastoral_notes.handler import handle_notes_reply
+        import asyncio
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, handle_notes_reply, text)
+        mark_done(pending_id)
+        return True
+
+    if action_type == "calendar_booking":
+        chat_id = payload.get("chat_id") or update.effective_chat.id
+        if text_lower in ("yes", "confirm", "yes do it", "book it", "go ahead"):
+            p = pending_module.get_pending(chat_id)
+            if p:
+                await _execute_pending(update, context, p)
+                mark_done(pending_id)
+                return True
+        if text_lower in ("no", "cancel", "don't book", "never mind"):
+            p = pending_module.get_pending(chat_id)
+            if p:
+                pending_module.cancel_pending(p["id"])
+                await update.message.reply_text("Got it — cancelled.")
+                mark_cancelled(pending_id)
+                return True
+        return False
+
+    return False
 
 
 async def _execute_pending(update: Update, context: ContextTypes.DEFAULT_TYPE, pending: dict) -> None:
