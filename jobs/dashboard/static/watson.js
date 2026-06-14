@@ -72,6 +72,7 @@ function switchTab(page) {
     case 'tasks':     renderTasks();     break;
     case 'reminders': renderReminders(); break;
     case 'reading':   renderReading();   break;
+    case 'more':      renderMore();      break;
   }
 }
 
@@ -371,9 +372,666 @@ async function renderReading() {
   }
 }
 
+// ─── More page ────────────────────────────────────────────────────────────────
+
+const _MORE_REPORT_CONFIGS = [
+  { key: 'weekly_summary',    label: 'Weekly Summary',     desc: 'Attendance & activity for the week' },
+  { key: 'shepherding',       label: 'Shepherding',        desc: 'Flock contact status' },
+  { key: 'new_members',       label: 'New Members',        desc: 'Recent additions to congregation' },
+  { key: 'birthday_upcoming', label: 'Upcoming Birthdays', desc: 'Next 30-day birthday list' },
+];
+
+let _moreSecLoaded    = {};
+let _moreShepData     = null;
+let _moreAuditData    = null;
+let _moreReportResult = null;
+let _moreActiveReport = null;
+let _moreReportWeeks  = 4;
+let _morePNTab        = 'active';
+let _moreAllSkills    = [];
+let _moreSkillCat     = 'All';
+let _moreSkillQuery   = '';
+
+function renderMore() {
+  _moreSecLoaded = {};
+  setContent(`
+    <div class="msec" id="msec-people">
+      <div class="msec-hdr" onclick="moreToggle('people')">
+        <span class="msec-title">People</span>
+        <span class="msec-chev" id="msec-chev-people">›</span>
+      </div>
+      <div class="msec-body" id="msec-body-people">
+        <div class="msec-inner" id="msec-inner-people"><div class="loading">Loading&hellip;</div></div>
+      </div>
+    </div>
+    <div class="msec" id="msec-ministry">
+      <div class="msec-hdr" onclick="moreToggle('ministry')">
+        <span class="msec-title">Ministry</span>
+        <span class="msec-chev" id="msec-chev-ministry">›</span>
+      </div>
+      <div class="msec-body" id="msec-body-ministry">
+        <div class="msec-inner" id="msec-inner-ministry"><div class="loading">Loading&hellip;</div></div>
+      </div>
+    </div>
+    <div class="msec" id="msec-system">
+      <div class="msec-hdr" onclick="moreToggle('system')">
+        <span class="msec-title">System</span>
+        <span class="msec-chev" id="msec-chev-system">›</span>
+      </div>
+      <div class="msec-body" id="msec-body-system">
+        <div class="msec-inner" id="msec-inner-system"><div class="loading">Loading&hellip;</div></div>
+      </div>
+    </div>`);
+}
+
+function moreToggle(sec) {
+  const body = document.getElementById(`msec-body-${sec}`);
+  const chev = document.getElementById(`msec-chev-${sec}`);
+  if (!body) return;
+  const isOpen = body.classList.toggle('open');
+  if (chev) chev.textContent = isOpen ? '⌄' : '›';
+  if (isOpen && !_moreSecLoaded[sec]) {
+    _moreSecLoaded[sec] = true;
+    if (sec === 'people')   moreLoadPeople();
+    if (sec === 'ministry') moreLoadMinistry();
+    if (sec === 'system')   moreLoadSystem();
+  }
+}
+
+// ── People ──────────────────────────────────────────────────────────────────
+
+async function moreLoadPeople() {
+  const el = document.getElementById('msec-inner-people');
+  if (!el) return;
+  el.innerHTML = '<div class="loading">Loading&hellip;</div>';
+  try {
+    const data = await api('/api/congregation/contacts');
+    moreRenderContacts(Array.isArray(data) ? data : []);
+  } catch {
+    el.innerHTML = '<div class="empty">Could not load contacts.</div>';
+  }
+}
+
+function moreRenderContacts(contacts) {
+  const el = document.getElementById('msec-inner-people');
+  if (!el) return;
+  let html = `
+    <input class="msrch" type="search" placeholder="Search people…" oninput="moreSearchPeople(this.value)">
+    <button class="mbtn mbtn-sm" onclick="moreToggleAddC()" style="margin-bottom:10px">+ Add Contact</button>
+    <div id="more-add-c-form" style="display:none">
+      <div class="mform">
+        <input id="mc-name"   placeholder="Full name" type="text">
+        <input id="mc-email"  placeholder="Email"     type="email">
+        <input id="mc-phone"  placeholder="Phone"     type="tel">
+        <input id="mc-campus" placeholder="Campus"    type="text">
+        <div class="mfrow">
+          <button class="mbtn mbtn-p" onclick="moreSaveNewC()">Save</button>
+          <button class="mbtn"        onclick="moreToggleAddC()">Cancel</button>
+        </div>
+      </div>
+    </div>
+    <div id="more-contact-list">`;
+  if (!contacts.length) {
+    html += '<div class="empty">No contacts yet.</div>';
+  } else {
+    contacts.forEach(c => {
+      const initials = (c.name || '?').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+      const hue = ((c.name || '').charCodeAt(0) * 37) % 360;
+      html += `
+        <div class="mcc" id="mcc-${c.id}">
+          <div class="mcc-hdr" onclick="moreToggleC(${c.id})">
+            <div class="mcc-av" style="background:hsl(${hue},40%,28%);color:hsl(${hue},60%,70%)">${esc(initials)}</div>
+            <div class="mcc-info">
+              <div class="mcc-name">${esc(c.name)}</div>
+              <div class="mcc-sub">${esc(c.campus || c.email || '')}</div>
+            </div>
+          </div>
+          <div class="mcc-body" id="mcc-body-${c.id}">
+            <input class="mcc-field" id="mcc-name-${c.id}"   value="${esc(c.name   || '')}" placeholder="Name">
+            <input class="mcc-field" id="mcc-email-${c.id}"  value="${esc(c.email  || '')}" placeholder="Email"  type="email">
+            <input class="mcc-field" id="mcc-phone-${c.id}"  value="${esc(c.phone  || '')}" placeholder="Phone"  type="tel">
+            <input class="mcc-field" id="mcc-campus-${c.id}" value="${esc(c.campus || '')}" placeholder="Campus">
+            <div class="mfrow" style="margin-top:6px">
+              <button class="mbtn mbtn-p mbtn-sm" onclick="moreSaveEditC(${c.id})">Save</button>
+              <button class="mbtn mbtn-d mbtn-sm" onclick="moreDeleteC(${c.id})">Delete</button>
+            </div>
+          </div>
+        </div>`;
+    });
+  }
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+function moreToggleAddC() {
+  const f = document.getElementById('more-add-c-form');
+  if (f) f.style.display = f.style.display === 'none' ? 'block' : 'none';
+}
+
+function moreToggleC(id) {
+  const body = document.getElementById(`mcc-body-${id}`);
+  if (body) body.classList.toggle('open');
+}
+
+async function moreSaveNewC() {
+  const name   = (document.getElementById('mc-name')?.value   || '').trim();
+  const email  = (document.getElementById('mc-email')?.value  || '').trim();
+  const phone  = (document.getElementById('mc-phone')?.value  || '').trim();
+  const campus = (document.getElementById('mc-campus')?.value || '').trim();
+  if (!name) { alert('Name is required.'); return; }
+  try {
+    await api('/api/congregation/contacts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, email, phone, campus }),
+    });
+    moreLoadPeople();
+  } catch { alert('Failed to save contact.'); }
+}
+
+async function moreSaveEditC(id) {
+  const name   = (document.getElementById(`mcc-name-${id}`)?.value   || '').trim();
+  const email  = (document.getElementById(`mcc-email-${id}`)?.value  || '').trim();
+  const phone  = (document.getElementById(`mcc-phone-${id}`)?.value  || '').trim();
+  const campus = (document.getElementById(`mcc-campus-${id}`)?.value || '').trim();
+  try {
+    await api(`/api/congregation/contacts/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, email, phone, campus }),
+    });
+    moreLoadPeople();
+  } catch { alert('Failed to update contact.'); }
+}
+
+async function moreDeleteC(id) {
+  if (!confirm('Delete this contact?')) return;
+  try {
+    await api(`/api/congregation/contacts/${id}`, { method: 'DELETE' });
+    moreLoadPeople();
+  } catch { alert('Failed to delete contact.'); }
+}
+
+function moreSearchPeople(q) {
+  const term = q.toLowerCase();
+  document.querySelectorAll('[id^="mcc-"]').forEach(card => {
+    if (!/^mcc-\d+$/.test(card.id)) return;
+    const name = (card.querySelector('.mcc-name')?.textContent || '').toLowerCase();
+    card.style.display = name.includes(term) ? '' : 'none';
+  });
+}
+
+async function moreImportCSV(input) {
+  const file = input?.files?.[0];
+  if (!file) return;
+  const form = new FormData();
+  form.append('file', file);
+  try {
+    await fetch('/api/congregation/import', { method: 'POST', body: form });
+    moreLoadPeople();
+  } catch { alert('Import failed.'); }
+}
+
+// ── Ministry ─────────────────────────────────────────────────────────────────
+
+function moreLoadMinistry() {
+  const el = document.getElementById('msec-inner-ministry');
+  if (!el) return;
+  el.innerHTML = `
+    <div class="mtabs">
+      <button class="mtab active" id="mmin-tab-pn"    onclick="moreMinTab('pn')">Pastoral Notes</button>
+      <button class="mtab"        id="mmin-tab-shep"  onclick="moreMinTab('shep')">Shepherding</button>
+      <button class="mtab"        id="mmin-tab-audit" onclick="moreMinTab('audit')">Audit</button>
+    </div>
+    <div id="mmin-body-pn">
+      <button class="mbtn mbtn-sm" onclick="moreTogglePNForm()" style="margin-bottom:8px">+ New Note</button>
+      <div id="more-pn-form" style="display:none">
+        <div class="mform">
+          <input id="mpn-name" placeholder="Person's name" type="text">
+          <textarea id="mpn-note" rows="3" placeholder="Note&hellip;"></textarea>
+          <div class="mfrow">
+            <button class="mbtn mbtn-p" onclick="moreSavePN()">Save</button>
+            <button class="mbtn"        onclick="moreTogglePNForm()">Cancel</button>
+          </div>
+        </div>
+      </div>
+      <div class="mtabs" style="margin-top:4px">
+        <button class="mtab active" id="mpn-tab-active"   onclick="moreSetPNTab('active')">Active</button>
+        <button class="mtab"        id="mpn-tab-archived" onclick="moreSetPNTab('archived')">Archived</button>
+      </div>
+      <div id="mpn-list"><div class="loading">Loading&hellip;</div></div>
+    </div>
+    <div id="mmin-body-shep" style="display:none">
+      <button class="mbtn" onclick="moreRunShepReport()">Run Shepherding Report</button>
+      <div id="mshep-result"></div>
+    </div>
+    <div id="mmin-body-audit" style="display:none">
+      <button class="mbtn" onclick="moreRunAudit()">Run Congregation Audit</button>
+      <div id="maudit-result"></div>
+    </div>`;
+  moreLoadPN('active');
+}
+
+function moreMinTab(tab) {
+  ['pn', 'shep', 'audit'].forEach(t => {
+    const body = document.getElementById(`mmin-body-${t}`);
+    const btn  = document.getElementById(`mmin-tab-${t}`);
+    if (body) body.style.display = t === tab ? '' : 'none';
+    if (btn)  btn.classList.toggle('active', t === tab);
+  });
+}
+
+function moreTogglePNForm() {
+  const f = document.getElementById('more-pn-form');
+  if (f) f.style.display = f.style.display === 'none' ? 'block' : 'none';
+}
+
+function moreSetPNTab(tab) {
+  _morePNTab = tab;
+  ['active', 'archived'].forEach(t => {
+    const btn = document.getElementById(`mpn-tab-${t}`);
+    if (btn) btn.classList.toggle('active', t === tab);
+  });
+  moreLoadPN(tab);
+}
+
+async function moreLoadPN(tab) {
+  const el = document.getElementById('mpn-list');
+  if (!el) return;
+  el.innerHTML = '<div class="loading">Loading&hellip;</div>';
+  try {
+    const notes = await api(`/api/pastoral-notes?status=${tab}`);
+    if (!Array.isArray(notes) || !notes.length) {
+      el.innerHTML = `<div class="empty">No ${tab} notes.</div>`;
+      return;
+    }
+    el.innerHTML = notes.map(n => `
+      <div class="mpn-card">
+        <div style="font-size:13px;font-weight:500">${esc(n.person_name || n.name || '')}</div>
+        <div style="font-size:12px;color:var(--muted);margin:4px 0">${esc(n.note || '')}</div>
+        <div style="font-size:11px;color:var(--muted)">${esc(n.created_at || '')}</div>
+        ${tab === 'active' ? `<button class="mbtn mbtn-sm" onclick="moreArchivePN(${n.id})" style="margin-top:6px">Archive</button>` : ''}
+      </div>`).join('');
+  } catch {
+    el.innerHTML = '<div class="empty">Could not load notes.</div>';
+  }
+}
+
+async function moreSavePN() {
+  const name = (document.getElementById('mpn-name')?.value || '').trim();
+  const note = (document.getElementById('mpn-note')?.value || '').trim();
+  if (!name || !note) { alert('Name and note are required.'); return; }
+  try {
+    await api('/api/pastoral-notes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ person_name: name, note }),
+    });
+    moreTogglePNForm();
+    document.getElementById('mpn-name').value = '';
+    document.getElementById('mpn-note').value = '';
+    moreLoadPN(_morePNTab);
+  } catch { alert('Failed to save note.'); }
+}
+
+async function moreArchivePN(id) {
+  try {
+    await api(`/api/pastoral-notes/${id}/archive`, { method: 'POST' });
+    moreLoadPN(_morePNTab);
+  } catch { alert('Failed to archive note.'); }
+}
+
+async function moreRunShepReport() {
+  const el = document.getElementById('mshep-result');
+  if (!el) return;
+  el.innerHTML = '<div class="loading">Running&hellip;</div>';
+  try {
+    const data = await api('/api/shepherding/report');
+    _moreShepData = data;
+    let html = '';
+    if (data.overdue?.length) {
+      html += `<div class="mlabel">Overdue Contact (${data.overdue.length})</div>
+        <div class="mshep-wrap"><table class="mshep-table">
+          <tr><th>Name</th><th>Last Contact</th><th></th></tr>
+          ${data.overdue.map(p => `
+            <tr>
+              <td>${esc(p.name)}</td>
+              <td>${esc(p.last_contact || 'Never')}</td>
+              <td style="white-space:nowrap">
+                <button class="mbtn mbtn-sm" onclick="moreShepCheckin(${p.id})">Check in</button>
+                <button class="mbtn mbtn-sm" onclick="moreShepExempt(${p.id})">Exempt</button>
+              </td>
+            </tr>`).join('')}
+        </table></div>`;
+    }
+    if (!html) html = '<div class="empty">No overdue contacts.</div>';
+    html += `
+      <div class="mfrow" style="margin-top:12px">
+        <button class="mbtn mbtn-sm" onclick="moreShepTelegram()">Send Telegram</button>
+        <button class="mbtn mbtn-sm" onclick="moreShepEmail()">Send Email</button>
+      </div>`;
+    el.innerHTML = html;
+  } catch {
+    el.innerHTML = '<div class="empty">Could not run report.</div>';
+  }
+}
+
+async function moreShepCheckin(personId) {
+  try {
+    await api(`/api/shepherding/checkin/${personId}`, { method: 'POST' });
+    moreRunShepReport();
+  } catch { alert('Failed to record check-in.'); }
+}
+
+async function moreShepExempt(personId) {
+  try {
+    await api(`/api/shepherding/exempt/${personId}`, { method: 'POST' });
+    moreRunShepReport();
+  } catch { alert('Failed to set exempt.'); }
+}
+
+async function moreShepTelegram() {
+  try {
+    await api('/api/shepherding/telegram', { method: 'POST' });
+    alert('Sent to Telegram!');
+  } catch { alert('Failed to send.'); }
+}
+
+async function moreShepEmail() {
+  try {
+    await api('/api/shepherding/email', { method: 'POST' });
+    alert('Sent via email!');
+  } catch { alert('Failed to send.'); }
+}
+
+async function moreRunAudit() {
+  const el = document.getElementById('maudit-result');
+  if (!el) return;
+  el.innerHTML = '<div class="loading">Running audit&hellip;</div>';
+  try {
+    const data = await api('/api/congregation/audit');
+    _moreAuditData = data;
+    moreRenderAudit(data);
+  } catch {
+    el.innerHTML = '<div class="empty">Audit failed.</div>';
+  }
+}
+
+function moreRenderAudit(data) {
+  const el = document.getElementById('maudit-result');
+  if (!el) return;
+  let html = '';
+  if (data.duplicates?.length) {
+    html += `<div class="mlabel">Possible Duplicates (${data.duplicates.length})</div>`;
+    html += moreRenderDupe(data.duplicates);
+  }
+  if (data.inconsistencies?.length) {
+    html += `<div class="mlabel">Inconsistencies (${data.inconsistencies.length})</div>`;
+    html += moreRenderIncon(data.inconsistencies);
+    html += `<button class="mbtn mbtn-p" onclick="moreApplyCorrections()" style="margin-top:8px">Apply All Corrections</button>`;
+  }
+  if (!html) html = '<div class="empty">Audit complete — no issues found.</div>';
+  el.innerHTML = html;
+}
+
+function moreRenderDupe(dupes) {
+  return dupes.map(pair => `
+    <div class="maudit-card">
+      <div style="font-size:12px;margin-bottom:6px">
+        <strong>${esc(pair[0].name)}</strong> vs <strong>${esc(pair[1].name)}</strong>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:8px">
+        ${esc(pair[0].email || '')} / ${esc(pair[1].email || '')}
+      </div>
+      <div class="mfrow">
+        <button class="mbtn mbtn-p mbtn-sm" onclick="moreMerge(${pair[0].id},${pair[1].id})">Merge</button>
+        <button class="mbtn mbtn-sm"        onclick="moreKeepSep(${pair[0].id},${pair[1].id})">Keep Separate</button>
+      </div>
+    </div>`).join('');
+}
+
+function moreUpdateMergeBtn() {}
+
+async function moreMerge(id1, id2) {
+  try {
+    await api('/api/congregation/merge', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id1, id2 }),
+    });
+    moreRunAudit();
+  } catch { alert('Merge failed.'); }
+}
+
+async function moreKeepSep(id1, id2) {
+  try {
+    await api('/api/congregation/keep-separate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id1, id2 }),
+    });
+    moreRunAudit();
+  } catch { alert('Failed.'); }
+}
+
+function moreRenderIncon(items) {
+  return items.map(item => `
+    <div class="maudit-card">
+      <div style="font-size:12px;font-weight:500">${esc(item.name || '')}</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px">${esc(item.issue || '')}</div>
+      ${item.fix ? `<div style="font-size:11px;margin-top:6px">Fix: ${esc(item.fix)}</div>` : ''}
+    </div>`).join('');
+}
+
+async function moreApplyCorrections() {
+  try {
+    await api('/api/congregation/audit/apply', { method: 'POST' });
+    moreRunAudit();
+  } catch { alert('Failed to apply corrections.'); }
+}
+
+// ── Reports (bottom sheet) ───────────────────────────────────────────────────
+
+function moreShowReportSheet() {
+  const existing = document.getElementById('bsoverlay');
+  if (existing) existing.remove();
+  const overlay = document.createElement('div');
+  overlay.className = 'bsoverlay';
+  overlay.id = 'bsoverlay';
+  overlay.innerHTML = `
+    <div class="bsheet">
+      <div class="bsheet-title">Run Report</div>
+      <div class="mlabel">Report type</div>
+      <div class="bsheet-presets">
+        ${_MORE_REPORT_CONFIGS.map(r =>
+          `<button class="bpreset${_moreActiveReport === r.key ? ' sel' : ''}"
+            onclick="morePickReport('${r.key}',this)">${esc(r.label)}</button>`).join('')}
+      </div>
+      <div class="mlabel">Weeks to include</div>
+      <div class="bsheet-presets">
+        ${[2, 4, 8, 12].map(w =>
+          `<button class="bpreset${_moreReportWeeks === w ? ' sel' : ''}"
+            onclick="morePickReportWeek(${w},this)">${w}w</button>`).join('')}
+      </div>
+      <div class="mfrow" style="margin-top:14px">
+        <button class="mbtn mbtn-p" onclick="moreRunReport()">Run</button>
+        <button class="mbtn" onclick="document.getElementById('bsoverlay').remove()">Cancel</button>
+      </div>
+    </div>`;
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
+}
+
+function morePickReport(key, btn) {
+  _moreActiveReport = key;
+  btn.closest('.bsheet-presets').querySelectorAll('.bpreset').forEach(b => b.classList.remove('sel'));
+  btn.classList.add('sel');
+}
+
+function morePickReportWeek(w, btn) {
+  _moreReportWeeks = w;
+  btn.closest('.bsheet-presets').querySelectorAll('.bpreset').forEach(b => b.classList.remove('sel'));
+  btn.classList.add('sel');
+}
+
+async function moreRunReport() {
+  if (!_moreActiveReport) { alert('Select a report type.'); return; }
+  const overlay = document.getElementById('bsoverlay');
+  if (overlay) overlay.remove();
+  const resultEl = document.getElementById('more-report-result');
+  if (resultEl) resultEl.innerHTML = '<div class="loading">Running&hellip;</div>';
+  try {
+    const data = await api(`/api/reports/run?type=${encodeURIComponent(_moreActiveReport)}&weeks=${_moreReportWeeks}`);
+    _moreReportResult = data.content || data.result || JSON.stringify(data, null, 2);
+    if (resultEl) resultEl.innerHTML = `
+      <div class="mreport-result">${esc(_moreReportResult)}</div>
+      <div class="mfrow" style="margin-top:8px">
+        <button class="mbtn mbtn-sm" onclick="moreReportTelegram()">Telegram</button>
+        <button class="mbtn mbtn-sm" onclick="moreReportEmail()">Email</button>
+      </div>`;
+  } catch {
+    if (resultEl) resultEl.innerHTML = '<div class="empty">Report failed.</div>';
+  }
+}
+
+async function moreReportTelegram() {
+  if (!_moreReportResult) return;
+  try {
+    await api('/api/reports/telegram', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: _moreActiveReport, weeks: _moreReportWeeks, content: _moreReportResult }),
+    });
+    alert('Sent to Telegram!');
+  } catch { alert('Failed to send.'); }
+}
+
+async function moreReportEmail() {
+  if (!_moreReportResult) return;
+  try {
+    await api('/api/reports/email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: _moreActiveReport, weeks: _moreReportWeeks, content: _moreReportResult }),
+    });
+    alert('Sent via email!');
+  } catch { alert('Failed to send.'); }
+}
+
+// ── System ───────────────────────────────────────────────────────────────────
+
+async function moreLoadSystem() {
+  const el = document.getElementById('msec-inner-system');
+  if (!el) return;
+  _moreSkillCat   = 'All';
+  _moreSkillQuery = '';
+  el.innerHTML = `
+    <div class="mlabel">Reports</div>
+    <button class="mbtn" onclick="moreShowReportSheet()">Run a Report&hellip;</button>
+    <div id="more-report-result"></div>
+
+    <div class="mlabel">Appearance</div>
+    <div class="mtheme-row">
+      <span style="font-size:13px">Light mode</span>
+      <label class="mswitch">
+        <input type="checkbox" id="more-theme-chk"
+          onchange="moreToggleTheme(this.checked)"
+          ${document.documentElement.getAttribute('data-theme') === 'light' ? 'checked' : ''}>
+        <span class="mswitch-track"></span>
+        <span class="mswitch-thumb"></span>
+      </label>
+    </div>
+
+    <div class="mlabel">Skills</div>
+    <input class="msrch" type="search" placeholder="Search skills&hellip;" oninput="moreSkillSearch(this.value)">
+    <div id="more-skill-pills" class="mpills"></div>
+    <div id="more-skill-list"><div class="loading">Loading&hellip;</div></div>`;
+  try {
+    const skills = await api('/api/skills');
+    _moreAllSkills = Array.isArray(skills) ? skills : [];
+    const cats = [...new Set(_moreAllSkills.map(s => s.category || 'General'))];
+    moreRenderSkillPills(['All', ...cats]);
+    moreRenderSkills(_moreAllSkills);
+  } catch {
+    const listEl = document.getElementById('more-skill-list');
+    if (listEl) listEl.innerHTML = '<div class="empty">Could not load skills.</div>';
+  }
+}
+
+function moreSetSkillTab(tab) { moreSetSkillCat(tab); }
+
+function moreRenderSkillPills(cats) {
+  const el = document.getElementById('more-skill-pills');
+  if (!el) return;
+  el.innerHTML = cats.map(c =>
+    `<button class="mpill${c === _moreSkillCat ? ' active' : ''}" onclick="moreSetSkillCat('${esc(c)}')">${esc(c)}</button>`
+  ).join('');
+}
+
+function moreSetSkillCat(cat) {
+  _moreSkillCat = cat;
+  document.querySelectorAll('.mpill').forEach(p => {
+    p.classList.toggle('active', p.textContent === cat);
+  });
+  moreApplySkillFilter();
+}
+
+function moreSkillSearch(q) {
+  _moreSkillQuery = q.toLowerCase();
+  moreApplySkillFilter();
+}
+
+function moreApplySkillFilter() {
+  let skills = _moreAllSkills;
+  if (_moreSkillCat && _moreSkillCat !== 'All') {
+    skills = skills.filter(s => (s.category || 'General') === _moreSkillCat);
+  }
+  if (_moreSkillQuery) {
+    skills = skills.filter(s =>
+      (s.name || '').toLowerCase().includes(_moreSkillQuery) ||
+      (s.description || '').toLowerCase().includes(_moreSkillQuery)
+    );
+  }
+  moreRenderSkills(skills);
+}
+
+function moreRenderSkills(skills) {
+  const el = document.getElementById('more-skill-list');
+  if (!el) return;
+  if (!skills.length) {
+    el.innerHTML = '<div class="empty">No skills found.</div>';
+    return;
+  }
+  el.innerHTML = skills.map(s => `
+    <div class="msk-card">
+      <div class="msk-info">
+        <div class="msk-name">${esc(s.name || s.slug || '')}</div>
+        <div class="msk-desc">${esc(s.description || '')}</div>
+        <span class="msk-badge">${esc(s.status || 'ready')}</span>
+      </div>
+      ${s.status === 'pending' ? `<button class="mbtn mbtn-sm" onclick="moreApproveSkill('${esc(s.slug)}')">Approve</button>` : ''}
+    </div>`).join('');
+}
+
+async function moreApproveSkill(slug) {
+  try {
+    await api(`/api/skills/${encodeURIComponent(slug)}/approve`, { method: 'POST' });
+    moreLoadSystem();
+  } catch { alert('Failed to approve skill.'); }
+}
+
+function moreToggleTheme(isLight) {
+  const theme = isLight ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', theme);
+  localStorage.setItem('watson-theme', theme);
+}
+
 // ─── Init ─────────────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {
+  const savedTheme = localStorage.getItem('watson-theme');
+  if (savedTheme) document.documentElement.setAttribute('data-theme', savedTheme);
+
   const dateEl = document.getElementById('hdr-date');
   if (dateEl) {
     dateEl.textContent = new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
