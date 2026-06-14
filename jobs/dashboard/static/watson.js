@@ -1022,6 +1022,7 @@ function renderTasks() {
   if (!vis.length) { el.innerHTML = '<div class="ctr">No tasks</div>'; return; }
   el.innerHTML = vis.map(t => `
     <div class="tr" data-drag-id="${t.id}" id="task-${t.id}">
+      <span class="r-drag" draggable="true" title="Drag to reorder">&#10495;</span>
       <button class="tc ${t.status === 'done' ? 'done' : ''}" onclick="toggleTask(${t.id})"></button>
       <div class="tbody">
         <div class="ttitle ${t.status === 'done' ? 'done' : ''}">${esc(t.title)}</div>
@@ -1234,7 +1235,8 @@ function renderReading() {
     '<div style="margin-bottom:20px">' +
     '<div class="slabel">' + S_LABEL[g.s] + '</div>' +
     g.items.map(b =>
-      '<div class="bk">' +
+      '<div class="bk" data-drag-id="' + b.id + '">' +
+        '<span class="r-drag" draggable="true" title="Drag to reorder">&#10495;</span>' +
         '<div class="bk-title">' + esc(b.title) + '</div>' +
         (b.source_name ? '<div class="bk-src">' + esc(b.source_name) + '</div>' : '') +
         (b.summary ? '<div class="bk-sum">' + esc(b.summary) + '</div>' : '') +
@@ -1453,6 +1455,10 @@ attachDrag('t-list', function(id, order) {
 attachDrag('r-list', function(id, order) {
   reminders = reminders.map(r => r.id === id ? Object.assign({}, r, {sort_order: order}) : r);
   api('/api/reminders/' + id, 'PATCH', {sort_order: order});
+});
+attachDrag('rl-list', function(id, order) {
+  books = books.map(b => b.id === id ? Object.assign({}, b, {sort_order: order}) : b);
+  api('/api/reading/' + id + '/reorder', 'PATCH', {sort_order: order});
 });
 
 (function() {

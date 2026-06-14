@@ -86,6 +86,10 @@ def _bootstrap():
         status      TEXT    NOT NULL DEFAULT 'unread',
         date_added  TEXT    NOT NULL DEFAULT (datetime('now'))
     )""")
+    try:
+        c.execute("ALTER TABLE reading_list ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0")
+    except Exception:
+        pass
     c.execute("""CREATE TABLE IF NOT EXISTS chat_sessions (
         id         INTEGER PRIMARY KEY AUTOINCREMENT,
         title      TEXT    NOT NULL DEFAULT 'New Chat',
@@ -476,6 +480,18 @@ def reading_update(entry_id):
     row = _db().execute(
         "SELECT * FROM reading_list WHERE id = ?", (entry_id,)
     ).fetchone()
+    return jsonify(dict(row) if row else {"error": "not found"})
+
+
+@app.route("/api/reading/<int:entry_id>/reorder", methods=["PATCH"])
+def reading_reorder(entry_id):
+    data = request.get_json(force=True) or {}
+    sort_order = data.get("sort_order")
+    if sort_order is None:
+        return jsonify({"error": "sort_order required"}), 400
+    _db().execute("UPDATE reading_list SET sort_order = ? WHERE id = ?", (sort_order, entry_id))
+    _db().commit()
+    row = _db().execute("SELECT * FROM reading_list WHERE id = ?", (entry_id,)).fetchone()
     return jsonify(dict(row) if row else {"error": "not found"})
 
 
