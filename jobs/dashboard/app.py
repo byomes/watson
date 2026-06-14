@@ -841,19 +841,10 @@ def chat_stream():
             "Sending to Gemini... I'll notify you via Telegram when the build is ready."
         ))
 
-    # debug: dispatch — route to Gemini debugger
     if msg_lower.startswith('debug:'):
-        description = message[6:].strip()
-        import threading
-        from jobs.dev.gemini_coder import request_debug
-
-        def _run_debug():
-            request_debug(description)
-
-        threading.Thread(target=_run_debug, daemon=True).start()
-        return _sse_response(_stream_simple(
-            "Sending to Gemini debugger... I'll notify you via Telegram when the debug prompt is ready."
-        ))
+        from jobs.dev.claude_debug import run
+        result = run(message)
+        return _sse_response(_stream_simple(str(result)))
 
     # QR code generation
     _QR_TRIGGERS = ('qr code', 'qr-code', 'make a qr', 'give me a qr',
@@ -1607,11 +1598,10 @@ def siri():
             _siri_threading.Thread(target=request_build, args=(msg[6:].strip(),), daemon=True).start()
             return _reply("Sending to Gemini... I'll notify you via Telegram when the build is ready.")
 
-        # debug: dispatch
         if msg_lower.startswith('debug:'):
-            from jobs.dev.gemini_coder import request_debug
-            _siri_threading.Thread(target=request_debug, args=(msg[6:].strip(),), daemon=True).start()
-            return _reply("Sending to Gemini debugger... I'll notify you via Telegram when the debug prompt is ready.")
+            from jobs.dev.claude_debug import run
+            result = run(message)
+            return _reply(str(result))
 
         # Time query
         if _siri_re.search(r"what.*(time|hour).*is it|what time|current time", msg_lower):
