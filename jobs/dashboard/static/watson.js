@@ -41,115 +41,6 @@ async function loadMenuOrder() {
       sorted.forEach(r => container.appendChild(r));
     }
   } catch (e) { /* silently ignore on load */ }
-  _initNavDrag();
-}
-
-function _initNavDrag() {
-  const container = document.getElementById('settings-nav-list');
-  if (!container) return;
-  let ghost = null;
-  let ghostOffsetY = 0;
-  let _dragActive = false;
-  let _dragPressTimer = null;
-
-  function _clearInsertionLines() {
-    container.querySelectorAll('.overlay-row[data-menu-key]').forEach(r => {
-      r.style.borderTop = '';
-    });
-  }
-
-  function _rowAtPoint(x, y) {
-    const el = document.elementFromPoint(x, y);
-    if (!el) return null;
-    return el.closest('.overlay-row[data-menu-key]');
-  }
-
-  function _activateDrag(row, touch) {
-    _draggedNavRow = row;
-    _dragActive = true;
-    row.classList.add('dragging');
-
-    const rect = row.getBoundingClientRect();
-    ghostOffsetY = touch.clientY - rect.top;
-
-    ghost = row.cloneNode(true);
-    ghost.style.cssText = [
-      'position:fixed',
-      `top:${rect.top}px`,
-      `left:${rect.left}px`,
-      `width:${rect.width}px`,
-      'opacity:0.85',
-      'background:var(--surface)',
-      'z-index:9999',
-      'pointer-events:none',
-      'box-shadow:0 4px 12px rgba(0,0,0,0.3)',
-    ].join(';');
-    document.body.appendChild(ghost);
-  }
-
-  const rows = container.querySelectorAll('.overlay-row[data-menu-key]');
-  console.log('[drag] initNavDrag wired', rows.length, 'rows');
-
-  rows.forEach(row => {
-    row.setAttribute('draggable', 'false');
-
-    row.addEventListener('touchstart', e => {
-      e.preventDefault();
-      console.log('[drag] touchstart fired', e.target);
-      const touch = e.touches[0];
-      const onHandle = !!e.target.closest('.drag-handle');
-
-      if (onHandle) {
-        _activateDrag(row, touch);
-      } else {
-        _dragPressTimer = setTimeout(() => {
-          _dragPressTimer = null;
-          _activateDrag(row, touch);
-        }, 150);
-      }
-    }, { passive: false });
-
-    row.addEventListener('touchmove', e => {
-      console.log('[drag] touchmove', e.touches[0].clientY);
-      if (!_dragActive) {
-        clearTimeout(_dragPressTimer);
-        _dragPressTimer = null;
-        return;
-      }
-      e.preventDefault();
-      const touch = e.touches[0];
-      ghost.style.top = (touch.clientY - ghostOffsetY) + 'px';
-
-      _clearInsertionLines();
-      const target = _rowAtPoint(touch.clientX, touch.clientY);
-      if (target && target !== _draggedNavRow) {
-        target.style.borderTop = '2px solid #c9a84c';
-      }
-    }, { passive: false });
-
-    row.addEventListener('touchend', e => {
-      console.log('[drag] touchend');
-      clearTimeout(_dragPressTimer);
-      _dragPressTimer = null;
-
-      if (!_dragActive) return;
-
-      const touch = e.changedTouches[0];
-      if (ghost) { ghost.remove(); ghost = null; }
-      _draggedNavRow.classList.remove('dragging');
-      _clearInsertionLines();
-
-      const target = _rowAtPoint(touch.clientX, touch.clientY);
-      if (target && target !== _draggedNavRow) {
-        const mid = target.getBoundingClientRect().top + target.getBoundingClientRect().height / 2;
-        container.insertBefore(_draggedNavRow, touch.clientY < mid ? target : target.nextSibling);
-        _saveMenuOrder();
-      }
-
-      _draggedNavRow = null;
-      _dragActive = false;
-    });
-  });
 }
 
 async function _saveMenuOrder() {
@@ -1444,7 +1335,7 @@ function _endDrag() {
   _drag.row.style.display = '';
   _drag.list.insertBefore(_drag.row, _drag.ph);
   _drag.ph.remove();
-  const orderedIds = Array.from(_drag.list.querySelectorAll('[data-drag-id]')).map(r => parseInt(r.dataset.dragId));
+  const orderedIds = Array.from(_drag.list.querySelectorAll('[data-drag-id]')).map(r => r.dataset.dragId);
   orderedIds.forEach(function(id, idx) { _drag.reorderCb(id, idx); });
 }
 
@@ -1459,6 +1350,10 @@ attachDrag('r-list', function(id, order) {
 attachDrag('rl-list', function(id, order) {
   books = books.map(b => b.id === id ? Object.assign({}, b, {sort_order: order}) : b);
   api('/api/reading/' + id + '/reorder', 'PATCH', {sort_order: order});
+});
+attachDrag('settings-nav-list', function(key, order) {
+  const keys = Array.from(document.getElementById('settings-nav-list').querySelectorAll('[data-drag-id]')).map(r => r.dataset.dragId);
+  api('/api/prefs', 'PATCH', {menu_order: keys});
 });
 
 (function() {
