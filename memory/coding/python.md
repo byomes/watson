@@ -125,3 +125,5 @@ Watson debug loop: gather logs first (journalctl for watson-dashboard.service an
 
 ### Watson debug loop cap (2026-06-13)
 Watson debug loop cap: 6 iterations before checking in with Bill. After loop 6, send Telegram approval request and wait up to 30 minutes. Bill replies continue or stop. No hard cap — Bill stays in control.
+
+Gemini permanently removed from coding loop June 13 2026. All debug: triggers now route to jobs/dev/claude_debug.py. Never re-add Gemini to any coding or debugging dispatch.
