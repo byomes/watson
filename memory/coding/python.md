@@ -130,3 +130,6 @@ Gemini permanently removed from coding loop June 13 2026. All debug: triggers no
 
 ### Email reply skill — skip snappages.com connect cards (2026-06-13)
 Email reply skill — skip drafting for emails from snappages.com (Subsplash connect cards). Check sender before any processing. Silent discard — no Telegram, no draft.
+
+### Email reply skill — sender blocklist (2026-06-13)
+Email reply skill — sender blocklist: skip and mark seen for no-reply@, noreply@, and snappages.com. Silent discard.

@@ -159,8 +159,9 @@ def run() -> None:
     for em in emails:
         log.info("Processing: %s from %s", em["subject"], em["sender_email"])
 
-        if "snappages.com" in em["sender_email"].lower():
-            log.info("Skipping connect card from %s (snappages.com)", em["sender_email"])
+        addr = em["sender_email"].lower()
+        if "snappages.com" in addr or "no-reply@" in addr or "noreply@" in addr:
+            log.info("Skipping blocked sender %s", em["sender_email"])
             _mark_seen(mail, em["uid"])
             continue
 
