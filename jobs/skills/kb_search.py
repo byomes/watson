@@ -53,7 +53,9 @@ def _score_text(text: str, terms: list[str]) -> int:
     return sum(1 for term in terms if term in t)
 
 
-def run(message: str) -> str:
+def run(message: str = None) -> str:
+    if not message:
+        return "Please provide a search term."
     kb_dir = Path(os.getenv("KB_LOCAL_DIR", str(_KB_DEFAULT)))
     query = _extract_query(message)
     if not query:
