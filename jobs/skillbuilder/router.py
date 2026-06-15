@@ -521,7 +521,7 @@ def _route(message: str, interface: str) -> dict:
 
     # Keyword pre-check: audit phrases fire run_audit immediately, no LLM call.
     if any(trigger in msg_lower for trigger in _AUDIT_TRIGGERS):
-        return {"action": "skill", "slug": "run_audit"}
+        return {"action": "skill", "slug": "skill_audit"}
 
     # Keyword pre-checks: common skills — no LLM call for known patterns.
     for slug, triggers in _SKILL_PRE_CHECKS.items():
