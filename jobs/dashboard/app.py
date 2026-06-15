@@ -478,7 +478,11 @@ def contacts_delete(contact_id):
 
 @app.route("/api/people")
 def people_list_api():
-    return jsonify(people_list())
+    rows = _db().execute(
+        "SELECT id, name, email, phone, info, relationship, notes, carrier "
+        "FROM people ORDER BY name COLLATE NOCASE"
+    ).fetchall()
+    return jsonify([dict(r) for r in rows])
 
 
 @app.route("/api/people", methods=["POST"])
