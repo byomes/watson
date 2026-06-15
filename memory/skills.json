@@ -320,6 +320,17 @@
       "status": "ready"
     },
     {
+      "slug": "riddle",
+      "name": "Riddle",
+      "description": "Tell a random riddle.",
+      "category": "Utilities",
+      "triggers": ["tell me a riddle", "riddle", "give me a riddle"],
+      "module": "jobs.misc.riddle",
+      "function": "run",
+      "interfaces": ["telegram", "dashboard"],
+      "status": "ready"
+    },
+    {
       "slug": "system_monitor",
       "name": "System Monitor",
       "description": "Check Beelink CPU, memory, and disk usage.",
