@@ -80,6 +80,7 @@ html, body {
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   padding: 16px;
+  padding-bottom: calc(70px + env(safe-area-inset-bottom));
 }
 
 /* Extra bottom padding on tasks page for sticky add bar */
@@ -145,7 +146,7 @@ html, body {
   align-items: center;
   justify-content: space-around;
   padding-top: 20px;
-  padding-bottom: calc(env(safe-area-inset-bottom) + 12px);
+  padding-bottom: calc(12px + env(safe-area-inset-bottom));
   z-index: 100;
 }
 .nb {
