@@ -1145,13 +1145,6 @@ function moreToggleTheme(isLight) {
 
 // ── Terminal ──────────────────────────────────────────────────────────────────
 
-const _TERM_SAFE = new Set([
-  'system status', 'check logs', 'disk usage', 'memory usage',
-  'git pull', 'restart watson bot', 'restart dashboard',
-  'count congregation members', 'count tasks', 'count connect cards',
-  'Watson audit skills', 'Watson fix all failing skills',
-]);
-
 async function moreLoadTerminal() {
   const el = document.getElementById('msec-inner-terminal');
   if (!el) return;
@@ -1159,36 +1152,43 @@ async function moreLoadTerminal() {
   try {
     const skills = await api('/api/skills');
     if (Array.isArray(skills) && skills.length) {
-      skillButtons = `
-        <div style="margin-bottom:12px">
-          <div style="font-size:10px;color:var(--muted);letter-spacing:.08em;font-family:'DM Mono',monospace;margin-bottom:6px">SKILLS — tap to pre-fill</div>
-          <div style="display:flex;flex-wrap:wrap;gap:6px">
-            ${skills.map(s => {
-              const trigger = (Array.isArray(s.triggers) && s.triggers[0]) ? s.triggers[0] : (s.name || s.slug || '');
-              return `<button class="term-chip" onclick="termPrefill(${JSON.stringify(trigger)})">${esc(s.name || s.slug || '')}</button>`;
-            }).join('')}
-          </div>
-        </div>`;
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'margin-bottom:12px';
+      const hdr = document.createElement('div');
+      hdr.style.cssText = 'font-size:10px;color:var(--muted);letter-spacing:.08em;font-family:\'DM Mono\',monospace;margin-bottom:6px';
+      hdr.textContent = 'SKILLS — tap to pre-fill';
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px';
+      skills.forEach(s => {
+        const trigger = (Array.isArray(s.triggers) && s.triggers[0]) ? s.triggers[0] : (s.name || s.slug || '');
+        const btn = document.createElement('button');
+        btn.className = 'term-chip';
+        btn.textContent = s.name || s.slug || '';
+        btn.addEventListener('click', () => termPrefill(trigger));
+        row.appendChild(btn);
+      });
+      wrap.appendChild(hdr);
+      wrap.appendChild(row);
+      el.appendChild(wrap);
     }
   } catch (_) {}
-  el.innerHTML = `
-    ${skillButtons}
-    <div id="term-output-wrap" style="display:none;margin-top:4px">
+
+  el.insertAdjacentHTML('beforeend', `
+    <div style="margin-top:4px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
         <span style="font-size:10px;color:var(--muted);letter-spacing:.06em;font-family:'DM Mono',monospace">OUTPUT</span>
         <button class="mbtn mbtn-sm" onclick="termClear()">Clear</button>
       </div>
-      <pre id="term-output" style="background:#0a0a0a;border:1px solid var(--border);border-radius:6px;padding:12px;font-size:11px;font-family:'DM Mono',monospace;color:#d4d4d4;overflow-y:auto;max-height:400px;white-space:pre-wrap;word-break:break-word;margin:0"></pre>
+      <pre id="term-output" style="background:#0a0a0a;border:1px solid var(--border);border-radius:6px;padding:12px;font-size:11px;font-family:'DM Mono',monospace;color:#d4d4d4;overflow-y:auto;max-height:400px;white-space:pre-wrap;word-break:break-word;margin:0">Ready.</pre>
     </div>
     <div style="margin-top:12px">
-      <div style="font-size:10px;color:var(--muted);letter-spacing:.06em;font-family:'DM Mono',monospace;margin-bottom:6px">CUSTOM COMMAND</div>
+      <div style="font-size:10px;color:var(--muted);letter-spacing:.06em;font-family:'DM Mono',monospace;margin-bottom:6px">COMMAND</div>
       <div style="display:flex;gap:6px">
-        <input id="term-input" type="text" placeholder='Watson …' style="flex:1;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:'DM Mono',monospace;font-size:12px;outline:none"
+        <input id="term-input" type="text" placeholder='Type a command…' style="flex:1;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:'DM Mono',monospace;font-size:12px;outline:none"
           onkeydown="if(event.key==='Enter')termRunCustom()">
-        <button class="mbtn" onclick="termRunCustom()">Run</button>
+        <button class="mbtn" onclick="termRunCustom()">Send</button>
       </div>
-      <div id="term-input-err" style="font-size:11px;color:#e05c5c;margin-top:4px;display:none"></div>
-    </div>`;
+    </div>`);
 }
 
 function termPrefill(trigger) {
@@ -1200,10 +1200,8 @@ function termPrefill(trigger) {
 }
 
 async function termRun(cmd) {
-  const wrap = document.getElementById('term-output-wrap');
-  const out  = document.getElementById('term-output');
-  if (!wrap || !out) return;
-  wrap.style.display = '';
+  const out = document.getElementById('term-output');
+  if (!out) return;
   out.textContent = '…running';
   try {
     const res = await fetch('/api/terminal', {
@@ -1221,23 +1219,15 @@ async function termRun(cmd) {
 
 function termRunCustom() {
   const inp = document.getElementById('term-input');
-  const err = document.getElementById('term-input-err');
   const cmd = (inp ? inp.value.trim() : '');
   if (!cmd) return;
-  if (!cmd.startsWith('Watson ') && !_TERM_SAFE.has(cmd)) {
-    if (err) { err.textContent = 'Use Watson prefix for custom commands'; err.style.display = ''; }
-    return;
-  }
-  if (err) err.style.display = 'none';
   inp.value = '';
   termRun(cmd);
 }
 
 function termClear() {
-  const wrap = document.getElementById('term-output-wrap');
-  const out  = document.getElementById('term-output');
-  if (out)  out.textContent = '';
-  if (wrap) wrap.style.display = 'none';
+  const out = document.getElementById('term-output');
+  if (out) out.textContent = 'Ready.';
 }
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
