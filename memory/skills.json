@@ -1,62 +1,78 @@
 {
   "skills": [
     {
-      "name": "time_check",
-      "description": "Checks the current time in Eastern timezone.",
-      "keywords": [
-        "what time is it",
-        "current time",
-        "what's the time",
-        "time check",
-        "tell me the time"
-      ],
-      "endpoint": "jobs.time_check.run",
-      "interfaces": [
-        "telegram",
-        "dashboard"
-      ],
-      "status": "ready"
-    },
-    {
-      "name": "dad_joke_skill",
-      "description": "Tells a random dad joke.",
-      "triggers": [
-        "tell me a joke"
-      ],
-      "module": "jobs.dadjoke.joke",
-      "function": "get_dad_joke",
-      "interfaces": [
-        "telegram",
-        "dashboard"
-      ],
-      "status": "ready"
-    },
-    {
-      "slug": "image_search",
-      "name": "Image Search",
-      "description": "Searches for images matching a query.",
-      "triggers": [
-        "find image",
-        "search image",
-        "find a photo",
-        "image of"
-      ],
-      "module": "jobs.social.image_search",
+      "slug": "bible_lookup",
+      "name": "Bible Lookup",
+      "description": "Look up any Bible passage in NIV, CSB, or NASB.",
+      "category": "Core",
+      "triggers": ["watson bible", "look up", "what does", "verse", "passage"],
+      "module": "jobs.bible",
       "function": "run",
-      "interfaces": [
-        "dashboard",
-        "telegram"
-      ],
+      "interfaces": ["telegram", "dashboard"],
       "status": "ready"
-    }
-    ,{
+    },
+    {
       "slug": "add_task",
       "name": "Add Task",
-      "description": "Adds a task from natural language, parsing title, due date, and priority.",
-      "triggers": [
-        "add a task", "new task", "remind me to", "add to my tasks"
-      ],
+      "description": "Add a task with optional due date and priority.",
+      "category": "Core",
+      "triggers": ["add a task", "new task", "remind me to", "add to my tasks"],
       "module": "jobs.tasks.add_task",
+      "function": "run",
+      "interfaces": ["telegram", "dashboard"],
+      "status": "ready"
+    },
+    {
+      "slug": "contacts_lookup",
+      "name": "Contacts Lookup",
+      "description": "Search congregation and personal contacts by name.",
+      "category": "Core",
+      "triggers": ["find", "look up", "who is", "contact for", "pull up", "get info on"],
+      "module": "jobs.skills.contacts_lookup",
+      "function": "run",
+      "interfaces": ["telegram", "dashboard"],
+      "status": "ready"
+    },
+    {
+      "slug": "qr_generate",
+      "name": "QR Code",
+      "description": "Generate a QR code for any URL or text.",
+      "category": "Core",
+      "triggers": ["make a qr code", "qr code for", "generate a qr", "create a qr"],
+      "module": "jobs.qr.qr_generate",
+      "function": "run",
+      "interfaces": ["telegram", "dashboard"],
+      "status": "ready"
+    },
+    {
+      "slug": "time_check",
+      "name": "Time Check",
+      "description": "Check the current time in Eastern timezone.",
+      "category": "Core",
+      "triggers": ["what time is it", "current time", "time check", "tell me the time"],
+      "module": "jobs.time_check",
+      "function": "run",
+      "interfaces": ["telegram", "dashboard"],
+      "status": "ready"
+    },
+    {
+      "slug": "email_send",
+      "name": "Send Email",
+      "description": "Draft and send an email via Watson Gmail.",
+      "category": "Core",
+      "triggers": ["send an email", "email", "draft an email", "write an email to"],
+      "module": "jobs.email_send.send",
+      "function": "run",
+      "interfaces": ["telegram", "dashboard"],
+      "status": "ready"
+    },
+    {
+      "slug": "web_search",
+      "name": "Web Search",
+      "description": "Search the web via Serper.dev.",
+      "category": "Research",
+      "triggers": ["search the web", "search for", "look up online", "google", "find online"],
+      "module": "jobs.research.web_search",
       "function": "run",
       "interfaces": ["telegram", "dashboard"],
       "status": "ready"
@@ -64,41 +80,252 @@
     {
       "slug": "kb_search",
       "name": "KB Search",
-      "description": "Searches personal notes, sermons, and documents in the knowledge base.",
-      "triggers": [
-        "search kb", "search my notes", "search my sermons",
-        "what have i said about", "what did i preach on",
-        "find in my notes", "look in my sermons", "kb search"
-      ],
+      "description": "Search personal notes, sermons, and documents.",
+      "category": "Research",
+      "triggers": ["search kb", "search my notes", "search my sermons", "what have i said about", "what did i preach on", "find in my notes"],
       "module": "jobs.skills.kb_search",
       "function": "run",
-      "interfaces": ["dashboard", "telegram"],
+      "interfaces": ["telegram", "dashboard"],
       "status": "ready"
     },
     {
       "slug": "gemini_fetch",
-      "name": "Gemini Fetch",
-      "description": "Fetch a webpage and process its content with Gemini 2.0 Flash",
-      "triggers": [
-        "fetch this",
-        "read this url",
-        "scrape this",
-        "summarize this url",
-        "get this page"
-      ],
-      "interfaces": ["dashboard", "telegram"],
-      "enabled": true,
-      "module_path": "jobs/research/gemini_fetch"
+      "name": "Fetch URL",
+      "description": "Fetch a webpage and process it with Gemini.",
+      "category": "Research",
+      "triggers": ["fetch this", "read this url", "scrape this", "summarize this url", "get this page"],
+      "module": "jobs.research.gemini_fetch",
+      "function": "run",
+      "interfaces": ["telegram", "dashboard"],
+      "status": "ready"
     },
     {
-      "slug": "contacts_lookup",
-      "name": "Contacts Lookup",
-      "description": "Searches congregation and contacts by name.",
-      "triggers": [
-        "find ", "look up", "lookup", "who is", "contact for",
-        "search for", "pull up", "get info on"
-      ],
-      "module": "jobs.skills.contacts_lookup",
+      "slug": "news_search",
+      "name": "News Search",
+      "description": "Search recent news on any topic.",
+      "category": "Research",
+      "triggers": ["search news", "latest news on", "what's the news about", "news about"],
+      "module": "jobs.research.news_search",
+      "function": "run",
+      "interfaces": ["telegram", "dashboard"],
+      "status": "ready"
+    },
+    {
+      "slug": "academic_search",
+      "name": "Academic Search",
+      "description": "Search academic sources and papers.",
+      "category": "Research",
+      "triggers": ["search academic", "find papers on", "scholarly search", "academic search"],
+      "module": "jobs.research.academic_search",
+      "function": "run",
+      "interfaces": ["telegram", "dashboard"],
+      "status": "ready"
+    },
+    {
+      "slug": "isbn_lookup",
+      "name": "ISBN Lookup",
+      "description": "Look up a book by ISBN or title.",
+      "category": "Research",
+      "triggers": ["look up book", "isbn", "find book", "book info"],
+      "module": "jobs.research.isbn_lookup",
+      "function": "run",
+      "interfaces": ["telegram", "dashboard"],
+      "status": "ready"
+    },
+    {
+      "slug": "summarizer",
+      "name": "Summarize",
+      "description": "Summarize any text or article.",
+      "category": "Research",
+      "triggers": ["summarize", "give me a summary", "tldr", "summarize this"],
+      "module": "jobs.research.summarizer",
+      "function": "run",
+      "interfaces": ["telegram", "dashboard"],
+      "status": "ready"
+    },
+    {
+      "slug": "image_search",
+      "name": "Image Search",
+      "description": "Search for images matching a query.",
+      "category": "Research",
+      "triggers": ["find image", "search image", "find a photo", "image of"],
+      "module": "jobs.social.image_search",
+      "function": "run",
+      "interfaces": ["telegram", "dashboard"],
+      "status": "ready"
+    },
+    {
+      "slug": "grammar_checker",
+      "name": "Grammar Check",
+      "description": "Check grammar and style of any text.",
+      "category": "Writing",
+      "triggers": ["check grammar", "grammar check", "proofread", "fix my grammar"],
+      "module": "jobs.writing.grammar_checker",
+      "function": "run",
+      "interfaces": ["telegram", "dashboard"],
+      "status": "ready"
+    },
+    {
+      "slug": "readability",
+      "name": "Readability Check",
+      "description": "Score the readability of any text.",
+      "category": "Writing",
+      "triggers": ["check readability", "readability score", "how readable is"],
+      "module": "jobs.writing.readability",
+      "function": "run",
+      "interfaces": ["telegram", "dashboard"],
+      "status": "ready"
+    },
+    {
+      "slug": "style_checker",
+      "name": "Style Check",
+      "description": "Check writing style and tone.",
+      "category": "Writing",
+      "triggers": ["check style", "style check", "check my writing style"],
+      "module": "jobs.writing.style_checker",
+      "function": "run",
+      "interfaces": ["telegram", "dashboard"],
+      "status": "ready"
+    },
+    {
+      "slug": "citation_manager",
+      "name": "Citation Manager",
+      "description": "Format and manage citations.",
+      "category": "Writing",
+      "triggers": ["format citation", "cite this", "create a citation", "bibliography"],
+      "module": "jobs.writing.citation_manager",
+      "function": "run",
+      "interfaces": ["telegram", "dashboard"],
+      "status": "ready"
+    },
+    {
+      "slug": "document_converter",
+      "name": "Document Converter",
+      "description": "Convert documents between formats.",
+      "category": "Documents",
+      "triggers": ["convert document", "convert to pdf", "convert to word", "document converter"],
+      "module": "jobs.writing.document_converter",
+      "function": "run",
+      "interfaces": ["telegram", "dashboard"],
+      "status": "ready"
+    },
+    {
+      "slug": "pdf",
+      "name": "PDF Tools",
+      "description": "Read, extract, or manipulate PDF files.",
+      "category": "Documents",
+      "triggers": ["read pdf", "extract pdf", "open pdf", "pdf"],
+      "module": "jobs.documents.pdf",
+      "function": "run",
+      "interfaces": ["telegram", "dashboard"],
+      "status": "ready"
+    },
+    {
+      "slug": "word",
+      "name": "Word Document",
+      "description": "Create or edit Word documents.",
+      "category": "Documents",
+      "triggers": ["create word doc", "open word", "word document", "docx"],
+      "module": "jobs.documents.word",
+      "function": "run",
+      "interfaces": ["telegram", "dashboard"],
+      "status": "ready"
+    },
+    {
+      "slug": "excel",
+      "name": "Excel / Spreadsheet",
+      "description": "Create or read Excel spreadsheets.",
+      "category": "Documents",
+      "triggers": ["create spreadsheet", "open excel", "read excel", "xlsx"],
+      "module": "jobs.documents.excel",
+      "function": "run",
+      "interfaces": ["telegram", "dashboard"],
+      "status": "ready"
+    },
+    {
+      "slug": "powerpoint",
+      "name": "PowerPoint",
+      "description": "Create or read PowerPoint presentations.",
+      "category": "Documents",
+      "triggers": ["create presentation", "make slides", "powerpoint", "pptx"],
+      "module": "jobs.documents.powerpoint",
+      "function": "run",
+      "interfaces": ["telegram", "dashboard"],
+      "status": "ready"
+    },
+    {
+      "slug": "svg_generator",
+      "name": "SVG Generator",
+      "description": "Generate SVG graphics and icons.",
+      "category": "Design",
+      "triggers": ["generate svg", "create svg", "make an icon", "svg"],
+      "module": "jobs.design.svg_generator",
+      "function": "run",
+      "interfaces": ["telegram", "dashboard"],
+      "status": "ready"
+    },
+    {
+      "slug": "screenshot",
+      "name": "Screenshot",
+      "description": "Take a screenshot of a webpage.",
+      "category": "Design",
+      "triggers": ["screenshot", "take a screenshot", "capture page"],
+      "module": "jobs.design.screenshot",
+      "function": "run",
+      "interfaces": ["telegram", "dashboard"],
+      "status": "ready"
+    },
+    {
+      "slug": "data_analyzer",
+      "name": "Data Analyzer",
+      "description": "Analyze data and generate insights.",
+      "category": "Utilities",
+      "triggers": ["analyze data", "data analysis", "analyze this data"],
+      "module": "jobs.data.data_analyzer",
+      "function": "run",
+      "interfaces": ["telegram", "dashboard"],
+      "status": "ready"
+    },
+    {
+      "slug": "chart_generator",
+      "name": "Chart Generator",
+      "description": "Generate charts from data.",
+      "category": "Utilities",
+      "triggers": ["make a chart", "generate chart", "chart this data", "create a graph"],
+      "module": "jobs.data.chart_generator",
+      "function": "run",
+      "interfaces": ["telegram", "dashboard"],
+      "status": "ready"
+    },
+    {
+      "slug": "date_helper",
+      "name": "Date Helper",
+      "description": "Calculate dates, days between dates, countdowns.",
+      "category": "Utilities",
+      "triggers": ["how many days until", "date calculator", "days between", "what day is"],
+      "module": "jobs.utilities.date_helper",
+      "function": "run",
+      "interfaces": ["telegram", "dashboard"],
+      "status": "ready"
+    },
+    {
+      "slug": "dad_joke",
+      "name": "Dad Joke",
+      "description": "Tell a random dad joke.",
+      "category": "Utilities",
+      "triggers": ["tell me a joke", "dad joke", "give me a joke"],
+      "module": "jobs.dadjoke.joke",
+      "function": "get_dad_joke",
+      "interfaces": ["telegram", "dashboard"],
+      "status": "ready"
+    },
+    {
+      "slug": "system_monitor",
+      "name": "System Monitor",
+      "description": "Check Beelink CPU, memory, and disk usage.",
+      "category": "Watson Dev",
+      "triggers": ["system status", "check system", "how is watson doing", "server status"],
+      "module": "jobs.dev.system_monitor",
       "function": "run",
       "interfaces": ["telegram", "dashboard"],
       "status": "ready"
@@ -106,13 +333,34 @@
     {
       "slug": "claude_debug",
       "name": "Claude Debug",
-      "description": "Diagnose a Watson problem: gathers logs, calls Claude API for diagnosis, runs Claude Code fix, reviews result, notifies Dr. Bill via Telegram.",
-      "triggers": [
-        "debug:", "diagnose this", "watson debug", "fix this"
-      ],
+      "description": "Diagnose a Watson problem using Claude API and Claude Code.",
+      "category": "Watson Dev",
+      "triggers": ["debug:", "diagnose this", "watson debug", "fix this"],
       "module": "jobs.dev.claude_debug",
       "function": "run",
-      "interfaces": ["dashboard", "telegram"],
+      "interfaces": ["telegram", "dashboard"],
+      "status": "ready"
+    },
+    {
+      "slug": "secrets_audit",
+      "name": "Secrets Audit",
+      "description": "Audit Watson environment variables and credentials.",
+      "category": "Watson Dev",
+      "triggers": ["audit secrets", "check credentials", "secrets audit"],
+      "module": "jobs.dev.secrets_audit",
+      "function": "run",
+      "interfaces": ["telegram", "dashboard"],
+      "status": "ready"
+    },
+    {
+      "slug": "command_executor",
+      "name": "Command Executor",
+      "description": "Execute approved shell commands on Beelink.",
+      "category": "Watson Dev",
+      "triggers": ["run command", "execute", "shell command", "terminal"],
+      "module": "jobs.dev.command_executor",
+      "function": "run",
+      "interfaces": ["telegram", "dashboard"],
       "status": "ready"
     }
   ]
