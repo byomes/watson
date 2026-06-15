@@ -209,6 +209,11 @@ _SKILL_PRE_CHECKS: dict[str, tuple] = {
     "contacts_lookup": (
         "find ", "look up", "lookup", "who is", "pull up", "contact for",
     ),
+    "book_appointment": (
+        "book an appointment", "set an appointment", "schedule a meeting",
+        "add to my calendar", "create an appointment", "book a meeting",
+        "schedule an appointment",
+    ),
 }
 
 # Matched against msg_lower BEFORE the LLM call — returns run_audit immediately, no fallthrough

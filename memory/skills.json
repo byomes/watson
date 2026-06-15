@@ -373,6 +373,21 @@
       "function": "run",
       "interfaces": ["telegram", "dashboard"],
       "status": "ready"
+    },
+    {
+      "slug": "book_appointment",
+      "name": "Book Appointment",
+      "description": "Parses natural language to create a Google Calendar event, optionally drafting a confirmation email if a known contact is mentioned.",
+      "category": "Core",
+      "triggers": [
+        "book an appointment", "set an appointment", "schedule a meeting",
+        "add to my calendar", "create an appointment", "book a meeting",
+        "schedule an appointment"
+      ],
+      "module": "jobs.skills.book_appointment",
+      "function": "run",
+      "interfaces": ["telegram", "dashboard"],
+      "status": "ready"
     }
   ]
 }
