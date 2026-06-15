@@ -71,7 +71,6 @@ function switchTab(page) {
     case 'briefing':  renderBriefing();  break;
     case 'tasks':     renderTasks();     break;
     case 'reminders': renderReminders(); break;
-    case 'reading':   renderReading();   break;
     case 'more':      renderMore();      break;
   }
 }
@@ -372,6 +371,37 @@ async function renderReading() {
   }
 }
 
+// ── Reading List (More section) ──────────────────────────────────────────────
+
+async function moreLoadReading() {
+  const el = document.getElementById('msec-inner-reading');
+  if (!el) return;
+  el.innerHTML = '<div class="loading">Loading&hellip;</div>';
+  try {
+    const items = await api('/api/reading');
+    if (!Array.isArray(items) || !items.length) {
+      el.innerHTML = '<div class="empty">Reading list is empty.</div>';
+      return;
+    }
+    const statusLabel = { unread: 'Unread', reading: 'Reading', finished: 'Finished' };
+    el.innerHTML = items.map(item => {
+      const sl  = statusLabel[item.status] || 'Unread';
+      const sc  = `rl-${item.status || 'unread'}`;
+      const ttl = item.url
+        ? `<a href="${esc(item.url)}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">${esc(item.title)}</a>`
+        : esc(item.title);
+      return `
+        <div class="rl-card">
+          ${item.source_name ? `<div class="rl-source">${esc(item.source_name)}</div>` : ''}
+          <div class="rl-title">${ttl}</div>
+          <div class="rl-status ${sc}">${sl}</div>
+        </div>`;
+    }).join('');
+  } catch {
+    el.innerHTML = '<div class="empty">Could not load reading list.</div>';
+  }
+}
+
 // ─── More page ────────────────────────────────────────────────────────────────
 
 const _MORE_REPORT_CONFIGS = [
@@ -421,6 +451,15 @@ function renderMore() {
       <div class="msec-body" id="msec-body-system">
         <div class="msec-inner" id="msec-inner-system"><div class="loading">Loading&hellip;</div></div>
       </div>
+    </div>
+    <div class="msec" id="msec-reading">
+      <div class="msec-hdr" onclick="moreToggle('reading')">
+        <span class="msec-title">Reading List</span>
+        <span class="msec-chev" id="msec-chev-reading">›</span>
+      </div>
+      <div class="msec-body" id="msec-body-reading">
+        <div class="msec-inner" id="msec-inner-reading"><div class="loading">Loading&hellip;</div></div>
+      </div>
     </div>`);
 }
 
@@ -435,6 +474,7 @@ function moreToggle(sec) {
     if (sec === 'people')   moreLoadPeople();
     if (sec === 'ministry') moreLoadMinistry();
     if (sec === 'system')   moreLoadSystem();
+    if (sec === 'reading')  moreLoadReading();
   }
 }
 
