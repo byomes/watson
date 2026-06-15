@@ -17,7 +17,7 @@ Rules:
 - duration_minutes: integer, default 60 if not mentioned
 - person_name: full name if mentioned, otherwise null
 - location: string if mentioned, otherwise null
-- title: infer from context if not explicit
+- title: if not explicitly stated, use 'Meeting with [person_name]' if a person is mentioned, otherwise use the most descriptive phrase from the message
 
 Message: "{message}"
 
@@ -80,9 +80,19 @@ Return ONLY the JSON object, no other text."""
     if person_name:
         matches = congregation_search(person_name)
         if not matches or isinstance(matches, dict):
+            # Fallback: search by last name only
+            last_name = person_name.strip().split()[-1]
+            if last_name.lower() != person_name.lower():
+                fallback = congregation_search(last_name)
+                if fallback and not isinstance(fallback, dict):
+                    matches = fallback
+        if not matches or isinstance(matches, dict):
             # Try watson.db people table
             all_people = people_list() or []
             matches = [p for p in all_people if person_name.lower() in p.get("name", "").lower()]
+            if not matches:
+                last_name = person_name.strip().split()[-1]
+                matches = [p for p in all_people if last_name.lower() in p.get("name", "").lower()]
 
         if matches:
             person = matches[0]
