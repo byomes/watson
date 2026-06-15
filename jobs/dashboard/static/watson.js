@@ -1095,15 +1095,29 @@ function moreRenderSkills(skills) {
     el.innerHTML = '<div class="empty">No skills found.</div>';
     return;
   }
-  el.innerHTML = skills.map(s => `
+  el.innerHTML = skills.map(s => {
+    const triggers = Array.isArray(s.triggers) ? s.triggers : [];
+    const triggerHtml = triggers.length ? `
+      <div style="margin-top:6px">
+        <div style="font-size:10px;color:var(--muted);letter-spacing:.04em;margin-bottom:4px">TRIGGER WITH:</div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px">
+          ${triggers.map(t => {
+            const url = 'https://t.me/wckyWatsonbot?text=Watson+' + encodeURIComponent(t);
+            return `<button class="msk-trigger" onclick="window.open('${url}','_blank')">${esc(t)}</button>`;
+          }).join('')}
+        </div>
+      </div>` : '';
+    return `
     <div class="msk-card">
       <div class="msk-info">
         <div class="msk-name">${esc(s.name || s.slug || '')}</div>
         <div class="msk-desc">${esc(s.description || '')}</div>
+        ${triggerHtml}
         <span class="msk-badge">${esc(s.status || 'ready')}</span>
       </div>
       ${s.status === 'pending' ? `<button class="mbtn mbtn-sm" onclick="moreApproveSkill('${esc(s.slug)}')">Approve</button>` : ''}
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 async function moreApproveSkill(slug) {
