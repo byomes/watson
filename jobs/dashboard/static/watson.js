@@ -1145,17 +1145,24 @@ function moreToggleTheme(isLight) {
 
 // ── Terminal ──────────────────────────────────────────────────────────────────
 
+let _termLastCmd = '';
+
 async function moreLoadTerminal() {
   const el = document.getElementById('msec-inner-terminal');
   if (!el) return;
-  let skillButtons = '';
+
+  el.insertAdjacentHTML('beforeend', `
+    <div style="margin-bottom:14px">
+      <button id="term-copy-blank" class="mbtn mbtn-sm" onclick="termCopyBlank()">📋 New Claude Code prompt</button>
+    </div>`);
+
   try {
     const skills = await api('/api/skills');
     if (Array.isArray(skills) && skills.length) {
       const wrap = document.createElement('div');
       wrap.style.cssText = 'margin-bottom:12px';
       const hdr = document.createElement('div');
-      hdr.style.cssText = 'font-size:10px;color:var(--muted);letter-spacing:.08em;font-family:\'DM Mono\',monospace;margin-bottom:6px';
+      hdr.style.cssText = "font-size:10px;color:var(--muted);letter-spacing:.08em;font-family:'DM Mono',monospace;margin-bottom:6px";
       hdr.textContent = 'SKILLS — tap to pre-fill';
       const row = document.createElement('div');
       row.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px';
@@ -1180,6 +1187,9 @@ async function moreLoadTerminal() {
         <button class="mbtn mbtn-sm" onclick="termClear()">Clear</button>
       </div>
       <pre id="term-output" style="background:#0a0a0a;border:1px solid var(--border);border-radius:6px;padding:12px;font-size:11px;font-family:'DM Mono',monospace;color:#d4d4d4;overflow-y:auto;max-height:400px;white-space:pre-wrap;word-break:break-word;margin:0">Ready.</pre>
+      <div id="term-copy-result-wrap" style="display:none;margin-top:6px">
+        <button id="term-copy-result" class="mbtn mbtn-sm" onclick="termCopyResult()">📋 Send to Claude Code</button>
+      </div>
     </div>
     <div style="margin-top:12px">
       <div style="font-size:10px;color:var(--muted);letter-spacing:.06em;font-family:'DM Mono',monospace;margin-bottom:6px">COMMAND</div>
@@ -1200,6 +1210,7 @@ function termPrefill(trigger) {
 }
 
 async function termRun(cmd) {
+  _termLastCmd = cmd;
   const out = document.getElementById('term-output');
   if (!out) return;
   out.textContent = '…running';
@@ -1215,6 +1226,8 @@ async function termRun(cmd) {
     out.textContent = `Error: ${e.message}`;
   }
   out.scrollTop = out.scrollHeight;
+  const wrap = document.getElementById('term-copy-result-wrap');
+  if (wrap) wrap.style.display = '';
 }
 
 function termRunCustom() {
@@ -1228,6 +1241,32 @@ function termRunCustom() {
 function termClear() {
   const out = document.getElementById('term-output');
   if (out) out.textContent = 'Ready.';
+  const wrap = document.getElementById('term-copy-result-wrap');
+  if (wrap) wrap.style.display = 'none';
+}
+
+async function _termCopy(text, btn) {
+  try {
+    await navigator.clipboard.writeText(text);
+    const orig = btn.textContent;
+    btn.textContent = '✓ Copied';
+    setTimeout(() => { btn.textContent = orig; }, 2000);
+  } catch (_) {}
+}
+
+function termCopyResult() {
+  const btn = document.getElementById('term-copy-result');
+  const out = document.getElementById('term-output');
+  if (!btn || !out) return;
+  const text = `---\nIn ~/watson, ${_termLastCmd}\n\nOutput:\n${out.textContent}\n\nFix or explain the above. Then git add -A && git commit -m "[short description]" && git push origin main.\n---`;
+  _termCopy(text, btn);
+}
+
+function termCopyBlank() {
+  const btn = document.getElementById('term-copy-blank');
+  if (!btn) return;
+  const text = `---\nIn ~/watson, [describe what to build or fix here]\n\nThen git add -A && git commit -m "[description]" && git push origin main.\n---`;
+  _termCopy(text, btn);
 }
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
