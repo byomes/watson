@@ -142,3 +142,58 @@ def handle(subject, body):
     _telegram("🧠 Spec ready — check your email")
     _store_job(directive, spec)
     log.info("Code Agent spec generated and emailed for: %s", subject)
+
+
+def refine_job(job_id: int, feedback: str) -> None:
+    """Re-generate spec for an existing job incorporating user refinement feedback."""
+    conn = sqlite3.connect(DB_PATH)
+    row = conn.execute(
+        "SELECT directive, spec FROM code_agent_jobs WHERE id=?", (job_id,)
+    ).fetchone()
+    if not row:
+        conn.close()
+        _telegram(f"❌ Code Agent: job {job_id} not found for refinement")
+        return
+    directive, original_spec = row[0], row[1] or ""
+    conn.execute("UPDATE code_agent_jobs SET status='pending' WHERE id=?", (job_id,))
+    conn.commit()
+    conn.close()
+
+    refined_directive = (
+        directive
+        + "\n\nPrevious spec:\n" + original_spec
+        + "\n\nRefinement feedback:\n" + feedback
+    )
+
+    spec = None
+    for attempt in range(1, MAX_ATTEMPTS + 1):
+        try:
+            if attempt < 3:
+                spec = _call_ollama(refined_directive, attempt)
+            else:
+                _telegram("🆘 Escalating to Claude API — Ollama failed twice")
+                spec = _call_claude_api(refined_directive)
+            break
+        except Exception as exc:
+            _telegram(f"❌ Failed attempt {attempt} of 3 — {exc}")
+            log.error("Code Agent refine attempt %d failed: %s", attempt, exc)
+
+    if spec is None:
+        _telegram("❌ Code Agent refinement failed — manual intervention needed")
+        conn = sqlite3.connect(DB_PATH)
+        conn.execute("UPDATE code_agent_jobs SET status='awaiting_confirm' WHERE id=?", (job_id,))
+        conn.commit()
+        conn.close()
+        return
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute(
+        "UPDATE code_agent_jobs SET directive=?, spec=?, status='awaiting_confirm' WHERE id=?",
+        (refined_directive, spec, job_id),
+    )
+    conn.commit()
+    conn.close()
+
+    _send_spec("Refined Spec", spec)
+    _telegram("🧠 Refined spec ready — check your email")
+    log.info("Code Agent refined spec for job %d", job_id)
