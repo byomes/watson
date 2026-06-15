@@ -506,33 +506,37 @@ async function moreLoadPeople() {
   const el = document.getElementById('msec-inner-people');
   if (!el) return;
   el.innerHTML = '<div class="loading">Loading&hellip;</div>';
-  try {
-    const data = await api('/api/congregation/contacts');
-    moreRenderContacts(Array.isArray(data) ? data : []);
-  } catch {
-    el.innerHTML = '<div class="empty">Could not load contacts.</div>';
-  }
+  const [wcRes, congRes] = await Promise.allSettled([
+    api('/api/people'),
+    api('/api/congregation'),
+  ]);
+  const wc   = wcRes.status   === 'fulfilled' && Array.isArray(wcRes.value)   ? wcRes.value   : [];
+  const cong = congRes.status === 'fulfilled' && Array.isArray(congRes.value) ? congRes.value : [];
+  el.innerHTML = '<div id="more-wc-wrap"></div><div id="more-cong-wrap"></div>';
+  moreRenderWatsonContacts(wc);
+  moreRenderCongregation(cong);
 }
 
-function moreRenderContacts(contacts) {
-  const el = document.getElementById('msec-inner-people');
+function moreRenderWatsonContacts(contacts) {
+  const el = document.getElementById('more-wc-wrap');
   if (!el) return;
   let html = `
-    <input class="msrch" type="search" placeholder="Search people…" oninput="moreSearchPeople(this.value)">
+    <div class="mlabel">Watson Contacts</div>
+    <input class="msrch" type="search" placeholder="Search contacts…" oninput="moreSearchWC(this.value)">
     <button class="mbtn mbtn-sm" onclick="moreToggleAddC()" style="margin-bottom:10px">+ Add Contact</button>
     <div id="more-add-c-form" style="display:none">
       <div class="mform">
-        <input id="mc-name"   placeholder="Full name" type="text">
-        <input id="mc-email"  placeholder="Email"     type="email">
-        <input id="mc-phone"  placeholder="Phone"     type="tel">
-        <input id="mc-campus" placeholder="Campus"    type="text">
+        <input id="mc-name"  placeholder="Full name"    type="text">
+        <input id="mc-email" placeholder="Email"        type="email">
+        <input id="mc-phone" placeholder="Phone"        type="tel">
+        <input id="mc-rel"   placeholder="Relationship" type="text">
         <div class="mfrow">
           <button class="mbtn mbtn-p" onclick="moreSaveNewC()">Save</button>
           <button class="mbtn"        onclick="moreToggleAddC()">Cancel</button>
         </div>
       </div>
     </div>
-    <div id="more-contact-list">`;
+    <div id="more-wc-list">`;
   if (!contacts.length) {
     html += '<div class="empty">No contacts yet.</div>';
   } else {
@@ -540,22 +544,52 @@ function moreRenderContacts(contacts) {
       const initials = (c.name || '?').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
       const hue = ((c.name || '').charCodeAt(0) * 37) % 360;
       html += `
-        <div class="mcc" id="mcc-${c.id}">
+        <div class="mcc" id="mwc-${c.id}">
           <div class="mcc-hdr" onclick="moreToggleC(${c.id})">
             <div class="mcc-av" style="background:hsl(${hue},40%,28%);color:hsl(${hue},60%,70%)">${esc(initials)}</div>
             <div class="mcc-info">
               <div class="mcc-name">${esc(c.name)}</div>
-              <div class="mcc-sub">${esc(c.campus || c.email || '')}</div>
+              <div class="mcc-sub">${esc(c.relationship || c.email || '')}</div>
             </div>
           </div>
-          <div class="mcc-body" id="mcc-body-${c.id}">
-            <input class="mcc-field" id="mcc-name-${c.id}"   value="${esc(c.name   || '')}" placeholder="Name">
-            <input class="mcc-field" id="mcc-email-${c.id}"  value="${esc(c.email  || '')}" placeholder="Email"  type="email">
-            <input class="mcc-field" id="mcc-phone-${c.id}"  value="${esc(c.phone  || '')}" placeholder="Phone"  type="tel">
-            <input class="mcc-field" id="mcc-campus-${c.id}" value="${esc(c.campus || '')}" placeholder="Campus">
+          <div class="mcc-body" id="mwc-body-${c.id}">
+            <input class="mcc-field" id="mwc-name-${c.id}"  value="${esc(c.name         || '')}" placeholder="Name">
+            <input class="mcc-field" id="mwc-email-${c.id}" value="${esc(c.email        || '')}" placeholder="Email" type="email">
+            <input class="mcc-field" id="mwc-phone-${c.id}" value="${esc(c.phone        || '')}" placeholder="Phone" type="tel">
+            <input class="mcc-field" id="mwc-rel-${c.id}"   value="${esc(c.relationship || '')}" placeholder="Relationship">
+            ${c.info ? `<div style="font-size:11px;color:var(--muted);padding:4px 0">${esc(c.info)}</div>` : ''}
             <div class="mfrow" style="margin-top:6px">
               <button class="mbtn mbtn-p mbtn-sm" onclick="moreSaveEditC(${c.id})">Save</button>
               <button class="mbtn mbtn-d mbtn-sm" onclick="moreDeleteC(${c.id})">Delete</button>
+            </div>
+          </div>
+        </div>`;
+    });
+  }
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+function moreRenderCongregation(members) {
+  const el = document.getElementById('more-cong-wrap');
+  if (!el) return;
+  let html = `
+    <div class="mlabel" style="margin-top:16px">Congregation</div>
+    <input class="msrch" type="search" placeholder="Search congregation…" oninput="moreSearchCong(this.value)">
+    <div id="more-cong-list">`;
+  if (!members.length) {
+    html += '<div class="empty">No congregation members.</div>';
+  } else {
+    members.forEach(m => {
+      const initials = (m.name || '?').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+      const hue = ((m.name || '').charCodeAt(0) * 37) % 360;
+      html += `
+        <div class="mcc" id="mcong-${m.id}">
+          <div class="mcc-hdr" style="cursor:default">
+            <div class="mcc-av" style="background:hsl(${hue},40%,28%);color:hsl(${hue},60%,70%)">${esc(initials)}</div>
+            <div class="mcc-info">
+              <div class="mcc-name">${esc(m.name)}</div>
+              <div class="mcc-sub">${esc(m.campus || m.email || '')}</div>
             </div>
           </div>
         </div>`;
@@ -571,36 +605,36 @@ function moreToggleAddC() {
 }
 
 function moreToggleC(id) {
-  const body = document.getElementById(`mcc-body-${id}`);
+  const body = document.getElementById(`mwc-body-${id}`);
   if (body) body.classList.toggle('open');
 }
 
 async function moreSaveNewC() {
-  const name   = (document.getElementById('mc-name')?.value   || '').trim();
-  const email  = (document.getElementById('mc-email')?.value  || '').trim();
-  const phone  = (document.getElementById('mc-phone')?.value  || '').trim();
-  const campus = (document.getElementById('mc-campus')?.value || '').trim();
+  const name         = (document.getElementById('mc-name')?.value  || '').trim();
+  const email        = (document.getElementById('mc-email')?.value || '').trim();
+  const phone        = (document.getElementById('mc-phone')?.value || '').trim();
+  const relationship = (document.getElementById('mc-rel')?.value   || '').trim();
   if (!name) { alert('Name is required.'); return; }
   try {
-    await api('/api/congregation/contacts', {
+    await api('/api/people', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, email, phone, campus }),
+      body: JSON.stringify({ name, email, phone, relationship }),
     });
     moreLoadPeople();
   } catch { alert('Failed to save contact.'); }
 }
 
 async function moreSaveEditC(id) {
-  const name   = (document.getElementById(`mcc-name-${id}`)?.value   || '').trim();
-  const email  = (document.getElementById(`mcc-email-${id}`)?.value  || '').trim();
-  const phone  = (document.getElementById(`mcc-phone-${id}`)?.value  || '').trim();
-  const campus = (document.getElementById(`mcc-campus-${id}`)?.value || '').trim();
+  const name         = (document.getElementById(`mwc-name-${id}`)?.value  || '').trim();
+  const email        = (document.getElementById(`mwc-email-${id}`)?.value || '').trim();
+  const phone        = (document.getElementById(`mwc-phone-${id}`)?.value || '').trim();
+  const relationship = (document.getElementById(`mwc-rel-${id}`)?.value   || '').trim();
   try {
-    await api(`/api/congregation/contacts/${id}`, {
+    await api(`/api/people/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, email, phone, campus }),
+      body: JSON.stringify({ name, email, phone, relationship }),
     });
     moreLoadPeople();
   } catch { alert('Failed to update contact.'); }
@@ -609,29 +643,27 @@ async function moreSaveEditC(id) {
 async function moreDeleteC(id) {
   if (!confirm('Delete this contact?')) return;
   try {
-    await api(`/api/congregation/contacts/${id}`, { method: 'DELETE' });
+    await api(`/api/people/${id}`, { method: 'DELETE' });
     moreLoadPeople();
   } catch { alert('Failed to delete contact.'); }
 }
 
-function moreSearchPeople(q) {
+function moreSearchWC(q) {
   const term = q.toLowerCase();
-  document.querySelectorAll('[id^="mcc-"]').forEach(card => {
-    if (!/^mcc-\d+$/.test(card.id)) return;
+  document.querySelectorAll('[id^="mwc-"]').forEach(card => {
+    if (!/^mwc-\d+$/.test(card.id)) return;
     const name = (card.querySelector('.mcc-name')?.textContent || '').toLowerCase();
     card.style.display = name.includes(term) ? '' : 'none';
   });
 }
 
-async function moreImportCSV(input) {
-  const file = input?.files?.[0];
-  if (!file) return;
-  const form = new FormData();
-  form.append('file', file);
-  try {
-    await fetch('/api/congregation/import', { method: 'POST', body: form });
-    moreLoadPeople();
-  } catch { alert('Import failed.'); }
+function moreSearchCong(q) {
+  const term = q.toLowerCase();
+  document.querySelectorAll('[id^="mcong-"]').forEach(card => {
+    if (!/^mcong-\d+$/.test(card.id)) return;
+    const name = (card.querySelector('.mcc-name')?.textContent || '').toLowerCase();
+    card.style.display = name.includes(term) ? '' : 'none';
+  });
 }
 
 // ── Ministry ─────────────────────────────────────────────────────────────────

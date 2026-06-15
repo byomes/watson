@@ -12,7 +12,7 @@ log = logging.getLogger(__name__)
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from flask import Flask, Response, g, jsonify, render_template, request, session, stream_with_context
-from jobs.people.api import people_create, people_delete, people_list, people_update
+from jobs.people.api import congregation_list, people_create, people_delete, people_list, people_update
 from config.settings import WATSON_SYSTEM
 
 
@@ -472,6 +472,36 @@ def contacts_update(contact_id):
 @app.route("/api/contacts/<int:contact_id>", methods=["DELETE"])
 def contacts_delete(contact_id):
     return jsonify(people_delete(contact_id))
+
+
+# ── People API (Watson contacts) ──────────────────────────────────────────────
+
+@app.route("/api/people")
+def people_list_api():
+    return jsonify(people_list())
+
+
+@app.route("/api/people", methods=["POST"])
+def people_create_api():
+    result = people_create(request.get_json(force=True))
+    return jsonify(result), (400 if "error" in result else 201)
+
+
+@app.route("/api/people/<int:person_id>", methods=["PATCH"])
+def people_update_api(person_id):
+    return jsonify(people_update(person_id, request.get_json(force=True)))
+
+
+@app.route("/api/people/<int:person_id>", methods=["DELETE"])
+def people_delete_api(person_id):
+    return jsonify(people_delete(person_id))
+
+
+# ── Congregation API (read-only) ───────────────────────────────────────────────
+
+@app.route("/api/congregation")
+def congregation_list_api():
+    return jsonify(congregation_list())
 
 
 @app.route("/api/contacts/import", methods=["POST"])
