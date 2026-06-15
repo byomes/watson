@@ -816,7 +816,8 @@ def skills_list_api():
     if not SKILLS_FILE.exists():
         return jsonify([])
     try:
-        skills = json.loads(SKILLS_FILE.read_text(encoding="utf-8"))
+        data = json.loads(SKILLS_FILE.read_text(encoding="utf-8"))
+        skills = data.get("skills", data) if isinstance(data, dict) else data
         if not isinstance(skills, list):
             return jsonify([])
         for s in skills:
@@ -840,7 +841,8 @@ def approve_skill(slug):
     if not SKILLS_FILE.exists():
         return jsonify({"success": False, "error": "skills.json not found"}), 404
     try:
-        skills = json.loads(SKILLS_FILE.read_text(encoding="utf-8"))
+        data = json.loads(SKILLS_FILE.read_text(encoding="utf-8"))
+        skills = data.get("skills", data) if isinstance(data, dict) else data
         skill = next((s for s in skills if s.get("slug") == slug), None)
         if not skill:
             return jsonify({"success": False, "error": "Skill not found"}), 404
