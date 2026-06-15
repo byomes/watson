@@ -6,6 +6,7 @@ Run on a cron every ~5 minutes.
 
 import logging
 from datetime import datetime, timedelta
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import requests
@@ -18,10 +19,11 @@ log = logging.getLogger(__name__)
 
 NY = ZoneInfo("America/New_York")
 
-_SKIP_KEYWORDS = {
-    "deep work", "sermon study", "sabbath", "family",
-    "elder meeting", "staff meeting", "lunch", "hair",
-}
+def _load_skip_keywords():
+    path = Path(__file__).parent.parent.parent / "memory" / "skip_keywords.txt"
+    if not path.exists():
+        return []
+    return [line.strip().lower() for line in path.read_text().splitlines() if line.strip()]
 
 
 def _send_telegram(text: str) -> int | None:
@@ -39,7 +41,7 @@ def _should_skip(title: str) -> bool:
     lower = title.lower()
     if "[skip notes]" in lower:
         return True
-    return any(kw in lower for kw in _SKIP_KEYWORDS)
+    return any(kw in lower for kw in _load_skip_keywords())
 
 
 def _already_prompted(event_id: str) -> bool:

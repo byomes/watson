@@ -13,6 +13,7 @@ numbered replies ("1: skip\n2: Met with Dave, notes here").
 import difflib
 import logging
 import re
+from pathlib import Path
 
 import requests
 
@@ -22,6 +23,13 @@ from jobs.pastoral_notes.db import get_db
 log = logging.getLogger(__name__)
 
 _FUZZY_THRESHOLD = 0.6
+
+
+def _append_skip_keyword(title: str) -> None:
+    path = Path(__file__).parent.parent.parent / "memory" / "skip_keywords.txt"
+    keyword = title.strip().lower()
+    with open(path, "a") as f:
+        f.write(f"\n{keyword}")
 _NUMBERED_LINE_RE = re.compile(r'^(\d+):\s*(.+)$')
 
 # Tracks ambiguous matches waiting for yes/no confirmation.
@@ -221,6 +229,12 @@ def handle_notes_reply(reply_text: str) -> None:
 
     if lower == "skip":
         _mark_dismissed(pending_id)
+        return
+
+    if lower == "skip all":
+        _append_skip_keyword(appointment_title)
+        _mark_dismissed(pending_id)
+        _send_telegram(f'Got it — I\'ll never ask for notes on "{appointment_title}" again.')
         return
 
     _process_note_text(dict(pending), reply_text)
