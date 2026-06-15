@@ -326,7 +326,7 @@ def terminal():
                 output = f"Error: {exc}"
                 success = False
 
-    elif cmd.lower().startswith("watson "):
+    elif True:  # route all commands through skill system
         try:
             from jobs.skillbuilder import router as _router
             route_result = _router.route(cmd, "dashboard")
