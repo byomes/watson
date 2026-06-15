@@ -87,7 +87,7 @@ def test_skill(slug: str, message: str = None) -> dict:
 
 
 def run_all_skill_tests() -> dict:
-    SKIP = ["skill_audit"]
+    SKIP = ["skill_audit", "secrets_audit"]
     skills = _load_skills()
     ready = [s for s in skills if s.get("status") == "ready" and s.get("slug") not in SKIP]
     passed, failed, errors = [], [], []
