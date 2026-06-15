@@ -424,7 +424,37 @@ let _moreSkillQuery   = '';
 
 function renderMore() {
   _moreSecLoaded = {};
+  const isLight = document.documentElement.getAttribute('data-theme') === 'light';
   setContent(`
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-card);margin-bottom:10px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color:var(--gold)"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+        <span style="font-size:13px;font-weight:500">Appearance</span>
+      </div>
+      <label class="mswitch">
+        <input type="checkbox" id="more-theme-chk" onchange="moreToggleTheme(this.checked)" ${isLight ? 'checked' : ''}>
+        <span class="mswitch-track"></span>
+        <span class="mswitch-thumb"></span>
+      </label>
+    </div>
+    <div class="msec" id="msec-reports">
+      <div class="msec-hdr" onclick="moreToggle('reports')">
+        <span class="msec-title">Reports</span>
+        <span class="msec-chev" id="msec-chev-reports">›</span>
+      </div>
+      <div class="msec-body" id="msec-body-reports">
+        <div class="msec-inner" id="msec-inner-reports"></div>
+      </div>
+    </div>
+    <div class="msec" id="msec-skills">
+      <div class="msec-hdr" onclick="moreToggle('skills')">
+        <span class="msec-title">Skills</span>
+        <span class="msec-chev" id="msec-chev-skills">›</span>
+      </div>
+      <div class="msec-body" id="msec-body-skills">
+        <div class="msec-inner" id="msec-inner-skills"></div>
+      </div>
+    </div>
     <div class="msec" id="msec-people">
       <div class="msec-hdr" onclick="moreToggle('people')">
         <span class="msec-title">People</span>
@@ -441,15 +471,6 @@ function renderMore() {
       </div>
       <div class="msec-body" id="msec-body-ministry">
         <div class="msec-inner" id="msec-inner-ministry"><div class="loading">Loading&hellip;</div></div>
-      </div>
-    </div>
-    <div class="msec" id="msec-system">
-      <div class="msec-hdr" onclick="moreToggle('system')">
-        <span class="msec-title">System</span>
-        <span class="msec-chev" id="msec-chev-system">›</span>
-      </div>
-      <div class="msec-body" id="msec-body-system">
-        <div class="msec-inner" id="msec-inner-system"><div class="loading">Loading&hellip;</div></div>
       </div>
     </div>
     <div class="msec" id="msec-reading">
@@ -471,9 +492,10 @@ function moreToggle(sec) {
   if (chev) chev.textContent = isOpen ? '⌄' : '›';
   if (isOpen && !_moreSecLoaded[sec]) {
     _moreSecLoaded[sec] = true;
+    if (sec === 'reports')  moreLoadReports();
+    if (sec === 'skills')   moreLoadSkills();
     if (sec === 'people')   moreLoadPeople();
     if (sec === 'ministry') moreLoadMinistry();
-    if (sec === 'system')   moreLoadSystem();
     if (sec === 'reading')  moreLoadReading();
   }
 }
@@ -958,31 +980,24 @@ async function moreReportEmail() {
   } catch { alert('Failed to send.'); }
 }
 
-// ── System ───────────────────────────────────────────────────────────────────
+// ── Reports ──────────────────────────────────────────────────────────────────
 
-async function moreLoadSystem() {
-  const el = document.getElementById('msec-inner-system');
+function moreLoadReports() {
+  const el = document.getElementById('msec-inner-reports');
+  if (!el) return;
+  el.innerHTML = `
+    <button class="mbtn" onclick="moreShowReportSheet()">Run a Report&hellip;</button>
+    <div id="more-report-result"></div>`;
+}
+
+// ── Skills ───────────────────────────────────────────────────────────────────
+
+async function moreLoadSkills() {
+  const el = document.getElementById('msec-inner-skills');
   if (!el) return;
   _moreSkillCat   = 'All';
   _moreSkillQuery = '';
   el.innerHTML = `
-    <div class="mlabel">Reports</div>
-    <button class="mbtn" onclick="moreShowReportSheet()">Run a Report&hellip;</button>
-    <div id="more-report-result"></div>
-
-    <div class="mlabel">Appearance</div>
-    <div class="mtheme-row">
-      <span style="font-size:13px">Light mode</span>
-      <label class="mswitch">
-        <input type="checkbox" id="more-theme-chk"
-          onchange="moreToggleTheme(this.checked)"
-          ${document.documentElement.getAttribute('data-theme') === 'light' ? 'checked' : ''}>
-        <span class="mswitch-track"></span>
-        <span class="mswitch-thumb"></span>
-      </label>
-    </div>
-
-    <div class="mlabel">Skills</div>
     <input class="msrch" type="search" placeholder="Search skills&hellip;" oninput="moreSkillSearch(this.value)">
     <div style="font-size:11px;color:var(--muted);text-align:center;margin-bottom:8px">Trigger any skill by messaging Watson on Telegram.</div>
     <div id="more-skill-pills" class="mpills"></div>
@@ -1057,7 +1072,7 @@ function moreRenderSkills(skills) {
 async function moreApproveSkill(slug) {
   try {
     await api(`/api/skills/${encodeURIComponent(slug)}/approve`, { method: 'POST' });
-    moreLoadSystem();
+    moreLoadSkills();
   } catch { alert('Failed to approve skill.'); }
 }
 
