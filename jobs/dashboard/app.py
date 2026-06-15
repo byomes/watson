@@ -794,6 +794,7 @@ def skills_list_api():
                 s["status"] = "ready"
             if "category" not in s:
                 s["category"] = "Utilities"
+        skills.sort(key=lambda s: (s.get("name") or s.get("slug") or "").lower())
         return jsonify(skills)
     except Exception:
         return jsonify([])
