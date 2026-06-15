@@ -415,6 +415,7 @@ html, body {
 .msk-desc { font-size: 11px; color: var(--muted); margin-top: 2px; }
 .msk-badge { font-size: 9px; font-family: 'DM Mono', monospace; padding: 2px 6px; border-radius: 3px; background: rgba(201,168,76,.1); color: var(--gold); border: 1px solid rgba(201,168,76,.2); display: inline-block; margin-top: 3px; }
 .msk-trigger { display: inline-flex; align-items: center; font-size: 11px; padding: 3px 8px; border-radius: 4px; border: 1px solid var(--border); color: var(--muted); background: transparent; cursor: pointer; font-family: inherit; line-height: 1.3; }
+.term-chip { display: inline-flex; align-items: center; font-size: 12px; padding: 5px 10px; border-radius: 6px; border: 1px solid var(--border); color: var(--text); background: var(--surface); cursor: pointer; font-family: 'DM Mono', monospace; line-height: 1.3; -webkit-tap-highlight-color: transparent; }
 .msrch { display: block; width: 100%; padding: 9px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-btn); color: var(--text); font-family: inherit; font-size: 13px; outline: none; margin-bottom: 8px; }
 .msrch:focus { border-color: var(--gold); }
 .mpills { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
@@ -486,6 +487,10 @@ html, body {
   <button class="nb" id="nav-more" onclick="switchTab('more')">
     <span class="ni"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg></span>
     <span class="nl">More</span>
+  </button>
+  <button class="nb" id="nav-terminal" onclick="switchTab('terminal')">
+    <span class="ni"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg></span>
+    <span class="nl">Terminal</span>
   </button>
 </nav>
 

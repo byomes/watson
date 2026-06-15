@@ -226,6 +226,135 @@ def status():
     return jsonify({"current_time": datetime.now().isoformat()})
 
 
+_TERM_BLOCKLIST = ("rm ", "sudo rm", "drop ", "drop;", "format ", "shutdown", "reboot", ":(){", ">(")
+
+_TERM_COMMANDS = {
+    "system status": ("skill", "jobs.dev.system_monitor"),
+    "check logs": ("shell", "tail -50 " + os.path.expanduser("~/watson/logs/watson.log")),
+    "disk usage": ("shell", "df -h"),
+    "memory usage": ("shell", "free -h"),
+    "git pull": ("shell", "git -C " + os.path.expanduser("~/watson") + " pull"),
+    "restart watson bot": ("shell", "sudo systemctl restart watson-bot.service"),
+    "restart dashboard": ("shell", "sudo systemctl restart watson-dashboard.service"),
+    "count congregation members": ("sqlite", "congregation"),
+    "count tasks": ("sqlite", "tasks"),
+    "count connect cards": ("sqlite", "connect_cards"),
+    "watson audit skills": ("skill", "jobs.dev.skill_tester"),
+    "watson fix all failing skills": ("fix_skills", None),
+}
+
+
+@app.route("/api/terminal", methods=["POST"])
+def terminal():
+    import subprocess as _sp
+    import sqlite3 as _sq
+
+    data = request.get_json(force=True) or {}
+    cmd = (data.get("command") or "").strip()
+    if not cmd:
+        return jsonify({"output": "No command provided.", "success": False})
+
+    cmd_lower = cmd.lower()
+    for blocked in _TERM_BLOCKLIST:
+        if blocked in cmd_lower:
+            return jsonify({"output": f"Blocked: '{blocked}' is not allowed.", "success": False})
+
+    output = ""
+    success = True
+    entry = _TERM_COMMANDS.get(cmd_lower)
+
+    if entry:
+        kind, target = entry
+
+        if kind == "shell":
+            try:
+                result = _sp.run(
+                    target, shell=True, capture_output=True, text=True, timeout=30
+                )
+                output = (result.stdout or "") + (result.stderr or "")
+                success = result.returncode == 0
+            except _sp.TimeoutExpired:
+                output = "Command timed out after 30 seconds."
+                success = False
+            except Exception as exc:
+                output = str(exc)
+                success = False
+
+        elif kind == "skill":
+            try:
+                import importlib
+                mod = importlib.import_module(target)
+                output = str(mod.run())
+            except Exception as exc:
+                output = f"Skill error: {exc}"
+                success = False
+
+        elif kind == "sqlite":
+            try:
+                db_path = os.path.expanduser("~/watson/data/watson.db")
+                with _sq.connect(db_path) as _c:
+                    if target == "congregation":
+                        try:
+                            row = _c.execute("SELECT COUNT(*) FROM congregation").fetchone()
+                            output = f"Congregation members: {row[0]}"
+                        except Exception:
+                            db2 = os.path.expanduser("~/watson/data/congregation.db")
+                            with _sq.connect(db2) as _c2:
+                                row = _c2.execute("SELECT COUNT(*) FROM congregation").fetchone()
+                                output = f"Congregation members: {row[0]}"
+                    elif target == "tasks":
+                        row = _c.execute("SELECT COUNT(*) FROM tasks WHERE status='active'").fetchone()
+                        output = f"Active tasks: {row[0]}"
+                    elif target == "connect_cards":
+                        row = _c.execute("SELECT COUNT(*) FROM connect_cards").fetchone()
+                        output = f"Connect cards: {row[0]}"
+            except Exception as exc:
+                output = f"DB error: {exc}"
+                success = False
+
+        elif kind == "fix_skills":
+            try:
+                from jobs.dev.skill_tester import run_all_skill_tests
+                results = run_all_skill_tests()
+                failed = results["failed"] + results["errors"]
+                if not failed:
+                    output = "No failing skills found."
+                else:
+                    slugs = [r["slug"] for r in failed]
+                    output = f"Queued {len(slugs)} failing skill(s) for fix: " + ", ".join(slugs)
+            except Exception as exc:
+                output = f"Error: {exc}"
+                success = False
+
+    elif cmd.lower().startswith("watson "):
+        try:
+            from jobs.skillbuilder import router as _router
+            route_result = _router.route(cmd, "dashboard")
+            if route_result.get("action") == "skill":
+                slug = route_result.get("slug", "")
+                skills = _router._load_skills("dashboard")
+                skill = next((s for s in skills if s["slug"] == slug), None)
+                if skill:
+                    output = str(_router._run_skill(skill, message=route_result.get("message")))
+                else:
+                    output = f"Skill '{slug}' not found."
+            else:
+                output = route_result.get("message") or "No result."
+        except Exception as exc:
+            output = f"Error: {exc}"
+            success = False
+    else:
+        output = "Unknown command. Use the buttons above or prefix with 'Watson '."
+        success = False
+
+    output = output.strip() or "(no output)"
+    if len(output) > 500:
+        _send_telegram(f"Watson Terminal output:\n\n{output[:3000]}")
+        output += "\n\n[Full output sent to Telegram]"
+
+    return jsonify({"output": output, "success": success})
+
+
 @app.route("/api/pending")
 def pending_items():
     items = []

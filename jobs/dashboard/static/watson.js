@@ -72,6 +72,7 @@ function switchTab(page) {
     case 'tasks':     renderTasks();     break;
     case 'reminders': renderReminders(); break;
     case 'more':      renderMore();      break;
+    case 'terminal':  renderTerminal();  break;
   }
 }
 
@@ -1131,6 +1132,107 @@ function moreToggleTheme(isLight) {
   const theme = isLight ? 'light' : 'dark';
   document.documentElement.setAttribute('data-theme', theme);
   localStorage.setItem('watson-theme', theme);
+}
+
+// ── Terminal ──────────────────────────────────────────────────────────────────
+
+const _TERM_COMMANDS = [
+  {
+    section: 'SKILLS',
+    cmds: ['Watson audit skills', 'Watson fix all failing skills'],
+  },
+  {
+    section: 'SYSTEM',
+    cmds: ['system status', 'check logs', 'disk usage', 'memory usage'],
+  },
+  {
+    section: 'WATSON',
+    cmds: ['restart watson bot', 'restart dashboard', 'git pull'],
+  },
+  {
+    section: 'DATABASE',
+    cmds: ['count congregation members', 'count tasks', 'count connect cards'],
+  },
+];
+
+const _TERM_SAFE = new Set([
+  'system status', 'check logs', 'disk usage', 'memory usage',
+  'git pull', 'restart watson bot', 'restart dashboard',
+  'count congregation members', 'count tasks', 'count connect cards',
+  'Watson audit skills', 'Watson fix all failing skills',
+]);
+
+function renderTerminal() {
+  const sections = _TERM_COMMANDS.map(g => `
+    <div style="margin-bottom:12px">
+      <div style="font-size:10px;color:var(--muted);letter-spacing:.08em;font-family:'DM Mono',monospace;margin-bottom:6px">${esc(g.section)}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px">
+        ${g.cmds.map(c => `<button class="term-chip" onclick="termRun(${JSON.stringify(c)})">${esc(c)}</button>`).join('')}
+      </div>
+    </div>`).join('');
+
+  setContent(`
+    <div style="padding:4px 0 80px">
+      <div class="sec-label">Terminal</div>
+      ${sections}
+      <div id="term-output-wrap" style="display:none;margin-top:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+          <span style="font-size:10px;color:var(--muted);letter-spacing:.06em;font-family:'DM Mono',monospace">OUTPUT</span>
+          <button class="mbtn mbtn-sm" onclick="termClear()">Clear</button>
+        </div>
+        <pre id="term-output" style="background:#0a0a0a;border:1px solid var(--border);border-radius:6px;padding:12px;font-size:11px;font-family:'DM Mono',monospace;color:#d4d4d4;overflow-y:auto;max-height:400px;white-space:pre-wrap;word-break:break-word;margin:0"></pre>
+      </div>
+      <div style="margin-top:14px">
+        <div style="font-size:10px;color:var(--muted);letter-spacing:.06em;font-family:'DM Mono',monospace;margin-bottom:6px">CUSTOM COMMAND</div>
+        <div style="display:flex;gap:6px">
+          <input id="term-input" type="text" placeholder='Watson …' style="flex:1;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:'DM Mono',monospace;font-size:12px;outline:none"
+            onkeydown="if(event.key==='Enter')termRunCustom()">
+          <button class="mbtn" onclick="termRunCustom()">Run</button>
+        </div>
+        <div id="term-input-err" style="font-size:11px;color:#e05c5c;margin-top:4px;display:none"></div>
+      </div>
+    </div>`);
+}
+
+async function termRun(cmd) {
+  const wrap = document.getElementById('term-output-wrap');
+  const out  = document.getElementById('term-output');
+  if (!wrap || !out) return;
+  wrap.style.display = '';
+  out.textContent = '…running';
+  try {
+    const res = await fetch('/api/terminal', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ command: cmd }),
+    });
+    const data = await res.json();
+    out.textContent = data.output || '(no output)';
+  } catch (e) {
+    out.textContent = `Error: ${e.message}`;
+  }
+  out.scrollTop = out.scrollHeight;
+}
+
+function termRunCustom() {
+  const inp = document.getElementById('term-input');
+  const err = document.getElementById('term-input-err');
+  const cmd = (inp ? inp.value.trim() : '');
+  if (!cmd) return;
+  if (!cmd.startsWith('Watson ') && !_TERM_SAFE.has(cmd)) {
+    if (err) { err.textContent = 'Use Watson prefix for custom commands'; err.style.display = ''; }
+    return;
+  }
+  if (err) err.style.display = 'none';
+  inp.value = '';
+  termRun(cmd);
+}
+
+function termClear() {
+  const wrap = document.getElementById('term-output-wrap');
+  const out  = document.getElementById('term-output');
+  if (out)  out.textContent = '';
+  if (wrap) wrap.style.display = 'none';
 }
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
