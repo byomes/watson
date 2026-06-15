@@ -171,8 +171,14 @@ def run() -> None:
             _mark_seen(mail, em["uid"])
             continue
 
-        save_pending(em, draft)
-        send_telegram_notification(em, draft)
+        record_id = save_pending(em, draft)
+        tg_msg_id = send_telegram_notification(em, draft)
+        if tg_msg_id and record_id:
+            try:
+                from jobs.telegram.pending import store_pending_action
+                store_pending_action("email_draft", tg_msg_id, {"record_id": record_id})
+            except Exception as exc:
+                log.warning("Failed to store tg_pending_action for email draft: %s", exc)
         _mark_seen(mail, em["uid"])
 
         log.info("Processed and marked SEEN: %s", em["message_id"])

@@ -135,15 +135,15 @@ async function renderHome() {
   html += `
     <div class="sec-label">At a Glance</div>
     <div class="stats-row">
-      <div class="stat-card">
+      <div class="stat-card" style="cursor:pointer" onclick="switchTab('tasks')">
         <div class="stat-num">${activeTasks.length}</div>
         <div class="stat-lbl">Tasks</div>
       </div>
-      <div class="stat-card">
+      <div class="stat-card" style="cursor:pointer" onclick="switchTab('reminders')">
         <div class="stat-num">${Array.isArray(reminders) ? reminders.length : 0}</div>
         <div class="stat-lbl">Reminders</div>
       </div>
-      <div class="stat-card">
+      <div class="stat-card" style="cursor:pointer" onclick="switchTab('briefing')">
         <div class="stat-num">${Array.isArray(briefing) ? briefing.length : 0}</div>
         <div class="stat-lbl">Briefing</div>
       </div>

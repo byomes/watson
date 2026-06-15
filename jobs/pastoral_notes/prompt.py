@@ -24,9 +24,15 @@ _SKIP_KEYWORDS = {
 }
 
 
-def _send_telegram(text: str) -> None:
+def _send_telegram(text: str) -> int | None:
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    requests.post(url, json={"chat_id": TELEGRAM_CHAT_ID, "text": text}, timeout=10)
+    try:
+        resp = requests.post(url, json={"chat_id": TELEGRAM_CHAT_ID, "text": text}, timeout=10)
+        resp.raise_for_status()
+        return resp.json().get("result", {}).get("message_id")
+    except Exception as exc:
+        log.warning("Telegram send failed: %s", exc)
+        return None
 
 
 def _should_skip(title: str) -> bool:
@@ -44,7 +50,7 @@ def _already_prompted(event_id: str) -> bool:
     return row is not None
 
 
-def _record_pending(event_id: str, title: str, appointment_time: str) -> None:
+def _record_pending(event_id: str, title: str, appointment_time: str) -> int | None:
     with get_db() as conn:
         conn.execute(
             """INSERT OR IGNORE INTO notes_pending
@@ -52,6 +58,10 @@ def _record_pending(event_id: str, title: str, appointment_time: str) -> None:
                VALUES (?, ?, ?, datetime('now'), 'pending')""",
             (event_id, title, appointment_time),
         )
+        row = conn.execute(
+            "SELECT id FROM notes_pending WHERE event_id = ?", (event_id,)
+        ).fetchone()
+    return row["id"] if row else None
 
 
 def run() -> None:
@@ -93,13 +103,22 @@ def run() -> None:
             continue
 
         appointment_time = end_dt.astimezone(NY).strftime("%-I:%M %p")
-        _record_pending(event_id, title, appointment_time)
+        notes_id = _record_pending(event_id, title, appointment_time)
 
         msg = (
             f"You just met with {title}. "
             f"Any notes to store? Reply with your notes, or reply 'skip' to dismiss."
         )
-        _send_telegram(msg)
+        tg_msg_id = _send_telegram(msg)
+        if tg_msg_id and notes_id:
+            try:
+                from jobs.telegram.pending import store_pending_action
+                store_pending_action(
+                    "pastoral_note", tg_msg_id,
+                    {"notes_pending_id": notes_id, "event_id": event_id},
+                )
+            except Exception as exc:
+                log.warning("Failed to store tg_pending_action for pastoral note: %s", exc)
         log.info("Prompted for notes: %s", title)
 
 

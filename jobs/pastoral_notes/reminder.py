@@ -14,9 +14,15 @@ from jobs.pastoral_notes.db import get_db
 log = logging.getLogger(__name__)
 
 
-def _send_telegram(text: str) -> None:
+def _send_telegram(text: str) -> int | None:
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    requests.post(url, json={"chat_id": TELEGRAM_CHAT_ID, "text": text}, timeout=10)
+    try:
+        resp = requests.post(url, json={"chat_id": TELEGRAM_CHAT_ID, "text": text}, timeout=10)
+        resp.raise_for_status()
+        return resp.json().get("result", {}).get("message_id")
+    except Exception as exc:
+        log.warning("Telegram send failed: %s", exc)
+        return None
 
 
 def run() -> None:
@@ -54,7 +60,13 @@ def run() -> None:
                 lines.append("2: Met with Dave, follow up on budget")
                 msg = "\n".join(lines)
 
-            _send_telegram(msg)
+            tg_msg_id = _send_telegram(msg)
+            if tg_msg_id:
+                try:
+                    from jobs.telegram.pending import store_pending_action
+                    store_pending_action("pastoral_note", tg_msg_id, {})
+                except Exception as exc:
+                    log.warning("Failed to store tg_pending_action for reminder: %s", exc)
 
             for row in to_remind:
                 conn.execute(

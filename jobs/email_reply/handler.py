@@ -91,11 +91,14 @@ def _mark_resolved(record_id: int, status: str) -> None:
 
 # ── Telegram ──────────────────────────────────────────────────────────────────
 
-def send_telegram_notification(email: dict, draft: str) -> None:
-    """Send the draft approval message to Bill via the Telegram Bot API."""
+def send_telegram_notification(email: dict, draft: str) -> int | None:
+    """Send the draft approval message to Bill via the Telegram Bot API.
+
+    Returns the Telegram message_id so callers can store it for reply-threading.
+    """
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         log.warning("Telegram credentials not set; skipping notification")
-        return
+        return None
 
     text = (
         f"📧 New email from {email.get('sender_name', '')} <{email['sender_email']}>\n"
@@ -116,8 +119,10 @@ def send_telegram_notification(email: dict, draft: str) -> None:
             timeout=15,
         )
         resp.raise_for_status()
+        return resp.json().get("result", {}).get("message_id")
     except Exception as exc:
         log.error("Telegram notification failed: %s", exc)
+        return None
 
 
 def _send_telegram_text(msg: str) -> None:
@@ -179,6 +184,67 @@ def _send_smtp_reply(to: str, subject: str, body: str, in_reply_to: str | None =
 
 
 # ── Resolution functions (called from bot.py) ─────────────────────────────────
+
+def _get_pending_by_id(record_id: int) -> dict | None:
+    init_table()
+    with _get_conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM email_reply_pending WHERE id=? AND status='pending'",
+            (record_id,),
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def resolve_send_by_id(record_id: int) -> dict:
+    """Send the drafted reply for a specific pending record (reply-threading)."""
+    record = _get_pending_by_id(record_id) if record_id else get_latest_pending()
+    if not record:
+        return {"ok": False, "msg": "No pending email reply found."}
+    in_reply_to = _get_in_reply_to(record["message_id"])
+    try:
+        _send_smtp_reply(
+            to=record["sender_email"],
+            subject=record["subject"] or "",
+            body=record["draft_reply"] or "",
+            in_reply_to=in_reply_to,
+        )
+    except Exception as exc:
+        log.error("SMTP send failed: %s", exc)
+        return {"ok": False, "msg": f"Failed to send: {exc}"}
+    _mark_resolved(record["id"], "sent")
+    sender = record["sender_name"] or record["sender_email"]
+    return {"ok": True, "msg": f"✅ Reply sent to {sender}", "sender": sender}
+
+
+def resolve_change_by_id(record_id: int, new_text: str) -> dict:
+    """Send a custom reply for a specific pending record (reply-threading)."""
+    record = _get_pending_by_id(record_id) if record_id else get_latest_pending()
+    if not record:
+        return {"ok": False, "msg": "No pending email reply found."}
+    in_reply_to = _get_in_reply_to(record["message_id"])
+    try:
+        _send_smtp_reply(
+            to=record["sender_email"],
+            subject=record["subject"] or "",
+            body=new_text,
+            in_reply_to=in_reply_to,
+        )
+    except Exception as exc:
+        log.error("SMTP send failed: %s", exc)
+        return {"ok": False, "msg": f"Failed to send: {exc}"}
+    _mark_resolved(record["id"], "changed")
+    sender = record["sender_name"] or record["sender_email"]
+    return {"ok": True, "msg": f"✅ Your reply sent to {sender}", "sender": sender}
+
+
+def resolve_cancel_by_id(record_id: int) -> dict:
+    """Discard a specific pending reply (reply-threading)."""
+    record = _get_pending_by_id(record_id) if record_id else get_latest_pending()
+    if not record:
+        return {"ok": False, "msg": None}
+    _mark_resolved(record["id"], "cancelled")
+    return {"ok": True, "msg": "❌ Reply cancelled"}
+
 
 def resolve_send() -> dict:
     """Send the drafted reply. Returns {"ok": bool, "msg": str, "sender": str}."""
