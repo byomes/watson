@@ -1186,7 +1186,10 @@ async function moreLoadTerminal() {
         <span style="font-size:10px;color:var(--muted);letter-spacing:.06em;font-family:'DM Mono',monospace">OUTPUT</span>
         <button class="mbtn mbtn-sm" onclick="termClear()">Clear</button>
       </div>
-      <pre id="term-output" style="background:#0a0a0a;border:1px solid var(--border);border-radius:6px;padding:12px;font-size:11px;font-family:'DM Mono',monospace;color:#d4d4d4;overflow-y:auto;max-height:400px;white-space:pre-wrap;word-break:break-word;margin:0">Ready.</pre>
+      <div style="position:relative">
+        <pre id="term-output" style="background:#0a0a0a;border:1px solid var(--border);border-radius:6px;padding:12px;font-size:11px;font-family:'DM Mono',monospace;color:#d4d4d4;overflow-y:auto;max-height:400px;white-space:pre-wrap;word-break:break-word;margin:0">Ready.</pre>
+        <button id="term-copy-out" onclick="termCopyOutput()" style="position:absolute;top:6px;right:8px;font-size:11px;color:var(--muted);background:none;border:none;cursor:pointer;padding:2px 4px;line-height:1">Copy</button>
+      </div>
       <div id="term-copy-result-wrap" style="display:none;margin-top:6px">
         <button id="term-copy-result" class="mbtn mbtn-sm" onclick="termCopyResult()">📋 Send to Claude Code</button>
       </div>
@@ -1252,6 +1255,13 @@ async function _termCopy(text, btn) {
     btn.textContent = '✓ Copied';
     setTimeout(() => { btn.textContent = orig; }, 2000);
   } catch (_) {}
+}
+
+function termCopyOutput() {
+  const btn = document.getElementById('term-copy-out');
+  const out = document.getElementById('term-output');
+  if (!btn || !out) return;
+  _termCopy(out.textContent || '', btn);
 }
 
 function termCopyResult() {
