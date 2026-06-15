@@ -226,6 +226,56 @@ def status():
     return jsonify({"current_time": datetime.now().isoformat()})
 
 
+@app.route("/api/pending")
+def pending_items():
+    items = []
+    db = _db()
+
+    try:
+        rows = db.execute(
+            "SELECT subject, sender_name, sender_email FROM email_reply_pending "
+            "WHERE status='awaiting_approval'"
+        ).fetchall()
+        for r in rows:
+            items.append({
+                "type": "EMAIL",
+                "title": r["subject"] or "(No subject)",
+                "subtitle": r["sender_name"] or r["sender_email"] or "",
+            })
+    except Exception:
+        pass
+
+    try:
+        rows = db.execute(
+            "SELECT appointment_title, appointment_time FROM notes_pending "
+            "WHERE status='pending'"
+        ).fetchall()
+        for r in rows:
+            subtitle = r["appointment_time"] or ""
+            items.append({
+                "type": "NOTE",
+                "title": "Notes needed: " + (r["appointment_title"] or ""),
+                "subtitle": subtitle,
+            })
+    except Exception:
+        pass
+
+    try:
+        rows = db.execute(
+            "SELECT title FROM tasks WHERE status='awaiting_confirm'"
+        ).fetchall()
+        for r in rows:
+            items.append({
+                "type": "BUILD",
+                "title": r["title"] or "",
+                "subtitle": "Awaiting your confirm",
+            })
+    except Exception:
+        pass
+
+    return jsonify(items)
+
+
 # ── Briefing API ──────────────────────────────────────────────────────────────
 
 @app.route("/api/briefing")
