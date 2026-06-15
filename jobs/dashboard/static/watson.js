@@ -506,15 +506,11 @@ async function moreLoadPeople() {
   const el = document.getElementById('msec-inner-people');
   if (!el) return;
   el.innerHTML = '<div class="loading">Loading&hellip;</div>';
-  const [wcRes, congRes] = await Promise.allSettled([
-    api('/api/people'),
-    api('/api/congregation'),
-  ]);
-  const wc   = wcRes.status   === 'fulfilled' && Array.isArray(wcRes.value)   ? wcRes.value   : [];
-  const cong = congRes.status === 'fulfilled' && Array.isArray(congRes.value) ? congRes.value : [];
+  const wcRes = await Promise.allSettled([api('/api/people')]);
+  const wc = wcRes[0].status === 'fulfilled' && Array.isArray(wcRes[0].value) ? wcRes[0].value : [];
   el.innerHTML = '<div id="more-wc-wrap"></div><div id="more-cong-wrap"></div>';
   moreRenderWatsonContacts(wc);
-  moreRenderCongregation(cong);
+  moreRenderCongSearch();
 }
 
 function moreRenderWatsonContacts(contacts) {
@@ -570,33 +566,42 @@ function moreRenderWatsonContacts(contacts) {
   el.innerHTML = html;
 }
 
-function moreRenderCongregation(members) {
+function moreRenderCongSearch() {
   const el = document.getElementById('more-cong-wrap');
   if (!el) return;
-  let html = `
-    <div class="mlabel" style="margin-top:16px">Congregation</div>
-    <input class="msrch" type="search" placeholder="Search congregation…" oninput="moreSearchCong(this.value)">
-    <div id="more-cong-list">`;
-  if (!members.length) {
-    html += '<div class="empty">No congregation members.</div>';
-  } else {
-    members.forEach(m => {
-      const initials = (m.name || '?').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
-      const hue = ((m.name || '').charCodeAt(0) * 37) % 360;
-      html += `
-        <div class="mcc" id="mcong-${m.id}">
-          <div class="mcc-hdr" style="cursor:default">
-            <div class="mcc-av" style="background:hsl(${hue},40%,28%);color:hsl(${hue},60%,70%)">${esc(initials)}</div>
-            <div class="mcc-info">
-              <div class="mcc-name">${esc(m.name)}</div>
-              <div class="mcc-sub">${esc(m.campus || m.email || '')}</div>
+  el.innerHTML = `
+    <input class="msrch" type="search" placeholder="Search Congregation…" style="margin-top:10px"
+      oninput="moreSearchCong(this.value)">
+    <div id="more-cong-list"></div>`;
+}
+
+let _congSearchTimer = null;
+
+async function moreSearchCong(q) {
+  const list = document.getElementById('more-cong-list');
+  if (!list) return;
+  if (q.length < 2) { list.innerHTML = ''; return; }
+  clearTimeout(_congSearchTimer);
+  _congSearchTimer = setTimeout(async () => {
+    try {
+      const members = await api(`/api/congregation?q=${encodeURIComponent(q)}`);
+      if (!Array.isArray(members) || !members.length) { list.innerHTML = ''; return; }
+      list.innerHTML = members.map(m => {
+        const initials = (m.name || '?').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+        const hue = ((m.name || '').charCodeAt(0) * 37) % 360;
+        return `
+          <div class="mcc">
+            <div class="mcc-hdr" style="cursor:default">
+              <div class="mcc-av" style="background:hsl(${hue},40%,28%);color:hsl(${hue},60%,70%)">${esc(initials)}</div>
+              <div class="mcc-info">
+                <div class="mcc-name">${esc(m.name)}</div>
+                <div class="mcc-sub">${esc(m.campus || m.email || '')}</div>
+              </div>
             </div>
-          </div>
-        </div>`;
-    });
-  }
-  html += '</div>';
-  el.innerHTML = html;
+          </div>`;
+      }).join('');
+    } catch { list.innerHTML = ''; }
+  }, 200);
 }
 
 function moreToggleAddC() {

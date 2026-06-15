@@ -505,6 +505,14 @@ def people_delete_api(person_id):
 
 @app.route("/api/congregation")
 def congregation_list_api():
+    q = (request.args.get("q") or "").strip()
+    if q:
+        rows = _db().execute(
+            "SELECT id, name, email, campus FROM congregation "
+            "WHERE name LIKE ? COLLATE NOCASE ORDER BY name COLLATE NOCASE LIMIT 30",
+            (f"%{q}%",),
+        ).fetchall()
+        return jsonify([dict(r) for r in rows])
     return jsonify(congregation_list())
 
 
