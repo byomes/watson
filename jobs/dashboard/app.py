@@ -233,43 +233,31 @@ def pending_items():
 
     try:
         rows = db.execute(
-            "SELECT subject, sender_name, sender_email FROM email_reply_pending "
-            "WHERE status='awaiting_approval'"
+            "SELECT id, subject as title, sender as subtitle, 'EMAIL' as type "
+            "FROM email_reply WHERE status='awaiting_approval'"
         ).fetchall()
         for r in rows:
-            items.append({
-                "type": "EMAIL",
-                "title": r["subject"] or "(No subject)",
-                "subtitle": r["sender_name"] or r["sender_email"] or "",
-            })
+            items.append({"type": r["type"], "title": r["title"], "subtitle": r["subtitle"]})
     except Exception:
         pass
 
     try:
         rows = db.execute(
-            "SELECT appointment_title, appointment_time FROM notes_pending "
-            "WHERE status='pending'"
+            "SELECT id, appointment_title as title, appointment_time as subtitle, 'NOTE' as type "
+            "FROM notes_pending WHERE status='pending'"
         ).fetchall()
         for r in rows:
-            subtitle = r["appointment_time"] or ""
-            items.append({
-                "type": "NOTE",
-                "title": "Notes needed: " + (r["appointment_title"] or ""),
-                "subtitle": subtitle,
-            })
+            items.append({"type": r["type"], "title": r["title"], "subtitle": r["subtitle"]})
     except Exception:
         pass
 
     try:
         rows = db.execute(
-            "SELECT title FROM tasks WHERE status='awaiting_confirm'"
+            "SELECT id, title, 'Awaiting confirm' as subtitle, 'BUILD' as type "
+            "FROM tasks WHERE status='awaiting_confirm'"
         ).fetchall()
         for r in rows:
-            items.append({
-                "type": "BUILD",
-                "title": r["title"] or "",
-                "subtitle": "Awaiting your confirm",
-            })
+            items.append({"type": r["type"], "title": r["title"], "subtitle": r["subtitle"]})
     except Exception:
         pass
 
