@@ -6,7 +6,9 @@ Triggered via Telegram: "find [name]", "look up [name]", "contact [name]", etc.
 import re
 from jobs.people.api import congregation_search, people_list
 
-def run(message: str) -> str:
+def run(message: str = None) -> str:
+    if not message:
+        return "Please provide a name to search."
     # Extract name from message
     pattern = r'(?:find|look up|lookup|contact|who is|search for|pull up)\s+(.+)'
     match = re.search(pattern, message.strip(), re.IGNORECASE)

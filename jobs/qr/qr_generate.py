@@ -67,3 +67,14 @@ def send_qr_email(to_email: str, to_name: str, content: str, png_bytes: bytes) -
         server.send_message(msg)
 
     return True
+
+
+def run(message: str = None) -> str:
+    if not message or not message.strip():
+        return "Please provide a URL or text for the QR code."
+    content = message.strip().split()[-1]
+    try:
+        filepath, _ = generate_qr(content)
+        return f"QR code generated for: {content}\nSaved to: {filepath}"
+    except Exception as exc:
+        return f"QR generation failed: {exc}"

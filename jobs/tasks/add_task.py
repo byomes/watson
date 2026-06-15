@@ -115,7 +115,9 @@ def _extract_date(text: str, today) -> tuple[str | None, str]:
     return None, text
 
 
-def run(message: str) -> str:
+def run(message: str = None) -> str:
+    if not message:
+        return "Please provide a task description."
     today = datetime.now(NY).date()
 
     # Strip intake prefix ("add a task", "remind me to", etc.)

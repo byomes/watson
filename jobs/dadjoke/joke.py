@@ -16,3 +16,7 @@ _JOKES = [
 def get_dad_joke():
     """Return a randomly selected dad joke from the hardcoded list."""
     return random.choice(_JOKES)
+
+
+def run(message: str = None) -> str:
+    return get_dad_joke()

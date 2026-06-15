@@ -10,7 +10,10 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-import anthropic
+try:
+    import anthropic
+except ImportError:
+    anthropic = None
 from dotenv import load_dotenv
 
 # ─── Bootstrap ────────────────────────────────────────────────────────────────
@@ -128,10 +131,10 @@ def _log(tier: str, cmd: str, outcome: str) -> None:
 
 # ─── Haiku interaction ────────────────────────────────────────────────────────
 
-_client: anthropic.Anthropic | None = None
+_client = None
 
 
-def _api() -> anthropic.Anthropic:
+def _api():
     global _client
     if _client is None:
         _client = anthropic.Anthropic()
@@ -341,6 +344,22 @@ def execute(instruction: str) -> None:
         combined = "\n\n".join(all_outputs)
         summary = _summarize(instruction, combined)
         print(f"\n[watson] {summary}")
+
+
+# ─── Skill entry point ───────────────────────────────────────────────────────
+
+
+def run(message: str = None) -> str:
+    if anthropic is None:
+        return "Run: pip install anthropic --break-system-packages"
+    if not message:
+        return "Please provide an instruction for the command executor."
+    import io
+    from contextlib import redirect_stdout
+    buf = io.StringIO()
+    with redirect_stdout(buf):
+        execute(message)
+    return buf.getvalue().strip() or "Done."
 
 
 # ─── Entry point ─────────────────────────────────────────────────────────────
