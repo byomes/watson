@@ -362,6 +362,17 @@
       "function": "run",
       "interfaces": ["telegram", "dashboard"],
       "status": "ready"
+    },
+    {
+      "slug": "skill_audit",
+      "name": "Skill Audit",
+      "description": "Run a full audit of all Watson skills and report which pass and which fail.",
+      "category": "Watson Dev",
+      "triggers": ["audit skills", "test my skills", "run skill audit", "which skills work", "skill audit"],
+      "module": "jobs.dev.skill_tester",
+      "function": "run",
+      "interfaces": ["telegram", "dashboard"],
+      "status": "ready"
     }
   ]
 }

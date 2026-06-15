@@ -15,7 +15,8 @@ def _load_skills() -> list:
     if not SKILLS_FILE.exists():
         return []
     try:
-        return json.loads(SKILLS_FILE.read_text(encoding="utf-8"))
+        data = json.loads(SKILLS_FILE.read_text(encoding="utf-8"))
+        return data.get('skills', data) if isinstance(data, dict) else data
     except Exception:
         return []
 
@@ -35,7 +36,7 @@ def test_skill(slug: str, message: str = None) -> dict:
         f"sys.path.insert(0, {repr(str(REPO))})\n"
         "try:\n"
         "    import importlib\n"
-        f"    mod = importlib.import_module({repr(skill['job_module'])})\n"
+        f"    mod = importlib.import_module({repr(skill.get('module', skill.get('job_module', '')))})\n"
         "    _start = time.time()\n"
         f"    result = mod.run({repr(message)})\n"
         "    _ms = int((time.time() - _start) * 1000)\n"
@@ -110,9 +111,21 @@ def run(message: str = None) -> str:
         return f"✗ {slug}: {result['error']}"
 
     results = run_all_skill_tests()
-    lines = [f"Skill tests: {len(results['passed'])} passed, {len(results['failed'])} failed\n"]
-    for r in results["passed"]:
-        lines.append(f"✓ {r['slug']} ({r['execution_time_ms']}ms)")
-    for r in results["failed"]:
-        lines.append(f"✗ {r['slug']}: {r['error'][:80]}")
+    passing = len(results["passed"])
+    failing = len(results["failed"]) + len(results["errors"])
+    lines = [
+        "SKILL AUDIT REPORT",
+        f"✅ {passing} passing",
+        f"❌ {failing} failing",
+    ]
+    all_failed = results["failed"] + results["errors"]
+    if all_failed:
+        lines.append("\nFAILING:")
+        for r in all_failed:
+            err = r["error"][:60]
+            lines.append(f"• {r['slug']} — {err}")
+    lines.append(
+        '\nReply "Watson fix skill [slug]" to fix one at a time, '
+        'or "Watson fix all failing skills" to queue them all.'
+    )
     return "\n".join(lines)
