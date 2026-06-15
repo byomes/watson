@@ -72,7 +72,6 @@ function switchTab(page) {
     case 'tasks':     renderTasks();     break;
     case 'reminders': renderReminders(); break;
     case 'more':      renderMore();      break;
-    case 'terminal':  renderTerminal();  break;
   }
 }
 
@@ -482,6 +481,15 @@ function renderMore() {
       <div class="msec-body" id="msec-body-reading">
         <div class="msec-inner" id="msec-inner-reading"><div class="loading">Loading&hellip;</div></div>
       </div>
+    </div>
+    <div class="msec" id="msec-terminal">
+      <div class="msec-hdr" onclick="moreToggle('terminal')">
+        <span class="msec-title">Terminal</span>
+        <span class="msec-chev" id="msec-chev-terminal">›</span>
+      </div>
+      <div class="msec-body" id="msec-body-terminal">
+        <div class="msec-inner" id="msec-inner-terminal"><div class="loading">Loading&hellip;</div></div>
+      </div>
     </div>`);
 }
 
@@ -498,6 +506,7 @@ function moreToggle(sec) {
     if (sec === 'people')   moreLoadPeople();
     if (sec === 'ministry') moreLoadMinistry();
     if (sec === 'reading')  moreLoadReading();
+    if (sec === 'terminal') moreLoadTerminal();
   }
 }
 
@@ -1136,25 +1145,6 @@ function moreToggleTheme(isLight) {
 
 // ── Terminal ──────────────────────────────────────────────────────────────────
 
-const _TERM_COMMANDS = [
-  {
-    section: 'SKILLS',
-    cmds: ['Watson audit skills', 'Watson fix all failing skills'],
-  },
-  {
-    section: 'SYSTEM',
-    cmds: ['system status', 'check logs', 'disk usage', 'memory usage'],
-  },
-  {
-    section: 'WATSON',
-    cmds: ['restart watson bot', 'restart dashboard', 'git pull'],
-  },
-  {
-    section: 'DATABASE',
-    cmds: ['count congregation members', 'count tasks', 'count connect cards'],
-  },
-];
-
 const _TERM_SAFE = new Set([
   'system status', 'check logs', 'disk usage', 'memory usage',
   'git pull', 'restart watson bot', 'restart dashboard',
@@ -1162,36 +1152,51 @@ const _TERM_SAFE = new Set([
   'Watson audit skills', 'Watson fix all failing skills',
 ]);
 
-function renderTerminal() {
-  const sections = _TERM_COMMANDS.map(g => `
-    <div style="margin-bottom:12px">
-      <div style="font-size:10px;color:var(--muted);letter-spacing:.08em;font-family:'DM Mono',monospace;margin-bottom:6px">${esc(g.section)}</div>
-      <div style="display:flex;flex-wrap:wrap;gap:6px">
-        ${g.cmds.map(c => `<button class="term-chip" onclick="termRun(${JSON.stringify(c)})">${esc(c)}</button>`).join('')}
+async function moreLoadTerminal() {
+  const el = document.getElementById('msec-inner-terminal');
+  if (!el) return;
+  let skillButtons = '';
+  try {
+    const skills = await api('/api/skills');
+    if (Array.isArray(skills) && skills.length) {
+      skillButtons = `
+        <div style="margin-bottom:12px">
+          <div style="font-size:10px;color:var(--muted);letter-spacing:.08em;font-family:'DM Mono',monospace;margin-bottom:6px">SKILLS — tap to pre-fill</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px">
+            ${skills.map(s => {
+              const trigger = (Array.isArray(s.triggers) && s.triggers[0]) ? s.triggers[0] : (s.name || s.slug || '');
+              return `<button class="term-chip" onclick="termPrefill(${JSON.stringify(trigger)})">${esc(s.name || s.slug || '')}</button>`;
+            }).join('')}
+          </div>
+        </div>`;
+    }
+  } catch (_) {}
+  el.innerHTML = `
+    ${skillButtons}
+    <div id="term-output-wrap" style="display:none;margin-top:4px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <span style="font-size:10px;color:var(--muted);letter-spacing:.06em;font-family:'DM Mono',monospace">OUTPUT</span>
+        <button class="mbtn mbtn-sm" onclick="termClear()">Clear</button>
       </div>
-    </div>`).join('');
+      <pre id="term-output" style="background:#0a0a0a;border:1px solid var(--border);border-radius:6px;padding:12px;font-size:11px;font-family:'DM Mono',monospace;color:#d4d4d4;overflow-y:auto;max-height:400px;white-space:pre-wrap;word-break:break-word;margin:0"></pre>
+    </div>
+    <div style="margin-top:12px">
+      <div style="font-size:10px;color:var(--muted);letter-spacing:.06em;font-family:'DM Mono',monospace;margin-bottom:6px">CUSTOM COMMAND</div>
+      <div style="display:flex;gap:6px">
+        <input id="term-input" type="text" placeholder='Watson …' style="flex:1;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:'DM Mono',monospace;font-size:12px;outline:none"
+          onkeydown="if(event.key==='Enter')termRunCustom()">
+        <button class="mbtn" onclick="termRunCustom()">Run</button>
+      </div>
+      <div id="term-input-err" style="font-size:11px;color:#e05c5c;margin-top:4px;display:none"></div>
+    </div>`;
+}
 
-  setContent(`
-    <div style="padding:4px 0 80px">
-      <div class="sec-label">Terminal</div>
-      ${sections}
-      <div id="term-output-wrap" style="display:none;margin-top:12px">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-          <span style="font-size:10px;color:var(--muted);letter-spacing:.06em;font-family:'DM Mono',monospace">OUTPUT</span>
-          <button class="mbtn mbtn-sm" onclick="termClear()">Clear</button>
-        </div>
-        <pre id="term-output" style="background:#0a0a0a;border:1px solid var(--border);border-radius:6px;padding:12px;font-size:11px;font-family:'DM Mono',monospace;color:#d4d4d4;overflow-y:auto;max-height:400px;white-space:pre-wrap;word-break:break-word;margin:0"></pre>
-      </div>
-      <div style="margin-top:14px">
-        <div style="font-size:10px;color:var(--muted);letter-spacing:.06em;font-family:'DM Mono',monospace;margin-bottom:6px">CUSTOM COMMAND</div>
-        <div style="display:flex;gap:6px">
-          <input id="term-input" type="text" placeholder='Watson …' style="flex:1;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:'DM Mono',monospace;font-size:12px;outline:none"
-            onkeydown="if(event.key==='Enter')termRunCustom()">
-          <button class="mbtn" onclick="termRunCustom()">Run</button>
-        </div>
-        <div id="term-input-err" style="font-size:11px;color:#e05c5c;margin-top:4px;display:none"></div>
-      </div>
-    </div>`);
+function termPrefill(trigger) {
+  const inp = document.getElementById('term-input');
+  if (!inp) return;
+  inp.value = trigger;
+  inp.focus();
+  inp.setSelectionRange(inp.value.length, inp.value.length);
 }
 
 async function termRun(cmd) {
