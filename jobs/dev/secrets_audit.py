@@ -77,7 +77,7 @@ def _telegram(text: str) -> None:
         print(f"Telegram failed: {exc}", file=sys.stderr)
 
 
-def run() -> str:
+def run(message=None) -> str:
     env_names = _parse_env_file(ENV_FILE)
     env_set = set(env_names)
 
