@@ -984,6 +984,7 @@ async function moreLoadSystem() {
 
     <div class="mlabel">Skills</div>
     <input class="msrch" type="search" placeholder="Search skills&hellip;" oninput="moreSkillSearch(this.value)">
+    <div style="font-size:11px;color:var(--muted);text-align:center;margin-bottom:8px">Trigger any skill by messaging Watson on Telegram.</div>
     <div id="more-skill-pills" class="mpills"></div>
     <div id="more-skill-list"><div class="loading">Loading&hellip;</div></div>`;
   try {
