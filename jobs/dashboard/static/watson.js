@@ -1250,11 +1250,26 @@ function termClear() {
 
 async function _termCopy(text, btn) {
   try {
-    await navigator.clipboard.writeText(text);
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    }
     const orig = btn.textContent;
     btn.textContent = '✓ Copied';
     setTimeout(() => { btn.textContent = orig; }, 2000);
-  } catch (_) {}
+  } catch (e) {
+    btn.textContent = 'Failed';
+    setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
+  }
 }
 
 function termCopyOutput() {
