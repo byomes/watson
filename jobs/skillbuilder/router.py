@@ -51,6 +51,9 @@ _SKILL_PRE_CHECKS: dict[str, tuple] = {
     "log_watch": (
         "check logs", "any errors", "error summary",
     ),
+    "skill_audit": (
+        "audit skills", "test my skills", "run skill audit", "which skills work", "skill audit",
+    ),
     "bible_lookup": (
         "bible", "scripture", "look up verse",
     ),
