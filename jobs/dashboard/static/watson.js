@@ -195,13 +195,12 @@ async function renderBriefing() {
     html += `<div class="empty">No briefing items today.</div>`;
   } else {
     items.forEach(item => {
-      const url = JSON.stringify(item.url || '#');
       html += `
         <div class="b-card" id="b-card-${item.id}">
           <div class="b-source">${esc(item.source_name || '')}</div>
           <div class="b-title">${esc(item.title)}</div>
           <div class="b-actions">
-            <button class="b-btn b-btn-read" onclick="window.open(${url},'_blank')">Read</button>
+            <button class="b-btn b-btn-read" onclick="window.open('${(item.url || '#').replace(/'/g, '%27')}','_blank')">Read</button>
             <button class="b-btn" id="b-approve-${item.id}" onclick="briefingAction(${item.id},'approve',this)">Email</button>
             <button class="b-btn" id="b-fb-${item.id}"     onclick="briefingAction(${item.id},'facebook',this)">Facebook</button>
             <button class="b-btn" id="b-list-${item.id}"   onclick="briefingAction(${item.id},'tolist',this)">To List</button>
