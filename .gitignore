@@ -10,6 +10,7 @@ __pycache__/
 logs/
 data/*.log
 data/reading_list.json
+data/riddle_current.json
 
 # Transcripts (generated at runtime)
 

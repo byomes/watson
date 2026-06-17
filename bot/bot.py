@@ -658,6 +658,20 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         _log_telegram_exchange(text_clean, reply)
         return
 
+    # Riddle answer reveal follow-up — only fires when a riddle is pending
+    _RIDDLE_ANSWER_TRIGGERS = (
+        "what's the answer", "whats the answer", "what is the answer",
+        "reveal the answer", "tell me the answer", "give me the answer",
+    )
+    if any(t in text_lower for t in _RIDDLE_ANSWER_TRIGGERS):
+        from jobs.misc.riddle import reveal_answer as _reveal_riddle_answer
+        _riddle_ans = _reveal_riddle_answer()
+        if _riddle_ans:
+            await update.message.reply_text(_riddle_ans, parse_mode="Markdown")
+            _log_telegram_exchange(text_clean, _riddle_ans)
+            return
+        # No pending riddle — fall through to normal handling.
+
     # QR code generation
     _QR_TRIGGERS = ('qr code', 'qr-code', 'make a qr', 'give me a qr',
                     'generate a qr', 'create a qr', 'make qr', 'qr for')
