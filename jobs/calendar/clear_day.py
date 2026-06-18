@@ -6,7 +6,6 @@ from email.mime.text import MIMEText
 from zoneinfo import ZoneInfo
 
 from jobs.gcal.gcal_service import get_service, CALENDAR_ID
-from jobs.gcal.availability import _overlaps, get_available_slots
 
 NY = ZoneInfo("America/New_York")
 
@@ -18,18 +17,14 @@ SKIP_KEYWORDS = [
 OWNER_EMAIL = "bill.yomes@gmail.com"
 
 
-def _parse_window(message: str):
-    """Return (block_end, description) where block_end is a datetime."""
+def _parse_window(message: str) -> datetime:
     msg = message.lower()
     now = datetime.now(NY).replace(second=0, microsecond=0)
 
-    # "X hours" / "X hour"
     m = re.search(r"(\d+(?:\.\d+)?)\s*hours?", msg)
     if m:
-        hours = float(m.group(1))
-        return now + timedelta(hours=hours)
+        return now + timedelta(hours=float(m.group(1)))
 
-    # "day" or "today" → rest of day
     return now.replace(hour=23, minute=59, second=0, microsecond=0)
 
 
@@ -40,22 +35,7 @@ def _should_skip(summary: str) -> bool:
     return any(kw in low for kw in SKIP_KEYWORDS)
 
 
-def _find_next_slot(duration_minutes: int) -> tuple[datetime, datetime] | None:
-    """Find the next open slot of at least duration_minutes across booking windows."""
-    from datetime import date
-    today = date.today()
-    for i in range(60):
-        d = today + timedelta(days=i)
-        slots = get_available_slots(d, "virtual")
-        for slot in slots:
-            s = datetime.fromisoformat(slot["start"]).astimezone(NY)
-            e = datetime.fromisoformat(slot["end"]).astimezone(NY)
-            if (e - s).total_seconds() / 60 >= duration_minutes:
-                return s, s + timedelta(minutes=duration_minutes)
-    return None
-
-
-def _send_reschedule_email(guest_email: str, guest_name: str, original_start: str):
+def _send_cancellation_email(guest_email: str, guest_name: str, original_start: str):
     try:
         orig_dt = datetime.fromisoformat(original_start).astimezone(NY)
         orig_str = orig_dt.strftime("%-I:%M %p on %A, %B %-d")
@@ -66,7 +46,7 @@ def _send_reschedule_email(guest_email: str, guest_name: str, original_start: st
     body = (
         f"Hi {name_str},\n\n"
         "Due to an unexpected pastoral need, your appointment scheduled for "
-        f"{orig_str} needs to be rescheduled.\n\n"
+        f"{orig_str} has been cancelled.\n\n"
         "Please visit williamckyomes.com/meet to book a new time that works for you.\n\n"
         "We apologize for any inconvenience.\n\n"
         "Sincerely,\n"
@@ -77,7 +57,7 @@ def _send_reschedule_email(guest_email: str, guest_name: str, original_start: st
     )
 
     msg = MIMEText(body)
-    msg["Subject"] = "Your Appointment with Pastor Bill Has Been Rescheduled"
+    msg["Subject"] = "Your Appointment with Pastor Bill Has Been Cancelled"
     msg["From"] = os.environ.get("WATSON_SMTP_FROM", "watson@williamckyomes.com")
     msg["To"] = guest_email
 
@@ -98,7 +78,6 @@ def run(message: str) -> str:
 
     svc = get_service()
 
-    # Fetch events from now until block_end
     result = svc.events().list(
         calendarId=CALENDAR_ID,
         timeMin=now.isoformat(),
@@ -107,23 +86,14 @@ def run(message: str) -> str:
         orderBy="startTime",
     ).execute()
 
-    raw_events = result.get("items", [])
-
-    to_reschedule = []
-    for ev in raw_events:
+    to_cancel = []
+    for ev in result.get("items", []):
         summary = ev.get("summary", "")
         if _should_skip(summary):
             continue
         start_str = ev["start"].get("dateTime", ev["start"].get("date", ""))
-        end_str = ev["end"].get("dateTime", ev["end"].get("date", ""))
-        if not start_str or not end_str:
+        if not start_str:
             continue
-        try:
-            ev_start = datetime.fromisoformat(start_str).astimezone(NY)
-            ev_end = datetime.fromisoformat(end_str).astimezone(NY)
-        except Exception:
-            continue
-        duration_min = int((ev_end - ev_start).total_seconds() / 60)
         attendees = ev.get("attendees", [])
         guest_email = next(
             (a["email"] for a in attendees if a.get("email") != OWNER_EMAIL),
@@ -133,42 +103,27 @@ def run(message: str) -> str:
             (a.get("displayName", "") for a in attendees if a.get("email") != OWNER_EMAIL),
             "",
         )
-        to_reschedule.append({
+        to_cancel.append({
             "id": ev["id"],
             "summary": summary,
             "start_str": start_str,
-            "duration_min": duration_min,
             "guest_email": guest_email,
             "guest_name": guest_name,
         })
 
-    move_log = []
-    for ev in to_reschedule:
-        slot = _find_next_slot(ev["duration_min"])
-        if slot is None:
-            move_log.append(f"  {ev['summary']} → no slot found (left as-is)")
-            continue
-
-        new_start, new_end = slot
-        svc.events().patch(
-            calendarId=CALENDAR_ID,
-            eventId=ev["id"],
-            body={
-                "start": {"dateTime": new_start.isoformat(), "timeZone": "America/New_York"},
-                "end":   {"dateTime": new_end.isoformat(),   "timeZone": "America/New_York"},
-            },
-        ).execute()
-
-        new_str = new_start.strftime("%a %b %-d at %-I:%M %p")
-        move_log.append(f"  {ev['summary']} → {new_str}")
+    cancel_log = []
+    for ev in to_cancel:
+        svc.events().delete(calendarId=CALENDAR_ID, eventId=ev["id"]).execute()
 
         if ev["guest_email"]:
             try:
-                _send_reschedule_email(ev["guest_email"], ev["guest_name"], ev["start_str"])
+                _send_cancellation_email(ev["guest_email"], ev["guest_name"], ev["start_str"])
+                cancel_log.append(f"  {ev['summary']} → cancelled, guest notified")
             except Exception as exc:
-                move_log.append(f"    (email to {ev['guest_email']} failed: {exc})")
+                cancel_log.append(f"  {ev['summary']} → cancelled (email failed: {exc})")
+        else:
+            cancel_log.append(f"  {ev['summary']} → cancelled, no guest email")
 
-    # Create the blocking event
     svc.events().insert(
         calendarId=CALENDAR_ID,
         body={
@@ -179,12 +134,9 @@ def run(message: str) -> str:
         },
     ).execute()
 
-    count = len(to_reschedule)
+    count = len(to_cancel)
     end_str = block_end.strftime("%-I:%M %p")
-    lines = [
-        f"Pastoral Override set. {count} appointment(s) rescheduled and guests notified.",
-    ]
-    if move_log:
-        lines.extend(move_log)
+    lines = [f"Pastoral Override set. {count} appointment(s) cancelled and guests notified."]
+    lines.extend(cancel_log)
     lines.append(f"Blocking event created until {end_str}.")
     return "\n".join(lines)
