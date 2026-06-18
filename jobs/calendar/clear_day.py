@@ -106,6 +106,7 @@ def run(message: str) -> str:
         to_cancel.append({
             "id": ev["id"],
             "summary": summary,
+            "description": ev.get("description", ""),
             "start_str": start_str,
             "guest_email": guest_email,
             "guest_name": guest_name,
@@ -113,7 +114,15 @@ def run(message: str) -> str:
 
     cancel_log = []
     for ev in to_cancel:
-        svc.events().delete(calendarId=CALENDAR_ID, eventId=ev["id"]).execute()
+        new_description = "⚠️ CANCELLED — guest notified to rebook\n\n" + ev["description"]
+        svc.events().patch(
+            calendarId=CALENDAR_ID,
+            eventId=ev["id"],
+            body={
+                "summary": "CANCELLED: " + ev["summary"],
+                "description": new_description,
+            },
+        ).execute()
 
         if ev["guest_email"]:
             try:
