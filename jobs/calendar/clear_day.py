@@ -66,7 +66,7 @@ def _send_reschedule_email(guest_email: str, guest_name: str, original_start: st
     body = (
         f"Hi {name_str},\n\n"
         "Due to an unexpected pastoral need, your appointment scheduled for "
-        f"{orig_str} has been rescheduled.\n\n"
+        f"{orig_str} needs to be rescheduled.\n\n"
         "Please visit williamckyomes.com/meet to book a new time that works for you.\n\n"
         "We apologize for any inconvenience.\n\n"
         "Sincerely,\n"
