@@ -214,6 +214,9 @@ _SKILL_PRE_CHECKS: dict[str, tuple] = {
         "add to my calendar", "create an appointment", "book a meeting",
         "schedule an appointment",
     ),
+    "clear_day": (
+        "block out", "clear the day", "clear my day", "push all", "push my appointments",
+    ),
 }
 
 # Matched against msg_lower BEFORE the LLM call — returns run_audit immediately, no fallthrough

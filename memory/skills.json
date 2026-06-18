@@ -386,6 +386,17 @@
       "status": "ready"
     },
     {
+      "slug": "clear_day",
+      "name": "Clear Day / Push Appointments",
+      "description": "Blocks out the rest of today or X hours, reschedules all affected appointments to next available slot, and notifies guests by email.",
+      "category": "Core",
+      "triggers": ["block out", "clear the day", "clear my day", "push all", "push my appointments", "pastoral override"],
+      "module": "jobs.calendar.clear_day",
+      "function": "run",
+      "interfaces": ["telegram", "dashboard"],
+      "status": "ready"
+    },
+    {
       "slug": "book_appointment",
       "name": "Book Appointment",
       "description": "Parses natural language to create a Google Calendar event, optionally drafting a confirmation email if a known contact is mentioned.",
