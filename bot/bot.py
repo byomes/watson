@@ -814,8 +814,17 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg_lower_check = text_clean.lower().strip()
     for slug, triggers in _SKILL_PRE_CHECKS.items():
         if any(trigger in msg_lower_check for trigger in triggers):
-            result = await _dispatch_skill(slug, text_clean)
-            await update.message.reply_text(result)
+            try:
+                _skills = _router._load_skills("telegram")
+                _skill = next((s for s in _skills if s["slug"] == slug), None)
+                if _skill:
+                    result = _router._run_skill(_skill, message=text_clean)
+                else:
+                    result = f"Skill '{slug}' not available."
+            except Exception as exc:
+                log.error("Pre-check skill dispatch failed (%s): %s", slug, exc)
+                result = f"Skill error: {exc}"
+            await update.message.reply_text("✓ " + str(result))
             return
 
     if getattr(_router, '_is_factual_query', None) and _router._is_factual_query(text_clean):
