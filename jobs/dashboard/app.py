@@ -2156,6 +2156,29 @@ def calendar_today():
 
 # ── Appointments API ──────────────────────────────────────────────────────────
 
+@app.route("/api/book-appointment", methods=["POST"])
+def book_appointment():
+    data = request.get_json(silent=True) or {}
+    confirmation_id = data.get("confirmation_id", "").strip()
+    event_id = data.get("event_id", "").strip()
+    guest_name = data.get("guest_name", "").strip()
+    guest_email = data.get("guest_email", "").strip()
+    appointment_type = data.get("appointment_type", "").strip()
+    scheduled_at = data.get("scheduled_at", "").strip()
+
+    if not confirmation_id or not event_id or not guest_name or not guest_email:
+        return jsonify({"ok": False, "error": "missing_fields"}), 400
+
+    with get_db() as conn:
+        conn.execute(
+            """INSERT OR IGNORE INTO appointment_bookings
+               (confirmation_id, event_id, guest_name, guest_email, appointment_type, scheduled_at, status, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, 'confirmed', datetime('now'))""",
+            (confirmation_id, event_id, guest_name, guest_email, appointment_type, scheduled_at)
+        )
+    return jsonify({"ok": True})
+
+
 @app.route("/api/cancel-appointment")
 def cancel_appointment():
     import smtplib
