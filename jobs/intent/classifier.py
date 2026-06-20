@@ -24,7 +24,7 @@ Rules:
 - "add task" or "don't forget" = task_create
 - "what are my tasks" or "what's due" = task_list
 - "book an appointment for [person]" or "schedule [person]" = book_appointment
-- "lookup [name]" or "who is [name]" or "phone/email/contact info for [name]" or "how do I reach [name]" or "find [name]'s number/email/contact" = contact_lookup
+- "lookup [name]" or "who is [name]" or "phone/email/contact info for [name]" or "how do I reach [name]" or "find [name]'s number/email/contact" or "get me [name]'s email/phone/number" or "what is [name]'s email/phone/number" = contact_lookup
 - requests to find, search for, or show an image, photo, or picture = image_search
 - everything else = general
 
@@ -57,6 +57,9 @@ Examples:
 "what's Sarah's phone number" → {"intent": "contact_lookup", "params": {"name": "Sarah"}, "confidence": "MEDIUM"}
 "can you find John's info" → {"intent": "contact_lookup", "params": {"name": "John"}, "confidence": "MEDIUM"}
 "that person from last Sunday" → {"intent": "contact_lookup", "params": {"name": ""}, "confidence": "LOW"}
+"get me Sarah's email" → {"intent": "contact_lookup", "params": {"name": "Sarah"}, "confidence": "HIGH"}
+"what is Dave's email address" → {"intent": "contact_lookup", "params": {"name": "Dave"}, "confidence": "HIGH"}
+"send an email to John" → {"intent": "general", "params": {}, "confidence": "HIGH"}
 
 Return ONLY the JSON object. No markdown. No explanation. No other text.
 """
