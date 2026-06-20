@@ -274,6 +274,7 @@ async function completeTask(id, checkEl) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: 'done' }),
     });
+    await renderTasks();
   } catch {
     checkEl.classList.remove('is-done');
     if (titleEl) titleEl.classList.remove('struck');
@@ -325,8 +326,8 @@ async function renderReminders() {
     reminders.forEach(r => {
       const sub = r.reminder_time || r.due_datetime || '';
       html += `
-        <div class="task-card">
-          <div class="task-check display-only"></div>
+        <div class="task-card" id="reminder-row-${r.id}">
+          <div class="task-check" onclick="completeReminder(${r.id},this)"></div>
           <div class="task-body">
             <div class="task-title">${esc(r.title)}</div>
             ${sub ? `<div class="card-sub" style="margin-top:4px;font-size:12px;color:var(--muted)">${esc(sub)}</div>` : ''}
@@ -336,6 +337,24 @@ async function renderReminders() {
     setContent(html);
   } catch {
     setContent('<div class="empty">Could not load reminders.</div>');
+  }
+}
+
+async function completeReminder(id, checkEl) {
+  if (!checkEl || checkEl.classList.contains('is-done')) return;
+  checkEl.classList.add('is-done');
+  const titleEl = checkEl.closest('.task-card')?.querySelector('.task-title');
+  if (titleEl) titleEl.classList.add('struck');
+  try {
+    await api(`/api/reminders/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'done' }),
+    });
+    await renderReminders();
+  } catch {
+    checkEl.classList.remove('is-done');
+    if (titleEl) titleEl.classList.remove('struck');
   }
 }
 
