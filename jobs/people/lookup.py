@@ -7,7 +7,7 @@ WATSON_DB = os.path.expanduser("~/watson/data/watson.db")
 
 
 def _cascade(conn, table, query: str) -> list[dict]:
-    """Three-step name cascade against a single connection/table."""
+    """Four-step name cascade: exact → full phrase → last name → first name."""
     def _q(term):
         return conn.execute(
             f"SELECT name, email, phone, carrier FROM {table}"
@@ -15,7 +15,21 @@ def _cascade(conn, table, query: str) -> list[dict]:
             (f"%{term}%",),
         ).fetchall()
 
+    def _exact(term):
+        return conn.execute(
+            f"SELECT name, email, phone, carrier FROM {table}"
+            " WHERE name = ? COLLATE NOCASE",
+            (term,),
+        ).fetchall()
+
     words = query.split()
+
+    # Step 1: exact full name match
+    rows = _exact(query)
+    if rows:
+        return [dict(r) for r in rows]
+
+    # Step 2: partial full phrase match
     rows = _q(query)
     if not rows and len(words) > 1:
         rows = _q(words[-1])
