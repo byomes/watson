@@ -442,7 +442,7 @@ def _ask_router(message: str, skills: list) -> str:
     resp = requests.post(
         OLLAMA_URL,
         json={"model": OLLAMA_MODEL, "prompt": prompt, "stream": False},
-        timeout=60,
+        timeout=8,
     )
     resp.raise_for_status()
     return resp.json().get("response", "").strip()
