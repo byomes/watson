@@ -888,6 +888,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # 4. Classify intent via Ollama llama3.2:3b (non-blocking)
     result = await asyncio.to_thread(_classify_intent, text_clean)
+    log.info("DEBUG classifier raw result: %s", result)
     intent = result.get("intent", "general")
     params = result.get("params", {})
     confidence = result.get("confidence", "HIGH")
@@ -979,6 +980,7 @@ async def _dispatch_intent(
 ) -> None:
     """Route a classified intent result to the appropriate handler."""
     intent = result.get("intent", "general")
+    log.info("DEBUG dispatch intent: %s params: %s", intent, result.get("params", {}))
     params = result.get("params", {})
     chat_id = update.effective_chat.id
     if intent == "contact_lookup":
