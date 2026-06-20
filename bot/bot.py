@@ -426,6 +426,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             handled = await _route_tg_pending_reply(update, context, text_clean, tg_pending)
             if handled:
                 _log_telegram_exchange(text_clean, f"[reply-threaded: {tg_pending['type']}]")
+                log.info("DEBUG pre-check: reply-threaded (%s)", tg_pending['type'])
                 return
 
     # Store every incoming message for resend capability
@@ -439,6 +440,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text_lower = last.lower()
         else:
             await update.message.reply_text("No previous message to resend.")
+            log.info("DEBUG pre-check: resend (no previous message)")
             return
 
     # Strip "watson" prefix if present
@@ -455,6 +457,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Sending to Gemini...")
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(None, request_build, description)
+        log.info("DEBUG pre-check: build: command")
         return
 
     # Watson debug: request — route to Gemini debugger
@@ -464,6 +467,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Sending to Gemini debugger...")
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(None, request_debug, description)
+        log.info("DEBUG pre-check: debug: command")
         return
 
     # apply/cancel gemini build
@@ -475,12 +479,14 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"Applying build {build_id}...")
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(None, apply_build, build_id)
+        log.info("DEBUG pre-check: apply build")
         return
     if _cancel_match:
         from jobs.dev.gemini_coder import cancel_build
         build_id = int(_cancel_match.group(1))
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(None, cancel_build, build_id)
+        log.info("DEBUG pre-check: cancel build")
         return
 
     # Build pipeline — natural language trigger "build <request>" (no colon)
@@ -494,10 +500,12 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             daemon=True,
         ).start()
         await update.message.reply_text("🔨 Build pipeline started...")
+        log.info("DEBUG pre-check: build pipeline (no colon)")
         return
 
     if text.startswith("\U0001f4d8 TO FACEBOOK"):
         await _handle_facebook_share(update, text)
+        log.info("DEBUG pre-check: facebook share")
         return
 
     chat_id = update.effective_chat.id
@@ -512,6 +520,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         from jobs.pastoral_notes.handler import handle_notes_reply
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(None, handle_notes_reply, text_clean)
+        log.info("DEBUG pre-check: pastoral notes reply")
         return
 
     # Email reply approval — "send" / "change: [text]" / "cancel"
@@ -519,6 +528,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         from jobs.email_reply.handler import resolve_send
         result = resolve_send()
         await update.message.reply_text(result["msg"])
+        log.info("DEBUG pre-check: email reply send (go)")
         return
 
     if text_lower.startswith("change:"):
@@ -527,6 +537,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             from jobs.email_reply.handler import resolve_change
             result = resolve_change(changed_text)
             await update.message.reply_text(result["msg"])
+            log.info("DEBUG pre-check: email reply change")
             return
 
     # Build pipeline approval: "approve" or "refine: [feedback]"
@@ -535,6 +546,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if _bp.has_pending_approval(chat_id):
             loop = asyncio.get_event_loop()
             await loop.run_in_executor(None, _bp.handle_approval, chat_id, text_clean)
+            log.info("DEBUG pre-check: build pipeline approval")
             return
         # code_agent spec refinement loop
         if text_lower.startswith("refine:"):
@@ -557,6 +569,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         args=(_ca_job["id"], _feedback),
                         daemon=True,
                     ).start()
+                    log.info("DEBUG pre-check: code agent refine")
                     return
 
     # Handle CONFIRM / CANCEL for pending actions (calendar, skill proposals, capability gaps)
@@ -564,6 +577,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if chat_id in _pending_intents:
             _pi = _pending_intents.pop(chat_id)
             await _dispatch_intent(update, context, _pi["result"], _pi["text_clean"])
+            log.info("DEBUG pre-check: confirmed pending intent")
             return
         if chat_id in _pending_skills:
             pending_desc = _pending_skills.pop(chat_id)
@@ -576,6 +590,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 daemon=True,
             ).start()
             await update.message.reply_text("Building that skill now. I'll notify you via Telegram when it's ready.")
+            log.info("DEBUG pre-check: confirmed pending skill build")
             return
         gap = _get_next_proposed_gap()
         if gap:
@@ -592,10 +607,12 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(
                 f"Building {gap['gap_name']} now. I'll notify you via Telegram when it's ready."
             )
+            log.info("DEBUG pre-check: confirmed capability gap build")
             return
         p = pending_module.get_pending(chat_id)
         if p:
             await _execute_pending(update, context, p)
+            log.info("DEBUG pre-check: confirmed pending calendar action")
             return
 
     if text_lower in ("no", "cancel", "don't book", "never mind") or text_lower in _SKILL_DENY:
@@ -604,20 +621,24 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             _er = resolve_cancel()
             if _er["ok"]:
                 await update.message.reply_text(_er["msg"])
+                log.info("DEBUG pre-check: cancel email reply")
                 return
         if chat_id in _pending_skills:
             del _pending_skills[chat_id]
             await update.message.reply_text("Got it. Let me know if you need anything else.")
+            log.info("DEBUG pre-check: cancelled pending skill")
             return
         gap = _get_next_proposed_gap()
         if gap:
             _set_gap_status(gap["id"], "rejected")
             await update.message.reply_text("Got it, skipped.")
+            log.info("DEBUG pre-check: rejected capability gap")
             return
         p = pending_module.get_pending(chat_id)
         if p:
             pending_module.cancel_pending(p["id"])
             await update.message.reply_text("Got it — cancelled.")
+            log.info("DEBUG pre-check: cancelled pending calendar action")
             return
 
 
@@ -627,6 +648,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         menu = get_telegram_menu()
         await update.message.reply_text(menu, parse_mode="Markdown")
         _log_telegram_exchange(text_clean, menu)
+        log.info("DEBUG pre-check: report menu")
         return
 
     _report_match = re.match(r'^report\s+(.+)', text_lower)
@@ -641,6 +663,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply = report_to_telegram(_html)
         await update.message.reply_text(reply, parse_mode="Markdown")
         _log_telegram_exchange(text_clean, reply)
+        log.info("DEBUG pre-check: report run")
         return
 
     # Riddle answer reveal follow-up — only fires when a riddle is pending
@@ -654,6 +677,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if _riddle_ans:
             await update.message.reply_text(_riddle_ans, parse_mode="Markdown")
             _log_telegram_exchange(text_clean, _riddle_ans)
+            log.info("DEBUG pre-check: riddle answer")
             return
         # No pending riddle — fall through to normal handling.
 
@@ -687,6 +711,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_text(f'QR generation failed: {_exc}')
         else:
             await update.message.reply_text('What should the QR code contain?')
+        log.info("DEBUG pre-check: QR code generation")
         return
 
     # QR email follow-up: "email this to [name]" / "send this to [name]"
@@ -713,6 +738,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(
                 f"No contact found for '{_contact_name}'. Check the name and try again."
             )
+        log.info("DEBUG pre-check: QR email follow-up")
         return
 
     # SMS interception
@@ -743,6 +769,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply = "WATSON_OWNER_PHONE not set in .env."
             await update.message.reply_text(reply)
             _log_telegram_exchange(text_clean, reply)
+            log.info("DEBUG pre-check: SMS to self")
             return
 
         elif _sms_contact_m:
@@ -758,6 +785,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply = f"No contact found for '{_sms_name}'."
             await update.message.reply_text(reply)
             _log_telegram_exchange(text_clean, reply)
+            log.info("DEBUG pre-check: SMS to contact")
             return
 
     import re as _re
@@ -766,6 +794,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply = _time_run()
         await update.message.reply_text(reply)
         _log_telegram_exchange(text_clean, reply)
+        log.info("DEBUG pre-check: time check")
         return
 
     # Remind me intake
@@ -790,6 +819,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply = f"⏰ Reminder set for {_rt}: {_title}" if _rt else f"⏰ Reminder saved: {_title}"
             await update.message.reply_text(reply)
             _log_telegram_exchange(text_clean, reply)
+            log.info("DEBUG pre-check: remind me intake")
             return
 
     from jobs.skillbuilder import router as _router
@@ -810,6 +840,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 log.error("Pre-check skill dispatch failed (%s): %s", slug, exc)
                 result = f"Skill error: {exc}"
             await update.message.reply_text("✓ " + str(result))
+            log.info("DEBUG pre-check: skill pre-check (%s)", slug)
             return
 
     if getattr(_router, '_is_factual_query', None) and _router._is_factual_query(text_clean):
@@ -819,6 +850,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(reply)
         _log_telegram_exchange(text_clean, reply)
         _maybe_reflect(chat_id)
+        log.info("DEBUG pre-check: factual query → web search")
         return
 
     # 2. Skill routing — explicit triggers only (skill/build/propose/wrap_up)
@@ -846,6 +878,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(reply)
         _log_telegram_exchange(text_clean, reply)
         _maybe_reflect(chat_id)
+        log.info("DEBUG pre-check: skill router action:skill (%s)", route_result.get("slug"))
         return
 
     if route_result["action"] == "wrap_up":
@@ -856,6 +889,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             target=_wrap_up, args=(session_id, None), daemon=True
         ).start()
         await update.message.reply_text("Wrapping up this session. I'll save it to memory and notify you via Telegram.")
+        log.info("DEBUG pre-check: skill router action:wrap_up")
         return
 
     if route_result["action"] == "build":
@@ -866,11 +900,13 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             daemon=True,
         ).start()
         await update.message.reply_text("Building that skill now. I'll notify you via Telegram when it's ready.")
+        log.info("DEBUG pre-check: skill router action:build")
         return
 
     if route_result["action"] == "propose":
         _pending_skills[chat_id] = text_clean
         await update.message.reply_text(route_result["message"])
+        log.info("DEBUG pre-check: skill router action:propose")
         return
 
     # Safety net: if any build trigger leaked past the router, fire the build now.
@@ -884,6 +920,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             daemon=True,
         ).start()
         await update.message.reply_text("Building that skill now. I'll notify you via Telegram when it's ready.")
+        log.info("DEBUG pre-check: safety net build trigger")
         return
 
     # 4. Classify intent via Ollama llama3.2:3b (non-blocking)
