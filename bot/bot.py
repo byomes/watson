@@ -194,6 +194,7 @@ def _gb_send_kit_email(to_email: str, subject: str, html_body: str) -> None:
         },
         timeout=15,
     )
+    print(f"Kit v4 broadcast response {r.status_code}: {r.text}")
     r.raise_for_status()
 
 
