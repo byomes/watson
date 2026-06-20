@@ -2,6 +2,7 @@
 import json
 import logging
 import os
+import re
 import sqlite3
 import sys
 from datetime import datetime
@@ -444,7 +445,9 @@ def briefing_facebook(item_id):
         "SELECT title, summary, url FROM briefing_items WHERE id = ?", (item_id,)
     ).fetchone()
     if row:
-        draft = f"{row['title']}\n\n{row['summary']}\n\n{row['url']}\n\n#Apologetics #Theology #Faith"
+        sentences = re.split(r'(?<=[.!?])\s+', (row['summary'] or '').strip())
+        excerpt = ' '.join(sentences[:2])
+        draft = f"{row['title']}\n\n{excerpt}\n\n{row['url']}\n\n#Apologetics #Theology #Faith"
         db.execute(
             "INSERT INTO facebook_queue (title, summary, url, draft_text, status) VALUES (?, ?, ?, ?, 'pending')",
             (row["title"], row["summary"], row["url"], draft),
