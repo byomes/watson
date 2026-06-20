@@ -64,6 +64,11 @@ def lookup_member(query: str) -> list[dict]:
     finally:
         cong.close()
 
+    # If we got an exact match from congregation.db, return it immediately
+    # without polluting results with watson.db partial matches
+    if cong_results and cong_results[0]["name"].lower() == query.lower():
+        return cong_results
+
     watson = sqlite3.connect(WATSON_DB)
     watson.row_factory = sqlite3.Row
     try:
