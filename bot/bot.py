@@ -829,6 +829,10 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg_lower_check = text_clean.lower().strip()
     for slug, triggers in _SKILL_PRE_CHECKS.items():
         if any(trigger in msg_lower_check for trigger in triggers):
+            if slug == "image_search":
+                await _handle_image_search(update, context, {"query": text_clean})
+                log.info("DEBUG pre-check: skill pre-check (image_search)")
+                return
             try:
                 _skills = _router._load_skills("telegram")
                 _skill = next((s for s in _skills if s["slug"] == slug), None)
@@ -1040,6 +1044,8 @@ async def _dispatch_intent(
         await _handle_task_list(update, context)
     elif intent == "task_done":
         await _handle_task_done(update, context, params)
+    elif intent == "image_search":
+        await _handle_image_search(update, context, params)
     else:
         reply = await _handle_general(update, context, text_clean)
         _log_telegram_exchange(text_clean, reply)
@@ -1064,6 +1070,32 @@ async def _handle_contact_lookup(
             lines.append(f"*{m['name']}* — {contact}" if contact else f"*{m['name']}*")
         reply = "\n".join(lines)
     await update.message.reply_text(reply, parse_mode="Markdown")
+
+
+async def _handle_image_search(
+    update: Update, context: ContextTypes.DEFAULT_TYPE, params: dict
+) -> None:
+    from telegram import InputMediaPhoto
+    from jobs.social.image_search import get_image_urls
+    query = (params.get("query") or "").strip()
+    if not query:
+        await update.message.reply_text("What would you like images of?")
+        return
+    urls = await asyncio.to_thread(get_image_urls, query)
+    if not urls:
+        await update.message.reply_text("No images found.")
+        return
+    bot = update.get_bot()
+    chat_id = update.effective_chat.id
+    try:
+        if len(urls) == 1:
+            await bot.send_photo(chat_id=chat_id, photo=urls[0])
+        else:
+            media = [InputMediaPhoto(media=url) for url in urls[:10]]
+            await bot.send_media_group(chat_id=chat_id, media=media)
+    except Exception as exc:
+        log.error("Image send failed: %s", exc)
+        await update.message.reply_text("Found images but couldn't send them: " + str(exc))
 
 
 def _ensure_reminders_table(conn) -> None:

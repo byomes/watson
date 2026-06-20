@@ -81,15 +81,16 @@ def find_images(keywords: list[str], count: int = 5) -> list[dict]:
     return results
 
 
+def get_image_urls(message: str, count: int = 5) -> list[str]:
+    keywords = extract_keywords(message)
+    images = find_images(keywords, count=count)
+    return [img['url'] for img in images]
+
+
 def run(message: str = None) -> str:
     if not message:
         return 'Provide a topic to find images for.'
-    keywords = extract_keywords(message)
-    images = find_images(keywords, count=3)
-    if not images:
+    urls = get_image_urls(message, count=5)
+    if not urls:
         return 'No images found.'
-
-    blocks = []
-    for img in images:
-        blocks.append(f"[IMAGE_URL]{img['url']}\n[IMAGE_LINK]{img['url']}")
-    return '\n'.join(blocks)
+    return '\n'.join(urls)
