@@ -1011,7 +1011,7 @@ async def _handle_contact_lookup(
     update: Update, context: ContextTypes.DEFAULT_TYPE, params: dict
 ) -> None:
     from jobs.people.lookup import lookup_member
-    name = (params.get("name") or "").strip()
+    name = re.sub(r"'s$", "", (params.get("name") or "").strip(), flags=re.IGNORECASE).strip()
     if not name:
         await update.message.reply_text("Who would you like me to look up?")
         return
