@@ -27,7 +27,7 @@
       "name": "Contacts Lookup",
       "description": "Search congregation and personal contacts by name.",
       "category": "Core",
-      "triggers": ["show all contacts", "list contacts"],
+      "triggers": ["show all contacts", "list contacts", "contact search"],
       "module": "jobs.skills.contacts_lookup",
       "function": "run",
       "interfaces": ["telegram", "dashboard"],

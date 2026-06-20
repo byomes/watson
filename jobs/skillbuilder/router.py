@@ -51,7 +51,7 @@ _SKILL_PRE_CHECKS: dict[str, tuple] = {
         "run diagnostics", "watson debug", "debug:",
     ),
     "contacts_lookup": (
-        "show all contacts", "list contacts",
+        "show all contacts", "list contacts", "contact search",
     ),
     "book_appointment": (
         "book an appointment", "schedule an appointment",
