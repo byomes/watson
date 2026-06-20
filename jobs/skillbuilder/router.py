@@ -53,6 +53,9 @@ _SKILL_PRE_CHECKS: dict[str, tuple] = {
     "contacts_lookup": (
         "show all contacts", "list contacts", "contact search",
     ),
+    "pastoral_search": (
+        "pastoral search",
+    ),
     "book_appointment": (
         "book an appointment", "schedule an appointment",
         "book a meeting", "schedule a meeting",

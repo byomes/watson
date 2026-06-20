@@ -386,6 +386,17 @@
       "status": "ready"
     },
     {
+      "slug": "pastoral_search",
+      "name": "Pastoral Search",
+      "description": "Returns a pastoral summary for a named member — campus, attendance, connect cards, prayer requests, and next steps from the last 3 weeks.",
+      "category": "Core",
+      "triggers": ["pastoral search"],
+      "module": "jobs.skills.pastoral_search",
+      "function": "run",
+      "interfaces": ["telegram", "dashboard"],
+      "status": "ready"
+    },
+    {
       "slug": "clear_day",
       "name": "Clear Day / Push Appointments",
       "description": "Blocks out the rest of today or X hours, reschedules all affected appointments to next available slot, and notifies guests by email.",
