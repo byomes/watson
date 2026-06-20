@@ -844,15 +844,8 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         _maybe_reflect(chat_id)
         return
 
-    # 2. Conversational messages → Ollama with WATSON_SYSTEM
-    if _router._is_conversational(text_clean):
-        reply = await _get_general_reply(text_clean)
-        await update.message.reply_text(reply)
-        _log_telegram_exchange(text_clean, reply)
-        _maybe_reflect(chat_id)
-        return
-
-    # 3. Skill routing — before intent classification
+    # 2. Skill routing — explicit triggers only (skill/build/propose/wrap_up)
+    # action:"chat" falls through to the intent classifier below
     try:
         route_result = _router.route(text_clean, "telegram")
     except Exception as exc:
