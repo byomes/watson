@@ -24,6 +24,8 @@ Rules:
 - "add task" or "don't forget" = task_create
 - "what are my tasks" or "what's due" = task_list
 - "book an appointment for [person]" or "schedule [person]" = book_appointment
+- "lookup [name]" or "who is [name]" or "phone/email/contact info for [name]" or "how do I reach [name]" or "find [name]'s number/email/contact" = contact_lookup
+- requests to find, search for, or show an image, photo, or picture = image_search
 - everything else = general
 
 Intents and their params:
@@ -35,15 +37,26 @@ Intents and their params:
 - reminder_create: {title: str, due_datetime: str or null}
 - task_create: {title: str}
 - task_list: {}
+- contact_lookup: {name: str}
+- image_search: {query: str}
 - general: {}
 
+Also include a confidence field based on how unambiguous the intent is:
+- "HIGH" — intent is clear and unambiguous
+- "MEDIUM" — intent is likely but the phrasing is indirect or the extracted value is uncertain
+- "LOW" — intent is genuinely uncertain or the message could mean multiple things
+
 Examples:
-"book 2 hours next wednesday for Bible Study Planning" → {"intent": "block_time", "params": {"duration_minutes": 120, "day": "next wednesday", "title": "Bible Study Planning"}}
-"what's my day on monday" → {"intent": "calendar_query", "params": {"day": "monday"}}
-"I'm headed to the hospital" → {"intent": "calendar_busy", "params": {}}
-"remind me at 3pm to call John" → {"intent": "reminder_create", "params": {"title": "call John", "due_datetime": "3pm"}}
-"remind me later to call John" → {"intent": "reminder_create", "params": {"title": "call John", "due_datetime": null}}
-"add task buy groceries" → {"intent": "task_create", "params": {"title": "buy groceries"}}
+"book 2 hours next wednesday for Bible Study Planning" → {"intent": "block_time", "params": {"duration_minutes": 120, "day": "next wednesday", "title": "Bible Study Planning"}, "confidence": "HIGH"}
+"what's my day on monday" → {"intent": "calendar_query", "params": {"day": "monday"}, "confidence": "HIGH"}
+"I'm headed to the hospital" → {"intent": "calendar_busy", "params": {}, "confidence": "HIGH"}
+"remind me at 3pm to call John" → {"intent": "reminder_create", "params": {"title": "call John", "due_datetime": "3pm"}, "confidence": "HIGH"}
+"remind me later to call John" → {"intent": "reminder_create", "params": {"title": "call John", "due_datetime": null}, "confidence": "HIGH"}
+"add task buy groceries" → {"intent": "task_create", "params": {"title": "buy groceries"}, "confidence": "HIGH"}
+"lookup Sarah Mitchell" → {"intent": "contact_lookup", "params": {"name": "Sarah Mitchell"}, "confidence": "HIGH"}
+"what's Sarah's phone number" → {"intent": "contact_lookup", "params": {"name": "Sarah"}, "confidence": "MEDIUM"}
+"can you find John's info" → {"intent": "contact_lookup", "params": {"name": "John"}, "confidence": "MEDIUM"}
+"that person from last Sunday" → {"intent": "contact_lookup", "params": {"name": ""}, "confidence": "LOW"}
 
 Return ONLY the JSON object. No markdown. No explanation. No other text.
 """

@@ -13,6 +13,7 @@ Message handling:
   anything else    — save as a voice note
 """
 
+import asyncio
 import json
 import logging
 import os
@@ -46,6 +47,9 @@ _AUTHORIZED_ID = int(TELEGRAM_CHAT_ID) if TELEGRAM_CHAT_ID else None
 
 # Pending skill proposals keyed by Telegram chat_id
 _pending_skills: dict[int, str] = {}
+
+# LOW-confidence intent results awaiting user confirmation
+_pending_intents: dict[int, dict] = {}
 
 # Pending capability gap proposals (from audit) — resolved via DB
 
@@ -563,6 +567,10 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Handle CONFIRM / CANCEL for pending actions (calendar, skill proposals, capability gaps)
     if text_lower in ("yes", "confirm", "yes do it", "book it", "go ahead") or text_lower in _SKILL_AFFIRM:
+        if chat_id in _pending_intents:
+            _pi = _pending_intents.pop(chat_id)
+            await _dispatch_intent(update, context, _pi["result"], _pi["text_clean"])
+            return
         if chat_id in _pending_skills:
             pending_desc = _pending_skills.pop(chat_id)
             from jobs.skillbuilder import router as _router
@@ -618,11 +626,11 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("Got it — cancelled.")
             return
 
-    # Member lookup — "lookup <name>", "find <name>", "who is <name>"
-    _lookup_match = re.match(r'^(?:lookup|find|who is)\s+(.+)', text_lower)
+    # Member lookup — "lookup <name>", "who is <name>", "phone/email/contact info for <name>"
+    _lookup_match = re.match(r'^(?:lookup|who is)\s+(.+)|.*\b(?:phone|email|contact info?)\b.*\bfor\b\s+(.+)', text_lower)
     if _lookup_match:
         from jobs.people.lookup import lookup_member
-        _lq = text_clean[_lookup_match.start(1):].strip()
+        _lq = (_lookup_match.group(1) or _lookup_match.group(2) or '').strip()
         members = lookup_member(_lq)
         if not members:
             reply = f"No members found matching '{_lq}'."
@@ -908,34 +916,32 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Building that skill now. I'll notify you via Telegram when it's ready.")
         return
 
-    # 4. Classify intent via Ollama llama3.2:3b
-    result = _classify_intent(text_clean)
+    # 4. Classify intent via Ollama llama3.2:3b (non-blocking)
+    result = await asyncio.to_thread(_classify_intent, text_clean)
     intent = result.get("intent", "general")
     params = result.get("params", {})
-    log.info("Intent: %s | Params: %s", intent, params)
+    confidence = result.get("confidence", "HIGH")
+    log.info("Intent: %s | Params: %s | Confidence: %s", intent, params, confidence)
 
-    if intent == "calendar_query":
-        await _handle_calendar_day(update, context, params)
-    elif intent == "calendar_busy":
-        await _handle_mark_busy(update, context)
-    elif intent == "calendar_availability":
-        await _handle_calendar_availability(update, context, params)
-    elif intent == "block_time":
-        await _handle_block_time(update, context, params)
-    elif intent == "book_appointment":
-        await _handle_book_appointment(update, context, params)
-    elif intent == "reminder_create":
-        await _handle_reminder_create(update, context, params)
-    elif intent == "task_create":
-        await _handle_task_create(update, context, params)
-    elif intent == "task_list":
-        await _handle_task_list(update, context)
-    elif intent == "task_done":
-        await _handle_task_done(update, context, params)
-    else:
-        reply = await _handle_general(update, context, text_clean)
-        _log_telegram_exchange(text_clean, reply)
-        _maybe_reflect(chat_id)
+    if confidence == "LOW":
+        _intent_plain = {
+            "contact_lookup": f"look up {params.get('name', 'someone')}",
+            "image_search": f"search for an image of {params.get('query', 'something')}",
+            "calendar_query": f"check your calendar for {params.get('day', 'today')}",
+            "block_time": f"block {params.get('duration_minutes', 60)} minutes for {params.get('title', 'something')}",
+            "reminder_create": f"set a reminder: {params.get('title', '...')}",
+            "task_create": f"add a task: {params.get('title', '...')}",
+            "task_list": "list your tasks",
+            "book_appointment": f"book an appointment with {params.get('name', 'someone')}",
+        }
+        desc = _intent_plain.get(intent, "handle this")
+        _pending_intents[chat_id] = {"result": result, "text_clean": text_clean}
+        await update.message.reply_text(f"Just to confirm — are you asking me to {desc}?")
+        return
+
+    await _dispatch_intent(update, context, result, text_clean)
+    if confidence == "MEDIUM":
+        await update.message.reply_text("Is that right?")
 
 
 # --- New intent handlers --------------------------------------------------
@@ -993,6 +999,62 @@ async def _handle_book_appointment(update: Update, context: ContextTypes.DEFAULT
     except Exception as exc:
         log.error("Book appointment failed: %s", exc)
         await update.message.reply_text(f"Error finding slot: {exc}")
+
+
+async def _dispatch_intent(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    result: dict,
+    text_clean: str,
+) -> None:
+    """Route a classified intent result to the appropriate handler."""
+    intent = result.get("intent", "general")
+    params = result.get("params", {})
+    chat_id = update.effective_chat.id
+    if intent == "contact_lookup":
+        await _handle_contact_lookup(update, context, params)
+    elif intent == "calendar_query":
+        await _handle_calendar_day(update, context, params)
+    elif intent == "calendar_busy":
+        await _handle_mark_busy(update, context)
+    elif intent == "calendar_availability":
+        await _handle_calendar_availability(update, context, params)
+    elif intent == "block_time":
+        await _handle_block_time(update, context, params)
+    elif intent == "book_appointment":
+        await _handle_book_appointment(update, context, params)
+    elif intent == "reminder_create":
+        await _handle_reminder_create(update, context, params)
+    elif intent == "task_create":
+        await _handle_task_create(update, context, params)
+    elif intent == "task_list":
+        await _handle_task_list(update, context)
+    elif intent == "task_done":
+        await _handle_task_done(update, context, params)
+    else:
+        reply = await _handle_general(update, context, text_clean)
+        _log_telegram_exchange(text_clean, reply)
+        _maybe_reflect(chat_id)
+
+
+async def _handle_contact_lookup(
+    update: Update, context: ContextTypes.DEFAULT_TYPE, params: dict
+) -> None:
+    from jobs.people.lookup import lookup_member
+    name = (params.get("name") or "").strip()
+    if not name:
+        await update.message.reply_text("Who would you like me to look up?")
+        return
+    members = lookup_member(name)
+    if not members:
+        reply = f"No members found matching '{name}'."
+    else:
+        lines = []
+        for m in members:
+            contact = " | ".join(filter(None, [m.get("email"), m.get("phone"), m.get("campus_preference")]))
+            lines.append(f"*{m['name']}* — {contact}" if contact else f"*{m['name']}*")
+        reply = "\n".join(lines)
+    await update.message.reply_text(reply, parse_mode="Markdown")
 
 
 def _ensure_reminders_table(conn) -> None:
