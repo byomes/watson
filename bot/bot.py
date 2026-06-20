@@ -620,23 +620,6 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("Got it — cancelled.")
             return
 
-    # Member lookup — "lookup <name>", "who is <name>", "phone/email/contact info for <name>"
-    _lookup_match = re.match(r'^(?:lookup|who is)\s+(.+)|.*\b(?:phone|email|contact info?)\b.*\bfor\b\s+(.+)', text_lower)
-    if _lookup_match:
-        from jobs.people.lookup import lookup_member
-        _lq = (_lookup_match.group(1) or _lookup_match.group(2) or '').strip()
-        members = lookup_member(_lq)
-        if not members:
-            reply = f"No members found matching '{_lq}'."
-        else:
-            lines = []
-            for m in members:
-                contact = " | ".join(filter(None, [m.get("email"), m.get("phone"), m.get("campus_preference")]))
-                lines.append(f"*{m['name']}* — {contact}" if contact else f"*{m['name']}*")
-            reply = "\n".join(lines)
-        await update.message.reply_text(reply, parse_mode="Markdown")
-        _log_telegram_exchange(text_clean, reply)
-        return
 
     # Report menu
     if text_lower in ("reports", "report menu"):
@@ -1172,6 +1155,17 @@ async def _get_general_reply(text: str) -> str:
 
 
 async def _handle_general(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str) -> str:
+    _possessive = re.search(r"(\w+)'s\s+(?:email|phone|number|contact)", text, re.IGNORECASE)
+    if _possessive:
+        from jobs.people.lookup import lookup_member
+        _hits = lookup_member(_possessive.group(1))
+        if _hits:
+            _lines = []
+            for m in _hits:
+                _contact = " | ".join(filter(None, [m.get("email"), m.get("phone"), m.get("campus_preference")]))
+                _lines.append(f"*{m['name']}* — {_contact}" if _contact else f"*{m['name']}*")
+            await update.message.reply_text("\n".join(_lines), parse_mode="Markdown")
+            return ""
     reply = await _get_general_reply(text)
     await update.message.reply_text(reply)
     return reply
