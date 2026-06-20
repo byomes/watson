@@ -175,7 +175,7 @@ def _gb_send_kit_email(to_email: str, subject: str, html_body: str) -> None:
     r = _req.post(
         "https://api.kit.com/v4/broadcasts",
         headers={
-            "Authorization": f"Bearer {_KIT_API_KEY}",
+            "X-Kit-Api-Key": _KIT_API_KEY,
             "Content-Type": "application/json",
         },
         json={
