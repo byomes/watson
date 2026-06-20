@@ -213,7 +213,7 @@ def _get_or_create_kit_tag(name: str) -> int:
 
     r = requests.post(
         "https://api.convertkit.com/v3/tags",
-        json={"api_secret": KIT_API_SECRET, "tag": name},
+        json={"api_secret": KIT_API_SECRET, "tag": {"name": name}},
         timeout=10,
     )
     r.raise_for_status()
