@@ -453,7 +453,6 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         from jobs.dev.gemini_coder import request_build
         description = re.sub(r'^(?:watson\s+)?build:\s*', '', text_clean, flags=re.IGNORECASE).strip()
         await update.message.reply_text("Sending to Gemini...")
-        import asyncio
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(None, request_build, description)
         return
@@ -463,7 +462,6 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         from jobs.dev.gemini_coder import request_debug
         description = re.sub(r'^(?:watson\s+)?debug:\s*', '', text_clean, flags=re.IGNORECASE).strip()
         await update.message.reply_text("Sending to Gemini debugger...")
-        import asyncio
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(None, request_debug, description)
         return
@@ -475,14 +473,12 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         from jobs.dev.gemini_coder import apply_build
         build_id = int(_apply_match.group(1))
         await update.message.reply_text(f"Applying build {build_id}...")
-        import asyncio
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(None, apply_build, build_id)
         return
     if _cancel_match:
         from jobs.dev.gemini_coder import cancel_build
         build_id = int(_cancel_match.group(1))
-        import asyncio
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(None, cancel_build, build_id)
         return
@@ -514,7 +510,6 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ).fetchone()
     if _pending_note:
         from jobs.pastoral_notes.handler import handle_notes_reply
-        import asyncio
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(None, handle_notes_reply, text_clean)
         return
@@ -538,7 +533,6 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if text_lower == "approve" or text_lower.startswith("refine:"):
         from jobs.dev import build_pipeline as _bp
         if _bp.has_pending_approval(chat_id):
-            import asyncio
             loop = asyncio.get_event_loop()
             await loop.run_in_executor(None, _bp.handle_approval, chat_id, text_clean)
             return
@@ -1225,7 +1219,6 @@ async def _route_tg_pending_reply(
 
     if action_type == "pastoral_note":
         from jobs.pastoral_notes.handler import handle_notes_reply
-        import asyncio
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(None, handle_notes_reply, text)
         mark_done(pending_id)
