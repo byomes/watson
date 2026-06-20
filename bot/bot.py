@@ -18,6 +18,7 @@ import json
 import logging
 import os
 import re
+import sqlite3
 from datetime import date, datetime
 from pathlib import Path
 
@@ -40,10 +41,17 @@ from jobs.people.api import people_create, people_list, people_get, congregation
 import jobs.gcal.pending as pending_module
 from jobs.gcal import reasoner
 from jobs.intent.classifier import classify as _classify_intent
+from jobs.givebutter.templates import first_gift_email, repeat_gift_email
 
 log = logging.getLogger(__name__)
 
 _AUTHORIZED_ID = int(TELEGRAM_CHAT_ID) if TELEGRAM_CHAT_ID else None
+
+_DONORS_DB = Path(__file__).resolve().parents[1] / "data" / "donors.db"
+_KIT_API_KEY = os.getenv("KIT_API_KEY", "")
+_KIT_API_SECRET = os.getenv("KIT_API_SECRET", "")
+_KIT_SENDER_EMAIL = os.getenv("KIT_SENDER_EMAIL", "")
+_KIT_SENDER_NAME = os.getenv("KIT_SENDER_NAME", "")
 
 # Pending skill proposals keyed by Telegram chat_id
 _pending_skills: dict[int, str] = {}
@@ -100,6 +108,72 @@ def _set_gap_status(gap_id: int, status: str) -> None:
             )
     except Exception as exc:
         log.warning("Gap status update failed: %s", exc)
+
+
+# --- Givebutter thank-you helpers ------------------------------------
+
+def _gb_get_txn(txn_id: int) -> dict | None:
+    if not _DONORS_DB.exists():
+        return None
+    conn = sqlite3.connect(str(_DONORS_DB))
+    conn.row_factory = sqlite3.Row
+    row = conn.execute("""
+        SELECT t.id, t.amount, t.thanked,
+               d.name, d.email, d.gift_count
+        FROM transactions t
+        JOIN donors d ON d.id = t.donor_id
+        WHERE t.id = ?
+    """, (txn_id,)).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def _gb_mark_thanked(txn_id: int) -> None:
+    conn = sqlite3.connect(str(_DONORS_DB))
+    conn.execute("UPDATE transactions SET thanked=1 WHERE id=?", (txn_id,))
+    conn.commit()
+    conn.close()
+
+
+def _gb_get_kit_subscriber_id(email: str) -> int | None:
+    import requests as _req
+    r = _req.get(
+        "https://api.convertkit.com/v3/subscribers",
+        params={"api_secret": _KIT_API_SECRET, "email_address": email},
+        timeout=10,
+    )
+    r.raise_for_status()
+    subscribers = r.json().get("subscribers", [])
+    return subscribers[0]["id"] if subscribers else None
+
+
+def _gb_send_kit_email(to_email: str, subject: str, html_body: str) -> None:
+    import requests as _req
+    subscriber_id = _gb_get_kit_subscriber_id(to_email)
+    if subscriber_id is None:
+        raise ValueError(f"Subscriber not found in Kit: {to_email}")
+    r = _req.post(
+        "https://api.kit.com/v4/broadcasts",
+        headers={
+            "Authorization": f"Bearer {_KIT_API_KEY}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "broadcast": {
+                "subject": subject,
+                "content": html_body,
+                "from_name": _KIT_SENDER_NAME,
+                "email_address": _KIT_SENDER_EMAIL,
+                "subscriber_filter": [
+                    {"all": [{"type": "subscriber_id", "ids": [subscriber_id]}]}
+                ],
+                "send_at": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "public": False,
+            }
+        },
+        timeout=15,
+    )
+    r.raise_for_status()
 
 
 # --- DB helpers -------------------------------------------------------
@@ -1622,6 +1696,46 @@ async def handle_acquire_callback(update: Update, context: ContextTypes.DEFAULT_
         await query.edit_message_text("❌ Acquisition rejected.")
 
 
+async def handle_thank_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    if not _is_authorized(update):
+        return
+
+    txn_id = int(query.data.split(":", 1)[1])
+    row = await asyncio.to_thread(_gb_get_txn, txn_id)
+
+    if row is None:
+        await query.edit_message_text("Transaction not found in donors.db.")
+        return
+
+    if row["thanked"]:
+        await query.edit_message_text(f"Already sent to {row['name']}.")
+        return
+
+    name = row["name"]
+    email = row["email"]
+    gift_count = row["gift_count"] or 1
+    amount = row["amount"]
+
+    if gift_count == 1:
+        subject, html_body = first_gift_email(name, amount)
+    else:
+        subject, html_body = repeat_gift_email(name, amount, gift_count)
+
+    await query.edit_message_text(f"Sending thank-you to {name}…")
+
+    try:
+        await asyncio.to_thread(_gb_send_kit_email, email, subject, html_body)
+        await asyncio.to_thread(_gb_mark_thanked, txn_id)
+        log.info("Givebutter thank-you sent: txn %d → %s", txn_id, email)
+        await query.edit_message_text(f"✅ Sent to {name}.")
+    except Exception as exc:
+        log.error("Givebutter thank-you failed for txn %d: %s", txn_id, exc)
+        await query.edit_message_text(f"❌ Send failed: {exc}")
+
+
 async def handle_emailqueue(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not _is_authorized(update):
         return
@@ -2074,6 +2188,7 @@ def main():
     app.add_handler(CallbackQueryHandler(handle_email_callback, pattern=r"^email_"))
     app.add_handler(CallbackQueryHandler(handle_book_callback, pattern=r"^book_"))
     app.add_handler(CallbackQueryHandler(handle_menu_callback, pattern=r"^menu_"))
+    app.add_handler(CallbackQueryHandler(handle_thank_callback, pattern=r"^thank:\d+$"))
     app.add_handler(MessageHandler(filters.Regex(r"^/savedremove_\d+$"), handle_savedremove))
     app.add_handler(MessageHandler(filters.VOICE, handle_voice))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
