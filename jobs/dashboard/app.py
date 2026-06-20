@@ -513,7 +513,7 @@ def research_list():
 @app.route("/api/tasks")
 def tasks_list():
     rows = _db().execute(
-        "SELECT * FROM tasks ORDER BY sort_order ASC, created_at DESC"
+        "SELECT * FROM tasks WHERE status = 'active' ORDER BY sort_order ASC, created_at DESC"
     ).fetchall()
     return jsonify([dict(r) for r in rows])
 
