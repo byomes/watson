@@ -105,11 +105,11 @@ def fetch_transactions() -> list[dict]:
 
 # ── DB upsert helpers ─────────────────────────────────────────────────────────
 
-def _upsert_donor(conn: sqlite3.Connection, member: dict) -> int:
-    givebutter_id = str(member.get("id", ""))
-    name = f"{member.get('first_name', '')} {member.get('last_name', '')}".strip()
-    email = (member.get("email") or "").lower().strip()
-    phone = member.get("phone", "") or ""
+def _upsert_donor(conn: sqlite3.Connection, txn: dict) -> int:
+    givebutter_id = str(txn.get("contact_id", ""))
+    name = f"{txn.get('first_name', '')} {txn.get('last_name', '')}".strip()
+    email = (txn.get("email") or "").lower().strip()
+    phone = txn.get("phone", "") or ""
 
     row = conn.execute(
         "SELECT id FROM donors WHERE givebutter_id = ? OR (email != '' AND email = ?)",
@@ -134,9 +134,9 @@ def _upsert_donor(conn: sqlite3.Connection, member: dict) -> int:
 def _upsert_transaction(conn: sqlite3.Connection, donor_id: int, txn: dict) -> None:
     txn_id = str(txn.get("id", ""))
     amount = float(txn.get("amount", 0) or 0)
-    fund = (txn.get("fund") or {}).get("name", "") or ""
-    campaign = (txn.get("campaign") or {}).get("title", "") or ""
-    given_at = txn.get("created_at", "") or ""
+    fund = txn.get("fund_code", "") or ""
+    campaign = txn.get("campaign_title", "") or ""
+    given_at = txn.get("transacted_at", "") or txn.get("created_at", "") or ""
 
     conn.execute(
         """INSERT OR IGNORE INTO transactions
@@ -262,12 +262,11 @@ def run() -> None:
     conn.execute("PRAGMA foreign_keys = ON")
 
     for txn in txns:
-        member = txn.get("member") or {}
-        if not member.get("email"):
-            log.debug("Skipping txn %s — no member email.", txn.get("id"))
+        if not txn.get("email"):
+            log.debug("Skipping txn %s — no email.", txn.get("id"))
             continue
         try:
-            donor_id = _upsert_donor(conn, member)
+            donor_id = _upsert_donor(conn, txn)
             _upsert_transaction(conn, donor_id, txn)
         except Exception as exc:
             log.warning("Error processing txn %s: %s", txn.get("id"), exc)
