@@ -91,7 +91,10 @@ def _send_preview(text: str, txn_id: int) -> None:
             "parse_mode": "HTML",
             "reply_markup": {
                 "inline_keyboard": [
-                    [{"text": "✅ Approve & Send", "callback_data": f"thank:{txn_id}"}]
+                    [
+                        {"text": "✅ Approve & Send", "callback_data": f"thank:{txn_id}"},
+                        {"text": "✏️ Edit in Kit", "callback_data": f"edit_thank:{txn_id}"},
+                    ]
                 ]
             },
         },

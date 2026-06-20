@@ -135,6 +135,26 @@ def _gb_mark_thanked(txn_id: int) -> None:
     conn.close()
 
 
+def _gb_mark_thanked_2(txn_id: int) -> None:
+    conn = sqlite3.connect(str(_DONORS_DB))
+    conn.execute("UPDATE transactions SET thanked=2 WHERE id=?", (txn_id,))
+    conn.commit()
+    conn.close()
+
+
+def _gb_add_kit_reminder(donor_name: str) -> None:
+    from datetime import date
+    title = f"Edit and send thank-you email to {donor_name} in Kit"
+    today = date.today().isoformat()
+    with get_connection() as conn:
+        _ensure_reminders_table(conn)
+        conn.execute(
+            "INSERT INTO reminders (title, due_datetime, reminder_time, status, created_at, updated_at) "
+            "VALUES (?, ?, NULL, 'active', datetime('now'), datetime('now'))",
+            (title, today),
+        )
+
+
 def _gb_get_kit_subscriber_id(email: str) -> int | None:
     import requests as _req
     r = _req.get(
@@ -170,6 +190,24 @@ def _gb_send_kit_email(to_email: str, subject: str, html_body: str) -> None:
                 "send_at": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
                 "public": False,
             }
+        },
+        timeout=15,
+    )
+    r.raise_for_status()
+
+
+def _gb_create_kit_draft(to_email: str, subject: str, html_body: str) -> None:
+    import requests as _req
+    r = _req.post(
+        "https://api.convertkit.com/v3/broadcasts",
+        json={
+            "api_secret": _KIT_API_SECRET,
+            "subject": subject,
+            "content": html_body,
+            "from_name": _KIT_SENDER_NAME,
+            "from_email": _KIT_SENDER_EMAIL,
+            "description": f"Thank-you draft for {to_email}",
+            "public": False,
         },
         timeout=15,
     )
@@ -1736,6 +1774,48 @@ async def handle_thank_callback(update: Update, context: ContextTypes.DEFAULT_TY
         await query.edit_message_text(f"❌ Send failed: {exc}")
 
 
+async def handle_edit_thank_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    if not _is_authorized(update):
+        return
+
+    txn_id = int(query.data.split(":", 1)[1])
+    row = await asyncio.to_thread(_gb_get_txn, txn_id)
+
+    if row is None:
+        await query.edit_message_text("Transaction not found in donors.db.")
+        return
+
+    if row["thanked"]:
+        status = "sent" if row["thanked"] == 1 else "already drafted"
+        await query.edit_message_text(f"Already {status} for {row['name']}.")
+        return
+
+    name = row["name"]
+    email = row["email"]
+    gift_count = row["gift_count"] or 1
+    amount = row["amount"]
+
+    if gift_count == 1:
+        subject, html_body = first_gift_email(name, amount)
+    else:
+        subject, html_body = repeat_gift_email(name, amount, gift_count)
+
+    await query.edit_message_text(f"Creating Kit draft for {name}…")
+
+    try:
+        await asyncio.to_thread(_gb_create_kit_draft, email, subject, html_body)
+        await asyncio.to_thread(_gb_mark_thanked_2, txn_id)
+        await asyncio.to_thread(_gb_add_kit_reminder, name)
+        log.info("Givebutter Kit draft created: txn %d → %s", txn_id, email)
+        await query.edit_message_text(f"✏️ Draft saved in Kit for {name}. Reminder added.")
+    except Exception as exc:
+        log.error("Givebutter Kit draft failed for txn %d: %s", txn_id, exc)
+        await query.edit_message_text(f"❌ Draft creation failed: {exc}")
+
+
 async def handle_emailqueue(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not _is_authorized(update):
         return
@@ -2189,6 +2269,7 @@ def main():
     app.add_handler(CallbackQueryHandler(handle_book_callback, pattern=r"^book_"))
     app.add_handler(CallbackQueryHandler(handle_menu_callback, pattern=r"^menu_"))
     app.add_handler(CallbackQueryHandler(handle_thank_callback, pattern=r"^thank:\d+$"))
+    app.add_handler(CallbackQueryHandler(handle_edit_thank_callback, pattern=r"^edit_thank:\d+$"))
     app.add_handler(MessageHandler(filters.Regex(r"^/savedremove_\d+$"), handle_savedremove))
     app.add_handler(MessageHandler(filters.VOICE, handle_voice))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
