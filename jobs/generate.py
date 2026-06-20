@@ -83,37 +83,46 @@ def _commit_and_push(file_path: Path, commit_message: str) -> None:
 
 # --- Telegram ---------------------------------------------------------
 
-def _telegram_notify(raw_url: str, title: str) -> None:
+def _telegram_notify(raw_url: str, title: str, push_succeeded: bool = True) -> None:
     if not WATSON_BOT_TOKEN or not WATSON_CHAT_ID:
         log.warning("Telegram not configured — skipping notification")
         return
 
-    text = (
-        f"📄 <b>New transcript archived</b>\n\n"
-        f"<b>{title}</b>\n\n"
-        f"Raw URL (copy and paste into claude.ai):\n"
-        f"<code>{raw_url}</code>\n\n"
-        f"Paste into claude.ai with:\n"
-        f"<i>\"Draft a blog article from this transcript.\"</i>"
-    )
-
-    reply_markup = {
-        "inline_keyboard": [[
-            {"text": "📂 Open Transcript", "url": raw_url}
-        ]]
-    }
+    if push_succeeded:
+        text = (
+            f"📄 <b>New transcript archived</b>\n\n"
+            f"<b>{title}</b>\n\n"
+            f"Raw URL (copy and paste into claude.ai):\n"
+            f"<code>{raw_url}</code>\n\n"
+            f"Paste into claude.ai with:\n"
+            f"<i>\"Draft a blog article from this transcript.\"</i>"
+        )
+        payload = {
+            "chat_id":    WATSON_CHAT_ID,
+            "text":       text,
+            "parse_mode": "HTML",
+            "reply_markup": {
+                "inline_keyboard": [[
+                    {"text": "📂 Open Transcript", "url": raw_url}
+                ]]
+            },
+        }
+    else:
+        text = (
+            f"⚠️ <b>Transcript saved locally — push failed</b>\n\n"
+            f"<b>{title}</b>\n\n"
+            f"The transcript was written to the Watson repo but could not be pushed to GitHub. "
+            f"The raw URL is not available yet.\n\n"
+            f"Check the server and push manually."
+        )
+        payload = {
+            "chat_id":    WATSON_CHAT_ID,
+            "text":       text,
+            "parse_mode": "HTML",
+        }
 
     url = f"https://api.telegram.org/bot{WATSON_BOT_TOKEN}/sendMessage"
-    resp = requests.post(
-        url,
-        json={
-            "chat_id":      WATSON_CHAT_ID,
-            "text":         text,
-            "parse_mode":   "HTML",
-            "reply_markup": reply_markup,
-        },
-        timeout=10,
-    )
+    resp = requests.post(url, json=payload, timeout=10)
     resp.raise_for_status()
     log.info("Telegram notification sent")
 
@@ -146,11 +155,12 @@ def generate(clean_path: Path, sermon_slug: str) -> None:
     git_kb_path.write_text(md_content, encoding="utf-8")
     log.info("Transcript written to Git KB: %s", git_kb_path)
 
+    push_succeeded = True
     try:
         _commit_and_push(git_kb_path, f"transcript: add {dated_slug}")
     except RuntimeError as e:
         log.error("Git push failed: %s", e)
-        log.warning("Telegram notification will still fire with expected URL")
+        push_succeeded = False
 
     # --- Destination 2: Local KB inbox (F: drive or wherever KB_LOCAL_DIR points) ---
     if KB_LOCAL_DIR != KB_GIT_DIR:
@@ -166,7 +176,7 @@ def generate(clean_path: Path, sermon_slug: str) -> None:
 
     # Build raw GitHub URL and notify
     raw_url = f"{GITHUB_RAW_BASE}/{filename}"
-    _telegram_notify(raw_url, title)
+    _telegram_notify(raw_url, title, push_succeeded=push_succeeded)
 
     log.info("Generate job complete: %s", dated_slug)
     log.info("Raw URL: %s", raw_url)
