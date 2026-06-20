@@ -431,7 +431,7 @@ def run(build_request: str, chat_id: int) -> None:
         f"Confidence: {review_json.get('confidence', 'N/A')}\n"
         f"Deployment Safety: {review_json.get('deployment_safety', 'N/A')}\n\n"
         f"Risks:\n{risks_text}\n\n"
-        f"Reply 'approve' to deploy or 'refine: [feedback]' to revise."
+        f"Reply 'approve' to deploy."
     )
     _tg_send(chat_id, approval_msg)
 
@@ -537,16 +537,6 @@ def handle_approval(chat_id: int, message: str) -> None:
             log.error("Build archive failed: %s", exc)
             _tg_send(chat_id, f"Build archived with error: {exc}")
 
-    elif msg.startswith("refine:"):
-        feedback = message[len("refine:"):].strip()
-        with _db_conn() as conn:
-            conn.execute(
-                "UPDATE build_approvals SET status='revised' WHERE id=?", (row["id"],)
-            )
-        _tg_send(
-            chat_id,
-            f"Got it. Re-trigger with: build {row['build_request']} — {feedback}",
-        )
 
 
 # ---------------------------------------------------------------------------

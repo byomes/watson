@@ -540,37 +540,14 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             log.info("DEBUG pre-check: email reply change")
             return
 
-    # Build pipeline approval: "approve" or "refine: [feedback]"
-    if text_lower == "approve" or text_lower.startswith("refine:"):
+    # Build pipeline approval
+    if text_lower == "approve":
         from jobs.dev import build_pipeline as _bp
         if _bp.has_pending_approval(chat_id):
             loop = asyncio.get_event_loop()
             await loop.run_in_executor(None, _bp.handle_approval, chat_id, text_clean)
             log.info("DEBUG pre-check: build pipeline approval")
             return
-        # code_agent spec refinement loop
-        if text_lower.startswith("refine:"):
-            _feedback = re.sub(r'^refine:\s*', '', text_clean, flags=re.IGNORECASE).strip()
-            if _feedback:
-                try:
-                    with get_connection() as _conn:
-                        _ca_job = _conn.execute(
-                            "SELECT id FROM code_agent_jobs WHERE status='awaiting_confirm' "
-                            "ORDER BY created_at DESC LIMIT 1"
-                        ).fetchone()
-                except Exception:
-                    _ca_job = None
-                if _ca_job:
-                    await update.message.reply_text("🔄 Refining spec — rebuilding…")
-                    import threading
-                    from jobs.code_agent.agent import refine_job as _refine_job
-                    threading.Thread(
-                        target=_refine_job,
-                        args=(_ca_job["id"], _feedback),
-                        daemon=True,
-                    ).start()
-                    log.info("DEBUG pre-check: code agent refine")
-                    return
 
     # Handle CONFIRM / CANCEL for pending actions (calendar, skill proposals, capability gaps)
     if text_lower in ("yes", "confirm", "yes do it", "book it", "go ahead") or text_lower in _SKILL_AFFIRM:
