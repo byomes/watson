@@ -53,6 +53,8 @@ _KIT_API_SECRET = os.getenv("KIT_API_SECRET", "")  # v3 writes (tags, subscribe,
 _KIT_API_KEY_V4 = os.getenv("KIT_API_KEY_V4", "")  # v4 broadcasts (X-Kit-Api-Key header)
 _KIT_SENDER_EMAIL = os.getenv("KIT_SENDER_EMAIL", "")
 _KIT_SENDER_NAME = os.getenv("KIT_SENDER_NAME", "")
+_GMAIL_USER = os.getenv("WATSON_GMAIL_ADDRESS", "")
+_GMAIL_APP_PASSWORD = os.getenv("WATSON_GMAIL_APP_PASSWORD", "")
 
 # Pending skill proposals keyed by Telegram chat_id
 _pending_skills: dict[int, str] = {}
@@ -169,23 +171,21 @@ def _gb_get_kit_subscriber_id(email: str) -> int | None:
 
 
 def _gb_send_kit_email(to_email: str, subject: str, html_body: str) -> None:
-    import requests as _req
-    r = _req.post(
-        "https://api.kit.com/v4/emails",
-        headers={
-            "X-Kit-Api-Key": _KIT_API_KEY_V4,
-            "Content-Type": "application/json",
-        },
-        json={
-            "email_address": to_email,
-            "subject": subject,
-            "content": html_body,
-            "email_layout_template": "none",
-        },
-        timeout=15,
-    )
-    print(f"Kit v4 email response {r.status_code}: {r.text}")
-    r.raise_for_status()
+    import smtplib
+    from email.mime.multipart import MIMEMultipart
+    from email.mime.text import MIMEText
+
+    msg = MIMEMultipart("alternative")
+    msg["From"] = "Dr. Bill Yomes <watson.wcky@gmail.com>"
+    msg["To"] = to_email
+    msg["Subject"] = subject
+    msg.attach(MIMEText(html_body, "html"))
+
+    with smtplib.SMTP("smtp.gmail.com", 587) as smtp:
+        smtp.starttls()
+        smtp.login(_GMAIL_USER, _GMAIL_APP_PASSWORD)
+        smtp.sendmail("watson.wcky@gmail.com", to_email, msg.as_string())
+    print(f"Gmail SMTP: sent to {to_email} — subject: {subject}")
 
 
 def _gb_create_kit_draft(to_email: str, subject: str, html_body: str) -> None:
