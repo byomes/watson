@@ -170,31 +170,21 @@ def _gb_get_kit_subscriber_id(email: str) -> int | None:
 
 def _gb_send_kit_email(to_email: str, subject: str, html_body: str) -> None:
     import requests as _req
-    subscriber_id = _gb_get_kit_subscriber_id(to_email)
-    if subscriber_id is None:
-        raise ValueError(f"Subscriber not found in Kit: {to_email}")
     r = _req.post(
-        "https://api.kit.com/v4/broadcasts",
+        "https://api.kit.com/v4/emails",
         headers={
             "X-Kit-Api-Key": _KIT_API_KEY_V4,
             "Content-Type": "application/json",
         },
         json={
-            "broadcast": {
-                "subject": subject,
-                "content": html_body,
-                "from_name": _KIT_SENDER_NAME,
-                "email_address": _KIT_SENDER_EMAIL,
-                "subscriber_filter": [
-                    {"all": [{"type": "subscriber_id", "ids": [subscriber_id]}]}
-                ],
-                "send_at": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
-                "public": False,
-            }
+            "email_address": to_email,
+            "subject": subject,
+            "content": html_body,
+            "email_layout_template": "none",
         },
         timeout=15,
     )
-    print(f"Kit v4 broadcast response {r.status_code}: {r.text}")
+    print(f"Kit v4 email response {r.status_code}: {r.text}")
     r.raise_for_status()
 
 
