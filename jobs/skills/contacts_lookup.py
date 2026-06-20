@@ -10,7 +10,7 @@ def run(message: str = None) -> str:
     if not message:
         return "Please provide a name to search."
     # Extract name from message
-    pattern = r'(?:find|look up|lookup|contact|who is|search for|search|pull up)\s+(.+)'
+    pattern = r'(?:(?:find|look up|lookup|contact|who is|search for|search|pull up)\s+)+(.+)'
     match = re.search(pattern, message.strip(), re.IGNORECASE)
 
     if not match:
