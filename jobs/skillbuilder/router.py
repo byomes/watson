@@ -38,184 +38,34 @@ _LIST_SKILLS_TRIGGERS = (
 
 # Pre-check map: slug → trigger phrases. Matched before the LLM call.
 _SKILL_PRE_CHECKS: dict[str, tuple] = {
-    "send_email": (
-        "send an email", "send email", "email to",
-        "draft an email", "write an email", "compose an email",
-    ),
-    "tells_many_days": (
-        "how many days until christmas", "christmas countdown",
-    ),
-    "weather_every_morning": (
-        "what's the weather", "weather today", "check the weather", "forecast",
-    ),
-    "log_watch": (
-        "check logs", "any errors", "error summary",
-    ),
-    "skill_audit": (
-        "audit skills", "test my skills", "run skill audit", "which skills work", "skill audit",
+    "add_task": (
+        "add task", "new task", "create task",
     ),
     "bible_lookup": (
-        "bible", "scripture", "look up verse",
-    ),
-    "calendar_availability": (
-        "my availability", "check calendar", "open slots", "when am i free",
-    ),
-    "web_search": (
-        "search for", "search the web", "look it up", "google that",
-    ),
-    "read_pdf": (
-        "read pdf", "open pdf",
-    ),
-    "read_word": (
-        "read word", "open doc", "open word",
-    ),
-    "read_excel": (
-        "read excel", "open spreadsheet", "open excel",
-    ),
-    "read_powerpoint": (
-        "read powerpoint", "open presentation", "open pptx",
-    ),
-    "article_reader": (
-        "read this article", "fetch this url", "read this page", "summarize this link",
-    ),
-    "vcf_importer": (
-        "import vcf", "import vcard", "load contact card",
-    ),
-    "qr_generator": (
-        "generate qr", "qr code", "qr-code", "create qr", "make a qr",
-        "give me a qr", "generate a qr", "create a qr", "make qr", "qr for",
-    ),
-    "youtube_downloader": (
-        "download youtube", "download audio from", "download this video", "get audio from youtube",
-    ),
-    "text_processor": (
-        "summarize this text", "extract keywords", "convert to markdown", "key points from",
-    ),
-    "system_monitor": (
-        "system health", "how is watson doing", "check system", "cpu usage", "memory usage", "disk usage",
-    ),
-    "git_tools": (
-        "show recent commits", "git history", "what changed recently",
-    ),
-    "test_runner": (
-        "run tests", "test watson",
-    ),
-    "code_analyzer": (
-        "analyze codebase", "find missing run", "codebase report",
-    ),
-    "screenshot": (
-        "screenshot", "take a screenshot", "show me this page", "capture this url",
-    ),
-    "svg_generator": (
-        "create quote card", "make a banner", "generate graphic", "quote card",
-    ),
-    "social_poster": (
-        "post to facebook", "share on facebook", "facebook post",
-    ),
-    "content_calendar": (
-        "content calendar", "upcoming posts", "what is scheduled",
-    ),
-    "site_deployer": (
-        "deploy wcky", "deploy watson", "push to vercel",
-    ),
-    "seo_tools": (
-        "seo analysis", "check seo", "analyze this page for seo",
-    ),
-    "acquire_skill": (
-        "find a skill", "acquire a skill", "i need you to be able to",
-        "find a library", "learn to", "can you learn",
-    ),
-    "news_search": (
-        "search news", "latest news", "news about", "current events about",
-    ),
-    "grammar_checker": (
-        "check grammar", "fix grammar", "grammar check", "proofread this",
-    ),
-    "spell_checker": (
-        "check spelling", "spell check", "find misspellings", "spelling errors",
-    ),
-    "semantic_search": (
-        "search my memory", "what do i know about", "find related content",
-    ),
-    "academic_search": (
-        "search arxiv", "research papers", "find academic papers", "scholarly search",
-    ),
-    "skill_tester": (
-        "test skill", "test this skill", "run skill test", "does this skill work",
-    ),
-    "auto_fixer": (
-        "auto fix", "fix this skill", "repair this skill",
-    ),
-    "skill_validator": (
-        "validate skill", "validate all", "ready to promote",
-    ),
-    "performance_profiler": (
-        "profile skill", "performance report",
-    ),
-    "dependency_scanner": (
-        "scan dependencies", "missing packages", "check imports",
-    ),
-    "error_analyzer": (
-        "analyze this error", "debug this error", "why is this failing",
-    ),
-    "style_checker": (
-        "check style", "style check", "proselint", "writing style", "check my writing",
-    ),
-    "document_converter": (
-        "convert document", "convert file", "convert to", "doc to", "markdown to html", "docx to",
-    ),
-    "citation_manager": (
-        "add citation", "citation", "cite doi", "cite isbn", "list citations", "bibliography",
-    ),
-    "manuscript_tracker": (
-        "track manuscript", "manuscript", "draft progress", "update manuscript",
-    ),
-    "epub_generator": (
-        "generate epub", "create epub", "make epub", "epub from", "ebook from",
-    ),
-    "summarizer": (
-        "summarize", "tldr", "summary of", "key points", "main topics",
-    ),
-    "isbn_lookup": (
-        "isbn lookup", "lookup book", "book info", "find book", "isbn search",
-    ),
-    "wordcloud_generator": (
-        "word cloud", "wordcloud", "word frequency cloud", "visualize words",
+        "bible verse", "watson bible", "look up verse",
     ),
     "command_executor": (
-        "restart watson", "restart the dashboard", "restart dashboard",
-        "restart the bot", "restart bot", "restart all",
-        "git pull", "pull latest", "pull latest code",
-        "check services", "are services running", "service status",
-        "check disk space", "disk usage",
-        "update packages", "upgrade packages",
-        "run command", "execute command", "run sync",
+        "run command", "shell command", "bash",
     ),
-    "pastoral_notes": (
-        "pastoral note", "pastoral notes", "make a note that", "note that",
-    ),
-    "send_contact_info": (
-        "send contact info", "contact info to", "send their contact",
-    ),
-    "add_task": (
-        "add a task", "add task", "new task", "create a task",
-        "remind me to", "put on my task list", "add to my tasks",
-    ),
-    "kb_search": (
-        "search kb", "search my notes", "search my sermons",
-        "what have i said about", "what did i preach on",
-        "find in my notes", "look in my sermons", "kb search",
+    "claude_debug": (
+        "run diagnostics", "watson debug", "debug:",
     ),
     "contacts_lookup": (
-        "find ", "look up", "lookup", "who is", "pull up", "contact for",
+        "show all contacts", "list contacts",
     ),
     "book_appointment": (
-        "book an appointment", "set an appointment", "schedule a meeting",
-        "add to my calendar", "create an appointment", "book a meeting",
-        "schedule an appointment",
+        "book an appointment", "schedule an appointment",
+        "book a meeting", "schedule a meeting",
     ),
-    "clear_day": (
-        "block out", "clear the day", "clear my day", "push all", "push my appointments",
+    "web_search": (
+        "search the web", "web search",
+    ),
+    "image_search": (
+        "find image", "find a photo", "find a picture",
+        "search image", "image of",
+    ),
+    "wrap_up": (
+        "wrap up", "end session",
     ),
 }
 
