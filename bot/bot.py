@@ -48,8 +48,9 @@ log = logging.getLogger(__name__)
 _AUTHORIZED_ID = int(TELEGRAM_CHAT_ID) if TELEGRAM_CHAT_ID else None
 
 _DONORS_DB = Path(__file__).resolve().parents[1] / "data" / "donors.db"
-_KIT_API_KEY = os.getenv("KIT_API_KEY", "")
-_KIT_API_SECRET = os.getenv("KIT_API_SECRET", "")
+_KIT_API_KEY = os.getenv("KIT_API_KEY", "")        # v3 reads (tags list)
+_KIT_API_SECRET = os.getenv("KIT_API_SECRET", "")  # v3 writes (tags, subscribe, draft)
+_KIT_API_KEY_V4 = os.getenv("KIT_API_KEY_V4", "")  # v4 broadcasts (X-Kit-Api-Key header)
 _KIT_SENDER_EMAIL = os.getenv("KIT_SENDER_EMAIL", "")
 _KIT_SENDER_NAME = os.getenv("KIT_SENDER_NAME", "")
 
@@ -175,7 +176,7 @@ def _gb_send_kit_email(to_email: str, subject: str, html_body: str) -> None:
     r = _req.post(
         "https://api.kit.com/v4/broadcasts",
         headers={
-            "X-Kit-Api-Key": _KIT_API_KEY,
+            "X-Kit-Api-Key": _KIT_API_KEY_V4,
             "Content-Type": "application/json",
         },
         json={
