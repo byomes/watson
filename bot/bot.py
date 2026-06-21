@@ -554,26 +554,6 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text_clean = text_clean[len(prefix):].strip()
             break
 
-    # Watson build: request — route to Gemini coder
-    if text_lower.startswith("build:") or text_lower.startswith("watson build:"):
-        from jobs.dev.gemini_coder import request_build
-        description = re.sub(r'^(?:watson\s+)?build:\s*', '', text_clean, flags=re.IGNORECASE).strip()
-        await update.message.reply_text("Sending to Gemini...")
-        loop = asyncio.get_event_loop()
-        await loop.run_in_executor(None, request_build, description)
-        log.info("DEBUG pre-check: build: command")
-        return
-
-    # Watson debug: request — route to Gemini debugger
-    if text_lower.startswith("debug:") or text_lower.startswith("watson debug:"):
-        from jobs.dev.gemini_coder import request_debug
-        description = re.sub(r'^(?:watson\s+)?debug:\s*', '', text_clean, flags=re.IGNORECASE).strip()
-        await update.message.reply_text("Sending to Gemini debugger...")
-        loop = asyncio.get_event_loop()
-        await loop.run_in_executor(None, request_debug, description)
-        log.info("DEBUG pre-check: debug: command")
-        return
-
     # KB query — kb: <question> routes directly to ask engine
     if text_lower.startswith("kb:"):
         kb_query = text_clean[3:].strip()
@@ -586,25 +566,6 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             await update.message.reply_text("What would you like to search in the knowledge base?")
         log.info("DEBUG pre-check: kb: query")
-        return
-
-    # apply/cancel gemini build
-    _apply_match = re.match(r'^apply\s+(\d+)$', text_lower)
-    _cancel_match = re.match(r'^cancel\s+(\d+)$', text_lower)
-    if _apply_match:
-        from jobs.dev.gemini_coder import apply_build
-        build_id = int(_apply_match.group(1))
-        await update.message.reply_text(f"Applying build {build_id}...")
-        loop = asyncio.get_event_loop()
-        await loop.run_in_executor(None, apply_build, build_id)
-        log.info("DEBUG pre-check: apply build")
-        return
-    if _cancel_match:
-        from jobs.dev.gemini_coder import cancel_build
-        build_id = int(_cancel_match.group(1))
-        loop = asyncio.get_event_loop()
-        await loop.run_in_executor(None, cancel_build, build_id)
-        log.info("DEBUG pre-check: cancel build")
         return
 
     # Build pipeline — natural language trigger "build <request>" (no colon)
@@ -624,6 +585,13 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if text.startswith("\U0001f4d8 TO FACEBOOK"):
         await _handle_facebook_share(update, text)
         log.info("DEBUG pre-check: facebook share")
+        return
+
+    # Writing Room commands
+    if text_lower.startswith("room "):
+        reply = await _handle_room_command(text_lower[5:].strip(), text_clean[5:].strip())
+        await update.message.reply_text(reply)
+        log.info("DEBUG pre-check: room command")
         return
 
     chat_id = update.effective_chat.id
@@ -2073,6 +2041,114 @@ async def handle_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
+async def _handle_room_command(cmd: str, cmd_raw: str) -> str:
+    """Handle 'room <cmd>' text commands from William."""
+    import sqlite3 as _sqlite3
+    _DB = os.path.expanduser("~/watson/data/watson.db")
+
+    def _conn():
+        c = _sqlite3.connect(_DB)
+        c.row_factory = _sqlite3.Row
+        return c
+
+    if cmd == "partners":
+        with _conn() as c:
+            rows = c.execute(
+                "SELECT name, email, joined_at FROM writing_room_partners "
+                "WHERE status = 'active' ORDER BY joined_at ASC"
+            ).fetchall()
+        if not rows:
+            return "No active Writing Room partners."
+        lines = [f"{r['name']} — {r['email']} (joined {(r['joined_at'] or '')[:10]})" for r in rows]
+        return f"Writing Room Partners ({len(rows)}):\n\n" + "\n".join(lines)
+
+    if cmd == "pending":
+        with _conn() as c:
+            rows = c.execute(
+                "SELECT id, name, email, created_at FROM writing_room_partners "
+                "WHERE status = 'pending' ORDER BY created_at ASC"
+            ).fetchall()
+        if not rows:
+            return "No pending Writing Room applications."
+        lines = [f"#{r['id']} {r['name']} — {r['email']}" for r in rows]
+        return f"Pending applications ({len(rows)}):\n\n" + "\n".join(lines)
+
+    if cmd.startswith("message "):
+        try:
+            msg_n = int(cmd.split()[1])
+        except (IndexError, ValueError):
+            return "Usage: room message [N]"
+        with _conn() as c:
+            row = c.execute(
+                "SELECT * FROM writing_room_messages WHERE id = ?", (msg_n,)
+            ).fetchone()
+        if not row:
+            return f"Message #{msg_n} not found."
+        return f"From: {row['name']} ({row['email']})\n\n{row['message']}"
+
+    if cmd.startswith("revoke "):
+        email = cmd_raw.split(None, 1)[1].strip() if " " in cmd_raw else ""
+        if not email:
+            return "Usage: room revoke [email]"
+        with _conn() as c:
+            row = c.execute(
+                "SELECT name FROM writing_room_partners WHERE email = ?", (email,)
+            ).fetchone()
+            if not row:
+                return f"No partner found with email {email}"
+            c.execute(
+                "UPDATE writing_room_partners SET status = 'revoked' WHERE email = ?", (email,)
+            )
+        return f"🚫 {row['name']} ({email}) revoked."
+
+    if cmd.startswith("call "):
+        # room call [title] [datetime] [url]
+        parts = cmd_raw.split(None, 3)
+        if len(parts) < 3:
+            return "Usage: room call [title] [ISO-datetime] [meeting-url]"
+        _, title, scheduled_at, *rest = parts
+        meeting_url = rest[0] if rest else None
+        with _conn() as c:
+            cursor = c.execute(
+                "INSERT INTO writing_room_calls (title, scheduled_at, meeting_url) VALUES (?, ?, ?)",
+                (title, scheduled_at, meeting_url),
+            )
+        return f"📅 Call scheduled: {title} at {scheduled_at} (id {cursor.lastrowid})"
+
+    return f"Unknown room command: {cmd}\n\nAvailable: partners, pending, call, message [N], revoke [email]"
+
+
+async def handle_room_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle room_approve: and room_deny: inline button presses."""
+    query = update.callback_query
+    await query.answer()
+
+    if not _is_authorized(update):
+        return
+
+    import threading
+
+    if query.data.startswith("room_approve:"):
+        partner_id = int(query.data.split(":", 1)[1])
+        await query.edit_message_text("⏳ Approving…")
+        from jobs.writing_room.onboard import process_approval
+
+        def _approve():
+            try:
+                process_approval(partner_id)
+            except Exception as exc:
+                log.error("room_approve failed for %d: %s", partner_id, exc)
+
+        threading.Thread(target=_approve, daemon=True).start()
+        await query.edit_message_text("✅ Approval in progress — welcome email sending.", reply_markup=None)
+
+    elif query.data.startswith("room_deny:"):
+        partner_id = int(query.data.split(":", 1)[1])
+        from jobs.writing_room.onboard import process_denial
+        process_denial(partner_id)
+        await query.edit_message_text("🚫 Denied.", reply_markup=None)
+
+
 async def handle_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -2297,6 +2373,7 @@ def main():
     app.add_handler(CallbackQueryHandler(handle_command_callback, pattern=r"^cmd_"))
     app.add_handler(CallbackQueryHandler(handle_acquire_callback, pattern=r"^acquire_"))
     app.add_handler(CallbackQueryHandler(handle_reject_callback, pattern=r"^reject:"))
+    app.add_handler(CallbackQueryHandler(handle_room_callback, pattern=r"^room_(?:approve|deny):"))
     app.add_handler(CallbackQueryHandler(handle_facebook_callback, pattern=r"^fb_"))
     app.add_handler(CallbackQueryHandler(handle_email_callback, pattern=r"^email_"))
     app.add_handler(CallbackQueryHandler(handle_book_callback, pattern=r"^book_"))

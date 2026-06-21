@@ -108,7 +108,7 @@
       "module": "jobs.research.gemini_fetch",
       "function": "run",
       "interfaces": ["telegram", "dashboard"],
-      "status": "ready"
+      "status": "disabled"
     },
     {
       "slug": "news_search",
@@ -413,10 +413,10 @@
       "description": "Blocks out the rest of today or X hours, reschedules all affected appointments to next available slot, and notifies guests by email.",
       "category": "Core",
       "triggers": ["block out", "clear the day", "clear my day", "push all", "push my appointments", "pastoral override"],
-      "module": "jobs.calendar.clear_day",
+      "module": "jobs.gcal.clear_day",
       "function": "run",
       "interfaces": ["telegram", "dashboard"],
-      "status": "ready"
+      "status": "disabled"
     },
     {
       "slug": "book_appointment",
