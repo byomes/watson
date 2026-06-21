@@ -310,17 +310,16 @@ def get_messages():
 def list_partners():
     status_filter = request.args.get("status")
     conn = get_db()
+    _cols = "id, name, email, username, status, joined_at, last_active, why_join, faith_description, agreed_to_participate, created_at"
     try:
         if status_filter:
             rows = conn.execute(
-                "SELECT id, name, email, username, status, joined_at, last_active, why_join "
-                "FROM writing_room_partners WHERE status = ? ORDER BY created_at DESC",
+                f"SELECT {_cols} FROM writing_room_partners WHERE status = ? ORDER BY created_at DESC",
                 (status_filter,),
             ).fetchall()
         else:
             rows = conn.execute(
-                "SELECT id, name, email, username, status, joined_at, last_active, why_join "
-                "FROM writing_room_partners ORDER BY joined_at DESC"
+                f"SELECT {_cols} FROM writing_room_partners ORDER BY created_at DESC"
             ).fetchall()
         return jsonify([dict(r) for r in rows]), 200
     finally:
