@@ -32,3 +32,4 @@ config/credentials.json
 config/token.json
 *.csv
 import_connect_cards.py
+*.deb
