@@ -60,6 +60,9 @@ _SKILL_PRE_CHECKS: dict[str, tuple] = {
         "book an appointment", "schedule an appointment",
         "book a meeting", "schedule a meeting",
     ),
+    "kb": (
+        "kb:",
+    ),
     "web_search": (
         "search the web", "web search",
     ),

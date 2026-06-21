@@ -78,13 +78,13 @@
       "status": "ready"
     },
     {
-      "slug": "kb_search",
-      "name": "KB Search",
-      "description": "Search personal notes, sermons, and documents.",
+      "slug": "kb",
+      "name": "KB Ask",
+      "description": "Query sermon transcripts and documents via ChromaDB.",
       "category": "Research",
-      "triggers": ["search kb", "search my notes", "search my sermons", "what have i said about", "what did i preach on", "find in my notes"],
-      "module": "jobs.skills.kb_search",
-      "function": "run",
+      "triggers": ["kb:", "search kb", "search my notes", "search my sermons", "what have i said about", "what did i preach on", "find in my notes"],
+      "module": "jobs.ask",
+      "function": "ask",
       "interfaces": ["telegram", "dashboard"],
       "status": "ready"
     },

@@ -574,6 +574,20 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         log.info("DEBUG pre-check: debug: command")
         return
 
+    # KB query — kb: <question> routes directly to ask engine
+    if text_lower.startswith("kb:"):
+        kb_query = text_clean[3:].strip()
+        if kb_query:
+            await update.message.reply_text("Searching knowledge base...")
+            loop = asyncio.get_event_loop()
+            kb_result = await loop.run_in_executor(None, ask, kb_query)
+            await update.message.reply_text(kb_result)
+            _log_telegram_exchange(text_clean, kb_result)
+        else:
+            await update.message.reply_text("What would you like to search in the knowledge base?")
+        log.info("DEBUG pre-check: kb: query")
+        return
+
     # apply/cancel gemini build
     _apply_match = re.match(r'^apply\s+(\d+)$', text_lower)
     _cancel_match = re.match(r'^cancel\s+(\d+)$', text_lower)
