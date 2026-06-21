@@ -10,6 +10,7 @@ Supports both single-item replies ("skip" / free text) and consolidated
 numbered replies ("1: skip\n2: Met with Dave, notes here").
 """
 
+import asyncio
 import difflib
 import logging
 import re
@@ -23,6 +24,19 @@ from jobs.pastoral_notes.db import get_db
 log = logging.getLogger(__name__)
 
 _FUZZY_THRESHOLD = 0.6
+_OLLAMA_URL = "http://localhost:11434/api/generate"
+_OLLAMA_MODEL = "llama3.2:3b"
+_TASK_PROMPT = (
+    "Extract any action items or follow-up tasks from these meeting notes. "
+    "Return only a simple numbered list of tasks, one per line. "
+    "If there are no action items, return nothing at all."
+)
+_NUM_PREFIX_RE = re.compile(r'^\s*\d+[.)]\s*')
+_NUMBERED_LINE_RE = re.compile(r'^(\d+):\s*(.+)$')
+
+# Tracks ambiguous matches waiting for yes/no confirmation.
+# Keyed by event_id → {"candidates": [...], "note_text": str}
+_pending_confirmations: dict[str, dict] = {}
 
 
 def _append_skip_keyword(title: str) -> None:
@@ -30,11 +44,6 @@ def _append_skip_keyword(title: str) -> None:
     keyword = title.strip().lower()
     with open(path, "a") as f:
         f.write(f"\n{keyword}")
-_NUMBERED_LINE_RE = re.compile(r'^(\d+):\s*(.+)$')
-
-# Tracks ambiguous matches waiting for yes/no confirmation.
-# Keyed by event_id → {"candidates": [...], "note_text": str}
-_pending_confirmations: dict[str, dict] = {}
 
 
 def _send_telegram(text: str) -> None:
@@ -115,8 +124,59 @@ def _parse_numbered_reply(reply_text: str) -> list[tuple[int, str]] | None:
     return parsed if parsed else None
 
 
-def _process_note_text(row: dict, note_text: str) -> None:
-    """Fuzzy-match and store (or queue confirmation for) a single note."""
+def _ollama_generate(note_text: str) -> str:
+    prompt = f"{_TASK_PROMPT}\n\nNotes:\n{note_text}"
+    resp = requests.post(
+        _OLLAMA_URL,
+        json={"model": _OLLAMA_MODEL, "prompt": prompt, "stream": False},
+        timeout=60,
+    )
+    resp.raise_for_status()
+    return resp.json().get("response", "").strip()
+
+
+def _parse_tasks(raw: str) -> list[str]:
+    tasks = []
+    for line in raw.splitlines():
+        line = _NUM_PREFIX_RE.sub("", line).strip()
+        if line:
+            tasks.append(line)
+    return tasks
+
+
+def _save_tasks(tasks: list[str], appointment_title: str) -> None:
+    with get_db() as conn:
+        conn.executemany(
+            """INSERT INTO tasks (title, priority, status, source, person)
+               VALUES (?, 'medium', 'active', 'pastoral_notes', ?)""",
+            [(t, appointment_title) for t in tasks],
+        )
+
+
+async def _maybe_extract_tasks(note_text: str, appointment_title: str) -> None:
+    try:
+        raw = await asyncio.to_thread(_ollama_generate, note_text)
+    except Exception as exc:
+        log.warning("Ollama task extraction failed: %s", exc)
+        return
+
+    tasks = _parse_tasks(raw)
+    if not tasks:
+        return
+
+    try:
+        _save_tasks(tasks, appointment_title)
+    except Exception as exc:
+        log.warning("Failed to save extracted tasks: %s", exc)
+        return
+
+    task_list = "\n".join(f"• {t}" for t in tasks)
+    _send_telegram(f"📋 Tasks saved:\n{task_list}")
+    log.info("Saved %d task(s) from notes for %s.", len(tasks), appointment_title)
+
+
+async def _process_note_text(row: dict, note_text: str) -> None:
+    """Fuzzy-match, store, and extract tasks for a single note."""
     pending_id = row["id"]
     event_id = row["event_id"]
     appointment_title = row["appointment_title"]
@@ -141,14 +201,17 @@ def _process_note_text(row: dict, note_text: str) -> None:
             "appointment_time": appointment_time,
         }
         _send_telegram(f"Is this about {top['name']}? Reply yes or no.")
+        return  # Don't extract tasks yet — wait for confirmation
 
     else:
         _store_note(event_id, appointment_title, appointment_time, note_text, None)
         _mark_complete(pending_id)
         _send_telegram("Note stored.")
 
+    await _maybe_extract_tasks(note_text, appointment_title)
 
-def _handle_numbered_reply(parsed: list[tuple[int, str]]) -> None:
+
+async def _handle_numbered_reply(parsed: list[tuple[int, str]]) -> None:
     """Route each numbered line to the corresponding pending row by position."""
     pending_rows = _get_all_pending()
     if not pending_rows:
@@ -164,10 +227,10 @@ def _handle_numbered_reply(parsed: list[tuple[int, str]]) -> None:
         if text.lower() == "skip":
             _mark_dismissed(row["id"])
         else:
-            _process_note_text(row, text)
+            await _process_note_text(row, text)
 
 
-def handle_confirmation_reply(reply_text: str, event_id: str) -> bool:
+async def handle_confirmation_reply(reply_text: str, event_id: str) -> bool:
     """
     Handle a yes/no reply for an ambiguous name match.
     Returns True if this was a confirmation reply (consumed), False otherwise.
@@ -196,22 +259,24 @@ def handle_confirmation_reply(reply_text: str, event_id: str) -> bool:
         _mark_complete(pending_id)
         _send_telegram("Note stored.")
 
+    await _maybe_extract_tasks(note_text, appointment_title)
     return True
 
 
-def handle_notes_reply(reply_text: str) -> None:
+async def handle_notes_reply(reply_text: str) -> None:
     """Entry point called by the bot for any incoming text while a notes_pending row is active."""
-    # Check if this is a yes/no response to any pending ambiguous match
     lower = reply_text.strip().lower()
+
+    # Check if this is a yes/no response to any pending ambiguous match
     if lower in ("yes", "no") and _pending_confirmations:
         event_id = next(iter(_pending_confirmations))
-        if handle_confirmation_reply(reply_text, event_id):
+        if await handle_confirmation_reply(reply_text, event_id):
             return
 
     # Check for consolidated numbered reply (e.g. "1: skip\n2: notes text")
     parsed = _parse_numbered_reply(reply_text)
     if parsed:
-        _handle_numbered_reply(parsed)
+        await _handle_numbered_reply(parsed)
         return
 
     # Single-row fallback
@@ -222,9 +287,8 @@ def handle_notes_reply(reply_text: str) -> None:
     pending_id = pending["id"]
     event_id = pending["event_id"]
     appointment_title = pending["appointment_title"]
-    appointment_time = pending["appointment_time"]
 
-    if handle_confirmation_reply(reply_text, event_id):
+    if await handle_confirmation_reply(reply_text, event_id):
         return
 
     if lower == "skip":
@@ -237,4 +301,4 @@ def handle_notes_reply(reply_text: str) -> None:
         _send_telegram(f'Got it — I\'ll never ask for notes on "{appointment_title}" again.')
         return
 
-    _process_note_text(dict(pending), reply_text)
+    await _process_note_text(dict(pending), reply_text)

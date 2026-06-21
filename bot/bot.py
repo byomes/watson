@@ -622,8 +622,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ).fetchone()
     if _pending_note:
         from jobs.pastoral_notes.handler import handle_notes_reply
-        loop = asyncio.get_event_loop()
-        await loop.run_in_executor(None, handle_notes_reply, text_clean)
+        await handle_notes_reply(text_clean)
         log.info("DEBUG pre-check: pastoral notes reply")
         return
 
@@ -1365,8 +1364,7 @@ async def _route_tg_pending_reply(
 
     if action_type == "pastoral_note":
         from jobs.pastoral_notes.handler import handle_notes_reply
-        loop = asyncio.get_event_loop()
-        await loop.run_in_executor(None, handle_notes_reply, text)
+        await handle_notes_reply(text)
         mark_done(pending_id)
         return True
 

@@ -37,6 +37,12 @@ def create_tables():
                 FOREIGN KEY (person_id) REFERENCES people(id)
             )
         """)
+        # Add source/person to tasks if missing (columns added for pastoral note extraction)
+        existing = {row[1] for row in conn.execute("PRAGMA table_info(tasks)").fetchall()}
+        if "source" not in existing:
+            conn.execute("ALTER TABLE tasks ADD COLUMN source TEXT")
+        if "person" not in existing:
+            conn.execute("ALTER TABLE tasks ADD COLUMN person TEXT")
 
 
 create_tables()

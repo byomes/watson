@@ -109,7 +109,7 @@ def run() -> None:
 
         msg = (
             f"You just met with {title}. "
-            f"Any notes to store? Reply with your notes, or reply 'skip' to dismiss."
+            f"Reply with your notes and any action items — Watson will save your notes and extract tasks automatically."
         )
         tg_msg_id = _send_telegram(msg)
         if tg_msg_id and notes_id:
