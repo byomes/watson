@@ -94,10 +94,9 @@ def _store_note(event_id: str, appointment_title: str, appointment_time: str,
                 note_text: str, person_id: int | None) -> None:
     with get_db() as conn:
         conn.execute(
-            """INSERT INTO pastoral_notes
-               (person_id, event_id, appointment_title, appointment_time, note_text, created_at)
-               VALUES (?, ?, ?, ?, ?, datetime('now'))""",
-            (person_id, event_id, appointment_title, appointment_time, note_text),
+            """INSERT INTO pastoral_notes (person_name, note, status)
+               VALUES (?, ?, 'active')""",
+            (appointment_title, note_text),
         )
 
 
