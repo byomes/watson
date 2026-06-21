@@ -2,6 +2,9 @@
 data/watson.db
 data/archive/
 data/qr/
+data/chroma/
+data/congregation.db
+data/donors.db
 __pycache__/
 *.pyc
 .claude/settings.local.json
