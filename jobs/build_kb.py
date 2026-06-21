@@ -5,7 +5,7 @@ from chromadb.utils import embedding_functions
 
 log = logging.getLogger(__name__)
 BASE_DIR = Path(__file__).resolve().parent.parent
-TRANSCRIPTS_DIR = BASE_DIR / 'kb' / 'transcripts'
+TRANSCRIPTS_DIR = BASE_DIR / 'kb' / 'documents'
 CHROMA_DIR = BASE_DIR / 'data' / 'chroma'
 CHUNK_SIZE = 500
 CHUNK_OVERLAP = 50
@@ -23,9 +23,9 @@ def chunk_text(text, size=CHUNK_SIZE, overlap=CHUNK_OVERLAP):
 def ingest():
     files = list(TRANSCRIPTS_DIR.glob('*.txt')) + list(TRANSCRIPTS_DIR.glob('*.md'))
     if not files:
-        log.error('No transcript files found')
+        log.error('No document files found')
         return
-    log.info('Found %d transcript files', len(files))
+    log.info('Found %d document files', len(files))
     client = chromadb.PersistentClient(path=str(CHROMA_DIR))
     ef = embedding_functions.SentenceTransformerEmbeddingFunction(model_name='all-MiniLM-L6-v2')
     collection = client.get_or_create_collection(name='sermons', embedding_function=ef, metadata={'hnsw:space': 'cosine'})
