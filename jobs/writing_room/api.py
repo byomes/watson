@@ -41,7 +41,6 @@ def _require_key(f):
 # ── Login ─────────────────────────────────────────────────────────────────────
 
 @writing_room_bp.route("/api/writing-room/login", methods=["POST"])
-@_require_key
 def login():
     data     = request.get_json(force=True)
     username = (data.get("username") or "").strip()
@@ -51,9 +50,6 @@ def login():
         return jsonify({"error": "username and password required"}), 400
 
     # Admin bypass — check before hitting the DB
-    log.warning("LOGIN attempt: username=%r", username)
-    log.warning("ADMIN_USER env: %r", os.getenv("WRITING_ROOM_ADMIN_USER"))
-    log.warning("ADMIN_PASS set: %s", bool(os.getenv("WRITING_ROOM_ADMIN_PASS")))
     admin_user      = os.getenv("WRITING_ROOM_ADMIN_USER", "")
     admin_pass_hash = os.getenv("WRITING_ROOM_ADMIN_PASS", "")
     if admin_user and admin_pass_hash and username == admin_user:
