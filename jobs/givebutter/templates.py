@@ -8,16 +8,17 @@ def first_gift_email(donor_name: str, amount: float) -> tuple[str, str]:
     html_body = f"""\
 <p>Dear {first_name},</p>
 
-<p>I want to personally thank you for your gift of ${amount:.2f} to Faith Makes Sense. \
-This isn't a small thing — your generosity makes it possible for us to help people think \
-clearly about faith and engage the hard questions honestly.</p>
+<p>Thank you for your gift of ${amount:.2f} to Faith Makes Sense. We're grateful — \
+generosity like yours is what makes this ministry possible.</p>
 
-<p>Too many believers feel unprepared when doubt or difficult conversations arise. \
-Faith Makes Sense exists to change that, and your gift is part of why we can. \
-Welcome to something I believe matters deeply.</p>
+<p>Faith Makes Sense exists to help people think clearly about faith, engage hard questions \
+honestly, and find that belief and reason belong together. Your support puts that work in \
+front of people who need it.</p>
 
-<p>With genuine gratitude,<br>
-Dr. Bill Yomes<br>
+<p>Welcome to the FMS community. We're glad you're with us.</p>
+
+<p>With gratitude,<br>
+The FMS Team<br>
 Faith Makes Sense</p>"""
     return subject, html_body
 
@@ -29,16 +30,15 @@ def repeat_gift_email(donor_name: str, amount: float, gift_count: int) -> tuple[
     html_body = f"""\
 <p>Dear {first_name},</p>
 
-<p>This is your {_ordinal(gift_count)} gift to Faith Makes Sense, and I don't take that \
-lightly. ${amount:.2f} — thank you. Donors who keep showing up are the reason this work \
-keeps going.</p>
+<p>This is your {_ordinal(gift_count)} gift to Faith Makes Sense — thank you. \
+Your continued support means more than a transaction. It means you believe in what \
+we're doing, and that keeps us going.</p>
 
-<p>People come to us doubting, confused, or simply wanting to think more rigorously about \
-what they believe. Because of you, they don't have to do that alone. That means something \
-real to me, and I hope it does to you too.</p>
+<p>Because of donors like you, we can keep creating resources that help people \
+wrestle honestly with faith. That work matters, and you're part of it.</p>
 
 <p>With deep appreciation,<br>
-Dr. Bill Yomes<br>
+The FMS Team<br>
 Faith Makes Sense</p>"""
     return subject, html_body
 
