@@ -108,8 +108,8 @@ def run() -> None:
         notes_id = _record_pending(event_id, title, appointment_time)
 
         msg = (
-            f"You just met with {title}. "
-            f"Reply with your notes and any action items — Watson will save your notes and extract tasks automatically."
+            f"📝 Meeting with {title} just ended. "
+            f"Reply with your notes and any action items (prefix tasks with '- [ ]' or just list them naturally)."
         )
         tg_msg_id = _send_telegram(msg)
         if tg_msg_id and notes_id:

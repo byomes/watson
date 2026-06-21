@@ -12,6 +12,7 @@ numbered replies ("1: skip\n2: Met with Dave, notes here").
 
 import asyncio
 import difflib
+import json
 import logging
 import re
 from pathlib import Path
@@ -27,11 +28,10 @@ _FUZZY_THRESHOLD = 0.6
 _OLLAMA_URL = "http://localhost:11434/api/generate"
 _OLLAMA_MODEL = "llama3.2:3b"
 _TASK_PROMPT = (
-    "Extract any action items or follow-up tasks from these meeting notes. "
-    "Return only a simple numbered list of tasks, one per line. "
-    "If there are no action items, return nothing at all."
+    "Extract any action items or tasks from the following meeting notes. "
+    "Return only a JSON array of strings, one per task. "
+    "If no tasks found, return an empty array."
 )
-_NUM_PREFIX_RE = re.compile(r'^\s*\d+[.)]\s*')
 _NUMBERED_LINE_RE = re.compile(r'^(\d+):\s*(.+)$')
 
 # Tracks ambiguous matches waiting for yes/no confirmation.
@@ -125,7 +125,7 @@ def _parse_numbered_reply(reply_text: str) -> list[tuple[int, str]] | None:
 
 
 def _ollama_generate(note_text: str) -> str:
-    prompt = f"{_TASK_PROMPT}\n\nNotes:\n{note_text}"
+    prompt = f"{_TASK_PROMPT}\n\nNotes: {note_text}"
     resp = requests.post(
         _OLLAMA_URL,
         json={"model": _OLLAMA_MODEL, "prompt": prompt, "stream": False},
@@ -136,19 +136,20 @@ def _ollama_generate(note_text: str) -> str:
 
 
 def _parse_tasks(raw: str) -> list[str]:
-    tasks = []
-    for line in raw.splitlines():
-        line = _NUM_PREFIX_RE.sub("", line).strip()
-        if line:
-            tasks.append(line)
-    return tasks
+    try:
+        tasks = json.loads(raw)
+        if isinstance(tasks, list):
+            return [str(t).strip() for t in tasks if str(t).strip()]
+    except (json.JSONDecodeError, ValueError):
+        pass
+    return []
 
 
 def _save_tasks(tasks: list[str], appointment_title: str) -> None:
     with get_db() as conn:
         conn.executemany(
             """INSERT INTO tasks (title, priority, status, source, person)
-               VALUES (?, 'medium', 'active', 'pastoral_notes', ?)""",
+               VALUES (?, 'medium', 'pending', 'pastoral_notes', ?)""",
             [(t, appointment_title) for t in tasks],
         )
 
