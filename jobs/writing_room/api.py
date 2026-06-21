@@ -50,6 +50,19 @@ def login():
     if not (username and password):
         return jsonify({"error": "username and password required"}), 400
 
+    # Admin bypass — check before hitting the DB
+    admin_user      = os.getenv("WRITING_ROOM_ADMIN_USER", "")
+    admin_pass_hash = os.getenv("WRITING_ROOM_ADMIN_PASS", "")
+    if admin_user and admin_pass_hash and username == admin_user:
+        if bcrypt.checkpw(password.encode(), admin_pass_hash.encode()):
+            return jsonify({
+                "partnerId": 0,
+                "username": admin_user,
+                "name": "Dr. Bill",
+                "isAdmin": True,
+            }), 200
+        return jsonify({"error": "invalid credentials"}), 401
+
     conn = get_db()
     try:
         row = conn.execute(
