@@ -41,35 +41,35 @@ def run(message: str = None) -> str:
         display_name = member["name"]
         campus = member["campus_preference"] or "Not on record"
 
-        # 2. Last 3 distinct service dates in attendance table overall
+        # 2. Last 4 distinct service dates in attendance table overall
         recent_dates = [
             row["service_date"]
             for row in conn.execute(
                 "SELECT DISTINCT service_date FROM attendance"
-                " ORDER BY service_date DESC LIMIT 3"
+                " ORDER BY service_date DESC LIMIT 4"
             ).fetchall()
         ]
 
-        # 3. Attendance for this member on those dates
+        # 3. Attendance for this member on those dates, with campus
         attended = {
-            row["service_date"]
+            row["service_date"]: row["campus"]
             for row in conn.execute(
-                "SELECT service_date FROM attendance WHERE member_id = ?",
+                "SELECT service_date, campus FROM attendance WHERE member_id = ?",
                 (member_id,),
             ).fetchall()
         }
         if recent_dates:
             attendance_lines = [
-                f"- {d} — {'Present' if d in attended else 'Absent'}"
+                f"- {d} — Present ({attended[d]})" if d in attended else f"- {d} — Absent"
                 for d in recent_dates
             ]
         else:
             attendance_lines = []
 
-        # 4. Connect cards (last 21 days)
+        # 4. Connect cards (last 28 days)
         cards = conn.execute(
             "SELECT service_date, questions_comments FROM connect_cards"
-            " WHERE member_id = ? AND service_date >= date('now', '-21 days')"
+            " WHERE member_id = ? AND service_date >= date('now', '-28 days')"
             " ORDER BY service_date DESC",
             (member_id,),
         ).fetchall()
@@ -79,10 +79,10 @@ def run(message: str = None) -> str:
             if r["questions_comments"] and r["questions_comments"].strip()
         ]
 
-        # 5. Prayer requests (last 21 days)
+        # 5. Prayer requests (last 28 days)
         prayers = conn.execute(
             "SELECT date, request_text FROM prayer_requests"
-            " WHERE member_id = ? AND date >= date('now', '-21 days')"
+            " WHERE member_id = ? AND date >= date('now', '-28 days')"
             " ORDER BY date DESC",
             (member_id,),
         ).fetchall()
@@ -92,10 +92,10 @@ def run(message: str = None) -> str:
             if r["request_text"] and r["request_text"].strip()
         ]
 
-        # 6. Next steps (last 21 days)
+        # 6. Next steps (last 28 days)
         steps = conn.execute(
             "SELECT date, step FROM next_steps"
-            " WHERE member_id = ? AND date >= date('now', '-21 days')"
+            " WHERE member_id = ? AND date >= date('now', '-28 days')"
             " ORDER BY date DESC",
             (member_id,),
         ).fetchall()
@@ -112,13 +112,13 @@ def run(message: str = None) -> str:
     parts = [
         f"*{display_name} — Pastoral Summary*\n",
         f"*Campus:* {campus}\n",
-        "*Attendance (last 3 weeks):*",
+        "*Attendance (last 4 weeks):*",
         "\n".join(attendance_lines) if attendance_lines else none,
-        "\n*Connect Card Activity (last 3 weeks):*",
+        "\n*Connect Card Activity (last 4 weeks):*",
         "\n".join(card_lines) if card_lines else none,
-        "\n*Prayer Requests (last 3 weeks):*",
+        "\n*Prayer Requests (last 4 weeks):*",
         "\n".join(prayer_lines) if prayer_lines else none,
-        "\n*Next Steps (last 3 weeks):*",
+        "\n*Next Steps (last 4 weeks):*",
         "\n".join(step_lines) if step_lines else none,
     ]
     return "\n".join(parts)

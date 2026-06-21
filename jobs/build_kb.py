@@ -1,4 +1,4 @@
-﻿import logging
+import logging
 from pathlib import Path
 import chromadb
 from chromadb.utils import embedding_functions

@@ -441,9 +441,8 @@ Active skills:
 ### Active Bugs
 1. `ingest_drafts.py` cron — missing `PYTHONPATH` on that specific entry (global is set but verify)
 2. `kb/transcripts` gitignored — transcript archiving falsely reports success, sends broken URL via Telegram
-3. `/draft` page UI copy — still says "Pushing to GitHub…", should say "Queuing…"
-4. Facebook post structure — excerpt needs 2 sentences max + hashtags
-5. `.btn-save` CSS — may still render blue on Vercel briefing
+3. Facebook post structure — excerpt needs 2 sentences max + hashtags
+4. `.btn-save` CSS — may still render blue on Vercel briefing
 
 ### Resolved Today (June 13, 2026)
 - ✅ Full build pipeline live — `build [request]` in Telegram triggers end-to-end autonomous build
