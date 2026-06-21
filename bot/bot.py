@@ -176,7 +176,7 @@ def _gb_send_kit_email(to_email: str, subject: str, html_body: str) -> None:
     from email.mime.text import MIMEText
 
     msg = MIMEMultipart("alternative")
-    msg["From"] = "Dr. Bill Yomes <watson.wcky@gmail.com>"
+    msg["From"] = "Dr. Bill Yomes <watson@faithmakessense.com>"
     msg["To"] = to_email
     msg["Subject"] = subject
     msg.attach(MIMEText(html_body, "html"))
@@ -184,7 +184,7 @@ def _gb_send_kit_email(to_email: str, subject: str, html_body: str) -> None:
     with smtplib.SMTP("smtp.gmail.com", 587) as smtp:
         smtp.starttls()
         smtp.login(_GMAIL_USER, _GMAIL_APP_PASSWORD)
-        smtp.sendmail("watson.wcky@gmail.com", to_email, msg.as_string())
+        smtp.sendmail("watson@faithmakessense.com", to_email, msg.as_string())
     print(f"Gmail SMTP: sent to {to_email} — subject: {subject}")
 
 
