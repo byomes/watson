@@ -1,6 +1,6 @@
 """
 Sends follow-up reminders for notes_pending rows that have gone unanswered,
-then expires rows that were reminded but still unanswered after another 2 hours.
+then expires rows that were reminded but still unanswered after another 24 hours.
 Run on a cron every ~30 minutes.
 """
 
@@ -27,12 +27,12 @@ def _send_telegram(text: str) -> int | None:
 
 def run() -> None:
     with get_db() as conn:
-        # Rows pending > 2 hours with no reminder yet → trigger condition
+        # Rows pending > 24 hours with no reminder yet → trigger condition
         to_remind = conn.execute(
             """SELECT id FROM notes_pending
                WHERE status = 'pending'
                  AND reminded_at IS NULL
-                 AND prompted_at <= datetime('now', '-2 hours')"""
+                 AND prompted_at <= datetime('now', '-24 hours')"""
         ).fetchall()
 
         if to_remind:
@@ -75,13 +75,13 @@ def run() -> None:
                 )
             log.info("Sent consolidated reminder for %d pending note(s)", len(all_pending))
 
-        # Rows already reminded > 2 hours ago with no response → expire
+        # Rows already reminded > 24 hours ago with no response → expire
         to_expire = conn.execute(
             """SELECT id, appointment_title
                FROM notes_pending
                WHERE status = 'pending'
                  AND reminded_at IS NOT NULL
-                 AND reminded_at <= datetime('now', '-2 hours')"""
+                 AND reminded_at <= datetime('now', '-24 hours')"""
         ).fetchall()
 
         for row in to_expire:
