@@ -1,18 +1,16 @@
-"""jobs/writing_room/onboard.py — signup alerting, approval/denial, welcome email, Kit tag."""
-import hashlib
+"""jobs/writing_room/onboard.py — signup alerting, approval/denial, verification email, Kit tag."""
 import logging
 import os
 import sys
 from datetime import datetime
 from pathlib import Path
 
-import bcrypt
 import requests
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from jobs.writing_room import (
-    bootstrap_db, generate_password, generate_username, get_db, send_email, send_telegram,
+    bootstrap_db, generate_username, get_db, send_email, send_telegram,
 )
 
 log = logging.getLogger(__name__)
@@ -56,7 +54,10 @@ def alert_new_application(partner_id: int) -> None:
 
 
 def process_approval(partner_id: int) -> None:
-    """Generate credentials, send welcome email, tag in Kit, mark welcome_sent."""
+    """Assign username, send verification email, set status=approved, mark welcome_sent."""
+    import secrets as _secrets
+    from datetime import timedelta
+
     conn = get_db()
     try:
         row = conn.execute(
@@ -67,21 +68,23 @@ def process_approval(partner_id: int) -> None:
 
         first_name = row["name"].split()[0]
         username   = generate_username(first_name)
-        password   = generate_password()
-        pw_hash    = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
-        joined_at  = datetime.utcnow().isoformat()
+        token      = _secrets.token_urlsafe(32)
+        expires_at = (datetime.utcnow() + timedelta(hours=72)).isoformat()
 
         conn.execute(
+            "INSERT INTO writing_room_verify_tokens (partner_id, token, expires_at) VALUES (?, ?, ?)",
+            (partner_id, token, expires_at),
+        )
+        conn.execute(
             "UPDATE writing_room_partners "
-            "SET username = ?, password_hash = ?, status = 'active', joined_at = ?, welcome_sent = 1 "
+            "SET username = ?, status = 'approved', welcome_sent = 1 "
             "WHERE id = ?",
-            (username, pw_hash, joined_at, partner_id),
+            (username, partner_id),
         )
         conn.commit()
 
-        _send_welcome_email(row["email"], first_name, username, password)
-        _kit_tag(row["email"], first_name)
-        send_telegram(f"✅ {row['name']} is now a Writing Room Partner.")
+        send_verification_email(row["email"], first_name, token)
+        send_telegram(f"✅ {row['name']} approved. Verification email sent to {row['email']}.")
     finally:
         conn.close()
 
@@ -102,28 +105,26 @@ def process_denial(partner_id: int) -> None:
         conn.close()
 
 
-def _send_welcome_email(email: str, first_name: str, username: str, password: str) -> None:
-    subject = "You're in — Welcome to the Writing Room"
+def send_verification_email(email: str, first_name: str, token: str) -> None:
+    subject = "You're in — verify your email to access the Writing Room"
+    verify_url = f"williamckyomes.com/room/verify?token={token}"
     body = f"""Hi {first_name},
 
-Dr. Bill approved your Writing Room access. Here's everything you need to get in:
+Dr. Bill approved your Writing Room application.
 
-  URL: {_ROOM_URL}
-  Username: {username}
-  Password: {password}
+One step left — verify your email and set your password:
 
-Log in and change your password once you're in.
+{verify_url}
 
-A few things waiting for you:
-- The community board — introduce yourself
-- Beta chapters — your feedback shapes the book
-- The prayer wall — we pray for each other here
-- Write to Dr. Bill — direct line, no filters
-
-Dr. Bill reads everything. This is a real community.
+This link expires in 72 hours.
 
 — Watson, on behalf of Dr. Bill Yomes"""
     send_email(email, subject, body)
+
+
+def kit_tag_on_activation(email: str, first_name: str) -> None:
+    """Tag partner in Kit when they complete email verification and go active."""
+    _kit_tag(email, first_name)
 
 
 def _kit_tag(email: str, first_name: str) -> None:

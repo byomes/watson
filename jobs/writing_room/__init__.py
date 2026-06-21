@@ -91,14 +91,25 @@ def bootstrap_db() -> None:
                 used       INTEGER DEFAULT 0,
                 created_at TEXT DEFAULT (datetime('now'))
             );
+
+            CREATE TABLE IF NOT EXISTS writing_room_verify_tokens (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                partner_id INTEGER REFERENCES writing_room_partners(id),
+                token      TEXT NOT NULL UNIQUE,
+                expires_at TEXT NOT NULL,
+                used       INTEGER DEFAULT 0,
+                created_at TEXT DEFAULT (datetime('now'))
+            );
         """)
-        try:
-            conn.execute(
-                "ALTER TABLE writing_room_partners ADD COLUMN faith_description TEXT"
-            )
-            conn.commit()
-        except Exception:
-            pass  # column already exists
+        for alter_sql in [
+            "ALTER TABLE writing_room_partners ADD COLUMN faith_description TEXT",
+            "ALTER TABLE writing_room_partners ADD COLUMN status_approved INTEGER DEFAULT 0",
+        ]:
+            try:
+                conn.execute(alter_sql)
+                conn.commit()
+            except Exception:
+                pass  # column already exists
 
 
 def send_telegram(text: str, reply_markup: dict | None = None) -> None:

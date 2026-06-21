@@ -7,7 +7,7 @@ Mount on the Watson dashboard app:
 import logging
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import wraps
 from pathlib import Path
 
@@ -17,7 +17,9 @@ from flask import Blueprint, jsonify, request
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from jobs.writing_room import bootstrap_db, get_db, send_telegram
-from jobs.writing_room.onboard import alert_new_application
+from jobs.writing_room.onboard import (
+    alert_new_application, kit_tag_on_activation, process_approval, process_denial,
+)
 from jobs.writing_room.reset import confirm_reset, request_reset, validate_token
 
 log = logging.getLogger(__name__)
@@ -51,11 +53,15 @@ def login():
     conn = get_db()
     try:
         row = conn.execute(
-            "SELECT id, name, username, password_hash FROM writing_room_partners "
-            "WHERE username = ? AND status = 'active'",
+            "SELECT id, name, username, password_hash, status FROM writing_room_partners "
+            "WHERE username = ?",
             (username,),
         ).fetchone()
         if not row:
+            return jsonify({"error": "invalid credentials"}), 401
+        if row["status"] == "approved":
+            return jsonify({"error": "pending_verification"}), 403
+        if row["status"] != "active":
             return jsonify({"error": "invalid credentials"}), 401
         if not row["password_hash"]:
             return jsonify({"error": "invalid credentials"}), 401
@@ -356,3 +362,175 @@ def reset_confirm():
     if not ok:
         return jsonify({"error": "invalid or expired token"}), 400
     return jsonify({"ok": True}), 200
+
+
+# ── Email Verification ────────────────────────────────────────────────────────
+
+@writing_room_bp.route("/api/writing-room/verify-send", methods=["POST"])
+@_require_key
+def verify_send():
+    import secrets as _secrets
+    data       = request.get_json(force=True)
+    partner_id = data.get("partner_id")
+    if not partner_id:
+        return jsonify({"error": "partner_id required"}), 400
+
+    conn = get_db()
+    try:
+        row = conn.execute(
+            "SELECT name, email FROM writing_room_partners WHERE id = ? AND status = 'approved'",
+            (partner_id,),
+        ).fetchone()
+        if not row:
+            return jsonify({"error": "partner not found or not in approved status"}), 404
+
+        token      = _secrets.token_urlsafe(32)
+        expires_at = (datetime.utcnow() + timedelta(hours=72)).isoformat()
+        conn.execute(
+            "INSERT INTO writing_room_verify_tokens (partner_id, token, expires_at) VALUES (?, ?, ?)",
+            (partner_id, token, expires_at),
+        )
+        conn.commit()
+
+        from jobs.writing_room.onboard import send_verification_email
+        first_name = row["name"].split()[0]
+        send_verification_email(row["email"], first_name, token)
+        return jsonify({"ok": True}), 200
+    finally:
+        conn.close()
+
+
+@writing_room_bp.route("/api/writing-room/verify-validate", methods=["GET"])
+@_require_key
+def verify_validate():
+    token = request.args.get("token", "")
+    if not token:
+        return jsonify({"valid": False}), 200
+
+    conn = get_db()
+    try:
+        row = conn.execute(
+            "SELECT vt.partner_id, vt.expires_at, p.name "
+            "FROM writing_room_verify_tokens vt "
+            "JOIN writing_room_partners p ON vt.partner_id = p.id "
+            "WHERE vt.token = ? AND vt.used = 0",
+            (token,),
+        ).fetchone()
+        if not row:
+            return jsonify({"valid": False}), 200
+        if datetime.utcnow().isoformat() > row["expires_at"]:
+            return jsonify({"valid": False}), 200
+        return jsonify({"valid": True, "partner_id": row["partner_id"], "name": row["name"]}), 200
+    finally:
+        conn.close()
+
+
+@writing_room_bp.route("/api/writing-room/verify-confirm", methods=["POST"])
+@_require_key
+def verify_confirm():
+    data     = request.get_json(force=True)
+    token    = (data.get("token") or "").strip()
+    password = data.get("password") or ""
+
+    if not (token and password):
+        return jsonify({"error": "token and password required"}), 400
+
+    conn = get_db()
+    try:
+        row = conn.execute(
+            "SELECT vt.id, vt.partner_id, vt.expires_at, p.name, p.email "
+            "FROM writing_room_verify_tokens vt "
+            "JOIN writing_room_partners p ON vt.partner_id = p.id "
+            "WHERE vt.token = ? AND vt.used = 0",
+            (token,),
+        ).fetchone()
+        if not row:
+            return jsonify({"error": "invalid or expired token"}), 400
+        if datetime.utcnow().isoformat() > row["expires_at"]:
+            return jsonify({"error": "invalid or expired token"}), 400
+
+        pw_hash   = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+        joined_at = datetime.utcnow().isoformat()
+        conn.execute(
+            "UPDATE writing_room_partners SET password_hash = ?, status = 'active', joined_at = ? "
+            "WHERE id = ?",
+            (pw_hash, joined_at, row["partner_id"]),
+        )
+        conn.execute(
+            "UPDATE writing_room_verify_tokens SET used = 1 WHERE id = ?", (row["id"],)
+        )
+        conn.commit()
+
+        try:
+            first_name = row["name"].split()[0]
+            kit_tag_on_activation(row["email"], first_name)
+        except Exception as exc:
+            log.warning("Kit tag failed for partner %d: %s", row["partner_id"], exc)
+
+        return jsonify({"ok": True}), 200
+    finally:
+        conn.close()
+
+
+# ── Admin Actions ─────────────────────────────────────────────────────────────
+
+@writing_room_bp.route("/api/writing-room/approve", methods=["POST"])
+@_require_key
+def approve():
+    data       = request.get_json(force=True)
+    partner_id = data.get("partner_id")
+    if not partner_id:
+        return jsonify({"error": "partner_id required"}), 400
+    try:
+        process_approval(int(partner_id))
+    except Exception as exc:
+        log.error("Approval failed for partner %s: %s", partner_id, exc)
+        return jsonify({"error": "approval failed"}), 500
+    return jsonify({"ok": True}), 200
+
+
+@writing_room_bp.route("/api/writing-room/deny", methods=["POST"])
+@_require_key
+def deny():
+    data       = request.get_json(force=True)
+    partner_id = data.get("partner_id")
+    if not partner_id:
+        return jsonify({"error": "partner_id required"}), 400
+    try:
+        process_denial(int(partner_id))
+    except Exception as exc:
+        log.error("Denial failed for partner %s: %s", partner_id, exc)
+        return jsonify({"error": "denial failed"}), 500
+    return jsonify({"ok": True}), 200
+
+
+@writing_room_bp.route("/api/writing-room/revoke", methods=["POST"])
+@_require_key
+def revoke():
+    data       = request.get_json(force=True)
+    partner_id = data.get("partner_id")
+    if not partner_id:
+        return jsonify({"error": "partner_id required"}), 400
+    conn = get_db()
+    try:
+        conn.execute(
+            "UPDATE writing_room_partners SET status = 'revoked' WHERE id = ?", (partner_id,)
+        )
+        conn.commit()
+        return jsonify({"ok": True}), 200
+    finally:
+        conn.close()
+
+
+# ── Call delete ───────────────────────────────────────────────────────────────
+
+@writing_room_bp.route("/api/writing-room/call/<int:call_id>", methods=["DELETE"])
+@_require_key
+def delete_call(call_id: int):
+    conn = get_db()
+    try:
+        conn.execute("DELETE FROM writing_room_calls WHERE id = ?", (call_id,))
+        conn.commit()
+        return jsonify({"ok": True}), 200
+    finally:
+        conn.close()
