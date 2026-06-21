@@ -6,26 +6,1002 @@
 
 ```
 ~/watson/
-
+.env
+.env.example
+.env.local
+.git
+.gitignore
+.vercel
+.vercel/
+  README.txt
+  project.json
+CLAUDE.md
+README.md
+bot
+bot/
+  __init__.py
+  __pycache__
+  bot.py
+briefing
+briefing/
+  __init__.py
+  __pycache__
+  app.py
+  builder.py
+  publisher.py
+  templates
+  templates/
+    .gitkeep
+    briefing.html
+    briefing_static.html
+    dashboard.html
+    library.html
+    reading-list.html
+    research_library.html
+    sources.html
+    thought_library.html
+config
+config/
+  __pycache__
+  credentials.json
+  settings.py
+  sources.yaml
+  token.json
+core
+core/
+  __init__.py
+  __pycache__
+  database.py
+  fetcher.py
+  pipeline.py
+  scorer.py
+  summarizer.py
+cron
+cron/
+  .gitkeep
+  run_pipeline.sh
+cron_additions.txt
+data
+data/
+  .gitkeep
+  chroma
+  congregation.db
+  donors.db
+  exports
+  exports/
+    qr_1780863713.png
+    qr_1780883260.png
+    qr_1781037801.png
+    qr_1781038684.png
+    qr_1781039900.png
+    qr_1781040379.png
+    qr_1781042385.png
+  qr
+  qr/
+    qr_20260608_215150.png
+    qr_20260608_220849.png
+    qr_20260608_220942.png
+    qr_20260608_221107.png
+    qr_20260608_221900.png
+    qr_20260608_222321.png
+    qr_20260608_224205.png
+    qr_20260608_225414.png
+    qr_20260608_225539.png
+    qr_20260608_225619.png
+    qr_20260608_230413.png
+    qr_20260609_164058.png
+    qr_20260611_113515.png
+    qr_20260611_114332.png
+    qr_20260611_114434.png
+    qr_20260611_114601.png
+    qr_20260611_114652.png
+    qr_20260611_114932.png
+    qr_20260611_115908.png
+  riddle_history.json
+  skill_audit.json
+  watson.db
+deploy
+deploy/
+  .gitkeep
+  connect_cards_cron.txt
+  index.html
+  people-server.service
+  start_people_server.sh
+  watson-dashboard.service
+docs
+docs/
+  .gitkeep
+  briefing.html
+import_connect_cards.py
+import_contacts.py
+jobs
+jobs/
+  __pycache__
+  acquired
+  acquired/
+    chump.py
+    send.py
+  ask.py
+  batch.py
+  bible.py
+  briefing
+  briefing/
+    __pycache__
+  build_kb.py
+  cleanup.py
+  cleanup_library.ps1
+  code_agent
+  code_agent/
+    __init__.py
+    __pycache__
+    agent.py
+    confirm.py
+    prompts
+    prompts/
+      build.md
+  congregation
+  congregation/
+    __init__.py
+    __pycache__
+    batch_intake.py
+    init_db.py
+    member_match.py
+    migrate_reparse.py
+  connect_cards
+  connect_cards/
+    __init__.py
+    __pycache__
+    attendance_intake.py
+    backfill.py
+    correction_handler.py
+    data_audit.py
+    email_reports.py
+    intake.py
+    migrate_prayer_leadership.py
+    missed_report.py
+    pastoral_reports.py
+    report_menu.py
+    reports.py
+    shepherding_report.py
+    utils.py
+  contacts
+  contacts/
+    __init__.py
+    __pycache__
+    vcf_importer.py
+  dadjoke
+  dadjoke/
+    __pycache__
+    joke.py
+  dashboard
+  dashboard/
+    __pycache__
+    app.py
+    app.py.bak
+    migrate_sessions.py
+    static
+    static/
+      favicon.svg
+      style.css
+      watson.js
+    templates
+    templates/
+      index.html
+  data
+  data/
+    __init__.py
+    __pycache__
+    chart_generator.py
+    data_analyzer.py
+    table_extractor.py
+  design
+  design/
+    __init__.py
+    __pycache__
+    image_tools.py
+    screenshot.py
+    svg_generator.py
+  dev
+  dev/
+    __init__.py
+    __pycache__
+    auto_fixer.py
+    build_memory_store.py
+    build_pipeline.py
+    claude_api_final_review.py
+    claude_debug.py
+    code_agent.py
+    code_analyzer.py
+    code_editor.py
+    code_quality.py
+    command_executor.py
+    dependency_manager.py
+    dependency_scanner.py
+    error_analyzer.py
+    file_map.py
+    git_tools.py
+    github_tools.py
+    hello_dashboard.py
+    performance_profiler.py
+    secrets_audit.py
+    skill_tester.py
+    skill_validator.py
+    system_monitor.py
+    test_runner.py
+    update_arch.py
+  documents
+  documents/
+    __init__.py
+    __pycache__
+    excel.py
+    pdf.py
+    powerpoint.py
+    word.py
+  email_intake.py
+  email_job
+  email_job/
+    __init__.py
+    __pycache__
+    draft_email.py
+    email_queue.py
+    gmail.py
+  email_reply
+  email_reply/
+    __init__.py
+    __pycache__
+    drafter.py
+    handler.py
+    reader.py
+  email_send
+  email_send/
+    __init__.py
+    __pycache__
+    send.py
+  facebook
+  facebook/
+    __pycache__
+    facebook_post.py
+    scheduler.py
+    templates.py
+  gcal
+  gcal/
+    __init__.py
+    __pycache__
+    availability.py
+    create_event.py
+    gcal_service.py
+    notify.py
+    pending.py
+    pre_meeting_brief.py
+    reasoner.py
+    reauth.py
+    token_health.py
+  generate.py
+  givebutter
+  givebutter/
+    __init__.py
+    __pycache__
+    notify.py
+    sync.py
+    templates.py
+  ingest_drafts.py
+  intent
+  intent/
+    __init__.py
+    __pycache__
+    classifier.py
+  kb
+  kb/
+    archive_transcripts.py
+  marketing
+  marketing/
+    __init__.py
+    __pycache__
+    content_calendar.py
+    seo_tools.py
+    social_poster.py
+  media
+  media/
+    __init__.py
+    __pycache__
+    audio_tools.py
+    youtube_downloader.py
+  memory
+  memory/
+    __init__.py
+    __pycache__
+    new_project.py
+    propose.py
+    reflect.py
+    sync.py
+    wrap_up.py
+  memory_manager.py
+  misc
+  misc/
+    __pycache__
+    both_read_pdf.py
+    here_link_book.py
+    im_trying_file.py
+    riddle.py
+    tells_many_days.py
+    update_your_own.py
+  monitoring
+  monitoring/
+    __init__.py
+    __pycache__
+    log_watch.py
+    weather_every_morning.py
+  note.py
+  pastoral_notes
+  pastoral_notes/
+    __init__.py
+    __pycache__
+    db.py
+    handler.py
+    prompt.py
+    reminder.py
+  people
+  people/
+    __init__.py
+    __pycache__
+    api.py
+    google_contacts.py
+    lookup.py
+    migrate.py
+    registry.py
+    server.py
+  qr
+  qr/
+    __init__.py
+    __pycache__
+    qr_generate.py
+  reading_list.py
+  reminders
+  reminders/
+    __init__.py
+    __pycache__
+    check_reminders.py
+    check_timed.py
+    daily_summary.py
+  research
+  research/
+    __init__.py
+    __pycache__
+    academic_search.py
+    article_reader.py
+    feed_reader.py
+    isbn_lookup.py
+    language_detector.py
+    news_search.py
+    semantic_search.py
+    summarizer.py
+    web_search.py
+  scheduler.py
+  security
+  security/
+    __init__.py
+    __pycache__
+    encryptor.py
+  skillbuilder
+  skillbuilder/
+    __init__.py
+    __pycache__
+    acquire.py
+    audit.py
+    build.py
+    research.py
+    router.py
+  skills
+  skills/
+    __init__.py
+    __pycache__
+    book_appointment.py
+    contacts_lookup.py
+    kb_export.py
+    kb_search.py
+    pastoral_search.py
+  sms
+  sms/
+    __init__.py
+    __pycache__
+    sms_send.py
+  social
+  social/
+    __init__.py
+    __pycache__
+    image_search.py
+  tasks
+  tasks/
+    __pycache__
+    add_task.py
+  telegram
+  telegram/
+    __pycache__
+    pending.py
+    resend_last.py
+  time_check.py
+  transcribe.py
+  utilities
+  utilities/
+    __init__.py
+    __pycache__
+    calendar_importer.py
+    date_helper.py
+    template_engine.py
+    text_processor.py
+  watcher.py
+  web
+  web/
+    __init__.py
+    __pycache__
+    page_generator.py
+    site_deployer.py
+  writing
+  writing/
+    __init__.py
+    __pycache__
+    citation_manager.py
+    document_converter.py
+    epub_generator.py
+    grammar_checker.py
+    manuscript_tracker.py
+    readability.py
+    spell_checker.py
+    style_checker.py
+    wordcloud_generator.py
+  writing_room
+  writing_room/
+    __init__.py
+    __pycache__
+    api.py
+    monitor.py
+    onboard.py
+    remind.py
+    reset.py
+kb
+kb/
+  .collection_id_cache.json
+  documents
+  transcripts
+library
+library/
+  __init__.py
+  ingestor.py
+  search.py
+logs
+main.py
+memory
+memory/
+  .gitkeep
+  CRON.md
+  FILE_MAP.md
+  WATSON_ARCHITECTURE.md
+  architecture.md
+  builds
+  builds/
+    20260613-164604-health-check-endpoint
+    20260613-164604-health-check-endpoint/
+      claude-review.json
+      code-diff.patch
+      deployment-log.txt
+      human-approval.txt
+      metadata.json
+      spec.md
+      test-output.log
+    20260613-192127-add-a-GET-
+    20260613-192127-add-a-GET-/
+      api
+      api/
+        status-endpoint-to-jobs
+        status-endpoint-to-jobs/
+          d
+          d/
+            claude-review.json
+            code-diff.patch
+            deployment-log.txt
+            human-approval.txt
+            metadata.json
+            spec.md
+            test-output.log
+    BUILD_INDEX.md
+  coding
+  coding/
+    _index.md
+    nextjs.md
+    ollama.md
+    python.md
+    sqlite.md
+    telegram.md
+  core.md
+  projects
+  projects/
+    _index.md
+    godfidence
+    godfidence/
+      files
+      files/
+        Godfidence.pdf.pdf
+      godfidence.md
+      notes
+    joshua_walking_in_pomise
+    joshua_walking_in_pomise/
+      files
+      joshua_walking_in_pomise.md
+      memory.md
+      notes
+      notes/
+        2026-06-06.md
+    testing_project
+    testing_project/
+      files
+      notes
+      testing_project.md
+    watson
+    watson/
+      files
+      notes
+      watson.md
+  relational.md
+  skills.json
+  skip_keywords.txt
+notes
+notes/
+  .gitkeep
+outputs
+prompts
+prompts/
+  cleanup.md
+  generate_blog.md
+  generate_social.md
+requirements.txt
+run.sh
+venv
+vercel.json
 ```
 
 ## ~/wcky/
 
 ```
 ~/wcky/
-
+.claude
+.git
+.gitattributes
+.gitignore
+.next
+content
+content/
+  blog
+  blog/
+    2026-04-21-your-life-is-a-passport.md
+    2026-04-22-hate-in-the-heart-is-murder-and-you-probably-know-someone-you-need-to-call.md
+    2026-04-24-the-biblical-definition-of-adultery-will-make-everyone-uncomfortable-equally.md
+    2026-04-25-jesus-didnt-cancel-the-old-testament-he-raised-the-standard.md
+    2026-04-27-you-cant-be-a-bible-thumper-and-a-kingdom-citizen-at-the-same-time.md
+    2026-04-29-stop-calling-it-persecution.md
+    2026-05-01-salt-that-isnt-salty-is-just-a-rock.md
+    2026-05-05-the-bema-seat-why-what-you-do-in-private-actually-matters.md
+    2026-05-07-god-is-not-a-genie.md
+    2026-05-20-the-discernment-we-were-never-supposed-to-abandon.md
+    2026-05-21-pearls-pigs-and-reading-the-room.md
+    2026-05-23-the-golden-rule-is-not-a-platitude.md
+    2026-05-26-the-plank-goes-first.md
+    2026-05-28-rock-sand-and-the-storms-that-tell-the-truth.md
+    2026-05-30-the-most-terrifying-sentence-in-scripture.md
+    2026-06-02-you-can-t-fake-the-fruit.md
+    2026-06-04-the-gate-nobody-wants-to-take.md
+    2026-06-09-you-don-t-have-to-see-the-whole-road.md
+    2026-06-10-blessing-lives-on-the-other-side-of-obedience.md
+    2026-06-12-god-doesn-t-do-detours.md
+    2026-06-14-stop-making-yourself-the-main-character.md
+    2026-06-17-the-inheritance-you-didn-t-build.md
+    2026-06-21-covenant-before-conquest.md
+    the-flashlight-of-your-focus.md
+    where-your-treasure-is.md
+next-env.d.ts
+next.config.js
+node_modules
+package-lock.json
+package.json
+postcss.config.js
+public
+public/
+  images
+  images/
+    Bill-CR.png
+    Bill-HeroRC.png
+    Bill-HeroRC2.png
+    Bill-RC.png
+    Bill-SQ.png
+    DS1-cover.png
+    DS2-cover.png
+    DS3-cover.png
+    HeIsRisen-Cover.jpg
+    lead-magnet.png
+    lead-magnet2.png
+    og-default.png
+    og-meet.png
+    wrong-jesus-cover-iso.png
+  posts
+  posts/
+    williamckyomes.WordPress.2026-05-05.xml
+scripts
+scripts/
+  generate-og-meet.py
+src
+src/
+  app
+  app/
+    about
+    about/
+      page.tsx
+    api
+    api/
+      ingest
+      ingest/
+        route.ts
+      meet
+      meet/
+        availability
+        availability/
+          route.ts
+        book
+        book/
+          route.ts
+      read
+      read/
+        [slug]
+        [slug]/
+          feedback
+          feedback/
+            route.ts
+          login
+          login/
+            route.ts
+          logout
+          logout/
+            route.ts
+      room
+      room/
+        admin
+        admin/
+          login
+          login/
+            route.ts
+        apply
+        apply/
+          route.ts
+        feedback
+        feedback/
+          route.ts
+        login
+        login/
+          route.ts
+        logout
+        logout/
+          route.ts
+        message
+        message/
+          route.ts
+        post
+        post/
+          route.ts
+        reset
+        reset/
+          route.ts
+      submit-draft
+      submit-draft/
+        route.ts
+      twj
+      twj/
+        feedback
+        feedback/
+          route.ts
+        login
+        login/
+          route.ts
+        logout
+        logout/
+          route.ts
+    arc
+    arc/
+      page.tsx
+    blog
+    blog/
+      [slug]
+      [slug]/
+        page.tsx
+      page.tsx
+    books
+    books/
+      page.tsx
+    cv
+    cv/
+      CvDownloadButton.tsx
+      cv.css
+      page.tsx
+    dashboard
+    dashboard/
+      page.tsx
+    draft
+    draft/
+      page.tsx
+    dreamstone
+    dreamstone/
+      page.tsx
+    globals.css
+    ingest
+    ingest/
+      page.tsx
+    layout.tsx
+    meet
+    meet/
+      MeetClient.tsx
+      cancel
+      cancel/
+        page.tsx
+      page.tsx
+    not-found.tsx
+    page.tsx
+    room
+    room/
+      (protected)
+      (protected)/
+        PostList.tsx
+        RoomNav.tsx
+        beta
+        beta/
+          BetaDraftList.tsx
+          page.tsx
+        board
+        board/
+          page.tsx
+        calls
+        calls/
+          page.tsx
+        layout.tsx
+        prayer
+        prayer/
+          page.tsx
+        write
+        write/
+          page.tsx
+      ApplyForm.tsx
+      admin
+      admin/
+        login
+        login/
+          page.tsx
+        page.tsx
+      login
+      login/
+        page.tsx
+      page.tsx
+      reset
+      reset/
+        page.tsx
+    speaking
+    speaking/
+      page.tsx
+    start
+    start/
+      page.tsx
+    theology
+    theology/
+      page.tsx
+    twj
+    twj/
+      page.tsx
+      press
+      press/
+        page.tsx
+      read
+      read/
+        LoginForm.tsx
+        ManuscriptReader.tsx
+        chapters
+        chapters/
+          chapter-01.md
+          chapter-02.md
+          chapter-03.md
+          chapter-04.md
+          chapter-05.md
+          chapter-06.md
+          chapter-07.md
+          chapter-08.md
+          chapter-09.md
+          chapter-10.md
+          chapter-11.md
+          chapter-12.md
+          conclusion.md
+          introduction.md
+        page.tsx
+  components
+  components/
+    Footer.tsx
+    FreeResourceButton.tsx
+    Header.tsx
+    HeroButtons.tsx
+    HomePopup.tsx
+    LeadMagnetModal.tsx
+    StartCTA.tsx
+  content
+  content/
+    books
+    books/
+      twj
+      twj/
+        beta
+        beta/
+          .gitkeep
+          sample-draft.md
+  lib
+  lib/
+    posts.ts
+    writing-room-api.ts
+    writing-room-auth.ts
+  middleware.ts
+  types
+  types/
+    index.ts
+tailwind.config.ts
+tsconfig.json
+tsconfig.tsbuildinfo
 ```
 
 ## ~/watson-admin/
 
 ```
 ~/watson-admin/
-
+.git
+.gitignore
+AGENTS.md
+CLAUDE.md
+README.md
+app
+app/
+  (admin)
+  (admin)/
+    books
+    books/
+      page.tsx
+      twj
+      twj/
+        page.tsx
+    page.tsx
+  api
+  api/
+    auth
+    auth/
+      login
+      login/
+        route.ts
+      logout
+      logout/
+        route.ts
+    books
+    books/
+      [slug]
+      [slug]/
+        route.ts
+      route.ts
+      twj
+      twj/
+        feedback
+        feedback/
+          delete
+          delete/
+            route.ts
+          route.ts
+        readers
+        readers/
+          [username]
+          [username]/
+            reset-password
+            reset-password/
+              route.ts
+            route.ts
+          bulk
+          bulk/
+            route.ts
+          route.ts
+  favicon.ico
+  globals.css
+  layout.tsx
+  login
+  login/
+    page.tsx
+components
+components/
+  AdminShell.tsx
+  Sidebar.tsx
+  SidebarContext.tsx
+  TopBar.tsx
+lib
+lib/
+  auth.ts
+  kv.ts
+next.config.ts
+package-lock.json
+package.json
+postcss.config.mjs
+proxy.ts
+public
+public/
+  file.svg
+  globe.svg
+  next.svg
+  vercel.svg
+  window.svg
+scripts
+scripts/
+  hash-password.js
+tsconfig.json
 ```
 
 ## ~/watson-ui/
 
 ```
 ~/watson-ui/
-
+.env.example
+.git
+.gitignore
+AGENTS.md
+CLAUDE.md
+README.md
+app
+app/
+  api
+  api/
+    auth
+    auth/
+      check
+      check/
+        route.ts
+      route.ts
+    chat
+    chat/
+      route.ts
+    congregation
+    congregation/
+      [id]
+      [id]/
+        route.ts
+      route.ts
+    logout
+    logout/
+      route.ts
+    people
+    people/
+      [id]
+      [id]/
+        route.ts
+      route.ts
+  favicon.ico
+  globals.css
+  layout.tsx
+  page.tsx
+components
+components/
+  BriefingView.tsx
+  ContactsView.tsx
+  LoginScreen.tsx
+  ReadingView.tsx
+  SettingsView.tsx
+  TasksView.tsx
+eslint.config.mjs
+next-env.d.ts
+next.config.ts
+package-lock.json
+package.json
+postcss.config.mjs
+public
+public/
+  file.svg
+  globe.svg
+  manifest.json
+  next.svg
+  vercel.svg
+  window.svg
+tsconfig.json
+tsconfig.tsbuildinfo
 ```
