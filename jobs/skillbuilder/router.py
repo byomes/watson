@@ -63,6 +63,9 @@ _SKILL_PRE_CHECKS: dict[str, tuple] = {
     "kb": (
         "kb:",
     ),
+    "kb_export": (
+        "kb export:",
+    ),
     "web_search": (
         "search the web", "web search",
     ),

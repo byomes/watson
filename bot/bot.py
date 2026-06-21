@@ -927,6 +927,10 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await _handle_image_search(update, context, {"query": text_clean})
                 log.info("DEBUG pre-check: skill pre-check (image_search)")
                 return
+            if slug == "kb_export":
+                await _handle_kb_export(update, context, text_clean)
+                log.info("DEBUG pre-check: skill pre-check (kb_export)")
+                return
             try:
                 _skills = _router._load_skills("telegram")
                 _skill = next((s for s in _skills if s["slug"] == slug), None)
@@ -1190,6 +1194,31 @@ async def _handle_image_search(
     except Exception as exc:
         log.error("Image send failed: %s", exc)
         await update.message.reply_text("Found images but couldn't send them: " + str(exc))
+
+
+async def _handle_kb_export(update: Update, context: ContextTypes.DEFAULT_TYPE, message: str) -> None:
+    from pathlib import Path
+    from jobs.skills.kb_export import run as kb_export_run
+    await update.message.reply_text("Building KB export...")
+    result = await asyncio.to_thread(kb_export_run, message)
+    if not result["ok"]:
+        await update.message.reply_text(result["error"])
+        return
+    zip_path = Path(result["zip_path"])
+    try:
+        with zip_path.open("rb") as zf:
+            await context.bot.send_document(
+                chat_id=update.effective_chat.id,
+                document=zf,
+                filename=zip_path.name,
+                caption=result["caption"],
+            )
+        _log_telegram_exchange(message, result["caption"])
+    except Exception as exc:
+        log.error("KB export send failed: %s", exc)
+        await update.message.reply_text(f"Failed to send export: {exc}")
+    finally:
+        zip_path.unlink(missing_ok=True)
 
 
 def _ensure_reminders_table(conn) -> None:

@@ -89,6 +89,17 @@
       "status": "ready"
     },
     {
+      "slug": "kb_export",
+      "name": "KB Export",
+      "description": "Zip and send matching KB source files for a query via Telegram.",
+      "category": "Research",
+      "triggers": ["kb export:"],
+      "module": "jobs.skills.kb_export",
+      "function": "run",
+      "interfaces": ["telegram"],
+      "status": "ready"
+    },
+    {
       "slug": "gemini_fetch",
       "name": "Fetch URL",
       "description": "Fetch a webpage and process it with Gemini.",
