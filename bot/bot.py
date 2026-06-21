@@ -176,7 +176,7 @@ def _gb_send_kit_email(to_email: str, subject: str, html_body: str) -> None:
     from email.mime.text import MIMEText
 
     msg = MIMEMultipart("alternative")
-    msg["From"] = "Dr. Bill Yomes <watson@faithmakessense.com>"
+    msg["From"] = "FMS Team <watson@faithmakessense.com>"
     msg["To"] = to_email
     msg["Subject"] = subject
     msg.attach(MIMEText(html_body, "html"))
