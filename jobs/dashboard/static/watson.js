@@ -1358,6 +1358,21 @@ async function _summarizeChat() {
   } catch {}
 }
 
+function renderWithImages(text) {
+  function esc(s) {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+  const imgPat = /https?:\/\/\S+\.(?:jpg|jpeg|png|webp|gif)(?:\?\S*)?|https?:\/\/(?:images\.unsplash\.com|unsplash\.com)\/\S+/gi;
+  let out = '', last = 0, m;
+  while ((m = imgPat.exec(text)) !== null) {
+    out += esc(text.slice(last, m.index));
+    out += `<img src="${esc(m[0])}" alt="" loading="lazy" style="max-width:100%;border-radius:4px;display:block;margin-top:6px">`;
+    last = m.index + m[0].length;
+  }
+  out += esc(text.slice(last));
+  return out;
+}
+
 function appendChatMsg(role, content) {
   const msgs = document.getElementById('chat-messages');
   if (!msgs) return;
@@ -1455,7 +1470,7 @@ async function sendChatStream() {
           if (msgs) msgs.appendChild(watsonDiv);
         }
         fullReply += token;
-        bubble.textContent = fullReply;
+        bubble.innerHTML = renderWithImages(fullReply);
         if (msgs) msgs.scrollTop = msgs.scrollHeight;
       }
     }

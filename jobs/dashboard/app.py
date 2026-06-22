@@ -221,6 +221,40 @@ def _send_qr_telegram(png_bytes: bytes, content: str) -> None:
 # Pending skill proposal keyed by a single user (single-user system)
 _pending_skill_request: str | None = None
 
+_DASH_CONF_AFFIRM = frozenset({"yes", "yep", "yeah", "confirm", "go"})
+_DASH_CONF_DENY   = frozenset({"no", "nope", "cancel", "stop"})
+
+
+def _log_routing_correction_db(original_message: str, detected_intent: str) -> None:
+    try:
+        _db().execute(
+            "INSERT INTO routing_corrections (original_message, detected_intent, correct_intent) VALUES (?, ?, 'cancelled_by_user')",
+            (original_message, detected_intent),
+        )
+        _db().commit()
+    except Exception as exc:
+        log.error("Correction log failed: %s", exc)
+
+
+def _dash_skill_description(slug: str, message: str = "") -> str:
+    _map = {
+        "add_task":         f"add a task: '{message}'" if message else "add a task",
+        "bible_lookup":     "look up a Bible verse",
+        "command_executor": "run a shell command",
+        "contacts_lookup":  "search contacts",
+        "pastoral_search":  "search pastoral notes",
+        "book_appointment": "book an appointment",
+        "kb":               "search the knowledge base",
+        "kb_export":        "export knowledge base files",
+        "web_search":       f"search the web for '{message}'" if message else "search the web",
+        "image_search":     "search for an image",
+        "email_send":       "draft and send an email",
+        "summarizer":       "summarize this text",
+        "dad_joke":         "tell a dad joke",
+        "riddle":           "give a riddle",
+    }
+    return _map.get(slug, f"run the {slug.replace('_', ' ')} skill")
+
 # ── Shell ─────────────────────────────────────────────────────────────────────
 
 
@@ -1099,6 +1133,61 @@ def chat_stream():
     msg_lower = message.lower().strip()
     import re as _re
 
+    # Dashboard confirmation gate — check for a pending skill confirmation before routing
+    from jobs.telegram.pending import get_pending_confirmation, mark_pending_status
+    _dash_conf = get_pending_confirmation()
+    if _dash_conf and _dash_conf["payload"].get("source") == "dashboard":
+        _stored = _dash_conf["payload"]
+        if msg_lower in _DASH_CONF_AFFIRM:
+            mark_pending_status(_dash_conf["id"], "confirmed")
+            _action = _stored.get("action_type")
+            if _action == "skill":
+                _conf_slug  = _stored.get("slug", "")
+                _prefetched = _stored.get("prefetched_result")
+                if _prefetched:
+                    return _sse_response(_stream_simple("✓ " + _prefetched))
+                _conf_msg = _stored.get("original_message", message)
+                _skills = _router._load_skills("dashboard")
+                _skill  = next((s for s in _skills if s["slug"] == _conf_slug), None)
+                if _skill:
+                    try:
+                        _res = _router._run_skill(_skill, message=_conf_msg)
+                        return _sse_response(_stream_simple("✓ " + str(_res)))
+                    except Exception as _exc:
+                        return _sse_response(_stream_simple(f"Skill error: {_exc}"))
+                else:
+                    return _sse_response(_stream_simple(f"Skill '{_conf_slug}' not available."))
+            elif _action == "sms_me":
+                from jobs.sms.sms_send import send_sms as _send_sms_direct_conf
+                _op = os.getenv("WATSON_OWNER_PHONE")
+                _oc = os.getenv("WATSON_OWNER_CARRIER", "verizon")
+                if _op:
+                    _r = _send_sms_direct_conf("Dr. Bill", _op, _oc, _stored["sms_message"])
+                    _reply = "Text sent to you." if _r["success"] else f"Failed: {_r['error']}"
+                else:
+                    _reply = "WATSON_OWNER_PHONE not set in .env."
+                return _sse_response(_stream_simple(_reply))
+            elif _action == "sms_contact":
+                from jobs.sms.sms_send import send_sms_to_contact as _sms_conf_send
+                from jobs.people.lookup import lookup_member as _lm_conf
+                _chits = _lm_conf(_stored.get("sms_name", ""))
+                _cc = next((c for c in _chits if c.get("phone")), None)
+                if _cc:
+                    _r = _sms_conf_send(_cc, _stored["sms_message"])
+                    _reply = f"Text sent to {_cc['name']}." if _r["success"] else f"Failed: {_r['error']}"
+                else:
+                    _reply = f"No contact found for '{_stored.get('sms_name', '')}'."
+                return _sse_response(_stream_simple(_reply))
+            else:
+                return _sse_response(_stream_simple("Couldn't execute — action not recognized."))
+        elif msg_lower in _DASH_CONF_DENY:
+            mark_pending_status(_dash_conf["id"], "cancelled")
+            _log_routing_correction_db(_stored.get("original_message", ""), _dash_conf["type"])
+            return _sse_response(_stream_simple("Got it, cancelled."))
+        else:
+            # Not yes/no — discard pending, fall through and reprocess
+            mark_pending_status(_dash_conf["id"], "cancelled")
+
     # Remind me intake
     _remind_timed_m = _re.match(r'^remind me at\s+(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)\s+(.+)', msg_lower)
     _remind_plain_m = None if _remind_timed_m else _re.match(r'^remind me\s+(.+)', msg_lower)
@@ -1232,18 +1321,16 @@ def chat_stream():
             ).fetchone()
             if 'qr' in msg_lower and _recent_qr:
                 _sms_msg_raw = f"QR code content: {_recent_qr['content']}"
-            _owner_phone = os.getenv('WATSON_OWNER_PHONE')
-            _owner_carrier = os.getenv('WATSON_OWNER_CARRIER', 'verizon')
-            if not _owner_phone:
-                return _sse_response(_stream_simple(
-                    "WATSON_OWNER_PHONE is not set in .env. Add your phone number to send texts to yourself."
-                ))
-            from jobs.sms.sms_send import send_sms as _send_sms_direct
-            _sms_result = _send_sms_direct('Dr. Bill', _owner_phone, _owner_carrier, _sms_msg_raw)
-            if _sms_result['success']:
-                return _sse_response(_stream_simple(f"Text sent to you: {_sms_msg_raw}"))
-            else:
-                return _sse_response(_stream_simple(f"Failed to send text: {_sms_result['error']}"))
+            from jobs.telegram.pending import store_skill_confirmation as _store_dash_sms
+            _store_dash_sms("sms_me", {
+                "source": "dashboard",
+                "action_type": "sms_me",
+                "original_message": message,
+                "sms_message": _sms_msg_raw,
+            })
+            return _sse_response(_stream_simple(
+                f"Just to confirm — you want me to text you: '{_sms_msg_raw}'. Reply yes to proceed or no to cancel."
+            ))
 
         elif _sms_pattern:
             _contact_raw = _sms_pattern.group(1).strip()
@@ -1254,19 +1341,17 @@ def chat_stream():
             ).fetchone()
             if 'qr' in msg_lower and _recent_qr:
                 _sms_message = f"QR code: {_recent_qr['content']}"
-            _sms_hits = _lookup_sms(_contact_raw)
-            _sms_contact = next((c for c in _sms_hits if c.get('phone')), None)
-            if not _sms_contact:
-                return _sse_response(_stream_simple(
-                    f"No contact found for '{_contact_raw}'. Check the name and try again."
-                ))
-            _sms_result = _send_sms(_sms_contact, _sms_message)
-            if _sms_result['success']:
-                return _sse_response(_stream_simple(
-                    f"Text sent to {_sms_contact['name']} ({_sms_contact.get('phone', '')})."
-                ))
-            else:
-                return _sse_response(_stream_simple(f"Failed: {_sms_result['error']}"))
+            from jobs.telegram.pending import store_skill_confirmation as _store_dash_sms
+            _store_dash_sms("sms_contact", {
+                "source": "dashboard",
+                "action_type": "sms_contact",
+                "original_message": message,
+                "sms_name": _contact_raw,
+                "sms_message": _sms_message,
+            })
+            return _sse_response(_stream_simple(
+                f"Just to confirm — you want me to text {_contact_raw}: '{_sms_message}'. Reply yes to proceed or no to cancel."
+            ))
 
     # Handle yes/no follow-up on a pending skill proposal
     if _pending_skill_request is not None:
@@ -1592,53 +1677,53 @@ def chat_stream():
             route_result = {"action": "chat"}
 
     if route_result["action"] == "skill":
+        _slug = route_result.get("slug", "unknown")
+        # Execute the skill now to check for special flows (e.g. email draft confirmation UI)
         if "result" not in route_result:
-            slug = route_result["slug"]
-            skills = _router._load_skills("dashboard")
-            skill = next((s for s in skills if s["slug"] == slug), None)
-            if skill:
+            _skills = _router._load_skills("dashboard")
+            _skill  = next((s for s in _skills if s["slug"] == _slug), None)
+            if _skill:
                 try:
                     route_result["result"] = _router._run_skill(
-                        skill, message=route_result.get("message")
+                        _skill, message=route_result.get("message")
                     )
                 except Exception as exc:
-                    log.error("Skill execution failed for %s: %s", slug, exc)
+                    log.error("Skill execution failed for %s: %s", _slug, exc)
                     route_result["result"] = f"Skill failed: {exc}"
             else:
-                log.warning("Skill '%s' not found in registry — falling through to Gemini", slug)
+                log.warning("Skill '%s' not found in registry — falling through to chat", _slug)
         if "result" in route_result:
-            _slug = route_result.get("slug", "")
-            _SKILL_STATUS_LABELS = {
-                "calendar": "→ Checking your calendar...",
-                "bible": "→ Looking up scripture...",
-                "bible_lookup": "→ Looking up scripture...",
-                "reminders": "→ Checking reminders...",
-                "web_search": "→ Searching the web...",
-            }
-            _skill_status = _SKILL_STATUS_LABELS.get(
-                _slug, f"→ Running {_slug.replace('_', ' ')}..."
-            )
-            result = route_result["result"]
-            if isinstance(result, dict) and result.get("confirm"):
-                session["pending_email"] = result
-                confirm_text = f"I found {result['to_name']} at {result['to_email']}. Confirm below to send."
-                confirm_json = json.dumps({
-                    "to_name": result["to_name"],
-                    "to_email": result["to_email"],
-                    "subject": result["subject"],
-                    "body": result["body"],
+            _result = route_result["result"]
+            # Email draft has its own rich confirmation UI — pass through unchanged
+            if isinstance(_result, dict) and _result.get("confirm"):
+                _sk_status = f"→ Running {_slug.replace('_', ' ')}..."
+                session["pending_email"] = _result
+                _ctext = f"I found {_result['to_name']} at {_result['to_email']}. Confirm below to send."
+                _cjson = json.dumps({
+                    "to_name": _result["to_name"],
+                    "to_email": _result["to_email"],
+                    "subject":  _result["subject"],
+                    "body":     _result["body"],
                 })
-                def _email_gen(t=confirm_text, cj=confirm_json, st=_skill_status):
+                def _email_gen(t=_ctext, cj=_cjson, st=_sk_status):
                     yield _emit_status(st)
                     yield _sse(t)
                     yield f"data: [CONFIRM_EMAIL]{cj}\n\n"
                     yield "data: [DONE]\n\n"
                 return _sse_response(_email_gen())
-            def _skill_result_gen(st=_skill_status, res=result):
-                yield _emit_status(st)
-                yield _sse("✓ " + str(res))
-                yield "data: [DONE]\n\n"
-            return _sse_response(_skill_result_gen())
+            # All other skills — confirmation gate before returning result
+            _desc = _dash_skill_description(_slug, message)
+            from jobs.telegram.pending import store_skill_confirmation as _store_skill_dash
+            _store_skill_dash(_slug, {
+                "source": "dashboard",
+                "action_type": "skill",
+                "slug": _slug,
+                "original_message": message,
+                "prefetched_result": str(_result),
+            })
+            return _sse_response(_stream_simple(
+                f"Just to confirm — you want me to {_desc}. Reply yes to proceed or no to cancel."
+            ))
 
     if route_result["action"] == "build":
         import threading

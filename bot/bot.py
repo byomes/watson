@@ -80,10 +80,6 @@ def _maybe_reflect(chat_id: int) -> None:
 _SKILL_AFFIRM = {"yes", "yes please", "go ahead", "build it", "sure", "do it", "yep", "yeah"}
 _SKILL_DENY = {"no", "never mind", "nope", "cancel", "don't", "no thanks"}
 
-_CONF_AFFIRM = frozenset({"yes", "yep", "yeah", "confirm", "go"})
-_CONF_DENY   = frozenset({"no", "nope", "cancel", "stop"})
-
-
 def _log_routing_correction(original_message: str, detected_intent: str, correct_intent: str = "cancelled_by_user") -> None:
     db_path = os.path.expanduser("~/watson/data/watson.db")
     try:
@@ -101,25 +97,6 @@ def _log_routing_correction(original_message: str, detected_intent: str, correct
         log.error("Correction log failed: %s", _exc)
 
 
-def _skill_description(slug: str, message: str) -> str:
-    _map = {
-        "add_task":        f"add a task: '{message}'",
-        "bible_lookup":    "look up a Bible verse",
-        "command_executor": "run a shell command",
-        "claude_debug":    "run Watson diagnostics",
-        "contacts_lookup": "search contacts",
-        "pastoral_search": "search pastoral notes",
-        "book_appointment": "book an appointment",
-        "kb":              "search the knowledge base",
-        "kb_export":       "export knowledge base files",
-        "web_search":      f"search the web for '{message}'",
-        "image_search":    "search for an image",
-        "email_send":      "draft and send an email",
-        "summarizer":      "summarize this text",
-        "dad_joke":        "tell a dad joke",
-        "riddle":          "give a riddle",
-    }
-    return _map.get(slug, f"run the {slug.replace('_', ' ')} skill")
 
 
 def _get_next_proposed_gap() -> dict | None:
@@ -575,26 +552,6 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 log.info("DEBUG pre-check: reply-threaded (%s)", tg_pending['type'])
                 return
 
-    # Confirmation gate — check for a pending skill confirmation before any other logic
-    from jobs.telegram.pending import get_pending_confirmation, mark_pending_status
-    _skill_conf = get_pending_confirmation()
-    if _skill_conf:
-        if text_lower in _CONF_AFFIRM:
-            mark_pending_status(_skill_conf["id"], "confirmed")
-            await _execute_skill_confirmation(update, context, _skill_conf)
-            return
-        elif text_lower in _CONF_DENY:
-            mark_pending_status(_skill_conf["id"], "cancelled")
-            _log_routing_correction(
-                _skill_conf["payload"].get("original_message", ""),
-                _skill_conf["type"],
-            )
-            await update.message.reply_text("Got it, cancelled.")
-            return
-        else:
-            # Not a yes/no — discard pending action, fall through and reprocess as new request
-            mark_pending_status(_skill_conf["id"], "cancelled")
-
     # Store every incoming message for resend capability
     from jobs.telegram.resend_last import store_message, get_last_message
     if text_lower != 'resend':
@@ -885,32 +842,32 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if _sms_me:
             _sms_msg = _sms_me.group(1).strip()
-            from jobs.telegram.pending import store_skill_confirmation as _store_sms_conf
-            _store_sms_conf("sms_me", {
-                "source": "sms_me",
-                "original_message": text_clean,
-                "sms_message": _sms_msg,
-            })
-            await update.message.reply_text(
-                f"Just to confirm — you want me to text you: '{_sms_msg}'. Reply yes to proceed or no to cancel."
-            )
-            log.info("DEBUG pre-check: SMS to self (awaiting confirmation)")
+            _owner_phone = os.environ.get('WATSON_OWNER_PHONE')
+            _owner_carrier = os.environ.get('WATSON_OWNER_CARRIER', 'verizon')
+            if _owner_phone:
+                _result = _sms_direct('Dr. Bill', _owner_phone, _owner_carrier, _sms_msg)
+                reply = f"Text sent to you." if _result['success'] else f"Failed: {_result['error']}"
+            else:
+                reply = "WATSON_OWNER_PHONE not set in .env."
+            await update.message.reply_text(reply)
+            _log_telegram_exchange(text_clean, reply)
+            log.info("DEBUG pre-check: SMS to self")
             return
 
         elif _sms_contact_m:
             _sms_name = _sms_contact_m.group(1).strip()
             _sms_msg = _sms_contact_m.group(2).strip()
-            from jobs.telegram.pending import store_skill_confirmation as _store_sms_conf
-            _store_sms_conf("sms_contact", {
-                "source": "sms_contact",
-                "original_message": text_clean,
-                "sms_name": _sms_name,
-                "sms_message": _sms_msg,
-            })
-            await update.message.reply_text(
-                f"Just to confirm — you want me to text {_sms_name}: '{_sms_msg}'. Reply yes to proceed or no to cancel."
-            )
-            log.info("DEBUG pre-check: SMS to contact (awaiting confirmation)")
+            from jobs.people.lookup import lookup_member as _lm_sms
+            _hits = _lm_sms(_sms_name)
+            _contact = next((c for c in _hits if c.get('phone')), None)
+            if _contact:
+                _result = _sms_to_contact(_contact, _sms_msg)
+                reply = f"Text sent to {_contact['name']}." if _result['success'] else f"Failed: {_result['error']}"
+            else:
+                reply = f"No contact found for '{_sms_name}'."
+            await update.message.reply_text(reply)
+            _log_telegram_exchange(text_clean, reply)
+            log.info("DEBUG pre-check: SMS to contact")
             return
 
     import re as _re
@@ -954,17 +911,26 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg_lower_check = text_clean.lower().strip()
     for slug, triggers in _SKILL_PRE_CHECKS.items():
         if any(trigger in msg_lower_check for trigger in triggers):
-            _desc = _skill_description(slug, text_clean)
-            from jobs.telegram.pending import store_skill_confirmation as _store_pre_conf
-            _store_pre_conf(slug, {
-                "source": "skill_pre_check",
-                "slug": slug,
-                "original_message": text_clean,
-            })
-            await update.message.reply_text(
-                f"Just to confirm — you want me to {_desc}. Reply yes to proceed or no to cancel."
-            )
-            log.info("DEBUG pre-check: skill pre-check gated (%s)", slug)
+            if slug == "image_search":
+                await _handle_image_search(update, context, {"query": text_clean})
+                log.info("DEBUG pre-check: skill pre-check (image_search)")
+                return
+            if slug == "kb_export":
+                await _handle_kb_export(update, context, text_clean)
+                log.info("DEBUG pre-check: skill pre-check (kb_export)")
+                return
+            try:
+                _skills = _router._load_skills("telegram")
+                _skill = next((s for s in _skills if s["slug"] == slug), None)
+                if _skill:
+                    result = _router._run_skill(_skill, message=text_clean)
+                else:
+                    result = f"Skill '{slug}' not available."
+            except Exception as exc:
+                log.error("Pre-check skill dispatch failed (%s): %s", slug, exc)
+                result = f"Skill error: {exc}"
+            await update.message.reply_text("✓ " + str(result))
+            log.info("DEBUG pre-check: skill pre-check (%s)", slug)
             return
 
     if getattr(_router, '_is_factual_query', None) and _router._is_factual_query(text_clean):
@@ -986,19 +952,23 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         route_result = {"action": "chat"}
 
     if route_result["action"] == "skill":
-        _slug = route_result.get("slug", "unknown")
-        _desc = _skill_description(_slug, text_clean)
-        from jobs.telegram.pending import store_skill_confirmation as _store_route_conf
-        _store_route_conf(_slug, {
-            "source": "skill_router",
-            "slug": _slug,
-            "original_message": text_clean,
-            "prefetched_result": route_result.get("result"),
-        })
-        await update.message.reply_text(
-            f"Just to confirm — you want me to {_desc}. Reply yes to proceed or no to cancel."
-        )
-        log.info("DEBUG pre-check: skill router gated (%s)", _slug)
+        skill_result = route_result.get("result")
+        if skill_result is None:
+            try:
+                _skills = _router._load_skills("telegram")
+                _skill = next((s for s in _skills if s["slug"] == route_result["slug"]), None)
+                if _skill:
+                    skill_result = _router._run_skill(_skill, message=route_result.get("message", text_clean))
+                else:
+                    skill_result = f"Skill '{route_result['slug']}' not available."
+            except Exception as exc:
+                log.error("Pre-check skill run failed (%s): %s", route_result.get("slug"), exc)
+                skill_result = f"Skill error: {exc}"
+        reply = "✓ " + str(skill_result)
+        await update.message.reply_text(reply)
+        _log_telegram_exchange(text_clean, reply)
+        _maybe_reflect(chat_id)
+        log.info("DEBUG pre-check: skill router action:skill (%s)", route_result.get("slug"))
         return
 
     if route_result["action"] == "wrap_up":
@@ -1070,67 +1040,6 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await _dispatch_intent(update, context, result, text_clean)
     if confidence == "MEDIUM":
         await update.message.reply_text("Is that right?")
-
-
-# --- Skill confirmation executor ------------------------------------------
-
-async def _execute_skill_confirmation(
-    update: Update, context: ContextTypes.DEFAULT_TYPE, pending_conf: dict
-) -> None:
-    payload = pending_conf["payload"]
-    source  = payload.get("source", "")
-    original_message = payload.get("original_message", "")
-
-    if source in ("skill_pre_check", "skill_router"):
-        prefetched = payload.get("prefetched_result")
-        if prefetched:
-            await update.message.reply_text("✓ " + str(prefetched))
-            return
-        slug = payload.get("slug", "")
-        from jobs.skillbuilder import router as _router
-        if slug == "image_search":
-            await _handle_image_search(update, context, {"query": original_message})
-            return
-        if slug == "kb_export":
-            await _handle_kb_export(update, context, original_message)
-            return
-        try:
-            _skills = _router._load_skills("telegram")
-            _skill  = next((s for s in _skills if s["slug"] == slug), None)
-            if _skill:
-                result = _router._run_skill(_skill, message=original_message)
-                await update.message.reply_text("✓ " + str(result))
-            else:
-                await update.message.reply_text(f"Skill '{slug}' not available.")
-        except Exception as exc:
-            log.error("Confirmed skill exec failed (%s): %s", slug, exc)
-            await update.message.reply_text(f"Skill error: {exc}")
-
-    elif source == "sms_me":
-        from jobs.sms.sms_send import send_sms as _sms_direct
-        _owner_phone   = os.environ.get("WATSON_OWNER_PHONE")
-        _owner_carrier = os.environ.get("WATSON_OWNER_CARRIER", "verizon")
-        if _owner_phone:
-            _result = _sms_direct("Dr. Bill", _owner_phone, _owner_carrier, payload["sms_message"])
-            reply = "Text sent to you." if _result["success"] else f"Failed: {_result['error']}"
-        else:
-            reply = "WATSON_OWNER_PHONE not set in .env."
-        await update.message.reply_text(reply)
-
-    elif source == "sms_contact":
-        from jobs.sms.sms_send import send_sms_to_contact as _sms_to_contact
-        from jobs.people.lookup import lookup_member as _lm_conf
-        _hits    = _lm_conf(payload.get("sms_name", ""))
-        _contact = next((c for c in _hits if c.get("phone")), None)
-        if _contact:
-            _result = _sms_to_contact(_contact, payload["sms_message"])
-            reply = f"Text sent to {_contact['name']}." if _result["success"] else f"Failed: {_result['error']}"
-        else:
-            reply = f"No contact found for '{payload.get('sms_name', '')}'."
-        await update.message.reply_text(reply)
-
-    else:
-        await update.message.reply_text("Couldn't execute — action type not recognized.")
 
 
 # --- New intent handlers --------------------------------------------------
