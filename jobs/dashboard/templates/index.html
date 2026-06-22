@@ -443,6 +443,83 @@ html, body {
 .bpreset { padding: 8px 16px; border-radius: var(--r-btn); border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 14px; cursor: pointer; font-family: inherit; -webkit-tap-highlight-color: transparent; }
 .bpreset.sel { background: var(--gold); color: #0f0f0f; border-color: var(--gold); font-weight: 600; }
 .maudit-card { background: var(--bg); border: 1px solid var(--border); border-radius: var(--r-card); padding: 12px; margin-bottom: 8px; }
+
+/* ── Desktop fix: add-task bar above footer nav ──────────────────────────── */
+/* On iPhone the nav's hardcoded padding-bottom: 34px is offset by
+   env(safe-area-inset-bottom) ~34px in the bar's bottom calc, so the bar
+   clears the nav (~90px tall). On desktop env()=0 so the bar ends up at
+   52px — hidden behind the 90px nav. Raise it for wider viewports. */
+@media (min-width: 768px) {
+  #add-task-bar {
+    bottom: 92px;
+  }
+  #page-content.has-add-bar {
+    padding-bottom: 160px;
+  }
+}
+
+/* ── Chat tab ────────────────────────────────────────────────────────────── */
+#page-content.chat-mode {
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+#chat-messages {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+#chat-input-area {
+  flex-shrink: 0;
+  padding: 10px 16px;
+  padding-bottom: calc(10px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+}
+#chat-textarea {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  padding: 10px 12px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+  resize: vertical;
+  outline: none;
+}
+#chat-textarea:focus { border-color: var(--gold); }
+#chat-textarea::placeholder { color: var(--muted); }
+.cmsg { display: flex; flex-direction: column; margin-bottom: 2px; }
+.cmsg-user   { align-items: flex-end; }
+.cmsg-watson { align-items: flex-start; }
+.cmsg-bubble {
+  max-width: 85%;
+  padding: 9px 13px;
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.cmsg-user   .cmsg-bubble { background: var(--gold); color: #0f0f0f; border-bottom-right-radius: 3px; }
+.cmsg-watson .cmsg-bubble { background: var(--surface); border: 1px solid var(--border); border-bottom-left-radius: 3px; }
+.cstatus {
+  font-size: 11px;
+  color: var(--muted);
+  font-family: 'DM Mono', monospace;
+  font-style: italic;
+  padding: 2px 0;
+  align-self: flex-start;
+}
 </style>
 </head>
 <body>
@@ -487,6 +564,10 @@ html, body {
   <button class="nb" id="nav-more" onclick="switchTab('more')">
     <span class="ni"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg></span>
     <span class="nl">More</span>
+  </button>
+  <button class="nb" id="nav-chat" onclick="switchTab('chat')">
+    <span class="ni"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+    <span class="nl">Chat</span>
   </button>
 </nav>
 

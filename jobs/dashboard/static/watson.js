@@ -2,6 +2,7 @@
 
 // ─── State ────────────────────────────────────────────────────────────────────
 let activePage = 'home';
+let chatHistory = [];
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
@@ -66,12 +67,19 @@ function switchTab(page) {
     addBar.classList.remove('visible');
   }
 
+  if (page === 'chat') {
+    pc.classList.add('chat-mode');
+  } else {
+    pc.classList.remove('chat-mode');
+  }
+
   switch (page) {
     case 'home':      renderHome();      break;
     case 'briefing':  renderBriefing();  break;
     case 'tasks':     renderTasks();     break;
     case 'reminders': renderReminders(); break;
     case 'more':      renderMore();      break;
+    case 'chat':      renderChat();      break;
   }
 }
 
@@ -1310,6 +1318,136 @@ function termCopyBlank() {
   if (!btn) return;
   const text = `---\nIn ~/watson, [describe what to build or fix here]\n\nThen git add -A && git commit -m "[description]" && git push origin main.\n---`;
   _termCopy(text, btn);
+}
+
+// ─── Chat tab ─────────────────────────────────────────────────────────────────
+
+function renderChat() {
+  setContent(`
+    <div id="chat-messages"></div>
+    <div id="chat-input-area">
+      <textarea id="chat-textarea" rows="20" placeholder="Message Watson… (Ctrl Enter to send)"></textarea>
+    </div>
+  `);
+
+  const msgs = document.getElementById('chat-messages');
+  chatHistory.forEach(m => appendChatMsg(m.role === 'user' ? 'user' : 'watson', m.content));
+  if (msgs) msgs.scrollTop = msgs.scrollHeight;
+
+  const ta = document.getElementById('chat-textarea');
+  if (ta) {
+    ta.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && e.ctrlKey) {
+        e.preventDefault();
+        sendChatStream();
+      }
+    });
+    ta.focus();
+  }
+}
+
+function appendChatMsg(role, content) {
+  const msgs = document.getElementById('chat-messages');
+  if (!msgs) return;
+  const div = document.createElement('div');
+  div.className = `cmsg cmsg-${role}`;
+  const bubble = document.createElement('div');
+  bubble.className = 'cmsg-bubble';
+  bubble.textContent = content;
+  div.appendChild(bubble);
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+  return bubble;
+}
+
+async function sendChatStream() {
+  const ta = document.getElementById('chat-textarea');
+  if (!ta) return;
+  const message = ta.value.trim();
+  if (!message) return;
+
+  ta.value = '';
+  ta.focus();
+
+  appendChatMsg('user', message);
+  chatHistory.push({ role: 'user', content: message });
+
+  const msgs = document.getElementById('chat-messages');
+  const statusEl = document.createElement('div');
+  statusEl.className = 'cstatus';
+  statusEl.textContent = 'Watson is thinking…';
+  if (msgs) { msgs.appendChild(statusEl); msgs.scrollTop = msgs.scrollHeight; }
+
+  const watsonDiv = document.createElement('div');
+  watsonDiv.className = 'cmsg cmsg-watson';
+  const bubble = document.createElement('div');
+  bubble.className = 'cmsg-bubble';
+  watsonDiv.appendChild(bubble);
+
+  let fullReply = '';
+  let bubbleAdded = false;
+
+  try {
+    const resp = await fetch('/api/chat/stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message, history: chatHistory.slice(0, -1) }),
+    });
+
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+    let done = false;
+
+    while (!done) {
+      const { done: streamDone, value } = await reader.read();
+      if (streamDone) break;
+      buf += decoder.decode(value, { stream: true });
+      const events = buf.split('\n\n');
+      buf = events.pop();
+
+      for (const event of events) {
+        const dataLines = event.split('\n')
+          .filter(l => l.startsWith('data: '))
+          .map(l => l.slice(6));
+        if (!dataLines.length) continue;
+
+        const first = dataLines[0];
+        if (first === '[DONE]') { done = true; break; }
+        if (first.startsWith('[ERROR]')) {
+          if (statusEl.parentNode) statusEl.remove();
+          statusEl.textContent = first.slice(7).trim() || 'Error from Watson';
+          if (msgs) { msgs.appendChild(statusEl); msgs.scrollTop = msgs.scrollHeight; }
+          done = true; break;
+        }
+        if (first.startsWith('[CONFIRM_EMAIL]') || first.startsWith('[QR_IMAGE]')) continue;
+
+        try {
+          const json = JSON.parse(first);
+          if (json.type === 'status') {
+            statusEl.textContent = json.text;
+            continue;
+          }
+        } catch {}
+
+        const token = dataLines.join('\n');
+        if (!bubbleAdded) {
+          bubbleAdded = true;
+          if (statusEl.parentNode) statusEl.remove();
+          if (msgs) msgs.appendChild(watsonDiv);
+        }
+        fullReply += token;
+        bubble.textContent = fullReply;
+        if (msgs) msgs.scrollTop = msgs.scrollHeight;
+      }
+    }
+  } catch (err) {
+    if (statusEl.parentNode) statusEl.remove();
+    appendChatMsg('watson', `Error: ${err.message}`);
+  }
+
+  if (fullReply) chatHistory.push({ role: 'assistant', content: fullReply });
+  if (msgs) msgs.scrollTop = msgs.scrollHeight;
 }
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
