@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-06-21*
+*Generated: 2026-06-22*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -97,6 +97,7 @@ docs/
 import_connect_cards.py
 import_contacts.py
 jobs/
+  __init__.py
   acquired/
     chump.py
     send.py
@@ -137,6 +138,7 @@ jobs/
     __init__.py
     vcf_importer.py
   dadjoke/
+    __init__.py
     joke.py
   dashboard/
     app.py
@@ -181,6 +183,7 @@ jobs/
     secrets_audit.py
     skill_tester.py
     skill_validator.py
+    smoke_test_triggers.py
     system_monitor.py
     test_runner.py
     update_arch.py
@@ -205,6 +208,7 @@ jobs/
     __init__.py
     send.py
   facebook/
+    __init__.py
     facebook_post.py
     scheduler.py
     templates.py
@@ -230,6 +234,7 @@ jobs/
     __init__.py
     classifier.py
   kb/
+    __init__.py
     archive_transcripts.py
   marketing/
     __init__.py
@@ -249,6 +254,7 @@ jobs/
     wrap_up.py
   memory_manager.py
   misc/
+    __init__.py
     both_read_pdf.py
     here_link_book.py
     im_trying_file.py
@@ -319,8 +325,10 @@ jobs/
     __init__.py
     image_search.py
   tasks/
+    __init__.py
     add_task.py
   telegram/
+    __init__.py
     pending.py
     resend_last.py
   time_check.py
@@ -365,6 +373,7 @@ memory/
   .gitkeep
   CRON.md
   FILE_MAP.md
+  SMOKE_TEST.md
   WATSON_ARCHITECTURE.md
   architecture.md
   builds/
@@ -519,7 +528,11 @@ src/
           route.ts
         post/
           route.ts
+        posts/
+          route.ts
         reset/
+          route.ts
+        verify/
           route.ts
       submit-draft/
         route.ts
@@ -563,6 +576,7 @@ src/
       (protected)/
         PostList.tsx
         RoomNav.tsx
+        RoomShell.tsx
         beta/
           BetaDraftList.tsx
           page.tsx
@@ -573,17 +587,25 @@ src/
         layout.tsx
         prayer/
           page.tsx
+        read/
+          ArcReader.tsx
+          page.tsx
         write/
           page.tsx
-      ApplyForm.tsx
+      LoginForm.tsx
       admin/
         login/
           page.tsx
+        page.tsx
+      apply/
+        ApplyForm.tsx
         page.tsx
       login/
         page.tsx
       page.tsx
       reset/
+        page.tsx
+      verify/
         page.tsx
     speaking/
       page.tsx
@@ -655,7 +677,28 @@ app/
       twj/
         page.tsx
     page.tsx
+    writing-room/
+      page.tsx
   api/
+    admin/
+      writing-room/
+        approve/
+          route.ts
+        call/
+          route.ts
+        calls/
+          route.ts
+        deny/
+          route.ts
+        messages/
+          route.ts
+        partners/
+          route.ts
+        resend/
+          route.ts
+        revoke/
+          route.ts
+        route.ts
     auth/
       login/
         route.ts
@@ -691,6 +734,7 @@ components/
 lib/
   auth.ts
   kv.ts
+  writing-room.ts
 next.config.ts
 package-lock.json
 package.json
