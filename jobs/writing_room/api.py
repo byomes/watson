@@ -171,7 +171,7 @@ def new_reply():
     section    = data.get("section", "board")
     content    = (data.get("content") or "").strip()
 
-    if not (partner_id and parent_id and content):
+    if partner_id is None or not parent_id or not content:
         return jsonify({"error": "partner_id, parent_id, and content required"}), 400
 
     conn = get_db()
