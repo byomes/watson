@@ -147,7 +147,7 @@ def new_post():
     section    = data.get("section", "board")
     content    = (data.get("content") or "").strip()
 
-    if not (partner_id and content):
+    if partner_id is None or not content:
         return jsonify({"error": "partner_id and content required"}), 400
 
     conn = get_db()
@@ -275,7 +275,7 @@ def get_posts():
     try:
         rows = conn.execute(
             "SELECT p.id, p.partner_id, p.section, p.parent_id, p.content, p.flagged, p.created_at, "
-            "       pr.name AS partner_name "
+            "       CASE WHEN p.partner_id = 0 THEN 'Dr. Bill' ELSE pr.name END AS partner_name "
             "FROM writing_room_posts p "
             "LEFT JOIN writing_room_partners pr ON p.partner_id = pr.id "
             "WHERE p.section = ? "
@@ -527,6 +527,30 @@ def revoke():
         conn.execute(
             "UPDATE writing_room_partners SET status = 'revoked' WHERE id = ?", (partner_id,)
         )
+        conn.commit()
+        return jsonify({"ok": True}), 200
+    finally:
+        conn.close()
+
+
+# ── Post delete ───────────────────────────────────────────────────────────────
+
+@writing_room_bp.route("/api/writing-room/post/<int:post_id>", methods=["DELETE"])
+@_require_key
+def delete_post(post_id):
+    data = request.get_json(force=True) or {}
+    requesting_partner_id = data.get("partner_id")
+    conn = get_db()
+    try:
+        row = conn.execute(
+            "SELECT partner_id FROM writing_room_posts WHERE id = ?", (post_id,)
+        ).fetchone()
+        if not row:
+            return jsonify({"error": "not found"}), 404
+        # Allow if: requester is the author OR requester is admin (partner_id = 0)
+        if requesting_partner_id != 0 and row["partner_id"] != requesting_partner_id:
+            return jsonify({"error": "forbidden"}), 403
+        conn.execute("DELETE FROM writing_room_posts WHERE id = ?", (post_id,))
         conn.commit()
         return jsonify({"ok": True}), 200
     finally:
