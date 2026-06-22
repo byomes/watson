@@ -67,12 +67,6 @@ function switchTab(page) {
     addBar.classList.remove('visible');
   }
 
-  if (page === 'chat') {
-    pc.classList.add('chat-mode');
-  } else {
-    pc.classList.remove('chat-mode');
-  }
-
   switch (page) {
     case 'home':      renderHome();      break;
     case 'briefing':  renderBriefing();  break;
@@ -1323,27 +1317,16 @@ function termCopyBlank() {
 // ─── Chat tab ─────────────────────────────────────────────────────────────────
 
 function renderChat() {
-  setContent(`
-    <div id="chat-messages"></div>
-    <div id="chat-input-area">
-      <textarea id="chat-textarea" rows="20" placeholder="Message Watson… (Ctrl Enter to send)"></textarea>
-    </div>
-  `);
-
+  document.getElementById('chat-overlay').classList.add('active');
   const msgs = document.getElementById('chat-messages');
-  chatHistory.forEach(m => appendChatMsg(m.role === 'user' ? 'user' : 'watson', m.content));
   if (msgs) msgs.scrollTop = msgs.scrollHeight;
-
   const ta = document.getElementById('chat-textarea');
-  if (ta) {
-    ta.addEventListener('keydown', e => {
-      if (e.key === 'Enter' && e.ctrlKey) {
-        e.preventDefault();
-        sendChatStream();
-      }
-    });
-    ta.focus();
-  }
+  if (ta) ta.focus();
+}
+
+function closeChat() {
+  document.getElementById('chat-overlay').classList.remove('active');
+  switchTab('home');
 }
 
 function appendChatMsg(role, content) {
@@ -1365,8 +1348,8 @@ async function sendChatStream() {
   if (!ta) return;
   const message = ta.value.trim();
   if (!message) return;
-
   ta.value = '';
+  ta.style.height = 'auto';
   ta.focus();
 
   appendChatMsg('user', message);
@@ -1462,5 +1445,19 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   const wMark = document.getElementById('hdr-mark');
   if (wMark) wMark.addEventListener('click', () => location.reload(true));
+
+  const chatTa = document.getElementById('chat-textarea');
+  if (chatTa) {
+    chatTa.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendChatStream();
+      }
+    });
+    chatTa.addEventListener('input', () => {
+      chatTa.style.height = 'auto';
+      chatTa.style.height = Math.min(chatTa.scrollHeight, 120) + 'px';
+    });
+  }
   switchTab('home');
 });
