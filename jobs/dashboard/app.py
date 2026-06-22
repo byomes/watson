@@ -1031,7 +1031,8 @@ def chat_summarize():
     prompt = (
         "Summarize this conversation in 3-5 sentences. Focus on topics discussed, decisions made, "
         "tasks mentioned, and anything Dr. Bill said about himself, his ministry, or his plans. "
-        "Be specific and factual. No preamble.\n\n" + convo
+        "Be specific and factual. No preamble. "
+        "Important: The person in this conversation is Dr. William C.K. Yomes. Use his full name accurately. Do not substitute or confuse him with any other person.\n\n" + convo
     )
     try:
         resp = _sreq.post(
