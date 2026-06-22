@@ -805,11 +805,12 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     # SMS interception
+    # 'text ' must be a startswith check — substring match catches "polish this text for me"
     _sms_triggers = (
-        'text ', 'send a text', 'send text', 'shoot a text',
+        'send a text', 'send text', 'shoot a text',
         'shoot them a text', 'shoot her a text', 'shoot him a text',
     )
-    if any(t in text_lower for t in _sms_triggers):
+    if text_lower.startswith('text ') or any(t in text_lower for t in _sms_triggers):
         from jobs.sms.sms_send import send_sms_to_contact as _sms_to_contact, send_sms as _sms_direct
 
         _sms_me = re.search(

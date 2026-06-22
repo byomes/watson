@@ -37,6 +37,8 @@ _LIST_SKILLS_TRIGGERS = (
 )
 
 # Pre-check map: slug → trigger phrases. Matched before the LLM call.
+# NOTE: "polish this:" is the reserved trigger for the polish skill (not yet built).
+# No partial word like "polish" should ever be added here — it must be the exact phrase.
 _SKILL_PRE_CHECKS: dict[str, tuple] = {
     "add_task": (
         "add task", "new task", "create task",
@@ -72,9 +74,6 @@ _SKILL_PRE_CHECKS: dict[str, tuple] = {
     "image_search": (
         "find image", "find a photo", "find a picture",
         "search image", "image of",
-    ),
-    "wrap_up": (
-        "wrap up", "end session",
     ),
 }
 
