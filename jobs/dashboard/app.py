@@ -156,6 +156,11 @@ def _bootstrap():
 
 _bootstrap()
 
+from jobs.writing_room.api import writing_room_bp
+from jobs.writing_room import bootstrap_db as _wr_bootstrap
+_wr_bootstrap()
+app.register_blueprint(writing_room_bp)
+
 _EMAIL_SIGNATURE = "---\nWatson\nAI-powered digital assistant\nOffice of Dr. Bill Yomes\nwilliamckyomes.com/start"
 
 
@@ -3176,6 +3181,37 @@ def voice():
             log.warning("Failed to persist assistant voice message: %s", exc)
 
     return jsonify({"response": reply, "session_id": session_id})
+
+
+# ── Blog Draft Submission ──────────────────────────────────────────────────────
+
+@app.route('/api/submit-draft', methods=['POST'])
+def submit_draft():
+    data = request.get_json()
+    slug = data.get('slug', '').strip()
+    content = data.get('content', '').strip()
+
+    if not slug or not content:
+        return jsonify({'error': 'Missing slug or content'}), 400
+
+    title = slug
+    title_match = re.search(r'^title:\s*["\']?(.+?)["\']?\s*$', content, re.MULTILINE)
+    if title_match:
+        title = title_match.group(1).strip()
+
+    body = re.sub(r'^---.*?---\s*', '', content, flags=re.DOTALL).strip()
+
+    db = _db()
+    try:
+        db.execute(
+            "INSERT OR IGNORE INTO blog_drafts (slug, title, body, status) VALUES (?, ?, ?, 'pending')",
+            (slug, title, body)
+        )
+        db.commit()
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+    return jsonify({'ok': True, 'slug': slug}), 200
 
 
 # ── Status API ────────────────────────────────────────────────────────────────
