@@ -14,6 +14,7 @@ Cron (every 30 minutes):
     >> /home/billyomes/watson/logs/correction_handler.log 2>&1
 """
 
+import datetime
 import email
 import email.header
 import email.utils
@@ -21,7 +22,9 @@ import imaplib
 import logging
 import os
 import re
+import smtplib
 import sqlite3
+from email.mime.text import MIMEText
 
 import requests
 from bs4 import BeautifulSoup
@@ -64,6 +67,33 @@ def _send_telegram(text: str) -> None:
         )
     except Exception as exc:
         log.warning("Telegram notification failed: %s", exc)
+
+
+def _send_confirmation_email(service_date: str, correction_names: list[str]) -> None:
+    if not DONNA_EMAIL or not GMAIL_ADDR or not GMAIL_PASS:
+        return
+    try:
+        date_label = format_date_for_subject(datetime.date.fromisoformat(service_date))
+        names_list = "\n".join(f"  {name}" for name in correction_names) if correction_names else "  (none)"
+        body = (
+            f"Hi Donna,\n\n"
+            f"I've received your attendance updates for {date_label} and added the following names to the record:\n\n"
+            f"{names_list}\n\n"
+            f"You're all set!\n\n"
+            f"Watson"
+        )
+        msg = MIMEText(body, "plain")
+        msg["From"] = "Watson <watson@williamckyomes.com>"
+        msg["To"] = DONNA_EMAIL
+        msg["Subject"] = "Attendance Update Received"
+        with smtplib.SMTP("smtp.gmail.com", 587) as smtp:
+            smtp.ehlo()
+            smtp.starttls()
+            smtp.login(GMAIL_ADDR, GMAIL_PASS)
+            smtp.sendmail(GMAIL_ADDR, [DONNA_EMAIL], msg.as_string())
+        log.info("Confirmation email sent to %s", DONNA_EMAIL)
+    except Exception as exc:
+        log.warning("Confirmation email to Donna failed: %s", exc)
 
 
 def _decode_subject(raw_subject: str) -> str:
@@ -189,8 +219,8 @@ def _sender_name(addr: str) -> str:
     return addr
 
 
-def _process_email(msg, conn: sqlite3.Connection) -> tuple[int, int, list[str], str, str]:
-    """Returns (inserted_count, inactive_count, not_found, service_date, sender_name)."""
+def _process_email(msg, conn: sqlite3.Connection) -> tuple[int, int, list[str], str, str, list[str]]:
+    """Returns (inserted_count, inactive_count, not_found, service_date, sender_name, correction_names)."""
     from_addr = email.utils.parseaddr(msg.get("From", ""))[1].lower()
     subject   = _decode_subject(msg.get("Subject", ""))
     body      = _get_plain_text(msg)
@@ -240,7 +270,7 @@ def _process_email(msg, conn: sqlite3.Connection) -> tuple[int, int, list[str], 
             log.error("Error processing inactive name %r: %s", name, exc)
 
     conn.commit()
-    return inserted, inactive_count, not_found, service_date, _sender_name(from_addr)
+    return inserted, inactive_count, not_found, service_date, _sender_name(from_addr), correction_names
 
 
 def run() -> None:
@@ -298,7 +328,7 @@ def run() -> None:
                     continue
 
                 try:
-                    inserted, inactive_count, not_found, service_date, sender_name = _process_email(msg, conn)
+                    inserted, inactive_count, not_found, service_date, sender_name, correction_names = _process_email(msg, conn)
                 except Exception as exc:
                     log.exception("Error processing email id %s: %s", eid, exc)
                     continue
@@ -306,7 +336,7 @@ def run() -> None:
                 mail.store(eid, "+FLAGS", "\\Seen")
 
                 date_label = format_date_for_subject(
-                    __import__("datetime").date.fromisoformat(service_date)
+                    datetime.date.fromisoformat(service_date)
                 )
                 lines = [
                     f"✏️ Corrections applied for {date_label} (from {sender_name}):",
@@ -317,6 +347,9 @@ def run() -> None:
                 if not_found:
                     lines.append(f"⚠️ Not found: {', '.join(not_found)}")
                 _send_telegram("\n".join(lines))
+
+                if from_addr == DONNA_EMAIL:
+                    _send_confirmation_email(service_date, correction_names)
         finally:
             conn.close()
 
