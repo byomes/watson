@@ -13,6 +13,7 @@ log = logging.getLogger(__name__)
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from flask import Flask, Response, g, jsonify, render_template, request, session, stream_with_context
+from flask_cors import CORS
 from jobs.people.api import congregation_list, people_create, people_delete, people_list, people_update
 from config.settings import WATSON_SYSTEM
 
@@ -26,6 +27,7 @@ if not _secret_key:
     log.warning("FLASK_SECRET_KEY is not set — using insecure default. Set it in .env.")
     _secret_key = "watson-dashboard-secret"
 app.secret_key = _secret_key
+CORS(app)
 
 
 def _db():
