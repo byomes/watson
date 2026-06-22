@@ -157,6 +157,13 @@ def _bootstrap():
         summary    TEXT    NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )""")
+    c.execute("""CREATE TABLE IF NOT EXISTS routing_corrections (
+        id               INTEGER PRIMARY KEY AUTOINCREMENT,
+        original_message TEXT    NOT NULL,
+        detected_intent  TEXT,
+        correct_intent   TEXT,
+        created_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )""")
     c.commit()
     c.close()
 

@@ -71,3 +71,35 @@ def mark_cancelled(pending_id: int) -> None:
             "UPDATE tg_pending_actions SET status='cancelled' WHERE id=?",
             (pending_id,),
         )
+
+
+def store_skill_confirmation(action_type: str, payload: dict) -> int:
+    """Store a skill awaiting user confirmation (not keyed by reply message ID)."""
+    with get_connection() as conn:
+        cur = conn.execute(
+            """INSERT INTO tg_pending_actions (type, telegram_message_id, payload, status)
+               VALUES (?, 0, ?, 'awaiting_confirmation')""",
+            (action_type, json.dumps(payload or {})),
+        )
+        return cur.lastrowid
+
+
+def get_pending_confirmation() -> dict | None:
+    """Return the most recent awaiting_confirmation action, or None."""
+    with get_connection() as conn:
+        row = conn.execute(
+            """SELECT id, type, payload FROM tg_pending_actions
+               WHERE status = 'awaiting_confirmation'
+               ORDER BY id DESC LIMIT 1""",
+        ).fetchone()
+    if not row:
+        return None
+    return {"id": row["id"], "type": row["type"], "payload": json.loads(row["payload"])}
+
+
+def mark_pending_status(pending_id: int, status: str) -> None:
+    with get_connection() as conn:
+        conn.execute(
+            "UPDATE tg_pending_actions SET status=? WHERE id=?",
+            (status, pending_id),
+        )
