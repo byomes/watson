@@ -3,6 +3,8 @@
 // ─── State ────────────────────────────────────────────────────────────────────
 let activePage = 'home';
 let chatHistory = [];
+let chatMemoryContext = '';
+let chatIdleTimer = null;
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
@@ -1316,17 +1318,44 @@ function termCopyBlank() {
 
 // ─── Chat tab ─────────────────────────────────────────────────────────────────
 
-function renderChat() {
+async function renderChat() {
   document.getElementById('chat-overlay').classList.add('active');
   const msgs = document.getElementById('chat-messages');
   if (msgs) msgs.scrollTop = msgs.scrollHeight;
   const ta = document.getElementById('chat-textarea');
   if (ta) ta.focus();
+  try {
+    const res = await fetch('/api/memory/recent');
+    const summaries = await res.json();
+    if (Array.isArray(summaries) && summaries.length) {
+      chatMemoryContext = 'WATSON MEMORY — RECENT SESSIONS:\n' +
+        summaries.map((s, i) => `[${i + 1}] ${s}`).join('\n') +
+        '\n\nUse this context to maintain continuity with Dr. Bill across conversations.';
+    } else {
+      chatMemoryContext = '';
+    }
+  } catch { chatMemoryContext = ''; }
 }
 
-function closeChat() {
+async function closeChat() {
+  if (chatIdleTimer) { clearTimeout(chatIdleTimer); chatIdleTimer = null; }
+  if (chatHistory.length >= 2) await _summarizeChat();
+  chatHistory = [];
+  const msgs = document.getElementById('chat-messages');
+  if (msgs) msgs.innerHTML = '';
+  chatMemoryContext = '';
   document.getElementById('chat-overlay').classList.remove('active');
   switchTab('home');
+}
+
+async function _summarizeChat() {
+  try {
+    await fetch('/api/chat/summarize', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ history: chatHistory }),
+    });
+  } catch {}
 }
 
 function appendChatMsg(role, content) {
@@ -1355,6 +1384,12 @@ async function sendChatStream() {
   appendChatMsg('user', message);
   chatHistory.push({ role: 'user', content: message });
 
+  if (chatIdleTimer) clearTimeout(chatIdleTimer);
+  chatIdleTimer = setTimeout(async () => {
+    if (chatHistory.length >= 2) await _summarizeChat();
+    chatIdleTimer = null;
+  }, 30 * 60 * 1000);
+
   const msgs = document.getElementById('chat-messages');
   const statusEl = document.createElement('div');
   statusEl.className = 'cstatus';
@@ -1374,7 +1409,7 @@ async function sendChatStream() {
     const resp = await fetch('/api/chat/stream', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message, history: chatHistory.slice(0, -1) }),
+      body: JSON.stringify({ message, history: chatHistory.slice(0, -1), memory_context: chatMemoryContext }),
     });
 
     const reader = resp.body.getReader();

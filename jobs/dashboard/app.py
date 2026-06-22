@@ -152,6 +152,11 @@ def _bootstrap():
         c.execute("ALTER TABLE appointment_bookings ADD COLUMN cancelled_at TEXT")
     except Exception:
         pass
+    c.execute("""CREATE TABLE IF NOT EXISTS memory_sessions (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        summary    TEXT    NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )""")
     c.commit()
     c.close()
 
@@ -1004,6 +1009,47 @@ def approve_skill(slug):
         return jsonify({"success": False, "error": str(exc)}), 500
 
 
+# ── Memory API ───────────────────────────────────────────────────────────────
+
+@app.route("/api/memory/recent")
+def memory_recent():
+    rows = _db().execute(
+        "SELECT summary FROM memory_sessions ORDER BY created_at DESC LIMIT 10"
+    ).fetchall()
+    return jsonify([r["summary"] for r in rows])
+
+
+@app.route("/api/chat/summarize", methods=["POST"])
+def chat_summarize():
+    import requests as _sreq
+    data = request.get_json(force=True) or {}
+    history = data.get("history") or []
+    msgs = [m for m in history if m.get("role") in ("user", "assistant") and m.get("content")]
+    if len(msgs) < 2:
+        return jsonify({"ok": True, "skipped": True})
+    convo = "\n".join(f"{m['role'].title()}: {m['content']}" for m in msgs)
+    prompt = (
+        "Summarize this conversation in 3-5 sentences. Focus on topics discussed, decisions made, "
+        "tasks mentioned, and anything Dr. Bill said about himself, his ministry, or his plans. "
+        "Be specific and factual. No preamble.\n\n" + convo
+    )
+    try:
+        resp = _sreq.post(
+            "http://localhost:11434/api/generate",
+            json={"model": "llama3.2:3b", "prompt": prompt, "stream": False},
+            timeout=60,
+        )
+        resp.raise_for_status()
+        summary = (resp.json().get("response") or "").strip()
+    except Exception as exc:
+        log.error("chat summarize failed: %s", exc)
+        return jsonify({"ok": False, "error": str(exc)}), 500
+    if summary:
+        _db().execute("INSERT INTO memory_sessions (summary) VALUES (?)", (summary,))
+        _db().commit()
+    return jsonify({"ok": True})
+
+
 # ── Chat Streaming API ────────────────────────────────────────────────────────
 
 @app.route("/api/chat/stream", methods=["POST"])
@@ -1017,6 +1063,7 @@ def chat_stream():
     history = data.get("history") or []
     session_id = data.get("session_id")
     project_slug = data.get("project_slug")
+    memory_context = (data.get("memory_context") or "").strip()
 
     def _sse(text):
         lines = str(text).split('\n')
@@ -1655,10 +1702,10 @@ def chat_stream():
                 _proj_mem_contents = _proj_mem_path.read_text(encoding="utf-8")
             except Exception:
                 _proj_mem_contents = ""
-    _system = (
-        f"PROJECT CONTEXT:\n{_proj_mem_contents}\n\n---\n\n{WATSON_SYSTEM}"
-        if _proj_mem_contents else WATSON_SYSTEM
-    )
+    _base = WATSON_SYSTEM
+    if _proj_mem_contents:
+        _base = f"PROJECT CONTEXT:\n{_proj_mem_contents}\n\n---\n\n{_base}"
+    _system = f"{memory_context}\n\n---\n\n{_base}" if memory_context else _base
 
     def _update_project_memory(slug, mem_path, current_mem, user_msg, reply):
         try:

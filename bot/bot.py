@@ -48,6 +48,7 @@ log = logging.getLogger(__name__)
 _AUTHORIZED_ID = int(TELEGRAM_CHAT_ID) if TELEGRAM_CHAT_ID else None
 
 _DONORS_DB = Path(__file__).resolve().parents[1] / "data" / "donors.db"
+_CONG_DB   = Path(__file__).resolve().parents[1] / "data" / "congregation.db"
 _KIT_API_KEY = os.getenv("KIT_API_KEY", "")        # v3 reads (tags list)
 _KIT_API_SECRET = os.getenv("KIT_API_SECRET", "")  # v3 writes (tags, subscribe, draft)
 _KIT_API_KEY_V4 = os.getenv("KIT_API_KEY_V4", "")  # v4 broadcasts (X-Kit-Api-Key header)
@@ -1294,6 +1295,23 @@ async def _handle_task_done(update: Update, context: ContextTypes.DEFAULT_TYPE, 
 
 
 async def _get_general_reply(text: str) -> str:
+    db_path = os.path.expanduser("~/watson/data/watson.db")
+    memory_prefix = ""
+    try:
+        with sqlite3.connect(db_path) as _mc:
+            rows = _mc.execute(
+                "SELECT summary FROM memory_sessions ORDER BY created_at DESC LIMIT 10"
+            ).fetchall()
+            if rows:
+                summaries = [r[0] for r in rows]
+                memory_prefix = (
+                    "WATSON MEMORY — RECENT SESSIONS:\n" +
+                    "\n".join(f"[{i+1}] {s}" for i, s in enumerate(summaries)) +
+                    "\n\nUse this context to maintain continuity with Dr. Bill across conversations.\n\n---\n\n"
+                )
+    except Exception:
+        pass
+    system = memory_prefix + WATSON_SYSTEM
     try:
         import requests as _req
         resp = _req.post(
@@ -1301,7 +1319,7 @@ async def _get_general_reply(text: str) -> str:
             json={
                 "model": "llama3.2:3b",
                 "messages": [
-                    {"role": "system", "content": WATSON_SYSTEM},
+                    {"role": "system", "content": system},
                     {"role": "user", "content": text},
                 ],
                 "stream": False,
@@ -2341,6 +2359,103 @@ async def _handle_calendar_availability(update: Update, context: ContextTypes.DE
     except Exception as exc:
         log.error("Calendar availability failed: %s", exc)
         await update.message.reply_text(f"Error: {exc}")
+async def handle_member_conflict_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle mc_same / mc_diff / mc_update_email / mc_keep_sep / mc_skip button taps."""
+    query = update.callback_query
+    await query.answer()
+
+    if not _is_authorized(update):
+        return
+
+    action, conflict_id_str = query.data.rsplit(":", 1)
+    conflict_id = int(conflict_id_str)
+    now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+
+    conn = sqlite3.connect(str(_CONG_DB))
+    conn.row_factory = sqlite3.Row
+    try:
+        conflict = conn.execute(
+            "SELECT * FROM member_conflicts WHERE id = ?", (conflict_id,)
+        ).fetchone()
+
+        if not conflict:
+            await query.edit_message_text("Conflict not found.", reply_markup=None)
+            return
+
+        if action == "mc_same":
+            existing_id = conflict["existing_member_id"]
+            new_id      = conflict["new_member_id"]
+            if new_id:
+                for table in ("connect_cards", "attendance", "next_steps", "prayer_requests", "follow_ups"):
+                    conn.execute(
+                        f"UPDATE {table} SET member_id = ? WHERE member_id = ?",
+                        (existing_id, new_id),
+                    )
+                conn.execute("DELETE FROM members WHERE id = ?", (new_id,))
+            conn.execute(
+                "UPDATE member_conflicts SET status='resolved', resolved_at=? WHERE id=?",
+                (now, conflict_id),
+            )
+            conn.commit()
+            await query.edit_message_text(
+                f"✅ Resolved: Merged {conflict['new_name']} into {conflict['existing_name']}",
+                reply_markup=None,
+            )
+
+        elif action == "mc_diff":
+            conn.execute(
+                "UPDATE member_conflicts SET status='resolved', resolved_at=? WHERE id=?",
+                (now, conflict_id),
+            )
+            conn.commit()
+            await query.edit_message_text(
+                f"✅ Resolved: Kept {conflict['existing_name']} and {conflict['new_name']} as different people",
+                reply_markup=None,
+            )
+
+        elif action == "mc_update_email":
+            conn.execute(
+                "UPDATE members SET email = ? WHERE id = ?",
+                (conflict["new_email"], conflict["existing_member_id"]),
+            )
+            conn.execute(
+                "UPDATE member_conflicts SET status='resolved', resolved_at=? WHERE id=?",
+                (now, conflict_id),
+            )
+            conn.commit()
+            await query.edit_message_text(
+                f"✅ Resolved: Updated email for {conflict['existing_name']} to {conflict['new_email']}",
+                reply_markup=None,
+            )
+
+        elif action == "mc_keep_sep":
+            conn.execute(
+                "UPDATE member_conflicts SET status='resolved', resolved_at=? WHERE id=?",
+                (now, conflict_id),
+            )
+            conn.commit()
+            await query.edit_message_text(
+                f"✅ Resolved: Kept {conflict['existing_name']} records separate",
+                reply_markup=None,
+            )
+
+        elif action == "mc_skip":
+            conn.execute(
+                "UPDATE member_conflicts SET status='skipped' WHERE id=?", (conflict_id,)
+            )
+            conn.commit()
+            await query.edit_message_text(
+                f"⏭ Skipped: {conflict['existing_name']} / {conflict['new_name']}",
+                reply_markup=None,
+            )
+
+    except Exception as exc:
+        log.error("member_conflict callback failed (id=%d action=%s): %s", conflict_id, action, exc)
+        await query.edit_message_text(f"❌ Error: {exc}", reply_markup=None)
+    finally:
+        conn.close()
+
+
 def main():
     if not TELEGRAM_BOT_TOKEN:
         raise RuntimeError("TELEGRAM_BOT_TOKEN is not set in .env")
@@ -2370,6 +2485,7 @@ def main():
     app.add_handler(CommandHandler("read",        handle_read))
     app.add_handler(CommandHandler("saved",       handle_saved))
     app.add_handler(CommandHandler("ask",         handle_ask))
+    app.add_handler(CallbackQueryHandler(handle_member_conflict_callback, pattern=r"^mc_"))
     app.add_handler(CallbackQueryHandler(handle_command_callback, pattern=r"^cmd_"))
     app.add_handler(CallbackQueryHandler(handle_acquire_callback, pattern=r"^acquire_"))
     app.add_handler(CallbackQueryHandler(handle_reject_callback, pattern=r"^reject:"))
