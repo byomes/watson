@@ -1705,12 +1705,12 @@ def chat_stream():
         full_reply = []
         first_token = True
         try:
+            ollama_msgs = [{"role": "system", "content": sys}] + list(msgs)
             resp = _req.post(
                 "http://localhost:11434/api/chat",
                 json={
                     "model": "llama3.2:3b",
-                    "system": sys,
-                    "messages": msgs,
+                    "messages": ollama_msgs,
                     "stream": True,
                     "num_predict": 300,
                 },
@@ -1905,8 +1905,7 @@ def siri():
                 "http://localhost:11434/api/chat",
                 json={
                     "model": "llama3.2:3b",
-                    "system": WATSON_SYSTEM,
-                    "messages": [{"role": "user", "content": msg}],
+                    "messages": [{"role": "system", "content": WATSON_SYSTEM}, {"role": "user", "content": msg}],
                     "stream": True,
                     "num_predict": 300,
                 },
@@ -2101,7 +2100,7 @@ def chat():
             messages.append({"role": h["role"], "content": h["content"]})
     messages.append({"role": "user", "content": message})
     try:
-        _body = {"model": "llama3.2:3b", "system": WATSON_SYSTEM, "messages": messages, "stream": True, "num_predict": 300}
+        _body = {"model": "llama3.2:3b", "messages": [{"role": "system", "content": WATSON_SYSTEM}] + messages, "stream": True, "num_predict": 300}
         log.info("Ollama /api/chat request body: %s", json.dumps(_body))
         resp = _req.post(
             "http://localhost:11434/api/chat",
@@ -3146,7 +3145,7 @@ def voice():
         try:
             resp = _req.post(
                 "http://localhost:11434/api/chat",
-                json={"model": "llama3.2:3b", "system": system, "messages": messages_payload, "stream": True, "num_predict": 400},
+                json={"model": "llama3.2:3b", "messages": [{"role": "system", "content": system}] + messages_payload, "stream": True, "num_predict": 400},
                 stream=True,
                 timeout=30,
             )
