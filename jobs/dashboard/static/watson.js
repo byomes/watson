@@ -1337,9 +1337,9 @@ async function renderChat() {
   } catch { chatMemoryContext = ''; }
 }
 
-async function closeChat() {
+function closeChat() {
   if (chatIdleTimer) { clearTimeout(chatIdleTimer); chatIdleTimer = null; }
-  if (chatHistory.length >= 2) await _summarizeChat();
+  if (chatHistory.length >= 2) _summarizeChat(); // fire-and-forget
   chatHistory = [];
   const msgs = document.getElementById('chat-messages');
   if (msgs) msgs.innerHTML = '';
