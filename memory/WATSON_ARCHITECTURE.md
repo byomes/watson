@@ -557,3 +557,38 @@ WATSON_API_URL=https://watson.tail0243ff.ts.net
 ### ~/watson-admin
 - cd107b2 feat: Writing Room admin — partners, applications, messages, calls (TWJ pattern)
 - ae3c23f feat: Writing Room admin section — partners, applications, messages, calls
+
+---
+
+## Recent Changes — 2026-06-23
+
+### ~/watson
+- a28ce7a feat: location intake endpoint POST /api/location
+- b0ee05a fix: kb search — lazy import to prevent blocking Flask startup
+- a2ef406 fix: kb search — run in thread pool to unblock Flask main thread
+- d334ea4 fix: kb search — local embedding model only, increase Ollama timeout
+- f88e5a3 feat: kb: search skill — ChromaDB sermons collection + llama3.2:3b synopsis with email follow-up
+- 990d59d fix: tighten polish prompt — copy edit only, no expansion
+- e3c1eb1 feat: polish this: skill — Ollama prose polish in Dr. Bill's voice
+- 31577a5 feat: swap confirmation gate to dashboard, restore Telegram direct execution, add image rendering
+- e15e6c2 feat: confirmation gate + correction logging for Telegram skill execution
+- 02ef564 fix: SMS 'text ' trigger misroutes polish messages to SMS handler
+- 176d955 fix: tighten Watson identity to prevent Dr. Bill hallucination
+- 67ea4a9 fix: back button navigation blocked by awaited summarize call
+- bd8335d feat: persistent memory system — session summarization + injection
+- 11d2f13 fix: rename chat overlay topbar label from Watson to Dashboard
+- 0bbbbbb fix: pass Watson system prompt as system role message in all Ollama calls
+- dc0f8f6 feat: redesign chat tab as full-screen overlay
+- 74b04eb feat: add Chat tab to dashboard with SSE streaming textarea
+- 9da085c fix: add flask-cors to dashboard for Tailscale Funnel CORS preflight
+- 757b61b feat: add /api/submit-draft endpoint, retire ingest_drafts.py + cron
+- 3df4651 docs: file map 2026-06-22
+- 2d444d2 transcript: add 2026-06-22-Joshua---Ch3---Walking-Between-Miracles
+- 6058bf3 transcript: add 2026-06-22-Joshua---Ch2---Faith-Over-Culture
+- 510e5db docs: architecture update 2026-06-22
+
+### ~/wcky
+- 8a65204 fix: 50 character minimum on faith description field in Writing Room apply form
+- 3685a99 fix: replace "Join the Launch Team" CTA text with "Join the Writing Room"
+- d73ee71 fix: redirect /arc to /room, replace ARC language with Writing Room
+- 77a069f feat: draft page posts to Watson directly, retire Upstash KV route
