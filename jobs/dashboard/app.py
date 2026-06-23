@@ -171,6 +171,13 @@ def _bootstrap():
         message    TEXT    NOT NULL,
         created_at TEXT    NOT NULL DEFAULT (datetime('now', 'localtime'))
     )""")
+    c.execute("""CREATE TABLE IF NOT EXISTS location_log (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        lat        REAL    NOT NULL,
+        lon        REAL    NOT NULL,
+        timestamp  TEXT    NOT NULL,
+        created_at TEXT    NOT NULL DEFAULT (datetime('now'))
+    )""")
     c.commit()
     c.close()
 
@@ -3424,6 +3431,27 @@ def submit_draft():
         return jsonify({'error': str(e)}), 500
 
     return jsonify({'ok': True, 'slug': slug}), 200
+
+
+# ── Location API ─────────────────────────────────────────────────────────────
+
+@app.route("/api/location", methods=["POST"])
+def location_intake():
+    key = request.headers.get("X-Watson-Key", "")
+    if not key or key != os.getenv("WRITING_ROOM_API_KEY"):
+        return jsonify({"error": "unauthorized"}), 401
+    data = request.get_json(force=True) or {}
+    lat = data.get("lat")
+    lon = data.get("lon")
+    timestamp = data.get("timestamp")
+    if lat is None or lon is None or not timestamp:
+        return jsonify({"error": "lat, lon, and timestamp are required"}), 400
+    _db().execute(
+        "INSERT INTO location_log (lat, lon, timestamp) VALUES (?, ?, ?)",
+        (float(lat), float(lon), timestamp),
+    )
+    _db().commit()
+    return jsonify({"status": "ok"})
 
 
 # ── Status API ────────────────────────────────────────────────────────────────
