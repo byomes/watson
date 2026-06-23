@@ -991,7 +991,7 @@ function moreToggleTheme(isLight) {
 // ─── Chat tab ─────────────────────────────────────────────────────────────────
 
 async function renderChat() {
-  document.getElementById('chat-overlay').classList.add('active');
+  document.getElementById('tab-chat').classList.add('active');
   const msgs = document.getElementById('chat-messages');
   if (msgs) msgs.scrollTop = msgs.scrollHeight;
   const ta = document.getElementById('chat-textarea');
@@ -1016,7 +1016,7 @@ function closeChat() {
   const msgs = document.getElementById('chat-messages');
   if (msgs) msgs.innerHTML = '';
   chatMemoryContext = '';
-  document.getElementById('chat-overlay').classList.remove('active');
+  document.getElementById('tab-chat').classList.remove('active');
   switchTab('home');
 }
 
@@ -1266,21 +1266,6 @@ document.addEventListener('DOMContentLoaded', () => {
       chatTa.style.height = Math.min(chatTa.scrollHeight, 120) + 'px';
     });
   }
-  // iOS keyboard: keep chat input visible when keyboard opens
-  if (window.visualViewport) {
-    const chatTab = document.getElementById('tab-chat');
-    const NAV_HEIGHT = 60;
-    function onViewportResize() {
-      if (!chatTab) return;
-      const vv = window.visualViewport;
-      const bottomOffset = window.innerHeight - vv.height - vv.offsetTop;
-      const keyboardHeight = Math.max(0, bottomOffset);
-      chatTab.style.bottom = (keyboardHeight + NAV_HEIGHT) + 'px';
-    }
-    window.visualViewport.addEventListener('resize', onViewportResize);
-    window.visualViewport.addEventListener('scroll', onViewportResize);
-  }
-
   switchTab('home');
 });
 

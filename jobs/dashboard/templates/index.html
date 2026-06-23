@@ -459,15 +459,16 @@ html, body {
 }
 
 /* ── Chat overlay ────────────────────────────────────────────────────────── */
-#chat-overlay {
+#tab-chat {
   position: fixed;
-  inset: 0;
-  z-index: 200;
+  top: 0; left: 0; right: 0; bottom: 0;
+  z-index: 50;
   display: none;
   flex-direction: column;
   background: var(--bg);
 }
-#chat-overlay.active { display: flex; }
+#tab-chat.active { display: flex; }
+#tab-chat #chat-input-bar { position: sticky; bottom: env(safe-area-inset-bottom, 0px); }
 #chat-topbar {
   flex-shrink: 0;
   display: flex;
@@ -762,7 +763,7 @@ html, body {
   </button>
 </nav>
 
-<div id="chat-overlay">
+<div id="tab-chat">
   <div id="chat-topbar">
     <button id="chat-back-btn" onclick="closeChat()" aria-label="Back">
       <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
