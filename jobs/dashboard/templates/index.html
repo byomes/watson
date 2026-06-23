@@ -576,6 +576,115 @@ html, body {
   padding: 2px 0;
   align-self: flex-start;
 }
+
+/* ── Logins overlay ───────────────────────────────────────────────────────── */
+#logins-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: none;
+  flex-direction: column;
+  background: var(--bg);
+}
+#logins-overlay.active { display: flex; }
+#logins-topbar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  padding-top: calc(12px + env(safe-area-inset-top, 0px));
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+#logins-back-btn, #logins-add-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--gold);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 8px;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+#logins-back-btn:active, #logins-add-btn:active { opacity: 0.6; }
+#logins-topbar-label {
+  flex: 1;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+#logins-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 14px 16px 20px;
+}
+.login-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  padding: 12px 14px;
+  margin-bottom: 8px;
+}
+.login-label { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+.login-meta  { font-size: 12px; color: var(--muted); margin-bottom: 2px; font-family: 'DM Mono', monospace; }
+.login-row   { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.login-pwd   { font-size: 12px; font-family: 'DM Mono', monospace; color: var(--muted); flex: 1; word-break: break-all; }
+.login-reveal-btn {
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-family: inherit;
+  -webkit-tap-highlight-color: transparent;
+  white-space: nowrap;
+}
+.login-reveal-btn:active { opacity: .7; }
+.login-del-btn {
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--red);
+  background: none;
+  color: var(--red);
+  cursor: pointer;
+  font-family: inherit;
+  -webkit-tap-highlight-color: transparent;
+  white-space: nowrap;
+}
+.login-del-btn:active { opacity: .7; }
+#logins-add-panel {
+  display: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  padding: 14px;
+  margin-bottom: 12px;
+}
+#logins-add-panel.open { display: block; }
+#logins-add-panel input, #logins-add-panel textarea {
+  display: block; width: 100%; margin-bottom: 8px;
+  padding: 8px 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r-btn);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+}
+#logins-add-panel input:focus, #logins-add-panel textarea:focus { border-color: var(--gold); }
+#logins-add-panel input::placeholder, #logins-add-panel textarea::placeholder { color: var(--muted); }
+.logins-form-row { display: flex; gap: 8px; }
+.logins-form-row .mbtn { margin-bottom: 0; }
 </style>
 </head>
 <body>
@@ -640,6 +749,33 @@ html, body {
     <button id="chat-send-btn" onclick="sendChatStream()" aria-label="Send">
       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
     </button>
+  </div>
+</div>
+
+<div id="logins-overlay">
+  <div id="logins-topbar">
+    <button id="logins-back-btn" onclick="closeLogins()" aria-label="Back">
+      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    </button>
+    <span id="logins-topbar-label">Logins</span>
+    <button id="logins-add-btn" onclick="loginsToggleForm()" aria-label="Add login">
+      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    </button>
+  </div>
+  <div id="logins-body">
+    <div id="logins-add-panel">
+      <div style="font-size:11px;font-family:'DM Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:10px">Add Login</div>
+      <input id="login-inp-label"    type="text"     placeholder="Label (e.g. Netflix) *" autocomplete="off">
+      <input id="login-inp-user"     type="text"     placeholder="Username / email"       autocomplete="off">
+      <input id="login-inp-pass"     type="password" placeholder="Password"               autocomplete="new-password">
+      <input id="login-inp-url"      type="url"      placeholder="URL (optional)"         autocomplete="off">
+      <textarea id="login-inp-notes" rows="2"        placeholder="Notes (optional)"></textarea>
+      <div class="logins-form-row">
+        <button class="mbtn mbtn-p" onclick="loginsSave()">Save</button>
+        <button class="mbtn"        onclick="loginsToggleForm()">Cancel</button>
+      </div>
+    </div>
+    <div id="logins-list"><div class="loading">Loading&hellip;</div></div>
   </div>
 </div>
 

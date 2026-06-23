@@ -495,6 +495,10 @@ function renderMore() {
       <div class="msec-body" id="msec-body-ministry">
         <div class="msec-inner" id="msec-inner-ministry"><div class="loading">Loading&hellip;</div></div>
       </div>
+    </div>
+    <div class="mrrow" onclick="openLogins()" style="cursor:pointer">
+      <span style="font-size:13px;font-weight:500">Logins</span>
+      <span style="color:var(--gold);font-size:15px">›</span>
     </div>`);
 }
 
@@ -1279,3 +1283,116 @@ document.addEventListener('DOMContentLoaded', () => {
 
   switchTab('home');
 });
+
+// ─── Logins overlay ───────────────────────────────────────────────────────────
+
+let _loginsData = [];
+
+function openLogins() {
+  document.getElementById('logins-overlay').classList.add('active');
+  loginsLoad();
+}
+
+function closeLogins() {
+  document.getElementById('logins-overlay').classList.remove('active');
+  loginsHideForm();
+}
+
+function loginsToggleForm() {
+  const panel = document.getElementById('logins-add-panel');
+  if (panel.classList.contains('open')) {
+    loginsHideForm();
+  } else {
+    panel.classList.add('open');
+    document.getElementById('login-inp-label').focus();
+  }
+}
+
+function loginsHideForm() {
+  const panel = document.getElementById('logins-add-panel');
+  panel.classList.remove('open');
+  ['label','user','pass','url','notes'].forEach(f => {
+    const el = document.getElementById('login-inp-' + f);
+    if (el) el.value = '';
+  });
+}
+
+async function loginsLoad() {
+  const list = document.getElementById('logins-list');
+  list.innerHTML = '<div class="loading">Loading&hellip;</div>';
+  try {
+    _loginsData = await api('/api/logins');
+    loginsRender();
+  } catch(e) {
+    list.innerHTML = '<div class="empty">Failed to load logins.</div>';
+  }
+}
+
+function loginsRender() {
+  const list = document.getElementById('logins-list');
+  if (!_loginsData.length) {
+    list.innerHTML = '<div class="empty">No logins saved yet. Tap + to add one.</div>';
+    return;
+  }
+  list.innerHTML = _loginsData.map(l => `
+    <div class="login-card" id="login-card-${l.id}">
+      <div class="login-label">${esc(l.label)}</div>
+      ${l.username ? `<div class="login-meta">${esc(l.username)}</div>` : ''}
+      ${l.url ? `<div class="login-meta" style="color:var(--blue)">${esc(l.url)}</div>` : ''}
+      ${l.password ? `
+      <div class="login-row">
+        <span class="login-pwd" id="login-pwd-${l.id}">••••••••</span>
+        <button class="login-reveal-btn" onclick="loginsReveal(${l.id},'${esc(l.password).replace(/'/g,"\\'")}')">Show</button>
+        <button class="login-del-btn" onclick="loginsDelete(${l.id})">Delete</button>
+      </div>` : `
+      <div class="login-row" style="margin-top:6px">
+        <button class="login-del-btn" onclick="loginsDelete(${l.id})">Delete</button>
+      </div>`}
+      ${l.notes ? `<div class="login-meta" style="margin-top:6px;color:var(--muted)">${esc(l.notes)}</div>` : ''}
+    </div>`).join('');
+}
+
+function loginsReveal(id, pwd) {
+  const el = document.getElementById('login-pwd-' + id);
+  const btn = el ? el.nextElementSibling : null;
+  if (!el) return;
+  if (el.textContent === '••••••••') {
+    el.textContent = pwd;
+    el.style.color = 'var(--text)';
+    if (btn) btn.textContent = 'Hide';
+  } else {
+    el.textContent = '••••••••';
+    el.style.color = '';
+    if (btn) btn.textContent = 'Show';
+  }
+}
+
+async function loginsSave() {
+  const label = (document.getElementById('login-inp-label').value || '').trim();
+  if (!label) { alert('Label is required.'); return; }
+  const body = {
+    label,
+    username: document.getElementById('login-inp-user').value.trim() || null,
+    password: document.getElementById('login-inp-pass').value || null,
+    url:      document.getElementById('login-inp-url').value.trim() || null,
+    notes:    document.getElementById('login-inp-notes').value.trim() || null,
+  };
+  try {
+    await api('/api/logins', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    loginsHideForm();
+    loginsLoad();
+  } catch(e) {
+    alert('Failed to save login.');
+  }
+}
+
+async function loginsDelete(id) {
+  if (!confirm('Delete this login?')) return;
+  try {
+    await api(`/api/logins/${id}`, { method: 'DELETE' });
+    _loginsData = _loginsData.filter(l => l.id !== id);
+    loginsRender();
+  } catch(e) {
+    alert('Failed to delete login.');
+  }
+}

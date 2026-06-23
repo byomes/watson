@@ -82,6 +82,12 @@ _SKILL_PRE_CHECKS: dict[str, tuple] = {
     "polish": (
         "polish this:",
     ),
+    "logins": (
+        "what's my password",
+        "my password for",
+        "login for",
+        "credentials for",
+    ),
 }
 
 # Matched against msg_lower BEFORE the LLM call — returns run_audit immediately, no fallthrough

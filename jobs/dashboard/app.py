@@ -178,6 +178,16 @@ def _bootstrap():
         timestamp  TEXT    NOT NULL,
         created_at TEXT    NOT NULL DEFAULT (datetime('now'))
     )""")
+    c.execute("""CREATE TABLE IF NOT EXISTS logins (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        label      TEXT    NOT NULL,
+        username   TEXT,
+        password   TEXT,
+        url        TEXT,
+        notes      TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )""")
     c.commit()
     c.close()
 
@@ -3452,6 +3462,56 @@ def location_intake():
     )
     _db().commit()
     return jsonify({"status": "ok"})
+
+
+# ── Logins API ────────────────────────────────────────────────────────────────
+
+@app.route("/api/logins")
+def logins_list():
+    rows = _db().execute(
+        "SELECT id, label, username, password, url, notes, created_at, updated_at "
+        "FROM logins ORDER BY label COLLATE NOCASE"
+    ).fetchall()
+    return jsonify([dict(r) for r in rows])
+
+
+@app.route("/api/logins", methods=["POST"])
+def logins_create():
+    data = request.get_json(force=True) or {}
+    label = (data.get("label") or "").strip()
+    if not label:
+        return jsonify({"error": "label required"}), 400
+    cur = _db().execute(
+        "INSERT INTO logins (label, username, password, url, notes) VALUES (?, ?, ?, ?, ?)",
+        (label, data.get("username") or None, data.get("password") or None,
+         data.get("url") or None, data.get("notes") or None),
+    )
+    _db().commit()
+    row = _db().execute("SELECT * FROM logins WHERE id = ?", (cur.lastrowid,)).fetchone()
+    return jsonify(dict(row)), 201
+
+
+@app.route("/api/logins/<int:login_id>", methods=["PUT"])
+def logins_update(login_id):
+    data = request.get_json(force=True) or {}
+    allowed = {"label", "username", "password", "url", "notes"}
+    fields = {k: v for k, v in data.items() if k in allowed}
+    if not fields:
+        return jsonify({"error": "nothing to update"}), 400
+    set_clause = ", ".join(f"{k} = ?" for k in fields) + ", updated_at = datetime('now')"
+    _db().execute(
+        f"UPDATE logins SET {set_clause} WHERE id = ?", (*fields.values(), login_id)
+    )
+    _db().commit()
+    row = _db().execute("SELECT * FROM logins WHERE id = ?", (login_id,)).fetchone()
+    return jsonify(dict(row) if row else {"error": "not found"})
+
+
+@app.route("/api/logins/<int:login_id>", methods=["DELETE"])
+def logins_delete(login_id):
+    _db().execute("DELETE FROM logins WHERE id = ?", (login_id,))
+    _db().commit()
+    return jsonify({"ok": True})
 
 
 # ── Status API ────────────────────────────────────────────────────────────────

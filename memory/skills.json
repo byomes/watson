@@ -5,10 +5,20 @@
       "name": "Bible Lookup",
       "description": "Look up any Bible passage in NIV, CSB, or NASB.",
       "category": "Core",
-      "triggers": ["watson bible", "what does the bible say", "bible verse", "look up verse", "verse", "passage"],
+      "triggers": [
+        "watson bible",
+        "what does the bible say",
+        "bible verse",
+        "look up verse",
+        "verse",
+        "passage"
+      ],
       "module": "jobs.bible",
       "function": "run",
-      "interfaces": ["telegram", "dashboard"],
+      "interfaces": [
+        "telegram",
+        "dashboard"
+      ],
       "status": "ready"
     },
     {
@@ -16,10 +26,21 @@
       "name": "Add Task",
       "description": "Add a task with optional due date and priority.",
       "category": "Core",
-      "triggers": ["add a task", "new task", "add task", "create task", "add to my tasks", "task:", "tasks:"],
+      "triggers": [
+        "add a task",
+        "new task",
+        "add task",
+        "create task",
+        "add to my tasks",
+        "task:",
+        "tasks:"
+      ],
       "module": "jobs.tasks.add_task",
       "function": "run",
-      "interfaces": ["telegram", "dashboard"],
+      "interfaces": [
+        "telegram",
+        "dashboard"
+      ],
       "status": "ready"
     },
     {
@@ -27,10 +48,15 @@
       "name": "Pastoral Notes",
       "description": "Save a freeform pastoral note directly to the database.",
       "category": "Core",
-      "triggers": ["pastoral note:", "pastoral notes:"],
+      "triggers": [
+        "pastoral note:",
+        "pastoral notes:"
+      ],
       "module": "jobs.pastoral_notes.handler",
       "function": "save_freeform_note",
-      "interfaces": ["telegram"],
+      "interfaces": [
+        "telegram"
+      ],
       "status": "ready"
     },
     {
@@ -38,10 +64,17 @@
       "name": "Contacts Lookup",
       "description": "Search congregation and personal contacts by name.",
       "category": "Core",
-      "triggers": ["show all contacts", "list contacts", "contact search"],
+      "triggers": [
+        "show all contacts",
+        "list contacts",
+        "contact search"
+      ],
       "module": "jobs.skills.contacts_lookup",
       "function": "run",
-      "interfaces": ["telegram", "dashboard"],
+      "interfaces": [
+        "telegram",
+        "dashboard"
+      ],
       "status": "ready"
     },
     {
@@ -49,10 +82,18 @@
       "name": "QR Code",
       "description": "Generate a QR code for any URL or text.",
       "category": "Core",
-      "triggers": ["make a qr code", "qr code for", "generate a qr", "create a qr"],
+      "triggers": [
+        "make a qr code",
+        "qr code for",
+        "generate a qr",
+        "create a qr"
+      ],
       "module": "jobs.qr.qr_generate",
       "function": "run",
-      "interfaces": ["telegram", "dashboard"],
+      "interfaces": [
+        "telegram",
+        "dashboard"
+      ],
       "status": "ready"
     },
     {
@@ -60,10 +101,18 @@
       "name": "Time Check",
       "description": "Check the current time in Eastern timezone.",
       "category": "Core",
-      "triggers": ["what time is it", "current time", "time check", "tell me the time"],
+      "triggers": [
+        "what time is it",
+        "current time",
+        "time check",
+        "tell me the time"
+      ],
       "module": "jobs.time_check",
       "function": "run",
-      "interfaces": ["telegram", "dashboard"],
+      "interfaces": [
+        "telegram",
+        "dashboard"
+      ],
       "status": "ready"
     },
     {
@@ -71,10 +120,18 @@
       "name": "Send Email",
       "description": "Draft and send an email via Watson Gmail.",
       "category": "Core",
-      "triggers": ["send an email", "draft an email", "write an email to", "compose an email"],
+      "triggers": [
+        "send an email",
+        "draft an email",
+        "write an email to",
+        "compose an email"
+      ],
       "module": "jobs.email_send.send",
       "function": "run",
-      "interfaces": ["telegram", "dashboard"],
+      "interfaces": [
+        "telegram",
+        "dashboard"
+      ],
       "status": "ready"
     },
     {
@@ -82,10 +139,18 @@
       "name": "Web Search",
       "description": "Search the web via Serper.dev.",
       "category": "Research",
-      "triggers": ["search the web", "web search", "google", "look it up online"],
+      "triggers": [
+        "search the web",
+        "web search",
+        "google",
+        "look it up online"
+      ],
       "module": "jobs.research.web_search",
       "function": "run",
-      "interfaces": ["telegram", "dashboard"],
+      "interfaces": [
+        "telegram",
+        "dashboard"
+      ],
       "status": "ready"
     },
     {
@@ -93,10 +158,21 @@
       "name": "KB Ask",
       "description": "Query sermon transcripts and documents via ChromaDB.",
       "category": "Research",
-      "triggers": ["kb:", "search kb", "search my notes", "search my sermons", "what have i said about", "what did i preach on", "find in my notes"],
+      "triggers": [
+        "kb:",
+        "search kb",
+        "search my notes",
+        "search my sermons",
+        "what have i said about",
+        "what did i preach on",
+        "find in my notes"
+      ],
       "module": "jobs.ask",
       "function": "ask",
-      "interfaces": ["telegram", "dashboard"],
+      "interfaces": [
+        "telegram",
+        "dashboard"
+      ],
       "status": "ready"
     },
     {
@@ -104,10 +180,14 @@
       "name": "KB Export",
       "description": "Zip and send matching KB source files for a query via Telegram.",
       "category": "Research",
-      "triggers": ["kb export:"],
+      "triggers": [
+        "kb export:"
+      ],
       "module": "jobs.skills.kb_export",
       "function": "run",
-      "interfaces": ["telegram"],
+      "interfaces": [
+        "telegram"
+      ],
       "status": "ready"
     },
     {
@@ -115,10 +195,19 @@
       "name": "Fetch URL",
       "description": "Fetch a webpage and process it with Gemini.",
       "category": "Research",
-      "triggers": ["fetch this", "read this url", "scrape this", "summarize this url", "get this page"],
+      "triggers": [
+        "fetch this",
+        "read this url",
+        "scrape this",
+        "summarize this url",
+        "get this page"
+      ],
       "module": "jobs.research.gemini_fetch",
       "function": "run",
-      "interfaces": ["telegram", "dashboard"],
+      "interfaces": [
+        "telegram",
+        "dashboard"
+      ],
       "status": "disabled"
     },
     {
@@ -126,10 +215,18 @@
       "name": "News Search",
       "description": "Search recent news on any topic.",
       "category": "Research",
-      "triggers": ["search news", "latest news on", "what's the news about", "news about"],
+      "triggers": [
+        "search news",
+        "latest news on",
+        "what's the news about",
+        "news about"
+      ],
       "module": "jobs.research.news_search",
       "function": "run",
-      "interfaces": ["telegram", "dashboard"],
+      "interfaces": [
+        "telegram",
+        "dashboard"
+      ],
       "status": "ready"
     },
     {
@@ -137,10 +234,18 @@
       "name": "Academic Search",
       "description": "Search academic sources and papers.",
       "category": "Research",
-      "triggers": ["search academic", "find papers on", "scholarly search", "academic search"],
+      "triggers": [
+        "search academic",
+        "find papers on",
+        "scholarly search",
+        "academic search"
+      ],
       "module": "jobs.research.academic_search",
       "function": "run",
-      "interfaces": ["telegram", "dashboard"],
+      "interfaces": [
+        "telegram",
+        "dashboard"
+      ],
       "status": "ready"
     },
     {
@@ -148,10 +253,18 @@
       "name": "ISBN Lookup",
       "description": "Look up a book by ISBN or title.",
       "category": "Research",
-      "triggers": ["look up book", "isbn", "find book", "book info"],
+      "triggers": [
+        "look up book",
+        "isbn",
+        "find book",
+        "book info"
+      ],
       "module": "jobs.research.isbn_lookup",
       "function": "run",
-      "interfaces": ["telegram", "dashboard"],
+      "interfaces": [
+        "telegram",
+        "dashboard"
+      ],
       "status": "ready"
     },
     {
@@ -159,10 +272,18 @@
       "name": "Summarize",
       "description": "Summarize any text or article.",
       "category": "Research",
-      "triggers": ["summarize", "give me a summary", "tldr", "summarize this"],
+      "triggers": [
+        "summarize",
+        "give me a summary",
+        "tldr",
+        "summarize this"
+      ],
       "module": "jobs.research.summarizer",
       "function": "run",
-      "interfaces": ["telegram", "dashboard"],
+      "interfaces": [
+        "telegram",
+        "dashboard"
+      ],
       "status": "ready"
     },
     {
@@ -170,10 +291,18 @@
       "name": "Image Search",
       "description": "Search for images matching a query.",
       "category": "Research",
-      "triggers": ["find image", "search image", "find a photo", "image of"],
+      "triggers": [
+        "find image",
+        "search image",
+        "find a photo",
+        "image of"
+      ],
       "module": "jobs.social.image_search",
       "function": "run",
-      "interfaces": ["telegram", "dashboard"],
+      "interfaces": [
+        "telegram",
+        "dashboard"
+      ],
       "status": "ready"
     },
     {
@@ -181,10 +310,18 @@
       "name": "Grammar Check",
       "description": "Check grammar and style of any text.",
       "category": "Writing",
-      "triggers": ["check grammar", "grammar check", "proofread", "fix my grammar"],
+      "triggers": [
+        "check grammar",
+        "grammar check",
+        "proofread",
+        "fix my grammar"
+      ],
       "module": "jobs.writing.grammar_checker",
       "function": "run",
-      "interfaces": ["telegram", "dashboard"],
+      "interfaces": [
+        "telegram",
+        "dashboard"
+      ],
       "status": "ready"
     },
     {
@@ -192,10 +329,17 @@
       "name": "Readability Check",
       "description": "Score the readability of any text.",
       "category": "Writing",
-      "triggers": ["check readability", "readability score", "how readable is"],
+      "triggers": [
+        "check readability",
+        "readability score",
+        "how readable is"
+      ],
       "module": "jobs.writing.readability",
       "function": "run",
-      "interfaces": ["telegram", "dashboard"],
+      "interfaces": [
+        "telegram",
+        "dashboard"
+      ],
       "status": "ready"
     },
     {
@@ -203,10 +347,17 @@
       "name": "Style Check",
       "description": "Check writing style and tone.",
       "category": "Writing",
-      "triggers": ["check style", "style check", "check my writing style"],
+      "triggers": [
+        "check style",
+        "style check",
+        "check my writing style"
+      ],
       "module": "jobs.writing.style_checker",
       "function": "run",
-      "interfaces": ["telegram", "dashboard"],
+      "interfaces": [
+        "telegram",
+        "dashboard"
+      ],
       "status": "ready"
     },
     {
@@ -214,10 +365,18 @@
       "name": "Citation Manager",
       "description": "Format and manage citations.",
       "category": "Writing",
-      "triggers": ["format citation", "cite this", "create a citation", "bibliography"],
+      "triggers": [
+        "format citation",
+        "cite this",
+        "create a citation",
+        "bibliography"
+      ],
       "module": "jobs.writing.citation_manager",
       "function": "run",
-      "interfaces": ["telegram", "dashboard"],
+      "interfaces": [
+        "telegram",
+        "dashboard"
+      ],
       "status": "ready"
     },
     {
@@ -225,10 +384,18 @@
       "name": "Document Converter",
       "description": "Convert documents between formats.",
       "category": "Documents",
-      "triggers": ["convert document", "convert to pdf", "convert to word", "document converter"],
+      "triggers": [
+        "convert document",
+        "convert to pdf",
+        "convert to word",
+        "document converter"
+      ],
       "module": "jobs.writing.document_converter",
       "function": "run",
-      "interfaces": ["telegram", "dashboard"],
+      "interfaces": [
+        "telegram",
+        "dashboard"
+      ],
       "status": "ready"
     },
     {
@@ -236,10 +403,18 @@
       "name": "PDF Tools",
       "description": "Read, extract, or manipulate PDF files.",
       "category": "Documents",
-      "triggers": ["read pdf", "extract pdf", "open pdf", "pdf"],
+      "triggers": [
+        "read pdf",
+        "extract pdf",
+        "open pdf",
+        "pdf"
+      ],
       "module": "jobs.documents.pdf",
       "function": "run",
-      "interfaces": ["telegram", "dashboard"],
+      "interfaces": [
+        "telegram",
+        "dashboard"
+      ],
       "status": "ready"
     },
     {
@@ -247,10 +422,18 @@
       "name": "Word Document",
       "description": "Create or edit Word documents.",
       "category": "Documents",
-      "triggers": ["create word doc", "open word", "word document", "docx"],
+      "triggers": [
+        "create word doc",
+        "open word",
+        "word document",
+        "docx"
+      ],
       "module": "jobs.documents.word",
       "function": "run",
-      "interfaces": ["telegram", "dashboard"],
+      "interfaces": [
+        "telegram",
+        "dashboard"
+      ],
       "status": "ready"
     },
     {
@@ -258,10 +441,18 @@
       "name": "Excel / Spreadsheet",
       "description": "Create or read Excel spreadsheets.",
       "category": "Documents",
-      "triggers": ["create spreadsheet", "open excel", "read excel", "xlsx"],
+      "triggers": [
+        "create spreadsheet",
+        "open excel",
+        "read excel",
+        "xlsx"
+      ],
       "module": "jobs.documents.excel",
       "function": "run",
-      "interfaces": ["telegram", "dashboard"],
+      "interfaces": [
+        "telegram",
+        "dashboard"
+      ],
       "status": "ready"
     },
     {
@@ -269,10 +460,18 @@
       "name": "PowerPoint",
       "description": "Create or read PowerPoint presentations.",
       "category": "Documents",
-      "triggers": ["create presentation", "make slides", "powerpoint", "pptx"],
+      "triggers": [
+        "create presentation",
+        "make slides",
+        "powerpoint",
+        "pptx"
+      ],
       "module": "jobs.documents.powerpoint",
       "function": "run",
-      "interfaces": ["telegram", "dashboard"],
+      "interfaces": [
+        "telegram",
+        "dashboard"
+      ],
       "status": "ready"
     },
     {
@@ -280,10 +479,18 @@
       "name": "SVG Generator",
       "description": "Generate SVG graphics and icons.",
       "category": "Design",
-      "triggers": ["generate svg", "create svg", "make an icon", "svg"],
+      "triggers": [
+        "generate svg",
+        "create svg",
+        "make an icon",
+        "svg"
+      ],
       "module": "jobs.design.svg_generator",
       "function": "run",
-      "interfaces": ["telegram", "dashboard"],
+      "interfaces": [
+        "telegram",
+        "dashboard"
+      ],
       "status": "ready"
     },
     {
@@ -291,10 +498,17 @@
       "name": "Screenshot",
       "description": "Take a screenshot of a webpage.",
       "category": "Design",
-      "triggers": ["screenshot", "take a screenshot", "capture page"],
+      "triggers": [
+        "screenshot",
+        "take a screenshot",
+        "capture page"
+      ],
       "module": "jobs.design.screenshot",
       "function": "run",
-      "interfaces": ["telegram", "dashboard"],
+      "interfaces": [
+        "telegram",
+        "dashboard"
+      ],
       "status": "ready"
     },
     {
@@ -302,10 +516,17 @@
       "name": "Data Analyzer",
       "description": "Analyze data and generate insights.",
       "category": "Utilities",
-      "triggers": ["analyze data", "data analysis", "analyze this data"],
+      "triggers": [
+        "analyze data",
+        "data analysis",
+        "analyze this data"
+      ],
       "module": "jobs.data.data_analyzer",
       "function": "run",
-      "interfaces": ["telegram", "dashboard"],
+      "interfaces": [
+        "telegram",
+        "dashboard"
+      ],
       "status": "ready"
     },
     {
@@ -313,10 +534,18 @@
       "name": "Chart Generator",
       "description": "Generate charts from data.",
       "category": "Utilities",
-      "triggers": ["make a chart", "generate chart", "chart this data", "create a graph"],
+      "triggers": [
+        "make a chart",
+        "generate chart",
+        "chart this data",
+        "create a graph"
+      ],
       "module": "jobs.data.chart_generator",
       "function": "run",
-      "interfaces": ["telegram", "dashboard"],
+      "interfaces": [
+        "telegram",
+        "dashboard"
+      ],
       "status": "ready"
     },
     {
@@ -324,10 +553,18 @@
       "name": "Date Helper",
       "description": "Calculate dates, days between dates, countdowns.",
       "category": "Utilities",
-      "triggers": ["how many days until", "date calculator", "days between", "what day is"],
+      "triggers": [
+        "how many days until",
+        "date calculator",
+        "days between",
+        "what day is"
+      ],
       "module": "jobs.utilities.date_helper",
       "function": "run",
-      "interfaces": ["telegram", "dashboard"],
+      "interfaces": [
+        "telegram",
+        "dashboard"
+      ],
       "status": "ready"
     },
     {
@@ -335,10 +572,17 @@
       "name": "Dad Joke",
       "description": "Tell a random dad joke.",
       "category": "Utilities",
-      "triggers": ["tell me a joke", "dad joke", "give me a joke"],
+      "triggers": [
+        "tell me a joke",
+        "dad joke",
+        "give me a joke"
+      ],
       "module": "jobs.dadjoke.joke",
       "function": "get_dad_joke",
-      "interfaces": ["telegram", "dashboard"],
+      "interfaces": [
+        "telegram",
+        "dashboard"
+      ],
       "status": "ready"
     },
     {
@@ -346,10 +590,17 @@
       "name": "Riddle",
       "description": "Tell a random riddle.",
       "category": "Utilities",
-      "triggers": ["tell me a riddle", "riddle", "give me a riddle"],
+      "triggers": [
+        "tell me a riddle",
+        "riddle",
+        "give me a riddle"
+      ],
       "module": "jobs.misc.riddle",
       "function": "run",
-      "interfaces": ["telegram", "dashboard"],
+      "interfaces": [
+        "telegram",
+        "dashboard"
+      ],
       "status": "ready"
     },
     {
@@ -357,10 +608,18 @@
       "name": "System Monitor",
       "description": "Check Beelink CPU, memory, and disk usage.",
       "category": "Watson Dev",
-      "triggers": ["system status", "check system", "how is watson doing", "server status"],
+      "triggers": [
+        "system status",
+        "check system",
+        "how is watson doing",
+        "server status"
+      ],
       "module": "jobs.dev.system_monitor",
       "function": "run",
-      "interfaces": ["telegram", "dashboard"],
+      "interfaces": [
+        "telegram",
+        "dashboard"
+      ],
       "status": "ready"
     },
     {
@@ -368,10 +627,18 @@
       "name": "Claude Debug",
       "description": "Diagnose a Watson problem using Claude API and Claude Code.",
       "category": "Watson Dev",
-      "triggers": ["debug:", "diagnose this", "watson debug", "run diagnostics"],
+      "triggers": [
+        "debug:",
+        "diagnose this",
+        "watson debug",
+        "run diagnostics"
+      ],
       "module": "jobs.dev.claude_debug",
       "function": "run",
-      "interfaces": ["telegram", "dashboard"],
+      "interfaces": [
+        "telegram",
+        "dashboard"
+      ],
       "status": "ready"
     },
     {
@@ -379,10 +646,17 @@
       "name": "Secrets Audit",
       "description": "Audit Watson environment variables and credentials.",
       "category": "Watson Dev",
-      "triggers": ["audit secrets", "check credentials", "secrets audit"],
+      "triggers": [
+        "audit secrets",
+        "check credentials",
+        "secrets audit"
+      ],
       "module": "jobs.dev.secrets_audit",
       "function": "run",
-      "interfaces": ["telegram", "dashboard"],
+      "interfaces": [
+        "telegram",
+        "dashboard"
+      ],
       "status": "ready"
     },
     {
@@ -390,10 +664,18 @@
       "name": "Command Executor",
       "description": "Execute approved shell commands on Beelink.",
       "category": "Watson Dev",
-      "triggers": ["run command", "shell command", "terminal", "bash"],
+      "triggers": [
+        "run command",
+        "shell command",
+        "terminal",
+        "bash"
+      ],
       "module": "jobs.dev.command_executor",
       "function": "run",
-      "interfaces": ["telegram", "dashboard"],
+      "interfaces": [
+        "telegram",
+        "dashboard"
+      ],
       "status": "ready"
     },
     {
@@ -401,21 +683,35 @@
       "name": "Skill Audit",
       "description": "Run a full audit of all Watson skills and report which pass and which fail.",
       "category": "Watson Dev",
-      "triggers": ["audit skills", "test my skills", "run skill audit", "which skills work", "skill audit"],
+      "triggers": [
+        "audit skills",
+        "test my skills",
+        "run skill audit",
+        "which skills work",
+        "skill audit"
+      ],
       "module": "jobs.dev.skill_tester",
       "function": "run",
-      "interfaces": ["telegram", "dashboard"],
+      "interfaces": [
+        "telegram",
+        "dashboard"
+      ],
       "status": "ready"
     },
     {
       "slug": "pastoral_search",
       "name": "Pastoral Search",
-      "description": "Returns a pastoral summary for a named member — campus, attendance, connect cards, prayer requests, and next steps from the last 3 weeks.",
+      "description": "Returns a pastoral summary for a named member \u2014 campus, attendance, connect cards, prayer requests, and next steps from the last 3 weeks.",
       "category": "Core",
-      "triggers": ["pastoral search"],
+      "triggers": [
+        "pastoral search"
+      ],
       "module": "jobs.skills.pastoral_search",
       "function": "run",
-      "interfaces": ["telegram", "dashboard"],
+      "interfaces": [
+        "telegram",
+        "dashboard"
+      ],
       "status": "ready"
     },
     {
@@ -423,10 +719,20 @@
       "name": "Clear Day / Push Appointments",
       "description": "Blocks out the rest of today or X hours, reschedules all affected appointments to next available slot, and notifies guests by email.",
       "category": "Core",
-      "triggers": ["block out", "clear the day", "clear my day", "push all", "push my appointments", "pastoral override"],
+      "triggers": [
+        "block out",
+        "clear the day",
+        "clear my day",
+        "push all",
+        "push my appointments",
+        "pastoral override"
+      ],
       "module": "jobs.gcal.clear_day",
       "function": "run",
-      "interfaces": ["telegram", "dashboard"],
+      "interfaces": [
+        "telegram",
+        "dashboard"
+      ],
       "status": "disabled"
     },
     {
@@ -435,13 +741,20 @@
       "description": "Parses natural language to create a Google Calendar event, optionally drafting a confirmation email if a known contact is mentioned.",
       "category": "Core",
       "triggers": [
-        "book an appointment", "set an appointment", "schedule a meeting",
-        "add to my calendar", "create an appointment", "book a meeting",
+        "book an appointment",
+        "set an appointment",
+        "schedule a meeting",
+        "add to my calendar",
+        "create an appointment",
+        "book a meeting",
         "schedule an appointment"
       ],
       "module": "jobs.skills.book_appointment",
       "function": "run",
-      "interfaces": ["telegram", "dashboard"],
+      "interfaces": [
+        "telegram",
+        "dashboard"
+      ],
       "status": "ready"
     },
     {
@@ -449,21 +762,50 @@
       "name": "KB Search",
       "description": "Search the ChromaDB sermons collection with llama3.2:3b synopsis. Reply 'email that to me' to send results to inbox.",
       "category": "Research",
-      "triggers": ["kb:", "search the kb:"],
+      "triggers": [
+        "kb:",
+        "search the kb:"
+      ],
       "module": "jobs.skills.kb_search",
       "function": "search_kb",
-      "interfaces": ["telegram", "dashboard"],
+      "interfaces": [
+        "telegram",
+        "dashboard"
+      ],
       "status": "ready"
     },
     {
       "slug": "polish",
       "name": "Polish Text",
-      "description": "Polish text in the voice of Dr. William C.K. Yomes — pastoral-scholarly prose, first-person plural, Jesus pronouns capitalized.",
+      "description": "Polish text in the voice of Dr. William C.K. Yomes \u2014 pastoral-scholarly prose, first-person plural, Jesus pronouns capitalized.",
       "category": "Writing",
-      "triggers": ["polish this:"],
+      "triggers": [
+        "polish this:"
+      ],
       "module": "jobs.skills.polish",
       "function": "polish_text",
-      "interfaces": ["telegram", "dashboard"],
+      "interfaces": [
+        "telegram",
+        "dashboard"
+      ],
+      "status": "ready"
+    },
+    {
+      "slug": "logins",
+      "name": "Logins",
+      "description": "Look up saved login credentials by service name.",
+      "category": "Core",
+      "triggers": [
+        "what's my password for",
+        "my password for",
+        "login for",
+        "credentials for"
+      ],
+      "module": "jobs.skills.logins",
+      "function": "handle",
+      "interfaces": [
+        "telegram"
+      ],
       "status": "ready"
     }
   ]
