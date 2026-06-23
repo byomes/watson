@@ -82,8 +82,8 @@ function switchTab(page) {
           const chatTab = document.getElementById('tab-chat');
           if (!chatTab) return;
           const vv = window.visualViewport;
-          chatTab.style.height = vv.height + 'px';
-          chatTab.style.top = vv.offsetTop + 'px';
+          chatTab.style.bottom = (window.innerHeight - vv.height - vv.offsetTop) + 'px';
+          
         }
         window.visualViewport.addEventListener('resize', _chatVVResize);
         window.visualViewport.addEventListener('scroll', _chatVVResize);
