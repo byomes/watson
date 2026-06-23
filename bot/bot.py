@@ -1888,8 +1888,9 @@ async def handle_vault_callback(update: Update, context: ContextTypes.DEFAULT_TY
     if query.data == "vault_unlock":
         await query.answer("Unlocking…")
         try:
-            import requests as _rq
-            _rq.post("http://localhost:5200/api/logins/unlock", timeout=5)
+            import httpx
+            async with httpx.AsyncClient() as client:
+                await client.post("http://localhost:5200/api/logins/unlock", timeout=5)
             await query.edit_message_text("✅ Vault unlocked.", reply_markup=None)
         except Exception as exc:
             await query.edit_message_text(f"⚠️ Unlock failed: {exc}", reply_markup=None)
