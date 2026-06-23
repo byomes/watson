@@ -469,7 +469,6 @@ html, body {
 }
 #tab-chat.active { display: flex; }
 #tab-chat.active ~ #nav, body.chat-active #nav { display: none; }
-#tab-chat #chat-input-bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 51; }
 #chat-messages { padding-bottom: 80px; }
 #chat-topbar {
   flex-shrink: 0;
@@ -512,6 +511,7 @@ html, body {
   gap: 10px;
 }
 #chat-input-bar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 51;
   flex-shrink: 0;
   display: flex;
   align-items: flex-end;
