@@ -76,7 +76,21 @@ function switchTab(page) {
     case 'tasks':     renderTasks();     break;
     case 'reminders': renderReminders(); break;
     case 'more':      renderMore();      break;
-    case 'chat':      renderChat();      document.getElementById('nav').style.display='none'; break;
+    case 'chat':      renderChat();      document.getElementById('nav').style.display='none';
+      if (window.visualViewport) {
+        function _chatVVResize() {
+          const bar = document.getElementById('chat-input-bar');
+          if (!bar) return;
+          const kb = Math.max(0, window.innerHeight - window.visualViewport.height - window.visualViewport.offsetTop);
+          bar.style.bottom = kb + 'px';
+          const msgs = document.getElementById('chat-messages');
+          if (msgs) msgs.style.paddingBottom = (kb + 80) + 'px';
+        }
+        window.visualViewport.addEventListener('resize', _chatVVResize);
+        window.visualViewport.addEventListener('scroll', _chatVVResize);
+        window._chatVVResize = _chatVVResize;
+      }
+      break;
   }
 }
 
@@ -1018,6 +1032,15 @@ function closeChat() {
   chatMemoryContext = '';
   document.getElementById('tab-chat').classList.remove('active');
   document.getElementById('nav').style.display='';
+  if (window._chatVVResize && window.visualViewport) {
+    window.visualViewport.removeEventListener('resize', window._chatVVResize);
+    window.visualViewport.removeEventListener('scroll', window._chatVVResize);
+    window._chatVVResize = null;
+  }
+  const bar = document.getElementById('chat-input-bar');
+  if (bar) bar.style.bottom = '';
+  const msgs2 = document.getElementById('chat-messages');
+  if (msgs2) msgs2.style.paddingBottom = '';
   switchTab('home');
 }
 
