@@ -1262,5 +1262,20 @@ document.addEventListener('DOMContentLoaded', () => {
       chatTa.style.height = Math.min(chatTa.scrollHeight, 120) + 'px';
     });
   }
+  // iOS keyboard: keep chat input visible when keyboard opens
+  if (window.visualViewport) {
+    const chatTab = document.getElementById('tab-chat');
+    const NAV_HEIGHT = 60;
+    function onViewportResize() {
+      if (!chatTab) return;
+      const vv = window.visualViewport;
+      const bottomOffset = window.innerHeight - vv.height - vv.offsetTop;
+      const keyboardHeight = Math.max(0, bottomOffset);
+      chatTab.style.bottom = (keyboardHeight + NAV_HEIGHT) + 'px';
+    }
+    window.visualViewport.addEventListener('resize', onViewportResize);
+    window.visualViewport.addEventListener('scroll', onViewportResize);
+  }
+
   switchTab('home');
 });
