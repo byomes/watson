@@ -42,6 +42,7 @@ _LIST_SKILLS_TRIGGERS = (
 _SKILL_PRE_CHECKS: dict[str, tuple] = {
     "add_task": (
         "add task", "new task", "create task",
+        "task:", "tasks:",
     ),
     "bible_lookup": (
         "bible verse", "watson bible", "look up verse",
@@ -57,6 +58,9 @@ _SKILL_PRE_CHECKS: dict[str, tuple] = {
     ),
     "pastoral_search": (
         "pastoral search",
+    ),
+    "pastoral_notes": (
+        "pastoral note:", "pastoral notes:",
     ),
     "book_appointment": (
         "book an appointment", "schedule an appointment",
@@ -74,6 +78,9 @@ _SKILL_PRE_CHECKS: dict[str, tuple] = {
     "image_search": (
         "find image", "find a photo", "find a picture",
         "search image", "image of",
+    ),
+    "polish": (
+        "polish this:",
     ),
 }
 

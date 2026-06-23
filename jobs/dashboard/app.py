@@ -164,6 +164,12 @@ def _bootstrap():
         correct_intent   TEXT,
         created_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )""")
+    c.execute("""CREATE TABLE IF NOT EXISTS telegram_log (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        direction  TEXT    NOT NULL,
+        message    TEXT    NOT NULL,
+        created_at TEXT    NOT NULL DEFAULT (datetime('now', 'localtime'))
+    )""")
     c.commit()
     c.close()
 
@@ -955,6 +961,13 @@ def pastoral_notes_archive(note_id):
     return jsonify({"ok": True})
 
 
+@app.route("/api/pastoral-notes/<int:note_id>", methods=["DELETE"])
+def pastoral_notes_delete(note_id):
+    _db().execute("DELETE FROM pastoral_notes WHERE id = ?", (note_id,))
+    _db().commit()
+    return jsonify({"ok": True})
+
+
 # ── Upload API ────────────────────────────────────────────────────────────────
 
 _TEXT_EXTS = {".txt", ".md", ".csv", ".json", ".py", ".html", ".xml"}
@@ -1048,6 +1061,23 @@ def approve_skill(slug):
         return jsonify({"success": True})
     except Exception as exc:
         return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@app.route("/api/skills/polish", methods=["POST"])
+def skill_polish():
+    data = request.get_json(force=True) or {}
+    text = (data.get("text") or "").strip()
+    if text.lower().startswith("polish this:"):
+        text = text[len("polish this:"):].strip()
+    if not text:
+        return jsonify({"error": "No text provided"}), 400
+    try:
+        from jobs.skills.polish import polish_text
+        result = polish_text(text)
+        return jsonify({"result": result})
+    except Exception as exc:
+        log.error("Polish skill error: %s", exc)
+        return jsonify({"error": str(exc)}), 500
 
 
 # ── Memory API ───────────────────────────────────────────────────────────────

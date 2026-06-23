@@ -16,10 +16,21 @@
       "name": "Add Task",
       "description": "Add a task with optional due date and priority.",
       "category": "Core",
-      "triggers": ["add a task", "new task", "add task", "create task", "add to my tasks"],
+      "triggers": ["add a task", "new task", "add task", "create task", "add to my tasks", "task:", "tasks:"],
       "module": "jobs.tasks.add_task",
       "function": "run",
       "interfaces": ["telegram", "dashboard"],
+      "status": "ready"
+    },
+    {
+      "slug": "pastoral_notes",
+      "name": "Pastoral Notes",
+      "description": "Save a freeform pastoral note directly to the database.",
+      "category": "Core",
+      "triggers": ["pastoral note:", "pastoral notes:"],
+      "module": "jobs.pastoral_notes.handler",
+      "function": "save_freeform_note",
+      "interfaces": ["telegram"],
       "status": "ready"
     },
     {
@@ -430,6 +441,17 @@
       ],
       "module": "jobs.skills.book_appointment",
       "function": "run",
+      "interfaces": ["telegram", "dashboard"],
+      "status": "ready"
+    },
+    {
+      "slug": "polish",
+      "name": "Polish Text",
+      "description": "Polish text in the voice of Dr. William C.K. Yomes — pastoral-scholarly prose, first-person plural, Jesus pronouns capitalized.",
+      "category": "Writing",
+      "triggers": ["polish this:"],
+      "module": "jobs.skills.polish",
+      "function": "polish_text",
       "interfaces": ["telegram", "dashboard"],
       "status": "ready"
     }

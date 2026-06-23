@@ -332,8 +332,21 @@ def _log_telegram_exchange(user_text: str, reply_text: str) -> None:
                 "UPDATE chat_sessions SET updated_at = datetime('now') WHERE id = ?",
                 (session_id,),
             )
+        _log_tg('out', reply_text)
     except Exception as exc:
         log.warning("Failed to log telegram exchange: %s", exc)
+
+
+def _log_tg(direction: str, message: str) -> None:
+    db_path = os.path.expanduser("~/watson/data/watson.db")
+    try:
+        with sqlite3.connect(db_path) as _conn:
+            _conn.execute(
+                "INSERT INTO telegram_log (direction, message) VALUES (?, ?)",
+                (direction, message),
+            )
+    except Exception as exc:
+        log.warning("telegram_log write failed: %s", exc)
 
 
 def _is_authorized(update):
@@ -537,8 +550,9 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     # Normalize smart quotes from mobile keyboards
-    text_clean = text.replace("'", "'").replace("'", "'")
+    text_clean = text.replace("‘", "'").replace("’", "'")
     text_lower = text_clean.lower().strip()
+    _log_tg('in', text_clean)
 
     # Reply-threading: route replies to Watson-sent messages before any other logic
     if update.message.reply_to_message:
@@ -919,6 +933,24 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await _handle_kb_export(update, context, text_clean)
                 log.info("DEBUG pre-check: skill pre-check (kb_export)")
                 return
+            if slug == "polish":
+                await _handle_polish(update, context, text_clean)
+                log.info("DEBUG pre-check: skill pre-check (polish)")
+                return
+            if slug == "pastoral_notes":
+                await _handle_pastoral_note_direct(update, context, text_clean)
+                log.info("DEBUG pre-check: skill pre-check (pastoral_notes)")
+                return
+            if slug == "add_task" and (
+                msg_lower_check.startswith("task:") or msg_lower_check.startswith("tasks:")
+            ):
+                colon_idx = text_clean.index(":") + 1
+                task_text = text_clean[colon_idx:].strip()
+                from jobs.tasks.add_task import run as _add_task_direct
+                _add_task_direct(task_text)
+                await update.message.reply_text("Task saved.")
+                log.info("DEBUG pre-check: skill pre-check (add_task direct)")
+                return
             try:
                 _skills = _router._load_skills("telegram")
                 _skill = next((s for s in _skills if s["slug"] == slug), None)
@@ -930,6 +962,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 log.error("Pre-check skill dispatch failed (%s): %s", slug, exc)
                 result = f"Skill error: {exc}"
             await update.message.reply_text("✓ " + str(result))
+            _log_tg('out', "✓ " + str(result))
             log.info("DEBUG pre-check: skill pre-check (%s)", slug)
             return
 
@@ -1207,6 +1240,49 @@ async def _handle_kb_export(update: Update, context: ContextTypes.DEFAULT_TYPE, 
         await update.message.reply_text(f"Failed to send export: {exc}")
     finally:
         zip_path.unlink(missing_ok=True)
+
+
+async def _handle_polish(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str) -> None:
+    lower = text.lower()
+    if lower.startswith("polish this:"):
+        text = text[len("polish this:"):].strip()
+    if not text:
+        await update.message.reply_text("Please include the text to polish after 'polish this:'")
+        return
+    await update.message.reply_text("Polishing...")
+    try:
+        from jobs.skills.polish import polish_text
+        result = await asyncio.to_thread(polish_text, text)
+        await update.message.reply_text(result)
+        _log_telegram_exchange(text, result)
+    except Exception as exc:
+        log.error("Polish skill failed: %s", exc)
+        await update.message.reply_text(f"Polish failed: {exc}")
+
+
+async def _handle_pastoral_note_direct(
+    update: Update, context: ContextTypes.DEFAULT_TYPE, text: str
+) -> None:
+    """Save a pastoral note directly — no post-meeting context or person matching."""
+    from jobs.pastoral_notes.db import get_db
+    lower = text.lower()
+    for prefix in ("pastoral notes:", "pastoral note:"):
+        if lower.startswith(prefix):
+            text = text[len(prefix):].strip()
+            break
+    if not text:
+        await update.message.reply_text("Please include the note content after the prefix.")
+        return
+    try:
+        with get_db() as conn:
+            conn.execute(
+                "INSERT INTO pastoral_notes (person_name, note, status, created_at) VALUES ('Direct Entry', ?, 'active', datetime('now', 'localtime'))",
+                (text,),
+            )
+        await update.message.reply_text("Pastoral note saved.")
+    except Exception as exc:
+        log.error("Pastoral note save failed: %s", exc)
+        await update.message.reply_text(f"Error saving pastoral note: {exc}")
 
 
 def _ensure_reminders_table(conn) -> None:

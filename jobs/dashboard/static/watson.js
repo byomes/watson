@@ -477,24 +477,6 @@ function renderMore() {
         <div class="msec-inner" id="msec-inner-skills"></div>
       </div>
     </div>
-    <div class="msec" id="msec-people">
-      <div class="msec-hdr" onclick="moreToggle('people')">
-        <span class="msec-title">People</span>
-        <span class="msec-chev" id="msec-chev-people">›</span>
-      </div>
-      <div class="msec-body" id="msec-body-people">
-        <div class="msec-inner" id="msec-inner-people"><div class="loading">Loading&hellip;</div></div>
-      </div>
-    </div>
-    <div class="msec" id="msec-ministry">
-      <div class="msec-hdr" onclick="moreToggle('ministry')">
-        <span class="msec-title">Ministry</span>
-        <span class="msec-chev" id="msec-chev-ministry">›</span>
-      </div>
-      <div class="msec-body" id="msec-body-ministry">
-        <div class="msec-inner" id="msec-inner-ministry"><div class="loading">Loading&hellip;</div></div>
-      </div>
-    </div>
     <div class="msec" id="msec-reading">
       <div class="msec-hdr" onclick="moreToggle('reading')">
         <span class="msec-title">Reading List</span>
@@ -504,13 +486,13 @@ function renderMore() {
         <div class="msec-inner" id="msec-inner-reading"><div class="loading">Loading&hellip;</div></div>
       </div>
     </div>
-    <div class="msec" id="msec-terminal">
-      <div class="msec-hdr" onclick="moreToggle('terminal')">
-        <span class="msec-title">Terminal</span>
-        <span class="msec-chev" id="msec-chev-terminal">›</span>
+    <div class="msec" id="msec-ministry">
+      <div class="msec-hdr" onclick="moreToggle('ministry')">
+        <span class="msec-title">Ministry</span>
+        <span class="msec-chev" id="msec-chev-ministry">›</span>
       </div>
-      <div class="msec-body" id="msec-body-terminal">
-        <div class="msec-inner" id="msec-inner-terminal"><div class="loading">Loading&hellip;</div></div>
+      <div class="msec-body" id="msec-body-ministry">
+        <div class="msec-inner" id="msec-inner-ministry"><div class="loading">Loading&hellip;</div></div>
       </div>
     </div>`);
 }
@@ -525,182 +507,9 @@ function moreToggle(sec) {
     _moreSecLoaded[sec] = true;
     if (sec === 'reports')  moreLoadReports();
     if (sec === 'skills')   moreLoadSkills();
-    if (sec === 'people')   moreLoadPeople();
     if (sec === 'ministry') moreLoadMinistry();
     if (sec === 'reading')  moreLoadReading();
-    if (sec === 'terminal') moreLoadTerminal();
   }
-}
-
-// ── People ──────────────────────────────────────────────────────────────────
-
-async function moreLoadPeople() {
-  const el = document.getElementById('msec-inner-people');
-  if (!el) return;
-  el.innerHTML = '<div class="loading">Loading&hellip;</div>';
-  const wcRes = await Promise.allSettled([api('/api/people')]);
-  const wc = wcRes[0].status === 'fulfilled' && Array.isArray(wcRes[0].value) ? wcRes[0].value : [];
-  el.innerHTML = '<div id="more-wc-wrap"></div><div id="more-cong-wrap"></div>';
-  moreRenderWatsonContacts(wc);
-  moreRenderCongSearch();
-}
-
-function moreRenderWatsonContacts(contacts) {
-  const el = document.getElementById('more-wc-wrap');
-  if (!el) return;
-  let html = `
-    <div class="mlabel">Watson Contacts</div>
-    <input class="msrch" type="search" placeholder="Search contacts…" oninput="moreSearchWC(this.value)">
-    <button class="mbtn mbtn-sm" onclick="moreToggleAddC()" style="margin-bottom:10px">+ Add Contact</button>
-    <div id="more-add-c-form" style="display:none">
-      <div class="mform">
-        <input id="mc-name"  placeholder="Full name"    type="text">
-        <input id="mc-email" placeholder="Email"        type="email">
-        <input id="mc-phone" placeholder="Phone"        type="tel">
-        <input id="mc-rel"   placeholder="Relationship" type="text">
-        <div class="mfrow">
-          <button class="mbtn mbtn-p" onclick="moreSaveNewC()">Save</button>
-          <button class="mbtn"        onclick="moreToggleAddC()">Cancel</button>
-        </div>
-      </div>
-    </div>
-    <div id="more-wc-list">`;
-  if (!contacts.length) {
-    html += '<div class="empty">No contacts yet.</div>';
-  } else {
-    contacts.forEach(c => {
-      const initials = (c.name || '?').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
-      const hue = ((c.name || '').charCodeAt(0) * 37) % 360;
-      html += `
-        <div class="mcc" id="mwc-${c.id}">
-          <div class="mcc-hdr" onclick="moreToggleC(${c.id})">
-            <div class="mcc-av" style="background:hsl(${hue},40%,28%);color:hsl(${hue},60%,70%)">${esc(initials)}</div>
-            <div class="mcc-info">
-              <div class="mcc-name">${esc(c.name)}</div>
-              <div class="mcc-sub">${esc(c.relationship || c.email || '')}</div>
-            </div>
-          </div>
-          <div class="mcc-body" id="mwc-body-${c.id}">
-            <input class="mcc-field" id="mwc-name-${c.id}"  value="${esc(c.name         || '')}" placeholder="Name">
-            <input class="mcc-field" id="mwc-email-${c.id}" value="${esc(c.email        || '')}" placeholder="Email" type="email">
-            <input class="mcc-field" id="mwc-phone-${c.id}" value="${esc(c.phone        || '')}" placeholder="Phone" type="tel">
-            <input class="mcc-field" id="mwc-rel-${c.id}"   value="${esc(c.relationship || '')}" placeholder="Relationship">
-            ${c.info ? `<div style="font-size:11px;color:var(--muted);padding:4px 0">${esc(c.info)}</div>` : ''}
-            <div class="mfrow" style="margin-top:6px">
-              <button class="mbtn mbtn-p mbtn-sm" onclick="moreSaveEditC(${c.id})">Save</button>
-              <button class="mbtn mbtn-d mbtn-sm" onclick="moreDeleteC(${c.id})">Delete</button>
-            </div>
-          </div>
-        </div>`;
-    });
-  }
-  html += '</div>';
-  el.innerHTML = html;
-}
-
-function moreRenderCongSearch() {
-  const el = document.getElementById('more-cong-wrap');
-  if (!el) return;
-  el.innerHTML = `
-    <input class="msrch" type="search" placeholder="Search Congregation…" style="margin-top:10px"
-      oninput="moreSearchCong(this.value)">
-    <div id="more-cong-list"></div>`;
-}
-
-let _congSearchTimer = null;
-
-async function moreSearchCong(q) {
-  const list = document.getElementById('more-cong-list');
-  if (!list) return;
-  if (q.length < 2) { list.innerHTML = ''; return; }
-  clearTimeout(_congSearchTimer);
-  _congSearchTimer = setTimeout(async () => {
-    try {
-      const members = await api(`/api/congregation?q=${encodeURIComponent(q)}`);
-      if (!Array.isArray(members) || !members.length) { list.innerHTML = ''; return; }
-      list.innerHTML = members.map(m => {
-        const initials = (m.name || '?').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
-        const hue = ((m.name || '').charCodeAt(0) * 37) % 360;
-        return `
-          <div class="mcc">
-            <div class="mcc-hdr" style="cursor:default">
-              <div class="mcc-av" style="background:hsl(${hue},40%,28%);color:hsl(${hue},60%,70%)">${esc(initials)}</div>
-              <div class="mcc-info">
-                <div class="mcc-name">${esc(m.name)}</div>
-                <div class="mcc-sub">${esc(m.campus || m.email || '')}</div>
-              </div>
-            </div>
-          </div>`;
-      }).join('');
-    } catch { list.innerHTML = ''; }
-  }, 200);
-}
-
-function moreToggleAddC() {
-  const f = document.getElementById('more-add-c-form');
-  if (f) f.style.display = f.style.display === 'none' ? 'block' : 'none';
-}
-
-function moreToggleC(id) {
-  const body = document.getElementById(`mwc-body-${id}`);
-  if (body) body.classList.toggle('open');
-}
-
-async function moreSaveNewC() {
-  const name         = (document.getElementById('mc-name')?.value  || '').trim();
-  const email        = (document.getElementById('mc-email')?.value || '').trim();
-  const phone        = (document.getElementById('mc-phone')?.value || '').trim();
-  const relationship = (document.getElementById('mc-rel')?.value   || '').trim();
-  if (!name) { alert('Name is required.'); return; }
-  try {
-    await api('/api/people', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, email, phone, relationship }),
-    });
-    moreLoadPeople();
-  } catch { alert('Failed to save contact.'); }
-}
-
-async function moreSaveEditC(id) {
-  const name         = (document.getElementById(`mwc-name-${id}`)?.value  || '').trim();
-  const email        = (document.getElementById(`mwc-email-${id}`)?.value || '').trim();
-  const phone        = (document.getElementById(`mwc-phone-${id}`)?.value || '').trim();
-  const relationship = (document.getElementById(`mwc-rel-${id}`)?.value   || '').trim();
-  try {
-    await api(`/api/people/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, email, phone, relationship }),
-    });
-    moreLoadPeople();
-  } catch { alert('Failed to update contact.'); }
-}
-
-async function moreDeleteC(id) {
-  if (!confirm('Delete this contact?')) return;
-  try {
-    await api(`/api/people/${id}`, { method: 'DELETE' });
-    moreLoadPeople();
-  } catch { alert('Failed to delete contact.'); }
-}
-
-function moreSearchWC(q) {
-  const term = q.toLowerCase();
-  document.querySelectorAll('[id^="mwc-"]').forEach(card => {
-    if (!/^mwc-\d+$/.test(card.id)) return;
-    const name = (card.querySelector('.mcc-name')?.textContent || '').toLowerCase();
-    card.style.display = name.includes(term) ? '' : 'none';
-  });
-}
-
-function moreSearchCong(q) {
-  const term = q.toLowerCase();
-  document.querySelectorAll('[id^="mcong-"]').forEach(card => {
-    if (!/^mcong-\d+$/.test(card.id)) return;
-    const name = (card.querySelector('.mcc-name')?.textContent || '').toLowerCase();
-    card.style.display = name.includes(term) ? '' : 'none';
-  });
 }
 
 // ── Ministry ─────────────────────────────────────────────────────────────────
@@ -782,6 +591,7 @@ async function moreLoadPN(tab) {
         <div style="font-size:12px;color:var(--muted);margin:4px 0">${esc(n.note || '')}</div>
         <div style="font-size:11px;color:var(--muted)">${esc(n.created_at || '')}</div>
         ${tab === 'active' ? `<button class="mbtn mbtn-sm" onclick="moreArchivePN(${n.id})" style="margin-top:6px">Archive</button>` : ''}
+        ${tab === 'archived' ? `<button class="mbtn mbtn-sm mbtn-d" onclick="moreDeletePN(${n.id})" style="margin-top:6px">Delete</button>` : ''}
       </div>`).join('');
   } catch {
     el.innerHTML = '<div class="empty">Could not load notes.</div>';
@@ -810,6 +620,14 @@ async function moreArchivePN(id) {
     await api(`/api/pastoral-notes/${id}/archive`, { method: 'POST' });
     moreLoadPN(_morePNTab);
   } catch { alert('Failed to archive note.'); }
+}
+
+async function moreDeletePN(id) {
+  if (!confirm('Permanently delete this note?')) return;
+  try {
+    await api(`/api/pastoral-notes/${id}`, { method: 'DELETE' });
+    moreLoadPN(_morePNTab);
+  } catch { alert('Failed to delete note.'); }
 }
 
 async function moreRunShepReport() {
@@ -1165,157 +983,6 @@ function moreToggleTheme(isLight) {
   localStorage.setItem('watson-theme', theme);
 }
 
-// ── Terminal ──────────────────────────────────────────────────────────────────
-
-let _termLastCmd = '';
-
-async function moreLoadTerminal() {
-  const el = document.getElementById('msec-inner-terminal');
-  if (!el) return;
-
-  el.insertAdjacentHTML('beforeend', `
-    <div style="margin-bottom:14px">
-      <button id="term-copy-blank" class="mbtn mbtn-sm" onclick="termCopyBlank()">📋 New Claude Code prompt</button>
-    </div>`);
-
-  try {
-    const skills = await api('/api/skills');
-    if (Array.isArray(skills) && skills.length) {
-      const wrap = document.createElement('div');
-      wrap.style.cssText = 'margin-bottom:12px';
-      const hdr = document.createElement('div');
-      hdr.style.cssText = "font-size:10px;color:var(--muted);letter-spacing:.08em;font-family:'DM Mono',monospace;margin-bottom:6px";
-      hdr.textContent = 'SKILLS — tap to pre-fill';
-      const row = document.createElement('div');
-      row.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px';
-      skills.forEach(s => {
-        const trigger = (Array.isArray(s.triggers) && s.triggers[0]) ? s.triggers[0] : (s.name || s.slug || '');
-        const btn = document.createElement('button');
-        btn.className = 'term-chip';
-        btn.textContent = s.name || s.slug || '';
-        btn.addEventListener('click', () => termPrefill(trigger));
-        row.appendChild(btn);
-      });
-      wrap.appendChild(hdr);
-      wrap.appendChild(row);
-      el.appendChild(wrap);
-    }
-  } catch (_) {}
-
-  el.insertAdjacentHTML('beforeend', `
-    <div style="margin-top:4px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-        <span style="font-size:10px;color:var(--muted);letter-spacing:.06em;font-family:'DM Mono',monospace">OUTPUT</span>
-        <button class="mbtn mbtn-sm" onclick="termClear()">Clear</button>
-      </div>
-      <div style="position:relative">
-        <pre id="term-output" style="background:#0a0a0a;border:1px solid var(--border);border-radius:6px;padding:12px;font-size:11px;font-family:'DM Mono',monospace;color:#d4d4d4;overflow-y:auto;max-height:400px;white-space:pre-wrap;word-break:break-word;margin:0">Ready.</pre>
-        <button id="term-copy-out" onclick="termCopyOutput()" style="position:absolute;top:6px;right:8px;font-size:11px;color:var(--muted);background:none;border:none;cursor:pointer;padding:2px 4px;line-height:1">Copy</button>
-      </div>
-      <div id="term-copy-result-wrap" style="display:none;margin-top:6px">
-        <button id="term-copy-result" class="mbtn mbtn-sm" onclick="termCopyResult()">📋 Send to Claude Code</button>
-      </div>
-    </div>
-    <div style="margin-top:12px">
-      <div style="font-size:10px;color:var(--muted);letter-spacing:.06em;font-family:'DM Mono',monospace;margin-bottom:6px">COMMAND</div>
-      <div style="display:flex;gap:6px">
-        <input id="term-input" type="text" placeholder='Type a command…' style="flex:1;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:'DM Mono',monospace;font-size:12px;outline:none"
-          onkeydown="if(event.key==='Enter')termRunCustom()">
-        <button class="mbtn" onclick="termRunCustom()">Send</button>
-      </div>
-    </div>`);
-}
-
-function termPrefill(trigger) {
-  const inp = document.getElementById('term-input');
-  if (!inp) return;
-  inp.value = trigger;
-  inp.focus();
-  inp.setSelectionRange(inp.value.length, inp.value.length);
-}
-
-async function termRun(cmd) {
-  _termLastCmd = cmd;
-  const out = document.getElementById('term-output');
-  if (!out) return;
-  out.textContent = '…running';
-  try {
-    const res = await fetch('/api/terminal', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ command: cmd }),
-    });
-    const data = await res.json();
-    out.textContent = data.output || '(no output)';
-  } catch (e) {
-    out.textContent = `Error: ${e.message}`;
-  }
-  out.scrollTop = out.scrollHeight;
-  const wrap = document.getElementById('term-copy-result-wrap');
-  if (wrap) wrap.style.display = '';
-}
-
-function termRunCustom() {
-  const inp = document.getElementById('term-input');
-  const cmd = (inp ? inp.value.trim() : '');
-  if (!cmd) return;
-  inp.value = '';
-  termRun(cmd);
-}
-
-function termClear() {
-  const out = document.getElementById('term-output');
-  if (out) out.textContent = 'Ready.';
-  const wrap = document.getElementById('term-copy-result-wrap');
-  if (wrap) wrap.style.display = 'none';
-}
-
-async function _termCopy(text, btn) {
-  try {
-    if (navigator.clipboard && window.isSecureContext) {
-      await navigator.clipboard.writeText(text);
-    } else {
-      const ta = document.createElement('textarea');
-      ta.value = text;
-      ta.style.position = 'fixed';
-      ta.style.opacity = '0';
-      document.body.appendChild(ta);
-      ta.focus();
-      ta.select();
-      document.execCommand('copy');
-      document.body.removeChild(ta);
-    }
-    const orig = btn.textContent;
-    btn.textContent = '✓ Copied';
-    setTimeout(() => { btn.textContent = orig; }, 2000);
-  } catch (e) {
-    btn.textContent = 'Failed';
-    setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
-  }
-}
-
-function termCopyOutput() {
-  const btn = document.getElementById('term-copy-out');
-  const out = document.getElementById('term-output');
-  if (!btn || !out) return;
-  _termCopy(out.textContent || '', btn);
-}
-
-function termCopyResult() {
-  const btn = document.getElementById('term-copy-result');
-  const out = document.getElementById('term-output');
-  if (!btn || !out) return;
-  const text = `---\nIn ~/watson, ${_termLastCmd}\n\nOutput:\n${out.textContent}\n\nFix or explain the above. Then git add -A && git commit -m "[short description]" && git push origin main.\n---`;
-  _termCopy(text, btn);
-}
-
-function termCopyBlank() {
-  const btn = document.getElementById('term-copy-blank');
-  if (!btn) return;
-  const text = `---\nIn ~/watson, [describe what to build or fix here]\n\nThen git add -A && git commit -m "[description]" && git push origin main.\n---`;
-  _termCopy(text, btn);
-}
-
 // ─── Chat tab ─────────────────────────────────────────────────────────────────
 
 async function renderChat() {
@@ -1392,6 +1059,32 @@ async function sendChatStream() {
   if (!ta) return;
   const message = ta.value.trim();
   if (!message) return;
+
+  if (message.toLowerCase().startsWith('polish this:')) {
+    ta.value = '';
+    ta.style.height = 'auto';
+    ta.focus();
+    appendChatMsg('user', message);
+    const msgs = document.getElementById('chat-messages');
+    const statusEl = document.createElement('div');
+    statusEl.className = 'cstatus';
+    statusEl.textContent = 'Polishing…';
+    if (msgs) { msgs.appendChild(statusEl); msgs.scrollTop = msgs.scrollHeight; }
+    try {
+      const res = await api('/api/skills/polish', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: message }),
+      });
+      if (statusEl.parentNode) statusEl.remove();
+      appendChatMsg('watson', res.result || '(no result)');
+    } catch (err) {
+      if (statusEl.parentNode) statusEl.remove();
+      appendChatMsg('watson', `Error: ${err.message}`);
+    }
+    return;
+  }
+
   ta.value = '';
   ta.style.height = 'auto';
   ta.focus();
