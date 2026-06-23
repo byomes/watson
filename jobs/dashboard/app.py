@@ -1,4 +1,5 @@
 """Watson dashboard — port 5200, Tailscale-only."""
+import concurrent.futures
 import json
 import logging
 import os
@@ -1076,7 +1077,8 @@ def skill_kb():
         return jsonify({"error": "No query provided"}), 400
     try:
         from jobs.skills.kb_search import search_kb, format_result
-        result = search_kb(query)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            result = executor.submit(search_kb, query).result()
         return jsonify({"result": format_result(result), "query": result["query"]})
     except Exception as exc:
         log.error("KB search error: %s", exc)
