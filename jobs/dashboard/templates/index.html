@@ -461,7 +461,7 @@ html, body {
 /* ── Chat overlay ────────────────────────────────────────────────────────── */
 #tab-chat {
   position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
+  top: 0; left: 0; right: 0; height: 100%;
   z-index: 50;
   display: none;
   flex-direction: column;
@@ -469,7 +469,6 @@ html, body {
 }
 #tab-chat.active { display: flex; }
 #tab-chat.active ~ #nav, body.chat-active #nav { display: none; }
-#chat-messages { padding-bottom: 80px; }
 #chat-topbar {
   flex-shrink: 0;
   display: flex;
@@ -511,7 +510,6 @@ html, body {
   gap: 10px;
 }
 #chat-input-bar {
-  position: fixed; left: 0; right: 0; bottom: 0; z-index: 51;
   flex-shrink: 0;
   display: flex;
   align-items: flex-end;

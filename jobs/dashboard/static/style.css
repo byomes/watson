@@ -103,7 +103,6 @@ select option{background:var(--surface)}
 .overlay-sub.open{transform:translateX(0);visibility:visible}
 #tab-chat{padding:0;display:none;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;z-index:50;}
 #tab-chat.active{display:flex}
-#tab-chat #chat-input-bar { position: sticky; bottom: env(safe-area-inset-bottom, 0px); }
 .new-chat-btn{display:flex;align-items:center;gap:12px;padding:13px 16px;background:var(--accent-soft);border:1px solid var(--accent);border-radius:8px;color:var(--accent);font-size:14px;font-weight:600;width:100%;text-align:left;margin-bottom:4px}
 .new-chat-btn:hover{opacity:.8}
 .history-label{font-size:11px;color:var(--text-muted);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;margin:4px 0 6px 2px}

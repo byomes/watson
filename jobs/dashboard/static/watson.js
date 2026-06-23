@@ -79,12 +79,11 @@ function switchTab(page) {
     case 'chat':      renderChat();      document.getElementById('nav').style.display='none';
       if (window.visualViewport) {
         function _chatVVResize() {
-          const bar = document.getElementById('chat-input-bar');
-          if (!bar) return;
-          const kb = Math.max(0, window.innerHeight - window.visualViewport.height - window.visualViewport.offsetTop);
-          bar.style.bottom = kb + 'px';
-          const msgs = document.getElementById('chat-messages');
-          if (msgs) msgs.style.paddingBottom = (kb + 80) + 'px';
+          const chatTab = document.getElementById('tab-chat');
+          if (!chatTab) return;
+          const vv = window.visualViewport;
+          chatTab.style.height = vv.height + 'px';
+          chatTab.style.top = vv.offsetTop + 'px';
         }
         window.visualViewport.addEventListener('resize', _chatVVResize);
         window.visualViewport.addEventListener('scroll', _chatVVResize);
@@ -1037,10 +1036,8 @@ function closeChat() {
     window.visualViewport.removeEventListener('scroll', window._chatVVResize);
     window._chatVVResize = null;
   }
-  const bar = document.getElementById('chat-input-bar');
-  if (bar) bar.style.bottom = '';
-  const msgs2 = document.getElementById('chat-messages');
-  if (msgs2) msgs2.style.paddingBottom = '';
+  const chatTab = document.getElementById('tab-chat');
+  if (chatTab) { chatTab.style.height = ''; chatTab.style.top = ''; }
   switchTab('home');
 }
 
