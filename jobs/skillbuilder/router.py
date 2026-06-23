@@ -57,7 +57,7 @@ _SKILL_PRE_CHECKS: dict[str, tuple] = {
         "show all contacts", "list contacts", "contact search",
     ),
     "pastoral_search": (
-        "pastoral search",
+        "pastoral search", "pastoral search:",
     ),
     "pastoral_notes": (
         "pastoral note:", "pastoral notes:",

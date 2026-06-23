@@ -72,24 +72,24 @@ def _wrap(title: str, subtitle: str, body: str) -> str:
 
 # ── Bill: next steps + questions/comments ─────────────────────────────────────
 
+_FIELD_LABEL = (
+    "font-size:.78em;text-transform:uppercase;letter-spacing:.05em;"
+    "color:#555;margin:10px 0 2px"
+)
+
 def bill_report(service_date: str, updated: bool = False) -> tuple[str, str]:
     """Return (subject, html) for Bill — next steps and comments."""
     with _conn() as conn:
         rows = conn.execute(
             """
-            SELECT m.name, m.email, m.phone, cc.campus,
-                   cc.questions_comments,
-                   GROUP_CONCAT(ns.step, ', ') AS next_steps,
-                   MAX(fu.id IS NOT NULL) AS is_first_visit
+            SELECT m.name, m.email, m.phone, cc.campus, cc.is_first_visit,
+                   cc.next_steps, cc.questions_comments
             FROM connect_cards cc
             JOIN members m ON m.id = cc.member_id
-            LEFT JOIN next_steps ns ON ns.card_id = cc.id
-            LEFT JOIN follow_ups fu ON fu.card_id = cc.id
-                                   AND fu.note = 'First-time visitor'
             WHERE cc.service_date = ?
-            GROUP BY cc.id
-            HAVING next_steps IS NOT NULL OR cc.questions_comments IS NOT NULL
-            ORDER BY is_first_visit DESC, m.name
+              AND (TRIM(COALESCE(cc.next_steps,        '')) != ''
+                OR TRIM(COALESCE(cc.questions_comments, '')) != '')
+            ORDER BY cc.is_first_visit DESC, m.name
             """,
             (service_date,),
         ).fetchall()
@@ -109,7 +109,7 @@ def bill_report(service_date: str, updated: bool = False) -> tuple[str, str]:
         )
         return subject, _wrap("Next Steps &amp; Comments", service_date, body)
 
-    table_rows = ""
+    cards = ""
     for r in rows:
         visit_badge = (
             "<span class='badge first'>First visit</span>"
@@ -117,32 +117,38 @@ def bill_report(service_date: str, updated: bool = False) -> tuple[str, str]:
             else "<span class='badge returning'>Returning</span>"
         )
         campus_badge = f"<span class='badge campus'>{r['campus'] or ''}</span>"
+        email = r["email"] or ""
         contact = ""
-        if r["email"]:
-            contact += f"<a href='mailto:{r['email']}'>{r['email']}</a>"
+        if email:
+            contact += f"<a href='mailto:{email}'>{email}</a>"
         if r["phone"]:
             contact += ("<br>" if contact else "") + r["phone"]
-        next_step_cell = (
-            f"<div class='note'>{r['next_steps']}</div>" if r["next_steps"] else "—"
-        )
-        comment_cell = (
-            f"<div class='note'>{r['questions_comments']}</div>"
-            if r["questions_comments"]
-            else "—"
-        )
-        table_rows += (
-            f"<tr>"
-            f"<td><strong>{r['name'] or '(no name)'}</strong><br>{visit_badge} {campus_badge}<br><small>{contact}</small></td>"
-            f"<td>{next_step_cell}</td>"
-            f"<td>{comment_cell}</td>"
-            f"</tr>"
+
+        fields_html = ""
+        if r["next_steps"]:
+            fields_html += (
+                f"<p style='{_FIELD_LABEL}'>Next Step</p>"
+                f"<div class='note'>{r['next_steps']}</div>"
+            )
+        if r["questions_comments"]:
+            fields_html += (
+                f"<p style='{_FIELD_LABEL}'>Question / Comment</p>"
+                f"<div class='note'>{r['questions_comments']}</div>"
+            )
+
+        cards += (
+            f"<div style='border:1px solid #eee;border-radius:4px;padding:14px 16px;margin-bottom:12px'>"
+            f"<div><strong>{r['name'] or '(no name)'}</strong> {visit_badge} {campus_badge}</div>"
+            f"<div style='font-size:.85em;color:#888;margin-top:2px'>{contact}</div>"
+            f"{fields_html}"
+            f"</div>"
         )
 
     body = (
         banner
-        + f"<p style='color:#888;font-size:.9em'>Total cards: {total} &nbsp;|&nbsp; Showing {len(rows)} with next step or comment</p>"
-        + "<table><thead><tr><th>Person</th><th>Next Step</th><th>Question / Comment</th></tr></thead>"
-        + f"<tbody>{table_rows}</tbody></table>"
+        + f"<p style='color:#888;font-size:.9em'>Total cards: {total} &nbsp;|&nbsp; "
+        f"Showing {len(rows)} with next step, comment, or prayer request</p>"
+        + cards
     )
     return subject, _wrap("Next Steps &amp; Comments", service_date, body)
 

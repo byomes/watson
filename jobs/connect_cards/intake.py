@@ -67,6 +67,41 @@ NEXT_STEP_SUBSTRINGS = [
     ("join a ministry team",     "ministry_team"),
 ]
 
+def _migrate_columns() -> None:
+    """Add parsed columns to connect_cards if not present, and create member_conflicts table."""
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS member_conflicts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                conflict_type TEXT NOT NULL,
+                existing_member_id INTEGER,
+                existing_name TEXT,
+                existing_email TEXT,
+                new_member_id INTEGER,
+                new_card_id INTEGER,
+                new_name TEXT,
+                new_email TEXT,
+                status TEXT NOT NULL DEFAULT 'pending',
+                detected_at TEXT DEFAULT (datetime('now')),
+                resolved_at TEXT
+            )
+        """)
+        existing = {row[1] for row in conn.execute("PRAGMA table_info(connect_cards)").fetchall()}
+        for col, defn in [
+            ("prayer_request",        "TEXT"),
+            ("next_steps",            "TEXT"),
+            ("is_first_visit",        "INTEGER NOT NULL DEFAULT 0"),
+            ("prayer_request_public", "INTEGER NOT NULL DEFAULT 1"),
+        ]:
+            if col not in existing:
+                conn.execute(f"ALTER TABLE connect_cards ADD COLUMN {col} {defn}")
+                log.info("Migration: added column connect_cards.%s", col)
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def _match_next_step(value: str) -> str | None:
     v = value.lower()
     for substr, key in NEXT_STEP_SUBSTRINGS:
@@ -156,6 +191,7 @@ def _parse_html(html: str) -> dict | None:
         "is_first_visit":         False,
         "prayer_leadership_only": False,
         "prayer_request":         None,
+        "prayer_request_public":  1,
     }
 
     campus_raw = get_one("where did you attend")
@@ -185,6 +221,10 @@ def _parse_html(html: str) -> dict | None:
             prayer_parts.append(v)
     fields["prayer_request"] = " ".join(prayer_parts).strip() or None
 
+    leadership_vals = get("leadership only")
+    if any(v.strip() for v in leadership_vals):
+        fields["prayer_request_public"] = 0
+
     return fields
 
 
@@ -194,6 +234,83 @@ def _service_date(received_dt) -> str:
     d = received_dt.date() if hasattr(received_dt, "date") else received_dt
     days_back = (d.weekday() + 1) % 7
     return (d - timedelta(days=days_back)).isoformat()
+
+
+# ── Member conflict detection ──────────────────────────────────────────────────
+
+def _resolve_member(
+    conn: sqlite3.Connection,
+    name: str,
+    email_addr: str,
+    phone: str,
+    svc_date: str,
+) -> tuple[int, int | None]:
+    """
+    Find or create a member, detecting and logging conflicts.
+
+    Returns (member_id, conflict_row_id).  If conflict_row_id is not None,
+    the caller must UPDATE member_conflicts.new_card_id after inserting the card.
+    """
+    email_lower = email_addr.lower() if email_addr else ""
+    name_key    = name.lower().strip()
+    now         = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+
+    if email_lower:
+        by_email = conn.execute(
+            "SELECT id, name, email FROM members WHERE LOWER(email) = ?", (email_lower,)
+        ).fetchone()
+        if by_email:
+            if (by_email["name"] or "").lower().strip() != name_key:
+                # Shared email — create a new member; log conflict
+                cur_m = conn.execute(
+                    "INSERT INTO members (name, email, phone, first_visit_date, updated_at)"
+                    " VALUES (?, ?, ?, ?, ?)",
+                    (name, email_addr, phone or None, svc_date, now),
+                )
+                new_member_id = cur_m.lastrowid
+                cur_c = conn.execute(
+                    """
+                    INSERT INTO member_conflicts
+                      (conflict_type, existing_member_id, existing_name, existing_email,
+                       new_member_id, new_name, new_email)
+                    VALUES ('shared_email', ?, ?, ?, ?, ?, ?)
+                    """,
+                    (by_email["id"], by_email["name"], by_email["email"],
+                     new_member_id, name, email_addr),
+                )
+                log.warning(
+                    "Conflict (shared_email): existing=%r new=%r email=%r conflict_id=%d",
+                    by_email["name"], name, email_addr, cur_c.lastrowid,
+                )
+                return new_member_id, cur_c.lastrowid
+            # Same name + same email — clean match; delegate
+            return find_or_create_member(conn, name, email_addr, phone, svc_date), None
+
+    if name_key:
+        by_name = conn.execute(
+            "SELECT id, name, email FROM members WHERE LOWER(TRIM(name)) = ?", (name_key,)
+        ).fetchone()
+        if by_name:
+            existing_email = (by_name["email"] or "").lower().strip()
+            if email_lower and email_lower != existing_email:
+                # Same name, different email — use existing member; log conflict
+                cur_c = conn.execute(
+                    """
+                    INSERT INTO member_conflicts
+                      (conflict_type, existing_member_id, existing_name, existing_email,
+                       new_member_id, new_name, new_email)
+                    VALUES ('same_name_diff_email', ?, ?, ?, NULL, ?, ?)
+                    """,
+                    (by_name["id"], by_name["name"], by_name["email"],
+                     name, email_addr),
+                )
+                log.warning(
+                    "Conflict (same_name_diff_email): name=%r existing_email=%r new_email=%r conflict_id=%d",
+                    name, by_name["email"], email_addr, cur_c.lastrowid,
+                )
+                return by_name["id"], cur_c.lastrowid
+
+    return find_or_create_member(conn, name, email_addr, phone, svc_date), None
 
 
 # ── Process one email ─────────────────────────────────────────────────────────
@@ -251,14 +368,17 @@ def _process_email(msg, dry_run: bool, conn: sqlite3.Connection) -> bool:
         log.info("[dry-run] Would insert: %r service_date=%s", name, svc_date)
         return True
 
-    member_id = find_or_create_member(conn, name, email_addr, fields.get("phone") or "", svc_date)
+    member_id, conflict_row_id = _resolve_member(
+        conn, name, email_addr, fields.get("phone") or "", svc_date
+    )
 
     # connect_cards record
     conn.execute(
         """
         INSERT INTO connect_cards
-          (member_id, service_date, campus, raw_text, questions_comments, email_id)
-        VALUES (?, ?, ?, ?, ?, ?)
+          (member_id, service_date, campus, raw_text, questions_comments, email_id,
+           prayer_request, next_steps, is_first_visit, prayer_request_public)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             member_id,
@@ -267,9 +387,19 @@ def _process_email(msg, dry_run: bool, conn: sqlite3.Connection) -> bool:
             html,
             fields.get("questions_comments"),
             email_id or None,
+            fields.get("prayer_request"),
+            ", ".join(fields.get("next_steps") or []) or None,
+            1 if fields.get("is_first_visit") else 0,
+            fields.get("prayer_request_public", 1),
         ),
     )
     card_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+    if conflict_row_id is not None:
+        conn.execute(
+            "UPDATE member_conflicts SET new_card_id = ? WHERE id = ?",
+            (card_id, conflict_row_id),
+        )
 
     # attendance (one row per card)
     conn.execute(
@@ -311,9 +441,51 @@ def _process_email(msg, dry_run: bool, conn: sqlite3.Connection) -> bool:
     return True
 
 
+# ── Backfill ──────────────────────────────────────────────────────────────────
+
+def backfill_new_columns() -> None:
+    """Re-parse stored raw_text for all rows and populate prayer_request, next_steps, is_first_visit."""
+    _migrate_columns()
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    try:
+        rows = conn.execute(
+            "SELECT id, raw_text FROM connect_cards WHERE raw_text IS NOT NULL AND raw_text != ''"
+        ).fetchall()
+        updated = skipped = 0
+        for row in rows:
+            fields = _parse_html(row["raw_text"])
+            if fields is None:
+                skipped += 1
+                continue
+            conn.execute(
+                """
+                UPDATE connect_cards
+                SET prayer_request        = ?,
+                    next_steps            = ?,
+                    is_first_visit        = ?,
+                    prayer_request_public = ?
+                WHERE id = ?
+                """,
+                (
+                    fields.get("prayer_request"),
+                    ", ".join(fields.get("next_steps") or []) or None,
+                    1 if fields.get("is_first_visit") else 0,
+                    fields.get("prayer_request_public", 1),
+                    row["id"],
+                ),
+            )
+            updated += 1
+        conn.commit()
+        log.info("Backfill complete: %d updated, %d skipped (parse failed).", updated, skipped)
+    finally:
+        conn.close()
+
+
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def run(dry_run: bool = False) -> None:
+    _migrate_columns()
     if not GMAIL_ADDR or not GMAIL_PASS:
         log.error("WATSON_GMAIL_ADDRESS and WATSON_GMAIL_APP_PASSWORD must be set.")
         return
@@ -377,5 +549,11 @@ def run(dry_run: bool = False) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Poll Gmail for connect card submissions.")
-    parser.add_argument("--dry-run", action="store_true")
-    run(dry_run=parser.parse_args().dry_run)
+    parser.add_argument("--dry-run",  action="store_true")
+    parser.add_argument("--backfill", action="store_true",
+                        help="Populate prayer_request/next_steps/is_first_visit from stored raw_text")
+    args = parser.parse_args()
+    if args.backfill:
+        backfill_new_columns()
+    else:
+        run(dry_run=args.dry_run)

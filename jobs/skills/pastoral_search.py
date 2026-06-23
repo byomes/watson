@@ -3,6 +3,7 @@ Pastoral search skill — returns a pastoral summary for a named member.
 Triggered via Telegram: "pastoral search [name]"
 """
 
+import datetime
 import re
 import sqlite3
 
@@ -39,7 +40,28 @@ def run(message: str = None) -> str:
 
         member_id = member["id"]
         display_name = member["name"]
-        campus = member["campus_preference"] or "Not on record"
+        # Derive campus from last 6 weeks of attendance
+        six_weeks_ago = (datetime.date.today() - datetime.timedelta(weeks=6)).isoformat()
+        campus_rows = conn.execute(
+            "SELECT campus, COUNT(*) as cnt FROM attendance"
+            " WHERE member_id = ? AND service_date >= ? AND campus IS NOT NULL AND campus != ''",
+            (member_id, six_weeks_ago),
+        ).fetchall()
+        campus_counts = {row["campus"]: row["cnt"] for row in campus_rows}
+        wilmington = campus_counts.get("Wilmington", 0)
+        online = campus_counts.get("Online", 0)
+        if wilmington >= 4 and online >= 2:
+            campus = "Hybrid (Wilmington + Online)"
+        elif online >= 4 and wilmington >= 2:
+            campus = "Hybrid (Online + Wilmington)"
+        elif wilmington >= 4:
+            campus = "Wilmington"
+        elif online >= 4:
+            campus = "Online"
+        elif wilmington > 0 or online > 0:
+            campus = f"Insufficient data ({wilmington}W / {online}O last 6 weeks)"
+        else:
+            campus = "Not on record"
 
         # 2. Last 4 distinct service dates in attendance table overall
         recent_dates = [

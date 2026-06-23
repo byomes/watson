@@ -22,9 +22,13 @@ Usage:
 """
 
 import argparse
+import json
 import os
 import smtplib
 import sqlite3
+import urllib.request
+
+import requests
 from datetime import date, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -43,11 +47,13 @@ FROM_ADDR  = os.getenv("WATSON_FROM_ADDRESS") or SMTP_USER
 
 BILL_EMAIL    = os.getenv("BILL_EMAIL", "")
 DONNA_EMAIL   = os.getenv("DONNA_EMAIL", "")
-KACI_EMAIL    = os.getenv("KACI_EMAIL", "")
-REPORT_CC     = os.getenv("REPORT_CC", "")
+KACI_EMAIL        = os.getenv("KACI_EMAIL", "")
+PASTOR_BILL_EMAIL = os.getenv("PASTOR_BILL_EMAIL", "pastorbill@catalyst302.com")
+REPORT_CC         = os.getenv("REPORT_CC", "")
 PREVIEW_EMAIL = "bill.yomes@gmail.com"
 
-DB_PATH = os.path.expanduser("~/watson/data/watson.db")
+DB_PATH      = os.path.expanduser("~/watson/data/watson.db")
+CONG_DB_PATH = os.path.expanduser("~/watson/data/congregation.db")
 
 
 def most_recent_sunday() -> str:
@@ -95,6 +101,24 @@ def _send(to: str, subject: str, html: str, preview: bool = False) -> None:
     print(f"Sent: {subject!r} → {to}{cc_note}")
 
 
+def _send_plain(to: str, subject: str, body: str) -> None:
+    """Send a plain-text email via Watson SMTP."""
+    if not SMTP_USER or not SMTP_PASS:
+        raise RuntimeError("WATSON_GMAIL_ADDRESS and WATSON_GMAIL_APP_PASSWORD must be set.")
+    if not to:
+        raise RuntimeError("Recipient address is empty — check env vars.")
+    msg = MIMEText(body, "plain", "utf-8")
+    msg["Subject"] = subject
+    msg["From"]    = f"Watson <{FROM_ADDR}>"
+    msg["To"]      = to
+    with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as smtp:
+        smtp.ehlo()
+        smtp.starttls()
+        smtp.login(SMTP_USER, SMTP_PASS)
+        smtp.sendmail(FROM_ADDR, [to], msg.as_string())
+    print(f"Sent: {subject!r} → {to}")
+
+
 def send_bill_report(service_date: str | None = None, updated: bool = False, preview: bool = False) -> None:
     d = service_date or most_recent_sunday()
     subject, html = bill_report(d, updated=updated)
@@ -111,6 +135,66 @@ def send_kaci_report(service_date: str | None = None, updated: bool = False, pre
     d = service_date or most_recent_sunday()
     subject, html = kaci_report(d, updated=updated)
     _send(KACI_EMAIL, subject, html, preview=preview)
+
+
+# ── Monday prayer requests email ─────────────────────────────────────────────
+
+def send_prayer_requests(service_date: str | None = None) -> None:
+    """
+    Pull prayer requests from watson.db connect_cards for the most recent Sunday,
+    lightly normalize verb tense via Ollama, and send a plain-text email to the pastor.
+    """
+    d = service_date or most_recent_sunday()
+    date_display = date.fromisoformat(d).strftime("%m-%d-%Y")
+
+    conn = sqlite3.connect(CONG_DB_PATH)
+    conn.row_factory = sqlite3.Row
+    try:
+        rows = conn.execute(
+            """
+            SELECT m.name, pr.request_text, cc.prayer_request_public
+            FROM connect_cards cc
+            JOIN members m ON m.id = cc.member_id
+            JOIN prayer_requests pr ON pr.card_id = cc.id
+            WHERE cc.service_date = ?
+            ORDER BY cc.prayer_request_public DESC, m.name
+            """,
+            (d,),
+        ).fetchall()
+    finally:
+        conn.close()
+
+    if not rows:
+        print(f"[prayer_requests] No prayer requests for {d}.")
+        return
+
+    public_entries = []
+    leadership_entries = []
+    for r in rows:
+        raw_name = (r["name"] or "").strip()
+        if raw_name:
+            parts = raw_name.rsplit(" ", 1)
+            name  = f"{parts[0]} {parts[1][0]}." if len(parts) == 2 else parts[0]
+        else:
+            name = "(no name)"
+        entry = f"{name}\n{r['request_text'].strip()}"
+        if r["prayer_request_public"]:
+            public_entries.append(entry)
+        else:
+            leadership_entries.append(entry)
+
+    sections = [f"Prayer Requests from {date_display}"]
+    if public_entries:
+        sections.append("\n\n".join(public_entries))
+    if leadership_entries:
+        sections.append(f"---\nLeadership Only Prayer Requests from {date_display}\n---")
+        sections.append("\n\n".join(leadership_entries))
+
+    body    = "\n\n".join(sections)
+    subject = f"Prayer Requests from {date_display}"
+
+    _send_plain(PASTOR_BILL_EMAIL, subject, body)
+    print(f"[prayer_requests] Sent {len(rows)} request(s) for {d}.")
 
 
 # ── Sunday congregation sync ──────────────────────────────────────────────────
@@ -191,14 +275,15 @@ if __name__ == "__main__":
     parser.add_argument("--bill",    action="store_true", help="Send Bill's next steps + comments report")
     parser.add_argument("--donna",   action="store_true", help="Send Donna's attendance report")
     parser.add_argument("--kaci",    action="store_true", help="Send Kaci's prayer requests report")
+    parser.add_argument("--prayer",  action="store_true", help="Send prayer requests plain-text email to pastor")
     parser.add_argument("--updated", action="store_true", help="Mark as Thursday updated run (adds flag to subject and header note)")
     parser.add_argument("--sync",    action="store_true", help="Run congregation sync only — no emails sent")
     parser.add_argument("--date",    default=None,        help="Service date (YYYY-MM-DD); defaults to most recent Sunday")
     parser.add_argument("--preview", action="store_true", help=f"Send all reports to {PREVIEW_EMAIL} instead of normal recipients")
     args = parser.parse_args()
 
-    if not any([args.all, args.bill, args.donna, args.kaci, args.sync]):
-        parser.error("Specify at least one of --all, --bill, --donna, --kaci, or --sync.")
+    if not any([args.all, args.bill, args.donna, args.kaci, args.prayer, args.sync]):
+        parser.error("Specify at least one of --all, --bill, --donna, --kaci, --prayer, or --sync.")
 
     service_date = args.date
 
@@ -213,3 +298,5 @@ if __name__ == "__main__":
             send_donna_report(service_date, updated=updated, preview=preview)
         if args.kaci or args.all:
             send_kaci_report(service_date, updated=updated, preview=preview)
+        if args.prayer or args.all:
+            send_prayer_requests(service_date)

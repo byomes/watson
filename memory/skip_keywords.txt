@@ -16,3 +16,5 @@ drum
 
 catalyst leaders meeting
 cancelled
+
+edit & post sermon to app
