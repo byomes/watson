@@ -1,49 +1,21 @@
-"""jobs/skills/logins.py — look up saved login credentials by natural language query."""
-import re
+"""jobs/skills/logins.py — vault-aware login lookup for chat (dashboard + Telegram)."""
 import sqlite3
 
 DB = "/home/billyomes/watson/data/watson.db"
 
-_PATTERNS = [
-    r"(?:what'?s my password for|my password for|password for)\s+(.+)",
-    r"login for\s+(.+)",
-    r"credentials for\s+(.+)",
-]
-
 
 def handle(message: str) -> str:
-    msg = message.lower().strip()
-    keyword = None
-    for pattern in _PATTERNS:
-        m = re.search(pattern, msg)
-        if m:
-            keyword = m.group(1).strip().rstrip("?.").strip()
-            break
-    if not keyword:
-        keyword = msg
-
     conn = sqlite3.connect(DB)
     conn.row_factory = sqlite3.Row
-    rows = conn.execute(
-        "SELECT label, username, password, url, notes FROM logins WHERE label LIKE ?",
-        (f"%{keyword}%",),
-    ).fetchall()
-    conn.close()
-
-    if not rows:
-        return f"No login found matching '{keyword}'."
-
-    parts = []
-    for r in rows:
-        lines = [r["label"]]
-        if r["username"]:
-            lines.append(f"Username: {r['username']}")
-        if r["password"]:
-            lines.append(f"Password: {r['password']}")
-        if r["url"]:
-            lines.append(f"URL: {r['url']}")
-        if r["notes"]:
-            lines.append(f"Notes: {r['notes']}")
-        parts.append("\n".join(lines))
-
-    return "\n\n".join(parts)
+    try:
+        row = conn.execute("SELECT locked FROM vault_status WHERE id = 1").fetchone()
+        if row and row["locked"]:
+            return "Login vault is currently locked. Unlock via Telegram."
+        challenge_row = conn.execute(
+            "SELECT id, challenge FROM login_challenges ORDER BY RANDOM() LIMIT 1"
+        ).fetchone()
+        if not challenge_row:
+            return "No challenge questions configured for the login vault."
+        return f"Challenge: {challenge_row['challenge']}"
+    finally:
+        conn.close()

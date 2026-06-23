@@ -1878,6 +1878,23 @@ async def handle_command_callback(update: Update, context: ContextTypes.DEFAULT_
         await query.edit_message_text("❌ Command cancelled.", reply_markup=None)
 
 
+async def handle_vault_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+
+    if not _is_authorized(update):
+        await query.answer()
+        return
+
+    if query.data == "vault_unlock":
+        await query.answer("Unlocking…")
+        try:
+            import requests as _rq
+            _rq.post("http://localhost:5200/api/logins/unlock", timeout=5)
+            await query.edit_message_text("✅ Vault unlocked.", reply_markup=None)
+        except Exception as exc:
+            await query.edit_message_text(f"⚠️ Unlock failed: {exc}", reply_markup=None)
+
+
 async def handle_acquire_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
 
@@ -2642,6 +2659,7 @@ def main():
     app.add_handler(CommandHandler("ask",         handle_ask))
     app.add_handler(CallbackQueryHandler(handle_member_conflict_callback, pattern=r"^mc_"))
     app.add_handler(CallbackQueryHandler(handle_command_callback, pattern=r"^cmd_"))
+    app.add_handler(CallbackQueryHandler(handle_vault_callback,   pattern=r"^vault_"))
     app.add_handler(CallbackQueryHandler(handle_acquire_callback, pattern=r"^acquire_"))
     app.add_handler(CallbackQueryHandler(handle_reject_callback, pattern=r"^reject:"))
     app.add_handler(CallbackQueryHandler(handle_room_callback, pattern=r"^room_(?:approve|deny):"))

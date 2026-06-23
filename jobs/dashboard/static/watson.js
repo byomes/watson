@@ -1286,101 +1286,240 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // ─── Logins overlay ───────────────────────────────────────────────────────────
 
-let _loginsData = [];
+let _loginsData        = [];
+let _challengeAttempts = 0;
+let _currentChallengeId = null;
+let _loginsUnlocked    = false;
+let _editingLoginId    = null;
 
 function openLogins() {
+  _challengeAttempts  = 0;
+  _currentChallengeId = null;
+  _loginsUnlocked     = false;
+  _editingLoginId     = null;
   document.getElementById('logins-overlay').classList.add('active');
-  loginsLoad();
+  _loginsCheckStatus();
 }
 
 function closeLogins() {
   document.getElementById('logins-overlay').classList.remove('active');
-  loginsHideForm();
+  _loginsUnlocked = false;
+  _editingLoginId = null;
+  _loginsHideForm();
 }
 
-function loginsToggleForm() {
-  const panel = document.getElementById('logins-add-panel');
-  if (panel.classList.contains('open')) {
-    loginsHideForm();
-  } else {
-    panel.classList.add('open');
-    document.getElementById('login-inp-label').focus();
+async function _loginsCheckStatus() {
+  try {
+    const data = await api('/api/logins/status');
+    if (data.locked) { _loginsShowState('locked'); }
+    else             { await _loginsBeginChallenge(); }
+  } catch(e) {
+    _loginsShowState('locked');
   }
 }
 
-function loginsHideForm() {
-  const panel = document.getElementById('logins-add-panel');
-  panel.classList.remove('open');
-  ['label','user','pass','url','notes'].forEach(f => {
-    const el = document.getElementById('login-inp-' + f);
-    if (el) el.value = '';
+function _loginsShowState(state) {
+  ['locked','challenge','list'].forEach(s => {
+    const el = document.getElementById('logins-state-' + s);
+    if (el) el.style.display = 'none';
   });
+  const target = document.getElementById('logins-state-' + state);
+  if (target) target.style.display = '';
+  const addBtn = document.getElementById('logins-add-btn');
+  if (addBtn) addBtn.style.display = (state === 'list') ? '' : 'none';
 }
 
-async function loginsLoad() {
+async function _loginsBeginChallenge() {
+  _loginsShowState('challenge');
+  const errEl = document.getElementById('logins-challenge-err');
+  if (errEl) errEl.textContent = '';
+  try {
+    const url = '/api/logins/challenge' + (_currentChallengeId ? '?exclude=' + _currentChallengeId : '');
+    const data = await api(url);
+    _currentChallengeId = data.id;
+    document.getElementById('logins-challenge-word').textContent = data.challenge;
+    const inp = document.getElementById('logins-challenge-input');
+    inp.value = '';
+    inp.focus();
+  } catch(e) {
+    document.getElementById('logins-challenge-word').textContent = '(error)';
+  }
+}
+
+async function loginsSubmitChallenge() {
+  const response = (document.getElementById('logins-challenge-input').value || '').trim();
+  if (!response) return;
+  const errEl = document.getElementById('logins-challenge-err');
+  try {
+    const data = await api('/api/logins/challenge/verify', {
+      method:  'POST',
+      headers: {'Content-Type': 'application/json'},
+      body:    JSON.stringify({response}),
+    });
+    if (data.success) {
+      _loginsUnlocked = true;
+      await _loginsLoadList();
+    } else {
+      _challengeAttempts++;
+      if (_challengeAttempts >= 3) {
+        try { await api('/api/logins/lock', {method: 'POST'}); } catch(e) {}
+        _loginsShowState('locked');
+      } else {
+        const rem = 3 - _challengeAttempts;
+        errEl.textContent = `Incorrect — ${rem} attempt${rem === 1 ? '' : 's'} remaining.`;
+        const inp = document.getElementById('logins-challenge-input');
+        inp.value = '';
+        inp.focus();
+      }
+    }
+  } catch(e) {
+    errEl.textContent = 'Error verifying. Try again.';
+  }
+}
+
+async function loginsSkipChallenge() {
+  _challengeAttempts++;
+  if (_challengeAttempts >= 3) {
+    try { await api('/api/logins/lock', {method: 'POST'}); } catch(e) {}
+    _loginsShowState('locked');
+    return;
+  }
+  const errEl = document.getElementById('logins-challenge-err');
+  if (errEl) errEl.textContent = '';
+  const excludeId = _currentChallengeId;
+  _currentChallengeId = null;
+  try {
+    const data = await api(`/api/logins/challenge?exclude=${excludeId}`);
+    _currentChallengeId = data.id;
+    document.getElementById('logins-challenge-word').textContent = data.challenge;
+    const inp = document.getElementById('logins-challenge-input');
+    inp.value = '';
+    inp.focus();
+  } catch(e) {}
+}
+
+async function _loginsLoadList() {
+  _loginsShowState('list');
   const list = document.getElementById('logins-list');
   list.innerHTML = '<div class="loading">Loading&hellip;</div>';
   try {
-    _loginsData = await api('/api/logins');
-    loginsRender();
+    const data = await api('/api/logins');
+    if (data && data.locked) { _loginsShowState('locked'); return; }
+    _loginsData = Array.isArray(data) ? data : [];
+    _loginsRenderList();
   } catch(e) {
     list.innerHTML = '<div class="empty">Failed to load logins.</div>';
   }
 }
 
-function loginsRender() {
+function _loginsRenderList() {
   const list = document.getElementById('logins-list');
   if (!_loginsData.length) {
-    list.innerHTML = '<div class="empty">No logins saved yet. Tap + to add one.</div>';
+    list.innerHTML = '<div class="empty">No logins saved. Tap + to add one.</div>';
     return;
   }
   list.innerHTML = _loginsData.map(l => `
     <div class="login-card" id="login-card-${l.id}">
-      <div class="login-label">${esc(l.label)}</div>
-      ${l.username ? `<div class="login-meta">${esc(l.username)}</div>` : ''}
-      ${l.url ? `<div class="login-meta" style="color:var(--blue)">${esc(l.url)}</div>` : ''}
+      <div style="display:flex;align-items:flex-start;gap:8px">
+        <div style="flex:1;min-width:0">
+          <div class="login-label">${esc(l.label)}</div>
+          ${l.username ? `<div class="login-meta">${esc(l.username)}</div>` : ''}
+          ${l.url      ? `<div class="login-meta" style="color:var(--blue)">${esc(l.url)}</div>` : ''}
+        </div>
+        <div style="display:flex;gap:6px;flex-shrink:0;margin-top:2px">
+          <button class="login-reveal-btn" onclick="loginsEdit(${l.id})">Edit</button>
+          <button class="login-del-btn"    onclick="loginsDelete(${l.id})">Del</button>
+        </div>
+      </div>
       ${l.password ? `
-      <div class="login-row">
-        <span class="login-pwd" id="login-pwd-${l.id}">••••••••</span>
-        <button class="login-reveal-btn" onclick="loginsReveal(${l.id},'${esc(l.password).replace(/'/g,"\\'")}')">Show</button>
-        <button class="login-del-btn" onclick="loginsDelete(${l.id})">Delete</button>
-      </div>` : `
-      <div class="login-row" style="margin-top:6px">
-        <button class="login-del-btn" onclick="loginsDelete(${l.id})">Delete</button>
-      </div>`}
-      ${l.notes ? `<div class="login-meta" style="margin-top:6px;color:var(--muted)">${esc(l.notes)}</div>` : ''}
+      <div class="login-row" style="margin-top:8px">
+        <span class="login-pwd" id="login-pwd-${l.id}"
+              data-pwd="${esc(String(l.password)).replace(/"/g,'&quot;')}">••••••••</span>
+        <button class="login-reveal-btn" onclick="loginsReveal(${l.id})" title="Show/hide password">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+               fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+               stroke-linejoin="round">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+            <circle cx="12" cy="12" r="3"/>
+          </svg>
+        </button>
+      </div>` : ''}
+      ${l.notes ? `<div class="login-meta" style="margin-top:6px">${esc(l.notes)}</div>` : ''}
     </div>`).join('');
 }
 
-function loginsReveal(id, pwd) {
+function loginsReveal(id) {
   const el = document.getElementById('login-pwd-' + id);
-  const btn = el ? el.nextElementSibling : null;
   if (!el) return;
-  if (el.textContent === '••••••••') {
-    el.textContent = pwd;
-    el.style.color = 'var(--text)';
-    if (btn) btn.textContent = 'Hide';
-  } else {
+  if (el.getAttribute('data-showing')) {
     el.textContent = '••••••••';
-    el.style.color = '';
-    if (btn) btn.textContent = 'Show';
+    el.removeAttribute('data-showing');
+  } else {
+    el.textContent = el.getAttribute('data-pwd');
+    el.setAttribute('data-showing', '1');
   }
+}
+
+function loginsShowForm(id) {
+  _editingLoginId = id || null;
+  const panel   = document.getElementById('logins-add-panel');
+  const titleEl = document.getElementById('logins-form-title');
+  panel.style.display = '';
+  if (id) {
+    const l = _loginsData.find(x => x.id === id);
+    if (l) {
+      titleEl.textContent = 'Edit Login';
+      document.getElementById('login-inp-label').value = l.label    || '';
+      document.getElementById('login-inp-user').value  = l.username || '';
+      document.getElementById('login-inp-pass').value  = l.password || '';
+      document.getElementById('login-inp-url').value   = l.url      || '';
+      document.getElementById('login-inp-notes').value = l.notes    || '';
+    }
+  } else {
+    titleEl.textContent = 'Add Login';
+    ['label','user','pass','url','notes'].forEach(f => {
+      const el = document.getElementById('login-inp-' + f);
+      if (el) el.value = '';
+    });
+  }
+  document.getElementById('login-inp-label').focus();
+  panel.scrollIntoView({behavior: 'smooth', block: 'start'});
+}
+
+function loginsEdit(id) { loginsShowForm(id); }
+
+function _loginsHideForm() {
+  const panel = document.getElementById('logins-add-panel');
+  if (panel) panel.style.display = 'none';
+  ['label','user','pass','url','notes'].forEach(f => {
+    const el = document.getElementById('login-inp-' + f);
+    if (el) el.value = '';
+  });
+  _editingLoginId = null;
 }
 
 async function loginsSave() {
   const label = (document.getElementById('login-inp-label').value || '').trim();
-  if (!label) { alert('Label is required.'); return; }
+  if (!label) { document.getElementById('login-inp-label').focus(); return; }
   const body = {
     label,
     username: document.getElementById('login-inp-user').value.trim() || null,
-    password: document.getElementById('login-inp-pass').value || null,
-    url:      document.getElementById('login-inp-url').value.trim() || null,
-    notes:    document.getElementById('login-inp-notes').value.trim() || null,
+    password: document.getElementById('login-inp-pass').value        || null,
+    url:      document.getElementById('login-inp-url').value.trim()  || null,
+    notes:    document.getElementById('login-inp-notes').value.trim()|| null,
   };
   try {
-    await api('/api/logins', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
-    loginsHideForm();
-    loginsLoad();
+    if (_editingLoginId) {
+      await api(`/api/logins/${_editingLoginId}`, {
+        method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body),
+      });
+    } else {
+      await api('/api/logins', {
+        method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body),
+      });
+    }
+    _loginsHideForm();
+    await _loginsLoadList();
   } catch(e) {
     alert('Failed to save login.');
   }
@@ -1389,9 +1528,9 @@ async function loginsSave() {
 async function loginsDelete(id) {
   if (!confirm('Delete this login?')) return;
   try {
-    await api(`/api/logins/${id}`, { method: 'DELETE' });
+    await api(`/api/logins/${id}`, {method: 'DELETE'});
     _loginsData = _loginsData.filter(l => l.id !== id);
-    loginsRender();
+    _loginsRenderList();
   } catch(e) {
     alert('Failed to delete login.');
   }

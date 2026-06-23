@@ -685,6 +685,32 @@ html, body {
 #logins-add-panel input::placeholder, #logins-add-panel textarea::placeholder { color: var(--muted); }
 .logins-form-row { display: flex; gap: 8px; }
 .logins-form-row .mbtn { margin-bottom: 0; }
+.logins-locked-screen {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 60px 24px; text-align: center; gap: 12px;
+}
+.logins-locked-icon { font-size: 48px; }
+.logins-locked-msg  { font-size: 14px; color: var(--muted); line-height: 1.5; }
+.logins-challenge-screen {
+  padding: 32px 16px; display: flex; flex-direction: column; align-items: center; gap: 16px;
+}
+.logins-challenge-label {
+  font-size: 11px; font-family: 'DM Mono', monospace; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--muted);
+}
+.logins-challenge-word {
+  font-size: 32px; font-weight: 700; color: var(--gold); letter-spacing: .06em;
+}
+.logins-challenge-input {
+  width: 100%; max-width: 320px; padding: 10px 14px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-btn); color: var(--text); font-family: inherit;
+  font-size: 16px; outline: none; text-align: center;
+}
+.logins-challenge-input:focus { border-color: var(--gold); }
+.logins-challenge-err { font-size: 12px; color: var(--red); min-height: 16px; text-align: center; }
+.logins-challenge-btns { display: flex; gap: 10px; width: 100%; max-width: 320px; }
+.logins-challenge-btns .mbtn { flex: 1; margin-bottom: 0; }
 </style>
 </head>
 <body>
@@ -758,24 +784,56 @@ html, body {
       <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
     </button>
     <span id="logins-topbar-label">Logins</span>
-    <button id="logins-add-btn" onclick="loginsToggleForm()" aria-label="Add login">
+    <button id="logins-add-btn" onclick="loginsShowForm()" aria-label="Add login" style="display:none">
       <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
     </button>
   </div>
   <div id="logins-body">
-    <div id="logins-add-panel">
-      <div style="font-size:11px;font-family:'DM Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:10px">Add Login</div>
-      <input id="login-inp-label"    type="text"     placeholder="Label (e.g. Netflix) *" autocomplete="off">
-      <input id="login-inp-user"     type="text"     placeholder="Username / email"       autocomplete="off">
-      <input id="login-inp-pass"     type="password" placeholder="Password"               autocomplete="new-password">
-      <input id="login-inp-url"      type="url"      placeholder="URL (optional)"         autocomplete="off">
-      <textarea id="login-inp-notes" rows="2"        placeholder="Notes (optional)"></textarea>
-      <div class="logins-form-row">
-        <button class="mbtn mbtn-p" onclick="loginsSave()">Save</button>
-        <button class="mbtn"        onclick="loginsToggleForm()">Cancel</button>
+
+    <!-- State: Locked -->
+    <div id="logins-state-locked" style="display:none">
+      <div class="logins-locked-screen">
+        <div class="logins-locked-icon">🔒</div>
+        <div class="logins-locked-msg">Vault Locked<br>Unlock via Telegram to access your logins.</div>
       </div>
     </div>
-    <div id="logins-list"><div class="loading">Loading&hellip;</div></div>
+
+    <!-- State: Challenge -->
+    <div id="logins-state-challenge" style="display:none">
+      <div class="logins-challenge-screen">
+        <div class="logins-challenge-label">Challenge</div>
+        <div class="logins-challenge-word" id="logins-challenge-word">&hellip;</div>
+        <div class="logins-challenge-label" style="font-size:10px;margin-top:-4px">Enter the response</div>
+        <input id="logins-challenge-input" class="logins-challenge-input" type="text"
+               placeholder="Response" autocomplete="off" autocorrect="off" autocapitalize="off"
+               onkeydown="if(event.key==='Enter')loginsSubmitChallenge()">
+        <div class="logins-challenge-err" id="logins-challenge-err"></div>
+        <div class="logins-challenge-btns">
+          <button class="mbtn mbtn-p" onclick="loginsSubmitChallenge()">Verify</button>
+          <button class="mbtn"        onclick="loginsSkipChallenge()">Skip</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- State: List -->
+    <div id="logins-state-list" style="display:none;padding:14px 0 20px">
+      <!-- Add / Edit form -->
+      <div id="logins-add-panel" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-card);padding:14px;margin:0 0 12px">
+        <div id="logins-form-title" style="font-size:11px;font-family:'DM Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:10px">Add Login</div>
+        <input id="login-inp-label"    type="text"     placeholder="Label (e.g. Netflix) *" autocomplete="off">
+        <input id="login-inp-user"     type="text"     placeholder="Username / email"       autocomplete="off">
+        <input id="login-inp-pass"     type="password" placeholder="Password"               autocomplete="new-password">
+        <input id="login-inp-url"      type="url"      placeholder="URL (optional)"         autocomplete="off">
+        <textarea id="login-inp-notes" rows="2"        placeholder="Notes (optional)"></textarea>
+        <div class="logins-form-row">
+          <button class="mbtn mbtn-p" onclick="loginsSave()">Save</button>
+          <button class="mbtn"        onclick="_loginsHideForm()">Cancel</button>
+        </div>
+      </div>
+      <!-- Login rows -->
+      <div id="logins-list"></div>
+    </div>
+
   </div>
 </div>
 

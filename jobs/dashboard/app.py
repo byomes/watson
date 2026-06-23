@@ -188,6 +188,17 @@ def _bootstrap():
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )""")
+    c.execute("""CREATE TABLE IF NOT EXISTS login_challenges (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        challenge  TEXT    NOT NULL,
+        response   TEXT    NOT NULL
+    )""")
+    c.execute("""CREATE TABLE IF NOT EXISTS vault_status (
+        id         INTEGER PRIMARY KEY,
+        locked     INTEGER DEFAULT 0,
+        locked_at  DATETIME
+    )""")
+    c.execute("INSERT OR IGNORE INTO vault_status (id, locked) VALUES (1, 0)")
     c.commit()
     c.close()
 
@@ -3464,10 +3475,103 @@ def location_intake():
     return jsonify({"status": "ok"})
 
 
-# ── Logins API ────────────────────────────────────────────────────────────────
+# ── Logins / Vault API ────────────────────────────────────────────────────────
+
+# Module-level challenge store (single-user system)
+_active_challenge: dict = {"id": None, "response": None}
+
+
+def lock_vault() -> None:
+    """Lock the vault, record timestamp, and send Telegram alert with Unlock button."""
+    import sqlite3 as _sq
+    with _sq.connect(DB) as _c:
+        _c.execute(
+            "UPDATE vault_status SET locked = 1, locked_at = datetime('now') WHERE id = 1"
+        )
+    try:
+        import requests as _rq
+        from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+        token   = os.getenv("WATSON_BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
+        chat_id = os.getenv("WATSON_CHAT_ID") or os.getenv("TELEGRAM_CHAT_ID")
+        if not token or not chat_id:
+            return
+        keyboard = InlineKeyboardMarkup([[
+            InlineKeyboardButton("🔓 Unlock Vault", callback_data="vault_unlock"),
+        ]])
+        _rq.post(
+            f"https://api.telegram.org/bot{token}/sendMessage",
+            json={
+                "chat_id": chat_id,
+                "text": "⚠️ Login vault locked — 3 failed attempts on dashboard.",
+                "reply_markup": keyboard.to_dict(),
+            },
+            timeout=10,
+        )
+    except Exception as exc:
+        log.error("lock_vault telegram notify failed: %s", exc)
+
+
+@app.route("/api/logins/status")
+def logins_status():
+    row = _db().execute("SELECT locked FROM vault_status WHERE id = 1").fetchone()
+    locked = bool(row["locked"]) if row else False
+    return jsonify({"locked": locked})
+
+
+@app.route("/api/logins/challenge")
+def logins_challenge():
+    exclude = request.args.get("exclude", type=int)
+    db = _db()
+    if exclude is not None:
+        rows = db.execute(
+            "SELECT id, challenge, response FROM login_challenges WHERE id != ?", (exclude,)
+        ).fetchall()
+    else:
+        rows = db.execute("SELECT id, challenge, response FROM login_challenges").fetchall()
+    if not rows:
+        # fallback: pick any
+        rows = db.execute("SELECT id, challenge, response FROM login_challenges").fetchall()
+    if not rows:
+        return jsonify({"error": "no challenges configured"}), 500
+    import random
+    row = random.choice(rows)
+    _active_challenge["id"] = row["id"]
+    _active_challenge["response"] = row["response"]
+    return jsonify({"id": row["id"], "challenge": row["challenge"]})
+
+
+@app.route("/api/logins/challenge/verify", methods=["POST"])
+def logins_challenge_verify():
+    data = request.get_json(force=True) or {}
+    response = (data.get("response") or "").strip().lower()
+    stored   = (_active_challenge.get("response") or "").strip().lower()
+    if not stored:
+        return jsonify({"success": False, "error": "no active challenge"})
+    if response == stored:
+        _active_challenge["id"] = None
+        _active_challenge["response"] = None
+        return jsonify({"success": True})
+    return jsonify({"success": False})
+
+
+@app.route("/api/logins/unlock", methods=["POST"])
+def logins_unlock():
+    _db().execute("UPDATE vault_status SET locked = 0, locked_at = NULL WHERE id = 1")
+    _db().commit()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/logins/lock", methods=["POST"])
+def logins_lock():
+    lock_vault()
+    return jsonify({"ok": True})
+
 
 @app.route("/api/logins")
 def logins_list():
+    row = _db().execute("SELECT locked FROM vault_status WHERE id = 1").fetchone()
+    if row and row["locked"]:
+        return jsonify({"locked": True})
     rows = _db().execute(
         "SELECT id, label, username, password, url, notes, created_at, updated_at "
         "FROM logins ORDER BY label COLLATE NOCASE"
