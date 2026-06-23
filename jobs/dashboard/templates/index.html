@@ -458,17 +458,7 @@ html, body {
   }
 }
 
-/* ── Chat overlay ────────────────────────────────────────────────────────── */
-#tab-chat {
-  position: fixed;
-  top: 0; left: 0; right: 0; right: 0; bottom: 0;
-  z-index: 100;
-  display: none;
-  flex-direction: column;
-  background: var(--bg);
-}
-#tab-chat.active { display: flex; }
-#tab-chat.active ~ #nav, body.chat-active #nav { display: none; }
+/* ── Chat overlay — see static/style.css ─────────────────────────────────── */
 #chat-topbar {
   flex-shrink: 0;
   display: flex;

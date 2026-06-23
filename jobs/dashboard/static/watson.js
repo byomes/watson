@@ -81,9 +81,8 @@ function switchTab(page) {
         function _chatVVResize() {
           const chatTab = document.getElementById('tab-chat');
           if (!chatTab) return;
-          const vv = window.visualViewport;
-          chatTab.style.bottom = (window.innerHeight - vv.height - vv.offsetTop) + 'px';
-          
+          const kb = Math.max(0, window.innerHeight - window.visualViewport.height - window.visualViewport.offsetTop);
+          chatTab.style.bottom = kb + 'px';
         }
         window.visualViewport.addEventListener('resize', _chatVVResize);
         window.visualViewport.addEventListener('scroll', _chatVVResize);
@@ -1037,7 +1036,7 @@ function closeChat() {
     window._chatVVResize = null;
   }
   const chatTab = document.getElementById('tab-chat');
-  if (chatTab) { chatTab.style.height = ''; chatTab.style.top = ''; }
+  if (chatTab) { chatTab.style.bottom = ''; }
   switchTab('home');
 }
 

@@ -101,7 +101,7 @@ select option{background:var(--surface)}
 .overlay-row-chevron{color:var(--text-muted);font-size:18px;line-height:1;flex-shrink:0}
 .overlay-sub{position:absolute;top:0;left:0;right:0;bottom:0;display:flex;flex-direction:column;transform:translateX(100%);transition:transform .2s ease-out;visibility:hidden}
 .overlay-sub.open{transform:translateX(0);visibility:visible}
-#tab-chat{padding:0;display:none;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;z-index:50;}
+#tab-chat{padding:0;display:none;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;z-index:100;background:var(--bg);}
 #tab-chat.active{display:flex}
 .new-chat-btn{display:flex;align-items:center;gap:12px;padding:13px 16px;background:var(--accent-soft);border:1px solid var(--accent);border-radius:8px;color:var(--accent);font-size:14px;font-weight:600;width:100%;text-align:left;margin-bottom:4px}
 .new-chat-btn:hover{opacity:.8}
@@ -113,7 +113,7 @@ select option{background:var(--surface)}
 .session-date{font-size:11px;color:var(--text-muted);font-family:'DM Mono',monospace}
 .session-del{background:none;border:none;color:var(--text-muted);font-size:18px;padding:4px 6px;flex-shrink:0;border-radius:6px}
 .session-del:hover{color:var(--red)}
-#chat-messages{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px;padding-top:calc(80px + env(safe-area-inset-top));scroll-padding-top:calc(80px + env(safe-area-inset-top));display:flex;flex-direction:column;gap:12px}
+#chat-messages{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px;display:flex;flex-direction:column;gap:12px}
 .msg-wrap{display:flex;flex-direction:column;animation:msgIn .15s ease-out}
 @keyframes msgIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
 .msg-wrap.user{align-items:flex-end}
