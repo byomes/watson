@@ -20,7 +20,11 @@ Excerpts:
 Return only the synopsis. No preamble, no commentary."""
 
 def search_kb(query: str) -> dict:
-    ef = embedding_functions.SentenceTransformerEmbeddingFunction(model_name="all-MiniLM-L6-v2")
+    ef = embedding_functions.SentenceTransformerEmbeddingFunction(
+        model_name="all-MiniLM-L6-v2",
+        device="cpu",
+        local_files_only=True
+    )
     client = chromadb.PersistentClient(path=CHROMA_PATH)
     collection = client.get_collection(COLLECTION_NAME, embedding_function=ef)
     results = collection.query(query_texts=[query], n_results=5)
@@ -35,7 +39,7 @@ def search_kb(query: str) -> dict:
         "model": MODEL,
         "prompt": SYNOPSIS_PROMPT.format(query=query, excerpts=excerpts),
         "stream": False
-    }, timeout=60)
+    }, timeout=120)
     response.raise_for_status()
     synopsis = response.json().get("response", "").strip()
 
