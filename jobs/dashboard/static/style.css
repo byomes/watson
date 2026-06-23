@@ -144,6 +144,9 @@ select option{background:var(--surface)}
 #chat-input{flex:1;background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:10px 14px;color:var(--text);font-size:13px;outline:none;min-height:42px;max-height:120px;margin-bottom:0;resize:none;line-height:1.5;overflow-y:auto;display:block}
 #chat-input::placeholder{color:var(--text-muted)}
 #chat-input:focus{border-color:var(--accent)}
+.logins-search{width:100%;box-sizing:border-box;background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:10px 14px;color:var(--text);font-size:13px;outline:none;margin-bottom:12px;display:block}
+.logins-search::placeholder{color:var(--text-muted)}
+.logins-search:focus{border-color:var(--accent)}
 #chat-send-btn{background:var(--accent);border:none;border-radius:12px;padding:0 18px;color:var(--bg);font-size:13px;font-weight:600;flex-shrink:0;cursor:pointer;height:42px}
 #chat-send-btn:hover{opacity:.8}
 #chat-mic-btn{width:40px;height:40px;background:var(--surface-2);border:1px solid var(--border);border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;color:var(--text-muted);transition:color .15s,border-color .15s}

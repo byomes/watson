@@ -817,6 +817,9 @@ html, body {
 
     <!-- State: List -->
     <div id="logins-state-list" style="display:none;padding:14px 0 20px">
+      <input id="logins-search" class="logins-search" type="search"
+             placeholder="Search logins…" autocomplete="off" autocorrect="off"
+             oninput="_loginsFilterAndRender()">
       <!-- Add / Edit form -->
       <div id="logins-add-panel" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-card);padding:14px;margin:0 0 12px">
         <div id="logins-form-title" style="font-size:11px;font-family:'DM Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:10px">Add Login</div>

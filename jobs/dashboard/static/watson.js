@@ -1400,25 +1400,39 @@ async function loginsSkipChallenge() {
 
 async function _loginsLoadList() {
   _loginsShowState('list');
-  const list = document.getElementById('logins-list');
+  const list     = document.getElementById('logins-list');
+  const searchEl = document.getElementById('logins-search');
   list.innerHTML = '<div class="loading">Loading&hellip;</div>';
+  if (searchEl) searchEl.value = '';
   try {
     const data = await api('/api/logins');
     if (data && data.locked) { _loginsShowState('locked'); return; }
     _loginsData = Array.isArray(data) ? data : [];
     _loginsRenderList();
+    if (searchEl) searchEl.focus();
   } catch(e) {
     list.innerHTML = '<div class="empty">Failed to load logins.</div>';
   }
 }
 
-function _loginsRenderList() {
+function _loginsFilterAndRender() {
+  const q = (document.getElementById('logins-search')?.value || '').trim().toLowerCase();
+  if (!q) { _loginsRenderList(); return; }
+  _loginsRenderList(_loginsData.filter(l =>
+    (l.label    || '').toLowerCase().includes(q) ||
+    (l.username || '').toLowerCase().includes(q) ||
+    (l.url      || '').toLowerCase().includes(q)
+  ));
+}
+
+function _loginsRenderList(data) {
+  if (data === undefined) data = _loginsData;
   const list = document.getElementById('logins-list');
-  if (!_loginsData.length) {
-    list.innerHTML = '<div class="empty">No logins saved. Tap + to add one.</div>';
+  if (!data.length) {
+    list.innerHTML = `<div class="empty">${_loginsData.length ? 'No logins match your search.' : 'No logins saved. Tap + to add one.'}</div>`;
     return;
   }
-  list.innerHTML = _loginsData.map(l => `
+  list.innerHTML = data.map(l => `
     <div class="login-card" id="login-card-${l.id}">
       <div style="display:flex;align-items:flex-start;gap:8px">
         <div style="flex:1;min-width:0">
