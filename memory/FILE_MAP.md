@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-06-22*
+*Generated: 2026-06-23*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -123,6 +123,7 @@ jobs/
     __init__.py
     attendance_intake.py
     backfill.py
+    conflict_report.py
     correction_handler.py
     data_audit.py
     email_reports.py
@@ -229,7 +230,7 @@ jobs/
     notify.py
     sync.py
     templates.py
-  ingest_drafts.py
+  ingest_drafts.py.retired
   intent/
     __init__.py
     classifier.py
@@ -318,6 +319,7 @@ jobs/
     kb_export.py
     kb_search.py
     pastoral_search.py
+    polish.py
   sms/
     __init__.py
     sms_send.py
@@ -535,7 +537,7 @@ src/
         verify/
           route.ts
       submit-draft/
-        route.ts
+        route.ts.retired
       twj/
         feedback/
           route.ts
