@@ -1066,6 +1066,7 @@ def approve_skill(slug):
 
 @app.route("/api/skills/kb", methods=["POST"])
 def skill_kb():
+    from jobs.skills.kb_search import search_kb, format_result
     data = request.get_json(force=True) or {}
     text = (data.get("text") or "").strip()
     query = text
@@ -1076,7 +1077,6 @@ def skill_kb():
     if not query:
         return jsonify({"error": "No query provided"}), 400
     try:
-        from jobs.skills.kb_search import search_kb, format_result
         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
             result = executor.submit(search_kb, query).result()
         return jsonify({"result": format_result(result), "query": result["query"]})
