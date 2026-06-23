@@ -5,6 +5,7 @@ let activePage = 'home';
 let chatHistory = [];
 let chatMemoryContext = '';
 let chatIdleTimer = null;
+let lastKbResult = null;
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
@@ -1059,6 +1060,65 @@ async function sendChatStream() {
   if (!ta) return;
   const message = ta.value.trim();
   if (!message) return;
+
+  if (message.toLowerCase() === 'email that to me' && lastKbResult) {
+    ta.value = '';
+    ta.style.height = 'auto';
+    ta.focus();
+    appendChatMsg('user', message);
+    const msgs = document.getElementById('chat-messages');
+    const statusEl = document.createElement('div');
+    statusEl.className = 'cstatus';
+    statusEl.textContent = 'Sending to your inbox…';
+    if (msgs) { msgs.appendChild(statusEl); msgs.scrollTop = msgs.scrollHeight; }
+    try {
+      await api('/api/skills/kb/email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(lastKbResult),
+      });
+      if (statusEl.parentNode) statusEl.remove();
+      appendChatMsg('watson', 'Sent to your inbox.');
+      lastKbResult = null;
+    } catch (err) {
+      if (statusEl.parentNode) statusEl.remove();
+      appendChatMsg('watson', `Error: ${err.message}`);
+    }
+    return;
+  }
+
+  const _msgLower = message.toLowerCase();
+  if (_msgLower.startsWith('kb:') || _msgLower.startsWith('search the kb:')) {
+    ta.value = '';
+    ta.style.height = 'auto';
+    ta.focus();
+    appendChatMsg('user', message);
+    const msgs = document.getElementById('chat-messages');
+    const statusEl = document.createElement('div');
+    statusEl.className = 'cstatus';
+    statusEl.textContent = 'Searching knowledge base…';
+    if (msgs) { msgs.appendChild(statusEl); msgs.scrollTop = msgs.scrollHeight; }
+    try {
+      const res = await api('/api/skills/kb', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: message }),
+      });
+      if (statusEl.parentNode) statusEl.remove();
+      appendChatMsg('watson', res.result || '(no result)');
+      const resultText = res.result || '';
+      const parts = resultText.split('\n\nSources:');
+      const synopsis = parts[0] || '';
+      const sources = (parts[1] || '').split('\n')
+        .map(l => l.replace(/^•\s*/, '').trim())
+        .filter(l => l && !l.startsWith('Reply'));
+      lastKbResult = { query: res.query || '', synopsis, sources };
+    } catch (err) {
+      if (statusEl.parentNode) statusEl.remove();
+      appendChatMsg('watson', `Error: ${err.message}`);
+    }
+    return;
+  }
 
   if (message.toLowerCase().startsWith('polish this:')) {
     ta.value = '';

@@ -445,6 +445,17 @@
       "status": "ready"
     },
     {
+      "slug": "kb_search",
+      "name": "KB Search",
+      "description": "Search the ChromaDB sermons collection with llama3.2:3b synopsis. Reply 'email that to me' to send results to inbox.",
+      "category": "Research",
+      "triggers": ["kb:", "search the kb:"],
+      "module": "jobs.skills.kb_search",
+      "function": "search_kb",
+      "interfaces": ["telegram", "dashboard"],
+      "status": "ready"
+    },
+    {
       "slug": "polish",
       "name": "Polish Text",
       "description": "Polish text in the voice of Dr. William C.K. Yomes — pastoral-scholarly prose, first-person plural, Jesus pronouns capitalized.",

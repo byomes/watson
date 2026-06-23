@@ -587,19 +587,12 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text_clean = text_clean[len(prefix):].strip()
             break
 
-    # KB query — kb: <question> routes directly to ask engine
-    if text_lower.startswith("kb:"):
-        kb_query = text_clean[3:].strip()
-        if kb_query:
-            await update.message.reply_text("Searching knowledge base...")
-            loop = asyncio.get_event_loop()
-            kb_result = await loop.run_in_executor(None, ask, kb_query)
-            await update.message.reply_text(kb_result)
-            _log_telegram_exchange(text_clean, kb_result)
-        else:
-            await update.message.reply_text("What would you like to search in the knowledge base?")
-        log.info("DEBUG pre-check: kb: query")
-        return
+    # KB query — kb: or search the kb: → ChromaDB search
+    for _kb_prefix in ("search the kb:", "kb:"):
+        if text_lower.startswith(_kb_prefix):
+            await _handle_kb(update, context, text_clean)
+            log.info("DEBUG pre-check: kb: query (early)")
+            return
 
     # Build pipeline — natural language trigger "build <request>" (no colon)
     if text_lower.startswith("build ") and not text_lower.startswith("build:"):
@@ -933,6 +926,10 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await _handle_kb_export(update, context, text_clean)
                 log.info("DEBUG pre-check: skill pre-check (kb_export)")
                 return
+            if slug == "kb":
+                await _handle_kb(update, context, text_clean)
+                log.info("DEBUG pre-check: skill pre-check (kb)")
+                return
             if slug == "polish":
                 await _handle_polish(update, context, text_clean)
                 log.info("DEBUG pre-check: skill pre-check (polish)")
@@ -1242,6 +1239,34 @@ async def _handle_kb_export(update: Update, context: ContextTypes.DEFAULT_TYPE, 
         zip_path.unlink(missing_ok=True)
 
 
+async def _handle_kb(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str) -> None:
+    lower = text.lower()
+    query = text
+    for prefix in ("search the kb:", "kb:"):
+        if lower.startswith(prefix):
+            query = text[len(prefix):].strip()
+            break
+    if not query:
+        await update.message.reply_text("What would you like to search in the knowledge base?")
+        return
+    await update.message.reply_text("Searching knowledge base...")
+    try:
+        from jobs.skills.kb_search import search_kb, format_result
+        result = await asyncio.to_thread(search_kb, query)
+        reply = format_result(result)
+        sent = await update.message.reply_text(reply)
+        _log_telegram_exchange(text, reply)
+        from jobs.telegram.pending import store_pending_action
+        store_pending_action("kb_email", sent.message_id, {
+            "synopsis": result["synopsis"],
+            "sources": result["sources"],
+            "query": result["query"],
+        })
+    except Exception as exc:
+        log.error("KB search failed: %s", exc)
+        await update.message.reply_text(f"KB search failed: {exc}")
+
+
 async def _handle_polish(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str) -> None:
     lower = text.lower()
     if lower.startswith("polish this:"):
@@ -1520,6 +1545,28 @@ async def _route_tg_pending_reply(
                 await update.message.reply_text("Got it — cancelled.")
                 mark_cancelled(pending_id)
                 return True
+        return False
+
+    if action_type == "kb_email":
+        if text_lower == "email that to me":
+            query = payload.get("query", "")
+            synopsis = payload.get("synopsis", "")
+            sources = payload.get("sources", [])
+            sources_str = "\n".join(f"• {s}" for s in sources)
+            body = f"{synopsis}\n\nSources:\n{sources_str}"
+            try:
+                await asyncio.to_thread(
+                    send_as_watson,
+                    "pastorbill@catalyst302.com",
+                    f"KB Search: {query}",
+                    body,
+                )
+                await update.message.reply_text("✅ Sent to your inbox.")
+                mark_done(pending_id)
+            except Exception as exc:
+                log.error("KB email send failed: %s", exc)
+                await update.message.reply_text(f"Email failed: {exc}")
+            return True
         return False
 
     return False

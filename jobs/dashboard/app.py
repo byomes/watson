@@ -1063,6 +1063,45 @@ def approve_skill(slug):
         return jsonify({"success": False, "error": str(exc)}), 500
 
 
+@app.route("/api/skills/kb", methods=["POST"])
+def skill_kb():
+    data = request.get_json(force=True) or {}
+    text = (data.get("text") or "").strip()
+    query = text
+    for prefix in ("search the kb:", "kb:"):
+        if query.lower().startswith(prefix):
+            query = query[len(prefix):].strip()
+            break
+    if not query:
+        return jsonify({"error": "No query provided"}), 400
+    try:
+        from jobs.skills.kb_search import search_kb, format_result
+        result = search_kb(query)
+        return jsonify({"result": format_result(result), "query": result["query"]})
+    except Exception as exc:
+        log.error("KB search error: %s", exc)
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/skills/kb/email", methods=["POST"])
+def skill_kb_email():
+    data = request.get_json(force=True) or {}
+    query = (data.get("query") or "").strip()
+    synopsis = (data.get("synopsis") or "").strip()
+    sources = data.get("sources") or []
+    if not synopsis:
+        return jsonify({"error": "No synopsis provided"}), 400
+    sources_str = "\n".join(f"• {s}" for s in sources)
+    body = f"{synopsis}\n\nSources:\n{sources_str}"
+    try:
+        from jobs.email_job.gmail import send_as_watson
+        send_as_watson("pastorbill@catalyst302.com", f"KB Search: {query}", body)
+        return jsonify({"ok": True})
+    except Exception as exc:
+        log.error("KB email error: %s", exc)
+        return jsonify({"error": str(exc)}), 500
+
+
 @app.route("/api/skills/polish", methods=["POST"])
 def skill_polish():
     data = request.get_json(force=True) or {}
