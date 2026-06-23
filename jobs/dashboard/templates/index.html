@@ -468,6 +468,7 @@ html, body {
   background: var(--bg);
 }
 #tab-chat.active { display: flex; }
+#tab-chat.active ~ #nav, body.chat-active #nav { display: none; }
 #tab-chat #chat-input-bar { position: sticky; bottom: env(safe-area-inset-bottom, 0px); }
 #chat-topbar {
   flex-shrink: 0;

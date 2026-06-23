@@ -76,7 +76,7 @@ function switchTab(page) {
     case 'tasks':     renderTasks();     break;
     case 'reminders': renderReminders(); break;
     case 'more':      renderMore();      break;
-    case 'chat':      renderChat();      break;
+    case 'chat':      renderChat();      document.getElementById('nav').style.display='none'; break;
   }
 }
 
@@ -1017,6 +1017,7 @@ function closeChat() {
   if (msgs) msgs.innerHTML = '';
   chatMemoryContext = '';
   document.getElementById('tab-chat').classList.remove('active');
+  document.getElementById('nav').style.display='';
   switchTab('home');
 }
 
