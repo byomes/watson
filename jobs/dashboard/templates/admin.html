@@ -480,6 +480,55 @@ html, body {
 .al-err { font-size: 12px; color: var(--red); }
 .al-ok  { font-size: 12px; color: var(--green); font-family: 'DM Mono', monospace; }
 
+/* Reassign control */
+.dp-task-right {
+  margin-left: auto;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.dp-reassign-btn {
+  padding: 3px 9px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--r-btn);
+  color: var(--muted);
+  font-size: 10px; font-family: 'DM Mono', monospace;
+  cursor: pointer; transition: all .15s;
+  white-space: nowrap;
+}
+.dp-reassign-btn:hover { border-color: var(--gold); color: var(--gold); }
+.dp-reassign-ctrl {
+  display: flex; align-items: center; gap: 5px;
+}
+.dp-reassign-sel {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-btn);
+  padding: 3px 6px;
+  color: var(--text);
+  font-size: 11px; font-family: inherit;
+  outline: none; cursor: pointer; max-width: 130px;
+}
+.dp-reassign-sel:focus { border-color: var(--gold); }
+.dp-move-btn {
+  padding: 3px 10px;
+  background: var(--gold); border: none; border-radius: var(--r-btn);
+  color: #0f0f0f; font-size: 10px; font-weight: 700; font-family: 'DM Mono', monospace;
+  cursor: pointer; transition: opacity .15s; white-space: nowrap;
+}
+.dp-move-btn:hover { opacity: .85; }
+.dp-cancel-reassign {
+  background: none; border: none; color: var(--muted);
+  font-size: 14px; cursor: pointer; padding: 2px 4px; line-height: 1;
+}
+.dp-cancel-reassign:hover { color: var(--text); }
+.dp-reassigned-lbl {
+  font-size: 11px; font-family: 'DM Mono', monospace; color: var(--green);
+  white-space: nowrap;
+}
+
 /* Theme pill */
 .theme-pill {
   display: flex; align-items: center;
@@ -760,6 +809,9 @@ html, body {
 </div>
 
 <script>
+// ── Team roster (Jinja2-injected, used for reassign dropdown) ─────────────────
+const TEAM_MEMBERS = {{ members | tojson }};
+
 // ── State ────────────────────────────────────────────────────────────────────
 let _currentMemberId = null;
 let _currentData     = null;
@@ -881,12 +933,15 @@ function renderTasksTab() {
   if (!tasks.length) html += '<div class="empty-state">No tasks yet.</div>';
   tasks.forEach(t => {
     const done = t.status === 'done' || t.status === 'completed';
-    html += `<div class="dp-task">
+    html += `<div class="dp-task" id="dp-task-row-${t.id}">
       <div class="dp-task-check ${done ? 'done' : ''}" onclick="toggleTask(${t.id}, this)"></div>
       <div class="dp-task-info">
         <div class="dp-task-title ${done ? 'done' : ''}">${esc(t.title)}</div>
         ${t.due_date ? `<div class="dp-task-due">Due ${esc(t.due_date)}</div>` : ''}
       </div>
+      ${!done ? `<div class="dp-task-right" id="dp-task-right-${t.id}">
+        <button class="dp-reassign-btn" onclick="showReassignCtrl(${t.id})">Reassign</button>
+      </div>` : ''}
     </div>`;
   });
   html += `<div class="dp-add-form">
@@ -898,6 +953,44 @@ function renderTasksTab() {
     </div>
   </div>`;
   return html;
+}
+
+function showReassignCtrl(taskId) {
+  const right = document.getElementById(`dp-task-right-${taskId}`);
+  if (!right) return;
+  if (right.querySelector('.dp-reassign-ctrl')) {
+    right.innerHTML = `<button class="dp-reassign-btn" onclick="showReassignCtrl(${taskId})">Reassign</button>`;
+    return;
+  }
+  const opts = TEAM_MEMBERS.map(m => {
+    const label = m.id === 12 ? 'Dr. Bill' : esc(m.name);
+    return `<option value="${m.id}">${label}</option>`;
+  }).join('');
+  right.innerHTML = `<div class="dp-reassign-ctrl">
+    <select class="dp-reassign-sel" id="dp-reassign-sel-${taskId}">${opts}</select>
+    <button class="dp-move-btn" onclick="submitReassign(${taskId})">Move</button>
+    <button class="dp-cancel-reassign" onclick="showReassignCtrl(${taskId})" title="Cancel">✕</button>
+  </div>`;
+}
+
+async function submitReassign(taskId) {
+  const sel = document.getElementById(`dp-reassign-sel-${taskId}`);
+  if (!sel) return;
+  const newMemberId  = sel.value;
+  const newMemberName = sel.options[sel.selectedIndex].text;
+  const res = await fetch('/admin/task/reassign', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ task_id: taskId, new_member_id: newMemberId }),
+  });
+  const data = await res.json();
+  if (!data.success) {
+    const right = document.getElementById(`dp-task-right-${taskId}`);
+    if (right) right.innerHTML = `<span style="font-size:11px;color:var(--red)">${esc(data.error || 'Failed')}</span>`;
+    return;
+  }
+  const right = document.getElementById(`dp-task-right-${taskId}`);
+  if (right) right.innerHTML = `<span class="dp-reassigned-lbl">→ ${esc(newMemberName)}</span>`;
 }
 
 function renderNotesTab() {

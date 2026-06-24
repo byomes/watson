@@ -3840,6 +3840,38 @@ def admin_task():
     return jsonify({"success": True, "task_id": cur.lastrowid})
 
 
+@app.route("/admin/task/reassign", methods=["POST"])
+def admin_task_reassign():
+    redir = _admin_required()
+    if redir:
+        return jsonify({"error": "not authenticated"}), 401
+    data = request.get_json(force=True) or {}
+    task_id      = data.get("task_id")
+    new_member_id = data.get("new_member_id")
+    if not task_id or not new_member_id:
+        return jsonify({"error": "task_id and new_member_id required"}), 400
+    db = _db()
+    task = db.execute("SELECT title, member_id FROM team_tasks WHERE id=?", (task_id,)).fetchone()
+    if not task:
+        return jsonify({"error": "task not found"}), 404
+    new_member = db.execute("SELECT name FROM team_members WHERE id=?", (new_member_id,)).fetchone()
+    if not new_member:
+        return jsonify({"error": "member not found"}), 404
+    old_member_id = task["member_id"]
+    today = datetime.now().date().isoformat()
+    db.execute("UPDATE team_tasks SET member_id=? WHERE id=?", (new_member_id, task_id))
+    db.execute("UPDATE team_members SET last_activity_date=? WHERE id=?", (today, old_member_id))
+    db.execute("UPDATE team_members SET last_activity_date=? WHERE id=?", (today, new_member_id))
+    db.commit()
+    try:
+        _send_telegram(
+            f"\U0001f504 Task reassigned by Donna: '{task['title']}' → {new_member['name']}"
+        )
+    except Exception as exc:
+        log.warning("Telegram notify failed for task reassign: %s", exc)
+    return jsonify({"success": True})
+
+
 @app.route("/admin/note", methods=["POST"])
 def admin_note():
     redir = _admin_required()
