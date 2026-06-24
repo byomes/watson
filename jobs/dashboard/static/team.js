@@ -140,7 +140,7 @@ const TeamApp = (() => {
     list.innerHTML = filtered.map(m => {
       const taskCount = m.open_task_count || 0;
       return `
-        <div class="card member-card" draggable="true" data-member-id="${m.id}" onclick="TeamApp.openProfile(${m.id})">
+        <div class="card member-card" draggable="false" data-member-id="${m.id}" onclick="TeamApp.openProfile(${m.id})">
           <div class="avatar">${_initials(m.name)}</div>
           <div class="member-info">
             <div class="member-name">${_esc(m.name)}</div>

@@ -105,6 +105,7 @@ html, body {
   height: calc(60px + env(safe-area-inset-bottom));
 }
 .bnav-btn {
+  flex-direction: column;
   flex: 1; display: flex; flex-direction: column;
   align-items: center; justify-content: center;
   gap: 2px; cursor: pointer;
@@ -114,6 +115,7 @@ html, body {
 }
 .bnav-btn.active { color: var(--gold); }
 .bnav-btn i { font-size: 20px; }
+.bnav-btn span { font-size: 10px; margin-top: 2px; }
 
 /* ── Tab panels ─────────────────────────────────────────────── */
 .tab-panel { display: none; padding: 12px; min-height: 100%; }
@@ -189,6 +191,7 @@ html, body {
 }
 #profile-panel.open { transform: translateX(0); }
 .profile-header {
+  padding-top: calc(14px + env(safe-area-inset-top));
   display: flex; align-items: center; gap: 12px;
   padding: 14px 16px;
   border-bottom: 1px solid var(--border);
@@ -415,7 +418,7 @@ html, body {
     <div id="hdr-sub">Team</div>
   </div>
   <a href="https://t.me/wckyWatsonbot" target="_blank" rel="noopener" style="color:#c9a84c;display:flex;align-items:center;flex-shrink:0;text-decoration:none"><i class="ti ti-brand-telegram" style="font-size:22px"></i></a>
-  <div id="hdr-date" style="font-size:11px;color:var(--muted);flex-shrink:0;text-align:right;white-space:nowrap"></div>
+  <div id="hdr-date" style="font-size:11px;color:var(--muted);flex-shrink:0;text-align:right;white-space:nowrap;margin-left:auto"></div>
   <div id="mode-switcher">
     <a href="/" class="mode-btn">Dashboard</a>
     <a href="/team" class="mode-btn active">Team</a>
@@ -500,16 +503,16 @@ html, body {
 <!-- Bottom nav -->
 <nav id="bnav">
   <button class="bnav-btn active" onclick="TeamApp.switchTab('team',this)">
-    <i class="ti ti-users"></i>Team
+    <i class="ti ti-users"></i><span>Team</span>
   </button>
   <button class="bnav-btn" onclick="TeamApp.switchTab('tasks',this)">
-    <i class="ti ti-check"></i>Tasks
+    <i class="ti ti-check"></i><span>Tasks</span>
   </button>
   <button class="bnav-btn" onclick="TeamApp.switchTab('notes',this)">
-    <i class="ti ti-file-text"></i>Notes
+    <i class="ti ti-file-text"></i><span>Notes</span>
   </button>
   <button class="bnav-btn" onclick="TeamApp.switchTab('comms',this)">
-    <i class="ti ti-mail"></i>Comms
+    <i class="ti ti-mail"></i><span>Comms</span>
   </button>
 </nav>
 
