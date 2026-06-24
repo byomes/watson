@@ -580,7 +580,7 @@ def messages_list():
 @team_bp.route("/messages/<int:msg_id>", methods=["DELETE"])
 def message_delete(msg_id):
     try:
-        conn = get_db()
+        conn = _db()
         conn.execute("DELETE FROM team_messages WHERE id=?", (msg_id,))
         conn.commit()
         conn.close()
