@@ -520,20 +520,21 @@ const TeamApp = (() => {
   }
 
   function _renderTasks() {
-    const today    = _today();
-    const weekEnd  = _weekEnd();
-    const monthEnd = _monthEnd();
-    const banner   = document.getElementById('overdue-banner');
-    const overdue  = _allTasks.filter(t => t.status === 'open' && t.due_date && t.due_date < today);
+    const today   = _today();
+    const weekEnd = _weekEnd();
+    const banner  = document.getElementById('overdue-banner');
+    const overdue = _allTasks.filter(t => t.status === 'open' && t.due_date && t.due_date < today);
 
     banner.classList.toggle('show', overdue.length > 0);
 
     let tasks;
     switch(_taskFilter) {
+      case 'mine':    tasks = _allTasks.filter(t => t.status !== 'done' && t.member_id === 12); break;
+      case 'team':    tasks = _allTasks.filter(t => t.status !== 'done' && t.member_id !== 12); break;
       case 'overdue': tasks = _allTasks.filter(t => t.status === 'open' && t.due_date && t.due_date < today); break;
       case 'week':    tasks = _allTasks.filter(t => t.status === 'open' && t.due_date && t.due_date >= today && t.due_date <= weekEnd); break;
-      case 'month':   tasks = _allTasks.filter(t => t.status === 'open' && t.due_date && t.due_date >= today && t.due_date <= monthEnd); break;
       case 'done':    tasks = _allTasks.filter(t => t.status === 'done'); break;
+      case 'all':     tasks = _allTasks; break;
       default:        tasks = _allTasks.filter(t => t.status === 'open'); break;
     }
 
@@ -545,15 +546,19 @@ const TeamApp = (() => {
 
     list.innerHTML = tasks.map(t => {
       const od = t.due_date && t.due_date < today;
+      const isPersonal = t.member_id === 12 || t.source === 'personal';
+      const memberBadge = isPersonal
+        ? `<span style="font-size:10px;padding:2px 6px;border-radius:4px;background:rgba(102,102,102,.12);color:var(--muted);font-family:'DM Mono',monospace;letter-spacing:.03em">Personal</span>`
+        : `<span style="font-size:10px;padding:2px 6px;border-radius:4px;background:rgba(201,168,76,.1);color:var(--gold);border:1px solid rgba(201,168,76,.2);font-family:'DM Mono',monospace;letter-spacing:.03em">${_esc(t.member_name||'')}${t.ministry?' · '+_esc(t.ministry):''}</span>`;
       return `
         <div class="card" style="cursor:default">
           <div class="task-item" style="padding:0;border:none">
             <input type="checkbox" class="task-check" ${t.status==='done'?'checked':''} onchange="TeamApp.checkTaskGlobal(${t.id},this)">
             <div class="task-content">
               <div class="task-title">${_esc(t.title)}</div>
-              <div class="task-meta">
-                ${_esc(t.member_name||'')}${t.ministry ? ' · ' + _esc(t.ministry) : ''}
-                ${t.due_date ? ` · <span class="${od?'overdue':''}">Due ${t.due_date}</span>` : ''}
+              <div class="task-meta" style="margin-top:4px;display:flex;flex-wrap:wrap;align-items:center;gap:6px">
+                ${memberBadge}
+                ${t.due_date ? `<span class="${od?'overdue':''}">Due ${t.due_date}</span>` : ''}
               </div>
             </div>
           </div>

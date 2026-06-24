@@ -453,11 +453,12 @@ html, body {
   <!-- TAB 2: TASKS -->
   <div id="tab-tasks" class="tab-panel">
     <div class="chip-row">
-      <div class="chip active" data-task-filter="open" onclick="TeamApp.filterTasks('open',this)">Open</div>
-      <div class="chip" data-task-filter="overdue" onclick="TeamApp.filterTasks('overdue',this)">Overdue</div>
-      <div class="chip" data-task-filter="week" onclick="TeamApp.filterTasks('week',this)">This Week</div>
-      <div class="chip" data-task-filter="month" onclick="TeamApp.filterTasks('month',this)">This Month</div>
-      <div class="chip" data-task-filter="done" onclick="TeamApp.filterTasks('done',this)">Done</div>
+      <div class="chip active" data-task-filter="all"     onclick="TeamApp.filterTasks('all',this)">All</div>
+      <div class="chip"        data-task-filter="mine"    onclick="TeamApp.filterTasks('mine',this)">Mine</div>
+      <div class="chip"        data-task-filter="team"    onclick="TeamApp.filterTasks('team',this)">Team</div>
+      <div class="chip"        data-task-filter="overdue" onclick="TeamApp.filterTasks('overdue',this)">Overdue</div>
+      <div class="chip"        data-task-filter="week"    onclick="TeamApp.filterTasks('week',this)">This Week</div>
+      <div class="chip"        data-task-filter="done"    onclick="TeamApp.filterTasks('done',this)">Done</div>
     </div>
     <div id="overdue-banner" class="alert-banner">
       ⚠️ Watson alert: Team members have overdue tasks.
