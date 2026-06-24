@@ -115,6 +115,12 @@ def get_todays_events() -> list:
     return get_events(start, end)
 
 
+def get_next_36h_events() -> list:
+    from datetime import timedelta
+    now = datetime.now(NY)
+    return get_events(now, now + timedelta(hours=36))
+
+
 def cancel_event(event_id: str) -> None:
     svc = get_service()
     svc.events().delete(calendarId=CALENDAR_ID, eventId=event_id).execute()

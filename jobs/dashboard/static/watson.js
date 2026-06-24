@@ -31,6 +31,21 @@ function fmtTime(iso) {
   } catch { return iso; }
 }
 
+function fmtCalTime(iso) {
+  if (!iso || !iso.includes('T')) return 'All day';
+  try {
+    const dt  = new Date(iso);
+    const now = new Date();
+    const tod = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const tom = new Date(tod); tom.setDate(tod.getDate() + 1);
+    const evDay = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate());
+    const time  = dt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    if (evDay.getTime() === tod.getTime()) return `Today ${time}`;
+    if (evDay.getTime() === tom.getTime()) return `Tomorrow ${time}`;
+    return `${dt.toLocaleDateString('en-US', { weekday: 'short' })} ${time}`;
+  } catch { return iso; }
+}
+
 function fmtGenerated(iso) {
   if (!iso) return '';
   try {
@@ -122,7 +137,7 @@ async function renderHome() {
   }
 
   // 2. Today's Agenda
-  html += `<div class="sec-label">Today's Agenda</div>`;
+  html += `<div class="sec-label">Next 36 Hours</div>`;
   const evArr = Array.isArray(calEvents) ? calEvents : (calEvents && !calEvents.error ? [calEvents] : []);
   if (!evArr.length) {
     html += `<div class="empty">No appointments today.</div>`;
@@ -131,7 +146,7 @@ async function renderHome() {
     evArr.forEach(ev => {
       html += `
         <div class="cal-row">
-          <span class="cal-time">${esc(fmtTime(ev.start))}</span>
+          <span class="cal-time">${esc(fmtCalTime(ev.start))}</span>
           <span class="cal-event">${esc(ev.summary || '(No title)')}</span>
         </div>`;
     });

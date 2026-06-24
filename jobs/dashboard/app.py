@@ -2454,9 +2454,9 @@ def calendar_busy_rest_of_day():
 
 @app.route("/api/calendar/today")
 def calendar_today():
-    from jobs.gcal.gcal_service import get_todays_events
+    from jobs.gcal.gcal_service import get_next_36h_events
     try:
-        events = get_todays_events()
+        events = get_next_36h_events()
         return jsonify(events)
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
