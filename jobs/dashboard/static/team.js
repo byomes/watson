@@ -1006,3 +1006,24 @@ const TeamApp = (() => {
     sendCompose,
   };
 })();
+
+(function(){ 
+  function updateDate(){ 
+    var el=document.getElementById('hdr-date'); 
+    var d=new Date(); 
+    el.textContent=d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}); 
+  } 
+  updateDate(); 
+  setInterval(updateDate,60000); 
+})();
+
+(function(){
+  function updateDate(){
+    var el=document.getElementById('hdr-date');
+    if(!el) return;
+    var d=new Date();
+    el.textContent=d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+  }
+  updateDate();
+  setInterval(updateDate,60000);
+})();
