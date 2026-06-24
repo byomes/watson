@@ -393,10 +393,13 @@ def tasks_create(member_id):
         title = (data.get("title") or "").strip()
         if not title:
             return jsonify({"error": "title required"}), 400
+        priority = data.get("priority", "medium")
+        if priority not in ("high", "medium", "low"):
+            priority = "medium"
         conn = _db()
         cur = conn.execute(
-            "INSERT INTO team_tasks (member_id, title, due_date, goal_id, source) VALUES (?,?,?,?,?)",
-            (member_id, title, data.get("due_date"), data.get("goal_id"), data.get("source", "manual")),
+            "INSERT INTO team_tasks (member_id, title, due_date, goal_id, source, priority) VALUES (?,?,?,?,?,?)",
+            (member_id, title, data.get("due_date"), data.get("goal_id"), data.get("source", "manual"), priority),
         )
         conn.commit()
         row = conn.execute("SELECT * FROM team_tasks WHERE id=?", (cur.lastrowid,)).fetchone()
@@ -404,6 +407,32 @@ def tasks_create(member_id):
         return jsonify(dict(row)), 201
     except Exception as exc:
         log.error("tasks_create error: %s", exc)
+        return jsonify({"error": str(exc)}), 500
+
+
+@team_bp.route("/tasks", methods=["POST"])
+def tasks_create_flat():
+    try:
+        data = request.get_json(force=True) or {}
+        member_id = data.get("member_id")
+        title = (data.get("title") or "").strip()
+        if not member_id or not title:
+            return jsonify({"error": "member_id and title required"}), 400
+        priority = data.get("priority", "medium")
+        if priority not in ("high", "medium", "low"):
+            priority = "medium"
+        source = data.get("assigned_by", "manual")
+        conn = _db()
+        cur = conn.execute(
+            "INSERT INTO team_tasks (member_id, title, due_date, source, priority) VALUES (?,?,?,?,?)",
+            (member_id, title, data.get("due_date"), source, priority),
+        )
+        conn.commit()
+        row = conn.execute("SELECT * FROM team_tasks WHERE id=?", (cur.lastrowid,)).fetchone()
+        conn.close()
+        return jsonify({"success": True, "task_id": cur.lastrowid, "task": dict(row)}), 201
+    except Exception as exc:
+        log.error("tasks_create_flat error: %s", exc)
         return jsonify({"error": str(exc)}), 500
 
 

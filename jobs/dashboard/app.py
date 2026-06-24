@@ -206,6 +206,14 @@ def _bootstrap():
         author     TEXT    NOT NULL,
         created_at TEXT    DEFAULT (datetime('now'))
     )""")
+    try:
+        c.execute("ALTER TABLE team_tasks ADD COLUMN priority TEXT DEFAULT 'medium'")
+    except Exception:
+        pass
+    try:
+        c.execute("ALTER TABLE team_tasks ADD COLUMN sort_order INTEGER DEFAULT 0")
+    except Exception:
+        pass
     c.commit()
     c.close()
 
@@ -511,11 +519,13 @@ def pending_items():
 
     try:
         rows = db.execute(
-            "SELECT id, appointment_title as title, appointment_time as subtitle, 'NOTE' as type "
-            "FROM notes_pending WHERE status='pending'"
+            "SELECT tpa.id, np.appointment_title as title, np.appointment_time as subtitle, 'NOTE' as type "
+            "FROM tg_pending_actions tpa "
+            "JOIN notes_pending np ON np.id = json_extract(tpa.payload, '$.notes_pending_id') "
+            "WHERE tpa.type = 'pastoral_note' AND tpa.status = 'pending'"
         ).fetchall()
         for r in rows:
-            items.append({"type": r["type"], "title": r["title"], "subtitle": r["subtitle"]})
+            items.append({"id": r["id"], "type": r["type"], "title": r["title"], "subtitle": r["subtitle"]})
     except Exception:
         pass
 
@@ -3956,6 +3966,98 @@ def admin_notes_delete(note_id):
         return jsonify({"error": "can only delete own notes"}), 403
     db.execute("DELETE FROM shared_notes WHERE id=?", (note_id,))
     db.commit()
+    return jsonify({"success": True})
+
+
+@app.route("/api/pastoral_notes/inline", methods=["POST"])
+def pastoral_notes_inline():
+    import json as _json
+    data = request.get_json(force=True) or {}
+    pending_id = data.get("pending_id")
+    content = (data.get("content") or "").strip()
+    if not pending_id or not content:
+        return jsonify({"error": "pending_id and content required"}), 400
+    db = _db()
+    row = db.execute(
+        "SELECT id, payload FROM tg_pending_actions WHERE id=? AND status='pending'",
+        (pending_id,)
+    ).fetchone()
+    if not row:
+        return jsonify({"error": "not found"}), 404
+    payload = _json.loads(row["payload"] or "{}")
+    notes_pending_id = payload.get("notes_pending_id")
+    member_id = payload.get("member_id")
+    person_name = "Unknown"
+    if notes_pending_id:
+        np_row = db.execute(
+            "SELECT appointment_title FROM notes_pending WHERE id=?", (notes_pending_id,)
+        ).fetchone()
+        if np_row:
+            person_name = np_row["appointment_title"]
+    if member_id:
+        m_row = db.execute("SELECT name FROM team_members WHERE id=?", (member_id,)).fetchone()
+        if m_row:
+            person_name = m_row["name"]
+    db.execute(
+        "INSERT INTO pastoral_notes (person_name, note, team_member_id, note_type, content, created_by) "
+        "VALUES (?, ?, ?, 'private', ?, 'bill')",
+        (person_name, content, member_id, content),
+    )
+    db.execute("UPDATE tg_pending_actions SET status='done' WHERE id=?", (pending_id,))
+    if notes_pending_id:
+        db.execute("UPDATE notes_pending SET status='resolved' WHERE id=?", (notes_pending_id,))
+    db.commit()
+    try:
+        _send_telegram(f"✓ Pastoral note saved for {person_name}.")
+    except Exception:
+        pass
+    return jsonify({"success": True})
+
+
+@app.route("/api/pastoral_notes/skip", methods=["POST"])
+def pastoral_notes_skip():
+    import json as _json
+    data = request.get_json(force=True) or {}
+    pending_id = data.get("pending_id")
+    if not pending_id:
+        return jsonify({"error": "pending_id required"}), 400
+    db = _db()
+    row = db.execute("SELECT payload FROM tg_pending_actions WHERE id=?", (pending_id,)).fetchone()
+    if row:
+        try:
+            payload = _json.loads(row["payload"] or "{}")
+            notes_pending_id = payload.get("notes_pending_id")
+            if notes_pending_id:
+                db.execute("UPDATE notes_pending SET status='skipped' WHERE id=?", (notes_pending_id,))
+        except Exception:
+            pass
+    db.execute("UPDATE tg_pending_actions SET status='skipped' WHERE id=?", (pending_id,))
+    db.commit()
+    return jsonify({"success": True})
+
+
+@app.route("/admin/task/priority", methods=["POST"])
+def admin_task_priority():
+    redir = _admin_required()
+    if redir:
+        return jsonify({"error": "not authenticated"}), 401
+    data = request.get_json(force=True) or {}
+    task_id  = data.get("task_id")
+    priority = data.get("priority")
+    if not task_id or priority not in ("high", "medium", "low"):
+        return jsonify({"error": "task_id and valid priority required"}), 400
+    db = _db()
+    task = db.execute("SELECT title FROM team_tasks WHERE id=?", (task_id,)).fetchone()
+    if not task:
+        return jsonify({"error": "task not found"}), 404
+    db.execute("UPDATE team_tasks SET priority=? WHERE id=?", (priority, task_id))
+    db.commit()
+    try:
+        _send_telegram(
+            f"\U0001f4cc Task priority updated by Donna: '{task['title']}' → {priority}"
+        )
+    except Exception:
+        pass
     return jsonify({"success": True})
 
 

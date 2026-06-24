@@ -2,6 +2,7 @@
 
 // ─── State ────────────────────────────────────────────────────────────────────
 let activePage = 'home';
+let _pendingOpenIdx = null;
 let chatHistory = [];
 let chatMemoryContext = '';
 let chatIdleTimer = null;
@@ -94,15 +95,28 @@ async function renderHome() {
   // 1. Awaiting You (hidden if empty)
   if (Array.isArray(pending) && pending.length) {
     html += `<div class="sec-label">Awaiting You</div>`;
-    pending.forEach(item => {
-      const type = (item.type || 'NOTE').toUpperCase();
-      const bc   = `badge-${type === 'EMAIL' ? 'EMAIL' : type === 'CALENDAR' ? 'CALENDAR' : 'NOTE'}`;
-      html += `
-        <div class="card">
-          <div class="card-title">${esc(item.title || item.subject || 'Pending item')}</div>
-          ${item.subtitle ? `<div class="card-sub">${esc(item.subtitle)}</div>` : ''}
-          <span class="badge ${bc}">${esc(type)}</span>
-        </div>`;
+    _pendingOpenIdx = null;
+    pending.forEach((item, idx) => {
+      const type    = (item.type || 'NOTE').toUpperCase();
+      const bc      = `badge-${type === 'EMAIL' ? 'EMAIL' : type === 'CALENDAR' ? 'CALENDAR' : 'NOTE'}`;
+      const isNote  = type === 'NOTE' && item.id;
+      html += `<div class="card" id="pending-card-${idx}">
+        <div class="card-title">${esc(item.title || item.subject || 'Pending item')}</div>
+        ${item.subtitle ? `<div class="card-sub">${esc(item.subtitle)}</div>` : ''}
+        <span class="badge ${bc}">${esc(type)}</span>
+        ${isNote ? `
+          <div id="pending-exp-${idx}" style="display:none;margin-top:10px">
+            <textarea id="pending-ta-${idx}" rows="3"
+              style="display:block;width:100%;margin-bottom:8px;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:13px;outline:none;resize:vertical;box-sizing:border-box"
+              placeholder="Pastoral note…"></textarea>
+            <div style="display:flex;gap:8px">
+              <button onclick="saveInlineNote(${item.id},${idx})" style="flex:1;padding:7px;background:var(--gold);color:#0f0f0f;border:none;border-radius:var(--r-btn);font-weight:600;font-family:inherit;font-size:13px;cursor:pointer">Save</button>
+              <button onclick="skipInlineNote(${item.id},${idx})" style="padding:7px 14px;background:none;border:1px solid var(--border);border-radius:var(--r-btn);color:var(--muted);font-family:inherit;font-size:13px;cursor:pointer">Skip</button>
+            </div>
+          </div>
+          <div style="margin-top:8px;cursor:pointer;font-size:11px;font-family:'DM Mono',monospace;color:var(--gold);letter-spacing:.04em" onclick="togglePendingExp(${idx})" id="pending-tog-${idx}">+ ADD NOTE</div>
+        ` : ''}
+      </div>`;
     });
   }
 
@@ -142,21 +156,122 @@ async function renderHome() {
     </div>`;
 
   // 4. All Tasks
-  html += `<div class="sec-label">All Tasks</div><div id="home-tasks-list">${_homeTasksHtml(activeTasks)}</div>`;
+  html += `<div class="sec-label">All Tasks</div>
+<div style="display:flex;gap:8px;margin-bottom:8px">
+  <input id="home-task-inp" type="text" placeholder="Add a task…"
+    style="flex:1;padding:9px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:14px;outline:none;box-sizing:border-box"
+    onfocus="this.style.borderColor='var(--gold)'"
+    onblur="this.style.borderColor='var(--border)'"
+    onkeydown="if(event.key==='Enter')addHomeTask()">
+  <button onclick="addHomeTask()" style="padding:9px 16px;background:var(--gold);color:#0f0f0f;border:none;border-radius:var(--r-btn);font-weight:600;font-family:inherit;font-size:14px;cursor:pointer;flex-shrink:0">Add</button>
+</div>
+<div id="home-tasks-list">${_homeTasksHtml(activeTasks)}</div>`;
 
   setContent(html);
 }
 
 function _homeTasksHtml(tasks) {
   if (!tasks.length) return '<div class="empty">No open tasks.</div>';
-  return tasks.map(t => `
+  const PRI_ORDER = { high: 0, medium: 1, low: 2 };
+  const sorted = [...tasks].sort((a, b) => {
+    const pa = PRI_ORDER[a.priority] ?? 1;
+    const pb = PRI_ORDER[b.priority] ?? 1;
+    if (pa !== pb) return pa - pb;
+    return (a.created_at || '').localeCompare(b.created_at || '');
+  });
+  return sorted.map(t => {
+    const p = t.priority || 'medium';
+    const showBadge = p === 'high' || p === 'low';
+    return `
     <div class="task-card">
       <div class="task-check display-only"></div>
       <div class="task-body">
         <div class="task-title">${esc(t.title)}</div>
-        <span class="pri ${priClass(t.priority)}">${priLabel(t.priority)}</span>
+        ${showBadge ? `<span class="pri ${priClass(p)}">${priLabel(p)}</span>` : ''}
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
+}
+
+function togglePendingExp(idx) {
+  const exp = document.getElementById(`pending-exp-${idx}`);
+  const tog = document.getElementById(`pending-tog-${idx}`);
+  if (!exp) return;
+  const isOpen = exp.style.display !== 'none';
+  if (_pendingOpenIdx !== null && _pendingOpenIdx !== idx) {
+    const prevExp = document.getElementById(`pending-exp-${_pendingOpenIdx}`);
+    const prevTog = document.getElementById(`pending-tog-${_pendingOpenIdx}`);
+    if (prevExp) prevExp.style.display = 'none';
+    if (prevTog) prevTog.textContent = '+ ADD NOTE';
+  }
+  if (isOpen) {
+    exp.style.display = 'none';
+    if (tog) tog.textContent = '+ ADD NOTE';
+    _pendingOpenIdx = null;
+  } else {
+    exp.style.display = 'block';
+    if (tog) tog.textContent = '− CANCEL';
+    _pendingOpenIdx = idx;
+    const ta = document.getElementById(`pending-ta-${idx}`);
+    if (ta) { ta.focus(); ta.value = ''; }
+  }
+}
+
+async function saveInlineNote(pendingId, idx) {
+  const ta = document.getElementById(`pending-ta-${idx}`);
+  const content = (ta?.value || '').trim();
+  if (!content) { if (ta) ta.focus(); return; }
+  try {
+    await api('/api/pastoral_notes/inline', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pending_id: pendingId, content }),
+    });
+    const card = document.getElementById(`pending-card-${idx}`);
+    if (card) {
+      card.style.transition = 'opacity .3s';
+      card.style.opacity = '0';
+      setTimeout(() => { if (card.parentNode) card.remove(); }, 300);
+    }
+    _pendingOpenIdx = null;
+  } catch { alert('Failed to save note.'); }
+}
+
+async function skipInlineNote(pendingId, idx) {
+  try {
+    await api('/api/pastoral_notes/skip', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pending_id: pendingId }),
+    });
+    const card = document.getElementById(`pending-card-${idx}`);
+    if (card) {
+      card.style.transition = 'opacity .3s';
+      card.style.opacity = '0';
+      setTimeout(() => { if (card.parentNode) card.remove(); }, 300);
+    }
+    _pendingOpenIdx = null;
+  } catch { alert('Failed to skip.'); }
+}
+
+async function addHomeTask() {
+  const inp = document.getElementById('home-task-inp');
+  const title = (inp?.value || '').trim();
+  if (!title) { if (inp) inp.focus(); return; }
+  if (inp) inp.value = '';
+  try {
+    await api('/api/team/tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ member_id: 12, title, priority: 'medium', assigned_by: 'bill' }),
+    });
+    const tasks = await api('/api/team/members/12/tasks?status=open');
+    const taskArr = Array.isArray(tasks) ? tasks : [];
+    const listEl  = document.getElementById('home-tasks-list');
+    if (listEl) listEl.innerHTML = _homeTasksHtml(taskArr);
+    const numEl = document.getElementById('home-stat-tasks-num');
+    if (numEl) numEl.textContent = taskArr.length;
+  } catch { alert('Failed to add task.'); }
 }
 
 async function _pollHomeData() {
