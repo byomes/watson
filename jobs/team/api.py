@@ -577,6 +577,17 @@ def messages_list():
         return jsonify({"error": str(exc)}), 500
 
 
+@team_bp.route("/messages/<int:msg_id>", methods=["DELETE"])
+def message_delete(msg_id):
+    try:
+        conn = get_db()
+        conn.execute("DELETE FROM team_messages WHERE id=?", (msg_id,))
+        conn.commit()
+        conn.close()
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @team_bp.route("/messages/send", methods=["POST"])
 def messages_send():
     try:

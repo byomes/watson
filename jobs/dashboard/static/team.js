@@ -851,10 +851,26 @@ const TeamApp = (() => {
       `;
     }
 
+    html += '<div style="margin-top:20px;padding-top:12px;border-top:1px solid var(--border)"><button onclick="TeamApp.deleteMessage(' + msg.id + ')" style="background:none;border:1px solid rgba(201,80,76,.3);color:var(--red);padding:6px 16px;border-radius:6px;cursor:pointer;font-size:13px">Delete</button></div>';
     body.innerHTML = html;
     panel.classList.add('open');
   }
 
+  async function deleteMessage(msgId) {
+    try {
+      await _del('/api/team/messages/' + msgId);
+      document.getElementById('meeting-panel').classList.remove('open');
+      await loadMessages();
+    } catch(e) { alert('Error: ' + e.message); }
+  }
+  async function deleteMessage(msgId) {
+    if (!confirm('Delete this message?')) return;
+    try {
+      await _del('/api/team/messages/' + msgId);
+      document.getElementById('meeting-panel').classList.remove('open');
+      await loadMessages();
+    } catch(e) { alert('Error: ' + e.message); }
+  }
   function showCompose() {
     const sel = document.getElementById('compose-member');
     sel.innerHTML = _members.map(m => `<option value="${m.id}">${_esc(m.name)}</option>`).join('');
@@ -930,6 +946,8 @@ const TeamApp = (() => {
     saveImport,
     loadMessages,
     showMessage,
+    deleteMessage,
+    deleteMessage,
     showCompose,
     closeCompose,
     sendCompose,
