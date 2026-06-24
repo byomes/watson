@@ -342,17 +342,28 @@ def goals_delete(goal_id):
 @team_bp.route("/members/<int:member_id>/tasks", methods=["GET"])
 def member_tasks_list(member_id):
     try:
-        status = request.args.get("status", "open")
+        status   = request.args.get("status", "open")
+        category = request.args.get("category")
         conn = _db()
-        if status == "all":
+        if status == "all" and not category:
             rows = conn.execute(
                 "SELECT * FROM team_tasks WHERE member_id=? ORDER BY due_date ASC",
-                (member_id,)
+                (member_id,),
+            ).fetchall()
+        elif status == "all":
+            rows = conn.execute(
+                "SELECT * FROM team_tasks WHERE member_id=? AND category=? ORDER BY due_date ASC",
+                (member_id, category),
+            ).fetchall()
+        elif not category:
+            rows = conn.execute(
+                "SELECT * FROM team_tasks WHERE member_id=? AND status=? ORDER BY due_date ASC",
+                (member_id, status),
             ).fetchall()
         else:
             rows = conn.execute(
-                "SELECT * FROM team_tasks WHERE member_id=? AND status=? ORDER BY due_date ASC",
-                (member_id, status)
+                "SELECT * FROM team_tasks WHERE member_id=? AND status=? AND category=? ORDER BY due_date ASC",
+                (member_id, status, category),
             ).fetchall()
         conn.close()
         return jsonify([dict(r) for r in rows])
@@ -421,11 +432,14 @@ def tasks_create_flat():
         priority = data.get("priority", "medium")
         if priority not in ("high", "medium", "low"):
             priority = "medium"
+        category = data.get("category", "catalyst")
+        if category not in ("catalyst", "fms", "personal"):
+            category = "catalyst"
         source = data.get("assigned_by", "manual")
         conn = _db()
         cur = conn.execute(
-            "INSERT INTO team_tasks (member_id, title, due_date, source, priority) VALUES (?,?,?,?,?)",
-            (member_id, title, data.get("due_date"), source, priority),
+            "INSERT INTO team_tasks (member_id, title, due_date, source, priority, category) VALUES (?,?,?,?,?,?)",
+            (member_id, title, data.get("due_date"), source, priority, category),
         )
         conn.commit()
         row = conn.execute("SELECT * FROM team_tasks WHERE id=?", (cur.lastrowid,)).fetchone()

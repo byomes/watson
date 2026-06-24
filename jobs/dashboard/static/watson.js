@@ -4,6 +4,7 @@
 let activePage = 'home';
 let _pendingOpenIdx = null;
 let _pendingNoteTypes = {};
+let _homeTaskTab = 'catalyst';
 let chatHistory = [];
 let chatMemoryContext = '';
 let chatIdleTimer = null;
@@ -89,11 +90,12 @@ function switchTab(page) {
 
 async function renderHome() {
   setContent('<div class="loading">Loading&hellip;</div>');
+  _homeTaskTab = 'catalyst';
 
   const [pendingRes, calRes, tasksRes, remindersRes, briefingRes] = await Promise.allSettled([
     api('/api/pending'),
     api('/api/calendar/today'),
-    api('/api/team/members/12/tasks?status=open'),
+    api('/api/team/members/12/tasks?status=open&category=catalyst'),
     api('/api/reminders'),
     api('/api/briefing'),
   ]);
@@ -178,10 +180,18 @@ async function renderHome() {
       </div>
     </div>`;
 
-  // 4. All Tasks
-  html += `<div class="sec-label">All Tasks</div>
+  // 4. Tasks (tabbed: Catalyst / FMS / Personal)
+  html += `<div class="sec-label">Tasks</div>
+<div style="display:flex;border:1px solid var(--border);border-radius:var(--r-btn);overflow:hidden;margin-bottom:12px">
+  <button id="htab-catalyst" onclick="switchHomeTaskTab('catalyst')"
+    style="flex:1;padding:7px 0;border:none;cursor:pointer;background:var(--gold);color:#0f0f0f;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.04em">Catalyst</button>
+  <button id="htab-fms" onclick="switchHomeTaskTab('fms')"
+    style="flex:1;padding:7px 0;border:none;cursor:pointer;background:transparent;color:var(--muted);font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.04em">FMS</button>
+  <button id="htab-personal" onclick="switchHomeTaskTab('personal')"
+    style="flex:1;padding:7px 0;border:none;cursor:pointer;background:transparent;color:var(--muted);font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.04em">Personal</button>
+</div>
 <div style="display:flex;gap:8px;margin-bottom:8px">
-  <input id="home-task-inp" type="text" placeholder="Add a task…"
+  <input id="home-task-inp" type="text" placeholder="Add a Catalyst task…"
     style="flex:1;padding:9px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:14px;outline:none;box-sizing:border-box"
     onfocus="this.style.borderColor='var(--gold)'"
     onblur="this.style.borderColor='var(--border)'"
@@ -191,6 +201,28 @@ async function renderHome() {
 <div id="home-tasks-list">${_homeTasksHtml(activeTasks)}</div>`;
 
   setContent(html);
+}
+
+async function switchHomeTaskTab(tab) {
+  _homeTaskTab = tab;
+  const labels = { catalyst: 'Catalyst', fms: 'FMS', personal: 'Personal' };
+  ['catalyst', 'fms', 'personal'].forEach(t => {
+    const btn = document.getElementById(`htab-${t}`);
+    if (!btn) return;
+    btn.style.background = t === tab ? 'var(--gold)' : 'transparent';
+    btn.style.color      = t === tab ? '#0f0f0f'    : 'var(--muted)';
+  });
+  const inp = document.getElementById('home-task-inp');
+  if (inp) {
+    inp.placeholder = `Add a ${labels[tab] || tab} task…`;
+    inp.value = '';
+  }
+  try {
+    const tasks   = await api(`/api/team/members/12/tasks?status=open&category=${tab}`);
+    const taskArr = Array.isArray(tasks) ? tasks : [];
+    const listEl  = document.getElementById('home-tasks-list');
+    if (listEl) listEl.innerHTML = _homeTasksHtml(taskArr);
+  } catch { /* silent */ }
 }
 
 function _homeTasksHtml(tasks) {
@@ -320,14 +352,16 @@ async function addHomeTask() {
     await api('/api/team/tasks', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ member_id: 12, title, priority: 'medium', assigned_by: 'bill' }),
+      body: JSON.stringify({ member_id: 12, title, priority: 'medium', category: _homeTaskTab, assigned_by: 'bill' }),
     });
-    const tasks = await api('/api/team/members/12/tasks?status=open');
+    const tasks   = await api(`/api/team/members/12/tasks?status=open&category=${_homeTaskTab}`);
     const taskArr = Array.isArray(tasks) ? tasks : [];
     const listEl  = document.getElementById('home-tasks-list');
     if (listEl) listEl.innerHTML = _homeTasksHtml(taskArr);
-    const numEl = document.getElementById('home-stat-tasks-num');
-    if (numEl) numEl.textContent = taskArr.length;
+    if (_homeTaskTab === 'catalyst') {
+      const numEl = document.getElementById('home-stat-tasks-num');
+      if (numEl) numEl.textContent = taskArr.length;
+    }
   } catch { alert('Failed to add task.'); }
 }
 
@@ -336,12 +370,14 @@ async function _pollHomeData() {
   const ae = document.activeElement;
   if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT')) return;
   try {
-    const tasks   = await api('/api/team/members/12/tasks?status=open');
+    const tasks   = await api(`/api/team/members/12/tasks?status=open&category=${_homeTaskTab}`);
     const taskArr = Array.isArray(tasks) ? tasks : [];
     const listEl  = document.getElementById('home-tasks-list');
     if (listEl) listEl.innerHTML = _homeTasksHtml(taskArr);
-    const numEl = document.getElementById('home-stat-tasks-num');
-    if (numEl) numEl.textContent = taskArr.length;
+    if (_homeTaskTab === 'catalyst') {
+      const numEl = document.getElementById('home-stat-tasks-num');
+      if (numEl) numEl.textContent = taskArr.length;
+    }
   } catch(e) { /* silent — stale data is acceptable */ }
 }
 

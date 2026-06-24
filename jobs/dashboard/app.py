@@ -214,6 +214,10 @@ def _bootstrap():
         c.execute("ALTER TABLE team_tasks ADD COLUMN sort_order INTEGER DEFAULT 0")
     except Exception:
         pass
+    try:
+        c.execute("ALTER TABLE team_tasks ADD COLUMN category TEXT DEFAULT 'catalyst'")
+    except Exception:
+        pass
     c.commit()
     c.close()
 
@@ -3811,7 +3815,7 @@ def admin_leader(member_id):
     if not member:
         return jsonify({"error": "not found"}), 404
     tasks = db.execute(
-        "SELECT * FROM team_tasks WHERE member_id=? ORDER BY due_date ASC",
+        "SELECT * FROM team_tasks WHERE member_id=? AND category='catalyst' ORDER BY due_date ASC",
         (member_id,),
     ).fetchall()
     try:
@@ -3877,9 +3881,11 @@ def admin_task_reassign():
     if not task_id or not new_member_id:
         return jsonify({"error": "task_id and new_member_id required"}), 400
     db = _db()
-    task = db.execute("SELECT title, member_id FROM team_tasks WHERE id=?", (task_id,)).fetchone()
+    task = db.execute("SELECT title, member_id, category FROM team_tasks WHERE id=?", (task_id,)).fetchone()
     if not task:
         return jsonify({"error": "task not found"}), 404
+    if (task["category"] or "catalyst") != "catalyst":
+        return jsonify({"error": "reassignment only allowed on Catalyst tasks"}), 403
     new_member = db.execute("SELECT name FROM team_members WHERE id=?", (new_member_id,)).fetchone()
     if not new_member:
         return jsonify({"error": "member not found"}), 404
@@ -4085,9 +4091,11 @@ def admin_task_priority():
     if not task_id or priority not in ("high", "medium", "low"):
         return jsonify({"error": "task_id and valid priority required"}), 400
     db = _db()
-    task = db.execute("SELECT title FROM team_tasks WHERE id=?", (task_id,)).fetchone()
+    task = db.execute("SELECT title, category FROM team_tasks WHERE id=?", (task_id,)).fetchone()
     if not task:
         return jsonify({"error": "task not found"}), 404
+    if (task["category"] or "catalyst") != "catalyst":
+        return jsonify({"error": "priority changes only allowed on Catalyst tasks"}), 403
     db.execute("UPDATE team_tasks SET priority=? WHERE id=?", (priority, task_id))
     db.commit()
     try:
