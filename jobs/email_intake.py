@@ -15,6 +15,7 @@ import requests
 
 from config.settings import DB_PATH, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 from jobs.email_job.gmail import get_unread, mark_as_read
+from jobs.team.inbound import is_forwarded_email, process_inbound
 import jobs.code_agent.agent as code_agent
 
 log = logging.getLogger(__name__)
@@ -141,6 +142,15 @@ def run():
         snippet   = body[:200]
 
         addr = _extract_address(sender)
+
+        # Team inbound — check forwarded emails first
+        if is_forwarded_email(subject, body):
+            result = process_inbound(subject, body, received_at)
+            if result.get("matched"):
+                mark_as_read(msg_id)
+                log.info("Team inbound matched: %s (tasks_created=%d)", result.get("member_name"), result.get("tasks_created", 0))
+                continue
+
         if addr in WHITELIST and "WATSON_DIRECTIVE" in subject.upper():
             code_agent.handle(subject, body)
             mark_as_read(msg_id)
