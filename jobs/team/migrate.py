@@ -74,6 +74,7 @@ def run():
             direction  TEXT NOT NULL,
             subject    TEXT,
             body       TEXT,
+            tone       TEXT,
             sent_at    TEXT,
             replied_at TEXT,
             created_at TEXT DEFAULT (datetime('now'))

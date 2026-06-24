@@ -161,12 +161,22 @@ def _send_telegram(text: str) -> None:
     ).raise_for_status()
 
 
-def _log_message(member_id: int, subject: str, body: str, received_at: str) -> None:
+def _ensure_tone_column() -> None:
+    conn = sqlite3.connect(WATSON_DB)
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(team_messages)").fetchall()}
+    if "tone" not in cols:
+        conn.execute("ALTER TABLE team_messages ADD COLUMN tone TEXT")
+        conn.commit()
+    conn.close()
+
+
+def _log_message(member_id: int, subject: str, body: str, received_at: str, tone: str | None = None) -> None:
+    _ensure_tone_column()
     conn = sqlite3.connect(WATSON_DB)
     conn.execute(
-        "INSERT INTO team_messages (member_id, direction, subject, body, sent_at) "
-        "VALUES (?, 'in', ?, ?, ?)",
-        (member_id, subject, body, received_at),
+        "INSERT INTO team_messages (member_id, direction, subject, body, sent_at, tone) "
+        "VALUES (?, 'in', ?, ?, ?, ?)",
+        (member_id, subject, body, received_at, tone),
     )
     conn.commit()
     conn.close()
@@ -205,11 +215,11 @@ def process_inbound(subject: str, body: str, received_at: str) -> dict:
         clean_body = _strip_forwarding_wrapper(body)
         digest     = _ollama_digest(member["name"], clean_body)
 
-        _log_message(member["id"], subject, clean_body, received_at)
+        tone = (digest.get("tone") or "informational").lower()
+        _log_message(member["id"], subject, clean_body, received_at, tone=tone)
 
         tasks_created = _create_tasks(member["id"], digest.get("leader_tasks", []))
 
-        tone  = (digest.get("tone") or "informational").lower()
         emoji = _TONE_EMOJI.get(tone, "📬")
 
         lines = [

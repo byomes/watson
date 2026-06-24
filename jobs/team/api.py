@@ -537,12 +537,21 @@ def process_transcript():
 @team_bp.route("/messages", methods=["GET"])
 def messages_list():
     try:
+        direction = request.args.get("direction")  # optional filter: 'in' or 'out'
         conn = _db()
-        rows = conn.execute(
-            "SELECT msg.*, m.name AS member_name "
-            "FROM team_messages msg JOIN team_members m ON m.id=msg.member_id "
-            "WHERE msg.direction='out' ORDER BY msg.sent_at DESC"
-        ).fetchall()
+        if direction in ("in", "out"):
+            rows = conn.execute(
+                "SELECT msg.*, m.name AS member_name, m.ministry "
+                "FROM team_messages msg JOIN team_members m ON m.id=msg.member_id "
+                "WHERE msg.direction=? ORDER BY COALESCE(msg.sent_at, msg.created_at) DESC",
+                (direction,),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT msg.*, m.name AS member_name, m.ministry "
+                "FROM team_messages msg JOIN team_members m ON m.id=msg.member_id "
+                "ORDER BY COALESCE(msg.sent_at, msg.created_at) DESC"
+            ).fetchall()
         conn.close()
         return jsonify([dict(r) for r in rows])
     except Exception as exc:

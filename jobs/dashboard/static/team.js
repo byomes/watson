@@ -742,40 +742,93 @@ const TeamApp = (() => {
     document.getElementById('stat-awaiting').textContent = waiting;
   }
 
+  const _TONE_COLORS = {
+    urgent:        '#c9504c',
+    concern:       '#c9a84c',
+    request:       '#4c7ec9',
+    update:        '#4caf7d',
+    informational: '#666',
+  };
+  const _TONE_BG = {
+    urgent:        'rgba(201,80,76,.15)',
+    concern:       'rgba(201,168,76,.1)',
+    request:       'rgba(76,126,201,.15)',
+    update:        'rgba(76,175,125,.15)',
+    informational: 'rgba(102,102,102,.15)',
+  };
+
   function _renderMessages() {
     const list = document.getElementById('messages-list');
     if (!_messages.length) {
       list.innerHTML = '<div class="empty-state"><i class="ti ti-mail"></i>No messages yet</div>';
       return;
     }
-    list.innerHTML = _messages.map(msg => `
-      <div class="msg-item" onclick="TeamApp.showMessage(${JSON.stringify(msg).replace(/"/g,'&quot;')})">
-        <div class="avatar" style="width:38px;height:38px;font-size:14px">${_initials(msg.member_name)}</div>
-        <div class="msg-info">
-          <div class="msg-name">${_esc(msg.member_name)}</div>
-          <div class="msg-preview">${_esc((msg.subject || '') + (msg.body ? ' — ' + msg.body.slice(0,60) : ''))}</div>
-        </div>
-        <div>
-          <div class="msg-date">${(msg.sent_at || '').slice(0,10)}</div>
-          ${!msg.replied_at ? '<div class="msg-unread" style="margin-top:4px;margin-left:auto"></div>' : ''}
-        </div>
-      </div>`).join('');
+    list.innerHTML = _messages.map(msg => {
+      const isIn  = msg.direction === 'in';
+      const date  = (msg.sent_at || msg.created_at || '').slice(0, 10);
+      const label = isIn ? `From ${_esc(msg.member_name)}` : _esc(msg.member_name);
+      const preview = _esc((msg.subject || '') + (msg.body ? ' — ' + msg.body.slice(0, 60) : ''));
+
+      let toneBadge = '';
+      if (isIn && msg.tone) {
+        const tone = msg.tone.toLowerCase();
+        const col  = _TONE_COLORS[tone] || '#666';
+        const bg   = _TONE_BG[tone]     || 'rgba(102,102,102,.15)';
+        toneBadge  = `<span style="font-size:10px;padding:2px 7px;border-radius:10px;background:${bg};color:${col};margin-left:4px">${_esc(msg.tone)}</span>`;
+      }
+
+      const unreadDot = (!msg.replied_at && isIn)
+        ? '<div class="msg-unread" style="margin-top:4px;margin-left:auto"></div>' : '';
+
+      return `
+        <div class="msg-item" onclick="TeamApp.showMessage(${JSON.stringify(msg).replace(/"/g,'&quot;')})">
+          <div class="avatar" style="width:38px;height:38px;font-size:14px;${isIn ? 'background:#1a3a1a;' : ''}">${_initials(msg.member_name)}</div>
+          <div class="msg-info">
+            <div class="msg-name">${label}${toneBadge}</div>
+            <div class="msg-preview">${preview}</div>
+          </div>
+          <div>
+            <div class="msg-date">${date}</div>
+            ${unreadDot}
+          </div>
+        </div>`;
+    }).join('');
   }
 
   function showMessage(msg) {
     const panel = document.getElementById('meeting-panel');
     const title = document.getElementById('meeting-panel-title');
     const body  = document.getElementById('meeting-panel-body');
-    title.textContent = 'Message';
-    body.innerHTML = `
-      <div class="field-row"><label>To</label><div style="font-size:14px">${_esc(msg.member_name)}</div></div>
-      <div class="field-row"><label>Subject</label><div style="font-size:14px">${_esc(msg.subject || '')}</div></div>
-      <div class="field-row"><label>Sent</label><div style="font-size:14px">${_esc(msg.sent_at || '')}</div></div>
-      <div class="divider"></div>
-      <div style="font-size:14px;line-height:1.7;white-space:pre-wrap">${_esc(msg.body || '')}</div>
-      <div class="divider"></div>
-      <div style="font-size:12px;color:var(--muted)">${msg.replied_at ? '✓ Replied ' + msg.replied_at.slice(0,10) : 'No reply yet'}</div>
-    `;
+    const isIn  = msg.direction === 'in';
+
+    title.textContent = isIn ? `From ${msg.member_name}` : `To ${msg.member_name}`;
+
+    let html = '';
+    if (isIn) {
+      const tone     = (msg.tone || 'informational').toLowerCase();
+      const toneCol  = _TONE_COLORS[tone] || '#666';
+      const toneBg   = _TONE_BG[tone]     || 'rgba(102,102,102,.15)';
+      html = `
+        <div class="field-row"><label>From</label><div style="font-size:14px">${_esc(msg.member_name)} · ${_esc(msg.ministry || '')}</div></div>
+        <div class="field-row"><label>Subject</label><div style="font-size:14px">${_esc(msg.subject || '')}</div></div>
+        <div class="field-row"><label>Received</label><div style="font-size:14px">${_esc(msg.sent_at || '')}</div></div>
+        ${msg.tone ? `<div style="margin-bottom:10px"><span style="font-size:12px;padding:3px 10px;border-radius:10px;background:${toneBg};color:${toneCol}">${_esc(msg.tone)}</span></div>` : ''}
+        <div class="divider"></div>
+        <div style="font-size:14px;line-height:1.7;white-space:pre-wrap">${_esc(msg.body || '')}</div>
+      `;
+    } else {
+      html = `
+        <div class="field-row"><label>To</label><div style="font-size:14px">${_esc(msg.member_name)}</div></div>
+        <div class="field-row"><label>Subject</label><div style="font-size:14px">${_esc(msg.subject || '')}</div></div>
+        <div class="field-row"><label>Sent</label><div style="font-size:14px">${_esc(msg.sent_at || '')}</div></div>
+        <div class="divider"></div>
+        <div style="font-size:14px;line-height:1.7;white-space:pre-wrap">${_esc(msg.body || '')}</div>
+        <div class="divider"></div>
+        <div style="font-size:12px;color:var(--muted)">${msg.replied_at ? '✓ Replied ' + msg.replied_at.slice(0,10) : 'No reply yet'}</div>
+      `;
+    }
+
+    body.innerHTML = html;
     panel.classList.add('open');
   }
 
