@@ -227,13 +227,13 @@ def process_inbound(subject: str, body: str, received_at: str) -> dict:
             digest.get("summary", ""),
         ]
 
-        action_items = digest.get("action_items") or []
+        action_items = [i for i in (digest.get("action_items") or []) if i and i.strip() and i.strip().lower() not in ("none", "none mentioned", "n/a", "")]
         if action_items:
             lines.append("\n📌 <b>Needs your attention:</b>")
             for item in action_items:
                 lines.append(f"  - {item}")
 
-        leader_tasks = digest.get("leader_tasks") or []
+        leader_tasks = [i for i in (digest.get("leader_tasks") or []) if i and i.strip() and i.strip().lower() not in ("none", "none mentioned", "n/a", "")]
         if leader_tasks:
             lines.append("\n📝 <b>They're working on:</b>")
             for task in leader_tasks:
