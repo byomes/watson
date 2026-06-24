@@ -3,6 +3,7 @@
 // ─── State ────────────────────────────────────────────────────────────────────
 let activePage = 'home';
 let _pendingOpenIdx = null;
+let _pendingNoteTypes = {};
 let chatHistory = [];
 let chatMemoryContext = '';
 let chatIdleTimer = null;
@@ -121,6 +122,12 @@ async function renderHome() {
         <span class="badge ${bc}">${esc(type)}</span>
         ${isNote ? `
           <div id="pending-exp-${idx}" style="display:none;margin-top:10px">
+            <div style="display:flex;border:1px solid var(--border);border-radius:var(--r-btn);overflow:hidden;margin-bottom:8px">
+              <button id="pending-type-pastoral-${idx}" onclick="setPendingNoteType(${idx},'pastoral')"
+                style="flex:1;padding:5px 0;border:none;cursor:pointer;background:var(--gold);color:#0f0f0f;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.04em">Pastoral</button>
+              <button id="pending-type-leadership-${idx}" onclick="setPendingNoteType(${idx},'leadership')"
+                style="flex:1;padding:5px 0;border:none;cursor:pointer;background:transparent;color:var(--muted);font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.04em">Leadership</button>
+            </div>
             <textarea id="pending-ta-${idx}" rows="3"
               style="display:block;width:100%;margin-bottom:8px;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:13px;outline:none;resize:vertical;box-sizing:border-box"
               placeholder="Pastoral note…"></textarea>
@@ -228,8 +235,24 @@ function togglePendingExp(idx) {
     exp.style.display = 'block';
     if (tog) tog.textContent = '− CANCEL';
     _pendingOpenIdx = idx;
+    _pendingNoteTypes[idx] = 'pastoral';
+    setPendingNoteType(idx, 'pastoral');
     const ta = document.getElementById(`pending-ta-${idx}`);
     if (ta) { ta.focus(); ta.value = ''; }
+  }
+}
+
+function setPendingNoteType(idx, type) {
+  _pendingNoteTypes[idx] = type;
+  const pastoralBtn    = document.getElementById(`pending-type-pastoral-${idx}`);
+  const leadershipBtn  = document.getElementById(`pending-type-leadership-${idx}`);
+  if (pastoralBtn) {
+    pastoralBtn.style.background = type === 'pastoral' ? 'var(--gold)' : 'transparent';
+    pastoralBtn.style.color      = type === 'pastoral' ? '#0f0f0f' : 'var(--muted)';
+  }
+  if (leadershipBtn) {
+    leadershipBtn.style.background = type === 'leadership' ? 'var(--gold)' : 'transparent';
+    leadershipBtn.style.color      = type === 'leadership' ? '#0f0f0f' : 'var(--muted)';
   }
 }
 
@@ -237,11 +260,12 @@ async function saveInlineNote(pendingId, idx) {
   const ta = document.getElementById(`pending-ta-${idx}`);
   const content = (ta?.value || '').trim();
   if (!content) { if (ta) ta.focus(); return; }
+  const note_type = _pendingNoteTypes[idx] || 'pastoral';
   try {
     await api('/api/pastoral_notes/inline', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pending_id: pendingId, content }),
+      body: JSON.stringify({ pending_id: pendingId, content, note_type }),
     });
     const card = document.getElementById(`pending-card-${idx}`);
     if (card) {

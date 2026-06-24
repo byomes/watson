@@ -3998,17 +3998,33 @@ def pastoral_notes_inline():
         m_row = db.execute("SELECT name FROM team_members WHERE id=?", (member_id,)).fetchone()
         if m_row:
             person_name = m_row["name"]
-    db.execute(
-        "INSERT INTO pastoral_notes (person_name, note, team_member_id, note_type, content, created_by) "
-        "VALUES (?, ?, ?, 'private', ?, 'bill')",
-        (person_name, content, member_id, content),
-    )
+    note_type = (data.get("note_type") or "pastoral").strip()
+    if note_type == "leadership":
+        db.execute(
+            "INSERT INTO shared_notes (member_id, content, author) VALUES (?, ?, 'bill')",
+            (member_id or 0, content),
+        )
+        if member_id:
+            today = datetime.now().strftime("%Y-%m-%d")
+            db.execute(
+                "UPDATE team_members SET last_activity_date=? WHERE id=?",
+                (today, member_id),
+            )
+    else:
+        db.execute(
+            "INSERT INTO pastoral_notes (person_name, note, team_member_id, note_type, content, created_by) "
+            "VALUES (?, ?, ?, 'private', ?, 'bill')",
+            (person_name, content, member_id, content),
+        )
     db.execute("UPDATE tg_pending_actions SET status='done' WHERE id=?", (pending_id,))
     if notes_pending_id:
         db.execute("UPDATE notes_pending SET status='resolved' WHERE id=?", (notes_pending_id,))
     db.commit()
     try:
-        _send_telegram(f"✓ Pastoral note saved for {person_name}.")
+        if note_type == "leadership":
+            _send_telegram(f"📋 Leadership note saved for {person_name}.")
+        else:
+            _send_telegram(f"✓ Pastoral note saved for {person_name}.")
     except Exception:
         pass
     return jsonify({"success": True})
