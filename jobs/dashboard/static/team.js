@@ -895,6 +895,31 @@ const TeamApp = (() => {
     } catch(e) { alert('Error: ' + e.message); }
   }
 
+  // ── Polling ───────────────────────────────────────────────────
+
+  async function poll() {
+    const ae = document.activeElement;
+    if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT')) return;
+
+    // Re-fetch members only when profile panel is not open
+    if (_currentMember === null) {
+      try {
+        _members = await _get('/api/team/members');
+        _renderMinistryChips();
+        _renderMembers();
+      } catch(e) { /* silent */ }
+    }
+
+    // Re-fetch tasks only when tasks tab is active
+    const tasksTab = document.getElementById('tab-tasks');
+    if (tasksTab && tasksTab.classList.contains('active')) {
+      try {
+        _allTasks = await _get('/api/team/tasks?status=all');
+        _renderTasks();
+      } catch(e) { /* silent */ }
+    }
+  }
+
   // ── Init ──────────────────────────────────────────────────────
 
   async function init() {
@@ -951,8 +976,11 @@ const TeamApp = (() => {
     showCompose,
     closeCompose,
     sendCompose,
+    poll,
   };
 })();
+
+setInterval(() => { if (typeof TeamApp !== 'undefined') TeamApp.poll(); }, 15000);
 
 (function(){ 
   function updateDate(){ 
@@ -964,13 +992,3 @@ const TeamApp = (() => {
   setInterval(updateDate,60000); 
 })();
 
-(function(){
-  function updateDate(){
-    var el=document.getElementById('hdr-date');
-    if(!el) return;
-    var d=new Date();
-    el.textContent=d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
-  }
-  updateDate();
-  setInterval(updateDate,60000);
-})();

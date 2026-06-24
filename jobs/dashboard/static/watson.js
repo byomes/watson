@@ -76,7 +76,7 @@ async function renderHome() {
   const [pendingRes, calRes, tasksRes, remindersRes, briefingRes] = await Promise.allSettled([
     api('/api/pending'),
     api('/api/calendar/today'),
-    api('/api/tasks'),
+    api('/api/team/members/12/tasks?status=open'),
     api('/api/reminders'),
     api('/api/briefing'),
   ]);
@@ -87,8 +87,7 @@ async function renderHome() {
   const reminders = remindersRes.status === 'fulfilled' ? remindersRes.value : [];
   const briefing  = briefingRes.status  === 'fulfilled' ? briefingRes.value  : [];
 
-  const activeTasks = Array.isArray(tasks) ? tasks.filter(t => t.status !== 'done') : [];
-  const topTasks    = activeTasks.slice(0, 3);
+  const activeTasks = Array.isArray(tasks) ? tasks : [];
 
   let html = '';
 
@@ -129,7 +128,7 @@ async function renderHome() {
     <div class="sec-label">At a Glance</div>
     <div class="stats-row">
       <div class="stat-card" style="cursor:pointer" onclick="window.location='/team'">
-        <div class="stat-num">${activeTasks.length}</div>
+        <div class="stat-num" id="home-stat-tasks-num">${activeTasks.length}</div>
         <div class="stat-lbl">Tasks</div>
       </div>
       <div class="stat-card" style="cursor:pointer" onclick="switchTab('reminders')">
@@ -142,26 +141,39 @@ async function renderHome() {
       </div>
     </div>`;
 
-  // 4. Top Tasks
-  html += `<div class="sec-label">Top Tasks</div>`;
-  if (!topTasks.length) {
-    html += `<div class="empty">No open tasks.</div>`;
-  } else {
-    topTasks.forEach(t => {
-      html += `
-        <div class="task-card">
-          <div class="task-check display-only"></div>
-          <div class="task-body">
-            <div class="task-title">${esc(t.title)}</div>
-            <span class="pri ${priClass(t.priority)}">${priLabel(t.priority)}</span>
-          </div>
-        </div>`;
-    });
-    html += `<a class="view-all" href="/team" style="text-decoration:none">View all tasks &rsaquo;</a>`;
-  }
+  // 4. All Tasks
+  html += `<div class="sec-label">All Tasks</div><div id="home-tasks-list">${_homeTasksHtml(activeTasks)}</div>`;
 
   setContent(html);
 }
+
+function _homeTasksHtml(tasks) {
+  if (!tasks.length) return '<div class="empty">No open tasks.</div>';
+  return tasks.map(t => `
+    <div class="task-card">
+      <div class="task-check display-only"></div>
+      <div class="task-body">
+        <div class="task-title">${esc(t.title)}</div>
+        <span class="pri ${priClass(t.priority)}">${priLabel(t.priority)}</span>
+      </div>
+    </div>`).join('');
+}
+
+async function _pollHomeData() {
+  if (activePage !== 'home') return;
+  const ae = document.activeElement;
+  if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT')) return;
+  try {
+    const tasks   = await api('/api/team/members/12/tasks?status=open');
+    const taskArr = Array.isArray(tasks) ? tasks : [];
+    const listEl  = document.getElementById('home-tasks-list');
+    if (listEl) listEl.innerHTML = _homeTasksHtml(taskArr);
+    const numEl = document.getElementById('home-stat-tasks-num');
+    if (numEl) numEl.textContent = taskArr.length;
+  } catch(e) { /* silent — stale data is acceptable */ }
+}
+
+setInterval(_pollHomeData, 15000);
 
 // ─── Briefing page ────────────────────────────────────────────────────────────
 

@@ -3976,6 +3976,35 @@ def admin_ministries():
     return jsonify({"ministries": [r["ministry"] for r in rows]})
 
 
+@app.route("/admin/roster")
+def admin_roster():
+    redir = _admin_required()
+    if redir:
+        return jsonify({"error": "not authenticated"}), 401
+    db = _db()
+    rows = db.execute("""
+        SELECT m.id, m.name, m.role, m.ministry, m.email,
+               COALESCE(m.status, 'stalled') AS status,
+               m.last_activity_date, m.last_comms_date,
+               COUNT(t.id) AS open_task_count
+        FROM team_members m
+        LEFT JOIN team_tasks t ON t.member_id = m.id AND t.status = 'open'
+        WHERE m.active = 1
+        GROUP BY m.id
+        ORDER BY m.name COLLATE NOCASE
+    """).fetchall()
+    members = [dict(r) for r in rows]
+    return jsonify({
+        "members": members,
+        "stats": {
+            "total":            len(members),
+            "active":           sum(1 for m in members if m["status"] == "active"),
+            "needs_attention":  sum(1 for m in members if m["status"] == "needs_attention"),
+            "open_tasks":       sum(m["open_task_count"] for m in members),
+        },
+    })
+
+
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":

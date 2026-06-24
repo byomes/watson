@@ -25,6 +25,7 @@
   --r-card:   10px;
   --r-btn:    6px;
 }
+[data-theme="light"] input, [data-theme="light"] select, [data-theme="light"] textarea { background: #f5f5f3 !important; color: #1a1a1a !important; border-color: #d4d4cc !important; }
 [data-theme="dark"] {
   --bg:       #0f0f0f;
   --surface:  #1a1a1a;
@@ -628,19 +629,19 @@ html, body {
   <!-- Stats -->
   <div class="stats-grid">
     <div class="stat-card">
-      <div class="stat-num gold">{{ stats.total }}</div>
+      <div class="stat-num gold" id="admin-stat-total">{{ stats.total }}</div>
       <div class="stat-lbl">Total leaders</div>
     </div>
     <div class="stat-card">
-      <div class="stat-num green">{{ stats.active }}</div>
+      <div class="stat-num green" id="admin-stat-active">{{ stats.active }}</div>
       <div class="stat-lbl">Active</div>
     </div>
     <div class="stat-card">
-      <div class="stat-num amber">{{ stats.needs_attention }}</div>
+      <div class="stat-num amber" id="admin-stat-needs">{{ stats.needs_attention }}</div>
       <div class="stat-lbl">Needs attention</div>
     </div>
     <div class="stat-card">
-      <div class="stat-num blue">{{ stats.open_tasks }}</div>
+      <div class="stat-num blue" id="admin-stat-open">{{ stats.open_tasks }}</div>
       <div class="stat-lbl">Open tasks</div>
     </div>
   </div>
@@ -1285,6 +1286,71 @@ async function submitAddLeader() {
   // Refresh the table by reloading the page after a brief confirmation pause
   setTimeout(() => { window.location.reload(); }, 1200);
 }
+
+// ── 15s polling ───────────────────────────────────────────────────────────────
+function _adminPollShouldSkip() {
+  if (_currentMemberId !== null) return true;
+  if (document.querySelector('.modal-backdrop.open')) return true;
+  if (document.getElementById('add-leader-panel').style.display !== 'none') return true;
+  const ae = document.activeElement;
+  if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT')) return true;
+  return false;
+}
+
+function _adminDateClass(d) {
+  if (!d) return 'date-none';
+  try {
+    const days = Math.floor((Date.now() - new Date(d.slice(0,10)).getTime()) / 86400000);
+    if (days <= 7) return 'date-gray';
+    if (days <= 14) return 'date-amber';
+    return 'date-red';
+  } catch(e) { return 'date-none'; }
+}
+
+async function _adminPoll() {
+  if (_adminPollShouldSkip()) return;
+  try {
+    const data = await fetch('/admin/roster').then(r => r.json());
+    if (data.error) return;
+
+    // Stat cards
+    const setEl = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    setEl('admin-stat-total',  data.stats.total);
+    setEl('admin-stat-active', data.stats.active);
+    setEl('admin-stat-needs',  data.stats.needs_attention);
+    setEl('admin-stat-open',   data.stats.open_tasks);
+
+    // Table rows
+    const statusLabels = { active: 'Active', needs_attention: 'Needs attention', stalled: 'Stalled' };
+    data.members.forEach(m => {
+      const row = document.querySelector(`#leaders-tbody tr[data-id="${m.id}"]`);
+      if (!row) return;
+      // Update data attributes for filter
+      row.dataset.status   = m.status;
+      row.dataset.tasks    = m.open_task_count || 0;
+      row.dataset.activity = m.last_activity_date || '';
+      row.dataset.comms    = m.last_comms_date || '';
+      // Status badge (cell index 2)
+      const sc = row.cells[2];
+      if (sc) sc.innerHTML = `<span class="status-badge ${esc(m.status)}">${esc(statusLabels[m.status] || m.status)}</span>`;
+      // Task pill (cell index 3)
+      const tc = row.cells[3];
+      if (tc) { const cnt = m.open_task_count || 0; tc.innerHTML = `<span class="task-pill ${cnt===0?'zero':''}">${cnt}</span>`; }
+      // Activity date (cell index 4)
+      const ac = row.cells[4];
+      if (ac) ac.innerHTML = m.last_activity_date
+        ? `<span class="${_adminDateClass(m.last_activity_date)}">${m.last_activity_date.slice(0,10)}</span>`
+        : `<span class="date-none">—</span>`;
+      // Comms date (cell index 5)
+      const cc = row.cells[5];
+      if (cc) cc.innerHTML = m.last_comms_date
+        ? `<span class="${_adminDateClass(m.last_comms_date)}">${m.last_comms_date.slice(0,10)}</span>`
+        : `<span class="date-none">—</span>`;
+    });
+  } catch(e) { /* silent — stale data acceptable */ }
+}
+
+setInterval(_adminPoll, 15000);
 
 // ── Theme toggle ──────────────────────────────────────────────────────────────
 function _syncThemePill(t) {
