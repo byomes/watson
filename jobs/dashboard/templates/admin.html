@@ -530,6 +530,43 @@ html, body {
   white-space: nowrap;
 }
 
+/* Shared notes */
+.sn-input-area { margin-bottom: 16px; }
+.sn-input-area textarea {
+  display: block; width: 100%;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: var(--r-btn); padding: 9px 11px;
+  color: var(--text); font-size: 13px; font-family: inherit;
+  outline: none; resize: vertical; transition: border-color .15s;
+  margin-bottom: 8px;
+}
+.sn-input-area textarea:focus { border-color: var(--gold); }
+.sn-input-area textarea::placeholder { color: var(--muted); }
+.sn-card {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-btn);
+  margin-bottom: 8px;
+  background: var(--surface2);
+}
+.sn-meta {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 6px;
+}
+.sn-badge {
+  font-size: 10px; font-family: 'DM Mono', monospace;
+  padding: 2px 7px; border-radius: 10px; font-weight: 600;
+}
+.sn-badge.bill  { background: rgba(76,126,201,.18); color: var(--blue); }
+.sn-badge.donna { background: rgba(76,175,125,.18); color: var(--green); }
+.sn-ts { font-size: 10px; color: var(--muted); font-family: 'DM Mono', monospace; }
+.sn-del {
+  margin-left: auto; background: none; border: none;
+  color: var(--muted); font-size: 14px; cursor: pointer; padding: 0 2px;
+  line-height: 1; transition: color .15s;
+}
+.sn-del:hover { color: var(--red); }
+.sn-body { font-size: 13px; line-height: 1.5; }
+
 /* Theme pill */
 .theme-pill {
   display: flex; align-items: center;
@@ -570,7 +607,6 @@ html, body {
     <div id="hdr-sub">Catalyst Community Church — Leadership</div>
   </div>
   <button class="hdr-btn hdr-btn-outline" onclick="openAddLeader()">Add leader</button>
-  <button class="hdr-btn hdr-btn-outline" onclick="openComposeModal()">Compose</button>
   <button class="hdr-btn hdr-btn-primary" onclick="openTaskModal()">Assign Task</button>
   <div class="theme-pill">
     <button class="theme-pill-btn" id="theme-dark-btn" onclick="setAdminTheme('dark')">Dark</button>
@@ -735,46 +771,13 @@ html, body {
     </div>
     <div class="dp-tabs">
       <button class="dp-tab active" onclick="switchDpTab('tasks', this)">Tasks</button>
-      <button class="dp-tab" onclick="switchDpTab('notes', this)">Team Notes</button>
-      <button class="dp-tab" onclick="switchDpTab('comms', this)">Comms</button>
+      <button class="dp-tab" onclick="switchDpTab('notes', this)">Notes</button>
     </div>
     <div class="dp-body" id="dp-body">
       <div class="loading-text">Loading…</div>
     </div>
   </div>
 
-</div>
-
-<!-- Compose email modal -->
-<div class="modal-backdrop" id="compose-modal">
-  <div class="modal-card">
-    <div class="modal-title">
-      Compose Email
-      <button class="modal-close" onclick="closeComposeModal()">×</button>
-    </div>
-    <div class="modal-field">
-      <label>To</label>
-      <select id="compose-to">
-        <option value="">Select a leader…</option>
-        {% for m in members %}
-        <option value="{{ m.id }}">{{ m.name }}{% if m.email %} — {{ m.email }}{% endif %}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="modal-field">
-      <label>Subject</label>
-      <input type="text" id="compose-subject" placeholder="Email subject">
-    </div>
-    <div class="modal-field">
-      <label>Message</label>
-      <textarea id="compose-body" rows="5" placeholder="Your message…"></textarea>
-    </div>
-    <div id="compose-err" style="font-size:12px;color:var(--red);min-height:16px"></div>
-    <div class="modal-actions">
-      <button class="modal-btn modal-btn-ghost" onclick="closeComposeModal()">Cancel</button>
-      <button class="modal-btn modal-btn-primary" onclick="sendCompose()">Send Email</button>
-    </div>
-  </div>
 </div>
 
 <!-- Assign task modal -->
@@ -919,9 +922,8 @@ function switchDpTab(tab, btn) {
 function renderDpTab(tab) {
   if (!_currentData) return;
   const body = document.getElementById('dp-body');
-  if (tab === 'tasks')  body.innerHTML = renderTasksTab();
-  if (tab === 'notes')  body.innerHTML = renderNotesTab();
-  if (tab === 'comms')  body.innerHTML = renderCommsTab();
+  if (tab === 'tasks') body.innerHTML = renderTasksTab();
+  if (tab === 'notes') body.innerHTML = renderNotesTab();
 }
 
 function esc(s) {
@@ -994,55 +996,49 @@ async function submitReassign(taskId) {
   if (right) right.innerHTML = `<span class="dp-reassigned-lbl">→ ${esc(newMemberName)}</span>`;
 }
 
-function renderNotesTab() {
-  const notes = (_currentData.notes || []);
-  let html = '';
-  if (!notes.length) html += '<div class="empty-state">No team notes yet.</div>';
-  notes.forEach(n => {
-    const text = n.content || n.note || '';
-    const date = (n.created_at || '').slice(0, 10);
-    const by   = n.created_by || '';
-    html += `<div class="dp-note">
-      <div class="dp-note-meta">${esc(date)}${by ? ' · ' + esc(by) : ''}</div>
-      <div class="dp-note-body">${esc(text)}</div>
-    </div>`;
-  });
-  html += `<div class="dp-add-form">
-    <div class="dp-add-label">Add note</div>
-    <textarea class="dp-inp" id="dp-note-content" rows="3" placeholder="Note…"></textarea>
-    <button class="dp-save-btn" onclick="addNote()">Save note</button>
-  </div>`;
-  return html;
+function _fmtNoteTs(ts) {
+  if (!ts) return '';
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const s = ts.replace('T', ' ');
+  const p = s.split(/[- :]/);
+  if (p.length < 5) return ts.slice(0, 16);
+  const mon = months[parseInt(p[1]) - 1] || '';
+  const day = parseInt(p[2]);
+  const yr  = p[0];
+  let   hr  = parseInt(p[3]);
+  const min = p[4];
+  const ap  = hr >= 12 ? 'PM' : 'AM';
+  if (hr > 12) hr -= 12;
+  if (hr === 0) hr = 12;
+  return `${mon} ${day}, ${yr} · ${hr}:${min} ${ap}`;
 }
 
-function renderCommsTab() {
-  const msgs = (_currentData.messages || []);
-  let html = `<div style="margin-bottom:12px">
-    <button class="dp-save-btn" onclick="showInlineCompose()">Compose email</button>
-  </div>
-  <div id="inline-compose" style="display:none;margin-bottom:16px;padding:14px;background:#111;border:1px solid var(--border);border-radius:var(--r-card)">
-    <div class="dp-add-label">New email</div>
-    <input class="dp-inp" id="ic-subject" placeholder="Subject…">
-    <textarea class="dp-inp" id="ic-body" rows="4" placeholder="Message…"></textarea>
-    <div style="display:flex;gap:8px">
-      <button class="dp-save-btn" onclick="sendInlineEmail()">Send</button>
-      <button style="padding:8px 14px;background:transparent;border:1px solid var(--border);border-radius:var(--r-btn);color:var(--muted);font-family:inherit;font-size:12px;cursor:pointer" onclick="document.getElementById('inline-compose').style.display='none'">Cancel</button>
-    </div>
-    <div id="ic-err" style="font-size:12px;color:var(--red);margin-top:6px"></div>
+function renderNotesTab() {
+  const notes = (_currentData.shared_notes || []);
+  let html = `<div class="sn-input-area">
+    <textarea id="sn-new-content" rows="2" placeholder="Add a note…"></textarea>
+    <button class="dp-save-btn" onclick="addNote()">Add note</button>
   </div>`;
-  if (!msgs.length) html += '<div class="empty-state">No messages yet.</div>';
-  msgs.forEach(msg => {
-    const dir  = msg.direction || 'out';
-    const date = (msg.sent_at || msg.created_at || '').slice(0, 10);
-    html += `<div class="dp-msg">
-      <div class="dp-msg-meta">
-        <span class="dp-msg-dir ${esc(dir)}">${dir === 'out' ? 'SENT' : 'RECV'}</span>
-        <span class="dp-msg-subject">${esc(msg.subject || '(no subject)')}</span>
-        <span class="dp-msg-date">${esc(date)}</span>
-      </div>
-      <div class="dp-msg-body">${esc((msg.body || '').slice(0, 160))}${(msg.body || '').length > 160 ? '…' : ''}</div>
-    </div>`;
-  });
+  if (!notes.length) {
+    html += '<div class="empty-state">No notes yet. Add the first one above.</div>';
+  } else {
+    notes.forEach(n => {
+      const isDonna = n.author === 'donna';
+      const badgeClass = isDonna ? 'donna' : 'bill';
+      const badgeLabel = isDonna ? 'Donna' : 'Dr. Bill';
+      const delBtn = isDonna
+        ? `<button class="sn-del" onclick="deleteSharedNote(${n.id})" title="Delete">✕</button>`
+        : '';
+      html += `<div class="sn-card" id="sn-${n.id}">
+        <div class="sn-meta">
+          <span class="sn-badge ${badgeClass}">${badgeLabel}</span>
+          <span class="sn-ts">${_fmtNoteTs(n.created_at)}</span>
+          ${delBtn}
+        </div>
+        <div class="sn-body">${esc(n.content)}</div>
+      </div>`;
+    });
+  }
   return html;
 }
 
@@ -1076,83 +1072,43 @@ async function addTask() {
 }
 
 async function addNote() {
-  const content = (document.getElementById('dp-note-content')?.value || '').trim();
+  const content = (document.getElementById('sn-new-content')?.value || '').trim();
   if (!content) return;
-  const res = await fetch('/admin/note', {
+  const res = await fetch('/admin/notes', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({ team_member_id: _currentMemberId, content }),
+    body: JSON.stringify({ member_id: _currentMemberId, content }),
   });
   const d = await res.json();
+  if (d.success && d.note) {
+    if (!_currentData.shared_notes) _currentData.shared_notes = [];
+    _currentData.shared_notes.unshift(d.note);
+    renderDpTab('notes');
+    const ta = document.getElementById('sn-new-content');
+    if (ta) ta.value = '';
+  }
+}
+
+async function deleteSharedNote(noteId) {
+  const res = await fetch(`/admin/notes/${noteId}`, { method: 'DELETE' });
+  const d = await res.json();
   if (d.success) {
-    const reloaded = await fetch(`/admin/leader/${_currentMemberId}`);
-    _currentData = await reloaded.json();
+    if (_currentData.shared_notes) {
+      _currentData.shared_notes = _currentData.shared_notes.filter(n => n.id !== noteId);
+    }
     renderDpTab('notes');
   }
 }
 
-function showInlineCompose() {
-  const el = document.getElementById('inline-compose');
-  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
-}
-
-async function sendInlineEmail() {
-  const subject = (document.getElementById('ic-subject')?.value || '').trim();
-  const body    = (document.getElementById('ic-body')?.value || '').trim();
-  const err     = document.getElementById('ic-err');
-  if (!subject || !body) { if (err) err.textContent = 'Subject and body required.'; return; }
-  if (err) err.textContent = '';
-  const res = await fetch('/admin/email', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({ team_member_id: _currentMemberId, subject, body }),
-  });
-  const d = await res.json();
-  if (d.success) {
-    const reloaded = await fetch(`/admin/leader/${_currentMemberId}`);
-    _currentData = await reloaded.json();
-    renderDpTab('comms');
-  } else {
-    if (err) err.textContent = d.error || 'Send failed.';
-  }
-}
-
-// ── Compose modal ─────────────────────────────────────────────────────────────
-function openComposeModal(preselect) {
-  document.getElementById('compose-modal').classList.add('open');
-  document.getElementById('compose-err').textContent = '';
-  if (preselect) document.getElementById('compose-to').value = preselect;
-}
-function closeComposeModal() {
-  document.getElementById('compose-modal').classList.remove('open');
-  ['compose-to','compose-subject','compose-body'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.value = '';
-  });
-}
-async function sendCompose() {
-  const memberId = document.getElementById('compose-to').value;
-  const subject  = (document.getElementById('compose-subject').value || '').trim();
-  const body     = (document.getElementById('compose-body').value || '').trim();
-  const err      = document.getElementById('compose-err');
-  if (!memberId || !subject || !body) { err.textContent = 'All fields required.'; return; }
-  err.textContent = '';
-  const res = await fetch('/admin/email', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({ team_member_id: memberId, subject, body }),
-  });
-  const d = await res.json();
-  if (d.success) {
-    closeComposeModal();
-    if (_currentMemberId == memberId) {
-      const reloaded = await fetch(`/admin/leader/${_currentMemberId}`);
-      _currentData = await reloaded.json();
-      renderDpTab('comms');
+async function _refreshSharedNotes(memberId) {
+  try {
+    const res = await fetch(`/admin/leader/${memberId}`);
+    const data = await res.json();
+    if (!data.error) {
+      _currentData.shared_notes = data.shared_notes || [];
+      if (_currentDpTab === 'notes') renderDpTab('notes');
     }
-  } else {
-    err.textContent = d.error || 'Failed to send.';
-  }
+  } catch(e) { /* silent */ }
 }
 
 // ── Task modal ────────────────────────────────────────────────────────────────
@@ -1194,9 +1150,6 @@ async function submitTask() {
 }
 
 // Close modals on backdrop click
-document.getElementById('compose-modal').addEventListener('click', e => {
-  if (e.target === e.currentTarget) closeComposeModal();
-});
 document.getElementById('task-modal').addEventListener('click', e => {
   if (e.target === e.currentTarget) closeTaskModal();
 });
@@ -1289,7 +1242,6 @@ async function submitAddLeader() {
 
 // ── 15s polling ───────────────────────────────────────────────────────────────
 function _adminPollShouldSkip() {
-  if (_currentMemberId !== null) return true;
   if (document.querySelector('.modal-backdrop.open')) return true;
   if (document.getElementById('add-leader-panel').style.display !== 'none') return true;
   const ae = document.activeElement;
@@ -1308,6 +1260,11 @@ function _adminDateClass(d) {
 }
 
 async function _adminPoll() {
+  const ae = document.activeElement;
+  const inputFocused = ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT');
+  if (!inputFocused && _currentMemberId !== null) {
+    await _refreshSharedNotes(_currentMemberId);
+  }
   if (_adminPollShouldSkip()) return;
   try {
     const data = await fetch('/admin/roster').then(r => r.json());

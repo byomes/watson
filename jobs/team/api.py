@@ -606,3 +606,73 @@ def messages_send():
     except Exception as exc:
         log.error("messages_send error: %s", exc)
         return jsonify({"error": str(exc)}), 500
+
+
+# ── Shared Notes ──────────────────────────────────────────────────────────────
+
+@team_bp.route("/members/<int:member_id>/shared_notes", methods=["GET"])
+def shared_notes_list(member_id):
+    try:
+        conn = _db()
+        rows = conn.execute(
+            "SELECT id, content, author, created_at FROM shared_notes "
+            "WHERE member_id=? ORDER BY created_at DESC",
+            (member_id,),
+        ).fetchall()
+        conn.close()
+        return jsonify([dict(r) for r in rows])
+    except Exception as exc:
+        log.error("shared_notes_list error: %s", exc)
+        return jsonify({"error": str(exc)}), 500
+
+
+@team_bp.route("/shared_notes", methods=["POST"])
+def shared_notes_create():
+    try:
+        data = request.get_json(force=True) or {}
+        member_id = data.get("member_id")
+        content = (data.get("content") or "").strip()
+        if not member_id or not content:
+            return jsonify({"error": "member_id and content required"}), 400
+        today = datetime.now().date().isoformat()
+        conn = _db()
+        cur = conn.execute(
+            "INSERT INTO shared_notes (member_id, content, author) VALUES (?, ?, 'bill')",
+            (member_id, content),
+        )
+        conn.execute(
+            "UPDATE team_members SET last_activity_date=? WHERE id=?",
+            (today, member_id),
+        )
+        conn.commit()
+        row = conn.execute(
+            "SELECT id, content, author, created_at FROM shared_notes WHERE id=?",
+            (cur.lastrowid,),
+        ).fetchone()
+        conn.close()
+        return jsonify({"success": True, "note": dict(row)})
+    except Exception as exc:
+        log.error("shared_notes_create error: %s", exc)
+        return jsonify({"error": str(exc)}), 500
+
+
+@team_bp.route("/shared_notes/<int:note_id>", methods=["DELETE"])
+def shared_notes_delete(note_id):
+    try:
+        conn = _db()
+        note = conn.execute(
+            "SELECT author FROM shared_notes WHERE id=?", (note_id,)
+        ).fetchone()
+        if not note:
+            conn.close()
+            return jsonify({"error": "not found"}), 404
+        if note["author"] != "bill":
+            conn.close()
+            return jsonify({"error": "can only delete own notes"}), 403
+        conn.execute("DELETE FROM shared_notes WHERE id=?", (note_id,))
+        conn.commit()
+        conn.close()
+        return jsonify({"success": True})
+    except Exception as exc:
+        log.error("shared_notes_delete error: %s", exc)
+        return jsonify({"error": str(exc)}), 500

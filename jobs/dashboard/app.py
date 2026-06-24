@@ -199,6 +199,13 @@ def _bootstrap():
         locked_at  DATETIME
     )""")
     c.execute("INSERT OR IGNORE INTO vault_status (id, locked) VALUES (1, 0)")
+    c.execute("""CREATE TABLE IF NOT EXISTS shared_notes (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        member_id  INTEGER NOT NULL,
+        content    TEXT    NOT NULL,
+        author     TEXT    NOT NULL,
+        created_at TEXT    DEFAULT (datetime('now'))
+    )""")
     c.commit()
     c.close()
 
@@ -3808,11 +3815,20 @@ def admin_leader(member_id):
         "SELECT * FROM team_messages WHERE member_id=? ORDER BY COALESCE(sent_at, created_at) DESC LIMIT 20",
         (member_id,),
     ).fetchall()
+    try:
+        shared_notes = db.execute(
+            "SELECT id, content, author, created_at FROM shared_notes "
+            "WHERE member_id=? ORDER BY created_at DESC",
+            (member_id,),
+        ).fetchall()
+    except Exception:
+        shared_notes = []
     return jsonify({
-        "member":   dict(member),
-        "tasks":    [dict(r) for r in tasks],
-        "notes":    [dict(r) for r in notes],
-        "messages": [dict(r) for r in messages],
+        "member":       dict(member),
+        "tasks":        [dict(r) for r in tasks],
+        "notes":        [dict(r) for r in notes],
+        "messages":     [dict(r) for r in messages],
+        "shared_notes": [dict(r) for r in shared_notes],
     })
 
 
@@ -3899,30 +3915,46 @@ def admin_note():
     return jsonify({"success": True})
 
 
-@app.route("/admin/email", methods=["POST"])
-def admin_email():
+@app.route("/admin/notes", methods=["POST"])
+def admin_notes_create():
     redir = _admin_required()
     if redir:
         return jsonify({"error": "not authenticated"}), 401
     data = request.get_json(force=True) or {}
-    member_id = data.get("team_member_id") or data.get("member_id")
-    subject = (data.get("subject") or "").strip()
-    body = (data.get("body") or "").strip()
-    if not member_id or not subject or not body:
-        return jsonify({"error": "team_member_id, subject, and body required"}), 400
-    try:
-        from jobs.team.email_job import send_team_email
-        result = send_team_email(int(member_id), subject, body)
-    except Exception as exc:
-        return jsonify({"error": str(exc)}), 500
-    if result.get("error"):
-        return jsonify({"error": result["error"]}), 500
+    member_id = data.get("member_id")
+    content = (data.get("content") or "").strip()
+    if not member_id or not content:
+        return jsonify({"error": "member_id and content required"}), 400
     today = datetime.now().date().isoformat()
     db = _db()
+    cur = db.execute(
+        "INSERT INTO shared_notes (member_id, content, author) VALUES (?, ?, 'donna')",
+        (member_id, content),
+    )
     db.execute(
-        "UPDATE team_members SET last_comms_date=? WHERE id=?",
+        "UPDATE team_members SET last_activity_date=? WHERE id=?",
         (today, member_id),
     )
+    db.commit()
+    row = db.execute(
+        "SELECT id, content, author, created_at FROM shared_notes WHERE id=?",
+        (cur.lastrowid,),
+    ).fetchone()
+    return jsonify({"success": True, "note": dict(row)})
+
+
+@app.route("/admin/notes/<int:note_id>", methods=["DELETE"])
+def admin_notes_delete(note_id):
+    redir = _admin_required()
+    if redir:
+        return jsonify({"error": "not authenticated"}), 401
+    db = _db()
+    note = db.execute("SELECT author FROM shared_notes WHERE id=?", (note_id,)).fetchone()
+    if not note:
+        return jsonify({"error": "not found"}), 404
+    if note["author"] != "donna":
+        return jsonify({"error": "can only delete own notes"}), 403
+    db.execute("DELETE FROM shared_notes WHERE id=?", (note_id,))
     db.commit()
     return jsonify({"success": True})
 

@@ -6,6 +6,7 @@ const TeamApp = (() => {
   let _allTasks = [];
   let _meetings = [];
   let _messages = [];
+  let _sharedNotes = [];
   let _currentMember = null;
   let _currentProfile = null;
   let _editMode = false;
@@ -231,13 +232,22 @@ const TeamApp = (() => {
       _currentProfile = data;
       _currentMember  = data.member;
       _editMode = false;
+      _sharedNotes = [];
       _renderProfile(data);
       document.getElementById('profile-panel').classList.add('open');
+      // Fetch shared notes after profile renders
+      try {
+        _sharedNotes = await _get(`/api/team/members/${memberId}/shared_notes`);
+      } catch(e) { _sharedNotes = []; }
+      _renderSharedNotesSection();
     } catch(e) { alert('Failed to load profile: ' + e.message); }
   }
 
   function closeProfile() {
     document.getElementById('profile-panel').classList.remove('open');
+    _currentMember = null;
+    _currentProfile = null;
+    _sharedNotes = [];
   }
 
   function _renderProfile(data) {
@@ -339,7 +349,87 @@ const TeamApp = (() => {
             <span class="email-badge ${mt.email_sent ? 'sent' : 'pending'}">${mt.email_sent ? 'Sent' : 'Pending'}</span>
           </div>`).join('') : '<div class="text-muted" style="font-size:13px;padding:6px 0">No meetings on file</div>'}
       </div>
+
+      <div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--border)">
+        <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:12px">Shared notes</div>
+        <div id="shared-notes-section"><div style="font-size:13px;color:var(--muted);padding:6px 0">Loading…</div></div>
+      </div>
     `;
+  }
+
+  function _fmtNoteTs(ts) {
+    if (!ts) return '';
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const s = ts.replace('T', ' ');
+    const p = s.split(/[- :]/);
+    if (p.length < 5) return ts.slice(0, 16);
+    const mon = months[parseInt(p[1]) - 1] || '';
+    const day = parseInt(p[2]);
+    const yr  = p[0];
+    let   hr  = parseInt(p[3]);
+    const min = p[4];
+    const ap  = hr >= 12 ? 'PM' : 'AM';
+    if (hr > 12) hr -= 12;
+    if (hr === 0) hr = 12;
+    return `${mon} ${day}, ${yr} · ${hr}:${min} ${ap}`;
+  }
+
+  function _renderSharedNotesSection() {
+    const container = document.getElementById('shared-notes-section');
+    if (!container) return;
+    let html = `<div style="margin-bottom:10px">
+      <textarea id="sn-team-input" rows="2" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r-btn);padding:8px 10px;color:var(--text);font-family:inherit;font-size:14px;outline:none;resize:vertical;margin-bottom:8px;" placeholder="Add a note…"></textarea>
+      <button class="btn btn-gold" style="width:100%" onclick="TeamApp.addSharedNote()">Add note</button>
+    </div>`;
+    if (!_sharedNotes.length) {
+      html += '<div style="font-size:13px;color:var(--muted);padding:6px 0">No notes yet. Add the first one above.</div>';
+    } else {
+      _sharedNotes.forEach(n => {
+        const isBill = n.author === 'bill';
+        const badgeStyle = isBill
+          ? 'background:rgba(76,126,201,.18);color:#4c7ec9'
+          : 'background:rgba(76,175,125,.18);color:#4caf7d';
+        const label = isBill ? 'Dr. Bill' : 'Donna';
+        const delBtn = isBill
+          ? `<button onclick="TeamApp.deleteSharedNote(${n.id})" style="margin-left:auto;background:none;border:none;color:var(--muted);font-size:14px;cursor:pointer;padding:0 2px;line-height:1" title="Delete">✕</button>`
+          : '';
+        html += `<div id="sn-team-${n.id}" style="padding:10px 12px;border:1px solid var(--border);border-radius:var(--r-btn);margin-bottom:8px;background:var(--surface)">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+            <span style="font-size:10px;font-family:'DM Mono',monospace;padding:2px 7px;border-radius:10px;font-weight:600;${badgeStyle}">${_esc(label)}</span>
+            <span style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">${_fmtNoteTs(n.created_at)}</span>
+            ${delBtn}
+          </div>
+          <div style="font-size:14px;line-height:1.5">${_esc(n.content)}</div>
+        </div>`;
+      });
+    }
+    container.innerHTML = html;
+  }
+
+  async function addSharedNote() {
+    const ta = document.getElementById('sn-team-input');
+    const content = (ta ? ta.value : '').trim();
+    if (!content || !_currentMember) return;
+    try {
+      const d = await _post('/api/team/shared_notes', {
+        member_id: _currentMember.id,
+        content,
+      });
+      if (d.success && d.note) {
+        _sharedNotes.unshift(d.note);
+        _renderSharedNotesSection();
+        const newTa = document.getElementById('sn-team-input');
+        if (newTa) newTa.value = '';
+      }
+    } catch(e) { alert('Error adding note: ' + e.message); }
+  }
+
+  async function deleteSharedNote(noteId) {
+    try {
+      await _del('/api/team/shared_notes/' + noteId);
+      _sharedNotes = _sharedNotes.filter(n => n.id !== noteId);
+      _renderSharedNotesSection();
+    } catch(e) { alert('Error deleting note: ' + e.message); }
   }
 
   function toggleProfileEdit() {
@@ -899,16 +989,24 @@ const TeamApp = (() => {
 
   async function poll() {
     const ae = document.activeElement;
-    if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT')) return;
+    const inputFocused = ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT');
+    if (inputFocused) return;
 
-    // Re-fetch members only when profile panel is not open
-    if (_currentMember === null) {
+    // Refresh shared notes for currently open profile
+    if (_currentMember !== null) {
       try {
-        _members = await _get('/api/team/members');
-        _renderMinistryChips();
-        _renderMembers();
+        _sharedNotes = await _get(`/api/team/members/${_currentMember.id}/shared_notes`);
+        _renderSharedNotesSection();
       } catch(e) { /* silent */ }
+      return;
     }
+
+    // Re-fetch members when profile panel is not open
+    try {
+      _members = await _get('/api/team/members');
+      _renderMinistryChips();
+      _renderMembers();
+    } catch(e) { /* silent */ }
 
     // Re-fetch tasks only when tasks tab is active
     const tasksTab = document.getElementById('tab-tasks');
@@ -972,10 +1070,11 @@ const TeamApp = (() => {
     loadMessages,
     showMessage,
     deleteMessage,
-    deleteMessage,
     showCompose,
     closeCompose,
     sendCompose,
+    addSharedNote,
+    deleteSharedNote,
     poll,
   };
 })();
