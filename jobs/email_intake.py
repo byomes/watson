@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """
-jobs/email_intake.py — Fetch unread Gmail, classify with Ollama, alert urgent via Telegram.
+jobs/email_intake.py — Fetch unread Gmail, triage via Ollama, prompt Dr. Bill via Telegram.
+
+Watson never marks email as read, archives, or acts on non-whitelist email without
+an explicit Telegram response from Dr. Bill. If Dr. Bill does not respond, the email
+stays unread in Gmail indefinitely. No timeout, no auto-archive, no fallback.
 
 Crontab (run on watson server):
   */15 * * * * PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python /home/billyomes/watson/jobs/email_intake.py
@@ -40,17 +44,49 @@ OLLAMA_URL = "http://localhost:11434/api/generate"
 OLLAMA_MODEL = "llama3.2:3b"
 TELEGRAM_CHAR_LIMIT = 4000
 
-_CLASSIFY_PROMPT = (
-    "Classify this email as urgent, queue, or discard. "
-    "Urgent = pastoral, personal, time-sensitive, or from a known person. "
-    "Queue = newsletters, ministry info, non-urgent requests. "
-    "Discard = spam, promotions, automated notifications. "
-    "Reply with one word only: urgent, queue, or discard.\n\n"
-    "From: {sender}\nSubject: {subject}\nSnippet: {snippet}"
+CONG_DB = os.path.expanduser("~/watson/data/congregation.db")
+
+_CATEGORY_ICONS = {
+    "congregation": "👥",
+    "known_contact": "👤",
+    "ministry": "⛪",
+    "newsletter": "📰",
+    "notification": "🔔",
+    "receipt": "🧾",
+    "spam": "🗑️",
+    "unknown": "❓",
+}
+
+_VALID_CATEGORIES = set(_CATEGORY_ICONS.keys())
+
+_TRIAGE_PROMPT = (
+    "You are Watson, an AI assistant for Dr. Bill Yomes, a church pastor. Triage this incoming email.\n\n"
+    "Categories:\n"
+    "- congregation: sent by a church member, parishioner, or family in the congregation\n"
+    "- known_contact: sent by a known colleague, ministry partner, vendor, or professional contact\n"
+    "- ministry: sent by a ministry organization, partner church, or church-related entity\n"
+    "- newsletter: a newsletter, blog digest, or subscription update\n"
+    "- notification: automated system notification, alert, or status update\n"
+    "- receipt: purchase confirmation, receipt, or order update\n"
+    "- spam: unsolicited bulk email, phishing, or promotional spam\n"
+    "- unknown: cannot determine\n\n"
+    "Reply ONLY with valid JSON (no markdown, no explanation):\n"
+    '{{\n'
+    '  "category": "<one of the above>",\n'
+    '  "summary": "<2-3 sentence summary of what this email is about>",\n'
+    '  "suggested_action": "<what Bill should do>",\n'
+    '  "reply_warranted": <true or false>\n'
+    '}}\n\n'
+    "From: {sender_name} <{sender_email}>\n"
+    "Subject: {subject}\n"
+    "Body (first 600 chars):\n"
+    "{body_snippet}"
 )
 
 
-def init_gmail_inbox():
+# ── DB init ───────────────────────────────────────────────────────────────────
+
+def _init_tables():
     conn = sqlite3.connect(DB_PATH)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS gmail_inbox (
@@ -64,9 +100,23 @@ def init_gmail_inbox():
             classification TEXT
         )
     """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS ministry_emails (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            sender_email  TEXT NOT NULL,
+            sender_name   TEXT,
+            subject       TEXT,
+            body          TEXT,
+            received_at   TEXT,
+            category      TEXT,
+            created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
     conn.commit()
     conn.close()
 
+
+# ── IMAP ──────────────────────────────────────────────────────────────────────
 
 def _imap_connect():
     gmail_addr = os.getenv("WATSON_GMAIL_ADDRESS", "")
@@ -114,14 +164,38 @@ def get_unread():
     return results
 
 
-def mark_as_read(uid):
+def mark_as_read(uid: str) -> None:
     mail = _imap_connect()
     mail.store(uid.encode() if isinstance(uid, str) else uid, "+FLAGS", "\\Seen")
     mail.logout()
 
 
+def delete_email(uid: str) -> None:
+    """Move email to Gmail Trash."""
+    mail = _imap_connect()
+    mail.store(uid.encode() if isinstance(uid, str) else uid, "+FLAGS", "\\Deleted")
+    mail.expunge()
+    mail.logout()
+
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+def _extract_address(sender_field: str) -> str:
+    match = re.search(r"<(.+?)>", sender_field)
+    if match:
+        return match.group(1).strip().lower()
+    return sender_field.strip().lower()
+
+
+def _extract_name(sender_field: str) -> str:
+    match = re.match(r'^"?([^"<]+?)"?\s*<', sender_field)
+    if match:
+        return match.group(1).strip()
+    addr = _extract_address(sender_field)
+    return addr.split("@")[0]
+
+
 def _tg(text: str) -> None:
-    """Send a pre-formatted message directly to Telegram."""
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         log.error("Telegram credentials not set")
         return
@@ -133,59 +207,6 @@ def _tg(text: str) -> None:
         )
     except Exception as exc:
         log.error("Telegram send failed: %s", exc)
-
-
-def _classify(sender, subject, snippet):
-    prompt = _CLASSIFY_PROMPT.format(sender=sender, subject=subject, snippet=snippet)
-    try:
-        resp = requests.post(
-            OLLAMA_URL,
-            json={"model": OLLAMA_MODEL, "prompt": prompt, "stream": False},
-            timeout=60,
-        )
-        resp.raise_for_status()
-        word = resp.json().get("response", "").strip().lower().split()[0]
-        if word in ("urgent", "queue", "discard"):
-            return word
-        log.warning("Unexpected classification response: %r — defaulting to queue", word)
-        return "queue"
-    except Exception as exc:
-        log.error("Ollama classification failed: %s", exc)
-        return "queue"
-
-
-def _store(from_address, subject, snippet, full_body, received_at, classification):
-    conn = sqlite3.connect(DB_PATH)
-    conn.execute(
-        """INSERT INTO gmail_inbox
-               (from_address, subject, snippet, full_body, received_at, status, classification)
-           VALUES (?, ?, ?, ?, ?, ?, ?)""",
-        (from_address, subject, snippet, full_body, received_at, classification, classification),
-    )
-    conn.commit()
-    conn.close()
-
-
-def _send_telegram(sender, subject, snippet):
-    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
-        log.error("Telegram credentials not set — cannot send urgent alert")
-        return
-    text = f"📬 Urgent email\n\nFrom: {sender}\nSubject: {subject}\n\n{snippet[:200]}"
-    try:
-        requests.post(
-            f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
-            json={"chat_id": TELEGRAM_CHAT_ID, "text": text},
-            timeout=15,
-        )
-    except Exception as exc:
-        log.error("Telegram alert failed: %s", exc)
-
-
-def _extract_address(sender_field):
-    match = re.search(r"<(.+?)>", sender_field)
-    if match:
-        return match.group(1).strip().lower()
-    return sender_field.strip().lower()
 
 
 def _send_directive_telegram(sender, subject):
@@ -203,17 +224,17 @@ def _send_directive_telegram(sender, subject):
         log.error("Telegram directive alert failed: %s", exc)
 
 
+# ── Bill's own email (whitelist path) ─────────────────────────────────────────
+
 def _handle_bill_email(sender, subject, body, received_at, msg_id):
     log.info("Bill directive received: %s", subject)
 
-    # Step 1 — check if forwarded team email
     if is_forwarded_email(subject, body):
         result = process_inbound(subject, body, received_at)
         if result.get("matched"):
             log.info("Team inbound matched: %s", result.get("member_name"))
             return
 
-    # Step 2 — Ollama digest
     prompt = (
         "You are Watson, Dr. Bill Yomes's administrative assistant. "
         "Bill sent you this email. Determine:\n"
@@ -290,47 +311,348 @@ def _handle_bill_email(sender, subject, body, received_at, msg_id):
             _tg(f"📧 Watson emailed you a digest of: {subject}")
 
 
+# ── Non-whitelist triage ───────────────────────────────────────────────────────
+
+def _cross_reference_sender(email_addr: str) -> tuple[str | None, int | None, str | None]:
+    """Look up an email address in congregation.db and watson.db.
+
+    Returns (name, member_id, source) or (None, None, None) if not found.
+    member_id is from congregation.db only (None for watson.db hits).
+    """
+    try:
+        cong = sqlite3.connect(CONG_DB)
+        cong.row_factory = sqlite3.Row
+        row = cong.execute(
+            "SELECT name FROM members WHERE email = ? COLLATE NOCASE LIMIT 1",
+            (email_addr,),
+        ).fetchone()
+        cong.close()
+        if row:
+            return row["name"], None, "congregation"
+    except Exception as exc:
+        log.warning("Congregation DB lookup failed: %s", exc)
+
+    try:
+        watson = sqlite3.connect(DB_PATH)
+        watson.row_factory = sqlite3.Row
+        row = watson.execute(
+            "SELECT name FROM people WHERE email = ? COLLATE NOCASE LIMIT 1",
+            (email_addr,),
+        ).fetchone()
+        watson.close()
+        if row:
+            return row["name"], None, "watson"
+    except Exception as exc:
+        log.warning("Watson DB people lookup failed: %s", exc)
+
+    return None, None, None
+
+
+def _triage_with_ollama(sender_name: str, sender_email: str, subject: str, body: str) -> dict:
+    prompt = _TRIAGE_PROMPT.format(
+        sender_name=sender_name,
+        sender_email=sender_email,
+        subject=subject,
+        body_snippet=body[:600],
+    )
+    try:
+        resp = requests.post(
+            OLLAMA_URL,
+            json={"model": OLLAMA_MODEL, "prompt": prompt, "stream": False},
+            timeout=60,
+        )
+        resp.raise_for_status()
+        raw = resp.json().get("response", "").strip()
+        raw = raw.replace("```json", "").replace("```", "").strip()
+        result = json.loads(raw)
+        if result.get("category") not in _VALID_CATEGORIES:
+            result["category"] = "unknown"
+        return result
+    except Exception as exc:
+        log.error("Ollama triage failed: %s", exc)
+        return {
+            "category": "unknown",
+            "summary": f"Watson could not triage this email (Ollama error: {exc})",
+            "suggested_action": "Review manually",
+            "reply_warranted": False,
+        }
+
+
+def _send_triage_prompt(
+    pending_id: int,
+    category: str,
+    sender_name: str,
+    sender_email: str,
+    subject: str,
+    summary: str,
+    suggested_action: str,
+    reply_warranted: bool,
+) -> int | None:
+    """Send the triage Telegram message with inline buttons. Returns Telegram message_id."""
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        log.error("Telegram credentials not set — cannot send triage prompt")
+        return None
+
+    icon = _CATEGORY_ICONS.get(category, "❓")
+    is_spam = category == "spam"
+
+    reply_line = "\n💬 Reply may be warranted." if reply_warranted else ""
+    text = (
+        f"{icon} Email from {sender_name} <{sender_email}>\n"
+        f"Subject: {subject}\n"
+        f"Category: {category}\n\n"
+        f"{summary}\n\n"
+        f"Suggested: {suggested_action}"
+        f"{reply_line}"
+    )[:TELEGRAM_CHAR_LIMIT]
+
+    second_btn_text = "🗑️ Delete" if is_spam else "🗑️ Mark as read"
+    second_btn_data = f"et_delete:{pending_id}" if is_spam else f"et_markread:{pending_id}"
+
+    keyboard = {
+        "inline_keyboard": [[
+            {"text": "✅ Ingest and work", "callback_data": f"et_ingest:{pending_id}"},
+            {"text": second_btn_text, "callback_data": second_btn_data},
+        ]]
+    }
+
+    try:
+        resp = requests.post(
+            f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+            json={
+                "chat_id": TELEGRAM_CHAT_ID,
+                "text": text,
+                "reply_markup": keyboard,
+            },
+            timeout=15,
+        )
+        resp.raise_for_status()
+        return resp.json().get("result", {}).get("message_id")
+    except Exception as exc:
+        log.error("Telegram triage prompt failed: %s", exc)
+        return None
+
+
+def _handle_non_whitelist(
+    msg_id: str,
+    sender_name: str,
+    sender_email: str,
+    subject: str,
+    body: str,
+    received_at: str,
+) -> None:
+    """Triage a non-whitelist email. Never marks as read. Stores pending action and prompts Bill."""
+    # Cross-reference sender against congregation + people tables
+    matched_name, matched_member_id, match_source = _cross_reference_sender(sender_email)
+    if matched_name and not sender_name:
+        sender_name = matched_name
+
+    # Triage with Ollama
+    triage = _triage_with_ollama(sender_name, sender_email, subject, body)
+    category        = triage.get("category", "unknown")
+    summary         = triage.get("summary", "")
+    suggested_action = triage.get("suggested_action", "")
+    reply_warranted = bool(triage.get("reply_warranted", False))
+
+    # Store pending action (telegram_message_id = 0 placeholder, updated below)
+    from jobs.telegram.pending import store_pending_action
+    payload = {
+        "uid":              msg_id,
+        "sender_email":     sender_email,
+        "sender_name":      sender_name,
+        "subject":          subject,
+        "body":             body[:2000],
+        "received_at":      received_at,
+        "category":         category,
+        "summary":          summary,
+        "suggested_action": suggested_action,
+        "reply_warranted":  reply_warranted,
+        "matched_member_id": matched_member_id,
+        "match_source":     match_source,
+    }
+    pending_id = store_pending_action("email_triage", 0, payload)
+
+    # Send triage prompt with inline buttons (pending_id embedded in callback_data)
+    tg_msg_id = _send_triage_prompt(
+        pending_id=pending_id,
+        category=category,
+        sender_name=sender_name,
+        sender_email=sender_email,
+        subject=subject,
+        summary=summary,
+        suggested_action=suggested_action,
+        reply_warranted=reply_warranted,
+    )
+
+    # Update tg_pending_actions with actual Telegram message_id
+    if tg_msg_id:
+        try:
+            conn = sqlite3.connect(DB_PATH)
+            conn.execute(
+                "UPDATE tg_pending_actions SET telegram_message_id=? WHERE id=?",
+                (tg_msg_id, pending_id),
+            )
+            conn.commit()
+            conn.close()
+        except Exception as exc:
+            log.error("Failed to update tg_pending_actions message_id: %s", exc)
+
+    log.info(
+        "Triage prompt sent — from=%s category=%s pending_id=%d",
+        sender_email, category, pending_id,
+    )
+
+
+# ── Action handlers (called from bot.py callbacks) ────────────────────────────
+
+def handle_ingest_action(payload: dict) -> str:
+    """Route email after Bill taps 'Ingest and work'. Returns a status string for Telegram."""
+    category        = payload.get("category", "unknown")
+    sender_email    = payload.get("sender_email", "")
+    sender_name     = payload.get("sender_name", "") or sender_email
+    subject         = payload.get("subject", "")
+    body            = payload.get("body", "")
+    received_at     = payload.get("received_at", "")
+    reply_warranted = payload.get("reply_warranted", False)
+    uid             = payload.get("uid", "")
+
+    if category in ("congregation", "known_contact"):
+        if reply_warranted:
+            email_dict = {
+                "message_id":   uid,
+                "sender_name":  sender_name,
+                "sender_email": sender_email,
+                "subject":      subject,
+                "body":         body,
+            }
+            try:
+                from jobs.email_reply.drafter import draft_reply
+                from jobs.email_reply.handler import save_pending, send_telegram_notification
+                draft = draft_reply(email_dict)
+                save_pending(email_dict, draft)
+                send_telegram_notification(email_dict, draft)
+                return f"✅ Draft reply queued for approval — {sender_name}"
+            except Exception as exc:
+                log.error("Reply draft pipeline failed: %s", exc)
+                return f"⚠️ Draft failed: {exc}"
+        else:
+            try:
+                conn = sqlite3.connect(DB_PATH)
+                conn.execute(
+                    """INSERT INTO gmail_inbox
+                       (from_address, subject, snippet, full_body, received_at, status, classification)
+                       VALUES (?, ?, ?, ?, ?, 'pastoral', ?)""",
+                    (sender_email, subject, body[:200], body, received_at, category),
+                )
+                conn.commit()
+                conn.close()
+            except Exception as exc:
+                log.error("gmail_inbox insert failed: %s", exc)
+            return f"✅ Logged for follow-up — {sender_name}"
+
+    if category in ("ministry", "unknown"):
+        try:
+            conn = sqlite3.connect(DB_PATH)
+            conn.execute(
+                """INSERT INTO ministry_emails
+                   (sender_email, sender_name, subject, body, received_at, category)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                (sender_email, sender_name, subject, body, received_at, category),
+            )
+            conn.commit()
+            conn.close()
+        except Exception as exc:
+            log.error("ministry_emails insert failed: %s", exc)
+        return f"✅ Logged in ministry inbox — {sender_name}"
+
+    if category in ("newsletter", "notification", "receipt"):
+        if uid:
+            try:
+                mark_as_read(uid)
+            except Exception as exc:
+                log.error("mark_as_read failed: %s", exc)
+        return f"✅ Marked as read — {subject[:60]}"
+
+    if category == "spam":
+        if uid:
+            try:
+                delete_email(uid)
+            except Exception as exc:
+                log.error("delete_email failed: %s", exc)
+        return "🗑️ Deleted (spam)"
+
+    return f"✅ Logged — {sender_name}"
+
+
+def handle_markread_action(payload: dict) -> str:
+    """Mark the email as read after Bill taps 'Mark as read'."""
+    uid = payload.get("uid", "")
+    subject = payload.get("subject", "")
+    if uid:
+        try:
+            mark_as_read(uid)
+        except Exception as exc:
+            log.error("mark_as_read failed: %s", exc)
+            return f"⚠️ Could not mark as read: {exc}"
+    return f"✅ Marked as read — {subject[:60]}"
+
+
+def handle_delete_action(payload: dict) -> str:
+    """Delete (trash) the email after Bill taps 'Delete'."""
+    uid = payload.get("uid", "")
+    if uid:
+        try:
+            delete_email(uid)
+        except Exception as exc:
+            log.error("delete_email failed: %s", exc)
+            return f"⚠️ Could not delete: {exc}"
+    return "🗑️ Deleted"
+
+
+# ── Main run loop ──────────────────────────────────────────────────────────────
+
 def run():
-    init_gmail_inbox()
+    _init_tables()
     emails = get_unread()
     log.info("Found %d unread email(s)", len(emails))
 
-    for email in emails:
-        msg_id    = email["id"]
-        sender    = email["sender"]
-        subject   = email["subject"]
-        body      = email["body"]
-        received_at = email.get("date") or datetime.utcnow().isoformat()
-        snippet   = body[:200]
+    for msg in emails:
+        msg_id      = msg["id"]
+        sender_raw  = msg["sender"]
+        subject     = msg["subject"]
+        body        = msg["body"]
+        received_at = msg.get("date") or datetime.utcnow().isoformat()
 
-        addr = _extract_address(sender)
+        addr = _extract_address(sender_raw)
+        name = _extract_name(sender_raw)
 
-        # Bill's emails — handled as directives (includes forwarded team emails)
+        # Bill's own email — directive path (unchanged behavior)
         if addr in WHITELIST:
-            _handle_bill_email(sender, subject, body, received_at, msg_id)
+            _handle_bill_email(sender_raw, subject, body, received_at, msg_id)
             mark_as_read(msg_id)
             continue
 
-        # Non-Bill forwarded emails — check for team inbound match
+        # Non-Bill forwarded team emails (unchanged behavior)
         if is_forwarded_email(subject, body):
             result = process_inbound(subject, body, received_at)
             if result.get("matched"):
                 mark_as_read(msg_id)
-                log.info("Team inbound matched: %s (tasks_created=%d)", result.get("member_name"), result.get("tasks_created", 0))
+                log.info(
+                    "Team inbound matched: %s (tasks_created=%d)",
+                    result.get("member_name"),
+                    result.get("tasks_created", 0),
+                )
                 continue
 
-        classification = _classify(sender, subject, snippet)
-        log.info("%-10s | %s | %s", classification.upper(), sender[:40], subject[:60])
-
-        mark_as_read(msg_id)
-
-        if classification == "discard":
-            continue
-
-        _store(sender, subject, snippet, body, received_at, classification)
-
-        if classification == "urgent":
-            _send_telegram(sender, subject, snippet)
+        # All other email — triage and prompt Bill; never mark read here
+        _handle_non_whitelist(
+            msg_id=msg_id,
+            sender_name=name,
+            sender_email=addr,
+            subject=subject,
+            body=body,
+            received_at=received_at,
+        )
 
 
 if __name__ == "__main__":

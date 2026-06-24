@@ -1846,6 +1846,63 @@ async def handle_email_callback(update: Update, context: ContextTypes.DEFAULT_TY
         await query.edit_message_text("Discarded.", reply_markup=None)
 
 
+async def handle_email_triage_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    if not _is_authorized(update):
+        return
+
+    data = query.data
+    from jobs.telegram.pending import get_pending_by_message_id, mark_done, mark_cancelled
+
+    if data.startswith("et_ingest:"):
+        pending_id = int(data[len("et_ingest:"):])
+    elif data.startswith("et_markread:"):
+        pending_id = int(data[len("et_markread:"):])
+    elif data.startswith("et_delete:"):
+        pending_id = int(data[len("et_delete:"):])
+    else:
+        return
+
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT id, type, payload FROM tg_pending_actions WHERE id=? AND status='pending'",
+            (pending_id,),
+        ).fetchone()
+
+    if not row:
+        await query.edit_message_text("⚠️ Action expired or already resolved.", reply_markup=None)
+        return
+
+    import json as _json
+    payload = _json.loads(row["payload"])
+
+    if data.startswith("et_ingest:"):
+        import asyncio
+        from jobs.email_intake import handle_ingest_action
+        msg = await asyncio.to_thread(handle_ingest_action, payload)
+        with get_connection() as conn:
+            conn.execute("UPDATE tg_pending_actions SET status='done' WHERE id=?", (pending_id,))
+        await query.edit_message_text(msg, reply_markup=None)
+
+    elif data.startswith("et_markread:"):
+        import asyncio
+        from jobs.email_intake import handle_markread_action
+        msg = await asyncio.to_thread(handle_markread_action, payload)
+        with get_connection() as conn:
+            conn.execute("UPDATE tg_pending_actions SET status='done' WHERE id=?", (pending_id,))
+        await query.edit_message_text(msg, reply_markup=None)
+
+    elif data.startswith("et_delete:"):
+        import asyncio
+        from jobs.email_intake import handle_delete_action
+        msg = await asyncio.to_thread(handle_delete_action, payload)
+        with get_connection() as conn:
+            conn.execute("UPDATE tg_pending_actions SET status='done' WHERE id=?", (pending_id,))
+        await query.edit_message_text(msg, reply_markup=None)
+
+
 async def handle_command_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
 
@@ -2665,6 +2722,7 @@ def main():
     app.add_handler(CallbackQueryHandler(handle_reject_callback, pattern=r"^reject:"))
     app.add_handler(CallbackQueryHandler(handle_room_callback, pattern=r"^room_(?:approve|deny):"))
     app.add_handler(CallbackQueryHandler(handle_facebook_callback, pattern=r"^fb_"))
+    app.add_handler(CallbackQueryHandler(handle_email_triage_callback, pattern=r"^et_"))
     app.add_handler(CallbackQueryHandler(handle_email_callback, pattern=r"^email_"))
     app.add_handler(CallbackQueryHandler(handle_book_callback, pattern=r"^book_"))
     app.add_handler(CallbackQueryHandler(handle_menu_callback, pattern=r"^menu_"))
