@@ -3895,6 +3895,55 @@ def admin_email():
     return jsonify({"success": True})
 
 
+@app.route("/admin/member", methods=["POST"])
+def admin_add_member():
+    redir = _admin_required()
+    if redir:
+        return jsonify({"error": "not authenticated"}), 401
+    data = request.get_json(force=True) or {}
+    first_name = (data.get("first_name") or "").strip()
+    last_name  = (data.get("last_name")  or "").strip()
+    role       = (data.get("role")       or "").strip()
+    ministry   = (data.get("ministry")   or "").strip()
+    email      = (data.get("email")      or "").strip()
+    phone      = (data.get("phone")      or "").strip() or None
+    if not first_name or not last_name or not role or not ministry or not email:
+        return jsonify({"error": "first_name, last_name, role, ministry, and email are required"}), 400
+    name  = f"{first_name} {last_name}"
+    today = datetime.now().date().isoformat()
+    now   = datetime.now().isoformat(timespec="seconds")
+    db = _db()
+    cur = db.execute(
+        """INSERT INTO team_members
+               (name, email, phone, role, ministry, active, status, last_activity_date, created_at)
+           VALUES (?, ?, ?, ?, ?, 1, 'active', ?, ?)""",
+        (name, email, phone, role, ministry, today, now),
+    )
+    db.commit()
+    member_id = cur.lastrowid
+    try:
+        _send_telegram(
+            f"👤 New team member added by Donna: {name}, {role} ({ministry})"
+        )
+    except Exception as exc:
+        log.warning("Telegram notify failed for new member: %s", exc)
+    return jsonify({"success": True, "member_id": member_id})
+
+
+@app.route("/admin/ministries")
+def admin_ministries():
+    redir = _admin_required()
+    if redir:
+        return jsonify({"error": "not authenticated"}), 401
+    db = _db()
+    rows = db.execute(
+        "SELECT DISTINCT ministry FROM team_members"
+        " WHERE ministry IS NOT NULL AND ministry != ''"
+        " ORDER BY ministry COLLATE NOCASE"
+    ).fetchall()
+    return jsonify({"ministries": [r["ministry"] for r in rows]})
+
+
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":

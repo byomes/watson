@@ -423,6 +423,63 @@ html, body {
 /* Loading */
 .loading-text { text-align: center; padding: 24px; color: var(--muted); font-size: 13px; }
 
+/* Add-leader panel */
+#add-leader-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+.al-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.al-title { font-size: 14px; font-weight: 700; }
+.al-close {
+  background: none; border: none; color: var(--muted);
+  font-size: 22px; cursor: pointer; line-height: 1; padding: 4px;
+}
+.al-close:hover { color: var(--text); }
+.al-form {
+  padding: 20px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+@media (max-width: 600px) { .al-form { grid-template-columns: 1fr; } }
+.al-field { display: flex; flex-direction: column; gap: 5px; }
+.al-field.full { grid-column: 1 / -1; }
+.al-field label {
+  font-size: 11px; font-family: 'DM Mono', monospace;
+  text-transform: uppercase; letter-spacing: .07em; color: var(--muted);
+}
+.al-inp {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r-btn);
+  padding: 9px 11px;
+  color: var(--text); font-size: 13px; font-family: inherit;
+  outline: none; transition: border-color .15s;
+}
+.al-inp:focus { border-color: var(--gold); }
+.al-inp::placeholder { color: var(--muted); }
+.al-footer {
+  grid-column: 1 / -1;
+  display: flex; align-items: center; gap: 12px; margin-top: 4px;
+}
+.al-submit {
+  padding: 9px 22px;
+  background: var(--gold); border: none; border-radius: var(--r-btn);
+  color: #0f0f0f; font-size: 13px; font-weight: 700; font-family: inherit;
+  cursor: pointer; transition: opacity .15s;
+}
+.al-submit:hover { opacity: .85; }
+.al-submit:disabled { opacity: .5; cursor: default; }
+.al-err { font-size: 12px; color: var(--red); }
+.al-ok  { font-size: 12px; color: var(--green); font-family: 'DM Mono', monospace; }
+
 /* Theme pill */
 .theme-pill {
   display: flex; align-items: center;
@@ -462,6 +519,7 @@ html, body {
     <div id="hdr-title">TEAM ADMIN</div>
     <div id="hdr-sub">Catalyst Community Church — Leadership</div>
   </div>
+  <button class="hdr-btn hdr-btn-outline" onclick="openAddLeader()">Add leader</button>
   <button class="hdr-btn hdr-btn-outline" onclick="openComposeModal()">Compose</button>
   <button class="hdr-btn hdr-btn-primary" onclick="openTaskModal()">Assign Task</button>
   <div class="theme-pill">
@@ -472,6 +530,51 @@ html, body {
 </header>
 
 <div id="content">
+
+  <!-- Add leader panel -->
+  <div id="add-leader-panel" style="display:none">
+    <div class="al-header">
+      <div class="al-title">Add team member</div>
+      <button class="al-close" onclick="closeAddLeader()">×</button>
+    </div>
+    <div class="al-form" id="al-form">
+      <div class="al-field">
+        <label>First name <span style="color:var(--red)">*</span></label>
+        <input class="al-inp" id="al-first" placeholder="First name" autocomplete="off">
+      </div>
+      <div class="al-field">
+        <label>Last name <span style="color:var(--red)">*</span></label>
+        <input class="al-inp" id="al-last" placeholder="Last name" autocomplete="off">
+      </div>
+      <div class="al-field">
+        <label>Role / title <span style="color:var(--red)">*</span></label>
+        <input class="al-inp" id="al-role" placeholder="e.g. Worship Leader" autocomplete="off">
+      </div>
+      <div class="al-field">
+        <label>Ministry <span style="color:var(--red)">*</span></label>
+        <select class="al-inp" id="al-ministry" onchange="onMinistryChange()">
+          <option value="">Loading…</option>
+        </select>
+      </div>
+      <div class="al-field" id="al-ministry-other-wrap" style="display:none">
+        <label>Ministry (custom)</label>
+        <input class="al-inp" id="al-ministry-other" placeholder="Enter ministry name" autocomplete="off">
+      </div>
+      <div class="al-field">
+        <label>Email <span style="color:var(--red)">*</span></label>
+        <input class="al-inp" id="al-email" type="email" placeholder="email@example.com" autocomplete="off">
+      </div>
+      <div class="al-field">
+        <label>Phone (optional)</label>
+        <input class="al-inp" id="al-phone" type="tel" placeholder="e.g. 555-867-5309" autocomplete="off">
+      </div>
+      <div class="al-footer">
+        <button class="al-submit" id="al-submit-btn" onclick="submitAddLeader()">Add to team</button>
+        <span class="al-err" id="al-err"></span>
+        <span class="al-ok"  id="al-ok"></span>
+      </div>
+    </div>
+  </div>
 
   <!-- Stats -->
   <div class="stats-grid">
@@ -1003,6 +1106,92 @@ document.getElementById('compose-modal').addEventListener('click', e => {
 document.getElementById('task-modal').addEventListener('click', e => {
   if (e.target === e.currentTarget) closeTaskModal();
 });
+
+// ── Add leader ────────────────────────────────────────────────────────────────
+let _ministriesLoaded = false;
+
+async function openAddLeader() {
+  const panel = document.getElementById('add-leader-panel');
+  if (panel.style.display !== 'none') { closeAddLeader(); return; }
+  panel.style.display = 'block';
+  panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  if (!_ministriesLoaded) await _loadMinistries();
+}
+
+function closeAddLeader() {
+  document.getElementById('add-leader-panel').style.display = 'none';
+  ['al-first','al-last','al-role','al-email','al-phone'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  const sel = document.getElementById('al-ministry');
+  if (sel) sel.value = sel.options[0]?.value || '';
+  document.getElementById('al-ministry-other-wrap').style.display = 'none';
+  document.getElementById('al-ministry-other').value = '';
+  document.getElementById('al-err').textContent = '';
+  document.getElementById('al-ok').textContent  = '';
+}
+
+async function _loadMinistries() {
+  const res  = await fetch('/admin/ministries');
+  const data = await res.json();
+  const sel  = document.getElementById('al-ministry');
+  sel.innerHTML = '<option value="">Select ministry…</option>';
+  (data.ministries || []).forEach(m => {
+    const opt = document.createElement('option');
+    opt.value = m; opt.textContent = m;
+    sel.appendChild(opt);
+  });
+  const other = document.createElement('option');
+  other.value = '__other__'; other.textContent = 'Other…';
+  sel.appendChild(other);
+  _ministriesLoaded = true;
+}
+
+function onMinistryChange() {
+  const sel  = document.getElementById('al-ministry');
+  const wrap = document.getElementById('al-ministry-other-wrap');
+  wrap.style.display = sel.value === '__other__' ? 'block' : 'none';
+  if (sel.value !== '__other__') document.getElementById('al-ministry-other').value = '';
+}
+
+async function submitAddLeader() {
+  const err = document.getElementById('al-err');
+  const ok  = document.getElementById('al-ok');
+  const btn = document.getElementById('al-submit-btn');
+  err.textContent = ''; ok.textContent = '';
+
+  const first    = document.getElementById('al-first').value.trim();
+  const last     = document.getElementById('al-last').value.trim();
+  const role     = document.getElementById('al-role').value.trim();
+  const selVal   = document.getElementById('al-ministry').value;
+  const ministry = selVal === '__other__'
+    ? document.getElementById('al-ministry-other').value.trim()
+    : selVal;
+  const email    = document.getElementById('al-email').value.trim();
+  const phone    = document.getElementById('al-phone').value.trim();
+
+  if (!first || !last || !role || !ministry || !email) {
+    err.textContent = 'All required fields must be filled in.'; return;
+  }
+
+  btn.disabled = true;
+  const res  = await fetch('/admin/member', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ first_name: first, last_name: last, role, ministry, email, phone: phone || null }),
+  });
+  const data = await res.json();
+  btn.disabled = false;
+
+  if (!data.success) { err.textContent = data.error || 'Failed to add member.'; return; }
+
+  ok.textContent = 'Leader added.';
+  _ministriesLoaded = false; // refresh ministry list on next open
+
+  // Refresh the table by reloading the page after a brief confirmation pause
+  setTimeout(() => { window.location.reload(); }, 1200);
+}
 
 // ── Theme toggle ──────────────────────────────────────────────────────────────
 function _syncThemePill(t) {
