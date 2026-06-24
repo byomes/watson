@@ -915,6 +915,7 @@ const TeamApp = (() => {
     loadTasks,
     filterTasks,
     checkTaskGlobal,
+    deleteTask,
     showAddTaskModal,
     closeAddTask,
     saveNewTask,
