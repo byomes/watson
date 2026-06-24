@@ -32,7 +32,7 @@ def members_list():
     try:
         conn = _db()
         rows = conn.execute(
-            "SELECT * FROM team_members WHERE active=1 ORDER BY name COLLATE NOCASE"
+            "SELECT * FROM team_members WHERE active=1 ORDER BY COALESCE(sort_order, id) ASC, id ASC"
         ).fetchall()
         conn.close()
         return jsonify([dict(r) for r in rows])
@@ -83,6 +83,24 @@ def members_update(member_id):
         return jsonify(dict(row) if row else {"error": "not found"})
     except Exception as exc:
         log.error("members_update error: %s", exc)
+        return jsonify({"error": str(exc)}), 500
+
+
+@team_bp.route("/reorder", methods=["POST"])
+def members_reorder():
+    try:
+        data = request.get_json(force=True) or {}
+        order = data.get("order", [])
+        if not isinstance(order, list) or not order:
+            return jsonify({"error": "order must be a non-empty array"}), 400
+        conn = _db()
+        for i, member_id in enumerate(order):
+            conn.execute("UPDATE team_members SET sort_order=? WHERE id=?", (i, member_id))
+        conn.commit()
+        conn.close()
+        return jsonify({"success": True})
+    except Exception as exc:
+        log.error("members_reorder error: %s", exc)
         return jsonify({"error": str(exc)}), 500
 
 

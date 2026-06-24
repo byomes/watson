@@ -9,9 +9,11 @@ const TeamApp = (() => {
   let _currentMember = null;
   let _currentProfile = null;
   let _editMode = false;
-  let _taskFilter = 'open';
+  let _taskFilter = 'all';
   let _ministryFilter = 'all';
   let _importExtracted = null;
+  let _dragStartIdx = null;
+  let _dragInitialized = false;
 
   // ── API helpers ─────────────────────────────────────────────
 
@@ -96,6 +98,7 @@ const TeamApp = (() => {
       _members = await _get('/api/team/members');
       _renderMinistryChips();
       _renderMembers();
+      _initDrag();
     } catch(e) {
       document.getElementById('members-list').innerHTML =
         '<div class="empty-state">Failed to load members</div>';
@@ -137,7 +140,7 @@ const TeamApp = (() => {
     list.innerHTML = filtered.map(m => {
       const taskCount = m.open_task_count || 0;
       return `
-        <div class="card member-card" onclick="TeamApp.openProfile(${m.id})">
+        <div class="card member-card" draggable="true" data-member-id="${m.id}" onclick="TeamApp.openProfile(${m.id})">
           <div class="avatar">${_initials(m.name)}</div>
           <div class="member-info">
             <div class="member-name">${_esc(m.name)}</div>
@@ -147,9 +150,96 @@ const TeamApp = (() => {
               ${m.last_meeting_date ? `<span class="stat-badge">Last met ${m.last_meeting_date}</span>` : ''}
             </div>
           </div>
-          <div class="status-dot"></div>
+          <i class="ti ti-grip-vertical" style="font-size:20px;color:var(--muted);flex-shrink:0;cursor:grab;touch-action:none" onclick="event.stopPropagation()"></i>
         </div>`;
     }).join('');
+  }
+
+  function _getListOrder(list) {
+    return [...list.querySelectorAll('.member-card')].map(c => parseInt(c.dataset.memberId)).filter(Boolean);
+  }
+
+  function _initDrag() {
+    if (_dragInitialized) return;
+    _dragInitialized = true;
+    const list = document.getElementById('members-list');
+    if (!list) return;
+
+    list.addEventListener('dragstart', e => {
+      const card = e.target.closest('.member-card');
+      if (!card) return;
+      _dragStartIdx = [...list.querySelectorAll('.member-card')].indexOf(card);
+      card.style.opacity = '0.4';
+      e.dataTransfer.effectAllowed = 'move';
+    });
+
+    list.addEventListener('dragend', e => {
+      const card = e.target.closest('.member-card');
+      if (card) card.style.opacity = '';
+      list.querySelectorAll('.member-card').forEach(c => c.style.borderTop = '');
+    });
+
+    list.addEventListener('dragover', e => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      const card = e.target.closest('.member-card');
+      list.querySelectorAll('.member-card').forEach(c => c.style.borderTop = '');
+      if (card) card.style.borderTop = '2px solid var(--gold)';
+    });
+
+    list.addEventListener('drop', e => {
+      e.preventDefault();
+      list.querySelectorAll('.member-card').forEach(c => { c.style.borderTop = ''; c.style.opacity = ''; });
+      const card = e.target.closest('.member-card');
+      if (!card || _dragStartIdx === null) return;
+      const cards = [...list.querySelectorAll('.member-card')];
+      const dropIdx = cards.indexOf(card);
+      if (dropIdx === _dragStartIdx) { _dragStartIdx = null; return; }
+      const dragged = cards[_dragStartIdx];
+      if (_dragStartIdx < dropIdx) list.insertBefore(dragged, card.nextSibling);
+      else list.insertBefore(dragged, card);
+      _dragStartIdx = null;
+      _post('/api/team/reorder', {order: _getListOrder(list)}).catch(() => {});
+    });
+
+    // Touch drag
+    let _tCard = null, _tStartY = 0, _tStartIdx = null;
+
+    list.addEventListener('touchstart', e => {
+      const card = e.target.closest('.member-card');
+      if (!card) return;
+      _tCard = card;
+      _tStartY = e.touches[0].clientY;
+      _tStartIdx = [...list.querySelectorAll('.member-card')].indexOf(card);
+    }, {passive: true});
+
+    list.addEventListener('touchmove', e => {
+      if (!_tCard) return;
+      e.preventDefault();
+      const touch = e.touches[0];
+      _tCard.style.opacity = '0.4';
+      list.querySelectorAll('.member-card').forEach(c => c.style.borderTop = '');
+      const el = document.elementFromPoint(touch.clientX, touch.clientY);
+      const over = el && el.closest('.member-card');
+      if (over && over !== _tCard) over.style.borderTop = '2px solid var(--gold)';
+    }, {passive: false});
+
+    list.addEventListener('touchend', e => {
+      if (!_tCard) return;
+      const touch = e.changedTouches[0];
+      list.querySelectorAll('.member-card').forEach(c => { c.style.borderTop = ''; });
+      _tCard.style.opacity = '';
+      const el = document.elementFromPoint(touch.clientX, touch.clientY);
+      const over = el && el.closest('.member-card');
+      if (over && over !== _tCard && _tStartIdx !== null) {
+        const cards = [...list.querySelectorAll('.member-card')];
+        const dropIdx = cards.indexOf(over);
+        if (_tStartIdx < dropIdx) list.insertBefore(_tCard, over.nextSibling);
+        else list.insertBefore(_tCard, over);
+        _post('/api/team/reorder', {order: _getListOrder(list)}).catch(() => {});
+      }
+      _tCard = null; _tStartY = 0; _tStartIdx = null;
+    });
   }
 
   // ── Add leader ───────────────────────────────────────────────
