@@ -478,6 +478,7 @@ const TeamApp = (() => {
               <div class="task-meta" style="margin-top:4px;display:flex;flex-wrap:wrap;align-items:center;gap:6px">
                 ${memberBadge}
                 ${t.due_date ? `<span class="${od?'overdue':''}">Due ${t.due_date}</span>` : ''}
+                ${t.status==='done' ? `<button onclick="TeamApp.deleteTask(${t.id})" style="margin-left:auto;background:none;border:none;color:var(--red);cursor:pointer;font-size:12px;padding:2px 6px;border-radius:4px;border:1px solid rgba(201,80,76,.3)">Delete</button>` : ''}
               </div>
             </div>
           </div>
@@ -485,12 +486,20 @@ const TeamApp = (() => {
     }).join('');
   }
 
+  async function deleteTask(taskId) {
+    try {
+      await _del('/api/team/tasks/' + taskId);
+      _allTasks = _allTasks.filter(t => t.id !== taskId);
+      _renderTasks();
+    } catch(e) { alert('Error: ' + e.message); }
+  }
   async function checkTaskGlobal(taskId, el) {
     try {
       await _put(`/api/team/tasks/${taskId}`, {status: el.checked ? 'done' : 'open'});
       const task = _allTasks.find(t => t.id === taskId);
       if (task) task.status = el.checked ? 'done' : 'open';
-      _renderTasks();
+      if (el.checked) filterTasks('done', document.querySelector('[data-task-filter=done]'));
+      else _renderTasks();
     } catch(e) { alert('Error: ' + e.message); el.checked = !el.checked; }
   }
 
