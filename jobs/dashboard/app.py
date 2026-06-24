@@ -210,6 +210,9 @@ from jobs.writing_room import bootstrap_db as _wr_bootstrap
 _wr_bootstrap()
 app.register_blueprint(writing_room_bp)
 
+from jobs.team.api import team_bp
+app.register_blueprint(team_bp)
+
 _EMAIL_SIGNATURE = "---\nWatson\nAI-powered digital assistant\nOffice of Dr. Bill Yomes\nwilliamckyomes.com/start"
 
 
@@ -308,6 +311,11 @@ def serve_appjs():
 def index():
     import time
     return render_template('index.html', app_js_ts=int(time.time()))
+
+
+@app.route("/team")
+def team():
+    return render_template('team.html')
 
 
 @app.route("/api/status", methods=["GET"])
