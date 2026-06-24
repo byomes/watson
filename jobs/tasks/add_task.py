@@ -133,9 +133,9 @@ def run(message: str = None) -> str:
 
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute(
-            """INSERT INTO tasks (title, due_date, priority, status)
-               VALUES (?, ?, ?, 'active')""",
-            (title, due_date, priority),
+            """INSERT INTO team_tasks (member_id, title, due_date, status, source)
+               VALUES (12, ?, ?, 'open', 'personal')""",
+            (title, due_date),
         )
 
     parts = [f"Task added: {title}"]
