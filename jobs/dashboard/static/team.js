@@ -98,7 +98,7 @@ const TeamApp = (() => {
       _members = await _get('/api/team/members');
       _renderMinistryChips();
       _renderMembers();
-      _initDrag();
+      // _initDrag(); // drag-to-reorder disabled
     } catch(e) {
       document.getElementById('members-list').innerHTML =
         '<div class="empty-state">Failed to load members</div>';
@@ -150,7 +150,6 @@ const TeamApp = (() => {
               ${m.last_meeting_date ? `<span class="stat-badge">Last met ${m.last_meeting_date}</span>` : ''}
             </div>
           </div>
-          <i class="ti ti-grip-vertical" style="font-size:20px;color:var(--muted);flex-shrink:0;cursor:grab;touch-action:none" onclick="event.stopPropagation()"></i>
         </div>`;
     }).join('');
   }
@@ -159,88 +158,8 @@ const TeamApp = (() => {
     return [...list.querySelectorAll('.member-card')].map(c => parseInt(c.dataset.memberId)).filter(Boolean);
   }
 
-  function _initDrag() {
-    if (_dragInitialized) return;
-    _dragInitialized = true;
-    const list = document.getElementById('members-list');
-    if (!list) return;
-
-    list.addEventListener('dragstart', e => {
-      const card = e.target.closest('.member-card');
-      if (!card) return;
-      _dragStartIdx = [...list.querySelectorAll('.member-card')].indexOf(card);
-      card.style.opacity = '0.4';
-      e.dataTransfer.effectAllowed = 'move';
-    });
-
-    list.addEventListener('dragend', e => {
-      const card = e.target.closest('.member-card');
-      if (card) card.style.opacity = '';
-      list.querySelectorAll('.member-card').forEach(c => c.style.borderTop = '');
-    });
-
-    list.addEventListener('dragover', e => {
-      e.preventDefault();
-      e.dataTransfer.dropEffect = 'move';
-      const card = e.target.closest('.member-card');
-      list.querySelectorAll('.member-card').forEach(c => c.style.borderTop = '');
-      if (card) card.style.borderTop = '2px solid var(--gold)';
-    });
-
-    list.addEventListener('drop', e => {
-      e.preventDefault();
-      list.querySelectorAll('.member-card').forEach(c => { c.style.borderTop = ''; c.style.opacity = ''; });
-      const card = e.target.closest('.member-card');
-      if (!card || _dragStartIdx === null) return;
-      const cards = [...list.querySelectorAll('.member-card')];
-      const dropIdx = cards.indexOf(card);
-      if (dropIdx === _dragStartIdx) { _dragStartIdx = null; return; }
-      const dragged = cards[_dragStartIdx];
-      if (_dragStartIdx < dropIdx) list.insertBefore(dragged, card.nextSibling);
-      else list.insertBefore(dragged, card);
-      _dragStartIdx = null;
-      _post('/api/team/reorder', {order: _getListOrder(list)}).catch(() => {});
-    });
-
-    // Touch drag
-    let _tCard = null, _tStartY = 0, _tStartIdx = null;
-
-    list.addEventListener('touchstart', e => {
-      const card = e.target.closest('.member-card');
-      if (!card) return;
-      _tCard = card;
-      _tStartY = e.touches[0].clientY;
-      _tStartIdx = [...list.querySelectorAll('.member-card')].indexOf(card);
-    }, {passive: true});
-
-    list.addEventListener('touchmove', e => {
-      if (!_tCard) return;
-      e.preventDefault();
-      const touch = e.touches[0];
-      _tCard.style.opacity = '0.4';
-      list.querySelectorAll('.member-card').forEach(c => c.style.borderTop = '');
-      const el = document.elementFromPoint(touch.clientX, touch.clientY);
-      const over = el && el.closest('.member-card');
-      if (over && over !== _tCard) over.style.borderTop = '2px solid var(--gold)';
-    }, {passive: false});
-
-    list.addEventListener('touchend', e => {
-      if (!_tCard) return;
-      const touch = e.changedTouches[0];
-      list.querySelectorAll('.member-card').forEach(c => { c.style.borderTop = ''; });
-      _tCard.style.opacity = '';
-      const el = document.elementFromPoint(touch.clientX, touch.clientY);
-      const over = el && el.closest('.member-card');
-      if (over && over !== _tCard && _tStartIdx !== null) {
-        const cards = [...list.querySelectorAll('.member-card')];
-        const dropIdx = cards.indexOf(over);
-        if (_tStartIdx < dropIdx) list.insertBefore(_tCard, over.nextSibling);
-        else list.insertBefore(_tCard, over);
-        _post('/api/team/reorder', {order: _getListOrder(list)}).catch(() => {});
-      }
-      _tCard = null; _tStartY = 0; _tStartIdx = null;
-    });
-  }
+  // _initDrag disabled — drag-to-reorder UI removed
+  function _initDrag() {}
 
   // ── Add leader ───────────────────────────────────────────────
 

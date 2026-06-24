@@ -42,47 +42,33 @@ html, body {
 
 /* ── Header ─────────────────────────────────────────────────── */
 #hdr {
-  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 100;
   background: var(--bg);
   border-bottom: 1px solid var(--border);
-  display: flex; align-items: center; gap: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   padding: 10px 16px;
   padding-top: calc(10px + env(safe-area-inset-top));
   height: calc(57px + env(safe-area-inset-top));
 }
 #hdr-mark {
   width: 36px; height: 36px;
-  background: #111827; border-radius: 8px; flex-shrink: 0;
+  background: #111827;
+  border-radius: 8px;
+  flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
-  font-family: Georgia, serif; font-size: 22px; font-weight: 700;
-  color: #fff; line-height: 1;
+  font-family: Georgia, serif;
+  font-size: 22px; font-weight: 700;
+  color: #ffffff; line-height: 1;
+  text-decoration: none;
 }
 #hdr-text { flex: 1; min-width: 0; }
 #hdr-title { font-size: 14px; font-weight: 600; color: var(--gold); letter-spacing: .05em; }
-#hdr-sub   { font-size: 11px; color: var(--muted); margin-top: 1px; }
-
-/* ── Mode switcher ───────────────────────────────────────────── */
-#mode-switcher {
-  display: flex;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  padding: 2px;
-  gap: 2px;
-  flex-shrink: 0;
-}
-.mode-btn {
-  padding: 4px 12px;
-  border-radius: 16px;
-  font-size: 12px; font-weight: 500;
-  color: var(--muted);
-  text-decoration: none;
-  transition: all .15s;
-}
-.mode-btn.active {
-  background: var(--gold);
-  color: #000;
-}
+#hdr-sub { font-size: 11px; color: var(--muted); margin-top: 1px; }
+#hdr-date { font-size: 11px; color: var(--muted); flex-shrink: 0; text-align: right; white-space: nowrap; }
 
 /* ── Page content ────────────────────────────────────────────── */
 #page-content {
@@ -96,26 +82,40 @@ html, body {
 
 /* ── Bottom nav ─────────────────────────────────────────────── */
 #bnav {
-  position: fixed; bottom: 0; left: 0; right: 0;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
   z-index: 100;
-  background: var(--bg);
-  border-top: 1px solid var(--border);
+  padding-bottom: 34px;
+  margin-bottom: 0;
+  background: #0f0f0f;
+  padding-top: 8px;
+  height: auto;
+  border-top: 1px solid #2a2a2a;
   display: flex;
-  padding-bottom: env(safe-area-inset-bottom);
-  height: calc(60px + env(safe-area-inset-bottom));
+  align-items: center;
+  justify-content: space-around;
 }
 .bnav-btn {
+  flex: 1;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  margin: 0;
+  display: flex;
   flex-direction: column;
-  flex: 1; display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  gap: 2px; cursor: pointer;
-  background: none; border: none;
-  color: var(--muted); font-size: 10px; font-family: inherit;
+  align-items: center;
+  gap: 3px;
+  font-family: inherit;
+  color: var(--muted);
   transition: color .15s;
+  -webkit-tap-highlight-color: transparent;
 }
+.bnav-btn .ni { display: flex; align-items: center; justify-content: center; }
+.bnav-btn .nl { font-size: 10px; letter-spacing: .03em; }
 .bnav-btn.active { color: var(--gold); }
-.bnav-btn i { font-size: 20px; }
-.bnav-btn span { font-size: 10px; margin-top: 2px; }
 
 /* ── Tab panels ─────────────────────────────────────────────── */
 .tab-panel { display: none; padding: 12px; min-height: 100%; }
@@ -180,26 +180,38 @@ html, body {
 
 /* ── Profile panel ───────────────────────────────────────────── */
 #profile-panel {
-  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
   z-index: 200;
   background: var(--bg);
   transform: translateX(100%);
   transition: transform .25s ease;
   overflow-y: auto;
-  padding-top: env(safe-area-inset-top);
-  padding-bottom: env(safe-area-inset-bottom);
+  -webkit-overflow-scrolling: touch;
 }
 #profile-panel.open { transform: translateX(0); }
 .profile-header {
-  padding-top: calc(14px + env(safe-area-inset-top));
-  display: flex; align-items: center; gap: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
   padding: 14px 16px;
+  padding-top: calc(14px + env(safe-area-inset-top));
   border-bottom: 1px solid var(--border);
-  position: sticky; top: 0; background: var(--bg); z-index: 10;
+  position: sticky;
+  top: 0;
+  background: var(--bg);
+  z-index: 10;
 }
 .profile-header .back-btn {
-  background: none; border: none; color: var(--gold); cursor: pointer;
-  font-size: 22px; padding: 4px;
+  background: none;
+  border: none;
+  color: var(--gold);
+  cursor: pointer;
+  font-size: 22px;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  -webkit-tap-highlight-color: transparent;
 }
 .profile-body { padding: 16px; }
 
@@ -411,19 +423,21 @@ html, body {
 <body>
 
 <!-- Header -->
-<div id="hdr">
+<header id="hdr">
   <a id="hdr-mark" href="/team" style="text-decoration:none">W</a>
   <div id="hdr-text">
     <div id="hdr-title">WATSON</div>
     <div id="hdr-sub">Team</div>
   </div>
-  <a href="https://t.me/wckyWatsonbot" target="_blank" rel="noopener" style="color:#c9a84c;display:flex;align-items:center;flex-shrink:0;text-decoration:none"><i class="ti ti-brand-telegram" style="font-size:22px"></i></a>
-  <div id="hdr-date" style="font-size:11px;color:var(--muted);flex-shrink:0;text-align:right;white-space:nowrap;margin-left:auto"></div>
-  <div id="mode-switcher">
-    <a href="/" class="mode-btn">Dashboard</a>
-    <a href="/team" class="mode-btn active">Team</a>
+  <div style="display:flex;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:20px;padding:2px;gap:2px;flex-shrink:0">
+    <a href="/" style="padding:4px 12px;border-radius:16px;font-size:12px;font-weight:500;color:#666;text-decoration:none">Dashboard</a>
+    <a href="/team" style="padding:4px 12px;border-radius:16px;font-size:12px;font-weight:500;background:#c9a84c;color:#000;text-decoration:none">Team</a>
   </div>
-</div>
+  <a href="https://t.me/wckyWatsonbot" target="_blank" rel="noopener" style="color:#c9a84c;display:flex;align-items:center;flex-shrink:0;text-decoration:none">
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+  </a>
+  <div id="hdr-date"></div>
+</header>
 
 <!-- Page content -->
 <div id="page-content">
@@ -503,16 +517,20 @@ html, body {
 <!-- Bottom nav -->
 <nav id="bnav">
   <button class="bnav-btn active" onclick="TeamApp.switchTab('team',this)">
-    <i class="ti ti-users"></i><span>Team</span>
+    <span class="ni"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+    <span class="nl">Team</span>
   </button>
   <button class="bnav-btn" onclick="TeamApp.switchTab('tasks',this)">
-    <i class="ti ti-check"></i><span>Tasks</span>
+    <span class="ni"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>
+    <span class="nl">Tasks</span>
   </button>
   <button class="bnav-btn" onclick="TeamApp.switchTab('notes',this)">
-    <i class="ti ti-file-text"></i><span>Notes</span>
+    <span class="ni"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></span>
+    <span class="nl">Notes</span>
   </button>
   <button class="bnav-btn" onclick="TeamApp.switchTab('comms',this)">
-    <i class="ti ti-mail"></i><span>Comms</span>
+    <span class="ni"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></span>
+    <span class="nl">Comms</span>
   </button>
 </nav>
 
