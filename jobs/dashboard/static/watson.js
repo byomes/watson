@@ -59,21 +59,9 @@ function switchTab(page) {
   const navBtn = document.getElementById('nav-' + page);
   if (navBtn) navBtn.classList.add('active');
 
-  const pc     = document.getElementById('page-content');
-  const addBar = document.getElementById('add-task-bar');
-
-  if (page === 'tasks') {
-    pc.classList.add('has-add-bar');
-    addBar.classList.add('visible');
-  } else {
-    pc.classList.remove('has-add-bar');
-    addBar.classList.remove('visible');
-  }
-
   switch (page) {
     case 'home':      renderHome();      break;
     case 'briefing':  renderBriefing();  break;
-    case 'tasks':     renderTasks();     break;
     case 'reminders': renderReminders(); break;
     case 'more':      renderMore();      break;
     case 'chat':      renderChat();      break;
@@ -140,7 +128,7 @@ async function renderHome() {
   html += `
     <div class="sec-label">At a Glance</div>
     <div class="stats-row">
-      <div class="stat-card" style="cursor:pointer" onclick="switchTab('tasks')">
+      <div class="stat-card" style="cursor:pointer" onclick="window.location='/team'">
         <div class="stat-num">${activeTasks.length}</div>
         <div class="stat-lbl">Tasks</div>
       </div>
@@ -169,7 +157,7 @@ async function renderHome() {
           </div>
         </div>`;
     });
-    html += `<a class="view-all" onclick="switchTab('tasks')">View all tasks &rsaquo;</a>`;
+    html += `<a class="view-all" href="/team" style="text-decoration:none">View all tasks &rsaquo;</a>`;
   }
 
   setContent(html);
@@ -235,87 +223,6 @@ async function briefingAction(id, action, btnEl) {
     btnEl.textContent = orig;
   }
 }
-
-// ─── Tasks page ───────────────────────────────────────────────────────────────
-
-async function renderTasks() {
-  setContent('<div class="loading">Loading&hellip;</div>');
-  try {
-    const tasks = await api('/api/tasks');
-    renderTaskList(tasks);
-  } catch {
-    setContent('<div class="empty">Could not load tasks.</div>');
-  }
-}
-
-function renderTaskList(tasks) {
-  if (!Array.isArray(tasks) || !tasks.length) {
-    setContent('<div class="empty">No tasks yet.</div>');
-    return;
-  }
-  let html = '';
-  tasks.forEach(t => {
-    const done = t.status === 'done';
-    html += `
-      <div class="task-card" id="task-row-${t.id}">
-        <div class="task-check${done ? ' is-done' : ''}" onclick="completeTask(${t.id},this)"></div>
-        <div class="task-body">
-          <div class="task-title${done ? ' struck' : ''}">${esc(t.title)}</div>
-          <span class="pri ${priClass(t.priority)}">${priLabel(t.priority)}</span>
-        </div>
-      </div>`;
-  });
-  setContent(html);
-}
-
-async function completeTask(id, checkEl) {
-  if (!checkEl || checkEl.classList.contains('is-done')) return;
-  checkEl.classList.add('is-done');
-  const titleEl = checkEl.closest('.task-card')?.querySelector('.task-title');
-  if (titleEl) titleEl.classList.add('struck');
-  try {
-    await api(`/api/tasks/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'done' }),
-    });
-    await renderTasks();
-  } catch {
-    checkEl.classList.remove('is-done');
-    if (titleEl) titleEl.classList.remove('struck');
-  }
-}
-
-async function addTask() {
-  const input = document.getElementById('add-task-input');
-  const title = (input.value || '').trim();
-  if (!title) { input.focus(); return; }
-
-  const btn = document.getElementById('add-task-btn');
-  btn.textContent = '…';
-  btn.disabled = true;
-
-  try {
-    await api('/api/tasks', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, priority: 'normal' }),
-    });
-    input.value = '';
-    await renderTasks();
-  } catch {
-    alert('Failed to add task.');
-  } finally {
-    btn.textContent = 'Submit';
-    btn.disabled = false;
-  }
-}
-
-document.addEventListener('keydown', e => {
-  if (activePage === 'tasks' && e.key === 'Enter' && document.activeElement.id === 'add-task-input') {
-    addTask();
-  }
-});
 
 // ─── Reminders page ───────────────────────────────────────────────────────────
 
