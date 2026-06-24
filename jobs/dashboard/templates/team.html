@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="Watson">
+<meta name="theme-color" content="#0f0f0f">
+<title>Watson — Team</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.4.0/tabler-icons.min.css">
+<style>
+:root {
+  --bg:       #0f0f0f;
+  --surface:  #1a1a1a;
+  --surface2: #222;
+  --border:   #2a2a2a;
+  --gold:     #c9a84c;
+  --gold-dim: #8a6f2e;
+  --muted:    #666;
+  --green:    #4caf7d;
+  --red:      #c9504c;
+  --blue:     #4c7ec9;
+  --text:     #e8e8e8;
+  --r-card:   12px;
+  --r-btn:    6px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'DM Sans', -apple-system, sans-serif;
+  font-size: 15px;
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
+}
+
+/* ── Header ─────────────────────────────────────────────────── */
+#hdr {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 16px;
+  padding-top: calc(10px + env(safe-area-inset-top));
+  height: calc(57px + env(safe-area-inset-top));
+}
+#hdr-mark {
+  width: 36px; height: 36px;
+  background: #111827; border-radius: 8px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-family: Georgia, serif; font-size: 22px; font-weight: 700;
+  color: #fff; line-height: 1;
+}
+#hdr-text { flex: 1; min-width: 0; }
+#hdr-title { font-size: 14px; font-weight: 600; color: var(--gold); letter-spacing: .05em; }
+#hdr-sub   { font-size: 11px; color: var(--muted); margin-top: 1px; }
+
+/* ── Mode switcher ───────────────────────────────────────────── */
+#mode-switcher {
+  display: flex;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 2px;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.mode-btn {
+  padding: 4px 12px;
+  border-radius: 16px;
+  font-size: 12px; font-weight: 500;
+  color: var(--muted);
+  text-decoration: none;
+  transition: all .15s;
+}
+.mode-btn.active {
+  background: var(--gold);
+  color: #000;
+}
+
+/* ── Page content ────────────────────────────────────────────── */
+#page-content {
+  position: fixed;
+  top: calc(57px + env(safe-area-inset-top));
+  left: 0; right: 0;
+  bottom: calc(60px + env(safe-area-inset-bottom));
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ── Bottom nav ─────────────────────────────────────────────── */
+#bnav {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  z-index: 100;
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+  display: flex;
+  padding-bottom: env(safe-area-inset-bottom);
+  height: calc(60px + env(safe-area-inset-bottom));
+}
+.bnav-btn {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 2px; cursor: pointer;
+  background: none; border: none;
+  color: var(--muted); font-size: 10px; font-family: inherit;
+  transition: color .15s;
+}
+.bnav-btn.active { color: var(--gold); }
+.bnav-btn i { font-size: 20px; }
+
+/* ── Tab panels ─────────────────────────────────────────────── */
+.tab-panel { display: none; padding: 12px; min-height: 100%; }
+.tab-panel.active { display: block; }
+
+/* ── Chip filters ────────────────────────────────────────────── */
+.chip-row {
+  display: flex; gap: 6px; flex-wrap: wrap;
+  padding: 0 0 12px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.chip {
+  padding: 4px 12px; border-radius: 20px;
+  font-size: 12px; font-weight: 500;
+  background: var(--surface); border: 1px solid var(--border);
+  color: var(--muted); cursor: pointer; white-space: nowrap;
+  transition: all .15s;
+}
+.chip.active { background: var(--gold); color: #000; border-color: var(--gold); }
+
+/* ── Cards ───────────────────────────────────────────────────── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  padding: 14px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: border-color .15s;
+}
+.card:hover { border-color: var(--gold-dim); }
+
+.member-card {
+  display: flex; align-items: center; gap: 12px;
+}
+.avatar {
+  width: 44px; height: 44px; border-radius: 22px;
+  background: #1e3a5f;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; font-weight: 700; color: var(--gold);
+  flex-shrink: 0;
+}
+.member-info { flex: 1; min-width: 0; }
+.member-name { font-size: 15px; font-weight: 600; }
+.member-meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.member-stats { display: flex; gap: 8px; margin-top: 6px; }
+.stat-badge {
+  font-size: 11px; padding: 2px 8px; border-radius: 10px;
+  background: var(--surface2); color: var(--muted);
+}
+.stat-badge.warn { background: rgba(201,80,76,.2); color: var(--red); }
+.status-dot {
+  width: 8px; height: 8px; border-radius: 4px; flex-shrink: 0;
+  background: var(--green);
+}
+.ministry-badge {
+  font-size: 11px; padding: 2px 8px; border-radius: 10px;
+  background: rgba(201,168,76,.1); color: var(--gold);
+  margin-left: auto; flex-shrink: 0;
+}
+
+/* ── Profile panel ───────────────────────────────────────────── */
+#profile-panel {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  z-index: 200;
+  background: var(--bg);
+  transform: translateX(100%);
+  transition: transform .25s ease;
+  overflow-y: auto;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+#profile-panel.open { transform: translateX(0); }
+.profile-header {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; background: var(--bg); z-index: 10;
+}
+.profile-header .back-btn {
+  background: none; border: none; color: var(--gold); cursor: pointer;
+  font-size: 22px; padding: 4px;
+}
+.profile-body { padding: 16px; }
+
+/* ── Section headers ─────────────────────────────────────────── */
+.section-hdr {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 8px; margin-top: 16px;
+}
+.section-hdr h3 { font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+.add-btn {
+  background: none; border: 1px solid var(--border); border-radius: var(--r-btn);
+  padding: 3px 10px; font-size: 12px; color: var(--gold); cursor: pointer;
+  font-family: inherit;
+}
+
+/* ── Form inputs ─────────────────────────────────────────────── */
+.field-row { margin-bottom: 10px; }
+.field-row label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+.field-row input, .field-row textarea, .field-row select {
+  width: 100%; background: var(--surface2); border: 1px solid var(--border);
+  border-radius: var(--r-btn); padding: 8px 10px;
+  color: var(--text); font-family: inherit; font-size: 14px;
+  outline: none;
+}
+.field-row input:focus, .field-row textarea:focus { border-color: var(--gold-dim); }
+.field-row textarea { resize: vertical; min-height: 60px; }
+
+.btn-row { display: flex; gap: 8px; margin-top: 12px; }
+.btn {
+  padding: 8px 16px; border-radius: var(--r-btn); font-size: 13px; font-weight: 500;
+  cursor: pointer; font-family: inherit; border: none; transition: opacity .15s;
+}
+.btn:active { opacity: .8; }
+.btn-gold   { background: var(--gold); color: #000; }
+.btn-ghost  { background: var(--surface); border: 1px solid var(--border); color: var(--text); }
+.btn-red    { background: rgba(201,80,76,.15); color: var(--red); border: 1px solid var(--red); }
+.btn-green  { background: rgba(76,175,125,.15); color: var(--green); border: 1px solid var(--green); }
+
+/* ── Task items ──────────────────────────────────────────────── */
+.task-item {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.task-item:last-child { border-bottom: none; }
+.task-check {
+  width: 18px; height: 18px; border-radius: 4px;
+  border: 2px solid var(--border); background: none; cursor: pointer;
+  flex-shrink: 0; margin-top: 1px;
+  appearance: none; -webkit-appearance: none;
+  transition: all .15s;
+}
+.task-check:checked {
+  background: var(--green); border-color: var(--green);
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 10 8' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 4l3 3 5-6' stroke='%23000' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: center;
+}
+.task-content { flex: 1; min-width: 0; }
+.task-title   { font-size: 14px; line-height: 1.4; }
+.task-meta    { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.task-meta .overdue { color: var(--red); font-weight: 600; }
+
+/* ── Meeting items ───────────────────────────────────────────── */
+.meeting-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 14px;
+  background: var(--surface); border-radius: var(--r-card);
+  margin-bottom: 8px; cursor: pointer;
+  border: 1px solid var(--border);
+}
+.meeting-info { flex: 1; min-width: 0; }
+.meeting-date { font-size: 13px; font-weight: 600; }
+.meeting-excerpt { font-size: 12px; color: var(--muted); margin-top: 2px; line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.email-badge {
+  font-size: 11px; padding: 2px 8px; border-radius: 10px; flex-shrink: 0;
+}
+.email-badge.sent    { background: rgba(76,175,125,.15); color: var(--green); }
+.email-badge.pending { background: rgba(201,168,76,.1); color: var(--gold); }
+
+/* ── Meeting detail panel ────────────────────────────────────── */
+#meeting-panel {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  z-index: 300;
+  background: var(--bg);
+  transform: translateX(100%);
+  transition: transform .25s ease;
+  overflow-y: auto;
+  padding-top: env(safe-area-inset-top);
+}
+#meeting-panel.open { transform: translateX(0); }
+
+/* ── Transcript import ───────────────────────────────────────── */
+#import-panel {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  z-index: 400;
+  background: var(--bg);
+  transform: translateY(100%);
+  transition: transform .3s ease;
+  overflow-y: auto;
+  padding-top: env(safe-area-inset-top);
+}
+#import-panel.open { transform: translateY(0); }
+.step { display: none; padding: 16px; }
+.step.active { display: block; }
+.step-indicator {
+  font-size: 12px; color: var(--muted); margin-bottom: 16px;
+}
+
+/* ── Alerts ──────────────────────────────────────────────────── */
+.alert-banner {
+  background: rgba(201,80,76,.1);
+  border: 1px solid rgba(201,80,76,.3);
+  border-radius: var(--r-card);
+  padding: 10px 14px;
+  font-size: 13px; color: var(--red);
+  margin-bottom: 12px;
+  display: none;
+}
+.alert-banner.show { display: block; }
+
+/* ── Empty states ────────────────────────────────────────────── */
+.empty-state {
+  text-align: center; color: var(--muted);
+  padding: 40px 20px; font-size: 14px;
+}
+.empty-state i { font-size: 36px; display: block; margin-bottom: 10px; opacity: .4; }
+
+/* ── Add leader search ───────────────────────────────────────── */
+#add-leader-bar {
+  display: flex; gap: 8px;
+  margin-bottom: 12px;
+}
+#add-leader-bar input {
+  flex: 1; background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-btn); padding: 8px 12px;
+  color: var(--text); font-family: inherit; font-size: 14px; outline: none;
+}
+#search-results {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+.search-result-item {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  font-size: 14px;
+  transition: background .1s;
+}
+.search-result-item:last-child { border-bottom: none; }
+.search-result-item:hover { background: var(--surface2); }
+.search-result-item .sub { font-size: 12px; color: var(--muted); margin-top: 1px; }
+
+/* ── Comms stats ─────────────────────────────────────────────── */
+.stats-row {
+  display: flex; gap: 8px; margin-bottom: 14px;
+}
+.stat-card {
+  flex: 1; background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-card); padding: 12px; text-align: center;
+}
+.stat-card .stat-num  { font-size: 24px; font-weight: 600; color: var(--gold); }
+.stat-card .stat-label{ font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+/* ── Message item ────────────────────────────────────────────── */
+.msg-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 14px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-card); margin-bottom: 8px;
+  cursor: pointer;
+}
+.msg-info { flex: 1; min-width: 0; }
+.msg-name    { font-size: 14px; font-weight: 600; }
+.msg-preview { font-size: 12px; color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.msg-date    { font-size: 11px; color: var(--muted); flex-shrink: 0; }
+.msg-unread  { width: 8px; height: 8px; border-radius: 4px; background: var(--gold); flex-shrink: 0; }
+
+/* ── Loading spinner ─────────────────────────────────────────── */
+.spinner {
+  display: inline-block; width: 20px; height: 20px;
+  border: 2px solid var(--border); border-top-color: var(--gold);
+  border-radius: 50%; animation: spin .6s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-row { text-align: center; padding: 30px; color: var(--muted); font-size: 13px; }
+
+/* ── Misc ────────────────────────────────────────────────────── */
+.inline-edit { display: none; }
+.inline-edit.show { display: block; }
+.text-muted  { color: var(--muted); }
+.text-red    { color: var(--red); }
+.text-gold   { color: var(--gold); }
+.text-green  { color: var(--green); }
+.divider     { height: 1px; background: var(--border); margin: 12px 0; }
+.list-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 14px;
+}
+.list-item:last-child { border-bottom: none; }
+.list-item .del-btn {
+  background: none; border: none; color: var(--red); cursor: pointer;
+  font-size: 16px; padding: 2px 6px;
+}
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div id="hdr">
+  <div id="hdr-mark">W</div>
+  <div id="hdr-text">
+    <div id="hdr-title">WATSON</div>
+    <div id="hdr-sub">Team</div>
+  </div>
+  <div id="mode-switcher">
+    <a href="/" class="mode-btn">Dashboard</a>
+    <a href="/team" class="mode-btn active">Team</a>
+  </div>
+</div>
+
+<!-- Page content -->
+<div id="page-content">
+
+  <!-- TAB 1: TEAM -->
+  <div id="tab-team" class="tab-panel active">
+    <div id="ministry-chips" class="chip-row">
+      <div class="chip active" data-ministry="all">All</div>
+    </div>
+    <div id="add-leader-bar">
+      <input id="leader-search-input" type="text" placeholder="Search to add a leader…" autocomplete="off">
+      <button class="btn btn-gold" onclick="TeamApp.startAddLeader()">+ Add</button>
+    </div>
+    <div id="search-results" style="display:none"></div>
+    <div id="add-leader-form" style="display:none">
+      <div class="card">
+        <div class="field-row"><label>Name *</label><input id="new-name" type="text"></div>
+        <div class="field-row"><label>Email</label><input id="new-email" type="email"></div>
+        <div class="field-row"><label>Phone</label><input id="new-phone" type="tel"></div>
+        <div class="field-row"><label>Role</label><input id="new-role" type="text"></div>
+        <div class="field-row"><label>Ministry</label><input id="new-ministry" type="text"></div>
+        <div class="field-row"><label>Notes</label><textarea id="new-notes"></textarea></div>
+        <div class="btn-row">
+          <button class="btn btn-gold" onclick="TeamApp.saveNewLeader()">Save Leader</button>
+          <button class="btn btn-ghost" onclick="TeamApp.cancelAdd()">Cancel</button>
+        </div>
+      </div>
+    </div>
+    <div id="members-list"></div>
+  </div>
+
+  <!-- TAB 2: TASKS -->
+  <div id="tab-tasks" class="tab-panel">
+    <div class="chip-row">
+      <div class="chip active" data-task-filter="open" onclick="TeamApp.filterTasks('open',this)">Open</div>
+      <div class="chip" data-task-filter="overdue" onclick="TeamApp.filterTasks('overdue',this)">Overdue</div>
+      <div class="chip" data-task-filter="week" onclick="TeamApp.filterTasks('week',this)">This Week</div>
+      <div class="chip" data-task-filter="month" onclick="TeamApp.filterTasks('month',this)">This Month</div>
+      <div class="chip" data-task-filter="done" onclick="TeamApp.filterTasks('done',this)">Done</div>
+    </div>
+    <div id="overdue-banner" class="alert-banner">
+      ⚠️ Watson alert: Team members have overdue tasks.
+    </div>
+    <button class="btn btn-ghost" style="margin-bottom:12px;width:100%" onclick="TeamApp.showAddTaskModal()">+ Add Task</button>
+    <div id="tasks-list"></div>
+  </div>
+
+  <!-- TAB 3: NOTES -->
+  <div id="tab-notes" class="tab-panel">
+    <button class="btn btn-gold" style="margin-bottom:14px;width:100%" onclick="TeamApp.openImport()">
+      <i class="ti ti-upload"></i> Import Transcript
+    </button>
+    <div id="meetings-list"></div>
+  </div>
+
+  <!-- TAB 4: COMMS -->
+  <div id="tab-comms" class="tab-panel">
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-num" id="stat-sent">—</div>
+        <div class="stat-label">Sent this week</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num" id="stat-awaiting">—</div>
+        <div class="stat-label">Awaiting reply</div>
+      </div>
+    </div>
+    <button class="btn btn-gold" style="margin-bottom:14px;width:100%" onclick="TeamApp.showCompose()">
+      <i class="ti ti-mail"></i> Message Team
+    </button>
+    <div id="messages-list"></div>
+  </div>
+
+</div>
+
+<!-- Bottom nav -->
+<nav id="bnav">
+  <button class="bnav-btn active" onclick="TeamApp.switchTab('team',this)">
+    <i class="ti ti-users"></i>Team
+  </button>
+  <button class="bnav-btn" onclick="TeamApp.switchTab('tasks',this)">
+    <i class="ti ti-check"></i>Tasks
+  </button>
+  <button class="bnav-btn" onclick="TeamApp.switchTab('notes',this)">
+    <i class="ti ti-file-text"></i>Notes
+  </button>
+  <button class="bnav-btn" onclick="TeamApp.switchTab('comms',this)">
+    <i class="ti ti-mail"></i>Comms
+  </button>
+</nav>
+
+<!-- Profile Panel -->
+<div id="profile-panel">
+  <div class="profile-header">
+    <button class="back-btn" onclick="TeamApp.closeProfile()">
+      <i class="ti ti-arrow-left"></i>
+    </button>
+    <div style="flex:1">
+      <div id="profile-name" style="font-size:16px;font-weight:600"></div>
+      <div id="profile-meta" style="font-size:12px;color:var(--muted)"></div>
+    </div>
+    <button class="btn btn-ghost" id="profile-edit-btn" onclick="TeamApp.toggleProfileEdit()">Edit</button>
+  </div>
+  <div class="profile-body" id="profile-body"></div>
+</div>
+
+<!-- Meeting Detail Panel -->
+<div id="meeting-panel">
+  <div class="profile-header">
+    <button class="back-btn" onclick="TeamApp.closeMeeting()">
+      <i class="ti ti-arrow-left"></i>
+    </button>
+    <div style="flex:1">
+      <div id="meeting-panel-title" style="font-size:16px;font-weight:600"></div>
+    </div>
+  </div>
+  <div id="meeting-panel-body" style="padding:16px"></div>
+</div>
+
+<!-- Transcript Import Panel -->
+<div id="import-panel">
+  <div class="profile-header">
+    <button class="back-btn" onclick="TeamApp.closeImport()">
+      <i class="ti ti-x"></i>
+    </button>
+    <div style="flex:1;font-size:16px;font-weight:600">Import Transcript</div>
+  </div>
+
+  <!-- Step 1: Select member -->
+  <div id="import-step-1" class="step active">
+    <div class="step-indicator">Step 1 of 4 — Select leader</div>
+    <div class="field-row">
+      <label>Leader</label>
+      <select id="import-member-select">
+        <option value="">— choose —</option>
+      </select>
+    </div>
+    <div class="field-row">
+      <label>Meeting Date</label>
+      <input id="import-date" type="date">
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-gold" onclick="TeamApp.importNext(2)">Next</button>
+    </div>
+  </div>
+
+  <!-- Step 2: Paste transcript -->
+  <div id="import-step-2" class="step">
+    <div class="step-indicator">Step 2 of 4 — Paste transcript</div>
+    <div class="field-row">
+      <label>Transcript</label>
+      <textarea id="import-transcript" style="min-height:200px" placeholder="Paste the meeting transcript here…"></textarea>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="TeamApp.importNext(1)">Back</button>
+      <button class="btn btn-gold" onclick="TeamApp.processTranscript()">Process</button>
+    </div>
+  </div>
+
+  <!-- Step 3: Processing -->
+  <div id="import-step-3" class="step">
+    <div class="step-indicator">Step 3 of 4 — Processing…</div>
+    <div class="loading-row"><div class="spinner"></div><br>Watson is extracting…</div>
+  </div>
+
+  <!-- Step 4: Review -->
+  <div id="import-step-4" class="step">
+    <div class="step-indicator">Step 4 of 4 — Review &amp; Save</div>
+    <div class="field-row">
+      <label>Summary</label>
+      <textarea id="review-summary" style="min-height:80px"></textarea>
+    </div>
+    <div class="section-hdr"><h3>Extracted Tasks</h3></div>
+    <div id="review-tasks"></div>
+    <div class="section-hdr"><h3>Extracted Goals</h3></div>
+    <div id="review-goals"></div>
+    <div class="field-row" style="margin-top:12px">
+      <label>Email Subject</label>
+      <input id="review-email-subject" type="text">
+    </div>
+    <div class="field-row">
+      <label>Email Draft</label>
+      <textarea id="review-email-draft" style="min-height:160px"></textarea>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="TeamApp.importNext(2)">Back</button>
+      <button class="btn btn-gold" onclick="TeamApp.saveImport()">Save &amp; Queue Email</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Task Modal (inline bottom sheet) -->
+<div id="add-task-modal" style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:500;background:var(--surface);border-top:1px solid var(--border);padding:16px;padding-bottom:calc(16px + env(safe-area-inset-bottom))">
+  <div style="font-size:15px;font-weight:600;margin-bottom:12px">Add Task</div>
+  <div class="field-row">
+    <label>Leader</label>
+    <select id="add-task-member"></select>
+  </div>
+  <div class="field-row">
+    <label>Task *</label>
+    <input id="add-task-title" type="text" placeholder="Task title">
+  </div>
+  <div class="field-row">
+    <label>Due Date</label>
+    <input id="add-task-due" type="date">
+  </div>
+  <div class="btn-row">
+    <button class="btn btn-gold" onclick="TeamApp.saveNewTask()">Save</button>
+    <button class="btn btn-ghost" onclick="TeamApp.closeAddTask()">Cancel</button>
+  </div>
+</div>
+
+<!-- Compose Modal -->
+<div id="compose-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:600;background:var(--bg);overflow-y:auto;padding-top:env(safe-area-inset-top)">
+  <div class="profile-header">
+    <button class="back-btn" onclick="TeamApp.closeCompose()"><i class="ti ti-x"></i></button>
+    <div style="flex:1;font-size:16px;font-weight:600">Compose</div>
+    <button class="btn btn-gold" onclick="TeamApp.sendCompose()">Send</button>
+  </div>
+  <div style="padding:16px">
+    <div class="field-row">
+      <label>To</label>
+      <select id="compose-member"></select>
+    </div>
+    <div class="field-row">
+      <label>Subject</label>
+      <input id="compose-subject" type="text">
+    </div>
+    <div class="field-row">
+      <label>Message</label>
+      <textarea id="compose-body" style="min-height:200px"></textarea>
+    </div>
+  </div>
+</div>
+
+<script src="/static/team.js"></script>
+</body>
+</html>
