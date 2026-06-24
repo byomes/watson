@@ -1,0 +1,960 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Watson Admin — Team</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:       #0f0f0f;
+  --surface:  #1a1a1a;
+  --surface2: #222;
+  --border:   #2a2a2a;
+  --gold:     #c9a84c;
+  --gold-dim: #8a6f2e;
+  --muted:    #666;
+  --green:    #4caf7d;
+  --red:      #c9504c;
+  --blue:     #4c7ec9;
+  --amber:    #d97706;
+  --text:     #e8e8e8;
+  --r-card:   10px;
+  --r-btn:    6px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'DM Sans', -apple-system, sans-serif;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+}
+
+/* ── Header ─────────────────────────────────────────────────────────── */
+#hdr {
+  position: sticky; top: 0; z-index: 100;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 20px;
+  min-height: 56px;
+}
+#hdr-mark {
+  width: 34px; height: 34px;
+  background: #111827; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: Georgia, serif; font-size: 20px; font-weight: 700;
+  color: #fff; line-height: 1; flex-shrink: 0; text-decoration: none;
+}
+#hdr-text { flex: 1; min-width: 0; }
+#hdr-title { font-size: 13px; font-weight: 700; color: var(--gold); letter-spacing: .05em; }
+#hdr-sub { font-size: 11px; color: var(--muted); margin-top: 1px; }
+.hdr-btn {
+  padding: 7px 14px;
+  border-radius: var(--r-btn);
+  font-size: 12px; font-weight: 600; font-family: inherit;
+  cursor: pointer; border: 1px solid; transition: opacity .15s;
+  white-space: nowrap;
+}
+.hdr-btn:hover { opacity: .8; }
+.hdr-btn-outline {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--text);
+}
+.hdr-btn-primary {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: #0f0f0f;
+}
+.hdr-logout {
+  font-size: 11px; font-family: 'DM Mono', monospace;
+  color: var(--muted); text-decoration: none;
+  padding: 5px 8px; border-radius: 4px;
+  transition: color .15s;
+}
+.hdr-logout:hover { color: var(--text); }
+
+/* ── Main content ────────────────────────────────────────────────────── */
+#content {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 24px 20px 60px;
+}
+
+/* ── Stats grid ──────────────────────────────────────────────────────── */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-bottom: 20px;
+}
+@media (max-width: 600px) { .stats-grid { grid-template-columns: repeat(2, 1fr); } }
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  padding: 16px 14px;
+}
+.stat-num {
+  font-size: 28px; font-weight: 700; line-height: 1;
+  margin-bottom: 4px;
+}
+.stat-lbl {
+  font-size: 11px; color: var(--muted);
+  font-family: 'DM Mono', monospace;
+  text-transform: uppercase; letter-spacing: .05em;
+}
+.stat-num.gold  { color: var(--gold); }
+.stat-num.green { color: var(--green); }
+.stat-num.amber { color: var(--amber); }
+.stat-num.blue  { color: var(--blue); }
+
+/* ── Filter tabs ─────────────────────────────────────────────────────── */
+.filter-tabs {
+  display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap;
+}
+.filter-tab {
+  padding: 6px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  color: var(--muted);
+  font-size: 12px; font-family: 'DM Mono', monospace;
+  letter-spacing: .03em;
+  cursor: pointer; transition: all .15s;
+}
+.filter-tab.active {
+  background: rgba(201,168,76,.12);
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+/* ── Table ───────────────────────────────────────────────────────────── */
+.leaders-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 10px;
+}
+.leaders-table th {
+  font-size: 10px; font-family: 'DM Mono', monospace;
+  text-transform: uppercase; letter-spacing: .08em;
+  color: var(--muted);
+  padding: 8px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.leaders-table td {
+  padding: 11px 12px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.leaders-table tbody tr {
+  cursor: pointer;
+  transition: background .1s;
+}
+.leaders-table tbody tr:hover { background: var(--surface); }
+.leaders-table tbody tr.selected { background: var(--surface); }
+
+/* Avatar initials circle */
+.av-circle {
+  width: 34px; height: 34px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 700; font-family: 'DM Mono', monospace;
+  flex-shrink: 0;
+  color: #fff;
+}
+
+.member-name  { font-size: 13px; font-weight: 600; color: var(--text); }
+.member-role  { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+/* Status badge */
+.status-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11px; font-family: 'DM Mono', monospace;
+  letter-spacing: .03em; white-space: nowrap;
+}
+.status-badge::before {
+  content: ''; width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+}
+.status-badge.active        { color: var(--green); }
+.status-badge.active::before        { background: var(--green); }
+.status-badge.needs_attention       { color: var(--amber); }
+.status-badge.needs_attention::before { background: var(--amber); }
+.status-badge.stalled               { color: var(--red); }
+.status-badge.stalled::before               { background: var(--red); }
+
+/* Task count pill */
+.task-pill {
+  display: inline-block;
+  padding: 2px 8px;
+  background: rgba(76,126,201,.12);
+  border: 1px solid rgba(76,126,201,.3);
+  border-radius: 10px;
+  font-size: 11px; font-family: 'DM Mono', monospace;
+  color: var(--blue);
+}
+.task-pill.zero { color: var(--muted); background: transparent; border-color: var(--border); }
+
+/* Date color coding */
+.date-gray  { font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace; }
+.date-amber { font-size: 11px; color: var(--amber); font-family: 'DM Mono', monospace; }
+.date-red   { font-size: 11px; color: var(--red);   font-family: 'DM Mono', monospace; }
+.date-none  { font-size: 11px; color: var(--border); font-family: 'DM Mono', monospace; }
+
+.view-btn {
+  padding: 5px 12px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--r-btn);
+  color: var(--muted);
+  font-size: 11px; font-family: 'DM Mono', monospace;
+  cursor: pointer; transition: all .15s;
+}
+.view-btn:hover { border-color: var(--gold); color: var(--gold); }
+
+/* ── Detail panel ────────────────────────────────────────────────────── */
+#detail-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  margin-top: 12px;
+  overflow: hidden;
+}
+.dp-header {
+  display: flex; align-items: center; gap: 14px;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.dp-av {
+  width: 44px; height: 44px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; font-weight: 700; font-family: 'DM Mono', monospace;
+  color: #fff; flex-shrink: 0;
+}
+.dp-info { flex: 1; min-width: 0; }
+.dp-name  { font-size: 16px; font-weight: 700; }
+.dp-role  { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.dp-close {
+  background: none; border: none; color: var(--muted);
+  font-size: 22px; cursor: pointer; line-height: 1; padding: 4px;
+}
+.dp-close:hover { color: var(--text); }
+
+/* Sub-tabs */
+.dp-tabs {
+  display: flex; border-bottom: 1px solid var(--border);
+  padding: 0 20px;
+}
+.dp-tab {
+  padding: 11px 16px 10px;
+  background: none; border: none; border-bottom: 2px solid transparent;
+  color: var(--muted); font-size: 12px; font-family: 'DM Mono', monospace;
+  text-transform: uppercase; letter-spacing: .04em;
+  cursor: pointer; transition: color .15s, border-color .15s;
+  margin-bottom: -1px;
+}
+.dp-tab.active { color: var(--gold); border-bottom-color: var(--gold); }
+
+.dp-body { padding: 20px; min-height: 200px; }
+
+/* Task list in detail panel */
+.dp-task {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--border);
+}
+.dp-task:last-child { border-bottom: none; }
+.dp-task-check {
+  width: 17px; height: 17px; border-radius: 4px;
+  border: 1.5px solid var(--border);
+  flex-shrink: 0; margin-top: 1px; cursor: pointer;
+  transition: all .15s; background: transparent;
+  position: relative;
+}
+.dp-task-check.done { background: var(--green); border-color: var(--green); }
+.dp-task-check.done::after {
+  content: '';
+  position: absolute; left: 3px; top: 1px;
+  width: 7px; height: 4px;
+  border-left: 2px solid #fff;
+  border-bottom: 2px solid #fff;
+  transform: rotate(-45deg);
+}
+.dp-task-info { flex: 1; min-width: 0; }
+.dp-task-title { font-size: 13px; line-height: 1.4; }
+.dp-task-title.done { text-decoration: line-through; color: var(--muted); }
+.dp-task-due { font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace; margin-top: 2px; }
+
+/* Note entry */
+.dp-note {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.dp-note:last-child { border-bottom: none; }
+.dp-note-meta { font-size: 10px; color: var(--muted); font-family: 'DM Mono', monospace; margin-bottom: 4px; }
+.dp-note-body { font-size: 13px; line-height: 1.5; }
+
+/* Message/comms entry */
+.dp-msg {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.dp-msg:last-child { border-bottom: none; }
+.dp-msg-meta { display: flex; gap: 8px; align-items: baseline; margin-bottom: 4px; }
+.dp-msg-dir {
+  font-size: 10px; font-family: 'DM Mono', monospace; letter-spacing: .04em;
+  padding: 1px 6px; border-radius: 3px;
+}
+.dp-msg-dir.out { background: rgba(201,168,76,.12); color: var(--gold); }
+.dp-msg-dir.in  { background: rgba(76,175,125,.1);  color: var(--green); }
+.dp-msg-subject { font-size: 12px; font-weight: 600; color: var(--text); }
+.dp-msg-date { font-size: 10px; color: var(--muted); font-family: 'DM Mono', monospace; margin-left: auto; }
+.dp-msg-body { font-size: 12px; color: var(--muted); line-height: 1.4; margin-top: 2px; }
+
+/* Inline add forms */
+.dp-add-form {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+.dp-add-label {
+  font-size: 11px; font-family: 'DM Mono', monospace;
+  text-transform: uppercase; letter-spacing: .06em;
+  color: var(--muted); margin-bottom: 8px;
+}
+.dp-inp {
+  display: block; width: 100%;
+  background: #111;
+  border: 1px solid var(--border);
+  border-radius: var(--r-btn);
+  padding: 9px 11px;
+  color: var(--text); font-size: 13px; font-family: inherit;
+  outline: none; margin-bottom: 8px; transition: border-color .15s;
+}
+.dp-inp:focus { border-color: var(--gold); }
+.dp-inp::placeholder { color: var(--muted); }
+.dp-inp-row { display: flex; gap: 8px; }
+.dp-inp-row .dp-inp { margin-bottom: 0; }
+.dp-save-btn {
+  padding: 8px 18px;
+  background: var(--gold); border: none; border-radius: var(--r-btn);
+  color: #0f0f0f; font-size: 12px; font-weight: 700; font-family: inherit;
+  cursor: pointer; transition: opacity .15s;
+}
+.dp-save-btn:hover { opacity: .85; }
+
+/* Compose / Task modals */
+.modal-backdrop {
+  position: fixed; inset: 0; background: rgba(0,0,0,.55);
+  z-index: 200; display: none; align-items: center; justify-content: center;
+  padding: 20px;
+}
+.modal-backdrop.open { display: flex; }
+.modal-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  width: 100%; max-width: 480px;
+  padding: 24px;
+}
+.modal-title {
+  font-size: 14px; font-weight: 700; margin-bottom: 18px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.modal-close {
+  background: none; border: none; color: var(--muted);
+  font-size: 20px; cursor: pointer; line-height: 1; padding: 2px;
+}
+.modal-close:hover { color: var(--text); }
+.modal-field { margin-bottom: 12px; }
+.modal-field label {
+  display: block; font-size: 11px; font-family: 'DM Mono', monospace;
+  text-transform: uppercase; letter-spacing: .07em; color: var(--muted); margin-bottom: 5px;
+}
+.modal-field select, .modal-field input, .modal-field textarea {
+  display: block; width: 100%;
+  background: #111; border: 1px solid var(--border);
+  border-radius: var(--r-btn); padding: 9px 11px;
+  color: var(--text); font-size: 13px; font-family: inherit;
+  outline: none; transition: border-color .15s;
+}
+.modal-field select:focus, .modal-field input:focus, .modal-field textarea:focus {
+  border-color: var(--gold);
+}
+.modal-field select option { background: var(--surface); }
+.modal-field textarea { resize: vertical; min-height: 100px; }
+.modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
+.modal-btn {
+  padding: 9px 20px; border-radius: var(--r-btn);
+  font-size: 13px; font-weight: 600; font-family: inherit;
+  cursor: pointer; border: 1px solid; transition: opacity .15s;
+}
+.modal-btn:hover { opacity: .8; }
+.modal-btn-primary { background: var(--gold); border-color: var(--gold); color: #0f0f0f; }
+.modal-btn-ghost { background: transparent; border-color: var(--border); color: var(--muted); }
+
+/* Empty state */
+.empty-state {
+  text-align: center; padding: 32px 0;
+  font-size: 13px; color: var(--muted);
+}
+
+/* Loading */
+.loading-text { text-align: center; padding: 24px; color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header id="hdr">
+  <a href="/" id="hdr-mark">W</a>
+  <div id="hdr-text">
+    <div id="hdr-title">TEAM ADMIN</div>
+    <div id="hdr-sub">Catalyst Community Church — Leadership</div>
+  </div>
+  <button class="hdr-btn hdr-btn-outline" onclick="openComposeModal()">Compose</button>
+  <button class="hdr-btn hdr-btn-primary" onclick="openTaskModal()">Assign Task</button>
+  <a href="/admin/logout" class="hdr-logout">Sign out ({{ admin_user }})</a>
+</header>
+
+<div id="content">
+
+  <!-- Stats -->
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-num gold">{{ stats.total }}</div>
+      <div class="stat-lbl">Total leaders</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num green">{{ stats.active }}</div>
+      <div class="stat-lbl">Active</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num amber">{{ stats.needs_attention }}</div>
+      <div class="stat-lbl">Needs attention</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num blue">{{ stats.open_tasks }}</div>
+      <div class="stat-lbl">Open tasks</div>
+    </div>
+  </div>
+
+  <!-- Filter tabs -->
+  <div class="filter-tabs">
+    <button class="filter-tab active" onclick="setFilter('all', this)">All leaders</button>
+    <button class="filter-tab" onclick="setFilter('needs_attention', this)">Needs attention</button>
+    <button class="filter-tab" onclick="setFilter('open_tasks', this)">Open tasks</button>
+    <button class="filter-tab" onclick="setFilter('recent_comms', this)">Recent comms</button>
+  </div>
+
+  <!-- Table -->
+  <table class="leaders-table" id="leaders-table">
+    <thead>
+      <tr>
+        <th style="width:44px"></th>
+        <th>Leader</th>
+        <th>Status</th>
+        <th>Tasks</th>
+        <th>Last Activity</th>
+        <th>Last Comms</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody id="leaders-tbody">
+      {% for m in members %}
+      <tr
+        data-id="{{ m.id }}"
+        data-status="{{ m.status }}"
+        data-tasks="{{ m.open_task_count }}"
+        data-activity="{{ m.last_activity_date or '' }}"
+        data-comms="{{ m.last_comms_date or '' }}"
+        onclick="openDetail({{ m.id }}, this)"
+      >
+        <td>
+          <div class="av-circle" style="background:{{ loop.index | member_color }}">
+            {{ m.name | initials }}
+          </div>
+        </td>
+        <td>
+          <div class="member-name">{{ m.name }}</div>
+          <div class="member-role">{{ m.role or m.ministry or '—' }}</div>
+        </td>
+        <td>
+          <span class="status-badge {{ m.status }}">
+            {% if m.status == 'active' %}Active
+            {% elif m.status == 'needs_attention' %}Needs attention
+            {% else %}Stalled{% endif %}
+          </span>
+        </td>
+        <td>
+          <span class="task-pill {% if m.open_task_count == 0 %}zero{% endif %}">
+            {{ m.open_task_count }}
+          </span>
+        </td>
+        <td>
+          {% if m.last_activity_date %}
+            <span class="{{ m.last_activity_date | date_color }}">{{ m.last_activity_date[:10] }}</span>
+          {% else %}
+            <span class="date-none">—</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if m.last_comms_date %}
+            <span class="{{ m.last_comms_date | date_color }}">{{ m.last_comms_date[:10] }}</span>
+          {% else %}
+            <span class="date-none">—</span>
+          {% endif %}
+        </td>
+        <td>
+          <button class="view-btn" onclick="openDetail({{ m.id }}, this.closest('tr')); event.stopPropagation();">View</button>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7"><div class="empty-state">No team members found.</div></td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <!-- Detail panel -->
+  <div id="detail-panel" style="display:none">
+    <div class="dp-header">
+      <div class="dp-av" id="dp-av"></div>
+      <div class="dp-info">
+        <div class="dp-name" id="dp-name"></div>
+        <div class="dp-role" id="dp-role"></div>
+      </div>
+      <span class="status-badge" id="dp-status-badge"></span>
+      <button class="dp-close" onclick="closeDetail()">×</button>
+    </div>
+    <div class="dp-tabs">
+      <button class="dp-tab active" onclick="switchDpTab('tasks', this)">Tasks</button>
+      <button class="dp-tab" onclick="switchDpTab('notes', this)">Team Notes</button>
+      <button class="dp-tab" onclick="switchDpTab('comms', this)">Comms</button>
+    </div>
+    <div class="dp-body" id="dp-body">
+      <div class="loading-text">Loading…</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Compose email modal -->
+<div class="modal-backdrop" id="compose-modal">
+  <div class="modal-card">
+    <div class="modal-title">
+      Compose Email
+      <button class="modal-close" onclick="closeComposeModal()">×</button>
+    </div>
+    <div class="modal-field">
+      <label>To</label>
+      <select id="compose-to">
+        <option value="">Select a leader…</option>
+        {% for m in members %}
+        <option value="{{ m.id }}">{{ m.name }}{% if m.email %} — {{ m.email }}{% endif %}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="modal-field">
+      <label>Subject</label>
+      <input type="text" id="compose-subject" placeholder="Email subject">
+    </div>
+    <div class="modal-field">
+      <label>Message</label>
+      <textarea id="compose-body" rows="5" placeholder="Your message…"></textarea>
+    </div>
+    <div id="compose-err" style="font-size:12px;color:var(--red);min-height:16px"></div>
+    <div class="modal-actions">
+      <button class="modal-btn modal-btn-ghost" onclick="closeComposeModal()">Cancel</button>
+      <button class="modal-btn modal-btn-primary" onclick="sendCompose()">Send Email</button>
+    </div>
+  </div>
+</div>
+
+<!-- Assign task modal -->
+<div class="modal-backdrop" id="task-modal">
+  <div class="modal-card">
+    <div class="modal-title">
+      Assign Task
+      <button class="modal-close" onclick="closeTaskModal()">×</button>
+    </div>
+    <div class="modal-field">
+      <label>Leader</label>
+      <select id="task-member">
+        <option value="">Select a leader…</option>
+        {% for m in members %}
+        <option value="{{ m.id }}">{{ m.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="modal-field">
+      <label>Task</label>
+      <input type="text" id="task-title" placeholder="Task description">
+    </div>
+    <div class="modal-field">
+      <label>Due date (optional)</label>
+      <input type="date" id="task-due">
+    </div>
+    <div id="task-err" style="font-size:12px;color:var(--red);min-height:16px"></div>
+    <div class="modal-actions">
+      <button class="modal-btn modal-btn-ghost" onclick="closeTaskModal()">Cancel</button>
+      <button class="modal-btn modal-btn-primary" onclick="submitTask()">Assign</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── State ────────────────────────────────────────────────────────────────────
+let _currentMemberId = null;
+let _currentData     = null;
+let _currentDpTab    = 'tasks';
+let _currentFilter   = 'all';
+
+// ── Filter tabs ───────────────────────────────────────────────────────────────
+function setFilter(f, btn) {
+  _currentFilter = f;
+  document.querySelectorAll('.filter-tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const rows = document.querySelectorAll('#leaders-tbody tr[data-id]');
+  rows.forEach(row => {
+    const status = row.dataset.status;
+    const tasks  = parseInt(row.dataset.tasks || '0');
+    const comms  = row.dataset.comms;
+    let show = true;
+    if (f === 'needs_attention') show = status === 'needs_attention';
+    else if (f === 'open_tasks') show = tasks > 0;
+    else if (f === 'recent_comms') show = !!comms;
+    row.style.display = show ? '' : 'none';
+  });
+}
+
+// ── Detail panel ──────────────────────────────────────────────────────────────
+function _initials(name) {
+  if (!name) return '?';
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  return name.slice(0, 2).toUpperCase();
+}
+
+const _COLORS = ['#4c7ec9','#4caf7d','#c9a84c','#c9504c','#9b59b6','#1abc9c','#e67e22','#2980b9'];
+function _avatarColor(id) { return _COLORS[id % _COLORS.length]; }
+
+function _formatDate(d) {
+  if (!d) return null;
+  return d.slice(0, 10);
+}
+
+function _dayAgo(d) {
+  if (!d) return 999;
+  const ms = Date.now() - new Date(d.slice(0, 10)).getTime();
+  return Math.floor(ms / 86400000);
+}
+
+function _dateClass(d) {
+  const days = _dayAgo(d);
+  if (days <= 7)  return 'date-gray';
+  if (days <= 14) return 'date-amber';
+  return 'date-red';
+}
+
+async function openDetail(memberId, row) {
+  if (_currentMemberId === memberId) { closeDetail(); return; }
+  _currentMemberId = memberId;
+  document.querySelectorAll('#leaders-tbody tr').forEach(r => r.classList.remove('selected'));
+  if (row) row.classList.add('selected');
+
+  const panel = document.getElementById('detail-panel');
+  panel.style.display = 'block';
+  document.getElementById('dp-body').innerHTML = '<div class="loading-text">Loading…</div>';
+
+  const res  = await fetch(`/admin/leader/${memberId}`);
+  const data = await res.json();
+  _currentData = data;
+
+  const m = data.member;
+  const initials = _initials(m.name);
+  const color    = _avatarColor(m.id);
+
+  document.getElementById('dp-av').textContent    = initials;
+  document.getElementById('dp-av').style.background = color;
+  document.getElementById('dp-name').textContent  = m.name;
+  document.getElementById('dp-role').textContent  = m.role || m.ministry || '';
+  const badge = document.getElementById('dp-status-badge');
+  badge.className = `status-badge ${m.status || 'stalled'}`;
+  const labels = { active: 'Active', needs_attention: 'Needs attention', stalled: 'Stalled' };
+  badge.textContent = labels[m.status] || m.status;
+
+  // Reset tabs
+  document.querySelectorAll('.dp-tab').forEach((t, i) => {
+    t.classList.toggle('active', i === 0);
+  });
+  _currentDpTab = 'tasks';
+  renderDpTab('tasks');
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function closeDetail() {
+  _currentMemberId = null;
+  _currentData     = null;
+  document.getElementById('detail-panel').style.display = 'none';
+  document.querySelectorAll('#leaders-tbody tr').forEach(r => r.classList.remove('selected'));
+}
+
+function switchDpTab(tab, btn) {
+  _currentDpTab = tab;
+  document.querySelectorAll('.dp-tab').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  renderDpTab(tab);
+}
+
+function renderDpTab(tab) {
+  if (!_currentData) return;
+  const body = document.getElementById('dp-body');
+  if (tab === 'tasks')  body.innerHTML = renderTasksTab();
+  if (tab === 'notes')  body.innerHTML = renderNotesTab();
+  if (tab === 'comms')  body.innerHTML = renderCommsTab();
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function renderTasksTab() {
+  const tasks = (_currentData.tasks || []);
+  let html = '';
+  if (!tasks.length) html += '<div class="empty-state">No tasks yet.</div>';
+  tasks.forEach(t => {
+    const done = t.status === 'done' || t.status === 'completed';
+    html += `<div class="dp-task">
+      <div class="dp-task-check ${done ? 'done' : ''}" onclick="toggleTask(${t.id}, this)"></div>
+      <div class="dp-task-info">
+        <div class="dp-task-title ${done ? 'done' : ''}">${esc(t.title)}</div>
+        ${t.due_date ? `<div class="dp-task-due">Due ${esc(t.due_date)}</div>` : ''}
+      </div>
+    </div>`;
+  });
+  html += `<div class="dp-add-form">
+    <div class="dp-add-label">Add task</div>
+    <input class="dp-inp" id="dp-task-title" placeholder="Task title…">
+    <div class="dp-inp-row">
+      <input class="dp-inp" type="date" id="dp-task-due">
+      <button class="dp-save-btn" onclick="addTask()">Add</button>
+    </div>
+  </div>`;
+  return html;
+}
+
+function renderNotesTab() {
+  const notes = (_currentData.notes || []);
+  let html = '';
+  if (!notes.length) html += '<div class="empty-state">No team notes yet.</div>';
+  notes.forEach(n => {
+    const text = n.content || n.note || '';
+    const date = (n.created_at || '').slice(0, 10);
+    const by   = n.created_by || '';
+    html += `<div class="dp-note">
+      <div class="dp-note-meta">${esc(date)}${by ? ' · ' + esc(by) : ''}</div>
+      <div class="dp-note-body">${esc(text)}</div>
+    </div>`;
+  });
+  html += `<div class="dp-add-form">
+    <div class="dp-add-label">Add note</div>
+    <textarea class="dp-inp" id="dp-note-content" rows="3" placeholder="Note…"></textarea>
+    <button class="dp-save-btn" onclick="addNote()">Save note</button>
+  </div>`;
+  return html;
+}
+
+function renderCommsTab() {
+  const msgs = (_currentData.messages || []);
+  let html = `<div style="margin-bottom:12px">
+    <button class="dp-save-btn" onclick="showInlineCompose()">Compose email</button>
+  </div>
+  <div id="inline-compose" style="display:none;margin-bottom:16px;padding:14px;background:#111;border:1px solid var(--border);border-radius:var(--r-card)">
+    <div class="dp-add-label">New email</div>
+    <input class="dp-inp" id="ic-subject" placeholder="Subject…">
+    <textarea class="dp-inp" id="ic-body" rows="4" placeholder="Message…"></textarea>
+    <div style="display:flex;gap:8px">
+      <button class="dp-save-btn" onclick="sendInlineEmail()">Send</button>
+      <button style="padding:8px 14px;background:transparent;border:1px solid var(--border);border-radius:var(--r-btn);color:var(--muted);font-family:inherit;font-size:12px;cursor:pointer" onclick="document.getElementById('inline-compose').style.display='none'">Cancel</button>
+    </div>
+    <div id="ic-err" style="font-size:12px;color:var(--red);margin-top:6px"></div>
+  </div>`;
+  if (!msgs.length) html += '<div class="empty-state">No messages yet.</div>';
+  msgs.forEach(msg => {
+    const dir  = msg.direction || 'out';
+    const date = (msg.sent_at || msg.created_at || '').slice(0, 10);
+    html += `<div class="dp-msg">
+      <div class="dp-msg-meta">
+        <span class="dp-msg-dir ${esc(dir)}">${dir === 'out' ? 'SENT' : 'RECV'}</span>
+        <span class="dp-msg-subject">${esc(msg.subject || '(no subject)')}</span>
+        <span class="dp-msg-date">${esc(date)}</span>
+      </div>
+      <div class="dp-msg-body">${esc((msg.body || '').slice(0, 160))}${(msg.body || '').length > 160 ? '…' : ''}</div>
+    </div>`;
+  });
+  return html;
+}
+
+// ── Actions ───────────────────────────────────────────────────────────────────
+async function toggleTask(taskId, el) {
+  const done = el.classList.toggle('done');
+  const title = el.nextElementSibling.querySelector('.dp-task-title');
+  if (title) title.classList.toggle('done', done);
+  await fetch(`/api/team/tasks/${taskId}`, {
+    method: 'PUT',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ status: done ? 'done' : 'open' }),
+  });
+}
+
+async function addTask() {
+  const title = (document.getElementById('dp-task-title')?.value || '').trim();
+  const due   = document.getElementById('dp-task-due')?.value || '';
+  if (!title) return;
+  const res = await fetch('/admin/task', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ team_member_id: _currentMemberId, title, due_date: due || null }),
+  });
+  const d = await res.json();
+  if (d.success) {
+    const reloaded = await fetch(`/admin/leader/${_currentMemberId}`);
+    _currentData = await reloaded.json();
+    renderDpTab('tasks');
+  }
+}
+
+async function addNote() {
+  const content = (document.getElementById('dp-note-content')?.value || '').trim();
+  if (!content) return;
+  const res = await fetch('/admin/note', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ team_member_id: _currentMemberId, content }),
+  });
+  const d = await res.json();
+  if (d.success) {
+    const reloaded = await fetch(`/admin/leader/${_currentMemberId}`);
+    _currentData = await reloaded.json();
+    renderDpTab('notes');
+  }
+}
+
+function showInlineCompose() {
+  const el = document.getElementById('inline-compose');
+  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+async function sendInlineEmail() {
+  const subject = (document.getElementById('ic-subject')?.value || '').trim();
+  const body    = (document.getElementById('ic-body')?.value || '').trim();
+  const err     = document.getElementById('ic-err');
+  if (!subject || !body) { if (err) err.textContent = 'Subject and body required.'; return; }
+  if (err) err.textContent = '';
+  const res = await fetch('/admin/email', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ team_member_id: _currentMemberId, subject, body }),
+  });
+  const d = await res.json();
+  if (d.success) {
+    const reloaded = await fetch(`/admin/leader/${_currentMemberId}`);
+    _currentData = await reloaded.json();
+    renderDpTab('comms');
+  } else {
+    if (err) err.textContent = d.error || 'Send failed.';
+  }
+}
+
+// ── Compose modal ─────────────────────────────────────────────────────────────
+function openComposeModal(preselect) {
+  document.getElementById('compose-modal').classList.add('open');
+  document.getElementById('compose-err').textContent = '';
+  if (preselect) document.getElementById('compose-to').value = preselect;
+}
+function closeComposeModal() {
+  document.getElementById('compose-modal').classList.remove('open');
+  ['compose-to','compose-subject','compose-body'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+}
+async function sendCompose() {
+  const memberId = document.getElementById('compose-to').value;
+  const subject  = (document.getElementById('compose-subject').value || '').trim();
+  const body     = (document.getElementById('compose-body').value || '').trim();
+  const err      = document.getElementById('compose-err');
+  if (!memberId || !subject || !body) { err.textContent = 'All fields required.'; return; }
+  err.textContent = '';
+  const res = await fetch('/admin/email', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ team_member_id: memberId, subject, body }),
+  });
+  const d = await res.json();
+  if (d.success) {
+    closeComposeModal();
+    if (_currentMemberId == memberId) {
+      const reloaded = await fetch(`/admin/leader/${_currentMemberId}`);
+      _currentData = await reloaded.json();
+      renderDpTab('comms');
+    }
+  } else {
+    err.textContent = d.error || 'Failed to send.';
+  }
+}
+
+// ── Task modal ────────────────────────────────────────────────────────────────
+function openTaskModal(preselect) {
+  document.getElementById('task-modal').classList.add('open');
+  document.getElementById('task-err').textContent = '';
+  if (preselect) document.getElementById('task-member').value = preselect;
+}
+function closeTaskModal() {
+  document.getElementById('task-modal').classList.remove('open');
+  ['task-member','task-title','task-due'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+}
+async function submitTask() {
+  const memberId = document.getElementById('task-member').value;
+  const title    = (document.getElementById('task-title').value || '').trim();
+  const due      = document.getElementById('task-due').value || '';
+  const err      = document.getElementById('task-err');
+  if (!memberId || !title) { err.textContent = 'Leader and task title required.'; return; }
+  err.textContent = '';
+  const res = await fetch('/admin/task', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ team_member_id: memberId, title, due_date: due || null }),
+  });
+  const d = await res.json();
+  if (d.success) {
+    closeTaskModal();
+    if (_currentMemberId == memberId) {
+      const reloaded = await fetch(`/admin/leader/${_currentMemberId}`);
+      _currentData = await reloaded.json();
+      renderDpTab('tasks');
+    }
+  } else {
+    err.textContent = d.error || 'Failed to assign task.';
+  }
+}
+
+// Close modals on backdrop click
+document.getElementById('compose-modal').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeComposeModal();
+});
+document.getElementById('task-modal').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeTaskModal();
+});
+</script>
+</body>
+</html>

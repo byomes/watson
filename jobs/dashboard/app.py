@@ -13,7 +13,7 @@ log = logging.getLogger(__name__)
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from flask import Flask, Response, g, jsonify, render_template, request, session, stream_with_context
+from flask import Flask, Response, g, jsonify, redirect, render_template, request, session, stream_with_context, url_for
 from flask_cors import CORS
 from jobs.people.api import congregation_list, people_create, people_delete, people_list, people_update
 from config.settings import WATSON_SYSTEM
@@ -214,6 +214,41 @@ from jobs.team.api import team_bp
 app.register_blueprint(team_bp)
 
 _EMAIL_SIGNATURE = "---\nWatson\nAI-powered digital assistant\nOffice of Dr. Bill Yomes\nwilliamckyomes.com/start"
+
+# ── Admin template filters ────────────────────────────────────────────────────
+
+_AV_COLORS = ['#4c7ec9','#4caf7d','#c9a84c','#c9504c','#9b59b6','#1abc9c','#e67e22','#2980b9']
+
+
+@app.template_filter('member_color')
+def _member_color(idx):
+    return _AV_COLORS[(idx - 1) % len(_AV_COLORS)]
+
+
+@app.template_filter('initials')
+def _initials(name):
+    if not name:
+        return '?'
+    parts = name.strip().split()
+    if len(parts) >= 2:
+        return (parts[0][0] + parts[-1][0]).upper()
+    return name[:2].upper()
+
+
+@app.template_filter('date_color')
+def _date_color(d):
+    if not d:
+        return 'date-none'
+    try:
+        from datetime import date as _dt
+        days = (_dt.today() - _dt.fromisoformat(str(d)[:10])).days
+    except Exception:
+        return 'date-none'
+    if days <= 7:
+        return 'date-gray'
+    if days <= 14:
+        return 'date-amber'
+    return 'date-red'
 
 
 def _build_email_body(content: str) -> str:
@@ -3631,6 +3666,233 @@ def logins_delete(login_id):
 @app.route("/api/status", methods=["GET"])
 def api_status():
     return jsonify({"current_time": datetime.now().isoformat()})
+
+
+# ── Admin ─────────────────────────────────────────────────────────────────────
+
+
+def recalculate_team_status():
+    """Recalculate and write status for all active team members."""
+    from datetime import date as _date2
+    today = _date2.today()
+    conn = sqlite3.connect(DB)
+    conn.row_factory = sqlite3.Row
+    try:
+        members = conn.execute(
+            "SELECT id, last_activity_date, last_comms_date FROM team_members WHERE active=1"
+        ).fetchall()
+        for m in members:
+            dates = [d for d in [m["last_activity_date"], m["last_comms_date"]] if d]
+            if not dates:
+                status = "stalled"
+            else:
+                last_str = max(dates)
+                try:
+                    last_dt = _date2.fromisoformat(last_str[:10])
+                    days_ago = (today - last_dt).days
+                except Exception:
+                    days_ago = 999
+                if days_ago <= 7:
+                    status = "active"
+                elif days_ago <= 14:
+                    status = "needs_attention"
+                else:
+                    status = "stalled"
+                if status == "active":
+                    overdue = conn.execute(
+                        "SELECT COUNT(*) FROM team_tasks WHERE member_id=? AND status='open' AND due_date < ?",
+                        (m["id"], today.isoformat()),
+                    ).fetchone()[0]
+                    if overdue > 0:
+                        status = "needs_attention"
+            conn.execute("UPDATE team_members SET status=? WHERE id=?", (status, m["id"]))
+        conn.commit()
+    except Exception as exc:
+        log.error("recalculate_team_status error: %s", exc)
+    finally:
+        conn.close()
+
+
+def _admin_required():
+    if not session.get("admin_logged_in"):
+        return redirect(url_for("admin_login"))
+    return None
+
+
+@app.route("/admin/login", methods=["GET"])
+def admin_login():
+    if session.get("admin_logged_in"):
+        return redirect(url_for("admin_index"))
+    return render_template("admin_login.html", error=None)
+
+
+@app.route("/admin/login", methods=["POST"])
+def admin_login_post():
+    from werkzeug.security import check_password_hash
+    username = (request.form.get("username") or "").strip().lower()
+    password = (request.form.get("password") or "").strip()
+    db = _db()
+    row = db.execute(
+        "SELECT password_hash FROM admin_users WHERE username=?", (username,)
+    ).fetchone()
+    if row and check_password_hash(row["password_hash"], password):
+        session["admin_logged_in"] = True
+        session["admin_user"] = username
+        return redirect(url_for("admin_index"))
+    return render_template("admin_login.html", error="Invalid credentials.")
+
+
+@app.route("/admin/logout")
+def admin_logout():
+    session.pop("admin_logged_in", None)
+    session.pop("admin_user", None)
+    return redirect(url_for("admin_login"))
+
+
+@app.route("/admin")
+def admin_index():
+    redir = _admin_required()
+    if redir:
+        return redir
+    recalculate_team_status()
+    db = _db()
+    try:
+        rows = db.execute("""
+            SELECT m.id, m.name, m.role, m.ministry, m.email,
+                   COALESCE(m.status, 'stalled') AS status,
+                   m.last_activity_date, m.last_comms_date,
+                   COUNT(t.id) AS open_task_count
+            FROM team_members m
+            LEFT JOIN team_tasks t ON t.member_id = m.id AND t.status = 'open'
+            WHERE m.active = 1
+            GROUP BY m.id
+            ORDER BY m.name COLLATE NOCASE
+        """).fetchall()
+        members = [dict(r) for r in rows]
+    except Exception as exc:
+        log.error("admin_index DB error: %s", exc)
+        members = []
+    total = len(members)
+    active = sum(1 for m in members if m["status"] == "active")
+    needs_attention = sum(1 for m in members if m["status"] == "needs_attention")
+    open_tasks = sum(m["open_task_count"] for m in members)
+    return render_template(
+        "admin.html",
+        members=members,
+        stats={"total": total, "active": active, "needs_attention": needs_attention, "open_tasks": open_tasks},
+        admin_user=session.get("admin_user", "donna"),
+    )
+
+
+@app.route("/admin/leader/<int:member_id>")
+def admin_leader(member_id):
+    redir = _admin_required()
+    if redir:
+        return redir
+    db = _db()
+    member = db.execute("SELECT * FROM team_members WHERE id=?", (member_id,)).fetchone()
+    if not member:
+        return jsonify({"error": "not found"}), 404
+    tasks = db.execute(
+        "SELECT * FROM team_tasks WHERE member_id=? ORDER BY due_date ASC",
+        (member_id,),
+    ).fetchall()
+    try:
+        notes = db.execute(
+            "SELECT * FROM pastoral_notes WHERE team_member_id=? AND note_type != 'private' ORDER BY created_at DESC",
+            (member_id,),
+        ).fetchall()
+    except Exception:
+        notes = []
+    messages = db.execute(
+        "SELECT * FROM team_messages WHERE member_id=? ORDER BY COALESCE(sent_at, created_at) DESC LIMIT 20",
+        (member_id,),
+    ).fetchall()
+    return jsonify({
+        "member":   dict(member),
+        "tasks":    [dict(r) for r in tasks],
+        "notes":    [dict(r) for r in notes],
+        "messages": [dict(r) for r in messages],
+    })
+
+
+@app.route("/admin/task", methods=["POST"])
+def admin_task():
+    redir = _admin_required()
+    if redir:
+        return jsonify({"error": "not authenticated"}), 401
+    data = request.get_json(force=True) or {}
+    member_id = data.get("team_member_id") or data.get("member_id")
+    title = (data.get("title") or "").strip()
+    if not member_id or not title:
+        return jsonify({"error": "team_member_id and title required"}), 400
+    today = datetime.now().date().isoformat()
+    db = _db()
+    cur = db.execute(
+        "INSERT INTO team_tasks (member_id, title, due_date, source, status) VALUES (?,?,?,?,?)",
+        (member_id, title, data.get("due_date") or None, "donna", "open"),
+    )
+    db.execute(
+        "UPDATE team_members SET last_activity_date=? WHERE id=?",
+        (today, member_id),
+    )
+    db.commit()
+    return jsonify({"success": True, "task_id": cur.lastrowid})
+
+
+@app.route("/admin/note", methods=["POST"])
+def admin_note():
+    redir = _admin_required()
+    if redir:
+        return jsonify({"error": "not authenticated"}), 401
+    data = request.get_json(force=True) or {}
+    member_id = data.get("team_member_id") or data.get("member_id")
+    content = (data.get("content") or "").strip()
+    if not member_id or not content:
+        return jsonify({"error": "team_member_id and content required"}), 400
+    today = datetime.now().date().isoformat()
+    db = _db()
+    member = db.execute("SELECT name FROM team_members WHERE id=?", (member_id,)).fetchone()
+    person_name = member["name"] if member else "Unknown"
+    db.execute(
+        "INSERT INTO pastoral_notes (person_name, note, team_member_id, note_type, content, created_by) "
+        "VALUES (?, ?, ?, 'team', ?, 'donna')",
+        (person_name, content, member_id, content),
+    )
+    db.execute(
+        "UPDATE team_members SET last_activity_date=? WHERE id=?",
+        (today, member_id),
+    )
+    db.commit()
+    return jsonify({"success": True})
+
+
+@app.route("/admin/email", methods=["POST"])
+def admin_email():
+    redir = _admin_required()
+    if redir:
+        return jsonify({"error": "not authenticated"}), 401
+    data = request.get_json(force=True) or {}
+    member_id = data.get("team_member_id") or data.get("member_id")
+    subject = (data.get("subject") or "").strip()
+    body = (data.get("body") or "").strip()
+    if not member_id or not subject or not body:
+        return jsonify({"error": "team_member_id, subject, and body required"}), 400
+    try:
+        from jobs.team.email_job import send_team_email
+        result = send_team_email(int(member_id), subject, body)
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+    if result.get("error"):
+        return jsonify({"error": result["error"]}), 500
+    today = datetime.now().date().isoformat()
+    db = _db()
+    db.execute(
+        "UPDATE team_members SET last_comms_date=? WHERE id=?",
+        (today, member_id),
+    )
+    db.commit()
+    return jsonify({"success": True})
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────

@@ -406,7 +406,11 @@ function renderMore() {
     <div class="mrrow" onclick="openLogins()" style="cursor:pointer">
       <span style="font-size:13px;font-weight:500">Logins</span>
       <span style="color:var(--gold);font-size:15px">›</span>
-    </div>`);
+    </div>
+    <a href="/admin" target="_blank" rel="noopener" class="mrrow" style="text-decoration:none;cursor:pointer">
+      <span style="font-size:13px;font-weight:500;color:var(--text)">Team Admin</span>
+      <span style="color:var(--gold);font-size:15px">›</span>
+    </a>`);
 }
 
 function moreToggle(sec) {
