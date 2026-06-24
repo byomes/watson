@@ -611,10 +611,29 @@ def handle_delete_action(payload: dict) -> str:
 
 # ── Main run loop ──────────────────────────────────────────────────────────────
 
+def _get_donna_email_from_db() -> str | None:
+    """Look up Donna's email from team_members at runtime."""
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        row = conn.execute(
+            "SELECT email FROM team_members WHERE name LIKE '%Donna%' AND active=1 LIMIT 1"
+        ).fetchone()
+        conn.close()
+        if row and row["email"]:
+            return row["email"].strip().lower()
+    except Exception as exc:
+        log.warning("Could not look up Donna's email: %s", exc)
+    return None
+
+
 def run():
     _init_tables()
     emails = get_unread()
     log.info("Found %d unread email(s)", len(emails))
+
+    # Resolve Donna's email once per run for task-proposal reply detection
+    donna_email = _get_donna_email_from_db()
 
     for msg in emails:
         msg_id      = msg["id"]
@@ -629,6 +648,17 @@ def run():
         # Bill's own email — directive path (unchanged behavior)
         if addr in WHITELIST:
             _handle_bill_email(sender_raw, subject, body, received_at, msg_id)
+            mark_as_read(msg_id)
+            continue
+
+        # Donna task-proposal reply — whitelist check
+        if donna_email and addr == donna_email and "Watson — Proposed tasks" in subject:
+            log.info("Donna task proposal reply received: %s", subject)
+            try:
+                from jobs.team.note_task_scan import handle_donna_proposal_reply
+                handle_donna_proposal_reply(body)
+            except Exception as exc:
+                log.error("handle_donna_proposal_reply failed: %s", exc)
             mark_as_read(msg_id)
             continue
 
