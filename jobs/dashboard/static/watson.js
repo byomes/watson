@@ -112,6 +112,7 @@ async function renderHome() {
             <div style="display:flex;gap:8px">
               <button onclick="saveInlineNote(${item.id},${idx})" style="flex:1;padding:7px;background:var(--gold);color:#0f0f0f;border:none;border-radius:var(--r-btn);font-weight:600;font-family:inherit;font-size:13px;cursor:pointer">Save</button>
               <button onclick="skipInlineNote(${item.id},${idx})" style="padding:7px 14px;background:none;border:1px solid var(--border);border-radius:var(--r-btn);color:var(--muted);font-family:inherit;font-size:13px;cursor:pointer">Skip</button>
+              <button onclick="deleteInlineNote(${item.id},${idx})" style="padding:7px 14px;background:none;border:1px solid rgba(201,80,76,.4);border-radius:var(--r-btn);color:var(--red);font-family:inherit;font-size:13px;cursor:pointer">Delete</button>
             </div>
           </div>
           <div style="margin-top:8px;cursor:pointer;font-size:11px;font-family:'DM Mono',monospace;color:var(--gold);letter-spacing:.04em" onclick="togglePendingExp(${idx})" id="pending-tog-${idx}">+ ADD NOTE</div>
@@ -252,6 +253,23 @@ async function skipInlineNote(pendingId, idx) {
     }
     _pendingOpenIdx = null;
   } catch { alert('Failed to skip.'); }
+}
+
+async function deleteInlineNote(pendingId, idx) {
+  try {
+    await api('/api/pastoral_notes/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pending_id: pendingId }),
+    });
+    const card = document.getElementById(`pending-card-${idx}`);
+    if (card) {
+      card.style.transition = 'opacity .3s';
+      card.style.opacity = '0';
+      setTimeout(() => { if (card.parentNode) card.remove(); }, 300);
+    }
+    _pendingOpenIdx = null;
+  } catch { alert('Failed to delete.'); }
 }
 
 async function addHomeTask() {

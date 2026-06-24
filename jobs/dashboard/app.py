@@ -4036,6 +4036,28 @@ def pastoral_notes_skip():
     return jsonify({"success": True})
 
 
+@app.route("/api/pastoral_notes/delete", methods=["POST"])
+def pastoral_notes_delete_pending():
+    import json as _json
+    data = request.get_json(force=True) or {}
+    pending_id = data.get("pending_id")
+    if not pending_id:
+        return jsonify({"error": "pending_id required"}), 400
+    db = _db()
+    row = db.execute("SELECT payload FROM tg_pending_actions WHERE id=?", (pending_id,)).fetchone()
+    if row:
+        try:
+            payload = _json.loads(row["payload"] or "{}")
+            notes_pending_id = payload.get("notes_pending_id")
+            if notes_pending_id:
+                db.execute("DELETE FROM notes_pending WHERE id=?", (notes_pending_id,))
+        except Exception:
+            pass
+    db.execute("DELETE FROM tg_pending_actions WHERE id=?", (pending_id,))
+    db.commit()
+    return jsonify({"success": True})
+
+
 @app.route("/admin/task/priority", methods=["POST"])
 def admin_task_priority():
     redir = _admin_required()
