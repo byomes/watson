@@ -592,3 +592,59 @@ WATSON_API_URL=https://watson.tail0243ff.ts.net
 - 3685a99 fix: replace "Join the Launch Team" CTA text with "Join the Writing Room"
 - d73ee71 fix: redirect /arc to /room, replace ARC language with Writing Room
 - 77a069f feat: draft page posts to Watson directly, retire Upstash KV route
+
+---
+
+## Recent Changes — 2026-06-24
+
+### ~/watson
+- 9eeaa33 fix: message delete uses _db() not get_db()
+- b60a009 feat: delete comms messages from detail panel
+- 5740a34 fix: remove duplicate arrow icon from profile back button
+- f08a65a fix: back button typo fixed, gold arrow icon added to profile panel
+- e5b8a3b fix: export deleteTask in TeamApp public API
+- 71c3b94 feat: completed tasks show delete button, auto-switch to done filter on check
+- 797c6cf fix: remove subtitle from both headers, W and WATSON only
+- 22b013d fix: team header matches dashboard, back arrow visible, nav icons+labels, drag reorder disabled
+- 72b009e fix: back arrow safe area, date right-aligned, nav icons+labels, disable drag reorder
+- 51af48c feat: add telegram link and date to team header, fix scroll offset
+- b69da60 feat: unified task view with Mine/Team filters
+- e39a7ba feat: remove tasks tab from dashboard, tasks live in team
+- ee5827d fix: task intake writes to team_tasks for Bill
+- c7d0cea feat: migrate personal tasks to team_tasks
+- b35fe67 feat: team member drag-to-reorder
+- 9f90ce6 fix: W logo on team page hard resets to /team
+- 5d0271d fix: filter empty and junk values from action_items and leader_tasks
+- 949d762 fix: email_intake uses IMAP, bill emails handled as directives with telegram/email clarification routing
+- f6e4345 feat: team comms inbound display
+- 2d539fe feat: team inbound email digest
+- 89fbf30 feat: team contact auto-match sync
+- ce42b55 feat: team management system complete
+- 31cc741 feat: team cron instructions
+- c75ce02 feat: wire team blueprint and mode switcher into dashboard app
+- b59aaef feat: team management frontend
+- a0e2cce feat: team pre-meeting brief job
+- 6737885 feat: team reminders job
+- c6d03b2 feat: team email job
+- 21ee8d5 feat: team transcript extractor
+- 6d7e151 feat: team management API blueprint
+- 67515a0 feat: team management DB migration
+- a197510 revert: undo all chat keyboard patches, start fresh
+- b9c1a9f fix: clean rewrite of chat tab keyboard handling
+- 749888b fix: tab-chat full cover with bottom anchor and higher z-index
+- eac7f74 fix: resize tab-chat with visualViewport instead of moving input bar
+- 4ce1c13 fix: consolidate chat-input-bar CSS, remove conflicting rule
+- dab3ccd fix: fixed-position chat input bar with visualViewport keyboard tracking
+- c35f00c fix: hide nav bar when chat tab is active
+- 5eaf4f7 fix: isolate chat tab as full-screen layer, sticky input bar
+- f6dfbbe feat: logins list search input — real-time filter by label, username, url
+- 237faa8 fix: use async httpx in handle_vault_callback instead of sync requests
+- d4e9109 feat: login vault security — challenge flow, lockout, Telegram unlock
+- 282e769 feat: logins manager — DB table, skill, API routes, dashboard overlay
+- aa52c7c fix: iOS keyboard pushes chat input off screen — lift tab-chat bottom on viewport resize
+- 206cee4 fix: pastoral search colon trigger + campus derivation from attendance history
+- 3f17b4d docs: file map 2026-06-23
+- 86d32ad docs: architecture update 2026-06-23
+
+### ~/wcky
+- 2a96998 fix: shrink popup image on mobile so form is visible on load
