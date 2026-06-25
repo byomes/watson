@@ -82,7 +82,7 @@ def run(question: str) -> str:
     today_str = date.today().strftime('%Y-%m-%d')
     last_sun = _last_sunday()
     weeks = [(date.today() - __import__('datetime').timedelta(weeks=i)).strftime('%Y-%m-%d') for i in range(1, 7)]
-    date_hint = f"Today is {today_str}. Last Sunday was {last_sun}. Previous Sundays: {', '.join(weeks)}. Dates stored as TEXT YYYY-MM-DD. For ranges use: service_date >= 'YYYY-MM-DD' AND service_date <= 'YYYY-MM-DD'."
+    date_hint = f"Today is {today_str}. Last Sunday was {last_sun}. Previous Sundays (most recent first): {', '.join(weeks)}. Dates stored as TEXT YYYY-MM-DD. NEVER use INTERVAL, DATE_SUB, or any date math functions — use only the literal dates provided above. For 'last 3 weeks' use: service_date >= '{weeks[2]}' AND service_date <= '{last_sun}'. For 'last 6 weeks' use: service_date >= '{weeks[5]}' AND service_date <= '{last_sun}'."
     join_hints = """
 IMPORTANT JOIN RULES:
 - To get member names from attendance: JOIN members m ON a.member_id = m.id — use m.name
@@ -91,6 +91,8 @@ IMPORTANT JOIN RULES:
 - connect_cards has columns: id, member_id, service_date, campus, prayer_request, next_steps
 - NEVER use t1.name or t2.name — attendance and connect_cards have no name column
 - campus values are exactly 'Online' or 'Wilmington' (capital first letter) — always use exact case
+- For attendance counts or lists, NEVER join to connect_cards — use attendance table directly or join members only
+- connect_cards join is only needed when accessing prayer_request or next_steps fields
 """
     prompt = _SYSTEM.format(schema=schema) + f"\n\n{date_hint}\n\n{join_hints}\n\nQuestion: {question}"
 
