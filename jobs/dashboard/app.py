@@ -3826,12 +3826,14 @@ def admin_leader(member_id):
         return jsonify({"error": "not found"}), 404
     if member_id == 12:
         tasks = db.execute(
-            "SELECT * FROM team_tasks WHERE member_id=? AND category='catalyst' AND status='open' ORDER BY due_date ASC",
+            "SELECT * FROM team_tasks WHERE member_id=? AND category='catalyst' AND status='open' "
+            "ORDER BY CAST(priority AS INTEGER) ASC, due_date ASC",
             (member_id,),
         ).fetchall()
     else:
         tasks = db.execute(
-            "SELECT * FROM team_tasks WHERE member_id=? ORDER BY due_date ASC",
+            "SELECT * FROM team_tasks WHERE member_id=? "
+            "ORDER BY CAST(priority AS INTEGER) ASC, due_date ASC",
             (member_id,),
         ).fetchall()
     try:
