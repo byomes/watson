@@ -1097,7 +1097,7 @@ function renderNotesTab() {
       const isDonna = n.author === 'donna';
       const badgeClass = isDonna ? 'donna' : 'bill';
       const badgeLabel = isDonna ? 'Donna' : 'Dr. Bill';
-      const canDelete = (isDonna && ADMIN_USER === 'donna') || (!isDonna && ADMIN_USER === 'drbill');
+      const canDelete = true;
       const delBtn = canDelete
         ? `<button class="sn-del" onclick="deleteSharedNote(${n.id})" title="Delete">✕</button>`
         : '';

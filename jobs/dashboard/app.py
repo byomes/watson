@@ -3965,11 +3965,9 @@ def admin_notes_delete(note_id):
     if redir:
         return jsonify({"error": "not authenticated"}), 401
     db = _db()
-    note = db.execute("SELECT author FROM shared_notes WHERE id=?", (note_id,)).fetchone()
+    note = db.execute("SELECT id FROM shared_notes WHERE id=?", (note_id,)).fetchone()
     if not note:
         return jsonify({"error": "not found"}), 404
-    if note["author"] != "donna":
-        return jsonify({"error": "can only delete own notes"}), 403
     db.execute("DELETE FROM shared_notes WHERE id=?", (note_id,))
     db.commit()
     return jsonify({"success": True})
