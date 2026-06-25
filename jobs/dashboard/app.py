@@ -1306,6 +1306,25 @@ def chat_stream():
     msg_lower = message.lower().strip()
     import re as _re
 
+    # Directive intercepts — run before all routing
+    if msg_lower.startswith("cdb:"):
+        from jobs.skills.cdb_query import run as _cdb_run
+        _q = message[4:].strip()
+        return _sse_response(_stream_simple(_cdb_run(_q) or "No results."))
+    if msg_lower.startswith("web:"):
+        from jobs.research.web_search import run as _web_run
+        _q = message[4:].strip()
+        return _sse_response(_stream_simple(_web_run(_q) or "No results."))
+    if msg_lower.startswith("bible:"):
+        from jobs.bible import run as _bible_run
+        _q = message[6:].strip()
+        return _sse_response(_stream_simple(_bible_run(_q) or "No results."))
+    if msg_lower.startswith("polish:"):
+        from jobs.skills.polish import run as _polish_run
+        _q = message[7:].strip()
+        return _sse_response(_stream_simple(_polish_run(_q) or "No results."))
+
+
     # Dashboard confirmation gate — check for a pending skill confirmation before routing
     from jobs.telegram.pending import get_pending_confirmation, mark_pending_status
     _dash_conf = get_pending_confirmation()

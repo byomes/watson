@@ -549,9 +549,9 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     # Normalize smart quotes from mobile keyboards
-    text_clean = text.replace("’", "’").replace("’", "’")
+    text_clean = text.replace("'", "'").replace("'", "'")
     text_lower = text_clean.lower().strip()
-    _log_tg(‘in’, text_clean)
+    _log_tg('in', text_clean)
 
     # Directive prefix intercepts — colon-prefixed commands, highest priority
     _DIRECTIVE_PREFIXES = (
@@ -583,7 +583,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     _ensure_reminders_table(_rc)
                     _rc.execute(
                         "INSERT INTO reminders (title, due_datetime, reminder_time, status, created_at, updated_at) "
-                        "VALUES (?, datetime(‘now’), NULL, ‘active’, datetime(‘now’), datetime(‘now’))",
+                        "VALUES (?, datetime('now'), NULL, 'active', datetime('now'), datetime('now'))",
                         (_darg,),
                     )
                 await update.message.reply_text(f"Reminder saved: {_darg}")
@@ -598,9 +598,9 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     _ct = next((c for c in _hits if c.get("phone")), None)
                     if _ct:
                         _res = _sms_tc_d(_ct, _sms_body)
-                        _dr = f"Text sent to {_ct[‘name’]}." if _res["success"] else f"Failed: {_res[‘error’]}"
+                        _dr = f"Text sent to {_ct['name']}." if _res["success"] else f"Failed: {_res['error']}"
                     else:
-                        _dr = f"No contact with phone found for ‘{_sms_name}’."
+                        _dr = f"No contact with phone found for '{_sms_name}'."
                     await update.message.reply_text(_dr)
                     _log_telegram_exchange(text_clean, _dr)
                 else:

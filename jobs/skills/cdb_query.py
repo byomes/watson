@@ -19,7 +19,7 @@ _TABLES = [
 _SYSTEM = (
     "You are a SQLite query generator. Return ONLY a valid SELECT statement. "
     "No explanation. No markdown. No extra text. "
-    "The database is congregation.db. Here is the schema:\n{schema}"
+    "Query the tables directly using their table names only — do not prefix with any filename or database name. Here is the schema:\n{schema}"
 )
 
 
