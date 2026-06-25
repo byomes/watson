@@ -113,6 +113,11 @@ def _init_tables():
         )
     """)
     conn.commit()
+    try:
+        conn.execute("ALTER TABLE team_tasks ADD COLUMN source TEXT")
+        conn.commit()
+    except sqlite3.OperationalError:
+        pass  # column already exists
     conn.close()
 
 
@@ -224,6 +229,140 @@ def _send_directive_telegram(sender, subject):
         log.error("Telegram directive alert failed: %s", exc)
 
 
+# ── Meeting summary detection & handling ──────────────────────────────────────
+
+_MEETING_SUMMARY_PROMPT = """\
+You are Watson, Dr. Bill Yomes's assistant. Analyze this email and return JSON only, no other text.
+
+Determine if this email is a meeting summary or leader update — meaning it describes a meeting or \
+interaction with a specific person and includes action items or tasks.
+
+Return:
+{{
+  "is_meeting_summary": true or false,
+  "leader_name": "first and last name mentioned, or null",
+  "tasks_for_leader": ["task 1", "task 2"],
+  "tasks_for_bill": ["task 1", "task 2"],
+  "summary": "2-3 sentence summary of the meeting for the notes log"
+}}
+
+Return empty arrays [] if no tasks found. Never return placeholder strings.
+
+Email:
+Subject: {subject}
+Body: {body}"""
+
+
+def _detect_meeting_summary(subject: str, body: str) -> dict | None:
+    prompt = _MEETING_SUMMARY_PROMPT.format(subject=subject, body=body)
+    try:
+        resp = requests.post(
+            OLLAMA_URL,
+            json={"model": OLLAMA_MODEL, "prompt": prompt, "stream": False},
+            timeout=90,
+        )
+        resp.raise_for_status()
+        raw = resp.json().get("response", "").strip()
+        raw = raw.replace("```json", "").replace("```", "").strip()
+        return json.loads(raw)
+    except Exception as exc:
+        log.error("Meeting summary detection failed: %s", exc)
+        return None
+
+
+def _handle_meeting_summary(detection: dict) -> bool:
+    """Process a detected meeting summary. Returns True if fully handled."""
+    leader_name     = (detection.get("leader_name") or "").strip()
+    tasks_for_leader = [t.strip() for t in (detection.get("tasks_for_leader") or []) if isinstance(t, str) and t.strip()]
+    tasks_for_bill   = [t.strip() for t in (detection.get("tasks_for_bill")   or []) if isinstance(t, str) and t.strip()]
+    summary          = (detection.get("summary") or "").strip()
+
+    # Leader match
+    member_id   = None
+    member_name = None
+    if leader_name:
+        try:
+            conn = sqlite3.connect(DB_PATH)
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                "SELECT id, name FROM team_members WHERE name LIKE ? AND active=1 LIMIT 1",
+                (f"%{leader_name}%",),
+            ).fetchone()
+            if not row:
+                first = leader_name.split()[0]
+                rows = conn.execute(
+                    "SELECT id, name FROM team_members WHERE name LIKE ? AND active=1",
+                    (f"{first}%",),
+                ).fetchall()
+                if len(rows) == 1:
+                    row = rows[0]
+            conn.close()
+            if row:
+                member_id   = row["id"]
+                member_name = row["name"]
+        except Exception as exc:
+            log.error("Leader DB lookup failed: %s", exc)
+
+    if not member_id:
+        _tg(
+            f"⚠️ Meeting summary received but couldn't match leader: "
+            f"{leader_name or '(unknown)'}. No tasks logged."
+        )
+        return False
+
+    today = datetime.utcnow().date().isoformat()
+
+    try:
+        conn = sqlite3.connect(DB_PATH)
+
+        for task in tasks_for_leader:
+            conn.execute(
+                "INSERT INTO team_tasks (member_id, title, assigned_by, status, source, category) "
+                "VALUES (?, ?, 'bill', 'active', 'email_intake', 'catalyst')",
+                (member_id, task),
+            )
+
+        for task in tasks_for_bill:
+            conn.execute(
+                "INSERT INTO team_tasks (member_id, title, assigned_by, status, source, category) "
+                "VALUES (12, ?, 'bill', 'active', 'email_intake', 'catalyst')",
+                (task,),
+            )
+
+        if summary:
+            conn.execute(
+                "INSERT INTO shared_notes (member_id, content, author) VALUES (?, ?, 'bill')",
+                (member_id, summary),
+            )
+
+        try:
+            conn.execute(
+                "UPDATE team_members SET last_activity_date=?, last_comms_date=? WHERE id=?",
+                (today, today, member_id),
+            )
+        except sqlite3.OperationalError:
+            conn.execute(
+                "UPDATE team_members SET last_activity_date=? WHERE id=?",
+                (today, member_id),
+            )
+
+        conn.commit()
+        conn.close()
+    except Exception as exc:
+        log.error("Meeting summary DB write failed: %s", exc)
+        _tg(f"⚠️ Meeting summary matched {member_name} but failed to log tasks: {exc}")
+        return False
+
+    first = member_name.split()[0]
+    _tg(
+        f"📋 Meeting summary logged — {member_name}\n\n"
+        f"Tasks for {first}: {len(tasks_for_leader)}\n"
+        f"Tasks for you: {len(tasks_for_bill)}\n"
+        f"Note logged: ✓"
+    )
+    return True
+
+
 # ── Bill's own email (whitelist path) ─────────────────────────────────────────
 
 def _handle_bill_email(sender, subject, body, received_at, msg_id):
@@ -233,6 +372,11 @@ def _handle_bill_email(sender, subject, body, received_at, msg_id):
         result = process_inbound(subject, body, received_at)
         if result.get("matched"):
             log.info("Team inbound matched: %s", result.get("member_name"))
+            return
+
+    detection = _detect_meeting_summary(subject, body)
+    if detection and detection.get("is_meeting_summary"):
+        if _handle_meeting_summary(detection):
             return
 
     prompt = (
