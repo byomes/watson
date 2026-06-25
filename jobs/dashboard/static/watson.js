@@ -5,6 +5,7 @@ let activePage = 'home';
 let _pendingOpenIdx = null;
 let _pendingNoteTypes = {};
 let _homeTaskTab = 'catalyst';
+let _notesType = 'pastoral';
 let chatHistory = [];
 let chatMemoryContext = '';
 let chatIdleTimer = null;
@@ -505,30 +506,155 @@ setInterval(_pollHomeData, 15000);
 
 // ─── Notes page ───────────────────────────────────────────────────────────────
 
+function _noteCardHtml(n) {
+  return `
+    <div class="card" id="note-card-${n.id}">
+      <div style="font-size:14px;font-weight:600;margin-bottom:6px">${esc(n.person_name || n.name || '')}</div>
+      <div class="note-text note-text-trunc" id="note-text-${n.id}">${esc(n.note || '')}</div>
+      <a id="note-toggle-${n.id}" onclick="toggleNoteExpand(${n.id})"
+         style="display:inline-block;margin-top:4px;font-size:11px;font-family:'DM Mono',monospace;color:var(--gold);cursor:pointer;-webkit-tap-highlight-color:transparent">Read more</a>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px">
+        <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted)">${esc(n.created_at || '')}</div>
+        <button onclick="archiveNote(${n.id})"
+          style="font-size:11px;padding:3px 8px;border-radius:4px;border:1px solid var(--border);background:none;color:var(--muted);font-family:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent">Archive</button>
+      </div>
+    </div>`;
+}
+
 async function renderNotes() {
+  _notesType = 'pastoral';
   setContent('<div class="loading">Loading&hellip;</div>');
   try {
     const notes = await api('/api/pastoral-notes?status=active');
-    if (!Array.isArray(notes) || !notes.length) {
-      setContent('<div class="empty">No notes yet.</div>');
-      return;
-    }
-    const sorted = [...notes].sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
-    const html = sorted.map(n => `
-      <div class="card" id="note-card-${n.id}">
-        <div style="font-size:14px;font-weight:600;margin-bottom:6px">${esc(n.person_name || n.name || '')}</div>
-        <div class="note-text note-text-trunc" id="note-text-${n.id}">${esc(n.note || '')}</div>
-        <a id="note-toggle-${n.id}" onclick="toggleNoteExpand(${n.id})"
-           style="display:inline-block;margin-top:4px;font-size:11px;font-family:'DM Mono',monospace;color:var(--gold);cursor:pointer;-webkit-tap-highlight-color:transparent">Read more</a>
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px">
-          <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted)">${esc(n.created_at || '')}</div>
-          <button onclick="archiveNote(${n.id})"
-            style="font-size:11px;padding:3px 8px;border-radius:4px;border:1px solid var(--border);background:none;color:var(--muted);font-family:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent">Archive</button>
+    const sorted = Array.isArray(notes)
+      ? [...notes].sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))
+      : [];
+
+    const listHtml = sorted.length
+      ? sorted.map(_noteCardHtml).join('')
+      : '<div class="empty">No notes yet.</div>';
+
+    setContent(`
+      <input id="notes-inp-name" type="text" placeholder="Person's name…"
+        style="display:block;width:100%;margin-bottom:8px;padding:9px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:14px;outline:none;box-sizing:border-box"
+        onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--border)'">
+      <textarea id="notes-inp-text" rows="3" placeholder="Add a note…"
+        style="display:block;width:100%;margin-bottom:8px;padding:9px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:14px;outline:none;resize:none;box-sizing:border-box"
+        onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--border)'"></textarea>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+        <div style="display:flex;border:1px solid var(--border);border-radius:var(--r-btn);overflow:hidden;flex:1">
+          <button id="notes-type-pastoral" onclick="setNotesType('pastoral')"
+            style="flex:1;padding:6px 0;border:none;cursor:pointer;background:var(--gold);color:#0f0f0f;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.04em;-webkit-tap-highlight-color:transparent">Pastoral</button>
+          <button id="notes-type-leadership" onclick="setNotesType('leadership')"
+            style="flex:1;padding:6px 0;border:none;cursor:pointer;background:transparent;color:var(--muted);font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.04em;-webkit-tap-highlight-color:transparent">Leadership</button>
         </div>
-      </div>`).join('');
-    setContent(html);
+        <button id="notes-add-btn" onclick="addNote()"
+          style="padding:7px 16px;background:var(--gold);color:#0f0f0f;border:none;border-radius:var(--r-btn);font-weight:600;font-family:inherit;font-size:13px;cursor:pointer;flex-shrink:0;-webkit-tap-highlight-color:transparent">Add note</button>
+      </div>
+      <div id="notes-warning" style="display:none;font-size:11px;font-family:'DM Mono',monospace;color:var(--red);margin-bottom:8px"></div>
+      <div id="notes-list" style="margin-top:16px">${listHtml}</div>`);
   } catch {
     setContent('<div class="empty">Could not load notes.</div>');
+  }
+}
+
+function setNotesType(type) {
+  _notesType = type;
+  const pastoralBtn    = document.getElementById('notes-type-pastoral');
+  const leadershipBtn  = document.getElementById('notes-type-leadership');
+  if (pastoralBtn) {
+    pastoralBtn.style.background = type === 'pastoral' ? 'var(--gold)' : 'transparent';
+    pastoralBtn.style.color      = type === 'pastoral' ? '#0f0f0f'    : 'var(--muted)';
+  }
+  if (leadershipBtn) {
+    leadershipBtn.style.background = type === 'leadership' ? 'var(--gold)' : 'transparent';
+    leadershipBtn.style.color      = type === 'leadership' ? '#0f0f0f'    : 'var(--muted)';
+  }
+}
+
+async function addNote() {
+  const nameInp = document.getElementById('notes-inp-name');
+  const textInp = document.getElementById('notes-inp-text');
+  const addBtn  = document.getElementById('notes-add-btn');
+  const person_name = (nameInp?.value || '').trim();
+  const note        = (textInp?.value  || '').trim();
+  if (!note) { textInp?.focus(); return; }
+
+  if (addBtn) { addBtn.disabled = true; addBtn.textContent = '…'; }
+
+  let warning = '';
+  let savedNote = null;
+
+  try {
+    if (_notesType === 'leadership') {
+      let member_id = null;
+      if (person_name) {
+        try {
+          const members = await api(`/api/team/members/search?name=${encodeURIComponent(person_name)}`);
+          if (Array.isArray(members) && members.length) member_id = members[0].id;
+        } catch {}
+      }
+
+      if (member_id) {
+        const res = await api('/api/team/shared_notes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ member_id, content: note, author: 'bill' }),
+        });
+        savedNote = { id: res.note?.id, person_name, note, created_at: res.note?.created_at || new Date().toLocaleString() };
+      } else {
+        warning = 'No leader matched — saved as pastoral note.';
+        const res = await api('/api/pastoral-notes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ person_name, note }),
+        });
+        savedNote = { id: res.id, person_name, note, created_at: new Date().toLocaleString() };
+      }
+    } else {
+      const res = await api('/api/pastoral-notes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ person_name, note }),
+      });
+      savedNote = { id: res.id, person_name, note, created_at: new Date().toLocaleString() };
+    }
+
+    if (nameInp) nameInp.value = '';
+    if (textInp) textInp.value = '';
+    setNotesType('pastoral');
+
+    if (warning) {
+      const warnEl = document.getElementById('notes-warning');
+      if (warnEl) {
+        warnEl.textContent = warning;
+        warnEl.style.display = 'block';
+        setTimeout(() => { warnEl.style.display = 'none'; warnEl.textContent = ''; }, 4000);
+      }
+    }
+
+    if (savedNote?.id) {
+      const list = document.getElementById('notes-list');
+      if (list) {
+        const emptyEl = list.querySelector('.empty');
+        if (emptyEl) emptyEl.remove();
+        const card = document.createElement('div');
+        card.style.opacity = '0';
+        card.style.transition = 'opacity .3s';
+        card.innerHTML = _noteCardHtml(savedNote);
+        list.prepend(card.firstElementChild);
+        const inserted = document.getElementById(`note-card-${savedNote.id}`);
+        if (inserted) {
+          inserted.style.opacity = '0';
+          inserted.style.transition = 'opacity .3s';
+          requestAnimationFrame(() => { inserted.style.opacity = '1'; });
+        }
+      }
+    }
+  } catch {
+    alert('Failed to save note.');
+  } finally {
+    if (addBtn) { addBtn.disabled = false; addBtn.textContent = 'Add note'; }
   }
 }
 

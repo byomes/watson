@@ -104,6 +104,24 @@ def members_reorder():
         return jsonify({"error": str(exc)}), 500
 
 
+@team_bp.route("/members/search", methods=["GET"])
+def members_search():
+    try:
+        query = (request.args.get("name") or "").strip()
+        if not query:
+            return jsonify([])
+        conn = _db()
+        rows = conn.execute(
+            "SELECT id, name FROM team_members WHERE active=1 AND name LIKE ? ORDER BY name ASC",
+            (f"%{query}%",),
+        ).fetchall()
+        conn.close()
+        return jsonify([dict(r) for r in rows])
+    except Exception as exc:
+        log.error("members_search error: %s", exc)
+        return jsonify({"error": str(exc)}), 500
+
+
 @team_bp.route("/members/<int:member_id>", methods=["DELETE"])
 def members_delete(member_id):
     try:
