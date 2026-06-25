@@ -72,10 +72,72 @@ def _last_sunday() -> str:
     last_sun = today - timedelta(days=days_back)
     return last_sun.strftime("%Y-%m-%d")
 
+
+def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
+    """Return a SQL query for common patterns — bypasses Ollama entirely."""
+    q = question.lower().strip()
+
+    # Determine campus filter
+    campus = None
+    if any(w in q for w in ['online', 'virtual', 'remote']):
+        campus = 'Online'
+    elif any(w in q for w in ['wilmington', 'in person', 'in-person', 'physical']):
+        campus = 'Wilmington'
+
+    # Determine date range
+    date_filter = None
+    if any(w in q for w in ['this past sunday', 'last sunday', 'this sunday', 'yesterday']):
+        date_filter = f"a.service_date = '{last_sun}'"
+    elif '6 week' in q or 'six week' in q:
+        date_filter = f"a.service_date >= '{weeks[5]}' AND a.service_date <= '{last_sun}'"
+    elif '5 week' in q or 'five week' in q:
+        date_filter = f"a.service_date >= '{weeks[4]}' AND a.service_date <= '{last_sun}'"
+    elif '4 week' in q or 'four week' in q:
+        date_filter = f"a.service_date >= '{weeks[3]}' AND a.service_date <= '{last_sun}'"
+    elif '3 week' in q or 'three week' in q:
+        date_filter = f"a.service_date >= '{weeks[2]}' AND a.service_date <= '{last_sun}'"
+    elif '2 week' in q or 'two week' in q:
+        date_filter = f"a.service_date >= '{weeks[1]}' AND a.service_date <= '{last_sun}'"
+
+    # Determine query type
+    is_count = any(w in q for w in ['how many', 'count', 'total', 'number of'])
+    is_list = any(w in q for w in ['who', 'list', 'names', 'show me', 'give me'])
+
+    # Need at least a date or campus to build a reliable query
+    if not date_filter and not campus:
+        return None
+
+    where_parts = []
+    if campus:
+        where_parts.append(f"a.campus = '{campus}'")
+    if date_filter:
+        where_parts.append(date_filter)
+    where = ' AND '.join(where_parts)
+
+    if is_count:
+        return f"SELECT COUNT(DISTINCT a.member_id) as total FROM attendance a WHERE {where}"
+    elif is_list or campus or date_filter:
+        return f"SELECT DISTINCT m.name, a.campus, a.service_date FROM attendance a JOIN members m ON a.member_id = m.id WHERE {where} ORDER BY m.name"
+    return None
+
 def run(question: str) -> str:
     question = question.strip()
     if not question:
         return "No question provided."
+
+    # Try pattern match first — bypasses Ollama for common attendance queries
+    from datetime import date as _date, timedelta as _td
+    _pm_sql = _pattern_match(question, _last_sunday(), [(_date.today() - _td(weeks=i)).strftime('%Y-%m-%d') for i in range(1, 7)])
+    if _pm_sql:
+        try:
+            uri = f"file:{CONG_DB}?mode=ro"
+            with sqlite3.connect(uri, uri=True) as _conn:
+                _cur = _conn.execute(_pm_sql)
+                rows = _cur.fetchall()
+                cols = [d[0] for d in _cur.description]
+            return _format_rows(rows, cols)
+        except Exception as e:
+            return f"SQL error: {e}\n\nGenerated query:\n{_pm_sql}"
 
     schema = _build_schema()
     from datetime import date
