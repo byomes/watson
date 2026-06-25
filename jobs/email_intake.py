@@ -247,6 +247,7 @@ Return:
 }}
 
 Return empty arrays [] if no tasks found. Never return placeholder strings.
+tasks_for_bill should include any tasks, follow-ups, or action items that Dr. Bill himself needs to do, even if mentioned briefly. Do not leave this empty if Bill has any actions.
 
 Email:
 Subject: {subject}
@@ -270,7 +271,7 @@ def _detect_meeting_summary(subject: str, body: str) -> dict | None:
         return None
 
 
-def _handle_meeting_summary(detection: dict) -> bool:
+def _handle_meeting_summary(detection: dict, body: str = "") -> bool:
     """Process a detected meeting summary. Returns True if fully handled."""
     leader_name     = (detection.get("leader_name") or "").strip()
     tasks_for_leader = [t.strip() for t in (detection.get("tasks_for_leader") or []) if isinstance(t, str) and t.strip()]
@@ -334,6 +335,11 @@ def _handle_meeting_summary(detection: dict) -> bool:
                 "INSERT INTO shared_notes (member_id, content, author) VALUES (?, ?, 'bill')",
                 (member_id, summary),
             )
+        if body:
+            conn.execute(
+                "INSERT INTO shared_notes (member_id, content, author) VALUES (?, ?, 'bill')",
+                (member_id, body[:2000]),
+            )
 
         try:
             conn.execute(
@@ -353,7 +359,9 @@ def _handle_meeting_summary(detection: dict) -> bool:
         _tg(f"⚠️ Meeting summary matched {member_name} but failed to log tasks: {exc}")
         return False
 
-    first = member_name.split()[0]
+    _HONORIFICS = {"Dr.", "Dr", "Pastor", "Rev.", "Rev"}
+    parts = member_name.split()
+    first = parts[1] if len(parts) > 1 and parts[0] in _HONORIFICS else parts[0]
     _tg(
         f"📋 Meeting summary logged — {member_name}\n\n"
         f"Tasks for {first}: {len(tasks_for_leader)}\n"
@@ -376,7 +384,7 @@ def _handle_bill_email(sender, subject, body, received_at, msg_id):
 
     detection = _detect_meeting_summary(subject, body)
     if detection and detection.get("is_meeting_summary"):
-        if _handle_meeting_summary(detection):
+        if _handle_meeting_summary(detection, body):
             return
 
     prompt = (
