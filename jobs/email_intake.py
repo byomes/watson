@@ -234,20 +234,24 @@ def _send_directive_telegram(sender, subject):
 _MEETING_SUMMARY_PROMPT = """\
 You are Watson, Dr. Bill Yomes's assistant. Analyze this email and return JSON only, no other text.
 
-Determine if this email is a meeting summary or leader update — meaning it describes a meeting or \
-interaction with a specific person and includes action items or tasks.
+This email was written BY Dr. Bill Yomes. Determine if it is a meeting summary or leader update — meaning it describes a meeting or interaction Bill had with one of his church leaders, and includes action items or tasks.
+
+Rules:
+- leader_name: the name of the OTHER person Bill met with (NOT Bill himself). This is a church leader Bill manages.
+- tasks_for_leader: tasks or action items the LEADER needs to do.
+- tasks_for_bill: tasks or action items DR. BILL himself needs to do.
+- Never put Bill in leader_name. Bill is always the author, never the leader being discussed.
 
 Return:
 {{
   "is_meeting_summary": true or false,
-  "leader_name": "first and last name mentioned, or null",
+  "leader_name": "full name of the leader Bill met with, or null",
   "tasks_for_leader": ["task 1", "task 2"],
   "tasks_for_bill": ["task 1", "task 2"],
   "summary": "2-3 sentence summary of the meeting for the notes log"
 }}
 
 Return empty arrays [] if no tasks found. Never return placeholder strings.
-tasks_for_bill should include any tasks, follow-ups, or action items that Dr. Bill himself needs to do, even if mentioned briefly. Do not leave this empty if Bill has any actions.
 
 Email:
 Subject: {subject}
