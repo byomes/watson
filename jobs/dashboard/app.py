@@ -218,6 +218,12 @@ def _bootstrap():
         c.execute("ALTER TABLE team_tasks ADD COLUMN category TEXT DEFAULT 'catalyst'")
     except Exception:
         pass
+    try:
+        c.execute("UPDATE team_tasks SET priority = '3' WHERE priority = 'medium'")
+        c.execute("UPDATE team_tasks SET priority = '1' WHERE priority = 'high'")
+        c.execute("UPDATE team_tasks SET priority = '5' WHERE priority = 'low'")
+    except Exception:
+        pass
     c.commit()
     c.close()
 
@@ -3782,7 +3788,7 @@ def admin_index():
             SELECT m.id, m.name, m.role, m.ministry, m.email,
                    COALESCE(m.status, 'stalled') AS status,
                    m.last_activity_date, m.last_comms_date,
-                   COUNT(t.id) AS open_task_count
+                   COUNT(CASE WHEN m.id != 12 OR t.category = 'catalyst' THEN t.id END) AS open_task_count
             FROM team_members m
             LEFT JOIN team_tasks t ON t.member_id = m.id AND t.status = 'open'
             WHERE m.active = 1
@@ -3814,10 +3820,16 @@ def admin_leader(member_id):
     member = db.execute("SELECT * FROM team_members WHERE id=?", (member_id,)).fetchone()
     if not member:
         return jsonify({"error": "not found"}), 404
-    tasks = db.execute(
-        "SELECT * FROM team_tasks WHERE member_id=? AND category='catalyst' ORDER BY due_date ASC",
-        (member_id,),
-    ).fetchall()
+    if member_id == 12:
+        tasks = db.execute(
+            "SELECT * FROM team_tasks WHERE member_id=? AND category='catalyst' ORDER BY due_date ASC",
+            (member_id,),
+        ).fetchall()
+    else:
+        tasks = db.execute(
+            "SELECT * FROM team_tasks WHERE member_id=? ORDER BY due_date ASC",
+            (member_id,),
+        ).fetchall()
     try:
         notes = db.execute(
             "SELECT * FROM pastoral_notes WHERE team_member_id=? AND note_type != 'private' ORDER BY created_at DESC",
@@ -4086,7 +4098,7 @@ def admin_task_priority():
     data = request.get_json(force=True) or {}
     task_id  = data.get("task_id")
     priority = data.get("priority")
-    if not task_id or priority not in ("high", "medium", "low"):
+    if not task_id or priority not in ("1", "2", "3", "4", "5"):
         return jsonify({"error": "task_id and valid priority required"}), 400
     db = _db()
     task = db.execute("SELECT title, category FROM team_tasks WHERE id=?", (task_id,)).fetchone()
@@ -4178,7 +4190,7 @@ def admin_roster():
         SELECT m.id, m.name, m.role, m.ministry, m.email,
                COALESCE(m.status, 'stalled') AS status,
                m.last_activity_date, m.last_comms_date,
-               COUNT(t.id) AS open_task_count
+               COUNT(CASE WHEN m.id != 12 OR t.category = 'catalyst' THEN t.id END) AS open_task_count
         FROM team_members m
         LEFT JOIN team_tasks t ON t.member_id = m.id AND t.status = 'open'
         WHERE m.active = 1

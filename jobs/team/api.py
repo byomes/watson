@@ -422,9 +422,9 @@ def tasks_create(member_id):
         title = (data.get("title") or "").strip()
         if not title:
             return jsonify({"error": "title required"}), 400
-        priority = data.get("priority", "medium")
-        if priority not in ("high", "medium", "low"):
-            priority = "medium"
+        priority = data.get("priority", "3")
+        if priority not in ("1", "2", "3", "4", "5"):
+            priority = "3"
         conn = _db()
         cur = conn.execute(
             "INSERT INTO team_tasks (member_id, title, due_date, goal_id, source, priority) VALUES (?,?,?,?,?,?)",
@@ -447,9 +447,9 @@ def tasks_create_flat():
         title = (data.get("title") or "").strip()
         if not member_id or not title:
             return jsonify({"error": "member_id and title required"}), 400
-        priority = data.get("priority", "medium")
-        if priority not in ("high", "medium", "low"):
-            priority = "medium"
+        priority = data.get("priority", "3")
+        if priority not in ("1", "2", "3", "4", "5"):
+            priority = "3"
         category = data.get("category", "catalyst")
         if category not in ("catalyst", "fms", "personal"):
             category = "catalyst"

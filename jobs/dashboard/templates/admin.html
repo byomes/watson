@@ -543,9 +543,11 @@ html, body {
 
 /* Priority badges and select */
 .pri { display:inline-block; font-size:10px; font-family:'DM Mono',monospace; padding:2px 6px; border-radius:4px; letter-spacing:.02em; }
-.pri-high   { background:rgba(201,80,76,.12);  color:var(--red); }
-.pri-medium { background:rgba(201,168,76,.10); color:var(--gold-dim); }
-.pri-low    { background:rgba(76,175,125,.10); color:var(--green); }
+.pri-1 { background:rgba(239,68,68,.12);  color:#ef4444; }
+.pri-2 { background:rgba(249,115,22,.12); color:#f97316; }
+.pri-3 { background:rgba(234,179,8,.12);  color:#eab308; }
+.pri-4 { background:rgba(20,184,166,.12); color:#14b8a6; }
+.pri-5 { background:rgba(34,197,94,.12);  color:#22c55e; }
 .dp-pri-sel {
   background: var(--surface2);
   border: 1px solid var(--border);
@@ -967,19 +969,21 @@ function renderTasksTab() {
   if (!tasks.length) html += '<div class="empty-state">No tasks yet.</div>';
   tasks.forEach(t => {
     const done = t.status === 'done' || t.status === 'completed';
-    const p    = t.priority || 'medium';
+    const p    = t.priority || '3';
     html += `<div class="dp-task" id="dp-task-row-${t.id}">
       <div class="dp-task-check ${done ? 'done' : ''}" onclick="toggleTask(${t.id}, this)"></div>
       <div class="dp-task-info">
         <div class="dp-task-title ${done ? 'done' : ''}">${esc(t.title)}</div>
         ${t.due_date ? `<div class="dp-task-due">Due ${esc(t.due_date)}</div>` : ''}
-        ${!isBill ? `<span class="pri pri-${esc(p)}" style="margin-top:3px">${esc(p.charAt(0).toUpperCase()+p.slice(1))}</span>` : ''}
+        ${!isBill ? `<span class="pri pri-${esc(p)}" style="margin-top:3px">${esc(p)}</span>` : ''}
       </div>
       ${!done ? `<div class="dp-task-right" id="dp-task-right-${t.id}">
         ${isBill ? `<select class="dp-pri-sel" onchange="setTaskPriority(${t.id},this.value)">
-          <option value="high"   ${p==='high'   ? 'selected' : ''}>High</option>
-          <option value="medium" ${p==='medium' ? 'selected' : ''}>Med</option>
-          <option value="low"    ${p==='low'    ? 'selected' : ''}>Low</option>
+          <option value="1" ${p==='1' ? 'selected' : ''}>1</option>
+          <option value="2" ${p==='2' ? 'selected' : ''}>2</option>
+          <option value="3" ${p==='3' ? 'selected' : ''}>3</option>
+          <option value="4" ${p==='4' ? 'selected' : ''}>4</option>
+          <option value="5" ${p==='5' ? 'selected' : ''}>5</option>
         </select>` : ''}
         <button class="dp-reassign-btn" onclick="showReassignCtrl(${t.id})">Reassign</button>
       </div>` : ''}

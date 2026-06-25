@@ -630,7 +630,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ).fetchone()
     if _pending_note:
         from jobs.pastoral_notes.handler import handle_notes_reply
-        await handle_notes_reply(text_clean)
+        await handle_notes_reply(text_clean.strip())
         log.info("DEBUG pre-check: pastoral notes reply")
         return
 

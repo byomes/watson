@@ -61,12 +61,12 @@ function esc(s) {
 }
 
 function priClass(p) {
-  if (!p) return 'pri-normal';
+  if (!p) return 'pri-3';
   return `pri-${p}`;
 }
 
 function priLabel(p) {
-  return p ? p.charAt(0).toUpperCase() + p.slice(1) : 'Normal';
+  return p || '3';
 }
 
 function catLabel(c) {
@@ -243,16 +243,15 @@ async function switchHomeTaskTab(tab) {
 
 function _homeTasksHtml(tasks) {
   if (!tasks.length) return '<div class="empty">No open tasks.</div>';
-  const PRI_ORDER = { high: 0, medium: 1, low: 2 };
   const sorted = [...tasks].sort((a, b) => {
-    const pa = PRI_ORDER[a.priority] ?? 1;
-    const pb = PRI_ORDER[b.priority] ?? 1;
+    const pa = parseInt(a.priority, 10) || 3;
+    const pb = parseInt(b.priority, 10) || 3;
     if (pa !== pb) return pa - pb;
     return (a.created_at || '').localeCompare(b.created_at || '');
   });
   return sorted.map(t => {
-    const p = t.priority || 'medium';
-    const showBadge = p === 'high' || p === 'low';
+    const p = t.priority || '3';
+    const showBadge = !!p;
     const cat = t.category || 'catalyst';
     return `
     <div class="task-card" id="home-task-${t.id}">
@@ -467,7 +466,7 @@ async function addHomeTask() {
   const dateInp = document.getElementById('home-task-date');
   const due_date = dateInp?.value || null;
   try {
-    const body = { member_id: 12, title, priority: 'medium', category: _homeTaskTab, assigned_by: 'bill' };
+    const body = { member_id: 12, title, priority: '3', category: _homeTaskTab, assigned_by: 'bill' };
     if (due_date) body.due_date = due_date;
     await api('/api/team/tasks', {
       method: 'POST',
