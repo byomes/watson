@@ -265,6 +265,7 @@ html, body {
 .task-body  { flex: 1; min-width: 0; }
 .task-title { font-size: 14px; line-height: 1.4; }
 .task-title.struck { color: var(--muted); text-decoration: line-through; }
+.task-due { font-size: 11px; font-family: 'DM Mono', monospace; color: var(--gold-dim); margin-top: 2px; }
 
 .pri {
   display: inline-block;
@@ -290,7 +291,7 @@ html, body {
   border-radius: 4px;
   letter-spacing: .02em;
   background: rgba(102,102,102,.10);
-  color: var(--muted);
+  color: var(--gold);
   cursor: pointer;
   user-select: none;
 }
@@ -312,7 +313,7 @@ html, body {
   font-size: 12px;
   font-family: 'DM Mono', monospace;
   cursor: pointer;
-  color: var(--text);
+  color: var(--gold);
 }
 .cat-opt:hover { background: var(--surface-2); }
 .cat-opt.selected { color: var(--gold); }

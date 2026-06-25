@@ -251,6 +251,7 @@ function _homeTasksHtml(tasks) {
       <div class="task-check display-only"></div>
       <div class="task-body">
         <div class="task-title">${esc(t.title)}</div>
+        ${t.due_date ? `<div class="task-due">${new Date(t.due_date).toLocaleDateString('en-US', {month:'short', day:'numeric'})}</div>` : ''}
         <div class="task-badges">
           ${showBadge ? `<span class="pri ${priClass(p)}">${priLabel(p)}</span>` : ''}
           <div class="cat-wrap">
