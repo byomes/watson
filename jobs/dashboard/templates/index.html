@@ -280,6 +280,43 @@ html, body {
 .pri-low    { background: rgba(76,175,125,.10); color: var(--green); }
 .pri-normal { background: rgba(102,102,102,.10);color: var(--muted); }
 
+.task-badges { display: flex; align-items: center; gap: 6px; margin-top: 5px; flex-wrap: wrap; }
+.cat-wrap { position: relative; }
+.cat-pill {
+  display: inline-block;
+  font-size: 10px;
+  font-family: 'DM Mono', monospace;
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: .02em;
+  background: rgba(102,102,102,.10);
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+}
+.cat-drop {
+  display: none;
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  z-index: 100;
+  min-width: 100px;
+  box-shadow: 0 4px 12px rgba(0,0,0,.15);
+}
+.cat-opt {
+  padding: 7px 12px;
+  font-size: 12px;
+  font-family: 'DM Mono', monospace;
+  cursor: pointer;
+  color: var(--text);
+}
+.cat-opt:hover { background: var(--surface-2); }
+.cat-opt.selected { color: var(--gold); }
+
 /* ── Calendar grouped card ───────────────────────────────────────────────── */
 .cal-card {
   background: var(--surface);

@@ -68,6 +68,14 @@ function priLabel(p) {
   return p ? p.charAt(0).toUpperCase() + p.slice(1) : 'Normal';
 }
 
+function catLabel(c) {
+  if (c === 'fms') return 'FMS';
+  if (c === 'personal') return 'Personal';
+  return 'Catalyst';
+}
+
+let _openCatDrop = null;
+
 // ─── Navigation ───────────────────────────────────────────────────────────────
 
 function switchTab(page) {
@@ -237,16 +245,75 @@ function _homeTasksHtml(tasks) {
   return sorted.map(t => {
     const p = t.priority || 'medium';
     const showBadge = p === 'high' || p === 'low';
+    const cat = t.category || 'catalyst';
     return `
-    <div class="task-card">
+    <div class="task-card" id="home-task-${t.id}">
       <div class="task-check display-only"></div>
       <div class="task-body">
         <div class="task-title">${esc(t.title)}</div>
-        ${showBadge ? `<span class="pri ${priClass(p)}">${priLabel(p)}</span>` : ''}
+        <div class="task-badges">
+          ${showBadge ? `<span class="pri ${priClass(p)}">${priLabel(p)}</span>` : ''}
+          <div class="cat-wrap">
+            <span class="cat-pill" onclick="toggleCatDrop(${t.id}, event)">${catLabel(cat)}</span>
+            <div class="cat-drop" id="cat-drop-${t.id}">
+              <div class="cat-opt${cat === 'catalyst' ? ' selected' : ''}" onclick="reassignCat(${t.id}, 'catalyst', event)">Catalyst</div>
+              <div class="cat-opt${cat === 'fms' ? ' selected' : ''}" onclick="reassignCat(${t.id}, 'fms', event)">FMS</div>
+              <div class="cat-opt${cat === 'personal' ? ' selected' : ''}" onclick="reassignCat(${t.id}, 'personal', event)">Personal</div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>`;
   }).join('');
 }
+
+function toggleCatDrop(taskId, event) {
+  event.stopPropagation();
+  const drop = document.getElementById(`cat-drop-${taskId}`);
+  if (!drop) return;
+  if (_openCatDrop !== null && _openCatDrop !== taskId) {
+    const prev = document.getElementById(`cat-drop-${_openCatDrop}`);
+    if (prev) prev.style.display = 'none';
+  }
+  const isOpen = drop.style.display === 'block';
+  drop.style.display = isOpen ? 'none' : 'block';
+  _openCatDrop = isOpen ? null : taskId;
+}
+
+function _closeCatDrop() {
+  if (_openCatDrop !== null) {
+    const drop = document.getElementById(`cat-drop-${_openCatDrop}`);
+    if (drop) drop.style.display = 'none';
+    _openCatDrop = null;
+  }
+}
+
+async function reassignCat(taskId, newCat, event) {
+  event.stopPropagation();
+  _closeCatDrop();
+  if (newCat === _homeTaskTab) return;
+  try {
+    await api(`/api/team/tasks/${taskId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ category: newCat }),
+    });
+    const card = document.getElementById(`home-task-${taskId}`);
+    if (card) {
+      card.style.transition = 'opacity .3s';
+      card.style.opacity = '0';
+      setTimeout(() => { if (card.parentNode) card.remove(); }, 300);
+    }
+    const numEl = document.getElementById('home-stat-tasks-num');
+    if (numEl) {
+      const cur = parseInt(numEl.textContent, 10) || 0;
+      if (_homeTaskTab === 'catalyst') numEl.textContent = Math.max(0, cur - 1);
+      else if (newCat === 'catalyst') numEl.textContent = cur + 1;
+    }
+  } catch { alert('Failed to reassign task.'); }
+}
+
+document.addEventListener('click', _closeCatDrop);
 
 function togglePendingExp(idx) {
   const exp = document.getElementById(`pending-exp-${idx}`);

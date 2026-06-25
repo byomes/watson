@@ -470,6 +470,29 @@ def tasks_update(task_id):
         return jsonify({"error": str(exc)}), 500
 
 
+@team_bp.route("/tasks/<int:task_id>", methods=["PATCH"])
+def tasks_patch(task_id):
+    try:
+        data = request.get_json(force=True) or {}
+        allowed = {"category", "priority", "status"}
+        fields = {k: v for k, v in data.items() if k in allowed}
+        if not fields:
+            return jsonify({"error": "nothing to update"}), 400
+        conn = _db()
+        row = conn.execute("SELECT member_id FROM team_tasks WHERE id=?", (task_id,)).fetchone()
+        if not row or row["member_id"] != 12:
+            conn.close()
+            return jsonify({"error": "not found"}), 404
+        set_clause = ", ".join(f"{k}=?" for k in fields)
+        conn.execute(f"UPDATE team_tasks SET {set_clause} WHERE id=?", (*fields.values(), task_id))
+        conn.commit()
+        conn.close()
+        return jsonify({"success": True})
+    except Exception as exc:
+        log.error("tasks_patch error: %s", exc)
+        return jsonify({"error": str(exc)}), 500
+
+
 @team_bp.route("/tasks/<int:task_id>", methods=["DELETE"])
 def tasks_delete(task_id):
     try:
