@@ -198,17 +198,19 @@ async function renderHome() {
   <button id="htab-personal" onclick="switchHomeTaskTab('personal')"
     style="flex:1;padding:7px 0;border:none;cursor:pointer;background:transparent;color:var(--muted);font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.04em">Personal</button>
 </div>
-<div style="display:flex;gap:8px;margin-bottom:8px">
+<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:8px">
   <input id="home-task-inp" type="text" placeholder="Add a Catalyst task…"
-    style="flex:1;padding:9px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:14px;outline:none;box-sizing:border-box"
+    style="width:100%;padding:9px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:14px;outline:none;box-sizing:border-box"
     onfocus="this.style.borderColor='var(--gold)'"
     onblur="this.style.borderColor='var(--border)'"
     onkeydown="if(event.key==='Enter')addHomeTask()">
-  <input id="home-task-date" type="date"
-    style="width:140px;padding:9px 8px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:14px;outline:none;flex-shrink:0;box-sizing:border-box;color-scheme:dark"
-    onfocus="this.style.borderColor='var(--gold)'"
-    onblur="this.style.borderColor='var(--border)'">
-  <button onclick="addHomeTask()" style="padding:9px 16px;background:var(--gold);color:#0f0f0f;border:none;border-radius:var(--r-btn);font-weight:600;font-family:inherit;font-size:14px;cursor:pointer;flex-shrink:0">Add</button>
+  <div style="display:flex;gap:8px">
+    <input id="home-task-date" type="date"
+      style="width:140px;padding:9px 8px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:14px;outline:none;flex-shrink:0;box-sizing:border-box;color-scheme:dark"
+      onfocus="this.style.borderColor='var(--gold)'"
+      onblur="this.style.borderColor='var(--border)'">
+    <button onclick="addHomeTask()" style="flex:1;padding:9px 16px;background:var(--gold);color:#0f0f0f;border:none;border-radius:var(--r-btn);font-weight:600;font-family:inherit;font-size:14px;cursor:pointer">Add</button>
+  </div>
 </div>
 <div id="home-tasks-list">${_homeTasksHtml(activeTasks)}</div>`;
 
