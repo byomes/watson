@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-06-24*
+*Generated: 2026-06-25*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -144,6 +144,7 @@ jobs/
   dashboard/
     app.py
     app.py.bak
+    migrate_admin.py
     migrate_sessions.py
     static/
       favicon.svg
@@ -151,6 +152,8 @@ jobs/
       team.js
       watson.js
     templates/
+      admin.html
+      admin_login.html
       index.html
       team.html
   data/
@@ -341,6 +344,7 @@ jobs/
     inbound.py
     migrate.py
     migrate_tasks.py
+    note_task_scan.py
     pre_meeting.py
     reminders.py
   telegram/
