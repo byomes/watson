@@ -32,6 +32,17 @@ FUZZY_THRESHOLD = 0.75
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN") or os.getenv("WATSON_BOT_TOKEN", "")
 CHAT_ID   = os.getenv("TELEGRAM_CHAT_ID")   or os.getenv("WATSON_CHAT_ID", "")
 
+# Calendar blocks whose titles contain any of these substrings must never trigger a brief.
+_BRIEF_BLOCKLIST = [
+    "Sermon Completion",
+    "Sermon Prep",
+    "Deep Work",
+    "Sabbath",
+    "Block",
+    "Hold",
+    "Admin",
+]
+
 log = logging.getLogger(__name__)
 
 
@@ -235,6 +246,10 @@ def run() -> None:
 
             prefix     = "VA" if summary.startswith("VA: ") else "IP"
             guest_name = summary[4:].strip()
+
+            if any(blocked.lower() in summary.lower() for blocked in _BRIEF_BLOCKLIST):
+                log.info("Blocked event, skipping brief: %s", summary)
+                continue
 
             meet_link = None
             for ep in event.get("conferenceData", {}).get("entryPoints", []):

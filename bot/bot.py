@@ -918,6 +918,16 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg_lower_check = text_clean.lower().strip()
     for slug, triggers in _SKILL_PRE_CHECKS.items():
         if any(trigger in msg_lower_check for trigger in triggers):
+            if slug == "skip_all":
+                from core.database import get_connection
+                with get_connection() as _conn:
+                    _conn.execute(
+                        "UPDATE tg_pending_actions SET status='cancelled' "
+                        "WHERE status IN ('pending', 'awaiting_confirmation')"
+                    )
+                await update.message.reply_text("All pending actions cleared.")
+                log.info("DEBUG pre-check: skip all — cleared tg_pending_actions")
+                return
             if slug == "image_search":
                 await _handle_image_search(update, context, {"query": text_clean})
                 log.info("DEBUG pre-check: skill pre-check (image_search)")

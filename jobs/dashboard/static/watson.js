@@ -141,8 +141,9 @@ async function renderHome() {
       const type    = (item.type || 'NOTE').toUpperCase();
       const bc      = `badge-${type === 'EMAIL' ? 'EMAIL' : type === 'CALENDAR' ? 'CALENDAR' : 'NOTE'}`;
       const isNote  = type === 'NOTE' && item.id;
-      html += `<div class="card" id="pending-card-${idx}">
-        <div class="card-title">${esc(item.title || item.subject || 'Pending item')}</div>
+      html += `<div class="card" id="pending-card-${idx}" style="position:relative">
+        ${isNote ? `<div style="position:absolute;top:0;right:0;width:44px;height:44px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--red);font-size:18px;-webkit-tap-highlight-color:transparent" onclick="deleteInlineNote(${item.id},${idx})" title="Delete">✕</div>` : ''}
+        <div class="card-title"${isNote ? ' style="padding-right:44px"' : ''}>${esc(item.title || item.subject || 'Pending item')}</div>
         ${item.subtitle ? `<div class="card-sub">${esc(item.subtitle)}</div>` : ''}
         <span class="badge ${bc}">${esc(type)}</span>
         ${isNote ? `
@@ -159,7 +160,6 @@ async function renderHome() {
             <div style="display:flex;gap:8px">
               <button onclick="saveInlineNote(${item.id},${idx})" style="flex:1;padding:7px;background:var(--gold);color:#0f0f0f;border:none;border-radius:var(--r-btn);font-weight:600;font-family:inherit;font-size:13px;cursor:pointer">Save</button>
               <button onclick="skipInlineNote(${item.id},${idx})" style="padding:7px 14px;background:none;border:1px solid var(--border);border-radius:var(--r-btn);color:var(--muted);font-family:inherit;font-size:13px;cursor:pointer">Skip</button>
-              <button onclick="deleteInlineNote(${item.id},${idx})" style="padding:7px 14px;background:none;border:1px solid rgba(201,80,76,.4);border-radius:var(--r-btn);color:var(--red);font-family:inherit;font-size:13px;cursor:pointer">Delete</button>
             </div>
           </div>
           <div style="margin-top:8px;cursor:pointer;font-size:11px;font-family:'DM Mono',monospace;color:var(--gold);letter-spacing:.04em" onclick="togglePendingExp(${idx})" id="pending-tog-${idx}">+ ADD NOTE</div>
