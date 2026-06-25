@@ -257,7 +257,9 @@ function _homeTasksHtml(tasks) {
       <div class="task-check display-only"></div>
       <div class="task-body">
         <div class="task-title">${esc(t.title)}</div>
-        ${t.due_date ? `<div class="task-due">${new Date(t.due_date).toLocaleDateString('en-US', {month:'short', day:'numeric'})}</div>` : ''}
+        ${t.due_date
+          ? `<div class="task-due" id="task-due-${t.id}">${new Date(t.due_date).toLocaleDateString('en-US', {month:'short', day:'numeric'})}</div>`
+          : `<div class="task-due" id="task-due-${t.id}" style="color:var(--muted);cursor:pointer" onclick="openTaskDatePicker(${t.id})">n/a</div>`}
         <div class="task-badges">
           ${showBadge ? `<span class="pri ${priClass(p)}">${priLabel(p)}</span>` : ''}
           <div class="cat-wrap">
@@ -321,6 +323,44 @@ async function reassignCat(taskId, newCat, event) {
 }
 
 document.addEventListener('click', _closeCatDrop);
+
+function openTaskDatePicker(taskId) {
+  const el = document.getElementById(`task-due-${taskId}`);
+  if (!el) return;
+  const inp = document.createElement('input');
+  inp.type = 'date';
+  inp.style.cssText = 'font-size:11px;font-family:\'DM Mono\',monospace;color:var(--gold-dim);background:transparent;border:none;border-bottom:1px solid var(--border);outline:none;padding:0;width:120px;color-scheme:dark';
+  el.replaceWith(inp);
+  inp.focus();
+  inp.addEventListener('change', async () => {
+    const val = inp.value;
+    if (!val) return;
+    try {
+      await api(`/api/team/tasks/${taskId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ due_date: val }),
+      });
+      const div = document.createElement('div');
+      div.className = 'task-due';
+      div.id = `task-due-${taskId}`;
+      div.textContent = new Date(val).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      inp.replaceWith(div);
+    } catch { alert('Failed to set due date.'); }
+  });
+  inp.addEventListener('blur', () => {
+    if (!inp.value) {
+      const div = document.createElement('div');
+      div.className = 'task-due';
+      div.id = `task-due-${taskId}`;
+      div.style.color = 'var(--muted)';
+      div.style.cursor = 'pointer';
+      div.textContent = 'n/a';
+      div.onclick = () => openTaskDatePicker(taskId);
+      inp.replaceWith(div);
+    }
+  });
+}
 
 function togglePendingExp(idx) {
   const exp = document.getElementById(`pending-exp-${idx}`);
