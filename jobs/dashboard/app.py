@@ -4123,6 +4123,27 @@ def admin_task_priority():
     return jsonify({"success": True})
 
 
+@app.route("/admin/task/due-date", methods=["POST"])
+def admin_task_due_date():
+    redir = _admin_required()
+    if redir:
+        return jsonify({"error": "not authenticated"}), 401
+    data = request.get_json(force=True) or {}
+    task_id  = data.get("task_id")
+    due_date = data.get("due_date")
+    if not task_id:
+        return jsonify({"error": "task_id required"}), 400
+    if due_date is not None and not re.match(r"^\d{4}-\d{2}-\d{2}$", str(due_date)):
+        return jsonify({"error": "invalid date format, expected YYYY-MM-DD"}), 400
+    db = _db()
+    task = db.execute("SELECT id FROM team_tasks WHERE id=?", (task_id,)).fetchone()
+    if not task:
+        return jsonify({"error": "task not found"}), 404
+    db.execute("UPDATE team_tasks SET due_date=? WHERE id=?", (due_date, task_id))
+    db.commit()
+    return jsonify({"success": True})
+
+
 @app.route("/api/team/tasks/<int:task_id>", methods=["DELETE"])
 def admin_delete_task(task_id):
     redir = _admin_required()

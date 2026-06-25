@@ -560,6 +560,18 @@ html, body {
   cursor: pointer;
 }
 .dp-pri-sel:focus { border-color: var(--gold); }
+.dp-due-wrap { position: relative; display: inline-block; }
+.dp-due-label { font-size: 11px; font-family: 'DM Mono', monospace; cursor: pointer; }
+.dp-due-label.has-date { color: var(--gold-dim); }
+.dp-due-label.no-date { color: var(--muted); }
+.dp-due-label:hover { text-decoration: underline; }
+.dp-due-inp {
+  position: absolute; z-index: 20; top: 20px; left: 0;
+  background: var(--surface2); border: 1px solid var(--gold);
+  border-radius: 4px; font-size: 11px; font-family: 'DM Mono', monospace;
+  color: var(--text); padding: 3px 5px; outline: none; color-scheme: dark;
+  width: 130px;
+}
 
 /* Shared notes */
 .sn-input-area { margin-bottom: 16px; }
@@ -968,13 +980,14 @@ function renderTasksTab() {
   let html = '';
   if (!tasks.length) html += '<div class="empty-state">No tasks yet.</div>';
   tasks.forEach(t => {
-    const done = t.status === 'done' || t.status === 'completed';
-    const p    = t.priority || '3';
+    const done   = t.status === 'done' || t.status === 'completed';
+    const p      = t.priority || '3';
+    const dueVal = t.due_date || '';
     html += `<div class="dp-task" id="dp-task-row-${t.id}">
       <div class="dp-task-check ${done ? 'done' : ''}" onclick="toggleTask(${t.id}, this)"></div>
       <div class="dp-task-info">
         <div class="dp-task-title ${done ? 'done' : ''}">${esc(t.title)}</div>
-        ${t.due_date ? `<div class="dp-task-due">Due ${esc(t.due_date)}</div>` : ''}
+        ${done && t.due_date ? `<div class="dp-task-due">Due ${esc(t.due_date)}</div>` : ''}
         ${!isBill ? `<span class="pri pri-${esc(p)}" style="margin-top:3px">${esc(p)}</span>` : ''}
       </div>
       ${!done ? `<div class="dp-task-right" id="dp-task-right-${t.id}">
@@ -985,6 +998,10 @@ function renderTasksTab() {
           <option value="4" ${p==='4' ? 'selected' : ''}>4</option>
           <option value="5" ${p==='5' ? 'selected' : ''}>5</option>
         </select>` : ''}
+        <span class="dp-due-wrap" id="dp-due-wrap-${t.id}">
+          <span class="dp-due-label ${dueVal ? 'has-date' : 'no-date'}" id="dp-due-lbl-${t.id}" onclick="openDuePicker(${t.id})">${dueVal ? esc(dueVal) : 'Add date'}</span>
+          <input type="date" class="dp-due-inp" id="dp-due-inp-${t.id}" value="${dueVal}" style="display:none" onchange="setTaskDueDate(${t.id},this.value||null)" onblur="this.style.display='none'">
+        </span>
         <button class="dp-reassign-btn" onclick="showReassignCtrl(${t.id})">Reassign</button>
       </div>` : ''}
       <button class="dp-del-task-btn" onclick="deleteAdminTask(${t.id})">Delete</button>
@@ -1052,6 +1069,35 @@ async function setTaskPriority(taskId, priority) {
       const sel = right.querySelector('.dp-pri-sel');
       if (sel) sel.style.borderColor = 'var(--red)';
     }
+  }
+}
+
+function openDuePicker(taskId) {
+  const inp = document.getElementById(`dp-due-inp-${taskId}`);
+  if (!inp) return;
+  inp.style.display = '';
+  inp.focus();
+  try { inp.showPicker(); } catch {}
+}
+
+async function setTaskDueDate(taskId, dateVal) {
+  const lbl = document.getElementById(`dp-due-lbl-${taskId}`);
+  const inp = document.getElementById(`dp-due-inp-${taskId}`);
+  if (inp) inp.style.display = 'none';
+  try {
+    const res = await fetch('/admin/task/due-date', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ task_id: taskId, due_date: dateVal || null }),
+    });
+    if (!res.ok) throw new Error();
+    if (lbl) {
+      lbl.textContent = dateVal || 'Add date';
+      lbl.className = `dp-due-label ${dateVal ? 'has-date' : 'no-date'}`;
+    }
+    if (inp) inp.value = dateVal || '';
+  } catch {
+    alert('Failed to update due date.');
   }
 }
 
