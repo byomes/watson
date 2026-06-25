@@ -4197,6 +4197,51 @@ def admin_roster():
     })
 
 
+# ── Google Calendar OAuth ─────────────────────────────────────────────────────
+
+_GCAL_CREDENTIALS = Path(__file__).resolve().parents[2] / "config" / "credentials.json"
+_GCAL_TOKEN = Path(__file__).resolve().parents[2] / "config" / "token.json"
+_GCAL_SCOPES = [
+    "https://www.googleapis.com/auth/calendar",
+    "https://www.googleapis.com/auth/gmail.send",
+]
+_GCAL_REDIRECT_URI = "https://watson.tail0243ff.ts.net/gcal-auth/callback"
+
+
+@app.route("/gcal-auth")
+def gcal_auth():
+    from google_auth_oauthlib.flow import Flow
+    flow = Flow.from_client_secrets_file(
+        str(_GCAL_CREDENTIALS),
+        scopes=_GCAL_SCOPES,
+        redirect_uri=_GCAL_REDIRECT_URI,
+    )
+    auth_url, state = flow.authorization_url(
+        access_type="offline",
+        include_granted_scopes="true",
+        prompt="consent",
+    )
+    session["gcal_oauth_state"] = state
+    return redirect(auth_url)
+
+
+@app.route("/gcal-auth/callback")
+def gcal_auth_callback():
+    from google_auth_oauthlib.flow import Flow
+    from google.oauth2.credentials import Credentials
+    state = session.get("gcal_oauth_state")
+    flow = Flow.from_client_secrets_file(
+        str(_GCAL_CREDENTIALS),
+        scopes=_GCAL_SCOPES,
+        redirect_uri=_GCAL_REDIRECT_URI,
+        state=state,
+    )
+    flow.fetch_token(authorization_response=request.url)
+    creds = flow.credentials
+    _GCAL_TOKEN.write_text(creds.to_json())
+    return "<html><body><p>Calendar authorized. Token saved.</p></body></html>"
+
+
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
