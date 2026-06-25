@@ -4107,6 +4107,20 @@ def admin_task_priority():
     return jsonify({"success": True})
 
 
+@app.route("/api/team/tasks/<int:task_id>", methods=["DELETE"])
+def admin_delete_task(task_id):
+    redir = _admin_required()
+    if redir:
+        return jsonify({"error": "not authenticated"}), 401
+    db = _db()
+    task = db.execute("SELECT id FROM team_tasks WHERE id=?", (task_id,)).fetchone()
+    if not task:
+        return jsonify({"error": "task not found"}), 404
+    db.execute("DELETE FROM team_tasks WHERE id=?", (task_id,))
+    db.commit()
+    return jsonify({"success": True})
+
+
 @app.route("/admin/member", methods=["POST"])
 def admin_add_member():
     redir = _admin_required()

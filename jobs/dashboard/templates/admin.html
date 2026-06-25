@@ -525,6 +525,17 @@ html, body {
   font-size: 14px; cursor: pointer; padding: 2px 4px; line-height: 1;
 }
 .dp-cancel-reassign:hover { color: var(--text); }
+.dp-del-task-btn {
+  padding: 3px 9px;
+  background: transparent;
+  border: 1px solid rgba(201,80,76,.4);
+  border-radius: var(--r-btn);
+  color: var(--red);
+  font-size: 10px; font-family: 'DM Mono', monospace;
+  cursor: pointer; transition: opacity .15s;
+  white-space: nowrap;
+}
+.dp-del-task-btn:hover { opacity: .7; }
 .dp-reassigned-lbl {
   font-size: 11px; font-family: 'DM Mono', monospace; color: var(--green);
   white-space: nowrap;
@@ -833,6 +844,7 @@ html, body {
 <script>
 // ── Team roster (Jinja2-injected, used for reassign dropdown) ─────────────────
 const TEAM_MEMBERS = {{ members | tojson }};
+const ADMIN_USER   = {{ admin_user | tojson }};
 
 // ── State ────────────────────────────────────────────────────────────────────
 let _currentMemberId = null;
@@ -970,6 +982,7 @@ function renderTasksTab() {
           <option value="low"    ${p==='low'    ? 'selected' : ''}>Low</option>
         </select>` : ''}
         <button class="dp-reassign-btn" onclick="showReassignCtrl(${t.id})">Reassign</button>
+        <button class="dp-del-task-btn" onclick="deleteAdminTask(${t.id})">Delete</button>
       </div>` : ''}
     </div>`;
   });
@@ -988,7 +1001,7 @@ function showReassignCtrl(taskId) {
   const right = document.getElementById(`dp-task-right-${taskId}`);
   if (!right) return;
   if (right.querySelector('.dp-reassign-ctrl')) {
-    right.innerHTML = `<button class="dp-reassign-btn" onclick="showReassignCtrl(${taskId})">Reassign</button>`;
+    right.innerHTML = `<button class="dp-reassign-btn" onclick="showReassignCtrl(${taskId})">Reassign</button><button class="dp-del-task-btn" onclick="deleteAdminTask(${taskId})">Delete</button>`;
     return;
   }
   const opts = TEAM_MEMBERS.map(m => {
@@ -1038,6 +1051,22 @@ async function setTaskPriority(taskId, priority) {
   }
 }
 
+async function deleteAdminTask(taskId) {
+  const row = document.getElementById(`dp-task-row-${taskId}`);
+  const res = await fetch(`/api/team/tasks/${taskId}`, { method: 'DELETE' });
+  const d = await res.json();
+  if (d.success) {
+    if (row) {
+      row.style.transition = 'opacity .3s';
+      row.style.opacity = '0';
+      setTimeout(() => { if (row.parentNode) row.remove(); }, 300);
+    }
+    if (_currentData && _currentData.tasks) {
+      _currentData.tasks = _currentData.tasks.filter(t => t.id !== taskId);
+    }
+  }
+}
+
 function _fmtNoteTs(ts) {
   if (!ts) return '';
   const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -1068,7 +1097,8 @@ function renderNotesTab() {
       const isDonna = n.author === 'donna';
       const badgeClass = isDonna ? 'donna' : 'bill';
       const badgeLabel = isDonna ? 'Donna' : 'Dr. Bill';
-      const delBtn = isDonna
+      const canDelete = (isDonna && ADMIN_USER === 'donna') || (!isDonna && ADMIN_USER === 'drbill');
+      const delBtn = canDelete
         ? `<button class="sn-del" onclick="deleteSharedNote(${n.id})" title="Delete">✕</button>`
         : '';
       html += `<div class="sn-card" id="sn-${n.id}">
