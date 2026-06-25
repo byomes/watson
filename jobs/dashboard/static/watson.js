@@ -206,7 +206,7 @@ async function renderHome() {
     onkeydown="if(event.key==='Enter')addHomeTask()">
   <div style="display:flex;gap:8px">
     <input id="home-task-date" type="date"
-      style="width:140px;padding:9px 8px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:14px;outline:none;flex-shrink:0;box-sizing:border-box;color-scheme:dark"
+      style="flex:1;padding:9px 8px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:14px;outline:none;box-sizing:border-box;color-scheme:dark"
       onfocus="this.style.borderColor='var(--gold)'"
       onblur="this.style.borderColor='var(--border)'">
     <button onclick="addHomeTask()" style="flex:1;padding:9px 16px;background:var(--gold);color:#0f0f0f;border:none;border-radius:var(--r-btn);font-weight:600;font-family:inherit;font-size:14px;cursor:pointer">Add</button>
