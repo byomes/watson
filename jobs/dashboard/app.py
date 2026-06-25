@@ -4210,43 +4210,53 @@ _GCAL_REDIRECT_URI = "https://watson.tail0243ff.ts.net/gcal-auth/callback"
 
 @app.route("/gcal-auth")
 def gcal_auth():
-    import os, secrets
-    from google_auth_oauthlib.flow import Flow
+    import os, pathlib
+    from requests_oauthlib import OAuth2Session
     os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
-    flow = Flow.from_client_secrets_file(
-        str(_GCAL_CREDENTIALS),
-        scopes=["https://www.googleapis.com/auth/calendar"],
-        redirect_uri=_GCAL_REDIRECT_URI
+    import json
+    creds_data = json.loads(pathlib.Path(_GCAL_CREDENTIALS).read_text())["web"]
+    oauth = OAuth2Session(
+        client_id=creds_data["client_id"],
+        redirect_uri=_GCAL_REDIRECT_URI,
+        scope=["https://www.googleapis.com/auth/calendar"]
     )
-    code_verifier = secrets.token_urlsafe(64)
-    session["gcal_code_verifier"] = code_verifier
-    auth_url, state = flow.authorization_url(
+    auth_url, state = oauth.authorization_url(
+        creds_data["auth_uri"],
         access_type="offline",
-        prompt="consent",
-        code_verifier=code_verifier
+        prompt="consent"
     )
     session["gcal_oauth_state"] = state
+    session["gcal_client_id"] = creds_data["client_id"]
+    session["gcal_client_secret"] = creds_data["client_secret"]
     return redirect(auth_url)
 
 @app.route("/gcal-auth/callback")
 def gcal_auth_callback():
-    import os
-    from google_auth_oauthlib.flow import Flow
+    import os, json, pathlib
+    from requests_oauthlib import OAuth2Session
     os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
+    creds_data = json.loads(pathlib.Path(_GCAL_CREDENTIALS).read_text())["web"]
     state = session.get("gcal_oauth_state")
-    code_verifier = session.get("gcal_code_verifier")
-    flow = Flow.from_client_secrets_file(
-        str(_GCAL_CREDENTIALS),
-        scopes=["https://www.googleapis.com/auth/calendar"],
+    oauth = OAuth2Session(
+        client_id=creds_data["client_id"],
         redirect_uri=_GCAL_REDIRECT_URI,
         state=state
     )
-    flow.fetch_token(
+    token = oauth.fetch_token(
+        creds_data["token_uri"],
         authorization_response=request.url.replace("http://", "https://"),
-        code_verifier=code_verifier
+        client_secret=creds_data["client_secret"]
     )
-    creds = flow.credentials
-    _GCAL_TOKEN.write_text(creds.to_json())
+    import json as _json
+    _GCAL_TOKEN.write_text(_json.dumps({
+        "token": token["access_token"],
+        "refresh_token": token.get("refresh_token"),
+        "token_uri": creds_data["token_uri"],
+        "client_id": creds_data["client_id"],
+        "client_secret": creds_data["client_secret"],
+        "scopes": ["https://www.googleapis.com/auth/calendar"],
+        "expiry": None
+    }))
     return "<html><body><p>Calendar authorized. Token saved.</p></body></html>"
 
 
