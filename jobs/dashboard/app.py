@@ -1223,6 +1223,29 @@ def skill_polish():
         return jsonify({"error": str(exc)}), 500
 
 
+# ── Report API ────────────────────────────────────────────────────────────────
+
+@app.route("/api/report", methods=["POST"])
+def report_run():
+    data = request.get_json(force=True) or {}
+    rtype = (data.get("type") or "").strip().lower()
+    query = (data.get("query") or "").strip()
+    if not query:
+        return jsonify({"error": "query required"}), 400
+    try:
+        if rtype == "cdb":
+            from jobs.skills.cdb_query import run as _cdb_run
+            return jsonify({"result": _cdb_run(query) or "No results."})
+        elif rtype == "wdb":
+            from jobs.skills.wdb_query import run as _wdb_run
+            return jsonify({"result": _wdb_run(query) or "No results."})
+        else:
+            return jsonify({"error": f"Unknown report type: {rtype}"}), 400
+    except Exception as exc:
+        log.error("Report API error: %s", exc)
+        return jsonify({"error": str(exc)}), 500
+
+
 # ── Memory API ───────────────────────────────────────────────────────────────
 
 @app.route("/api/memory/recent")

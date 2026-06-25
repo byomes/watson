@@ -1404,9 +1404,65 @@ async function moreReportEmail() {
 function moreLoadReports() {
   const el = document.getElementById('msec-inner-reports');
   if (!el) return;
+
+  const cdbButtons = [
+    'Who attended this Sunday',
+    'Who missed this Sunday',
+    'Online attendance',
+    'Wilmington attendance',
+    'Hybrid members',
+    'Attendance trend',
+    'Who is slipping away',
+  ];
+
+  const wdbButtons = [
+    'Team overview',
+    'Stalled tasks',
+    'Task completion',
+    'Inactive leaders',
+    'Notes gaps',
+    'Open follow-ups',
+    'Recent meetings',
+  ];
+
   el.innerHTML = `
-    <button class="mbtn" onclick="moreShowReportSheet()">Run a Report&hellip;</button>
-    <div id="more-report-result"></div>`;
+    <div class="mlabel" style="margin-top:0">Congregation</div>
+    <div class="card" style="margin-bottom:12px">
+      ${cdbButtons.map(q =>
+        `<button class="mbtn" style="min-height:44px;text-align:left;padding:11px 14px"
+          onclick="runReport('cdb','${q.replace(/'/g,"\\'")}')">
+          ${esc(q)}
+        </button>`
+      ).join('')}
+      <div id="report-result-cdb" style="display:none" class="mreport-result"></div>
+    </div>
+    <div class="mlabel">Leadership</div>
+    <div class="card">
+      ${wdbButtons.map(q =>
+        `<button class="mbtn" style="min-height:44px;text-align:left;padding:11px 14px"
+          onclick="runReport('wdb','${q.replace(/'/g,"\\'")}')">
+          ${esc(q)}
+        </button>`
+      ).join('')}
+      <div id="report-result-wdb" style="display:none" class="mreport-result"></div>
+    </div>`;
+}
+
+async function runReport(type, query) {
+  const resultEl = document.getElementById(`report-result-${type}`);
+  if (!resultEl) return;
+  resultEl.style.display = 'block';
+  resultEl.textContent = 'Loading…';
+  try {
+    const data = await fetch('/api/report', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type, query }),
+    }).then(r => r.json());
+    resultEl.textContent = data.result || data.error || '(no result)';
+  } catch {
+    resultEl.textContent = 'Request failed.';
+  }
 }
 
 // ── Skills ───────────────────────────────────────────────────────────────────
