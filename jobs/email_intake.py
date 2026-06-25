@@ -275,7 +275,7 @@ def _detect_meeting_summary(subject: str, body: str) -> dict | None:
         return None
 
 
-def _handle_meeting_summary(detection: dict, body: str = "") -> bool:
+def _handle_meeting_summary(detection: dict) -> bool:
     """Process a detected meeting summary. Returns True if fully handled."""
     leader_name     = (detection.get("leader_name") or "").strip()
     tasks_for_leader = [t.strip() for t in (detection.get("tasks_for_leader") or []) if isinstance(t, str) and t.strip()]
@@ -315,45 +315,39 @@ def _handle_meeting_summary(detection: dict, body: str = "") -> bool:
         )
         return False
 
-    today = datetime.utcnow().date().isoformat()
-
     try:
         conn = sqlite3.connect(DB_PATH)
 
         for task in tasks_for_leader:
             conn.execute(
-                "INSERT INTO team_tasks (member_id, title, assigned_by, status, source, category) "
-                "VALUES (?, ?, 'bill', 'active', 'email_intake', 'catalyst')",
+                "INSERT INTO team_tasks (member_id, title, assigned_by, status, source, category, created_at) "
+                "VALUES (?, ?, 'bill', 'active', 'email_intake', 'catalyst', datetime('now','localtime'))",
                 (member_id, task),
             )
 
         for task in tasks_for_bill:
             conn.execute(
-                "INSERT INTO team_tasks (member_id, title, assigned_by, status, source, category) "
-                "VALUES (12, ?, 'bill', 'active', 'email_intake', 'catalyst')",
+                "INSERT INTO team_tasks (member_id, title, assigned_by, status, source, category, created_at) "
+                "VALUES (12, ?, 'bill', 'active', 'email_intake', 'catalyst', datetime('now','localtime'))",
                 (task,),
             )
 
         if summary:
             conn.execute(
-                "INSERT INTO shared_notes (member_id, content, author) VALUES (?, ?, 'bill')",
+                "INSERT INTO shared_notes (member_id, content, author, created_at) "
+                "VALUES (?, ?, 'bill', datetime('now','localtime'))",
                 (member_id, summary),
-            )
-        if body:
-            conn.execute(
-                "INSERT INTO shared_notes (member_id, content, author) VALUES (?, ?, 'bill')",
-                (member_id, body[:2000]),
             )
 
         try:
             conn.execute(
-                "UPDATE team_members SET last_activity_date=?, last_comms_date=? WHERE id=?",
-                (today, today, member_id),
+                "UPDATE team_members SET last_activity_date=date('now','localtime'), last_comms_date=date('now','localtime') WHERE id=?",
+                (member_id,),
             )
         except sqlite3.OperationalError:
             conn.execute(
-                "UPDATE team_members SET last_activity_date=? WHERE id=?",
-                (today, member_id),
+                "UPDATE team_members SET last_activity_date=date('now','localtime') WHERE id=?",
+                (member_id,),
             )
 
         conn.commit()
@@ -388,7 +382,7 @@ def _handle_bill_email(sender, subject, body, received_at, msg_id):
 
     detection = _detect_meeting_summary(subject, body)
     if detection and detection.get("is_meeting_summary"):
-        if _handle_meeting_summary(detection, body):
+        if _handle_meeting_summary(detection):
             return
 
     prompt = (
