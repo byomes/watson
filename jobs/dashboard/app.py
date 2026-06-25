@@ -3860,7 +3860,7 @@ def admin_task():
     db = _db()
     cur = db.execute(
         "INSERT INTO team_tasks (member_id, title, due_date, source, status) VALUES (?,?,?,?,?)",
-        (member_id, title, data.get("due_date") or None, "donna", "open"),
+        (member_id, title, data.get("due_date") or None, session.get("admin_user", "donna"), "open"),
     )
     db.execute(
         "UPDATE team_members SET last_activity_date=? WHERE id=?",
@@ -3897,7 +3897,7 @@ def admin_task_reassign():
     db.commit()
     try:
         _send_telegram(
-            f"\U0001f504 Task reassigned by Donna: '{task['title']}' → {new_member['name']}"
+            f"\U0001f504 Task reassigned by {'Dr. Bill' if session.get('admin_user') == 'drbill' else 'Donna'}: '{task['title']}' → {new_member['name']}"
         )
     except Exception as exc:
         log.warning("Telegram notify failed for task reassign: %s", exc)
@@ -3920,8 +3920,8 @@ def admin_note():
     person_name = member["name"] if member else "Unknown"
     db.execute(
         "INSERT INTO pastoral_notes (person_name, note, team_member_id, note_type, content, created_by) "
-        "VALUES (?, ?, ?, 'team', ?, 'donna')",
-        (person_name, content, member_id, content),
+        "VALUES (?, ?, ?, 'team', ?, ?)",
+        (person_name, content, member_id, content, session.get("admin_user", "donna")),
     )
     db.execute(
         "UPDATE team_members SET last_activity_date=? WHERE id=?",
@@ -3944,8 +3944,8 @@ def admin_notes_create():
     today = datetime.now().date().isoformat()
     db = _db()
     cur = db.execute(
-        "INSERT INTO shared_notes (member_id, content, author) VALUES (?, ?, 'donna')",
-        (member_id, content),
+        "INSERT INTO shared_notes (member_id, content, author) VALUES (?, ?, ?)",
+        (member_id, content, session.get("admin_user", "donna")),
     )
     db.execute(
         "UPDATE team_members SET last_activity_date=? WHERE id=?",
@@ -4100,7 +4100,7 @@ def admin_task_priority():
     db.commit()
     try:
         _send_telegram(
-            f"\U0001f4cc Task priority updated by Donna: '{task['title']}' → {priority}"
+            f"\U0001f4cc Task priority updated by {'Dr. Bill' if session.get('admin_user') == 'drbill' else 'Donna'}: '{task['title']}' → {priority}"
         )
     except Exception:
         pass
@@ -4135,7 +4135,7 @@ def admin_add_member():
     member_id = cur.lastrowid
     try:
         _send_telegram(
-            f"👤 New team member added by Donna: {name}, {role} ({ministry})"
+            f"👤 New team member added by {'Dr. Bill' if session.get('admin_user') == 'drbill' else 'Donna'}: {name}, {role} ({ministry})"
         )
     except Exception as exc:
         log.warning("Telegram notify failed for new member: %s", exc)
