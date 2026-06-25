@@ -888,6 +888,10 @@ function renderMore() {
         <span class="mswitch-thumb"></span>
       </label>
     </div>
+    <div class="mrrow" onclick="switchTab('briefing')" style="cursor:pointer">
+      <span style="font-size:13px;font-weight:500">Briefing</span>
+      <span style="color:var(--gold);font-size:15px">›</span>
+    </div>
     <div class="msec" id="msec-reports">
       <div class="msec-hdr" onclick="moreToggle('reports')">
         <span class="msec-title">Reports</span>
@@ -931,11 +935,7 @@ function renderMore() {
     <a href="/admin" target="_blank" rel="noopener" class="mrrow" style="text-decoration:none;cursor:pointer">
       <span style="font-size:13px;font-weight:500;color:var(--text)">Team Admin</span>
       <span style="color:var(--gold);font-size:15px">›</span>
-    </a>
-    <div class="mrrow" onclick="switchTab('briefing')" style="cursor:pointer">
-      <span style="font-size:13px;font-weight:500">Briefing</span>
-      <span style="color:var(--gold);font-size:15px">›</span>
-    </div>`);
+    </a>`);
 }
 
 function moreToggle(sec) {
