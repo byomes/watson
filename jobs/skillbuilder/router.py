@@ -82,6 +82,9 @@ _SKILL_PRE_CHECKS: dict[str, tuple] = {
     "polish": (
         "polish this:",
     ),
+    "cdb_query": (
+        "cdb:",
+    ),
     "logins": (
         "what's my password",
         "my password for",

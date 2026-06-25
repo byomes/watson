@@ -944,6 +944,14 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await _handle_polish(update, context, text_clean)
                 log.info("DEBUG pre-check: skill pre-check (polish)")
                 return
+            if slug == "cdb_query":
+                prefix_end = text_clean.lower().index("cdb:") + len("cdb:")
+                question = text_clean[prefix_end:].strip()
+                from jobs.skills.cdb_query import run as _cdb_run
+                result = await asyncio.to_thread(_cdb_run, question)
+                await update.message.reply_text(result or "No results.")
+                log.info("DEBUG pre-check: skill pre-check (cdb_query)")
+                return
             if slug == "pastoral_notes":
                 await _handle_pastoral_note_direct(update, context, text_clean)
                 log.info("DEBUG pre-check: skill pre-check (pastoral_notes)")
