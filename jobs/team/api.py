@@ -524,6 +524,48 @@ def tasks_delete(task_id):
         return jsonify({"error": str(exc)}), 500
 
 
+@team_bp.route("/tasks/<int:task_id>/complete", methods=["POST"])
+def tasks_complete(task_id):
+    try:
+        data = request.get_json(force=True) or {}
+        completed_at = data.get("completed_at") or datetime.utcnow().isoformat()
+        conn = _db()
+        conn.execute(
+            "UPDATE team_tasks SET status='completed', completed_at=? WHERE id=?",
+            (completed_at, task_id),
+        )
+        conn.commit()
+        conn.close()
+        return jsonify({"success": True})
+    except Exception as exc:
+        log.error("tasks_complete error: %s", exc)
+        return jsonify({"error": str(exc)}), 500
+
+
+@team_bp.route("/tasks/archive-completed", methods=["GET"])
+def tasks_archive_completed():
+    try:
+        conn = _db()
+        rows = conn.execute(
+            "SELECT id FROM team_tasks WHERE member_id=12 AND status='completed' "
+            "AND completed_at IS NOT NULL AND completed_at <= datetime('now', '-1 hour')"
+        ).fetchall()
+        ids = [r["id"] for r in rows]
+        if ids:
+            conn.execute(
+                "UPDATE team_tasks SET status='archived' WHERE id IN ({})".format(
+                    ",".join("?" * len(ids))
+                ),
+                ids,
+            )
+            conn.commit()
+        conn.close()
+        return jsonify({"archived": len(ids)})
+    except Exception as exc:
+        log.error("tasks_archive_completed error: %s", exc)
+        return jsonify({"error": str(exc)}), 500
+
+
 # ── Meetings ──────────────────────────────────────────────────────────────────
 
 @team_bp.route("/members/<int:member_id>/meetings", methods=["POST"])

@@ -224,6 +224,10 @@ def _bootstrap():
         c.execute("UPDATE team_tasks SET priority = '5' WHERE priority = 'low'")
     except Exception:
         pass
+    try:
+        c.execute("ALTER TABLE team_tasks ADD COLUMN completed_at TEXT")
+    except Exception:
+        pass
     c.commit()
     c.close()
 

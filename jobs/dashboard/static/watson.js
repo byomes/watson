@@ -113,21 +113,23 @@ async function renderHome() {
   setContent('<div class="loading">Loading&hellip;</div>');
   _homeTaskTab = 'catalyst';
 
-  const [pendingRes, calRes, tasksRes, remindersRes, briefingRes] = await Promise.allSettled([
+  const [pendingRes, calRes, openTasksRes, remindersRes, briefingRes, compTasksRes] = await Promise.allSettled([
     api('/api/pending'),
     api('/api/calendar/today'),
     api('/api/team/members/12/tasks?status=open&category=catalyst'),
     api('/api/reminders'),
     api('/api/briefing'),
+    api('/api/team/members/12/tasks?status=completed&category=catalyst'),
   ]);
 
   const pending   = pendingRes.status   === 'fulfilled' ? pendingRes.value   : [];
   const calEvents = calRes.status       === 'fulfilled' ? calRes.value       : [];
-  const tasks     = tasksRes.status     === 'fulfilled' ? tasksRes.value     : [];
   const reminders = remindersRes.status === 'fulfilled' ? remindersRes.value : [];
   const briefing  = briefingRes.status  === 'fulfilled' ? briefingRes.value  : [];
 
-  const activeTasks = Array.isArray(tasks) ? tasks : [];
+  const openTasks = openTasksRes.status === 'fulfilled' && Array.isArray(openTasksRes.value) ? openTasksRes.value : [];
+  const compTasks = compTasksRes.status === 'fulfilled' && Array.isArray(compTasksRes.value) ? compTasksRes.value : [];
+  const displayTasks = [...openTasks, ...compTasks];
 
   let html = '';
 
@@ -188,7 +190,7 @@ async function renderHome() {
     <div class="sec-label">At a Glance</div>
     <div class="stats-row">
       <div class="stat-card" style="cursor:pointer" onclick="window.location='/team'">
-        <div class="stat-num" id="home-stat-tasks-num">${activeTasks.length}</div>
+        <div class="stat-num" id="home-stat-tasks-num">${openTasks.length}</div>
         <div class="stat-lbl">Tasks</div>
       </div>
       <div class="stat-card" style="cursor:pointer" onclick="switchTab('reminders')">
@@ -225,7 +227,7 @@ async function renderHome() {
     <button onclick="addHomeTask()" style="flex:1;padding:9px 16px;background:var(--gold);color:#0f0f0f;border:none;border-radius:var(--r-btn);font-weight:600;font-family:inherit;font-size:14px;cursor:pointer">Add</button>
   </div>
 </div>
-<div id="home-tasks-list">${_homeTasksHtml(activeTasks)}</div>`;
+<div id="home-tasks-list">${_homeTasksHtml(displayTasks)}</div>`;
 
   setContent(html);
 }
@@ -245,16 +247,35 @@ async function switchHomeTaskTab(tab) {
     inp.value = '';
   }
   try {
-    const tasks   = await api(`/api/team/members/12/tasks?status=open&category=${tab}`);
-    const taskArr = Array.isArray(tasks) ? tasks : [];
-    const listEl  = document.getElementById('home-tasks-list');
-    if (listEl) listEl.innerHTML = _homeTasksHtml(taskArr);
+    await _fetchAndRenderTasks(tab);
   } catch { /* silent */ }
+}
+
+async function _fetchAndRenderTasks(tab) {
+  const [openR, compR] = await Promise.allSettled([
+    api(`/api/team/members/12/tasks?status=open&category=${tab}`),
+    api(`/api/team/members/12/tasks?status=completed&category=${tab}`),
+  ]);
+  const open = openR.status === 'fulfilled' && Array.isArray(openR.value) ? openR.value : [];
+  const comp = compR.status === 'fulfilled' && Array.isArray(compR.value) ? compR.value : [];
+  const listEl = document.getElementById('home-tasks-list');
+  if (listEl) listEl.innerHTML = _homeTasksHtml([...open, ...comp]);
+  if (tab === 'catalyst') {
+    const numEl = document.getElementById('home-stat-tasks-num');
+    if (numEl) numEl.textContent = open.length;
+  }
+  return open;
 }
 
 function _homeTasksHtml(tasks) {
   if (!tasks.length) return '<div class="empty">No open tasks.</div>';
   const sorted = [...tasks].sort((a, b) => {
+    // completed tasks sort after open
+    const ac = a.status === 'completed' ? 1 : 0;
+    const bc = b.status === 'completed' ? 1 : 0;
+    if (ac !== bc) return ac - bc;
+    if (ac) return (b.completed_at || '').localeCompare(a.completed_at || '');
+    // open: priority asc (null last), then due_date asc (null last)
     const pa = a.priority ? parseInt(a.priority, 10) : 99;
     const pb = b.priority ? parseInt(b.priority, 10) : 99;
     if (pa !== pb) return pa - pb;
@@ -266,15 +287,50 @@ function _homeTasksHtml(tasks) {
     return 0;
   });
   return sorted.map(t => {
+    const done = t.status === 'completed';
     const p = t.priority || '3';
     const dueStr = fmtTaskDue(t.due_date);
     return `
-    <div class="task-card" id="home-task-${t.id}" style="align-items:center;padding:10px 14px">
-      <span class="pri ${priClass(p)}" style="margin-top:0;flex-shrink:0">${esc(p)}</span>
-      <span style="flex:1;min-width:0;font-size:14px;line-height:1.4;margin-left:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.title)}</span>
-      ${dueStr ? `<span style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);flex-shrink:0;margin-left:10px">${esc(dueStr)}</span>` : ''}
+    <div class="task-card" id="home-task-${t.id}" style="align-items:center${done ? ';opacity:0.5' : ''}">
+      <div class="home-chk-wrap" onclick="${done ? '' : `checkOffTask(${t.id}, this)`}">
+        <div class="home-chk${done ? ' is-done' : ''}" id="home-chk-${t.id}"></div>
+      </div>
+      <div style="flex:1;min-width:0">
+        <div class="home-task-title${done ? ' struck' : ''}" id="home-task-title-${t.id}">${esc(t.title)}</div>
+        <div class="home-task-meta">
+          <span class="pri ${priClass(p)}" style="margin-top:0">${esc(p)}</span>
+          ${dueStr ? `<span style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted)">${esc(dueStr)}</span>` : ''}
+        </div>
+      </div>
     </div>`;
   }).join('');
+}
+
+async function checkOffTask(taskId, wrapEl) {
+  const chkEl  = document.getElementById(`home-chk-${taskId}`);
+  const titleEl = document.getElementById(`home-task-title-${taskId}`);
+  const card   = document.getElementById(`home-task-${taskId}`);
+  if (chkEl) chkEl.classList.add('is-done');
+  if (titleEl) titleEl.classList.add('struck');
+  if (card) card.style.opacity = '0.5';
+  if (wrapEl) wrapEl.onclick = null;
+  try {
+    await api(`/api/team/tasks/${taskId}/complete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ completed_at: new Date().toISOString() }),
+    });
+    if (_homeTaskTab === 'catalyst') {
+      const numEl = document.getElementById('home-stat-tasks-num');
+      if (numEl) numEl.textContent = Math.max(0, (parseInt(numEl.textContent, 10) || 0) - 1);
+    }
+  } catch {
+    if (chkEl) chkEl.classList.remove('is-done');
+    if (titleEl) titleEl.classList.remove('struck');
+    if (card) card.style.opacity = '';
+    if (wrapEl) wrapEl.onclick = () => checkOffTask(taskId, wrapEl);
+    alert('Failed to complete task.');
+  }
 }
 
 function toggleCatDrop(taskId, event) {
@@ -474,14 +530,7 @@ async function addHomeTask() {
       body: JSON.stringify(body),
     });
     if (dateInp) dateInp.value = '';
-    const tasks   = await api(`/api/team/members/12/tasks?status=open&category=${_homeTaskTab}`);
-    const taskArr = Array.isArray(tasks) ? tasks : [];
-    const listEl  = document.getElementById('home-tasks-list');
-    if (listEl) listEl.innerHTML = _homeTasksHtml(taskArr);
-    if (_homeTaskTab === 'catalyst') {
-      const numEl = document.getElementById('home-stat-tasks-num');
-      if (numEl) numEl.textContent = taskArr.length;
-    }
+    await _fetchAndRenderTasks(_homeTaskTab);
   } catch { alert('Failed to add task.'); }
 }
 
@@ -490,14 +539,8 @@ async function _pollHomeData() {
   const ae = document.activeElement;
   if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT')) return;
   try {
-    const tasks   = await api(`/api/team/members/12/tasks?status=open&category=${_homeTaskTab}`);
-    const taskArr = Array.isArray(tasks) ? tasks : [];
-    const listEl  = document.getElementById('home-tasks-list');
-    if (listEl) listEl.innerHTML = _homeTasksHtml(taskArr);
-    if (_homeTaskTab === 'catalyst') {
-      const numEl = document.getElementById('home-stat-tasks-num');
-      if (numEl) numEl.textContent = taskArr.length;
-    }
+    await fetch('/api/team/tasks/archive-completed');
+    await _fetchAndRenderTasks(_homeTaskTab);
   } catch(e) { /* silent — stale data is acceptable */ }
 }
 

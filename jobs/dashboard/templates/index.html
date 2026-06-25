@@ -267,6 +267,34 @@ html, body {
 .task-title.struck { color: var(--muted); text-decoration: line-through; }
 .task-due { font-size: 11px; font-family: 'DM Mono', monospace; color: var(--gold-dim); margin-top: 2px; }
 
+/* ── Home task rows (checkbox + two-line layout) ─────────────────────────── */
+.home-chk-wrap {
+  width: 44px; height: 44px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  margin: -12px -8px -12px -14px;
+}
+.home-chk-wrap:hover .home-chk:not(.is-done) { border-color: var(--gold); }
+.home-chk {
+  width: 20px; height: 20px;
+  border: 1.5px solid var(--border);
+  border-radius: 4px; position: relative;
+  transition: border-color .15s, background .15s;
+  pointer-events: none;
+}
+.home-chk.is-done { background: var(--green); border-color: var(--green); }
+.home-chk.is-done::after {
+  content: ''; position: absolute;
+  left: 4px; top: 2px;
+  width: 7px; height: 4px;
+  border-left: 2px solid #fff; border-bottom: 2px solid #fff;
+  transform: rotate(-45deg);
+}
+.home-task-title { font-size: 14px; line-height: 1.4; }
+.home-task-title.struck { color: var(--muted); text-decoration: line-through; }
+.home-task-meta { display: flex; align-items: center; gap: 6px; margin-top: 4px; flex-wrap: wrap; }
+
 .pri {
   display: inline-block;
   font-size: 10px;
