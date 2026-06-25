@@ -117,7 +117,10 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
     if is_count:
         return f"SELECT COUNT(DISTINCT a.member_id) as total FROM attendance a WHERE {where}"
     elif is_list or campus or date_filter:
-        return f"SELECT DISTINCT m.name, a.campus, a.service_date FROM attendance a JOIN members m ON a.member_id = m.id WHERE {where} ORDER BY m.name"
+        if campus:
+            return f"SELECT DISTINCT m.name FROM attendance a JOIN members m ON a.member_id = m.id WHERE {where} ORDER BY m.name"
+        else:
+            return f"SELECT DISTINCT m.name, a.campus FROM attendance a JOIN members m ON a.member_id = m.id WHERE {where} ORDER BY a.campus, m.name"
     return None
 
 def run(question: str) -> str:
