@@ -982,8 +982,8 @@ function renderTasksTab() {
           <option value="low"    ${p==='low'    ? 'selected' : ''}>Low</option>
         </select>` : ''}
         <button class="dp-reassign-btn" onclick="showReassignCtrl(${t.id})">Reassign</button>
-        <button class="dp-del-task-btn" onclick="deleteAdminTask(${t.id})">Delete</button>
       </div>` : ''}
+      <button class="dp-del-task-btn" onclick="deleteAdminTask(${t.id})">Delete</button>
     </div>`;
   });
   html += `<div class="dp-add-form">
@@ -1001,7 +1001,7 @@ function showReassignCtrl(taskId) {
   const right = document.getElementById(`dp-task-right-${taskId}`);
   if (!right) return;
   if (right.querySelector('.dp-reassign-ctrl')) {
-    right.innerHTML = `<button class="dp-reassign-btn" onclick="showReassignCtrl(${taskId})">Reassign</button><button class="dp-del-task-btn" onclick="deleteAdminTask(${taskId})">Delete</button>`;
+    right.innerHTML = `<button class="dp-reassign-btn" onclick="showReassignCtrl(${taskId})">Reassign</button>`;
     return;
   }
   const opts = TEAM_MEMBERS.map(m => {
