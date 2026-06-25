@@ -134,7 +134,7 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
             f"SUM(CASE WHEN a.campus='Wilmington' THEN 1 ELSE 0 END) as wilm_count "
             f"FROM attendance a JOIN members m ON a.member_id = m.id "
             f"WHERE a.service_date >= '{w12}' "
-            f"GROUP BY m.name HAVING online_count > 0 AND wilm_count > 0 ORDER BY m.name"
+            f"GROUP BY m.name HAVING online_count >= 2 AND wilm_count >= 2 ORDER BY m.name"
         )
 
     # HOW MANY MISSED (count)
