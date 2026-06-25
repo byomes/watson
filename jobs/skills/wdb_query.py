@@ -95,7 +95,7 @@ def _pattern_match(question: str) -> str | None:
         )
 
     # TASKS BY LEADER
-    if any(w in q for w in ['tasks for', 'what does', 'assignments for']):
+    if any(w in q for w in ['tasks for', 'what does', 'assignments for', 'tasks by leader', 'by leader', 'task breakdown', 'who has tasks']):
         return (
             "SELECT tm.name, COUNT(tt.id) as open_tasks "
             "FROM team_tasks tt JOIN team_members tm ON tt.member_id = tm.id "
