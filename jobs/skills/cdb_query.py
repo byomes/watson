@@ -77,50 +77,119 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
     """Return a SQL query for common patterns — bypasses Ollama entirely."""
     q = question.lower().strip()
 
-    # Determine campus filter
+    # Campus filter
     campus = None
-    if any(w in q for w in ['online', 'virtual', 'remote']):
+    if any(w in q for w in ['online', 'virtual', 'remote', 'stream', 'streaming']):
         campus = 'Online'
-    elif any(w in q for w in ['wilmington', 'in person', 'in-person', 'physical']):
+    elif any(w in q for w in ['wilmington', 'in person', 'in-person', 'physical', 'building', 'church building']):
         campus = 'Wilmington'
 
-    # Determine date range
-    date_filter = None
-    if any(w in q for w in ['this past sunday', 'last sunday', 'this sunday', 'yesterday']):
-        date_filter = f"a.service_date = '{last_sun}'"
-    elif '6 week' in q or 'six week' in q:
-        date_filter = f"a.service_date >= '{weeks[5]}' AND a.service_date <= '{last_sun}'"
-    elif '5 week' in q or 'five week' in q:
-        date_filter = f"a.service_date >= '{weeks[4]}' AND a.service_date <= '{last_sun}'"
-    elif '4 week' in q or 'four week' in q:
-        date_filter = f"a.service_date >= '{weeks[3]}' AND a.service_date <= '{last_sun}'"
-    elif '3 week' in q or 'three week' in q:
-        date_filter = f"a.service_date >= '{weeks[2]}' AND a.service_date <= '{last_sun}'"
+    # Date range — a_date uses alias prefix for main queries; s_date is bare for subqueries
+    if any(w in q for w in ['this past sunday', 'last sunday', 'this sunday']):
+        a_date = f"a.service_date = '{last_sun}'"
+        s_date = f"service_date = '{last_sun}'"
     elif '2 week' in q or 'two week' in q:
-        date_filter = f"a.service_date >= '{weeks[1]}' AND a.service_date <= '{last_sun}'"
+        a_date = f"a.service_date >= '{weeks[1]}' AND a.service_date <= '{last_sun}'"
+        s_date = f"service_date >= '{weeks[1]}' AND service_date <= '{last_sun}'"
+    elif '3 week' in q or 'three week' in q:
+        a_date = f"a.service_date >= '{weeks[2]}' AND a.service_date <= '{last_sun}'"
+        s_date = f"service_date >= '{weeks[2]}' AND service_date <= '{last_sun}'"
+    elif '4 week' in q or 'four week' in q:
+        a_date = f"a.service_date >= '{weeks[3]}' AND a.service_date <= '{last_sun}'"
+        s_date = f"service_date >= '{weeks[3]}' AND service_date <= '{last_sun}'"
+    elif '5 week' in q or 'five week' in q:
+        a_date = f"a.service_date >= '{weeks[4]}' AND a.service_date <= '{last_sun}'"
+        s_date = f"service_date >= '{weeks[4]}' AND service_date <= '{last_sun}'"
+    elif '6 week' in q or 'six week' in q:
+        a_date = f"a.service_date >= '{weeks[5]}' AND a.service_date <= '{last_sun}'"
+        s_date = f"service_date >= '{weeks[5]}' AND service_date <= '{last_sun}'"
+    else:
+        a_date = f"a.service_date = '{last_sun}'"
+        s_date = f"service_date = '{last_sun}'"
 
-    # Determine query type
-    is_count = any(w in q for w in ['how many', 'count', 'total', 'number of'])
-    is_list = any(w in q for w in ['who', 'list', 'names', 'show me', 'give me'])
+    campus_sub = f" AND campus = '{campus}'" if campus else ""
 
-    # Need at least a date or campus to build a reliable query
-    if not date_filter and not campus:
-        return None
+    # Check order: slipping → hybrid → missed_count → missed → trend → count → attended
 
-    where_parts = []
-    if campus:
-        where_parts.append(f"a.campus = '{campus}'")
-    if date_filter:
-        where_parts.append(date_filter)
-    where = ' AND '.join(where_parts)
+    # SLIPPING AWAY / NEEDS SHEPHERDING
+    if any(w in q for w in ['slipping', 'falling off', 'not coming', 'stopped coming', 'needs attention', 'shepherding', 'missing recently', 'fading', 'drifting']):
+        w5  = weeks[4]  if len(weeks) > 4  else weeks[-1]
+        w12 = weeks[11] if len(weeks) > 11 else weeks[-1]
+        w4  = weeks[3]  if len(weeks) > 3  else weeks[-1]
+        return (
+            f"SELECT m.name, MAX(a.service_date) as last_seen "
+            f"FROM members m JOIN attendance a ON a.member_id = m.id "
+            f"WHERE m.active = 1 "
+            f"AND m.id IN (SELECT DISTINCT member_id FROM attendance WHERE service_date >= '{w12}' AND service_date <= '{w5}'{campus_sub}) "
+            f"AND m.id NOT IN (SELECT DISTINCT member_id FROM attendance WHERE service_date >= '{w4}'{campus_sub}) "
+            f"GROUP BY m.id, m.name ORDER BY last_seen DESC"
+        )
 
-    if is_count:
-        return f"SELECT COUNT(DISTINCT a.member_id) as total FROM attendance a WHERE {where}"
-    elif is_list or campus or date_filter:
+    # HYBRID MEMBERS
+    if any(w in q for w in ['hybrid', 'both campus', 'both campuses', 'online and wilmington', 'wilmington and online', 'switches', 'multi campus']):
+        w12 = weeks[11] if len(weeks) > 11 else weeks[-1]
+        return (
+            f"SELECT m.name, "
+            f"SUM(CASE WHEN a.campus='Online' THEN 1 ELSE 0 END) as online_count, "
+            f"SUM(CASE WHEN a.campus='Wilmington' THEN 1 ELSE 0 END) as wilm_count "
+            f"FROM attendance a JOIN members m ON a.member_id = m.id "
+            f"WHERE a.service_date >= '{w12}' "
+            f"GROUP BY m.name HAVING online_count > 0 AND wilm_count > 0 ORDER BY m.name"
+        )
+
+    # HOW MANY MISSED (count)
+    if any(w in q for w in ["how many missed", "how many didn't", "how many were absent", "how many did not"]):
+        return (
+            f"SELECT COUNT(DISTINCT m.id) as missed_count FROM members m "
+            f"WHERE m.active = 1 AND m.id NOT IN ("
+            f"SELECT DISTINCT member_id FROM attendance WHERE {s_date}{campus_sub})"
+        )
+
+    # WHO MISSED
+    if any(w in q for w in ["who missed", "who didn't attend", "who wasn't there", "who was absent", "who didn't come", "who did not attend", "who did not come", "absent"]):
+        return (
+            f"SELECT m.name FROM members m "
+            f"WHERE m.active = 1 AND m.id NOT IN ("
+            f"SELECT DISTINCT member_id FROM attendance WHERE {s_date}{campus_sub}) "
+            f"ORDER BY m.name"
+        )
+
+    # ATTENDANCE TREND
+    if any(w in q for w in ['trend', 'trending', 'attendance over', 'attendance by week', 'weekly attendance', 'how has attendance', 'campus breakdown']):
+        w8 = weeks[7] if len(weeks) > 7 else weeks[-1]
+        return (
+            f"SELECT a.service_date, "
+            f"SUM(CASE WHEN a.campus='Online' THEN 1 ELSE 0 END) as online_count, "
+            f"SUM(CASE WHEN a.campus='Wilmington' THEN 1 ELSE 0 END) as wilm_count "
+            f"FROM attendance a WHERE a.service_date >= '{w8}' "
+            f"GROUP BY a.service_date ORDER BY a.service_date"
+        )
+
+    # HOW MANY ATTENDED (count)
+    if any(w in q for w in ['how many attended', 'how many came', 'total attendance', 'attendance count', 'number who attended']):
         if campus:
-            return f"SELECT DISTINCT m.name FROM attendance a JOIN members m ON a.member_id = m.id WHERE {where} ORDER BY m.name"
+            return f"SELECT COUNT(DISTINCT a.member_id) as total FROM attendance a WHERE a.campus = '{campus}' AND {a_date}"
         else:
-            return f"SELECT DISTINCT m.name, a.campus FROM attendance a JOIN members m ON a.member_id = m.id WHERE {where} ORDER BY a.campus, m.name"
+            return (
+                f"SELECT a.campus, COUNT(DISTINCT a.member_id) as total "
+                f"FROM attendance a WHERE {a_date} GROUP BY a.campus ORDER BY a.campus"
+            )
+
+    # WHO ATTENDED
+    if any(w in q for w in ['who attended', 'who came', 'who was there', 'who showed up', 'list attendance']):
+        if campus:
+            return (
+                f"SELECT DISTINCT m.name FROM attendance a "
+                f"JOIN members m ON a.member_id = m.id "
+                f"WHERE a.campus = '{campus}' AND {a_date} ORDER BY m.name"
+            )
+        else:
+            return (
+                f"SELECT DISTINCT m.name, a.campus FROM attendance a "
+                f"JOIN members m ON a.member_id = m.id "
+                f"WHERE {a_date} ORDER BY a.campus, m.name"
+            )
+
     return None
 
 def run(question: str) -> str:
@@ -130,7 +199,7 @@ def run(question: str) -> str:
 
     # Try pattern match first — bypasses Ollama for common attendance queries
     from datetime import date as _date, timedelta as _td
-    _pm_sql = _pattern_match(question, _last_sunday(), [(_date.today() - _td(weeks=i)).strftime('%Y-%m-%d') for i in range(1, 7)])
+    _pm_sql = _pattern_match(question, _last_sunday(), [(_date.today() - _td(weeks=i)).strftime('%Y-%m-%d') for i in range(1, 13)])
     if _pm_sql:
         try:
             uri = f"file:{CONG_DB}?mode=ro"
