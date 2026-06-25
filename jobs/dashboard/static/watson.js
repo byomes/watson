@@ -87,6 +87,7 @@ function switchTab(page) {
 
   switch (page) {
     case 'home':      renderHome();      break;
+    case 'notes':     renderNotes();     break;
     case 'briefing':  renderBriefing();  break;
     case 'reminders': renderReminders(); break;
     case 'more':      renderMore();      break;
@@ -502,6 +503,61 @@ async function _pollHomeData() {
 
 setInterval(_pollHomeData, 15000);
 
+// ─── Notes page ───────────────────────────────────────────────────────────────
+
+async function renderNotes() {
+  setContent('<div class="loading">Loading&hellip;</div>');
+  try {
+    const notes = await api('/api/pastoral-notes?status=active');
+    if (!Array.isArray(notes) || !notes.length) {
+      setContent('<div class="empty">No notes yet.</div>');
+      return;
+    }
+    const sorted = [...notes].sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
+    const html = sorted.map(n => `
+      <div class="card" id="note-card-${n.id}">
+        <div style="font-size:14px;font-weight:600;margin-bottom:6px">${esc(n.person_name || n.name || '')}</div>
+        <div class="note-text note-text-trunc" id="note-text-${n.id}">${esc(n.note || '')}</div>
+        <a id="note-toggle-${n.id}" onclick="toggleNoteExpand(${n.id})"
+           style="display:inline-block;margin-top:4px;font-size:11px;font-family:'DM Mono',monospace;color:var(--gold);cursor:pointer;-webkit-tap-highlight-color:transparent">Read more</a>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px">
+          <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted)">${esc(n.created_at || '')}</div>
+          <button onclick="archiveNote(${n.id})"
+            style="font-size:11px;padding:3px 8px;border-radius:4px;border:1px solid var(--border);background:none;color:var(--muted);font-family:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent">Archive</button>
+        </div>
+      </div>`).join('');
+    setContent(html);
+  } catch {
+    setContent('<div class="empty">Could not load notes.</div>');
+  }
+}
+
+function toggleNoteExpand(id) {
+  const textEl   = document.getElementById(`note-text-${id}`);
+  const toggleEl = document.getElementById(`note-toggle-${id}`);
+  if (!textEl || !toggleEl) return;
+  const isExpanded = !textEl.classList.contains('note-text-trunc');
+  if (isExpanded) {
+    textEl.classList.add('note-text-trunc');
+    toggleEl.textContent = 'Read more';
+  } else {
+    textEl.classList.remove('note-text-trunc');
+    toggleEl.textContent = 'Show less';
+  }
+}
+
+async function archiveNote(id) {
+  try {
+    await api(`/api/pastoral-notes/${id}/archive`, { method: 'POST' });
+    const card = document.getElementById(`note-card-${id}`);
+    if (card) {
+      card.style.transition = 'opacity .3s';
+      card.style.opacity = '0';
+      setTimeout(() => { if (card.parentNode) card.remove(); }, 300);
+    }
+  } catch { alert('Failed to archive note.'); }
+}
+
 // ─── Briefing page ────────────────────────────────────────────────────────────
 
 async function renderBriefing() {
@@ -749,7 +805,11 @@ function renderMore() {
     <a href="/admin" target="_blank" rel="noopener" class="mrrow" style="text-decoration:none;cursor:pointer">
       <span style="font-size:13px;font-weight:500;color:var(--text)">Team Admin</span>
       <span style="color:var(--gold);font-size:15px">›</span>
-    </a>`);
+    </a>
+    <div class="mrrow" onclick="switchTab('briefing')" style="cursor:pointer">
+      <span style="font-size:13px;font-weight:500">Briefing</span>
+      <span style="color:var(--gold);font-size:15px">›</span>
+    </div>`);
 }
 
 function moreToggle(sec) {
