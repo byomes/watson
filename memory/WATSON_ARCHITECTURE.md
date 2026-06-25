@@ -648,3 +648,41 @@ WATSON_API_URL=https://watson.tail0243ff.ts.net
 
 ### ~/wcky
 - 2a96998 fix: shrink popup image on mobile so form is visible on load
+
+---
+
+## Recent Changes — 2026-06-25
+
+### ~/watson
+- c7f04cb fix: move briefing to top of more menu below theme toggle
+- c5846da fix: both admin users can delete any shared note
+- 2bf1f38 fix: show delete button on completed tasks in admin detail panel
+- e7e0164 feat: delete task and note buttons in /admin detail panel
+- 90d08b6 fix: remove email body note, fix timestamps to localtime in meeting summary handler
+- 4cf4289 fix: admin write routes use session user for attribution — drbill vs donna
+- bc97874 fix: clarify meeting summary prompt — leader_name is never Bill, tasks split correctly
+- 7b1959d fix: first name honorific skip, bill task extraction improvement, log full email body to shared notes
+- 4471844 feat: meeting summary handler in email_intake — extracts tasks and logs notes from Bill's whitelist emails
+- d0a107c feat: add note input on Notes tab — pastoral or leadership toggle, auto-timestamps
+- dcd4d99 feat: notes as second nav tab with expandable cards, briefing moved to more menu
+- 29eea6d feat: tap n/a to assign due date on existing dashboard tasks
+- c90eea1 fix: date picker and add button equal width on task input row
+- 52f6a6a fix: add task input full width, date and button on second line
+- e6151d2 feat: optional due date input on dashboard add task
+- 1ea903a feat: show due dates on dashboard task rows
+- 6707cf2 feat: category reassignment dropdown on dashboard task rows
+- 0e1c011 feat: catalyst/fms/personal task tabs on dashboard — FMS and personal private to Bill, Donna sees Catalyst only
+- 462bc75 feat: note task scan cron — Watson extracts tasks from shared notes, emails Donna for approval Tue/Wed/Thu 7am
+- ce44830 feat: pastoral/leadership toggle on awaiting note intake — routes to pastoral_notes or shared_notes
+- 89f677e feat: rolling 36-hour agenda window on dashboard home
+- 6f0e619 feat: delete button on awaiting-you items in dashboard
+- a70a773 feat: inline pastoral notes in awaiting-you, add task input on dashboard, priority system with Donna control on Bill's tasks
+- e1beecf feat: shared notes between /admin and /team — Donna and Bill collaborate per leader, comms removed from admin
+- f1e8acf feat: full email triage rework — Watson reads all email, Telegram prompt with ingest/mark-read buttons, reply drafts through existing approval gate, never auto-acts
+- 88f0134 feat: 15s auto-refresh polling on dashboard/team/admin + full task list on dashboard home
+- 151d734 feat: task reassignment in /admin — Donna can move tasks between any team members
+- 61f61ea feat: add team member from /admin — Donna-only, Telegram alert to Bill
+- 24a5839 feat: light/dark toggle in /admin header
+- 1e29803 feat: /admin team command center with Donna login and auto-status
+- bb7ed39 docs: file map 2026-06-24
+- c711eda docs: architecture update 2026-06-24
