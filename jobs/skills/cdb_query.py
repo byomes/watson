@@ -2,6 +2,7 @@
 import re
 import sqlite3
 from pathlib import Path
+from datetime import date, timedelta
 
 import requests
 
@@ -64,13 +65,34 @@ def _format_rows(rows: list[sqlite3.Row], description) -> str:
     return result
 
 
+def _last_sunday() -> str:
+    today = date.today()
+    days_since_saturday = (today.weekday() - 5) % 7
+    days_back = (today.weekday() + 1) % 7 or 7
+    last_sun = today - timedelta(days=days_back)
+    return last_sun.strftime("%Y-%m-%d")
+
 def run(question: str) -> str:
     question = question.strip()
     if not question:
         return "No question provided."
 
     schema = _build_schema()
-    prompt = _SYSTEM.format(schema=schema) + f"\n\nQuestion: {question}"
+    from datetime import date
+    today_str = date.today().strftime('%Y-%m-%d')
+    last_sun = _last_sunday()
+    weeks = [(date.today() - __import__('datetime').timedelta(weeks=i)).strftime('%Y-%m-%d') for i in range(1, 7)]
+    date_hint = f"Today is {today_str}. Last Sunday was {last_sun}. Previous Sundays: {', '.join(weeks)}. Dates stored as TEXT YYYY-MM-DD. For ranges use: service_date >= 'YYYY-MM-DD' AND service_date <= 'YYYY-MM-DD'."
+    join_hints = """
+IMPORTANT JOIN RULES:
+- To get member names from attendance: JOIN members m ON a.member_id = m.id — use m.name
+- attendance has columns: id, member_id, service_date, campus, card_id, created_at
+- members has columns: id, name, email, phone, campus_preference, status, active
+- connect_cards has columns: id, member_id, service_date, campus, prayer_request, next_steps
+- NEVER use t1.name or t2.name — attendance and connect_cards have no name column
+- campus values are exactly 'Online' or 'Wilmington' (capital first letter) — always use exact case
+"""
+    prompt = _SYSTEM.format(schema=schema) + f"\n\n{date_hint}\n\n{join_hints}\n\nQuestion: {question}"
 
     try:
         resp = requests.post(
