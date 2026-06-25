@@ -36,7 +36,6 @@ from jobs.ask import ask
 from jobs.facebook.facebook_post import add_to_queue, init_db as init_fb_db
 from jobs.email_job.email_queue import add_to_email_queue, init_email_db
 from jobs.email_job.gmail import send_as_watson
-from jobs.email_intake import init_gmail_inbox
 from jobs.people.api import people_create, people_list, people_get, congregation_search
 import jobs.gcal.pending as pending_module
 from jobs.gcal import reasoner
@@ -550,9 +549,71 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     # Normalize smart quotes from mobile keyboards
-    text_clean = text.replace("‘", "'").replace("’", "'")
+    text_clean = text.replace("’", "’").replace("’", "’")
     text_lower = text_clean.lower().strip()
-    _log_tg('in', text_clean)
+    _log_tg(‘in’, text_clean)
+
+    # Directive prefix intercepts — colon-prefixed commands, highest priority
+    _DIRECTIVE_PREFIXES = (
+        "cdb:", "kb:", "web:", "task:", "note:",
+        "remind:", "sms:", "polish:", "bible:",
+    )
+    for _dpfx in _DIRECTIVE_PREFIXES:
+        if text_lower.startswith(_dpfx):
+            _darg = text_clean[len(_dpfx):].strip()
+            if _dpfx == "cdb:":
+                from jobs.skills.cdb_query import run as _cdb_run_d
+                _dr = await asyncio.to_thread(_cdb_run_d, _darg)
+                await update.message.reply_text(_dr or "No results.")
+            elif _dpfx == "kb:":
+                await _handle_kb(update, context, text_clean)
+            elif _dpfx == "web:":
+                from jobs.research.web_search import run as _ws_run_d
+                _dr = await asyncio.to_thread(_ws_run_d, _darg)
+                await update.message.reply_text(_dr or "No results.")
+                _log_telegram_exchange(text_clean, _dr or "")
+            elif _dpfx == "task:":
+                from jobs.tasks.add_task import run as _at_run_d
+                _at_run_d(_darg)
+                await update.message.reply_text(f"Task saved: {_darg}")
+            elif _dpfx == "note:":
+                await _handle_pastoral_note_direct(update, context, _darg)
+            elif _dpfx == "remind:":
+                with get_connection() as _rc:
+                    _ensure_reminders_table(_rc)
+                    _rc.execute(
+                        "INSERT INTO reminders (title, due_datetime, reminder_time, status, created_at, updated_at) "
+                        "VALUES (?, datetime(‘now’), NULL, ‘active’, datetime(‘now’), datetime(‘now’))",
+                        (_darg,),
+                    )
+                await update.message.reply_text(f"Reminder saved: {_darg}")
+                _log_telegram_exchange(text_clean, f"Reminder saved: {_darg}")
+            elif _dpfx == "sms:":
+                _sms_parts = _darg.split(":", 1)
+                if len(_sms_parts) == 2:
+                    _sms_name, _sms_body = _sms_parts[0].strip(), _sms_parts[1].strip()
+                    from jobs.people.lookup import lookup_member as _lm_d
+                    from jobs.sms.sms_send import send_sms_to_contact as _sms_tc_d
+                    _hits = _lm_d(_sms_name)
+                    _ct = next((c for c in _hits if c.get("phone")), None)
+                    if _ct:
+                        _res = _sms_tc_d(_ct, _sms_body)
+                        _dr = f"Text sent to {_ct[‘name’]}." if _res["success"] else f"Failed: {_res[‘error’]}"
+                    else:
+                        _dr = f"No contact with phone found for ‘{_sms_name}’."
+                    await update.message.reply_text(_dr)
+                    _log_telegram_exchange(text_clean, _dr)
+                else:
+                    await update.message.reply_text("Format: sms: Name: message")
+            elif _dpfx == "polish:":
+                await _handle_polish(update, context, _darg)
+            elif _dpfx == "bible:":
+                from jobs.bible import run as _bible_run_d
+                _dr = await asyncio.to_thread(_bible_run_d, _darg)
+                await update.message.reply_text(_dr or "No result.")
+                _log_telegram_exchange(text_clean, _dr or "")
+            log.info("DEBUG directive: %s", _dpfx)
+            return
 
     # Reply-threading: route replies to Watson-sent messages before any other logic
     if update.message.reply_to_message:
@@ -2713,7 +2774,7 @@ def main():
     init_db()
     init_fb_db()
     init_email_db()
-    init_gmail_inbox()
+    pass  # email intake runs as standalone cron
     from jobs.email_reply.handler import init_table as init_email_reply_table
     init_email_reply_table()
 

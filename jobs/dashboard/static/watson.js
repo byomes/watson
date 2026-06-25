@@ -1572,6 +1572,34 @@ function renderWithImages(text) {
   return out;
 }
 
+const _DIRECTIVE_PREFIXES = ['kb:', 'cdb:', 'web:', 'task:', 'note:', 'remind:', 'sms:', 'polish:', 'bible:'];
+
+function applyDirective(prefix) {
+  const ta  = document.getElementById('chat-textarea');
+  const sel = document.getElementById('chat-directive-sel');
+  if (!ta) return;
+  let val = ta.value;
+  // Strip any existing directive prefix
+  for (const d of _DIRECTIVE_PREFIXES) {
+    if (val.toLowerCase().startsWith(d)) {
+      val = val.slice(d.length).trimStart();
+      break;
+    }
+  }
+  if (prefix) {
+    ta.value = prefix + ' ' + val;
+  } else {
+    ta.value = val;
+  }
+  // Reset dropdown to default so same directive can be reselected
+  if (sel) sel.value = '';
+  ta.focus();
+  ta.selectionStart = ta.selectionEnd = ta.value.length;
+  // Trigger auto-resize
+  ta.style.height = 'auto';
+  ta.style.height = Math.min(ta.scrollHeight, 120) + 'px';
+}
+
 function appendChatMsg(role, content) {
   const msgs = document.getElementById('chat-messages');
   if (!msgs) return;
