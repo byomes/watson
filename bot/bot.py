@@ -555,7 +555,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Directive prefix intercepts — colon-prefixed commands, highest priority
     _DIRECTIVE_PREFIXES = (
-        "cdb:", "kb:", "web:", "task:", "note:",
+        "cdb:", "wdb:", "kb:", "web:", "task:", "note:",
         "remind:", "sms:", "polish:", "bible:",
     )
     for _dpfx in _DIRECTIVE_PREFIXES:
@@ -607,6 +607,10 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     await update.message.reply_text("Format: sms: Name: message")
             elif _dpfx == "polish:":
                 await _handle_polish(update, context, _darg)
+            elif _dpfx == "wdb:":
+                from jobs.skills.wdb_query import run as _wdb_run_d
+                _dr = await asyncio.to_thread(_wdb_run_d, _darg)
+                await update.message.reply_text(_dr or "No results.")
             elif _dpfx == "bible:":
                 from jobs.bible import run as _bible_run_d
                 _dr = await asyncio.to_thread(_bible_run_d, _darg)

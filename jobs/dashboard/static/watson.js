@@ -1572,7 +1572,7 @@ function renderWithImages(text) {
   return out;
 }
 
-const _DIRECTIVE_PREFIXES = ['kb:', 'cdb:', 'web:', 'task:', 'note:', 'remind:', 'sms:', 'polish:', 'bible:'];
+const _DIRECTIVE_PREFIXES = ['kb:', 'cdb:', 'wdb:', 'web:', 'task:', 'note:', 'remind:', 'sms:', 'polish:', 'bible:'];
 
 function applyDirective(prefix) {
   const ta  = document.getElementById('chat-textarea');

@@ -1311,6 +1311,10 @@ def chat_stream():
         from jobs.skills.cdb_query import run as _cdb_run
         _q = message[4:].strip()
         return _sse_response(_stream_simple(_cdb_run(_q) or "No results."))
+    if msg_lower.startswith("wdb:"):
+        from jobs.skills.wdb_query import run as _wdb_run
+        _q = message[4:].strip()
+        return _sse_response(_stream_simple(_wdb_run(_q) or "No results."))
     if msg_lower.startswith("web:"):
         from jobs.research.web_search import run as _web_run
         _q = message[4:].strip()
