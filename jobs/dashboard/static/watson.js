@@ -204,6 +204,10 @@ async function renderHome() {
     onfocus="this.style.borderColor='var(--gold)'"
     onblur="this.style.borderColor='var(--border)'"
     onkeydown="if(event.key==='Enter')addHomeTask()">
+  <input id="home-task-date" type="date"
+    style="width:140px;padding:9px 8px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:14px;outline:none;flex-shrink:0;box-sizing:border-box;color-scheme:dark"
+    onfocus="this.style.borderColor='var(--gold)'"
+    onblur="this.style.borderColor='var(--border)'">
   <button onclick="addHomeTask()" style="padding:9px 16px;background:var(--gold);color:#0f0f0f;border:none;border-radius:var(--r-btn);font-weight:600;font-family:inherit;font-size:14px;cursor:pointer;flex-shrink:0">Add</button>
 </div>
 <div id="home-tasks-list">${_homeTasksHtml(activeTasks)}</div>`;
@@ -416,12 +420,17 @@ async function addHomeTask() {
   const title = (inp?.value || '').trim();
   if (!title) { if (inp) inp.focus(); return; }
   if (inp) inp.value = '';
+  const dateInp = document.getElementById('home-task-date');
+  const due_date = dateInp?.value || null;
   try {
+    const body = { member_id: 12, title, priority: 'medium', category: _homeTaskTab, assigned_by: 'bill' };
+    if (due_date) body.due_date = due_date;
     await api('/api/team/tasks', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ member_id: 12, title, priority: 'medium', category: _homeTaskTab, assigned_by: 'bill' }),
+      body: JSON.stringify(body),
     });
+    if (dateInp) dateInp.value = '';
     const tasks   = await api(`/api/team/members/12/tasks?status=open&category=${_homeTaskTab}`);
     const taskArr = Array.isArray(tasks) ? tasks : [];
     const listEl  = document.getElementById('home-tasks-list');
