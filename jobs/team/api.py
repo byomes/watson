@@ -752,6 +752,27 @@ def shared_notes_list(member_id):
         return jsonify({"error": str(exc)}), 500
 
 
+@team_bp.route("/shared_notes", methods=["GET"])
+def shared_notes_list_all():
+    try:
+        author = request.args.get("author", "bill")
+        conn = _db()
+        rows = conn.execute(
+            """SELECT sn.id, sn.member_id, sn.content, sn.author, sn.created_at,
+                      tm.name as member_name
+               FROM shared_notes sn
+               LEFT JOIN team_members tm ON tm.id = sn.member_id
+               WHERE sn.author = ?
+               ORDER BY sn.created_at DESC""",
+            (author,),
+        ).fetchall()
+        conn.close()
+        return jsonify([dict(r) for r in rows])
+    except Exception as exc:
+        log.error("shared_notes_list_all error: %s", exc)
+        return jsonify({"error": str(exc)}), 500
+
+
 @team_bp.route("/shared_notes", methods=["POST"])
 def shared_notes_create():
     try:
