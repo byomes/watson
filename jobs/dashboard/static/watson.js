@@ -56,6 +56,17 @@ function fmtGenerated(iso) {
   } catch { return iso; }
 }
 
+function fmtTaskDue(dateStr) {
+  if (!dateStr) return '';
+  try {
+    const d = new Date(dateStr + 'T00:00:00');
+    const opts = d.getFullYear() !== new Date().getFullYear()
+      ? { month: 'short', day: 'numeric', year: 'numeric' }
+      : { month: 'short', day: 'numeric' };
+    return d.toLocaleDateString('en-US', opts);
+  } catch { return dateStr; }
+}
+
 function esc(s) {
   return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
@@ -244,35 +255,24 @@ async function switchHomeTaskTab(tab) {
 function _homeTasksHtml(tasks) {
   if (!tasks.length) return '<div class="empty">No open tasks.</div>';
   const sorted = [...tasks].sort((a, b) => {
-    const pa = parseInt(a.priority, 10) || 3;
-    const pb = parseInt(b.priority, 10) || 3;
+    const pa = a.priority ? parseInt(a.priority, 10) : 99;
+    const pb = b.priority ? parseInt(b.priority, 10) : 99;
     if (pa !== pb) return pa - pb;
-    return (a.created_at || '').localeCompare(b.created_at || '');
+    const da = a.due_date || null;
+    const db = b.due_date || null;
+    if (da && db) return da.localeCompare(db);
+    if (da) return -1;
+    if (db) return 1;
+    return 0;
   });
   return sorted.map(t => {
     const p = t.priority || '3';
-    const showBadge = !!p;
-    const cat = t.category || 'catalyst';
+    const dueStr = fmtTaskDue(t.due_date);
     return `
-    <div class="task-card" id="home-task-${t.id}">
-      <div class="task-check display-only"></div>
-      <div class="task-body">
-        <div class="task-title">${esc(t.title)}</div>
-        ${t.due_date
-          ? `<div class="task-due" id="task-due-${t.id}">${new Date(t.due_date).toLocaleDateString('en-US', {month:'short', day:'numeric'})}</div>`
-          : `<div class="task-due" id="task-due-${t.id}" style="color:var(--muted);cursor:pointer" onclick="openTaskDatePicker(${t.id})">n/a</div>`}
-        <div class="task-badges">
-          ${showBadge ? `<span class="pri ${priClass(p)}">${priLabel(p)}</span>` : ''}
-          <div class="cat-wrap">
-            <span class="cat-pill" onclick="toggleCatDrop(${t.id}, event)">${catLabel(cat)}</span>
-            <div class="cat-drop" id="cat-drop-${t.id}">
-              <div class="cat-opt${cat === 'catalyst' ? ' selected' : ''}" onclick="reassignCat(${t.id}, 'catalyst', event)">Catalyst</div>
-              <div class="cat-opt${cat === 'fms' ? ' selected' : ''}" onclick="reassignCat(${t.id}, 'fms', event)">FMS</div>
-              <div class="cat-opt${cat === 'personal' ? ' selected' : ''}" onclick="reassignCat(${t.id}, 'personal', event)">Personal</div>
-            </div>
-          </div>
-        </div>
-      </div>
+    <div class="task-card" id="home-task-${t.id}" style="align-items:center;padding:10px 14px">
+      <span class="pri ${priClass(p)}" style="margin-top:0;flex-shrink:0">${esc(p)}</span>
+      <span style="flex:1;min-width:0;font-size:14px;line-height:1.4;margin-left:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.title)}</span>
+      ${dueStr ? `<span style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);flex-shrink:0;margin-left:10px">${esc(dueStr)}</span>` : ''}
     </div>`;
   }).join('');
 }

@@ -3822,7 +3822,7 @@ def admin_leader(member_id):
         return jsonify({"error": "not found"}), 404
     if member_id == 12:
         tasks = db.execute(
-            "SELECT * FROM team_tasks WHERE member_id=? AND category='catalyst' ORDER BY due_date ASC",
+            "SELECT * FROM team_tasks WHERE member_id=? AND category='catalyst' AND status='open' ORDER BY due_date ASC",
             (member_id,),
         ).fetchall()
     else:
@@ -3871,8 +3871,8 @@ def admin_task():
     today = datetime.now().date().isoformat()
     db = _db()
     cur = db.execute(
-        "INSERT INTO team_tasks (member_id, title, due_date, source, status) VALUES (?,?,?,?,?)",
-        (member_id, title, data.get("due_date") or None, session.get("admin_user", "donna"), "open"),
+        "INSERT INTO team_tasks (member_id, title, due_date, source, status, category, priority) VALUES (?,?,?,?,?,?,?)",
+        (member_id, title, data.get("due_date") or None, session.get("admin_user", "donna"), "open", "catalyst", "3"),
     )
     db.execute(
         "UPDATE team_members SET last_activity_date=? WHERE id=?",
