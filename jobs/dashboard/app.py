@@ -1369,6 +1369,19 @@ def report_run():
         return jsonify({"error": str(exc)}), 500
 
 
+@app.route("/api/reports/state-of-church", methods=["POST"])
+def reports_state_of_church():
+    import subprocess, threading
+    def _run():
+        subprocess.run(
+            ["venv/bin/python", "-m", "jobs.connect_cards.state_of_church"],
+            cwd="/home/billyomes/watson",
+            env={**os.environ, "PYTHONPATH": "/home/billyomes/watson"}
+        )
+    threading.Thread(target=_run, daemon=True).start()
+    return jsonify({"ok": True})
+
+
 # ── Memory API ───────────────────────────────────────────────────────────────
 
 @app.route("/api/memory/recent")

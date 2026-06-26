@@ -1436,7 +1436,14 @@ function moreLoadReports() {
   ];
 
   el.innerHTML = `
-    <div class="mlabel" style="margin-top:0">Congregation</div>
+    <div class="mlabel" style="margin-top:0">Weekly Reports</div>
+    <div class="card" style="margin-bottom:12px">
+      <button class="mbtn mbtn-p" style="min-height:44px;text-align:left;padding:11px 14px" onclick="runStateOfChurch()">
+        📊 State of the Church
+      </button>
+      <div id="sotc-result" style="display:none;margin-top:8px;font-size:12px;color:var(--muted);font-family:'DM Mono',monospace;padding:8px 0"></div>
+    </div>
+    <div class="mlabel">Congregation</div>
     <div class="card" style="margin-bottom:12px">
       ${cdbButtons.map(q =>
         `<button class="mbtn" style="min-height:44px;text-align:left;padding:11px 14px"
@@ -1472,6 +1479,18 @@ async function runReport(type, query) {
     resultEl.textContent = data.result || data.error || '(no result)';
   } catch {
     resultEl.textContent = 'Request failed.';
+  }
+}
+
+async function runStateOfChurch() {
+  const el = document.getElementById('sotc-result');
+  el.style.display = 'block';
+  el.textContent = 'Generating report… this takes 2–3 minutes.';
+  try {
+    const data = await fetch('/api/reports/state-of-church', { method: 'POST' }).then(r => r.json());
+    el.textContent = data.ok ? '✓ Report sent to pastorbill@catalyst302.com' : ('Error: ' + (data.error || 'unknown'));
+  } catch {
+    el.textContent = 'Request failed.';
   }
 }
 
