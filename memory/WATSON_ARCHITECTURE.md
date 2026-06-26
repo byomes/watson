@@ -686,3 +686,41 @@ WATSON_API_URL=https://watson.tail0243ff.ts.net
 - 1e29803 feat: /admin team command center with Donna login and auto-status
 - bb7ed39 docs: file map 2026-06-24
 - c711eda docs: architecture update 2026-06-24
+
+---
+
+## Recent Changes — 2026-06-26
+
+### ~/watson
+- c58923d fix: hybrid member threshold raised to 2+ attendances per campus
+- 6cfd09b feat: More tab reports — congregation and leadership query buttons
+- a55dd8c fix: wdb_query tasks-by-leader keyword expansion
+- 71e4aec feat: wdb: skill — leadership team intelligence queries against watson.db
+- c3c3b77 feat: cdb_query expanded patterns — missed, hybrid, trend, shepherding attention
+- 2bdf822 fix: cdb_query — drop campus/date from output when campus filter specified
+- 036d432 feat: cdb_query pattern matcher — bypasses Ollama for attendance queries, correct campus/date filtering
+- 3890ef5 fix: cdb_query — explicit date literals, no SQL date functions, no connect_cards join for counts
+- fd20c1c fix: cdb_query date calculation and multi-week range support
+- 15864bd fix: cdb_query prompt — remove db name prefix from table references
+- 77060b3 feat: directive intercepts at top of handler + directive dropdown in dashboard chat
+- cd49381 feat: cdb: skill — natural language congregation DB query
+- 0d44220 fix: team page title Watson and W favicon matching index.html
+- 06ba4ae fix: admin header W logo links to /admin not /
+- 0676dab feat: leadership notes in dashboard tied to specific leader, appear in admin shared notes panel
+- 21d55b8 fix: rename admin console header to Watson Admin
+- 9d90478 feat: Watson W favicon on dashboard and admin console
+- 09677b2 fix: skip-all telegram routing, awaiting-you delete button, pre-meeting brief event blocklist
+- 7d8b7f4 feat: inline due date editing on tasks in admin panel
+- e2b45bd fix: sort admin tasks priority 1 first (most urgent) in leader detail panel
+- 7090011 feat: task checkbox completion with 1-hour archive, two-line task layout with priority+date on all tabs
+- 143f701 feat: sync catalyst tasks between /team and /admin, add priority + due date display with sort to dashboard
+- 68f0468 feat: catalyst-only task count in Bill's admin profile, 1-5 priority scale replacing high/medium/low
+- 6004368 fix: working gcal web auth flow via requests_oauthlib
+- bd977d4 fix: pass PKCE code verifier through session in gcal auth flow
+- e49a8a1 fix: gcal auth flow — disable PKCE, force https in callback url
+- 4945406 feat: web-based gcal reauth flow at /gcal-auth
+- 89df23e docs: file map 2026-06-25
+- 6373fef docs: architecture update 2026-06-25
+
+### ~/wcky
+- fa79025 feat: add /thewrongjesus launch page with countdown and email capture
