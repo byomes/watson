@@ -1019,6 +1019,15 @@ function renderMore() {
         <div class="msec-inner" id="msec-inner-ministry"><div class="loading">Loading&hellip;</div></div>
       </div>
     </div>
+    <div class="msec" id="msec-events">
+      <div class="msec-hdr" onclick="moreToggle('events')">
+        <span class="msec-title">Events</span>
+        <span class="msec-chev" id="msec-chev-events">›</span>
+      </div>
+      <div class="msec-body" id="msec-body-events">
+        <div class="msec-inner" id="msec-inner-events"><div class="loading">Loading&hellip;</div></div>
+      </div>
+    </div>
     <div class="mrrow" onclick="openLogins()" style="cursor:pointer">
       <span style="font-size:13px;font-weight:500">Logins</span>
       <span style="color:var(--gold);font-size:15px">›</span>
@@ -1041,6 +1050,7 @@ function moreToggle(sec) {
     if (sec === 'skills')   moreLoadSkills();
     if (sec === 'ministry') moreLoadMinistry();
     if (sec === 'reading')  moreLoadReading();
+    if (sec === 'events')   moreLoadEvents();
   }
 }
 
@@ -1563,6 +1573,140 @@ async function moreApproveSkill(slug) {
     await api(`/api/skills/${encodeURIComponent(slug)}/approve`, { method: 'POST' });
     moreLoadSkills();
   } catch { alert('Failed to approve skill.'); }
+}
+
+// ── Events ───────────────────────────────────────────────────────────────────
+
+async function moreLoadEvents() {
+  const el = document.getElementById('msec-inner-events');
+  if (!el) return;
+  el.innerHTML = '<div class="loading">Loading&hellip;</div>';
+  try {
+    const events = await api('/api/events');
+    let html = `<button class="mbtn mbtn-sm" onclick="moreShowEventForm()" style="margin-bottom:12px">+ Log Event</button>`;
+    html += '<div id="mevt-form" style="display:none"></div>';
+    if (!Array.isArray(events) || !events.length) {
+      html += '<div class="empty">No events logged yet.</div>';
+    } else {
+      html += events.map(ev => {
+        let dateRange = ev.start_date;
+        if (ev.end_date && ev.end_date !== ev.start_date) dateRange += ' – ' + ev.end_date;
+        return `
+          <div class="mpn-card" id="mevt-card-${ev.id}">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+              <div style="flex:1;min-width:0">
+                <div style="font-size:13px;font-weight:600">${esc(ev.event_name)}</div>
+                <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);margin-top:2px">${esc(dateRange)}</div>
+                ${ev.file_count ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">${ev.file_count} file${ev.file_count !== 1 ? 's' : ''}</div>` : ''}
+              </div>
+              <button class="mbtn mbtn-sm mbtn-d" onclick="moreDeleteEvent(${ev.id})" style="flex-shrink:0">Delete</button>
+            </div>
+            ${ev.description || ev.attendance_notes ? `
+            <div id="mevt-detail-${ev.id}" style="display:none;margin-top:8px;border-top:1px solid var(--border);padding-top:8px">
+              ${ev.description      ? `<div style="font-size:12px;color:var(--text);margin-bottom:4px">${esc(ev.description)}</div>` : ''}
+              ${ev.attendance_notes ? `<div style="font-size:12px;color:var(--muted)">${esc(ev.attendance_notes)}</div>`             : ''}
+            </div>
+            <div onclick="moreToggleEventDetail(${ev.id})" style="font-size:11px;font-family:'DM Mono',monospace;color:var(--gold);cursor:pointer;margin-top:6px;-webkit-tap-highlight-color:transparent" id="mevt-tog-${ev.id}">+ Details</div>` : ''}
+          </div>`;
+      }).join('');
+    }
+    el.innerHTML = html;
+  } catch {
+    const inner = document.getElementById('msec-inner-events');
+    if (inner) inner.innerHTML = '<div class="empty">Could not load events.</div>';
+  }
+}
+
+function moreToggleEventDetail(id) {
+  const detail = document.getElementById(`mevt-detail-${id}`);
+  const tog    = document.getElementById(`mevt-tog-${id}`);
+  if (!detail) return;
+  const isOpen = detail.style.display !== 'none';
+  detail.style.display = isOpen ? 'none' : 'block';
+  if (tog) tog.textContent = isOpen ? '+ Details' : '– Details';
+}
+
+function moreShowEventForm() {
+  const formEl = document.getElementById('mevt-form');
+  if (!formEl) return;
+  if (formEl.style.display !== 'none') {
+    formEl.style.display = 'none';
+    return;
+  }
+  formEl.style.display = 'block';
+  formEl.innerHTML = `
+    <div class="mform" style="margin-bottom:12px">
+      <input id="mevt-name"  type="text" placeholder="Event name *">
+      <div style="display:flex;gap:8px">
+        <input id="mevt-start" type="date" placeholder="Start date *" style="flex:1;color-scheme:dark">
+        <input id="mevt-end"   type="date" placeholder="End date"     style="flex:1;color-scheme:dark">
+      </div>
+      <textarea id="mevt-desc" rows="4" placeholder="Description"></textarea>
+      <textarea id="mevt-att"  rows="4" placeholder="Attendance &amp; Session Notes"></textarea>
+      <div style="margin-bottom:8px">
+        <label style="display:inline-block;cursor:pointer;padding:5px 10px;border:1px solid var(--border);border-radius:var(--r-btn);font-size:11px;color:var(--text);background:var(--surface)">
+          Attach Files
+          <input id="mevt-files" type="file" multiple style="display:none" onchange="moreShowFileNames(this)">
+        </label>
+        <div id="mevt-filenames" style="font-size:11px;color:var(--muted);margin-top:4px"></div>
+      </div>
+      <div id="mevt-err" style="display:none;font-size:12px;color:var(--red);margin-bottom:8px"></div>
+      <div class="mfrow">
+        <button class="mbtn mbtn-p" onclick="moreSaveEvent()">Save</button>
+        <button class="mbtn"        onclick="moreShowEventForm()">Cancel</button>
+      </div>
+    </div>`;
+  document.getElementById('mevt-name')?.focus();
+}
+
+function moreShowFileNames(input) {
+  const el = document.getElementById('mevt-filenames');
+  if (!el) return;
+  el.textContent = Array.from(input.files).map(f => f.name).join(', ');
+}
+
+async function moreSaveEvent() {
+  const name  = (document.getElementById('mevt-name')?.value  || '').trim();
+  const start = (document.getElementById('mevt-start')?.value || '').trim();
+  const errEl = document.getElementById('mevt-err');
+  if (!name || !start) {
+    if (errEl) { errEl.textContent = 'Event name and start date are required.'; errEl.style.display = 'block'; }
+    return;
+  }
+  const fd = new FormData();
+  fd.append('event_name', name);
+  fd.append('start_date', start);
+  const end  = (document.getElementById('mevt-end')?.value  || '').trim();
+  const desc = (document.getElementById('mevt-desc')?.value || '').trim();
+  const att  = (document.getElementById('mevt-att')?.value  || '').trim();
+  if (end)  fd.append('end_date',         end);
+  if (desc) fd.append('description',      desc);
+  if (att)  fd.append('attendance_notes', att);
+  const filesInput = document.getElementById('mevt-files');
+  if (filesInput?.files) {
+    for (const f of filesInput.files) fd.append('files[]', f);
+  }
+  try {
+    const res = await fetch('/api/events', { method: 'POST', body: fd });
+    if (!res.ok) throw new Error(await res.text());
+    _moreSecLoaded['events'] = false;
+    moreLoadEvents();
+  } catch {
+    if (errEl) { errEl.textContent = 'Failed to save event. Try again.'; errEl.style.display = 'block'; }
+  }
+}
+
+async function moreDeleteEvent(id) {
+  if (!confirm('Delete this event and all its files?')) return;
+  try {
+    await api(`/api/events/${id}`, { method: 'DELETE' });
+    const card = document.getElementById(`mevt-card-${id}`);
+    if (card) {
+      card.style.transition = 'opacity .3s';
+      card.style.opacity = '0';
+      setTimeout(() => { if (card.parentNode) card.remove(); }, 300);
+    }
+  } catch { alert('Failed to delete event.'); }
 }
 
 function moreToggleTheme(isLight) {

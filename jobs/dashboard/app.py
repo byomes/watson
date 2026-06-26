@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import re
+import shutil
 import sqlite3
 import sys
 from datetime import datetime
@@ -13,13 +14,14 @@ log = logging.getLogger(__name__)
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from flask import Flask, Response, g, jsonify, redirect, render_template, request, session, stream_with_context, url_for
+from flask import Flask, Response, g, jsonify, redirect, render_template, request, send_file, session, stream_with_context, url_for
 from flask_cors import CORS
 from jobs.people.api import congregation_list, people_create, people_delete, people_list, people_update
 from config.settings import WATSON_SYSTEM
 
 
 DB = os.path.expanduser("~/watson/data/watson.db")
+EVENT_FILES_DIR = Path(os.path.expanduser("~/watson/data/event_files"))
 SKILLS_FILE = Path(__file__).resolve().parents[2] / "memory" / "skills.json"
 MEMORY = Path(__file__).resolve().parents[2] / "memory"
 app = Flask(__name__, static_folder='static', template_folder='templates')
@@ -228,6 +230,23 @@ def _bootstrap():
         c.execute("ALTER TABLE team_tasks ADD COLUMN completed_at TEXT")
     except Exception:
         pass
+    c.execute("""CREATE TABLE IF NOT EXISTS church_events (
+        id               INTEGER PRIMARY KEY AUTOINCREMENT,
+        event_name       TEXT    NOT NULL,
+        start_date       TEXT    NOT NULL,
+        end_date         TEXT,
+        description      TEXT,
+        attendance_notes TEXT,
+        created_at       TEXT    DEFAULT (datetime('now'))
+    )""")
+    c.execute("""CREATE TABLE IF NOT EXISTS church_event_files (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        event_id      INTEGER NOT NULL REFERENCES church_events(id),
+        filename      TEXT    NOT NULL,
+        original_name TEXT    NOT NULL,
+        file_type     TEXT,
+        uploaded_at   TEXT    DEFAULT (datetime('now'))
+    )""")
     c.commit()
     c.close()
 
@@ -1069,6 +1088,110 @@ def pastoral_notes_delete(note_id):
     _db().execute("DELETE FROM pastoral_notes WHERE id = ?", (note_id,))
     _db().commit()
     return jsonify({"ok": True})
+
+
+# ── Church Events API ─────────────────────────────────────────────────────────
+
+@app.route("/api/events")
+def events_list():
+    rows = _db().execute("""
+        SELECT e.id, e.event_name, e.start_date, e.end_date,
+               e.description, e.attendance_notes, e.created_at,
+               COUNT(f.id) as file_count
+        FROM church_events e
+        LEFT JOIN church_event_files f ON f.event_id = e.id
+        GROUP BY e.id
+        ORDER BY e.start_date DESC
+    """).fetchall()
+    return jsonify([dict(r) for r in rows])
+
+
+@app.route("/api/events", methods=["POST"])
+def events_create():
+    event_name = (request.form.get("event_name") or "").strip()
+    start_date = (request.form.get("start_date") or "").strip()
+    if not event_name or not start_date:
+        return jsonify({"error": "event_name and start_date are required"}), 400
+    end_date         = request.form.get("end_date") or None
+    description      = request.form.get("description") or None
+    attendance_notes = request.form.get("attendance_notes") or None
+
+    db = _db()
+    cur = db.execute(
+        "INSERT INTO church_events (event_name, start_date, end_date, description, attendance_notes) "
+        "VALUES (?, ?, ?, ?, ?)",
+        (event_name, start_date, end_date, description, attendance_notes),
+    )
+    db.commit()
+    event_id = cur.lastrowid
+
+    files = request.files.getlist("files[]")
+    if files:
+        event_dir = EVENT_FILES_DIR / str(event_id)
+        event_dir.mkdir(parents=True, exist_ok=True)
+        for f in files:
+            if not f.filename:
+                continue
+            original_name = Path(f.filename).name
+            safe_name = re.sub(r"[^\w.\-]", "_", original_name)
+            dest = event_dir / safe_name
+            f.save(str(dest))
+            db.execute(
+                "INSERT INTO church_event_files (event_id, filename, original_name, file_type) "
+                "VALUES (?, ?, ?, ?)",
+                (event_id, safe_name, original_name, f.content_type),
+            )
+        db.commit()
+
+    row = db.execute("""
+        SELECT e.id, e.event_name, e.start_date, e.end_date,
+               e.description, e.attendance_notes, e.created_at,
+               COUNT(f.id) as file_count
+        FROM church_events e
+        LEFT JOIN church_event_files f ON f.event_id = e.id
+        WHERE e.id = ?
+        GROUP BY e.id
+    """, (event_id,)).fetchone()
+    return jsonify(dict(row)), 201
+
+
+@app.route("/api/events/<int:event_id>")
+def events_get(event_id):
+    db = _db()
+    row = db.execute("SELECT * FROM church_events WHERE id = ?", (event_id,)).fetchone()
+    if not row:
+        return jsonify({"error": "not found"}), 404
+    files = db.execute(
+        "SELECT id, filename, original_name, file_type, uploaded_at "
+        "FROM church_event_files WHERE event_id = ?",
+        (event_id,),
+    ).fetchall()
+    result = dict(row)
+    result["files"] = [dict(f) for f in files]
+    return jsonify(result)
+
+
+@app.route("/api/events/<int:event_id>", methods=["DELETE"])
+def events_delete(event_id):
+    db = _db()
+    event_dir = EVENT_FILES_DIR / str(event_id)
+    if event_dir.exists():
+        shutil.rmtree(event_dir)
+    db.execute("DELETE FROM church_event_files WHERE event_id = ?", (event_id,))
+    db.execute("DELETE FROM church_events WHERE id = ?", (event_id,))
+    db.commit()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/events/<int:event_id>/files/<path:filename>")
+def events_serve_file(event_id, filename):
+    event_dir = EVENT_FILES_DIR / str(event_id)
+    filepath = (event_dir / filename).resolve()
+    if not str(filepath).startswith(str(event_dir.resolve())):
+        return jsonify({"error": "not found"}), 404
+    if not filepath.exists():
+        return jsonify({"error": "not found"}), 404
+    return send_file(str(filepath))
 
 
 # ── Upload API ────────────────────────────────────────────────────────────────

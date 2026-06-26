@@ -123,6 +123,28 @@ def _members_not_seen(conn: sqlite3.Connection) -> list[dict]:
     return [dict(r) for r in rows]
 
 
+def _special_events() -> list[dict]:
+    """Return church_events from watson.db with any date in the past 14 days."""
+    watson_db = os.path.expanduser("~/watson/data/watson.db")
+    try:
+        conn = sqlite3.connect(f"file:{watson_db}?mode=ro", uri=True)
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            """
+            SELECT event_name, start_date, end_date, attendance_notes
+            FROM church_events
+            WHERE start_date >= date('now', '-14 days')
+               OR (end_date IS NOT NULL AND end_date >= date('now', '-14 days'))
+            ORDER BY start_date DESC
+            """,
+        ).fetchall()
+        conn.close()
+        return [dict(r) for r in rows]
+    except Exception as exc:
+        log.warning("church_events query failed: %s", exc)
+        return []
+
+
 def _rolling_data(conn: sqlite3.Connection) -> list[dict]:
     """Per-campus attendance for the last 24 distinct service dates, newest first."""
     rows = conn.execute(
@@ -225,6 +247,34 @@ def _html_section_header(title: str) -> str:
     )
 
 
+def _build_html_special_events(events: list[dict]) -> str:
+    if not events:
+        return ""
+    items = ""
+    for i, ev in enumerate(events):
+        try:
+            s = date.fromisoformat(ev["start_date"]).strftime("%b %-d")
+            if ev["end_date"] and ev["end_date"] != ev["start_date"]:
+                e = date.fromisoformat(ev["end_date"]).strftime("%b %-d, %Y")
+                date_range = f"{s}–{e}"
+            else:
+                date_range = date.fromisoformat(ev["start_date"]).strftime("%b %-d, %Y")
+        except Exception:
+            date_range = ev["start_date"]
+        notes = (ev["attendance_notes"] or "").strip()
+        border = "" if i == len(events) - 1 else "border-bottom:1px solid #f0f0f0;"
+        items += f"""
+        <div style="padding:10px 0;{border}">
+          <span style="font-size:14px;font-weight:700;color:#1a1a1a;">{ev['event_name']}</span>
+          <span style="font-size:12px;color:#888;margin-left:8px;">{date_range}</span>
+          {f'<div style="font-size:13px;color:#555;margin-top:4px;">{notes}</div>' if notes else ''}
+        </div>"""
+    return (
+        _html_section_header("Special Events")
+        + f'<div style="margin-top:12px;">{items}</div>'
+    )
+
+
 def _build_html(
     monday: date,
     this_sunday: date,
@@ -237,6 +287,7 @@ def _build_html(
     missing: list[dict],
     synthesis: str | None,
     trends_data: dict,
+    special_events: list[dict] | None = None,
 ) -> str:
     last_by_campus = {r["campus"]: r["count"] for r in last_att}
     this_total = sum(r["count"] for r in this_att)
@@ -479,6 +530,9 @@ def _build_html(
       {_html_section_header("Trends")}
       {trends_block}
 
+      <!-- Special Events -->
+      {_build_html_special_events(special_events or [])}
+
       <!-- First-Time Visitors -->
       {_html_section_header(f"First-Time Visitors")}
       {visitor_block}
@@ -521,6 +575,7 @@ def _build_plain(
     missing: list[dict],
     synthesis: str | None,
     trends_data: dict,
+    special_events: list[dict] | None = None,
 ) -> str:
     last_by_campus = {r["campus"]: r["count"] for r in last_att}
     this_total = sum(r["count"] for r in this_att)
@@ -589,6 +644,17 @@ def _build_plain(
     lines.append(f"    Active      (3-5 visits):  {eng.get('active',     0):>4} members")
     lines.append(f"    Occasional  (1-2 visits):  {eng.get('occasional', 0):>4} members")
     lines.append(f"    Lapsed      (0 visits):    {eng.get('lapsed',     0):>4} members")
+
+    if special_events:
+        lines += ["", f"SPECIAL EVENTS ({len(special_events)})", "-" * 52]
+        for ev in special_events:
+            date_range = ev["start_date"]
+            if ev["end_date"] and ev["end_date"] != ev["start_date"]:
+                date_range = f"{ev['start_date']} – {ev['end_date']}"
+            notes = (ev["attendance_notes"] or "").strip()
+            lines.append(f"  {ev['event_name']}  ({date_range})")
+            if notes:
+                lines.append(f"    {notes}")
 
     lines += ["", "FIRST-TIME VISITORS", "-" * 52]
     lines += [f"  - {n}" for n in visitors] if visitors else ["  None this week."]
@@ -707,6 +773,8 @@ def build_report() -> tuple[str, str, str]:
     prayer_names = ", ".join(p["name"].split()[0] for p in prayers) if prayers else "none"
     absent_names = ", ".join(m["name"].split()[0] for m in missing) if missing else "none"
 
+    special_events = _special_events()
+
     wil4  = int(round(campus_trends.get("Wilmington", {}).get("avg4", 0)))
     wil8  = int(round(campus_trends.get("Wilmington", {}).get("avg8", 0)))
     onl4  = int(round(campus_trends.get("Online",     {}).get("avg4", 0)))
@@ -714,6 +782,7 @@ def build_report() -> tuple[str, str, str]:
     wil_d = campus_trends.get("Wilmington", {}).get("direction", "Stable")
     onl_d = campus_trends.get("Online",     {}).get("direction", "Stable")
 
+    ev_names = ", ".join(e["event_name"] for e in special_events) if special_events else "none"
     condensed = (
         f"WEEK OF: {monday.strftime('%B %d, %Y')}\n"
         f"ATTENDANCE: {', '.join(att_parts) or 'no data'}, Total {this_total} ({att_total_sign}{att_total_diff})\n"
@@ -722,6 +791,7 @@ def build_report() -> tuple[str, str, str]:
         f"TREND: Wilmington {wil_d}, Online {onl_d}\n"
         f"ENGAGEMENT: Consistent {engagement['consistent']}, Active {engagement['active']}, "
         f"Occasional {engagement['occasional']}, Lapsed {engagement['lapsed']}\n"
+        f"SPECIAL EVENTS (past 14 days): {len(special_events)} — {ev_names}\n"
         f"FIRST-TIME VISITORS: {len(visitors)}\n"
         f"OPEN FOLLOW-UPS: {len(followups)}\n"
         f"PRAYER REQUESTS: {len(prayers)} requests from: {prayer_names}\n"
@@ -741,6 +811,7 @@ def build_report() -> tuple[str, str, str]:
         missing=missing,
         synthesis=synthesis,
         trends_data=trends_data,
+        special_events=special_events,
     )
     html  = _build_html(**kwargs)
     plain = _build_plain(**kwargs)
