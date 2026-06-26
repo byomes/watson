@@ -188,6 +188,20 @@ def _process_email(msg, conn: sqlite3.Connection) -> tuple[int, int, list[str]]:
                     "INSERT INTO attendance (member_id, service_date, campus, card_id) VALUES (?, ?, ?, NULL)",
                     (member_id, service_date, campus),
                 )
+                # Auto-reinstate disconnected members
+                try:
+                    status_row = conn.execute(
+                        "SELECT name, member_status FROM members WHERE id = ?", (member_id,)
+                    ).fetchone()
+                    if status_row and status_row["member_status"] == "disconnected":
+                        conn.execute(
+                            "UPDATE members SET member_status = 'active', status_reason = NULL, status_note = NULL WHERE id = ?",
+                            (member_id,),
+                        )
+                        member_name = status_row["name"] or name
+                        _send_telegram(f"⛪ {member_name} attended today and has been automatically reinstated as active.")
+                except Exception as reinstate_exc:
+                    log.warning("Auto-reinstatement check failed for %r: %s", name, reinstate_exc)
                 inserted += 1
         except Exception as exc:
             log.error("Error processing name %r: %s", name, exc)

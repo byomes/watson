@@ -963,6 +963,11 @@ let _morePNTab        = 'active';
 let _moreAllSkills    = [];
 let _moreSkillCat     = 'All';
 let _moreSkillQuery   = '';
+let _moreAllMembers    = [];
+let _memberPage        = 0;
+let _memberCurrentList = null;
+let _memberSearchTimer = null;
+let _expandedMemberId  = null;
 
 function renderMore() {
   _moreSecLoaded = {};
@@ -1028,6 +1033,15 @@ function renderMore() {
         <div class="msec-inner" id="msec-inner-events"><div class="loading">Loading&hellip;</div></div>
       </div>
     </div>
+    <div class="msec" id="msec-members">
+      <div class="msec-hdr" onclick="moreToggle('members')">
+        <span class="msec-title">Members</span>
+        <span class="msec-chev" id="msec-chev-members">›</span>
+      </div>
+      <div class="msec-body" id="msec-body-members">
+        <div class="msec-inner" id="msec-inner-members"></div>
+      </div>
+    </div>
     <div class="mrrow" onclick="openLogins()" style="cursor:pointer">
       <span style="font-size:13px;font-weight:500">Logins</span>
       <span style="color:var(--gold);font-size:15px">›</span>
@@ -1051,6 +1065,7 @@ function moreToggle(sec) {
     if (sec === 'ministry') moreLoadMinistry();
     if (sec === 'reading')  moreLoadReading();
     if (sec === 'events')   moreLoadEvents();
+    if (sec === 'members')  moreLoadMembers();
   }
 }
 
@@ -1726,6 +1741,181 @@ async function moreDeleteEvent(id) {
       setTimeout(() => { if (card.parentNode) card.remove(); }, 300);
     }
   } catch { alert('Failed to delete event.'); }
+}
+
+// ── Members ───────────────────────────────────────────────────────────────────
+
+async function moreLoadMembers() {
+  const el = document.getElementById('msec-inner-members');
+  if (!el) return;
+  _moreAllMembers   = [];
+  _memberPage       = 0;
+  _memberCurrentList = null;
+  _expandedMemberId = null;
+  el.innerHTML = `
+    <input id="mmem-search" type="search" class="msrch" placeholder="Search members&hellip;"
+      oninput="memberSearchDebounced(this.value)" style="margin-bottom:8px">
+    <div id="mmem-stats" style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);margin-bottom:8px">Loading&hellip;</div>
+    <div id="mmem-list"><div class="loading">Loading&hellip;</div></div>`;
+  try {
+    const members = await api('/api/members');
+    _moreAllMembers = Array.isArray(members) ? members : [];
+    _memberRenderStats();
+    _memberRenderList();
+  } catch {
+    const listEl = document.getElementById('mmem-list');
+    if (listEl) listEl.innerHTML = '<div class="empty">Could not load members.</div>';
+  }
+}
+
+function _memberRenderStats() {
+  const el = document.getElementById('mmem-stats');
+  if (!el) return;
+  const total        = _moreAllMembers.length;
+  const active       = _moreAllMembers.filter(m => !m.member_status || m.member_status === 'active').length;
+  const deceased     = _moreAllMembers.filter(m => m.member_status === 'deceased').length;
+  const disconnected = _moreAllMembers.filter(m => m.member_status === 'disconnected').length;
+  const non_local    = _moreAllMembers.filter(m => m.member_status === 'non_local').length;
+  const snowbird     = _moreAllMembers.filter(m => m.member_status === 'snowbird').length;
+  const parts = [`Total: ${total}`, `Active: ${active}`];
+  if (deceased)     parts.push(`\u{1F7E4} ${deceased}`);
+  if (disconnected) parts.push(`\u{1F534} ${disconnected}`);
+  if (non_local)    parts.push(`\u{1F535} ${non_local}`);
+  if (snowbird)     parts.push(`\u{1F7E1} ${snowbird}`);
+  el.textContent = parts.join(' · ');
+}
+
+function _memberStatusBadge(status) {
+  if (!status || status === 'active') return '';
+  const map = { deceased: '\u{1F7E4} Deceased', disconnected: '\u{1F534} Disconnected', non_local: '\u{1F535} Non-local', snowbird: '\u{1F7E1} Snowbird' };
+  return `<span style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted)">${esc(map[status] || status)}</span>`;
+}
+
+function _memberRenderList() {
+  const el = document.getElementById('mmem-list');
+  if (!el) return;
+  const source = _memberCurrentList !== null ? _memberCurrentList : _moreAllMembers;
+  if (!source.length) {
+    el.innerHTML = '<div class="empty">No members found.</div>';
+    return;
+  }
+  const page = source.slice(0, (_memberPage + 1) * 20);
+  let html = page.map(m => `
+    <div class="mpn-card" id="mmem-row-${m.id}">
+      <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;-webkit-tap-highlight-color:transparent"
+           onclick="moreExpandMember(${m.id})">
+        <span style="font-size:13px;font-weight:500">${esc(m.name || '')}</span>
+        <span id="mmem-badge-${m.id}">${_memberStatusBadge(m.member_status)}</span>
+      </div>
+      <div id="mmem-exp-${m.id}" style="display:none"></div>
+    </div>`).join('');
+  if (source.length > page.length) {
+    html += `<button class="mbtn mbtn-sm" onclick="memberLoadMore()" style="margin-top:8px">Load more (${source.length - page.length} remaining)</button>`;
+  }
+  el.innerHTML = html;
+}
+
+function memberLoadMore() {
+  _memberPage++;
+  _memberRenderList();
+}
+
+function memberSearchDebounced(q) {
+  if (_memberSearchTimer) clearTimeout(_memberSearchTimer);
+  _memberSearchTimer = setTimeout(() => {
+    _memberPage = 0;
+    if (q.length >= 2) {
+      _memberCurrentList = _moreAllMembers.filter(m =>
+        (m.name || '').toLowerCase().includes(q.toLowerCase())
+      );
+    } else {
+      _memberCurrentList = null;
+    }
+    _memberRenderList();
+  }, 300);
+}
+
+function moreExpandMember(id) {
+  const expEl = document.getElementById(`mmem-exp-${id}`);
+  if (!expEl) return;
+  if (_expandedMemberId === id) {
+    expEl.style.display = 'none';
+    _expandedMemberId = null;
+    return;
+  }
+  if (_expandedMemberId !== null) {
+    const prev = document.getElementById(`mmem-exp-${_expandedMemberId}`);
+    if (prev) prev.style.display = 'none';
+  }
+  _expandedMemberId = id;
+  const m = _moreAllMembers.find(x => x.id === id);
+  if (!m) return;
+  const status = m.member_status || 'active';
+  const opts = [
+    ['active', 'Active'], ['deceased', 'Deceased'], ['disconnected', 'Disconnected'],
+    ['non_local', 'Non-local'], ['snowbird', 'Snowbird'],
+  ].map(([v, l]) => `<option value="${v}"${status === v ? ' selected' : ''}>${l}</option>`).join('');
+  expEl.innerHTML = `
+    <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+      ${m.email ? `<div style="margin-bottom:6px"><a href="mailto:${esc(m.email)}" style="color:var(--gold);font-size:13px;text-decoration:none">${esc(m.email)}</a></div>` : ''}
+      ${m.phone ? `<div style="margin-bottom:10px"><a href="tel:${esc(m.phone)}" style="color:var(--gold);font-size:13px;text-decoration:none">${esc(m.phone)}</a></div>` : ''}
+      <div style="margin-bottom:8px">
+        <label style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);display:block;margin-bottom:4px">STATUS</label>
+        <select id="mmem-status-${id}" onchange="memberStatusChange(${id})"
+          style="width:100%;padding:7px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:13px;outline:none">${opts}</select>
+      </div>
+      <div id="mmem-snowbird-wrap-${id}" style="margin-bottom:8px${status === 'snowbird' ? '' : ';display:none'}">
+        <label style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);display:block;margin-bottom:4px">EXPECTED RETURN</label>
+        <input type="date" id="mmem-return-${id}" value="${esc(m.snowbird_return || '')}"
+          style="width:100%;padding:7px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:13px;outline:none;box-sizing:border-box;color-scheme:dark">
+      </div>
+      <div style="margin-bottom:10px">
+        <label style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);display:block;margin-bottom:4px">NOTES</label>
+        <textarea id="mmem-note-${id}" rows="2"
+          style="display:block;width:100%;padding:7px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:13px;outline:none;resize:vertical;box-sizing:border-box"
+          placeholder="Optional note&hellip;">${esc(m.status_note || '')}</textarea>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <button class="mbtn mbtn-p mbtn-sm" onclick="memberSave(${id})">Save</button>
+        <span id="mmem-saved-${id}" style="display:none;font-size:12px;color:#2e7d32">✓ Saved</span>
+      </div>
+    </div>`;
+  expEl.style.display = 'block';
+}
+
+function memberStatusChange(id) {
+  const sel = document.getElementById(`mmem-status-${id}`);
+  const wrap = document.getElementById(`mmem-snowbird-wrap-${id}`);
+  if (sel && wrap) wrap.style.display = sel.value === 'snowbird' ? 'block' : 'none';
+}
+
+async function memberSave(id) {
+  const sel     = document.getElementById(`mmem-status-${id}`);
+  const noteEl  = document.getElementById(`mmem-note-${id}`);
+  const retEl   = document.getElementById(`mmem-return-${id}`);
+  const savedEl = document.getElementById(`mmem-saved-${id}`);
+  const status  = sel?.value || 'active';
+  const body = {
+    member_status:   status,
+    status_note:     (noteEl?.value || '').trim() || null,
+    snowbird_return: (status === 'snowbird' && retEl?.value) ? retEl.value : null,
+  };
+  try {
+    const updated = await api(`/api/members/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const idx = _moreAllMembers.findIndex(m => m.id === id);
+    if (idx !== -1) Object.assign(_moreAllMembers[idx], updated);
+    _memberRenderStats();
+    const badgeEl = document.getElementById(`mmem-badge-${id}`);
+    if (badgeEl) badgeEl.innerHTML = _memberStatusBadge(status);
+    if (savedEl) {
+      savedEl.style.display = 'inline';
+      setTimeout(() => { savedEl.style.display = 'none'; }, 2500);
+    }
+  } catch { alert('Failed to save.'); }
 }
 
 function moreToggleTheme(isLight) {

@@ -114,6 +114,7 @@ def _members_not_seen(conn: sqlite3.Connection) -> list[dict]:
         FROM members m
         LEFT JOIN attendance a ON a.member_id = m.id
         WHERE m.active = 1
+          AND (m.member_status IS NULL OR m.member_status = 'active')
         GROUP BY m.id
         HAVING last_seen IS NULL OR last_seen < date('now', '-14 days')
         ORDER BY last_seen ASC
@@ -121,6 +122,20 @@ def _members_not_seen(conn: sqlite3.Connection) -> list[dict]:
         """,
     ).fetchall()
     return [dict(r) for r in rows]
+
+
+def _members_excluded_counts(conn: sqlite3.Connection) -> dict:
+    """Count active members excluded from reporting by member_status."""
+    rows = conn.execute(
+        """
+        SELECT member_status, COUNT(*) as cnt
+        FROM members
+        WHERE active = 1
+          AND member_status IN ('deceased', 'disconnected', 'non_local', 'snowbird')
+        GROUP BY member_status
+        """,
+    ).fetchall()
+    return {r["member_status"]: r["cnt"] for r in rows}
 
 
 def _special_events() -> list[dict]:
@@ -288,6 +303,7 @@ def _build_html(
     synthesis: str | None,
     trends_data: dict,
     special_events: list[dict] | None = None,
+    excluded_counts: dict | None = None,
 ) -> str:
     last_by_campus = {r["campus"]: r["count"] for r in last_att}
     this_total = sum(r["count"] for r in this_att)
@@ -497,6 +513,16 @@ def _build_html(
     else:
         missing_block = '<p style="margin:12px 0 0;font-size:14px;color:#2e7d32;">All members seen within the past 14 days.</p>'
 
+    _excl = excluded_counts or {}
+    _excl_parts = []
+    for _s, _l in [("deceased", "deceased"), ("disconnected", "disconnected"), ("non_local", "non-local"), ("snowbird", "snowbird")]:
+        if _excl.get(_s, 0) > 0:
+            _excl_parts.append(f"{_excl[_s]} {_l}")
+    excl_line = (
+        f'<p style="margin:8px 0 0;font-size:12px;color:#888;font-style:italic;">'
+        f'(Excluded: {", ".join(_excl_parts)})</p>'
+    ) if _excl_parts else ""
+
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
@@ -548,6 +574,7 @@ def _build_html(
       <!-- Members Not Seen -->
       {_html_section_header(f"Members Not Seen in 14+ Days ({len(missing)})")}
       {missing_block}
+      {excl_line}
 
     </div>
 
@@ -576,6 +603,7 @@ def _build_plain(
     synthesis: str | None,
     trends_data: dict,
     special_events: list[dict] | None = None,
+    excluded_counts: dict | None = None,
 ) -> str:
     last_by_campus = {r["campus"]: r["count"] for r in last_att}
     this_total = sum(r["count"] for r in this_att)
@@ -681,6 +709,14 @@ def _build_plain(
     if not missing:
         lines.append("  All members seen within the past 14 days.")
 
+    _excl = excluded_counts or {}
+    _excl_parts = []
+    for _s, _l in [("deceased", "deceased"), ("disconnected", "disconnected"), ("non_local", "non-local"), ("snowbird", "snowbird")]:
+        if _excl.get(_s, 0) > 0:
+            _excl_parts.append(f"{_excl[_s]} {_l}")
+    if _excl_parts:
+        lines.append(f"  (Excluded: {', '.join(_excl_parts)})")
+
     lines += ["", "—", "Watson / AI-powered digital assistant / Office of Dr. Bill Yomes"]
     return "\n".join(lines)
 
@@ -703,14 +739,15 @@ def build_report() -> tuple[str, str, str]:
         raise
 
     try:
-        this_att   = _attendance_by_campus(cong, this_sunday.isoformat())
-        last_att   = _attendance_by_campus(cong, last_sunday.isoformat())
-        visitors   = _first_time_visitors(cong, this_sunday.isoformat())
-        followups  = _open_follow_ups(cong)
-        prayers    = _prayer_requests(cong)
-        missing    = _members_not_seen(cong)
-        rolling    = _rolling_data(cong)
-        engagement = _engagement_tiers(cong)
+        this_att        = _attendance_by_campus(cong, this_sunday.isoformat())
+        last_att        = _attendance_by_campus(cong, last_sunday.isoformat())
+        visitors        = _first_time_visitors(cong, this_sunday.isoformat())
+        followups       = _open_follow_ups(cong)
+        prayers         = _prayer_requests(cong)
+        missing         = _members_not_seen(cong)
+        excluded_counts = _members_excluded_counts(cong)
+        rolling         = _rolling_data(cong)
+        engagement      = _engagement_tiers(cong)
     finally:
         cong.close()
 
@@ -783,6 +820,11 @@ def build_report() -> tuple[str, str, str]:
     onl_d = campus_trends.get("Online",     {}).get("direction", "Stable")
 
     ev_names = ", ".join(e["event_name"] for e in special_events) if special_events else "none"
+    _excl_parts = []
+    for _s, _l in [("deceased", "deceased"), ("disconnected", "disconnected"), ("non_local", "non-local"), ("snowbird", "snowbird")]:
+        if excluded_counts.get(_s, 0) > 0:
+            _excl_parts.append(f"{excluded_counts[_s]} {_l}")
+    excl_condensed = f"; excluded from reporting: {', '.join(_excl_parts)}" if _excl_parts else ""
     condensed = (
         f"WEEK OF: {monday.strftime('%B %d, %Y')}\n"
         f"ATTENDANCE: {', '.join(att_parts) or 'no data'}, Total {this_total} ({att_total_sign}{att_total_diff})\n"
@@ -795,7 +837,7 @@ def build_report() -> tuple[str, str, str]:
         f"FIRST-TIME VISITORS: {len(visitors)}\n"
         f"OPEN FOLLOW-UPS: {len(followups)}\n"
         f"PRAYER REQUESTS: {len(prayers)} requests from: {prayer_names}\n"
-        f"MEMBERS NOT SEEN 14+ DAYS: {len(missing)} members: {absent_names}"
+        f"MEMBERS NOT SEEN 14+ DAYS: {len(missing)} members: {absent_names}{excl_condensed}"
     )
     synthesis = _ollama_synthesis(condensed)
 
@@ -812,6 +854,7 @@ def build_report() -> tuple[str, str, str]:
         synthesis=synthesis,
         trends_data=trends_data,
         special_events=special_events,
+        excluded_counts=excluded_counts,
     )
     html  = _build_html(**kwargs)
     plain = _build_plain(**kwargs)

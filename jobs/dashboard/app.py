@@ -21,6 +21,7 @@ from config.settings import WATSON_SYSTEM
 
 
 DB = os.path.expanduser("~/watson/data/watson.db")
+CONG_DB = os.path.expanduser("~/watson/data/congregation.db")
 EVENT_FILES_DIR = Path(os.path.expanduser("~/watson/data/event_files"))
 SKILLS_FILE = Path(__file__).resolve().parents[2] / "memory" / "skills.json"
 MEMORY = Path(__file__).resolve().parents[2] / "memory"
@@ -252,6 +253,31 @@ def _bootstrap():
 
 
 _bootstrap()
+
+
+def _bootstrap_congregation():
+    """Add member_status columns to congregation.db members table."""
+    try:
+        c = sqlite3.connect(CONG_DB)
+        for col_sql in [
+            "ALTER TABLE members ADD COLUMN member_status TEXT DEFAULT 'active'",
+            "ALTER TABLE members ADD COLUMN status_reason TEXT",
+            "ALTER TABLE members ADD COLUMN status_since TEXT",
+            "ALTER TABLE members ADD COLUMN status_note TEXT",
+            "ALTER TABLE members ADD COLUMN snowbird_return TEXT",
+        ]:
+            try:
+                c.execute(col_sql)
+            except Exception:
+                pass
+        c.execute("UPDATE members SET member_status = 'active' WHERE member_status IS NULL")
+        c.commit()
+        c.close()
+    except Exception as exc:
+        log.warning("congregation.db migration: %s", exc)
+
+
+_bootstrap_congregation()
 
 from jobs.writing_room.api import writing_room_bp
 from jobs.writing_room import bootstrap_db as _wr_bootstrap
@@ -815,6 +841,75 @@ def congregation_list_api():
         ).fetchall()
         return jsonify([dict(r) for r in rows])
     return jsonify(congregation_list())
+
+
+_MEMBER_FIELDS = (
+    "id, name, email, phone, campus_preference, active, shepherding_exempt, "
+    "member_status, status_reason, status_since, status_note, snowbird_return"
+)
+
+
+def _cong_conn():
+    c = sqlite3.connect(CONG_DB)
+    c.row_factory = sqlite3.Row
+    return c
+
+
+@app.route("/api/members")
+def members_list_api():
+    try:
+        c = _cong_conn()
+        rows = c.execute(
+            f"SELECT {_MEMBER_FIELDS} FROM members ORDER BY name COLLATE NOCASE"
+        ).fetchall()
+        c.close()
+        return jsonify([dict(r) for r in rows])
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/members/search")
+def members_search_api():
+    q = (request.args.get("q") or "").strip()
+    if not q:
+        return jsonify([])
+    try:
+        c = _cong_conn()
+        rows = c.execute(
+            f"SELECT {_MEMBER_FIELDS} FROM members "
+            "WHERE name LIKE ? COLLATE NOCASE ORDER BY name COLLATE NOCASE LIMIT 20",
+            (f"%{q}%",),
+        ).fetchall()
+        c.close()
+        return jsonify([dict(r) for r in rows])
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/members/<int:member_id>", methods=["PATCH"])
+def members_update_api(member_id):
+    data = request.get_json(force=True) or {}
+    allowed = {"member_status", "status_reason", "status_since", "status_note", "snowbird_return"}
+    fields = {k: v for k, v in data.items() if k in allowed}
+    if not fields:
+        return jsonify({"error": "nothing to update"}), 400
+    try:
+        c = _cong_conn()
+        set_clause = ", ".join(f"{k} = ?" for k in fields)
+        c.execute(
+            f"UPDATE members SET {set_clause} WHERE id = ?",
+            (*fields.values(), member_id),
+        )
+        c.commit()
+        row = c.execute(
+            f"SELECT {_MEMBER_FIELDS} FROM members WHERE id = ?", (member_id,)
+        ).fetchone()
+        c.close()
+        if not row:
+            return jsonify({"error": "not found"}), 404
+        return jsonify(dict(row))
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
 
 
 @app.route("/api/contacts/import", methods=["POST"])
