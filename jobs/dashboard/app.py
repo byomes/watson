@@ -248,6 +248,21 @@ def _bootstrap():
         file_type     TEXT,
         uploaded_at   TEXT    DEFAULT (datetime('now'))
     )""")
+    c.execute("""CREATE TABLE IF NOT EXISTS dev_projects (
+        id                INTEGER PRIMARY KEY AUTOINCREMENT,
+        slug              TEXT    NOT NULL UNIQUE,
+        title             TEXT    NOT NULL,
+        input_type        TEXT    NOT NULL DEFAULT 'description',
+        input_text        TEXT    NOT NULL,
+        status            TEXT    NOT NULL DEFAULT 'pending',
+        current_iteration INTEGER NOT NULL DEFAULT 0,
+        max_iterations    INTEGER NOT NULL DEFAULT 3,
+        created_at        TEXT    NOT NULL DEFAULT (datetime('now')),
+        updated_at        TEXT    NOT NULL DEFAULT (datetime('now')),
+        delivered_at      TEXT,
+        staging_path      TEXT,
+        telegram_notified INTEGER NOT NULL DEFAULT 0
+    )""")
     c.commit()
     c.close()
 
@@ -286,6 +301,9 @@ app.register_blueprint(writing_room_bp)
 
 from jobs.team.api import team_bp
 app.register_blueprint(team_bp)
+
+from jobs.dev_loop.deliver import dev_loop_bp
+app.register_blueprint(dev_loop_bp)
 
 _EMAIL_SIGNATURE = "---\nWatson\nAI-powered digital assistant\nOffice of Dr. Bill Yomes\nwilliamckyomes.com/start"
 

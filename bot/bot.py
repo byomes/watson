@@ -556,7 +556,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Directive prefix intercepts — colon-prefixed commands, highest priority
     _DIRECTIVE_PREFIXES = (
         "cdb:", "wdb:", "kb:", "web:", "task:", "note:",
-        "remind:", "sms:", "polish:", "bible:",
+        "remind:", "sms:", "polish:", "bible:", "devloop:",
     )
     for _dpfx in _DIRECTIVE_PREFIXES:
         if text_lower.startswith(_dpfx):
@@ -616,6 +616,8 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 _dr = await asyncio.to_thread(_bible_run_d, _darg)
                 await update.message.reply_text(_dr or "No result.")
                 _log_telegram_exchange(text_clean, _dr or "")
+            elif _dpfx == "devloop:":
+                await _handle_devloop(update, context, _darg)
             log.info("DEBUG directive: %s", _dpfx)
             return
 
@@ -2769,6 +2771,110 @@ async def handle_member_conflict_callback(update: Update, context: ContextTypes.
         conn.close()
 
 
+# ── Dev Loop handlers ─────────────────────────────────────────────────────────
+
+async def _handle_devloop(update: Update, context: ContextTypes.DEFAULT_TYPE, description: str) -> None:
+    """Handle `devloop: <description>` — create new project and trigger loop."""
+    import re
+    import threading
+    from jobs.dev_loop.trigger import trigger_dev_loop
+
+    description = description.strip()
+    if not description:
+        await update.message.reply_text("Usage: devloop: <description of what to build>")
+        return
+
+    slug = re.sub(r"[^a-z0-9]+", "-", description.lower())[:32].strip("-")
+    title = description[:60]
+
+    await update.message.reply_text(
+        f"Dev Loop starting\n"
+        f"Slug: {slug}\n"
+        f"Sending to FMSPC…"
+    )
+
+    def _run():
+        result = trigger_dev_loop(slug=slug, title=title, input_type="description", input_text=description)
+        if not result["ok"]:
+            import requests as _rq
+            token = os.getenv("WATSON_BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
+            chat_id = os.getenv("WATSON_CHAT_ID") or os.getenv("TELEGRAM_CHAT_ID")
+            if token and chat_id:
+                try:
+                    _rq.post(
+                        f"https://api.telegram.org/bot{token}/sendMessage",
+                        json={"chat_id": chat_id, "text": f"Dev Loop failed to start: {result.get('error')}"},
+                        timeout=10,
+                    )
+                except Exception:
+                    pass
+
+    threading.Thread(target=_run, daemon=True).start()
+
+
+async def handle_devloop_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle devloop_keep:<slug> and devloop_stop:<slug> inline button callbacks."""
+    import threading
+    query = update.callback_query
+    await query.answer()
+
+    if not _is_authorized(update):
+        return
+
+    data = query.data or ""
+    if data.startswith("devloop_keep:"):
+        slug = data[len("devloop_keep:"):]
+        db_path = os.path.expanduser("~/watson/data/watson.db")
+        try:
+            import sqlite3 as _sq
+            with _sq.connect(db_path) as _c:
+                _c.row_factory = _sq.Row
+                row = _c.execute("SELECT * FROM dev_projects WHERE slug=?", (slug,)).fetchone()
+        except Exception:
+            row = None
+
+        if not row:
+            await query.edit_message_text(f"Project '{slug}' not found.", reply_markup=None)
+            return
+
+        if dict(row).get("status") != "paused":
+            await query.edit_message_text(f"Project '{slug}' is not paused.", reply_markup=None)
+            return
+
+        await query.edit_message_text(
+            f"Dev Loop — RESUMING\n{slug}\n\nExtending by 3 more iterations…",
+            reply_markup=None,
+        )
+
+        row_d = dict(row)
+        def _run():
+            from jobs.dev_loop.trigger import trigger_dev_loop
+            trigger_dev_loop(
+                slug=slug,
+                title=row_d["title"],
+                input_type=row_d["input_type"],
+                input_text=row_d["input_text"],
+                start_iteration=row_d["current_iteration"] + 1,
+                extend_by=3,
+            )
+        threading.Thread(target=_run, daemon=True).start()
+
+    elif data.startswith("devloop_stop:"):
+        slug = data[len("devloop_stop:"):]
+        db_path = os.path.expanduser("~/watson/data/watson.db")
+        try:
+            import sqlite3 as _sq
+            with _sq.connect(db_path) as _c:
+                _c.execute("UPDATE dev_projects SET status='stopped', updated_at=datetime('now') WHERE slug=?", (slug,))
+        except Exception as exc:
+            await query.edit_message_text(f"Failed to stop: {exc}", reply_markup=None)
+            return
+        await query.edit_message_text(
+            f"Dev Loop — STOPPED\n{slug}\n\nStopped. Review code on dashboard.",
+            reply_markup=None,
+        )
+
+
 def main():
     if not TELEGRAM_BOT_TOKEN:
         raise RuntimeError("TELEGRAM_BOT_TOKEN is not set in .env")
@@ -2798,6 +2904,7 @@ def main():
     app.add_handler(CommandHandler("read",        handle_read))
     app.add_handler(CommandHandler("saved",       handle_saved))
     app.add_handler(CommandHandler("ask",         handle_ask))
+    app.add_handler(CallbackQueryHandler(handle_devloop_callback,         pattern=r"^devloop_"))
     app.add_handler(CallbackQueryHandler(handle_member_conflict_callback, pattern=r"^mc_"))
     app.add_handler(CallbackQueryHandler(handle_command_callback, pattern=r"^cmd_"))
     app.add_handler(CallbackQueryHandler(handle_vault_callback,   pattern=r"^vault_"))
