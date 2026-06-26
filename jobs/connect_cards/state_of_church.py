@@ -128,11 +128,12 @@ def _ollama_synthesis(condensed: str) -> str | None:
     prompt = (
         "You are Watson, AI assistant to Dr. Bill Yomes, Senior Pastor of Catalyst Community Church "
         "in Wilmington, DE.\n\n"
-        "Based on this week's church data, write a 2-3 paragraph pastoral synthesis for Dr. Bill. "
-        "Be concise, pastoral, and direct. Note spiritual momentum, areas of concern, and who may "
-        "need attention.\n\n"
+        "Based on this week's church data, write exactly one cohesive 2-3 paragraph pastoral synthesis "
+        "for Dr. Bill. Be concise, pastoral, and direct. Note spiritual momentum, areas of concern, and "
+        "who may need attention. Do not include a summary paragraph at the end. Do not repeat yourself. "
+        "Do not include a 'Watson\\'s Read:' label or any other label inside the text.\n\n"
         f"{condensed}\n\n"
-        "Write Watson's Read now:"
+        "Begin writing now:"
     )
     try:
         resp = requests.post(
@@ -272,13 +273,14 @@ def _build_html(
     if missing:
         missing_items = ""
         for i, m in enumerate(missing):
-            last   = m["last_seen"] or "never"
-            campus = m["campus_preference"] or "—"
+            campus   = m["campus_preference"] or "—"
+            raw_last = m["last_seen"]
+            last_display = ("last seen " + date.fromisoformat(raw_last).strftime("%b %-d, %Y")) if raw_last else "never"
             border = "" if i == len(missing) - 1 else "border-bottom:1px solid #f0f0f0;"
             missing_items += f"""
         <div style="padding:10px 0;{border}">
           <span style="font-size:14px;font-weight:700;color:#1a1a1a;">{m['name']}</span>
-          <span style="font-size:12px;color:#888;margin-left:8px;">{campus} &middot; last seen {last}</span>
+          <span style="font-size:12px;color:#888;margin-left:8px;">{campus} {last_display}</span>
         </div>"""
         missing_block = f'<div style="margin-top:12px;">{missing_items}</div>'
     else:
@@ -404,9 +406,10 @@ def _build_plain(
 
     lines += ["", f"MEMBERS NOT SEEN IN 14+ DAYS ({len(missing)})", "-" * 52]
     for m in missing:
-        last   = m["last_seen"] or "never"
-        campus = m["campus_preference"] or "—"
-        lines.append(f"  {m['name']}  (campus: {campus}, last seen: {last})")
+        campus   = m["campus_preference"] or "—"
+        raw_last = m["last_seen"]
+        last_display = ("last seen " + date.fromisoformat(raw_last).strftime("%b %-d, %Y")) if raw_last else "never"
+        lines.append(f"  {m['name']}  (campus: {campus}, {last_display})")
     if not missing:
         lines.append("  All members seen within the past 14 days.")
 
