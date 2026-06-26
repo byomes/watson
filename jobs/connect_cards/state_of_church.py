@@ -112,7 +112,7 @@ def _members_not_seen(conn: sqlite3.Connection) -> list[dict]:
         SELECT m.name, m.campus_preference, MAX(a.service_date) as last_seen
         FROM members m
         LEFT JOIN attendance a ON a.member_id = m.id
-        WHERE m.active = 1 AND m.status != 'visitor'
+        WHERE m.active = 1
         GROUP BY m.id
         HAVING last_seen IS NULL OR last_seen < date('now', '-14 days')
         ORDER BY last_seen ASC
