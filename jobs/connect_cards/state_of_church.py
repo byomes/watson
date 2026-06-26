@@ -200,7 +200,7 @@ def _ollama_synthesis(condensed: str) -> str | None:
         "Do not repeat yourself. "
         "Do not include a 'Watson\\'s Read:' label or any other label inside the text.\n\n"
         f"{condensed}\n\n"
-        "Begin writing now:"
+        "You must respond in English only. Do not use any other language. Begin writing now:"
     )
     try:
         resp = requests.post(
