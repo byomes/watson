@@ -39,7 +39,7 @@ TO_ADDR      = "pastorbill@catalyst302.com"
 CONG_DB      = os.path.expanduser("~/watson/data/congregation.db")
 OLLAMA_URL   = "http://localhost:11434/api/generate"
 OLLAMA_MODEL = "qwen2.5:14b"
-OLLAMA_TIMEOUT = 120
+OLLAMA_TIMEOUT = 180
 
 
 # ── Date helpers ───────────────────────────────────────────────────────────────
@@ -123,23 +123,20 @@ def _members_not_seen(conn: sqlite3.Connection) -> list[dict]:
 
 # ── Ollama ─────────────────────────────────────────────────────────────────────
 
-def _ollama_synthesis(data_text: str) -> str | None:
-    system = (
-        "You are Watson, the AI-powered digital assistant for the Office of Dr. Bill Yomes, "
-        "Senior Pastor of Catalyst Community Church. You assist Dr. Bill with pastoral intelligence "
-        "and weekly reporting. You are terse, accurate, and never embellish or speculate."
-    )
+def _ollama_synthesis(condensed: str) -> str | None:
     prompt = (
-        f"Here is this week's church data:\n\n{data_text}\n\n"
-        "Write a 2–3 paragraph pastoral synthesis covering: overall church health, "
-        "spiritual momentum this week, and who needs Dr. Bill's personal attention. "
-        "Be specific — use names where available. Do not use bullet points. "
-        "Write in a direct, pastoral voice."
+        "You are Watson, AI assistant to Dr. Bill Yomes, Senior Pastor of Catalyst Community Church "
+        "in Wilmington, DE.\n\n"
+        "Based on this week's church data, write a 2-3 paragraph pastoral synthesis for Dr. Bill. "
+        "Be concise, pastoral, and direct. Note spiritual momentum, areas of concern, and who may "
+        "need attention.\n\n"
+        f"{condensed}\n\n"
+        "Write Watson's Read now:"
     )
     try:
         resp = requests.post(
             OLLAMA_URL,
-            json={"model": OLLAMA_MODEL, "prompt": prompt, "system": system, "stream": False},
+            json={"model": OLLAMA_MODEL, "prompt": prompt, "stream": False},
             timeout=OLLAMA_TIMEOUT,
         )
         resp.raise_for_status()
@@ -262,8 +259,29 @@ def build_report() -> tuple[str, str]:
         lines.append("  All members seen within the past 14 days.")
 
     # ── Ollama synthesis (optional) ────────────────────────────────────────────
-    data_for_ollama = "\n".join(lines)
-    synthesis = _ollama_synthesis(data_for_ollama)
+    att_parts = []
+    for r in this_att:
+        campus = r["campus"]
+        count  = r["count"]
+        prev   = last_by_campus.get(campus, 0)
+        diff   = count - prev
+        sign   = "+" if diff >= 0 else ""
+        att_parts.append(f"{campus} {count} ({sign}{diff})")
+    att_total_diff = this_total - last_total
+    att_total_sign = "+" if att_total_diff >= 0 else ""
+
+    prayer_names = ", ".join(p["name"].split()[0] for p in prayers) if prayers else "none"
+    absent_names = ", ".join(m["name"].split()[0] for m in missing) if missing else "none"
+
+    condensed = (
+        f"WEEK OF: {monday.strftime('%B %d, %Y')}\n"
+        f"ATTENDANCE: {', '.join(att_parts) or 'no data'}, Total {this_total} ({att_total_sign}{att_total_diff})\n"
+        f"FIRST-TIME VISITORS: {len(visitors)}\n"
+        f"OPEN FOLLOW-UPS: {len(followups)}\n"
+        f"PRAYER REQUESTS: {len(prayers)} requests from: {prayer_names}\n"
+        f"MEMBERS NOT SEEN 14+ DAYS: {len(missing)} members: {absent_names}"
+    )
+    synthesis = _ollama_synthesis(condensed)
 
     lines += [
         "",
