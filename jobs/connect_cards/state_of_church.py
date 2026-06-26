@@ -18,6 +18,7 @@ import os
 import smtplib
 import sqlite3
 import sys
+from collections import defaultdict
 from datetime import date, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -122,6 +123,70 @@ def _members_not_seen(conn: sqlite3.Connection) -> list[dict]:
     return [dict(r) for r in rows]
 
 
+def _rolling_data(conn: sqlite3.Connection) -> list[dict]:
+    """Per-campus attendance for the last 24 distinct service dates, newest first."""
+    rows = conn.execute(
+        """
+        SELECT service_date, campus, COUNT(*) AS count
+        FROM attendance
+        WHERE service_date IN (
+            SELECT DISTINCT service_date FROM attendance
+            ORDER BY service_date DESC
+            LIMIT 24
+        )
+        GROUP BY service_date, campus
+        ORDER BY service_date DESC
+        """,
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def _engagement_tiers(conn: sqlite3.Connection) -> dict:
+    """Bucket active members by attendance frequency over the last 8 and 24 service dates."""
+    row = conn.execute(
+        """
+        WITH last8 AS (
+            SELECT DISTINCT service_date FROM attendance ORDER BY service_date DESC LIMIT 8
+        ),
+        last24 AS (
+            SELECT DISTINCT service_date FROM attendance ORDER BY service_date DESC LIMIT 24
+        ),
+        member_counts AS (
+            SELECT
+                m.id,
+                SUM(CASE WHEN a.service_date IN (SELECT service_date FROM last8)  THEN 1 ELSE 0 END) AS last8_count,
+                SUM(CASE WHEN a.service_date IN (SELECT service_date FROM last24) THEN 1 ELSE 0 END) AS last24_count
+            FROM members m
+            LEFT JOIN attendance a ON a.member_id = m.id
+            WHERE m.active = 1
+            GROUP BY m.id
+        )
+        SELECT
+            SUM(CASE WHEN last8_count >= 6                          THEN 1 ELSE 0 END) AS consistent,
+            SUM(CASE WHEN last8_count BETWEEN 3 AND 5              THEN 1 ELSE 0 END) AS active_mid,
+            SUM(CASE WHEN last8_count BETWEEN 1 AND 2              THEN 1 ELSE 0 END) AS occasional,
+            SUM(CASE WHEN last8_count = 0 AND last24_count > 0     THEN 1 ELSE 0 END) AS lapsed
+        FROM member_counts
+        """,
+    ).fetchone()
+    return {
+        "consistent": row["consistent"] or 0,
+        "active":     row["active_mid"] or 0,
+        "occasional": row["occasional"] or 0,
+        "lapsed":     row["lapsed"] or 0,
+    }
+
+
+def _trend_direction(avg4: float, avg8: float) -> str:
+    if avg8 == 0:
+        return "Stable"
+    if avg4 > avg8 * 1.03:
+        return "Growing"
+    if avg4 < avg8 * 0.97:
+        return "Declining"
+    return "Stable"
+
+
 # ── Ollama ─────────────────────────────────────────────────────────────────────
 
 def _ollama_synthesis(condensed: str) -> str | None:
@@ -129,8 +194,10 @@ def _ollama_synthesis(condensed: str) -> str | None:
         "You are Watson, AI assistant to Dr. Bill Yomes, Senior Pastor of Catalyst Community Church "
         "in Wilmington, DE, with both a Wilmington campus and an Online campus.\n\n"
         "Based on this week's church data, write exactly one cohesive 2-3 paragraph pastoral synthesis "
-        "for Dr. Bill. Be concise, pastoral, and direct. Note spiritual momentum, areas of concern, and "
-        "who may need attention. Do not include a summary paragraph at the end. Do not repeat yourself. "
+        "for Dr. Bill. Be concise, pastoral, and direct. Comment on attendance trend direction and what "
+        "it signals, engagement health (what the Consistent/Active/Occasional/Lapsed distribution reveals), "
+        "areas of concern, and who may need attention. Do not include a summary paragraph at the end. "
+        "Do not repeat yourself. "
         "Do not include a 'Watson\\'s Read:' label or any other label inside the text.\n\n"
         f"{condensed}\n\n"
         "Begin writing now:"
@@ -169,6 +236,7 @@ def _build_html(
     followups: list[dict],
     missing: list[dict],
     synthesis: str | None,
+    trends_data: dict,
 ) -> str:
     last_by_campus = {r["campus"]: r["count"] for r in last_att}
     this_total = sum(r["count"] for r in this_att)
@@ -269,6 +337,98 @@ def _build_html(
     else:
         fu_block = '<p style="margin:12px 0 0;font-size:14px;color:#888;font-style:italic;">None open.</p>'
 
+    # ── Trends ────────────────────────────────────────────────────────────────
+    _dir_html = {
+        "Growing":   '<span style="color:#2e7d32;font-weight:700;">Growing &#8593;</span>',
+        "Stable":    '<span style="color:#757575;font-weight:700;">Stable &#8594;</span>',
+        "Declining": '<span style="color:#c62828;font-weight:700;">Declining &#8595;</span>',
+    }
+    campus_trends = trends_data.get("campus_trends", {})
+    combined_t    = trends_data.get("combined", {})
+    campus_mix    = trends_data.get("campus_mix", {})
+    engagement    = trends_data.get("engagement", {})
+
+    trend_rows = ""
+    for campus, data in campus_trends.items():
+        dh = _dir_html.get(data["direction"], data["direction"])
+        trend_rows += (
+            f'<tr>'
+            f'<td style="padding:8px 0;font-size:14px;color:#333;border-bottom:1px solid #f0f0f0;">{campus}</td>'
+            f'<td style="padding:8px 0;font-size:14px;color:#1a1a1a;text-align:right;border-bottom:1px solid #f0f0f0;">{int(round(data["avg4"]))}</td>'
+            f'<td style="padding:8px 0;font-size:14px;color:#1a1a1a;text-align:right;padding-left:12px;border-bottom:1px solid #f0f0f0;">{int(round(data["avg8"]))}</td>'
+            f'<td style="padding:8px 0;font-size:14px;text-align:right;padding-left:16px;border-bottom:1px solid #f0f0f0;">{dh}</td>'
+            f'</tr>'
+        )
+    if combined_t:
+        dh = _dir_html.get(combined_t["direction"], combined_t["direction"])
+        trend_rows += (
+            f'<tr>'
+            f'<td style="padding:10px 0 0;font-size:14px;font-weight:700;color:#1a1a1a;">Combined</td>'
+            f'<td style="padding:10px 0 0;font-size:14px;font-weight:700;color:#1a1a1a;text-align:right;">{int(round(combined_t["avg4"]))}</td>'
+            f'<td style="padding:10px 0 0;font-size:14px;font-weight:700;color:#1a1a1a;text-align:right;padding-left:12px;">{int(round(combined_t["avg8"]))}</td>'
+            f'<td style="padding:10px 0 0;font-size:14px;font-weight:700;text-align:right;padding-left:16px;">{dh}</td>'
+            f'</tr>'
+        )
+
+    trend_table = (
+        '<p style="margin:12px 0 6px;font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:0.5px;">Attendance Trend</p>'
+        '<table style="width:100%;border-collapse:collapse;">'
+        '<thead><tr>'
+        '<th style="font-size:11px;color:#aaa;font-weight:400;text-align:left;padding-bottom:4px;border-bottom:1px solid #ebebeb;">Campus</th>'
+        '<th style="font-size:11px;color:#aaa;font-weight:400;text-align:right;padding-bottom:4px;border-bottom:1px solid #ebebeb;">4-wk avg</th>'
+        '<th style="font-size:11px;color:#aaa;font-weight:400;text-align:right;padding-bottom:4px;border-bottom:1px solid #ebebeb;padding-left:12px;">8-wk avg</th>'
+        '<th style="font-size:11px;color:#aaa;font-weight:400;text-align:right;padding-bottom:4px;border-bottom:1px solid #ebebeb;padding-left:16px;">Trend</th>'
+        '</tr></thead>'
+        f'<tbody>{trend_rows}</tbody>'
+        '</table>'
+    )
+
+    mix_rows = ""
+    for campus, mix in campus_mix.items():
+        mix_rows += (
+            f'<tr>'
+            f'<td style="padding:8px 0;font-size:14px;color:#333;border-bottom:1px solid #f0f0f0;">{campus}</td>'
+            f'<td style="padding:8px 0;font-size:14px;color:#1a1a1a;text-align:right;border-bottom:1px solid #f0f0f0;">{mix["share4"]}%</td>'
+            f'<td style="padding:8px 0;font-size:14px;color:#1a1a1a;text-align:right;padding-left:12px;border-bottom:1px solid #f0f0f0;">{mix["share8"]}%</td>'
+            f'</tr>'
+        )
+    mix_table = (
+        '<p style="margin:20px 0 6px;font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:0.5px;">Campus Mix</p>'
+        '<table style="width:100%;border-collapse:collapse;">'
+        '<thead><tr>'
+        '<th style="font-size:11px;color:#aaa;font-weight:400;text-align:left;padding-bottom:4px;border-bottom:1px solid #ebebeb;">Campus</th>'
+        '<th style="font-size:11px;color:#aaa;font-weight:400;text-align:right;padding-bottom:4px;border-bottom:1px solid #ebebeb;">Last 4 wks</th>'
+        '<th style="font-size:11px;color:#aaa;font-weight:400;text-align:right;padding-bottom:4px;border-bottom:1px solid #ebebeb;padding-left:12px;">Last 8 wks</th>'
+        '</tr></thead>'
+        f'<tbody>{mix_rows}</tbody>'
+        '</table>'
+    )
+
+    _eng_cfg = [
+        ("Consistent", "6&#8211;8 visits", engagement.get("consistent", 0), "#2e7d32", "#e8f5e9"),
+        ("Active",     "3&#8211;5 visits", engagement.get("active",     0), "#f57c00", "#fff8e1"),
+        ("Occasional", "1&#8211;2 visits", engagement.get("occasional", 0), "#e65100", "#fbe9e7"),
+        ("Lapsed",     "0 visits",         engagement.get("lapsed",     0), "#c62828", "#ffebee"),
+    ]
+    eng_rows = ""
+    for i, (tier, label, count, color, bg) in enumerate(_eng_cfg):
+        border = "" if i == len(_eng_cfg) - 1 else "border-bottom:1px solid #f0f0f0;"
+        eng_rows += (
+            f'<tr style="background:{bg};">'
+            f'<td style="padding:9px 12px;font-size:14px;font-weight:700;color:{color};{border}">{tier}</td>'
+            f'<td style="padding:9px 0;font-size:12px;color:#888;{border}">{label}</td>'
+            f'<td style="padding:9px 12px;font-size:15px;font-weight:700;color:{color};text-align:right;{border}">{count}</td>'
+            f'</tr>'
+        )
+    eng_table = (
+        '<p style="margin:20px 0 6px;font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:0.5px;">Member Engagement (last 8 weeks)</p>'
+        '<table style="width:100%;border-collapse:collapse;border-radius:4px;overflow:hidden;">'
+        f'<tbody>{eng_rows}</tbody>'
+        '</table>'
+    )
+
+    trends_block = trend_table + mix_table + eng_table
+
     # ── Members not seen ───────────────────────────────────────────────────────
     if missing:
         missing_items = ""
@@ -315,6 +475,10 @@ def _build_html(
       {_html_section_header(f"Attendance")}
       {att_block}
 
+      <!-- Trends -->
+      {_html_section_header("Trends")}
+      {trends_block}
+
       <!-- First-Time Visitors -->
       {_html_section_header(f"First-Time Visitors")}
       {visitor_block}
@@ -356,6 +520,7 @@ def _build_plain(
     followups: list[dict],
     missing: list[dict],
     synthesis: str | None,
+    trends_data: dict,
 ) -> str:
     last_by_campus = {r["campus"]: r["count"] for r in last_att}
     this_total = sum(r["count"] for r in this_att)
@@ -387,6 +552,43 @@ def _build_plain(
     else:
         lines.append(f"  No attendance recorded for {this_sunday.strftime('%b %d')}.")
         lines.append(f"  Last week ({last_label}): {last_total}")
+
+    # Trends section
+    campus_trends = trends_data.get("campus_trends", {})
+    combined_t    = trends_data.get("combined", {})
+    campus_mix    = trends_data.get("campus_mix", {})
+    engagement    = trends_data.get("engagement", {})
+
+    _dir_arrow = {"Growing": "↑", "Stable": "→", "Declining": "↓"}
+
+    lines += ["", "TRENDS", "-" * 52]
+    lines.append("  ATTENDANCE TREND")
+    for campus, data in campus_trends.items():
+        arrow = _dir_arrow.get(data["direction"], "")
+        lines.append(
+            f"    {campus:<14}  4-wk avg {int(round(data['avg4']))}  |  "
+            f"8-wk avg {int(round(data['avg8']))}  |  {data['direction']} {arrow}"
+        )
+    if combined_t:
+        arrow = _dir_arrow.get(combined_t["direction"], "")
+        lines.append(
+            f"    {'Combined':<14}  4-wk avg {int(round(combined_t['avg4']))}  |  "
+            f"8-wk avg {int(round(combined_t['avg8']))}  |  {combined_t['direction']} {arrow}"
+        )
+
+    lines.append("")
+    lines.append("  CAMPUS MIX")
+    lines.append(f"    {'Campus':<16}  Last 4 wks    Last 8 wks")
+    for campus, mix in campus_mix.items():
+        lines.append(f"    {campus:<16}  {mix['share4']:>3}%          {mix['share8']:>3}%")
+
+    eng = engagement
+    lines.append("")
+    lines.append("  MEMBER ENGAGEMENT (last 8 weeks)")
+    lines.append(f"    Consistent  (6-8 visits):  {eng.get('consistent', 0):>4} members")
+    lines.append(f"    Active      (3-5 visits):  {eng.get('active',     0):>4} members")
+    lines.append(f"    Occasional  (1-2 visits):  {eng.get('occasional', 0):>4} members")
+    lines.append(f"    Lapsed      (0 visits):    {eng.get('lapsed',     0):>4} members")
 
     lines += ["", "FIRST-TIME VISITORS", "-" * 52]
     lines += [f"  - {n}" for n in visitors] if visitors else ["  None this week."]
@@ -435,16 +637,59 @@ def build_report() -> tuple[str, str, str]:
         raise
 
     try:
-        this_att  = _attendance_by_campus(cong, this_sunday.isoformat())
-        last_att  = _attendance_by_campus(cong, last_sunday.isoformat())
-        visitors  = _first_time_visitors(cong, this_sunday.isoformat())
-        followups = _open_follow_ups(cong)
-        prayers   = _prayer_requests(cong)
-        missing   = _members_not_seen(cong)
+        this_att   = _attendance_by_campus(cong, this_sunday.isoformat())
+        last_att   = _attendance_by_campus(cong, last_sunday.isoformat())
+        visitors   = _first_time_visitors(cong, this_sunday.isoformat())
+        followups  = _open_follow_ups(cong)
+        prayers    = _prayer_requests(cong)
+        missing    = _members_not_seen(cong)
+        rolling    = _rolling_data(cong)
+        engagement = _engagement_tiers(cong)
     finally:
         cong.close()
 
-    # Build condensed summary for Ollama
+    # ── Compute trends ─────────────────────────────────────────────────────────
+    date_campus: dict[str, dict[str, int]] = defaultdict(dict)
+    dates_ordered: list[str] = []
+    for row in rolling:
+        d = row["service_date"]
+        if d not in date_campus:
+            dates_ordered.append(d)
+        date_campus[d][row["campus"]] = row["count"]
+
+    dates_4 = dates_ordered[:4]
+    dates_8 = dates_ordered[:8]
+    all_campuses = sorted({c for dmap in date_campus.values() for c in dmap})
+
+    def _campus_avg(campus: str, dates: list[str]) -> float:
+        return sum(date_campus[d].get(campus, 0) for d in dates) / max(len(dates), 1) if dates else 0.0
+
+    campus_trends: dict[str, dict] = {}
+    for c in all_campuses:
+        a4 = _campus_avg(c, dates_4)
+        a8 = _campus_avg(c, dates_8)
+        campus_trends[c] = {"avg4": a4, "avg8": a8, "direction": _trend_direction(a4, a8)}
+
+    totals_by_date = {d: sum(date_campus[d].values()) for d in dates_ordered}
+    comb_avg4 = sum(totals_by_date.get(d, 0) for d in dates_4) / max(len(dates_4), 1) if dates_4 else 0.0
+    comb_avg8 = sum(totals_by_date.get(d, 0) for d in dates_8) / max(len(dates_8), 1) if dates_8 else 0.0
+    combined_trend = {"avg4": comb_avg4, "avg8": comb_avg8, "direction": _trend_direction(comb_avg4, comb_avg8)}
+
+    campus_mix: dict[str, dict] = {}
+    for c in all_campuses:
+        campus_mix[c] = {
+            "share4": round(campus_trends[c]["avg4"] / comb_avg4 * 100) if comb_avg4 > 0 else 0,
+            "share8": round(campus_trends[c]["avg8"] / comb_avg8 * 100) if comb_avg8 > 0 else 0,
+        }
+
+    trends_data = {
+        "campus_trends": campus_trends,
+        "combined":      combined_trend,
+        "campus_mix":    campus_mix,
+        "engagement":    engagement,
+    }
+
+    # ── Build condensed summary for Ollama ────────────────────────────────────
     last_by_campus = {r["campus"]: r["count"] for r in last_att}
     this_total = sum(r["count"] for r in this_att)
     last_total = sum(r["count"] for r in last_att)
@@ -462,9 +707,21 @@ def build_report() -> tuple[str, str, str]:
     prayer_names = ", ".join(p["name"].split()[0] for p in prayers) if prayers else "none"
     absent_names = ", ".join(m["name"].split()[0] for m in missing) if missing else "none"
 
+    wil4  = int(round(campus_trends.get("Wilmington", {}).get("avg4", 0)))
+    wil8  = int(round(campus_trends.get("Wilmington", {}).get("avg8", 0)))
+    onl4  = int(round(campus_trends.get("Online",     {}).get("avg4", 0)))
+    onl8  = int(round(campus_trends.get("Online",     {}).get("avg8", 0)))
+    wil_d = campus_trends.get("Wilmington", {}).get("direction", "Stable")
+    onl_d = campus_trends.get("Online",     {}).get("direction", "Stable")
+
     condensed = (
         f"WEEK OF: {monday.strftime('%B %d, %Y')}\n"
         f"ATTENDANCE: {', '.join(att_parts) or 'no data'}, Total {this_total} ({att_total_sign}{att_total_diff})\n"
+        f"4-WEEK AVG: Wilmington {wil4}, Online {onl4}\n"
+        f"8-WEEK AVG: Wilmington {wil8}, Online {onl8}\n"
+        f"TREND: Wilmington {wil_d}, Online {onl_d}\n"
+        f"ENGAGEMENT: Consistent {engagement['consistent']}, Active {engagement['active']}, "
+        f"Occasional {engagement['occasional']}, Lapsed {engagement['lapsed']}\n"
         f"FIRST-TIME VISITORS: {len(visitors)}\n"
         f"OPEN FOLLOW-UPS: {len(followups)}\n"
         f"PRAYER REQUESTS: {len(prayers)} requests from: {prayer_names}\n"
@@ -483,6 +740,7 @@ def build_report() -> tuple[str, str, str]:
         followups=followups,
         missing=missing,
         synthesis=synthesis,
+        trends_data=trends_data,
     )
     html  = _build_html(**kwargs)
     plain = _build_plain(**kwargs)
