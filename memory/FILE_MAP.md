@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-06-25*
+*Generated: 2026-06-26*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -147,6 +147,7 @@ jobs/
     migrate_admin.py
     migrate_sessions.py
     static/
+      favicon-w.svg
       favicon.svg
       style.css
       team.js
@@ -320,12 +321,14 @@ jobs/
   skills/
     __init__.py
     book_appointment.py
+    cdb_query.py
     contacts_lookup.py
     kb_export.py
     kb_search.py
     logins.py
     pastoral_search.py
     polish.py
+    wdb_query.py
   sms/
     __init__.py
     sms_send.py
@@ -485,6 +488,7 @@ content/
     2026-06-14-stop-making-yourself-the-main-character.md
     2026-06-17-the-inheritance-you-didn-t-build.md
     2026-06-21-covenant-before-conquest.md
+    2026-06-24-passion-isn-t-character.md
     the-flashlight-of-your-focus.md
     where-your-treasure-is.md
 next-env.d.ts
@@ -556,6 +560,9 @@ src/
           route.ts
       submit-draft/
         route.ts.retired
+      thewrongjesus/
+        signup/
+          route.ts
       twj/
         feedback/
           route.ts
@@ -632,6 +639,10 @@ src/
     start/
       page.tsx
     theology/
+      page.tsx
+    thewrongjesus/
+      CountdownTimer.tsx
+      SignupForm.tsx
       page.tsx
     twj/
       page.tsx
