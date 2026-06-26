@@ -141,12 +141,10 @@ def save_to_research_db(items: list[dict]):
 
 
 def run():
-    import requests as _requests
     from core.database import init_db
     from core.fetcher import fetch_all
     from core.scorer import filter_pool, score_and_select
     from briefing.builder import build_briefing
-    from config.settings import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 
     init_db()
 
@@ -185,15 +183,6 @@ def run():
 
     build_briefing(narrative=narrative)
     log.info("Static briefing built")
-
-    try:
-        _requests.post(
-            f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
-            json={"chat_id": TELEGRAM_CHAT_ID, "text": "📋 Your briefing is ready at williamckyomes.com/dashboard"},
-            timeout=10,
-        )
-    except Exception as exc:
-        log.warning("Telegram notification failed: %s", exc)
 
     return {
         "fetched":    len(pool),
