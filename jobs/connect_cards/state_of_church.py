@@ -1,7 +1,7 @@
 """
 state_of_church.py — Weekly State of the Church report.
 
-Queries congregation.db and watson.db, synthesizes via Ollama (qwen2.5:14b),
+Queries congregation.db, synthesizes via Ollama (qwen2.5:14b),
 and emails a plain-text pastoral digest to pastorbill@catalyst302.com.
 
 Cron: Thu 4:00pm
@@ -37,7 +37,6 @@ FROM_ADDR    = os.getenv("WATSON_FROM_ADDRESS") or SMTP_USER
 
 TO_ADDR      = "pastorbill@catalyst302.com"
 CONG_DB      = os.path.expanduser("~/watson/data/congregation.db")
-WATSON_DB    = os.path.expanduser("~/watson/data/watson.db")
 OLLAMA_URL   = "http://localhost:11434/api/generate"
 OLLAMA_MODEL = "qwen2.5:14b"
 OLLAMA_TIMEOUT = 120
@@ -122,29 +121,6 @@ def _members_not_seen(conn: sqlite3.Connection) -> list[dict]:
     return [dict(r) for r in rows]
 
 
-# ── watson.db ──────────────────────────────────────────────────────────────────
-
-def _active_tasks(conn: sqlite3.Connection) -> list[dict]:
-    rows = conn.execute(
-        """
-        SELECT title, priority, due_date
-        FROM tasks
-        WHERE status = 'active'
-        ORDER BY
-            CASE priority
-                WHEN '1' THEN 1 WHEN 'high'   THEN 1
-                WHEN '2' THEN 2
-                WHEN '3' THEN 3 WHEN 'medium' THEN 3
-                WHEN '4' THEN 4
-                WHEN '5' THEN 5 WHEN 'low'    THEN 5
-                ELSE 6
-            END,
-            due_date ASC
-        """,
-    ).fetchall()
-    return [dict(r) for r in rows]
-
-
 # ── Ollama ─────────────────────────────────────────────────────────────────────
 
 def _ollama_synthesis(data_text: str) -> str | None:
@@ -199,19 +175,6 @@ def build_report() -> tuple[str, str]:
         missing   = _members_not_seen(cong)
     finally:
         cong.close()
-
-    # watson.db — hard fail if unavailable
-    try:
-        wdb = sqlite3.connect(f"file:{WATSON_DB}?mode=ro", uri=True)
-        wdb.row_factory = sqlite3.Row
-    except Exception as exc:
-        log.error("watson.db unavailable: %s", exc)
-        raise
-
-    try:
-        tasks = _active_tasks(wdb)
-    finally:
-        wdb.close()
 
     # ── Attendance section ─────────────────────────────────────────────────────
     lines = [
@@ -297,20 +260,6 @@ def build_report() -> tuple[str, str]:
             lines.append(f"  {m['name']}  (campus: {campus}, last seen: {last})")
     else:
         lines.append("  All members seen within the past 14 days.")
-
-    # ── Active tasks ───────────────────────────────────────────────────────────
-    lines += [
-        "",
-        "=" * 52,
-        f"OPEN TASKS  ({len(tasks)})",
-        "=" * 52,
-    ]
-    if tasks:
-        for t in tasks:
-            due = t["due_date"] or "no due date"
-            lines.append(f"  [{t['priority']}]  {t['title']}  (due: {due})")
-    else:
-        lines.append("  No active tasks.")
 
     # ── Ollama synthesis (optional) ────────────────────────────────────────────
     data_for_ollama = "\n".join(lines)
