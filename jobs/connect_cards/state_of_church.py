@@ -127,7 +127,7 @@ def _members_not_seen(conn: sqlite3.Connection) -> list[dict]:
 def _ollama_synthesis(condensed: str) -> str | None:
     prompt = (
         "You are Watson, AI assistant to Dr. Bill Yomes, Senior Pastor of Catalyst Community Church "
-        "in Wilmington, DE.\n\n"
+        "in Wilmington, DE, with both a Wilmington campus and an Online campus.\n\n"
         "Based on this week's church data, write exactly one cohesive 2-3 paragraph pastoral synthesis "
         "for Dr. Bill. Be concise, pastoral, and direct. Note spiritual momentum, areas of concern, and "
         "who may need attention. Do not include a summary paragraph at the end. Do not repeat yourself. "
