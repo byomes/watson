@@ -1274,7 +1274,7 @@ def chat_summarize():
     try:
         resp = _sreq.post(
             "http://localhost:11434/api/generate",
-            json={"model": "llama3.2:3b", "prompt": prompt, "stream": False},
+            json={"model": "qwen2.5:14b", "prompt": prompt, "stream": False},
             timeout=60,
         )
         resp.raise_for_status()
@@ -2032,7 +2032,7 @@ def chat_stream():
             )
             _r = _mreq.post(
                 "http://localhost:11434/api/generate",
-                json={"model": "llama3.2:3b", "prompt": prompt, "stream": False},
+                json={"model": "qwen2.5:14b", "prompt": prompt, "stream": False},
                 timeout=60,
             )
             _r.raise_for_status()
@@ -2068,7 +2068,7 @@ def chat_stream():
             resp = _req.post(
                 "http://localhost:11434/api/chat",
                 json={
-                    "model": "llama3.2:3b",
+                    "model": "qwen2.5:14b",
                     "messages": ollama_msgs,
                     "stream": True,
                     "num_predict": 300,
@@ -2263,7 +2263,7 @@ def siri():
             resp = _siri_req.post(
                 "http://localhost:11434/api/chat",
                 json={
-                    "model": "llama3.2:3b",
+                    "model": "qwen2.5:14b",
                     "messages": [{"role": "system", "content": WATSON_SYSTEM}, {"role": "user", "content": msg}],
                     "stream": True,
                     "num_predict": 300,
@@ -2459,7 +2459,7 @@ def chat():
             messages.append({"role": h["role"], "content": h["content"]})
     messages.append({"role": "user", "content": message})
     try:
-        _body = {"model": "llama3.2:3b", "messages": [{"role": "system", "content": WATSON_SYSTEM}] + messages, "stream": True, "num_predict": 300}
+        _body = {"model": "qwen2.5:7b", "messages": [{"role": "system", "content": WATSON_SYSTEM}] + messages, "stream": True, "num_predict": 300}
         log.info("Ollama /api/chat request body: %s", json.dumps(_body))
         resp = _req.post(
             "http://localhost:11434/api/chat",
@@ -3504,7 +3504,7 @@ def voice():
         try:
             resp = _req.post(
                 "http://localhost:11434/api/chat",
-                json={"model": "llama3.2:3b", "messages": [{"role": "system", "content": system}] + messages_payload, "stream": True, "num_predict": 400},
+                json={"model": "qwen2.5:7b", "messages": [{"role": "system", "content": system}] + messages_payload, "stream": True, "num_predict": 400},
                 stream=True,
                 timeout=30,
             )

@@ -7,7 +7,7 @@ from datetime import date, timedelta
 import requests
 
 OLLAMA_URL  = "http://localhost:11434/api/generate"
-MODEL       = "llama3.2:3b"
+MODEL       = "qwen2.5:14b"
 CONG_DB     = Path(__file__).resolve().parents[2] / "data" / "congregation.db"
 MAX_ROWS    = 20
 

@@ -13,7 +13,7 @@ import requests
 REPO = Path(__file__).resolve().parents[2]
 SKILLS_FILE = REPO / "memory" / "skills.json"
 OLLAMA_URL = "http://localhost:11434/api/generate"
-OLLAMA_MODEL = "llama3.2:3b"
+OLLAMA_MODEL = "qwen2.5:14b"
 
 log = logging.getLogger(__name__)
 

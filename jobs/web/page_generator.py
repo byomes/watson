@@ -79,7 +79,7 @@ def run(message: str = None) -> str:
     try:
         resp = requests.post(
             OLLAMA_URL,
-            json={"model": "llama3.2:3b", "prompt": prompt, "stream": False},
+            json={"model": "qwen2.5:14b", "prompt": prompt, "stream": False},
             timeout=60,
         )
         resp.raise_for_status()

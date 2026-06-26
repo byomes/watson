@@ -1,7 +1,7 @@
 import requests
 
 OLLAMA_URL = "http://localhost:11434/api/generate"
-MODEL = "llama3.2:3b"
+MODEL = "qwen2.5:14b"
 
 POLISH_PROMPT = """You are a copy editor working in the voice of Dr. William C.K. Yomes — pastor, apologist, and theologian.
 

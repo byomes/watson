@@ -18,7 +18,7 @@ BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN") or os.getenv("WATSON_BOT_TOKEN", "")
 CHAT_ID   = os.getenv("TELEGRAM_CHAT_ID")   or os.getenv("WATSON_CHAT_ID", "")
 
 OLLAMA_URL = "http://localhost:11434/api/generate"
-MODEL      = "llama3.2:3b"
+MODEL      = "qwen2.5:14b"
 
 log = logging.getLogger(__name__)
 

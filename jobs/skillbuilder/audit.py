@@ -21,7 +21,7 @@ DATA_DIR = REPO / "data"
 AUDIT_FILE = DATA_DIR / "skill_audit.json"
 DB_PATH = Path(os.getenv("WATSON_DB", str(DATA_DIR / "watson.db")))
 OLLAMA_URL = "http://localhost:11434/api/generate"
-OLLAMA_MODEL = "llama3.2:3b"
+OLLAMA_MODEL = "qwen2.5:14b"
 
 log = logging.getLogger(__name__)
 

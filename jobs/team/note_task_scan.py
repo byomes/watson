@@ -29,7 +29,7 @@ log = logging.getLogger(__name__)
 
 DB_PATH = Path.home() / "watson" / "data" / "watson.db"
 OLLAMA_URL = "http://localhost:11434/api/generate"
-OLLAMA_MODEL = "llama3.2:3b"
+OLLAMA_MODEL = "qwen2.5:14b"
 
 STATE_KEY_LAST_RUN      = "note_task_scan_last_run"
 STATE_KEY_PENDING_BATCH = "note_task_scan_pending_batch"

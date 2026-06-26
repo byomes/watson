@@ -26,7 +26,7 @@ log = logging.getLogger(__name__)
 
 _FUZZY_THRESHOLD = 0.6
 _OLLAMA_URL = "http://localhost:11434/api/generate"
-_OLLAMA_MODEL = "llama3.2:3b"
+_OLLAMA_MODEL = "qwen2.5:14b"
 _TASK_PROMPT = (
     "Extract any action items or tasks from the following meeting notes. "
     "Return only a JSON array of strings, one per task. "

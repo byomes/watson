@@ -1533,7 +1533,7 @@ async def _get_general_reply(text: str) -> str:
         resp = _req.post(
             "http://localhost:11434/api/chat",
             json={
-                "model": "llama3.2:3b",
+                "model": "qwen2.5:7b",
                 "messages": [
                     {"role": "system", "content": system},
                     {"role": "user", "content": text},

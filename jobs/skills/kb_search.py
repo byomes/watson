@@ -6,7 +6,7 @@ import os
 CHROMA_PATH = "/home/billyomes/watson/data/chroma"
 COLLECTION_NAME = "sermons"
 OLLAMA_URL = "http://localhost:11434/api/generate"
-MODEL = "llama3.2:3b"
+MODEL = "qwen2.5:14b"
 
 SYNOPSIS_PROMPT = """You are a research assistant summarizing content from a pastor's personal knowledge base of sermons and theological documents.
 

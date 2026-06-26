@@ -16,7 +16,7 @@ load_dotenv()
 REPO = Path(__file__).resolve().parents[2]
 DB_PATH = Path(os.getenv("WATSON_DB", str(REPO / "data" / "watson.db")))
 OLLAMA_URL = "http://localhost:11434/api/generate"
-OLLAMA_MODEL = "llama3.2:3b"
+OLLAMA_MODEL = "qwen2.5:14b"
 
 log = logging.getLogger(__name__)
 
