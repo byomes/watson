@@ -70,11 +70,9 @@ def trigger_dev_loop(
     if feedback_b64:
         args += f" --feedback-b64 {feedback_b64}"
 
-    LOG_DIR = f"D:\\\\watson-dev\\\\logs"
     remote_cmd = (
-        f"cmd /c \"if not exist {LOG_DIR} mkdir {LOG_DIR} && "
-        f"start /b python {LOOP_SCRIPT} {args} "
-        f">> {LOG_DIR}\\\\{slug}.log 2>&1\""
+        f"python {LOOP_SCRIPT} {args} "
+        f">> D:\\\\watson-dev\\\\logs\\\\{slug}.log 2>&1"
     )
 
     ssh_cmd = [
@@ -88,7 +86,7 @@ def trigger_dev_loop(
 
     log.info("DevLoop trigger: SSH to %s@%s for slug=%s (start_iter=%d)", FMSPC_USER, FMSPC_HOST, slug, start_iteration)
     try:
-        result = subprocess.run(ssh_cmd, capture_output=True, text=True, timeout=30)
+        result = subprocess.run(ssh_cmd, capture_output=True, text=True, timeout=300)
     except subprocess.TimeoutExpired:
         conn.execute("UPDATE dev_projects SET status='failed', updated_at=datetime('now') WHERE slug=?", (slug,))
         conn.commit()
