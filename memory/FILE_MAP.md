@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-06-26*
+*Generated: 2026-06-27*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -102,6 +102,7 @@ jobs/
     chump.py
     send.py
   ask.py
+  backup.py
   batch.py
   bible.py
   build_kb.py
@@ -134,6 +135,7 @@ jobs/
     report_menu.py
     reports.py
     shepherding_report.py
+    state_of_church.py
     utils.py
   contacts/
     __init__.py
@@ -194,6 +196,10 @@ jobs/
     system_monitor.py
     test_runner.py
     update_arch.py
+  dev_loop/
+    __init__.py
+    deliver.py
+    trigger.py
   documents/
     __init__.py
     excel.py
@@ -455,6 +461,7 @@ prompts/
 requirements.txt
 run.sh
 vercel.json
+watson.db
 ```
 
 ## ~/wcky/
