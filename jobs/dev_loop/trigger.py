@@ -1,5 +1,5 @@
 """
-trigger.py — Launch a dev loop on FMSPC via Tailscale SSH.
+trigger.py — Launch the dev loop locally on the Beelink.
 
 Usage:
     from jobs.dev_loop.trigger import trigger_dev_loop
@@ -9,14 +9,11 @@ import base64
 import logging
 import os
 import subprocess
-from pathlib import Path
 
 log = logging.getLogger(__name__)
 
-FMSPC_HOST = os.getenv("FMSPC_TAILSCALE_HOST", "fmspc")
-FMSPC_USER = os.getenv("FMSPC_SSH_USER", "billyomes")
+LOOP_SCRIPT = os.path.expanduser("~/watson/jobs/dev_loop/loop.py")
 WATSON_API_URL = os.getenv("WATSON_API_URL", "https://watson.tail0243ff.ts.net")
-LOOP_SCRIPT = os.getenv("FMSPC_LOOP_SCRIPT", "~/watson-dev/loop.py")
 
 DB = os.path.expanduser("~/watson/data/watson.db")
 
@@ -38,7 +35,7 @@ def trigger_dev_loop(
     extend_by: int = 0,
     feedback: str = "",
 ) -> dict:
-    """Insert/update project record and SSH to FMSPC to start loop.py."""
+    """Insert/update project record and launch loop.py locally via Popen."""
     conn = _db()
 
     existing = conn.execute("SELECT id FROM dev_projects WHERE slug = ?", (slug,)).fetchone()
@@ -55,51 +52,40 @@ def trigger_dev_loop(
             (slug, title, input_type, input_text, max_iterations),
         )
     conn.commit()
+    conn.close()
 
     input_b64 = base64.b64encode(input_text.encode("utf-8")).decode("ascii")
     feedback_b64 = base64.b64encode(feedback.encode("utf-8")).decode("ascii") if feedback else ""
 
-    args = (
-        f"--slug {slug} "
-        f"--input-type {input_type} "
-        f"--input-b64 {input_b64} "
-        f"--watson-url {WATSON_API_URL} "
-        f"--start-iteration {start_iteration} "
-        f"--extend-by {extend_by}"
-    )
-    if feedback_b64:
-        args += f" --feedback-b64 {feedback_b64}"
-
-    remote_cmd = f"python {LOOP_SCRIPT} {args}"
-
-    ssh_cmd = [
-        "ssh",
-        "-o", "StrictHostKeyChecking=no",
-        "-o", "ConnectTimeout=15",
-        "-o", "BatchMode=yes",
-        f"{FMSPC_USER}@{FMSPC_HOST}",
-        remote_cmd,
+    cmd = [
+        "python3", LOOP_SCRIPT,
+        "--slug", slug,
+        "--input-type", input_type,
+        "--input-b64", input_b64,
+        "--watson-url", WATSON_API_URL,
+        "--start-iteration", str(start_iteration),
+        "--extend-by", str(extend_by),
     ]
+    if feedback_b64:
+        cmd += ["--feedback-b64", feedback_b64]
 
     log_path = os.path.expanduser(f"~/watson/logs/devloop-{slug}.log")
-    log.info("DevLoop trigger: SSH to %s@%s for slug=%s (start_iter=%d)", FMSPC_USER, FMSPC_HOST, slug, start_iteration)
+    log.info("DevLoop trigger: launching locally for slug=%s (start_iter=%d)", slug, start_iteration)
+
     try:
         with open(log_path, "w") as lf:
-            result = subprocess.run(ssh_cmd, stdout=lf, stderr=lf, timeout=300)
-    except subprocess.TimeoutExpired:
-        conn.execute("UPDATE dev_projects SET status='failed', updated_at=datetime('now') WHERE slug=?", (slug,))
-        conn.commit()
-        conn.close()
-        return {"ok": False, "error": "SSH timeout connecting to FMSPC"}
+            subprocess.Popen(cmd, stdout=lf, stderr=lf)
+    except Exception as e:
+        import sqlite3
+        conn2 = sqlite3.connect(DB)
+        conn2.execute(
+            "UPDATE dev_projects SET status='failed', updated_at=datetime('now') WHERE slug=?",
+            (slug,),
+        )
+        conn2.commit()
+        conn2.close()
+        log.error("DevLoop Popen failed for %s: %s", slug, e)
+        return {"ok": False, "error": str(e)}
 
-    if result.returncode != 0:
-        err = f"SSH failed (see {log_path})"
-        log.error("DevLoop SSH failed for %s: %s", slug, err)
-        conn.execute("UPDATE dev_projects SET status='failed', updated_at=datetime('now') WHERE slug=?", (slug,))
-        conn.commit()
-        conn.close()
-        return {"ok": False, "error": err}
-
-    conn.close()
-    log.info("DevLoop started on FMSPC: slug=%s", slug)
+    log.info("DevLoop started locally: slug=%s", slug)
     return {"ok": True, "slug": slug}
