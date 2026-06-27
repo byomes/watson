@@ -75,20 +75,12 @@ def _test_code(code: str) -> dict:
         f.write(code)
         tmp = f.name
     try:
-        r1 = subprocess.run(
+        r = subprocess.run(
             [sys.executable, "-m", "py_compile", tmp],
             capture_output=True, text=True,
         )
-        if r1.returncode != 0:
-            return {"ok": False, "errors": [r1.stderr.strip() or "Syntax error"]}
-
-        r2 = subprocess.run(
-            [sys.executable, "-c", f"import ast; ast.parse(open({tmp!r}).read())"],
-            capture_output=True, text=True,
-        )
-        if r2.returncode != 0:
-            return {"ok": False, "errors": [r2.stderr.strip() or "AST parse error"]}
-
+        if r.returncode != 0:
+            return {"ok": False, "errors": [r.stderr.strip() or "Syntax error"]}
         return {"ok": True, "errors": []}
     finally:
         os.unlink(tmp)
