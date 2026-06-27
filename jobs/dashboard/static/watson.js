@@ -1396,12 +1396,11 @@ function moreRenderSkills(cmds) {
     return;
   }
   el.innerHTML = cmds.map(s => `
-    <div class="msk-card" onclick="launchCommand(${JSON.stringify(s.command || '')})" style="cursor:pointer">
-      <div class="msk-info">
-        <div class="msk-name">${esc(s.name || '')}</div>
-        <div class="msk-desc">${esc(s.description || '')}</div>
-      </div>
-    </div>`).join('');
+    <button type="button" class="skill-card" data-cmd="${esc(s.command || '')}" onclick="launchCommand(this.dataset.cmd)"
+      style="cursor:pointer;-webkit-tap-highlight-color:transparent;font:inherit;text-align:left;flex-direction:column;align-items:flex-start;-webkit-appearance:none;appearance:none">
+      <div style="font-size:13px;font-weight:500">${esc(s.name || '')}</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:2px">${esc(s.description || '')}</div>
+    </button>`).join('');
 }
 
 function launchCommand(command) {
