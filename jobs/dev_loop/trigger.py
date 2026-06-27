@@ -70,10 +70,11 @@ def trigger_dev_loop(
     if feedback_b64:
         args += f" --feedback-b64 {feedback_b64}"
 
+    LOG_DIR = f"D:\\\\watson-dev\\\\logs"
     remote_cmd = (
-        f"mkdir -p ~/watson-dev/logs && "
-        f"nohup python {LOOP_SCRIPT} {args} "
-        f">> ~/watson-dev/logs/{slug}.log 2>&1 &"
+        f"cmd /c \"if not exist {LOG_DIR} mkdir {LOG_DIR} && "
+        f"start /b python {LOOP_SCRIPT} {args} "
+        f">> {LOG_DIR}\\\\{slug}.log 2>&1\""
     )
 
     ssh_cmd = [
