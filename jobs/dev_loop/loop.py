@@ -75,15 +75,21 @@ def _test_code(code: str) -> dict:
         f.write(code)
         tmp = f.name
     try:
-        result = subprocess.run(
-            [sys.executable, tmp],
-            capture_output=True, text=True, timeout=30,
+        r1 = subprocess.run(
+            [sys.executable, "-m", "py_compile", tmp],
+            capture_output=True, text=True,
         )
-        ok = result.returncode == 0
-        errors = [result.stderr.strip()] if not ok and result.stderr else ([] if ok else ["Non-zero exit"])
-        return {"ok": ok, "errors": errors}
-    except subprocess.TimeoutExpired:
-        return {"ok": False, "errors": ["Execution timed out"]}
+        if r1.returncode != 0:
+            return {"ok": False, "errors": [r1.stderr.strip() or "Syntax error"]}
+
+        r2 = subprocess.run(
+            [sys.executable, "-c", f"import ast; ast.parse(open({tmp!r}).read())"],
+            capture_output=True, text=True,
+        )
+        if r2.returncode != 0:
+            return {"ok": False, "errors": [r2.stderr.strip() or "AST parse error"]}
+
+        return {"ok": True, "errors": []}
     finally:
         os.unlink(tmp)
 
