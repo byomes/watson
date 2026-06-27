@@ -53,13 +53,21 @@ def _build_layer2(task: str, max_entries: int = 3) -> str:
     except Exception:
         return ""
 
+    _JUNK_PHRASES = (
+        "no conversation", "no information", "no summary",
+        "has just started", "not been initiated",
+    )
+
     task_words = set(task.lower().split())
 
     scored = []
     for row in rows:
         summary = row["summary"] or ""
-        score = sum(1 for w in summary.lower().split() if w in task_words)
-        if score > 0:
+        summary_lower = summary.lower()
+        if any(phrase in summary_lower for phrase in _JUNK_PHRASES):
+            continue
+        score = sum(1 for w in summary_lower.split() if w in task_words)
+        if score >= 2:
             scored.append((score, summary))
 
     scored.sort(key=lambda x: x[0], reverse=True)
