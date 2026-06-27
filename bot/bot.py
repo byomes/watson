@@ -40,6 +40,7 @@ from jobs.people.api import people_create, people_list, people_get, congregation
 import jobs.gcal.pending as pending_module
 from jobs.gcal import reasoner
 from jobs.intent.classifier import classify as _classify_intent
+from jobs.memory.prompt_builder import build_prompt
 from jobs.givebutter.templates import first_gift_email, repeat_gift_email
 
 log = logging.getLogger(__name__)
@@ -1129,7 +1130,8 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     # 4. Classify intent via Ollama llama3.2:3b (non-blocking)
-    result = await asyncio.to_thread(_classify_intent, text_clean)
+    _classifier_system = build_prompt(task=text_clean, project=None)
+    result = await asyncio.to_thread(_classify_intent, text_clean, _classifier_system)
     log.info("DEBUG classifier raw result: %s", result)
     intent = result.get("intent", "general")
     params = result.get("params", {})
@@ -1500,23 +1502,8 @@ async def _handle_task_done(update: Update, context: ContextTypes.DEFAULT_TYPE, 
 
 
 async def _get_general_reply(text: str) -> str:
+    system = build_prompt(task=text, project=None)
     db_path = os.path.expanduser("~/watson/data/watson.db")
-    memory_prefix = ""
-    try:
-        with sqlite3.connect(db_path) as _mc:
-            rows = _mc.execute(
-                "SELECT summary FROM memory_sessions ORDER BY created_at DESC LIMIT 10"
-            ).fetchall()
-            if rows:
-                summaries = [r[0] for r in rows]
-                memory_prefix = (
-                    "WATSON MEMORY — RECENT SESSIONS:\n" +
-                    "\n".join(f"[{i+1}] {s}" for i, s in enumerate(summaries)) +
-                    "\n\nUse this context to maintain continuity with Dr. Bill across conversations.\n\n---\n\n"
-                )
-    except Exception:
-        pass
-    system = memory_prefix + WATSON_SYSTEM
     try:
         with sqlite3.connect(db_path) as _rc:
             _rc_count = _rc.execute(

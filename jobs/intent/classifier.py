@@ -65,12 +65,15 @@ Return ONLY the JSON object. No markdown. No explanation. No other text.
 """
 
 
-def classify(message_text: str) -> dict:
+def classify(message_text: str, system_prompt: str = "") -> dict:
     prompt = f"{_SYSTEM_PROMPT}\n\nMessage: {message_text}"
+    payload: dict = {"model": _MODEL, "prompt": prompt, "stream": False}
+    if system_prompt:
+        payload["system"] = system_prompt
     try:
         resp = requests.post(
             _OLLAMA_URL,
-            json={"model": _MODEL, "prompt": prompt, "stream": False},
+            json=payload,
             timeout=45,
         )
         resp.raise_for_status()
