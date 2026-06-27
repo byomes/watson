@@ -1,8 +1,10 @@
 """
-cleanup.py — Remove dev loop projects older than 7 days.
+cleanup.py — Remove stale dev loop projects.
 
-Deletes rows with status in (paused, failed, delivered) older than 7 days,
-their log files, and any staging files.
+Retention policy:
+  - delivered, failed, stopped: delete after 48 hours
+  - paused: delete after 7 days
+  - running: never deleted automatically
 
 Cron (Monday 4am):
     PYTHONPATH=/home/billyomes/watson 0 4 * * 1 /home/billyomes/watson/venv/bin/python /home/billyomes/watson/jobs/dev_loop/cleanup.py >> /home/billyomes/watson/logs/devloop_cleanup.log 2>&1
@@ -23,8 +25,13 @@ def main():
         """
         SELECT slug, staging_path
         FROM dev_projects
-        WHERE status IN ('paused', 'failed', 'delivered')
-          AND updated_at < datetime('now', '-7 days')
+        WHERE (
+            status IN ('delivered', 'failed', 'stopped')
+            AND updated_at < datetime('now', '-48 hours')
+        ) OR (
+            status = 'paused'
+            AND updated_at < datetime('now', '-7 days')
+        )
         """
     ).fetchall()
 
