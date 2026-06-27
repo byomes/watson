@@ -70,10 +70,7 @@ def trigger_dev_loop(
     if feedback_b64:
         args += f" --feedback-b64 {feedback_b64}"
 
-    remote_cmd = (
-        f"python {LOOP_SCRIPT} {args} "
-        f">> D:\\\\watson-dev\\\\logs\\\\{slug}.log 2>&1"
-    )
+    remote_cmd = f"python {LOOP_SCRIPT} {args}"
 
     ssh_cmd = [
         "ssh",
@@ -84,9 +81,11 @@ def trigger_dev_loop(
         remote_cmd,
     ]
 
+    log_path = os.path.expanduser(f"~/watson/logs/devloop-{slug}.log")
     log.info("DevLoop trigger: SSH to %s@%s for slug=%s (start_iter=%d)", FMSPC_USER, FMSPC_HOST, slug, start_iteration)
     try:
-        result = subprocess.run(ssh_cmd, capture_output=True, text=True, timeout=300)
+        with open(log_path, "w") as lf:
+            result = subprocess.run(ssh_cmd, stdout=lf, stderr=lf, timeout=300)
     except subprocess.TimeoutExpired:
         conn.execute("UPDATE dev_projects SET status='failed', updated_at=datetime('now') WHERE slug=?", (slug,))
         conn.commit()
@@ -94,7 +93,7 @@ def trigger_dev_loop(
         return {"ok": False, "error": "SSH timeout connecting to FMSPC"}
 
     if result.returncode != 0:
-        err = (result.stderr or "").strip() or "SSH failed"
+        err = f"SSH failed (see {log_path})"
         log.error("DevLoop SSH failed for %s: %s", slug, err)
         conn.execute("UPDATE dev_projects SET status='failed', updated_at=datetime('now') WHERE slug=?", (slug,))
         conn.commit()
