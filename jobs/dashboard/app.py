@@ -24,6 +24,7 @@ DB = os.path.expanduser("~/watson/data/watson.db")
 CONG_DB = os.path.expanduser("~/watson/data/congregation.db")
 EVENT_FILES_DIR = Path(os.path.expanduser("~/watson/data/event_files"))
 SKILLS_FILE = Path(__file__).resolve().parents[2] / "memory" / "skills.json"
+COMMANDS_FILE = Path(__file__).resolve().parents[2] / "memory" / "commands.json"
 MEMORY = Path(__file__).resolve().parents[2] / "memory"
 app = Flask(__name__, static_folder='static', template_folder='templates')
 _secret_key = os.getenv("FLASK_SECRET_KEY")
@@ -1371,6 +1372,21 @@ def skills_list_api():
 @app.route("/api/skills/categories")
 def skills_categories_api():
     return jsonify(_CATEGORY_ORDER)
+
+
+# ── Commands API ──────────────────────────────────────────────────────────────
+
+@app.route("/api/commands")
+def commands_list_api():
+    if not COMMANDS_FILE.exists():
+        return jsonify([])
+    try:
+        commands = json.loads(COMMANDS_FILE.read_text(encoding="utf-8"))
+        if not isinstance(commands, list):
+            return jsonify([])
+        return jsonify(commands)
+    except Exception:
+        return jsonify([])
 
 
 @app.route("/api/skills/<slug>/approve", methods=["POST"])

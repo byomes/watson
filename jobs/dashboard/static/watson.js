@@ -1519,7 +1519,7 @@ async function runStateOfChurch() {
   }
 }
 
-// ── Skills ───────────────────────────────────────────────────────────────────
+// ── Commands ──────────────────────────────────────────────────────────────────
 
 async function moreLoadSkills() {
   const el = document.getElementById('msec-inner-skills');
@@ -1527,19 +1527,19 @@ async function moreLoadSkills() {
   _moreSkillCat   = 'All';
   _moreSkillQuery = '';
   el.innerHTML = `
-    <input class="msrch" type="search" placeholder="Search skills&hellip;" oninput="moreSkillSearch(this.value)">
-    <div style="font-size:11px;color:var(--muted);text-align:center;margin-bottom:8px">Trigger any skill by messaging Watson on Telegram.</div>
+    <input class="msrch" type="search" placeholder="Search commands&hellip;" oninput="moreSkillSearch(this.value)">
+    <div style="font-size:11px;color:var(--muted);text-align:center;margin-bottom:8px">Tap a command to load it into the chat tab.</div>
     <div id="more-skill-pills" class="mpills"></div>
     <div id="more-skill-list"><div class="loading">Loading&hellip;</div></div>`;
   try {
-    const skills = await api('/api/skills');
-    _moreAllSkills = Array.isArray(skills) ? skills : [];
-    const cats = [...new Set(_moreAllSkills.map(s => s.category || 'General'))];
+    const commands = await api('/api/commands');
+    _moreAllSkills = Array.isArray(commands) ? commands : [];
+    const cats = [...new Set(_moreAllSkills.map(s => s.category || 'General'))].sort();
     moreRenderSkillPills(['All', ...cats]);
     moreRenderSkills(_moreAllSkills);
   } catch {
     const listEl = document.getElementById('more-skill-list');
-    if (listEl) listEl.innerHTML = '<div class="empty">Could not load skills.</div>';
+    if (listEl) listEl.innerHTML = '<div class="empty">Could not load commands.</div>';
   }
 }
 
@@ -1567,56 +1567,47 @@ function moreSkillSearch(q) {
 }
 
 function moreApplySkillFilter() {
-  let skills = _moreAllSkills;
+  let cmds = _moreAllSkills;
   if (_moreSkillCat && _moreSkillCat !== 'All') {
-    skills = skills.filter(s => (s.category || 'General') === _moreSkillCat);
+    cmds = cmds.filter(s => (s.category || 'General') === _moreSkillCat);
   }
   if (_moreSkillQuery) {
-    skills = skills.filter(s =>
+    cmds = cmds.filter(s =>
       (s.name || '').toLowerCase().includes(_moreSkillQuery) ||
-      (s.description || '').toLowerCase().includes(_moreSkillQuery)
+      (s.description || '').toLowerCase().includes(_moreSkillQuery) ||
+      (s.command || '').toLowerCase().includes(_moreSkillQuery)
     );
   }
-  moreRenderSkills(skills);
+  moreRenderSkills(cmds);
 }
 
-function moreRenderSkills(skills) {
+function moreRenderSkills(cmds) {
   const el = document.getElementById('more-skill-list');
   if (!el) return;
-  if (!skills.length) {
-    el.innerHTML = '<div class="empty">No skills found.</div>';
+  if (!cmds.length) {
+    el.innerHTML = '<div class="empty">No commands found.</div>';
     return;
   }
-  el.innerHTML = skills.map(s => {
-    const triggers = Array.isArray(s.triggers) ? s.triggers : [];
-    const triggerHtml = triggers.length ? `
-      <div style="margin-top:6px">
-        <div style="font-size:10px;color:var(--muted);letter-spacing:.04em;margin-bottom:4px">TRIGGER WITH:</div>
-        <div style="display:flex;flex-wrap:wrap;gap:4px">
-          ${triggers.map(t => {
-            const url = 'https://t.me/wckyWatsonbot?text=Watson+' + encodeURIComponent(t);
-            return `<button class="msk-trigger" onclick="window.open('${url}','_blank')">${esc(t)}</button>`;
-          }).join('')}
-        </div>
-      </div>` : '';
-    return `
-    <div class="msk-card">
+  el.innerHTML = cmds.map(s => `
+    <div class="msk-card" onclick="launchCommand(${JSON.stringify(s.command || '')})" style="cursor:pointer">
       <div class="msk-info">
-        <div class="msk-name">${esc(s.name || s.slug || '')}</div>
+        <div class="msk-name">${esc(s.name || '')}</div>
         <div class="msk-desc">${esc(s.description || '')}</div>
-        ${triggerHtml}
-        <span class="msk-badge">${esc(s.status || 'ready')}</span>
       </div>
-      ${s.status === 'pending' ? `<button class="mbtn mbtn-sm" onclick="moreApproveSkill('${esc(s.slug)}')">Approve</button>` : ''}
-    </div>`;
-  }).join('');
+    </div>`).join('');
 }
 
-async function moreApproveSkill(slug) {
-  try {
-    await api(`/api/skills/${encodeURIComponent(slug)}/approve`, { method: 'POST' });
-    moreLoadSkills();
-  } catch { alert('Failed to approve skill.'); }
+function launchCommand(command) {
+  const ta = document.getElementById('chat-textarea');
+  if (ta) {
+    ta.value = command;
+    ta.dispatchEvent(new Event('input'));
+  }
+  switchTab('chat');
+  setTimeout(() => {
+    const ta2 = document.getElementById('chat-textarea');
+    if (ta2) ta2.focus();
+  }, 50);
 }
 
 // ── Events ───────────────────────────────────────────────────────────────────
