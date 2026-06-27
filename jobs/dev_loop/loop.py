@@ -22,6 +22,19 @@ import tempfile
 
 import requests
 
+def _load_env():
+    env_file = os.path.expanduser("~/watson/.env")
+    if not os.path.exists(env_file):
+        return
+    for line in open(env_file):
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        k, _, v = line.partition("=")
+        if k.strip() not in os.environ:
+            os.environ[k.strip()] = v.strip()
+_load_env()
+
 OLLAMA_URL = "http://localhost:11434"
 MODEL = "qwen2.5-coder:7b"
 MAX_ITERATIONS_DEFAULT = 3
