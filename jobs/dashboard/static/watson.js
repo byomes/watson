@@ -946,19 +946,9 @@ async function moreLoadReading() {
 
 // ─── More page ────────────────────────────────────────────────────────────────
 
-const _MORE_REPORT_CONFIGS = [
-  { key: 'weekly_summary',    label: 'Weekly Summary',     desc: 'Attendance & activity for the week' },
-  { key: 'shepherding',       label: 'Shepherding',        desc: 'Flock contact status' },
-  { key: 'new_members',       label: 'New Members',        desc: 'Recent additions to congregation' },
-  { key: 'birthday_upcoming', label: 'Upcoming Birthdays', desc: 'Next 30-day birthday list' },
-];
-
 let _moreSecLoaded    = {};
 let _moreShepData     = null;
 let _moreAuditData    = null;
-let _moreReportResult = null;
-let _moreActiveReport = null;
-let _moreReportWeeks  = 4;
 let _morePNTab        = 'active';
 let _moreAllSkills    = [];
 let _moreSkillCat     = 'All';
@@ -987,15 +977,6 @@ function renderMore() {
     <div class="mrrow" onclick="switchTab('briefing')" style="cursor:pointer">
       <span style="font-size:13px;font-weight:500">Briefing</span>
       <span style="color:var(--gold);font-size:15px">›</span>
-    </div>
-    <div class="msec" id="msec-reports">
-      <div class="msec-hdr" onclick="moreToggle('reports')">
-        <span class="msec-title">Reports</span>
-        <span class="msec-chev" id="msec-chev-reports">›</span>
-      </div>
-      <div class="msec-body" id="msec-body-reports">
-        <div class="msec-inner" id="msec-inner-reports"></div>
-      </div>
     </div>
     <div class="msec" id="msec-skills">
       <div class="msec-hdr" onclick="moreToggle('skills')">
@@ -1069,7 +1050,6 @@ function moreToggle(sec) {
   if (chev) chev.textContent = isOpen ? '⌄' : '›';
   if (isOpen && !_moreSecLoaded[sec]) {
     _moreSecLoaded[sec] = true;
-    if (sec === 'reports')  moreLoadReports();
     if (sec === 'skills')   moreLoadSkills();
     if (sec === 'ministry') moreLoadMinistry();
     if (sec === 'reading')  moreLoadReading();
@@ -1344,179 +1324,6 @@ async function moreApplyCorrections() {
     await api('/api/congregation/audit/apply', { method: 'POST' });
     moreRunAudit();
   } catch { alert('Failed to apply corrections.'); }
-}
-
-// ── Reports (bottom sheet) ───────────────────────────────────────────────────
-
-function moreShowReportSheet() {
-  const existing = document.getElementById('bsoverlay');
-  if (existing) existing.remove();
-  const overlay = document.createElement('div');
-  overlay.className = 'bsoverlay';
-  overlay.id = 'bsoverlay';
-  overlay.innerHTML = `
-    <div class="bsheet">
-      <div class="bsheet-title">Run Report</div>
-      <div class="mlabel">Report type</div>
-      <div class="bsheet-presets">
-        ${_MORE_REPORT_CONFIGS.map(r =>
-          `<button class="bpreset${_moreActiveReport === r.key ? ' sel' : ''}"
-            onclick="morePickReport('${r.key}',this)">${esc(r.label)}</button>`).join('')}
-      </div>
-      <div class="mlabel">Weeks to include</div>
-      <div class="bsheet-presets">
-        ${[2, 4, 8, 12].map(w =>
-          `<button class="bpreset${_moreReportWeeks === w ? ' sel' : ''}"
-            onclick="morePickReportWeek(${w},this)">${w}w</button>`).join('')}
-      </div>
-      <div class="mfrow" style="margin-top:14px">
-        <button class="mbtn mbtn-p" onclick="moreRunReport()">Run</button>
-        <button class="mbtn" onclick="document.getElementById('bsoverlay').remove()">Cancel</button>
-      </div>
-    </div>`;
-  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
-  document.body.appendChild(overlay);
-}
-
-function morePickReport(key, btn) {
-  _moreActiveReport = key;
-  btn.closest('.bsheet-presets').querySelectorAll('.bpreset').forEach(b => b.classList.remove('sel'));
-  btn.classList.add('sel');
-}
-
-function morePickReportWeek(w, btn) {
-  _moreReportWeeks = w;
-  btn.closest('.bsheet-presets').querySelectorAll('.bpreset').forEach(b => b.classList.remove('sel'));
-  btn.classList.add('sel');
-}
-
-async function moreRunReport() {
-  if (!_moreActiveReport) { alert('Select a report type.'); return; }
-  const overlay = document.getElementById('bsoverlay');
-  if (overlay) overlay.remove();
-  const resultEl = document.getElementById('more-report-result');
-  if (resultEl) resultEl.innerHTML = '<div class="loading">Running&hellip;</div>';
-  try {
-    const data = await api(`/api/reports/run?type=${encodeURIComponent(_moreActiveReport)}&weeks=${_moreReportWeeks}`);
-    _moreReportResult = data.content || data.result || JSON.stringify(data, null, 2);
-    if (resultEl) resultEl.innerHTML = `
-      <div class="mreport-result">${esc(_moreReportResult)}</div>
-      <div class="mfrow" style="margin-top:8px">
-        <button class="mbtn mbtn-sm" onclick="moreReportTelegram()">Telegram</button>
-        <button class="mbtn mbtn-sm" onclick="moreReportEmail()">Email</button>
-      </div>`;
-  } catch {
-    if (resultEl) resultEl.innerHTML = '<div class="empty">Report failed.</div>';
-  }
-}
-
-async function moreReportTelegram() {
-  if (!_moreReportResult) return;
-  try {
-    await api('/api/reports/telegram', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type: _moreActiveReport, weeks: _moreReportWeeks, content: _moreReportResult }),
-    });
-    alert('Sent to Telegram!');
-  } catch { alert('Failed to send.'); }
-}
-
-async function moreReportEmail() {
-  if (!_moreReportResult) return;
-  try {
-    await api('/api/reports/email', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type: _moreActiveReport, weeks: _moreReportWeeks, content: _moreReportResult }),
-    });
-    alert('Sent via email!');
-  } catch { alert('Failed to send.'); }
-}
-
-// ── Reports ──────────────────────────────────────────────────────────────────
-
-function moreLoadReports() {
-  const el = document.getElementById('msec-inner-reports');
-  if (!el) return;
-
-  const cdbButtons = [
-    'Who attended this Sunday',
-    'Who missed this Sunday',
-    'Online attendance',
-    'Wilmington attendance',
-    'Hybrid members',
-    'Attendance trend',
-    'Who is slipping away',
-  ];
-
-  const wdbButtons = [
-    'Team overview',
-    'Stalled tasks',
-    'Task completion',
-    'Inactive leaders',
-    'Notes gaps',
-    'Open follow-ups',
-    'Recent meetings',
-  ];
-
-  el.innerHTML = `
-    <div class="mlabel" style="margin-top:0">Weekly Reports</div>
-    <div class="card" style="margin-bottom:12px">
-      <button class="mbtn mbtn-p" style="min-height:44px;text-align:left;padding:11px 14px" onclick="runStateOfChurch()">
-        📊 State of the Church
-      </button>
-      <div id="sotc-result" style="display:none;margin-top:8px;font-size:12px;color:var(--muted);font-family:'DM Mono',monospace;padding:8px 0"></div>
-    </div>
-    <div class="mlabel">Congregation</div>
-    <div class="card" style="margin-bottom:12px">
-      ${cdbButtons.map(q =>
-        `<button class="mbtn" style="min-height:44px;text-align:left;padding:11px 14px"
-          onclick="runReport('cdb','${q.replace(/'/g,"\\'")}')">
-          ${esc(q)}
-        </button>`
-      ).join('')}
-      <div id="report-result-cdb" style="display:none" class="mreport-result"></div>
-    </div>
-    <div class="mlabel">Leadership</div>
-    <div class="card">
-      ${wdbButtons.map(q =>
-        `<button class="mbtn" style="min-height:44px;text-align:left;padding:11px 14px"
-          onclick="runReport('wdb','${q.replace(/'/g,"\\'")}')">
-          ${esc(q)}
-        </button>`
-      ).join('')}
-      <div id="report-result-wdb" style="display:none" class="mreport-result"></div>
-    </div>`;
-}
-
-async function runReport(type, query) {
-  const resultEl = document.getElementById(`report-result-${type}`);
-  if (!resultEl) return;
-  resultEl.style.display = 'block';
-  resultEl.textContent = 'Loading…';
-  try {
-    const data = await fetch('/api/report', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type, query }),
-    }).then(r => r.json());
-    resultEl.textContent = data.result || data.error || '(no result)';
-  } catch {
-    resultEl.textContent = 'Request failed.';
-  }
-}
-
-async function runStateOfChurch() {
-  const el = document.getElementById('sotc-result');
-  el.style.display = 'block';
-  el.textContent = 'Generating report… this takes 2–3 minutes.';
-  try {
-    const data = await fetch('/api/reports/state-of-church', { method: 'POST' }).then(r => r.json());
-    el.textContent = data.ok ? '✓ Report sent to pastorbill@catalyst302.com' : ('Error: ' + (data.error || 'unknown'));
-  } catch {
-    el.textContent = 'Request failed.';
-  }
 }
 
 // ── Commands ──────────────────────────────────────────────────────────────────
