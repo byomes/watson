@@ -724,3 +724,29 @@ WATSON_API_URL=https://watson.tail0243ff.ts.net
 
 ### ~/wcky
 - fa79025 feat: add /thewrongjesus launch page with countdown and email capture
+
+---
+
+## Recent Changes — 2026-06-27
+
+### ~/watson
+- 3150c63 fix: capture devloop SSH output locally instead of remote redirect
+- c30243d fix: drop start /b, run loop.py synchronously over SSH
+- c5ad18d fix: Windows-compatible remote_cmd in dev_loop trigger
+- bdacbb4 feat: Watson Dev Loop system — FMSPC autonomous code generation
+- 5aadab4 feat: member status system — deceased/disconnected/non-local/snowbird categories, auto-reinstatement on attendance, reporting exclusions
+- 11e0e11 feat: State of the Church button in dashboard reports
+- 2265c42 feat: church events log — dashboard entry form with file attachments, state of church integration
+- bc50027 fix: force English only in Watson's Read synthesis prompt
+- b36996d feat: add trends section — rolling averages, campus mix, member engagement tiers
+- 24e1455 fix: clarify Catalyst has Wilmington campus and Online campus in synthesis prompt
+- eb5e0ff fix: remove duplicate Watson's Read paragraph, clean members not seen formatting
+- 45560de fix: members not seen query — drop visitor status filter
+- 5081fd4 feat: state of church report — HTML email with professional formatting, synthesis first
+- ef63605 fix: condense Ollama input and raise timeout to 180s — prevents synthesis timeout
+- e85879c fix: remove tasks and pastoral notes from state of church report — elder-safe version
+- baa3d21 feat: remove pastoral notes from state-of-church report
+- b0c9d69 feat: upgrade Ollama models — 14b for accuracy jobs including email drafts, 7b for speed/chat/intent
+- 75dac3c fix: remove morning briefing Telegram push
+- 15ad620 docs: file map 2026-06-26
+- 3cac75b docs: architecture update 2026-06-26
