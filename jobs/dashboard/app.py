@@ -1539,7 +1539,7 @@ def chat_summarize():
     try:
         resp = _sreq.post(
             "http://localhost:11434/api/generate",
-            json={"model": "qwen2.5:14b", "prompt": prompt, "stream": False},
+            json={"model": "llama3.2:3b", "prompt": prompt, "stream": False},
             timeout=60,
         )
         resp.raise_for_status()
