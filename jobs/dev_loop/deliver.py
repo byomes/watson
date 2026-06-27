@@ -91,7 +91,7 @@ def dev_loop_callback():
 
         row = db.execute("SELECT title FROM dev_projects WHERE slug=?", (slug,)).fetchone()
         title = row["title"] if row else slug
-        dash_url = f"{WATSON_API_URL}/?dev={slug}"
+        dash_url = f"{WATSON_API_URL}/#devloop"
         _send_telegram(
             f"Dev Loop — <b>DELIVERED</b>\n"
             f"<b>{title}</b> ({slug})\n\n"
@@ -224,6 +224,18 @@ def dev_loop_keep_going(slug):
     if row["status"] != "paused":
         return jsonify({"error": "project is not paused"}), 400
 
+    feedback = ""
+    existing_code_path = STAGING_BASE / slug / "main.py"
+    if existing_code_path.exists():
+        try:
+            file_contents = existing_code_path.read_text(encoding="utf-8")
+            feedback = (
+                f"The current version of the file is:\n\n{file_contents}\n\n"
+                "Improve it based on the original instructions. Fix any remaining issues."
+            )
+        except Exception:
+            pass
+
     result = trigger_dev_loop(
         slug=slug,
         title=row["title"],
@@ -231,6 +243,7 @@ def dev_loop_keep_going(slug):
         input_text=row["input_text"],
         start_iteration=row["current_iteration"] + 1,
         extend_by=3,
+        feedback=feedback,
     )
     if not result["ok"]:
         return jsonify({"error": result.get("error")}), 500
