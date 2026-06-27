@@ -1,0 +1,1 @@
+Build a Python script that converts a CSV file to JSON. Takes input path and output path as command line arguments.
