@@ -22,6 +22,8 @@ import tempfile
 
 import requests
 
+from jobs.memory.prompt_builder import build_prompt
+
 def _load_env():
     env_file = os.path.expanduser("~/watson/.env")
     if not os.path.exists(env_file):
@@ -53,10 +55,13 @@ def _callback(watson_url: str, payload: dict) -> None:
         print(f"[loop] Callback failed: {e}", file=sys.stderr)
 
 
-def _ollama_generate(prompt: str) -> str:
+def _ollama_generate(prompt: str, system: str = "") -> str:
+    payload = {"model": MODEL, "prompt": prompt, "stream": False}
+    if system:
+        payload["system"] = system
     resp = requests.post(
         f"{OLLAMA_URL}/api/generate",
-        json={"model": MODEL, "prompt": prompt, "stream": False},
+        json=payload,
         timeout=300,
     )
     resp.raise_for_status()
@@ -106,6 +111,8 @@ def main():
     iteration_history = []
     test_results = {}
 
+    system_prompt = build_prompt(task=input_text, project="dev_loop")
+
     for iteration in range(args.start_iteration, max_iterations + 1):
         print(f"[loop] Iteration {iteration}/{max_iterations} — slug={args.slug}")
 
@@ -129,7 +136,7 @@ def main():
             "No explanation. No extra text."
         )
 
-        raw = _ollama_generate(prompt)
+        raw = _ollama_generate(prompt, system=system_prompt)
         code = _extract_code(raw)
 
         test_results = _test_code(code)
