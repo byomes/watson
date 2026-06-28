@@ -1399,7 +1399,7 @@ function moreRenderSkills(cmds) {
     <button type="button" class="skill-card" data-cmd="${esc(s.command || '')}" onclick="launchCommand(this.dataset.cmd)"
       style="display:block;width:100%;cursor:pointer;-webkit-tap-highlight-color:transparent;font:inherit;color:var(--text);text-align:left;-webkit-appearance:none;appearance:none">
       <div style="font-size:13px;font-weight:500">${esc(s.name || '')}</div>
-      <div style="font-size:11px;color:var(--text-muted);margin-top:2px">${esc(s.description || '')}</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:2px">${esc(s.description || '')}</div>
     </button>`).join('');
 }
 
