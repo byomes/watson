@@ -750,3 +750,35 @@ WATSON_API_URL=https://watson.tail0243ff.ts.net
 - 75dac3c fix: remove morning briefing Telegram push
 - 15ad620 docs: file map 2026-06-26
 - 3cac75b docs: architecture update 2026-06-26
+
+---
+
+## Recent Changes — 2026-06-28
+
+### ~/watson
+- ba01202 feat: remove skill confirmation gate from dashboard chat — execute immediately
+- 64be919 fix: skill cards inherit correct dark theme variables
+- 558e97d fix: default to dark theme when no localStorage value set
+- b6c14d4 fix: skill card text color follows theme
+- c00eb7b fix: skill cards full-width — fix container layout
+- e00b91c fix: skills cards iOS tap — use button elements and global launchCommand
+- 930ad48 feat: dev loop reads existing file on keep-going — context preserved across iterations
+- 32fed04 fix: keep-going passes existing code as feedback to prevent context loss
+- 9762219 fix: use llama3.2:3b for session summarization and chat fallback
+- dde68ac fix: chat fallback uses llama3.2:3b not qwen2.5:7b
+- d44a4e2 fix: stronger no-hallucination guard for empty context
+- 423e93e fix: Layer 2 filters junk sessions and raises score threshold to 2
+- 2daa981 fix: escape single quotes in Layer 1 no-hallucination guard
+- 61370bf fix: add no-hallucination guard to Layer 1 identity block
+- e1e8a14 feat: wire build_prompt into bot Ollama calls — persistent memory now active in Telegram
+- 3571e79 feat: Watson memory injection system — build_prompt() with 4-layer architecture
+- 229425b fix: 48hr auto-cleanup for delivered/failed/stopped dev loop projects
+- 385b7fc chore: remove dead reports tab and styles
+- c955395 feat: repurpose skills tab as command launcher
+- ea4cade fix: iOS clipboard fallback in devLoopCopyCode
+- 42b4fb9 fix: syntax-only test in loop.py + dev loop cleanup job
+- 3aaab42 fix: replace execution test with syntax check in loop.py
+- 2a4b95b fix: load watson .env in loop.py for WRITING_ROOM_API_KEY
+- 0ee0e81 refactor: move dev loop from FMSPC SSH to local Beelink execution
+- b546d84 docs: file map 2026-06-27
+- ad2428d docs: architecture update 2026-06-27
