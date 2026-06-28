@@ -1396,15 +1396,24 @@ function moreRenderSkills(cmds) {
     return;
   }
   el.innerHTML = cmds.map(s => `
-    <button type="button" class="skill-card" data-cmd="${esc(s.command || '')}" onclick="launchCommand(this.dataset.cmd)"
+    <button type="button" class="skill-card" data-cmd="${esc(s.command || '')}" data-req="${s.requires_input ? 'true' : 'false'}" onclick="launchCommand(this.dataset.cmd, this.dataset.req === 'true')"
       style="display:block;width:100%;cursor:pointer;-webkit-tap-highlight-color:transparent;font:inherit;color:var(--text);text-align:left;-webkit-appearance:none;appearance:none">
       <div style="font-size:13px;font-weight:500">${esc(s.name || '')}</div>
       <div style="font-size:11px;color:var(--muted);margin-top:2px">${esc(s.description || '')}</div>
     </button>`).join('');
 }
 
-async function launchCommand(command) {
+async function launchCommand(command, requiresInput) {
   switchTab('chat');
+  if (requiresInput) {
+    const ta = document.getElementById('chat-textarea');
+    if (ta) {
+      ta.value = command;
+      ta.dispatchEvent(new Event('input'));
+      setTimeout(() => ta.focus(), 50);
+    }
+    return;
+  }
   appendChatMsg('user', command);
   const bubble = appendChatMsg('watson', '…');
   try {
