@@ -466,7 +466,7 @@ _TERM_COMMANDS = {
     "count connect cards": ("sqlite", "connect_cards"),
     "watson audit skills": ("skill", "jobs.dev.skill_tester"),
     "watson fix all failing skills": ("fix_skills", None),
-    "conflict_check": ("skill", "jobs.connect_cards.conflict_report"),
+    "conflict_check": ("async_job", "jobs.connect_cards.conflict_report"),
 }
 
 
@@ -537,6 +537,13 @@ def terminal():
             except Exception as exc:
                 output = f"DB error: {exc}"
                 success = False
+
+        elif kind == "async_job":
+            import threading
+            import importlib
+            mod = importlib.import_module(target)
+            threading.Thread(target=mod.run, daemon=True).start()
+            output = "Running conflict check… results will arrive via Telegram."
 
         elif kind == "fix_skills":
             try:
