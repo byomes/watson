@@ -1399,7 +1399,7 @@ function moreRenderSkills(cmds) {
     <button type="button" class="skill-card" data-cmd="${esc(s.command || '')}" onclick="launchCommand(this.dataset.cmd)"
       style="display:block;width:100%;cursor:pointer;-webkit-tap-highlight-color:transparent;font:inherit;color:var(--text);text-align:left;-webkit-appearance:none;appearance:none">
       <div style="font-size:13px;font-weight:500">${esc(s.name || '')}</div>
-      <div style="font-size:11px;color:var(--muted);margin-top:2px">${esc(s.description || '')}</div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:2px">${esc(s.description || '')}</div>
     </button>`).join('');
 }
 
@@ -1437,8 +1437,8 @@ async function moreLoadEvents() {
             <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
               <div style="flex:1;min-width:0">
                 <div style="font-size:13px;font-weight:600">${esc(ev.event_name)}</div>
-                <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);margin-top:2px">${esc(dateRange)}</div>
-                ${ev.file_count ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">${ev.file_count} file${ev.file_count !== 1 ? 's' : ''}</div>` : ''}
+                <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--text-muted);margin-top:2px">${esc(dateRange)}</div>
+                ${ev.file_count ? `<div style="font-size:11px;color:var(--text-muted);margin-top:2px">${ev.file_count} file${ev.file_count !== 1 ? 's' : ''}</div>` : ''}
               </div>
               <button class="mbtn mbtn-sm mbtn-d" onclick="moreDeleteEvent(${ev.id})" style="flex-shrink:0">Delete</button>
             </div>
@@ -2014,8 +2014,8 @@ async function sendChatStream() {
 // ─── Init ─────────────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {
-  const savedTheme = localStorage.getItem('watson-theme');
-  if (savedTheme) document.documentElement.setAttribute('data-theme', savedTheme);
+  const savedTheme = localStorage.getItem('watson-theme') || 'dark';
+  document.documentElement.setAttribute('data-theme', savedTheme);
 
   const dateEl = document.getElementById('hdr-date');
   if (dateEl) {
