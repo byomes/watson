@@ -190,6 +190,144 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
                 f"WHERE {a_date} ORDER BY a.campus, m.name"
             )
 
+    # MEMBERS NOT SEEN RECENTLY
+    if any(w in q for w in ['not seen', "haven't seen", 'not attended', 'not been', 'missing for',
+                             'inactive', 'not come in', "haven't attended", "haven't come"]):
+        if '2 week' in q or 'two week' in q or '14 day' in q:
+            days = 14
+        elif '60 day' in q:
+            days = 60
+        elif '90 day' in q or '3 month' in q or 'three month' in q:
+            days = 90
+        else:
+            days = 30
+        cutoff = (date.today() - timedelta(days=days)).strftime('%Y-%m-%d')
+        return (
+            f"SELECT m.name, m.email, m.phone "
+            f"FROM members m "
+            f"WHERE m.active = 1 "
+            f"AND m.id NOT IN ("
+            f"SELECT DISTINCT member_id FROM attendance "
+            f"WHERE service_date >= '{cutoff}'"
+            f") ORDER BY m.name"
+        )
+
+    # FIRST-TIME VISITORS (checked before new-members to catch "first time visitor" specifically)
+    if any(w in q for w in ['first time visitor', 'first-time visitor', 'visitors this',
+                             'new visitor', 'guests']):
+        today = date.today()
+        cutoff = today.replace(day=1).strftime('%Y-%m-%d') if 'this month' in q else (today - timedelta(days=14)).strftime('%Y-%m-%d')
+        return (
+            f"SELECT name, email, phone, first_visit_date "
+            f"FROM members "
+            f"WHERE status = 'visitor' "
+            f"AND first_visit_date >= '{cutoff}' "
+            f"ORDER BY first_visit_date DESC"
+        )
+
+    # NEW MEMBERS / RECENT JOINS
+    if any(w in q for w in ['new member', 'new people', 'new person', 'joined',
+                             'recently joined', 'added this', 'new this month', 'new this week',
+                             'new last month', 'first visit', 'first time', 'first-time']):
+        today = date.today()
+        if 'this week' in q:
+            start = today - timedelta(days=today.weekday())
+            return (
+                f"SELECT name, email, phone, created_at FROM members "
+                f"WHERE active = 1 AND created_at >= '{start.strftime('%Y-%m-%d')}' "
+                f"ORDER BY created_at DESC"
+            )
+        elif 'last month' in q:
+            first_of_this = today.replace(day=1)
+            lm_start = (first_of_this - timedelta(days=1)).replace(day=1)
+            lm_end = first_of_this - timedelta(days=1)
+            return (
+                f"SELECT name, email, phone, created_at FROM members "
+                f"WHERE active = 1 "
+                f"AND created_at >= '{lm_start.strftime('%Y-%m-%d')}' "
+                f"AND created_at <= '{lm_end.strftime('%Y-%m-%d')}' "
+                f"ORDER BY created_at DESC"
+            )
+        else:
+            start = today.replace(day=1) if 'this month' in q else today - timedelta(days=30)
+            return (
+                f"SELECT name, email, phone, created_at FROM members "
+                f"WHERE active = 1 AND created_at >= '{start.strftime('%Y-%m-%d')}' "
+                f"ORDER BY created_at DESC"
+            )
+
+    # MEMBER LOOKUP BY NAME
+    if any(w in q for w in ['look up', 'find member', 'search for', 'who is', 'tell me about',
+                             'get info on', 'member info']):
+        name = q
+        for trigger in ['tell me about', 'get info on', 'find member', 'member info',
+                        'search for', 'look up', 'who is']:
+            if trigger in name:
+                name = name.replace(trigger, '', 1).strip()
+                break
+        for prefix in ['the member', 'a member', 'member', 'the person', 'a person']:
+            if name.startswith(prefix):
+                name = name[len(prefix):].strip()
+        name = name.strip('.,?! ')
+        if name:
+            return (
+                f"SELECT m.name, m.email, m.phone, m.status, m.campus_preference, m.first_visit_date "
+                f"FROM members m "
+                f"WHERE m.name LIKE '%{name}%' AND m.active = 1 "
+                f"ORDER BY m.name"
+            )
+
+    # PRAYER REQUESTS
+    if any(w in q for w in ['prayer request', 'prayer list', 'who needs prayer',
+                             'prayer wall', 'praying for']):
+        today = date.today()
+        if 'this week' in q or 'last week' in q or '7 day' in q:
+            cutoff = (today - timedelta(days=7)).strftime('%Y-%m-%d')
+        elif 'this month' in q or '30 day' in q:
+            cutoff = (today - timedelta(days=30)).strftime('%Y-%m-%d')
+        else:
+            cutoff = (today - timedelta(days=14)).strftime('%Y-%m-%d')
+        return (
+            f"SELECT m.name, cc.prayer_request, cc.service_date "
+            f"FROM connect_cards cc "
+            f"JOIN members m ON cc.member_id = m.id "
+            f"WHERE cc.prayer_request IS NOT NULL "
+            f"AND cc.prayer_request != '' "
+            f"AND cc.service_date >= '{cutoff}' "
+            f"ORDER BY cc.service_date DESC"
+        )
+
+    # FOLLOW-UPS
+    if any(w in q for w in ['follow up', 'follow-up', 'needs follow', 'who to follow',
+                             'follow up list']):
+        return (
+            f"SELECT m.name, f.note, f.created_at, f.status "
+            f"FROM follow_ups f "
+            f"JOIN members m ON f.member_id = m.id "
+            f"WHERE f.status = 'pending' "
+            f"ORDER BY f.created_at DESC"
+        )
+
+    # NEXT STEPS
+    if any(w in q for w in ['next step', 'next steps', 'who filled out', 'connection card next']):
+        cutoff = (date.today() - timedelta(days=14)).strftime('%Y-%m-%d')
+        return (
+            f"SELECT m.name, cc.next_steps, cc.service_date "
+            f"FROM connect_cards cc "
+            f"JOIN members m ON cc.member_id = m.id "
+            f"WHERE cc.next_steps IS NOT NULL "
+            f"AND cc.next_steps != '' "
+            f"AND cc.service_date >= '{cutoff}' "
+            f"ORDER BY cc.service_date DESC"
+        )
+
+    # ACTIVE MEMBERS COUNT OR LIST
+    if any(w in q for w in ['how many members', 'how many active', 'total members', 'member count',
+                             'list all members', 'all active members', 'active members']):
+        if any(w in q for w in ['how many', 'total', 'count']):
+            return "SELECT COUNT(*) as total FROM members WHERE active = 1"
+        return "SELECT name, email, campus_preference FROM members WHERE active = 1 ORDER BY name"
+
     return None
 
 def run(question: str) -> str:
