@@ -172,7 +172,7 @@ select option{background:var(--surface)}
 .skill-category-pills{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
 .skill-cat-pill{padding:8px 14px;background:var(--surface-2);border:1px solid var(--border);border-radius:6px;color:var(--text-muted);font-size:11px;font-family:'DM Mono',monospace;letter-spacing:.04em;cursor:pointer;white-space:nowrap;transition:background .15s,color .15s}
 .skill-cat-pill.active{background:var(--accent);border-color:var(--accent);color:#0d0f12}
-.skill-card{background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:8px;display:block;width:100%;text-align:left;cursor:pointer;color:inherit;font-family:inherit;box-sizing:border-box}
+.skill-card{background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:8px;display:block;width:100%;text-align:left;cursor:pointer;color:var(--text);font-family:inherit;box-sizing:border-box}
 .skill-info{flex:1;min-width:0}
 .skill-name{font-size:13px;font-weight:600;color:var(--text);margin-bottom:2px}
 .skill-desc{font-size:11px;color:var(--text-muted);line-height:1.4}

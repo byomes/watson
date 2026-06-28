@@ -2661,6 +2661,136 @@ async def _handle_calendar_availability(update: Update, context: ContextTypes.DE
     except Exception as exc:
         log.error("Calendar availability failed: %s", exc)
         await update.message.reply_text(f"Error: {exc}")
+async def handle_merge_conflict_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle merge_old_ / merge_new_ / skip_ button taps from conflict_report.py."""
+    query = update.callback_query
+    await query.answer()
+
+    if not _is_authorized(update):
+        return
+
+    data = query.data  # e.g. "merge_old_42" / "merge_new_42" / "skip_42"
+    if data.startswith("merge_old_"):
+        action = "merge_old"
+        conflict_id = int(data[len("merge_old_"):])
+    elif data.startswith("merge_new_"):
+        action = "merge_new"
+        conflict_id = int(data[len("merge_new_"):])
+    else:  # skip_
+        action = "skip"
+        conflict_id = int(data[len("skip_"):])
+
+    now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    _RELATED_TABLES = ("connect_cards", "attendance", "next_steps", "prayer_requests", "follow_ups")
+    _COPYABLE_FIELDS = (
+        "email", "phone", "campus_preference", "first_visit_date",
+        "notes", "carrier", "status_reason", "status_note", "snowbird_return",
+    )
+
+    conn = sqlite3.connect(str(_CONG_DB))
+    conn.row_factory = sqlite3.Row
+    try:
+        conflict = conn.execute(
+            "SELECT * FROM member_conflicts WHERE id = ?", (conflict_id,)
+        ).fetchone()
+
+        if not conflict:
+            await query.edit_message_text("Conflict not found.", reply_markup=None)
+            return
+
+        old_id = conflict["existing_member_id"]
+        new_id = conflict["new_member_id"]
+        old_name = conflict["existing_name"] or "old record"
+        new_name = conflict["new_name"] or "new record"
+
+        if action == "skip":
+            conn.execute(
+                "UPDATE member_conflicts SET status='skipped' WHERE id=?", (conflict_id,)
+            )
+            conn.commit()
+            await query.edit_message_text("⏭ Skipped — flagged for manual review.", reply_markup=None)
+            return
+
+        if not old_id or not new_id:
+            await query.edit_message_text("❌ Conflict is missing member IDs — cannot merge.", reply_markup=None)
+            return
+
+        old_row = conn.execute("SELECT * FROM members WHERE id=?", (old_id,)).fetchone()
+        new_row = conn.execute("SELECT * FROM members WHERE id=?", (new_id,)).fetchone()
+
+        if not old_row or not new_row:
+            await query.edit_message_text("❌ One or both member records not found.", reply_markup=None)
+            return
+
+        if action == "merge_old":
+            # Old record is canonical — copy non-null new fields into old where old is missing
+            updates = {}
+            for field in _COPYABLE_FIELDS:
+                new_val = new_row[field] if field in new_row.keys() else None
+                old_val = old_row[field] if field in old_row.keys() else None
+                if new_val and not old_val:
+                    updates[field] = new_val
+            if updates:
+                set_clause = ", ".join(f"{f}=?" for f in updates)
+                conn.execute(
+                    f"UPDATE members SET {set_clause} WHERE id=?",
+                    list(updates.values()) + [old_id],
+                )
+            for table in _RELATED_TABLES:
+                try:
+                    conn.execute(
+                        f"UPDATE {table} SET member_id=? WHERE member_id=?", (old_id, new_id)
+                    )
+                except Exception:
+                    pass
+            conn.execute("DELETE FROM members WHERE id=?", (new_id,))
+            conn.execute(
+                "UPDATE member_conflicts SET status='resolved', resolved_at=? WHERE id=?",
+                (now, conflict_id),
+            )
+            conn.commit()
+            await query.edit_message_text(
+                f"✅ Merged — kept {old_name}, folded in new data.", reply_markup=None
+            )
+
+        elif action == "merge_new":
+            # New record is canonical — copy non-null old fields into new where new is missing
+            updates = {}
+            for field in _COPYABLE_FIELDS:
+                old_val = old_row[field] if field in old_row.keys() else None
+                new_val = new_row[field] if field in new_row.keys() else None
+                if old_val and not new_val:
+                    updates[field] = old_val
+            if updates:
+                set_clause = ", ".join(f"{f}=?" for f in updates)
+                conn.execute(
+                    f"UPDATE members SET {set_clause} WHERE id=?",
+                    list(updates.values()) + [new_id],
+                )
+            for table in _RELATED_TABLES:
+                try:
+                    conn.execute(
+                        f"UPDATE {table} SET member_id=? WHERE member_id=?", (new_id, old_id)
+                    )
+                except Exception:
+                    pass
+            conn.execute("DELETE FROM members WHERE id=?", (old_id,))
+            conn.execute(
+                "UPDATE member_conflicts SET status='resolved', resolved_at=? WHERE id=?",
+                (now, conflict_id),
+            )
+            conn.commit()
+            await query.edit_message_text(
+                f"✅ Merged — kept {new_name}, folded in old data.", reply_markup=None
+            )
+
+    except Exception as exc:
+        log.error("merge_conflict callback failed (id=%d action=%s): %s", conflict_id, action, exc)
+        await query.edit_message_text(f"❌ Error: {exc}", reply_markup=None)
+    finally:
+        conn.close()
+
+
 async def handle_member_conflict_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle mc_same / mc_diff / mc_update_email / mc_keep_sep / mc_skip button taps."""
     query = update.callback_query
@@ -2892,6 +3022,7 @@ def main():
     app.add_handler(CommandHandler("saved",       handle_saved))
     app.add_handler(CommandHandler("ask",         handle_ask))
     app.add_handler(CallbackQueryHandler(handle_devloop_callback,         pattern=r"^devloop_"))
+    app.add_handler(CallbackQueryHandler(handle_merge_conflict_callback,  pattern=r"^(merge_old_|merge_new_|skip_)\d+$"))
     app.add_handler(CallbackQueryHandler(handle_member_conflict_callback, pattern=r"^mc_"))
     app.add_handler(CallbackQueryHandler(handle_command_callback, pattern=r"^cmd_"))
     app.add_handler(CallbackQueryHandler(handle_vault_callback,   pattern=r"^vault_"))

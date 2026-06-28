@@ -1,40 +1,35 @@
+import os
 import requests
-from datetime import datetime, timedelta
-from bs4 import BeautifulSoup
-from telegram import Bot
+from datetime import datetime
+import time
 
-# Replace with your actual API keys and chat ID
-WEATHER_API_KEY = 'your_weather_api_key'
-TELEGRAM_API_TOKEN = 'your_telegram_bot_token'
-CHAT_ID = 'your_chat_id'
+TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
+OPENWEATHER_API_KEY = os.getenv('OPENWEATHER_API_KEY')
+WEATHER_CITY = os.getenv('WEATHER_CITY', 'Wilmington,US')
 
-def get_weather_data():
-    url = f'http://api.openweathermap.org/data/2.5/weather?q=YourHomeAddress&appid={WEATHER_API_KEY}&units=metric'
+def get_weather(city, api_key):
+    url = f"http://api.openweathermap.org/data/2.5/weather?q={city}&appid={api_key}&units=metric&timeout=10"
     response = requests.get(url)
-    if response.status_code == 200:
-        data = response.json()
-        main = data['main']
-        weather = data['weather'][0]
-        return {
-            'temperature': round(main['temp']),
-            'feels_like': round(main['feels_like']),
-            'description': weather['description'].capitalize()
-        }
-    else:
-        raise Exception('Failed to fetch weather data')
+    response.raise_for_status()
+    return response.json()
 
-def send_telegram_message(message):
-    bot = Bot(token=TELEGRAM_API_TOKEN)
-    bot.send_message(chat_id=CHAT_ID, text=message, parse_mode='Markdown')
+def send_telegram_message(chat_id, message):
+    url = "https://api.telegram.org/botYOUR_TELEGRAM_BOT_TOKEN/sendMessage"
+    payload = {'chat_id': chat_id, 'text': message}
+    response = requests.post(url, json=payload)
+    response.raise_for_status()
 
 def main():
-    now = datetime.now()
-    if now.hour == 6 and now.minute == 30:
-        weather_data = get_weather_data()
-        message = f"🌡️ Temperature: {weather_data['temperature']}°C\n"
-        message += f"Feels Like: {weather_data['feels_like']}°C\n"
-        message += f"Weather: {weather_data['description']}"
-        send_telegram_message(message)
+    while True:
+        now = datetime.now()
+        if now.hour == 6 and now.minute == 30:
+            weather_data = get_weather(WEATHER_CITY, OPENWEATHER_API_KEY)
+            temp = int(weather_data['main']['temp'])
+            feels_like = int(weather_data['main']['feels_like'])
+            humidity = int(weather_data['main']['humidity'])
+            message = f"Weather in {WEATHER_CITY}: Temp: {temp}°C, Feels Like: {feels_like}°C, Humidity: {humidity}%"
+            send_telegram_message(TELEGRAM_CHAT_ID, message)
+        time.sleep(60)
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

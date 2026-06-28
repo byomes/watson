@@ -72,32 +72,18 @@ def run() -> None:
     for row in rows:
         cid = row["id"]
 
-        if row["conflict_type"] == "shared_email":
-            text = (
-                f"⚠️ Shared Email Conflict\n"
-                f"Email: {row['new_email']}\n\n"
-                f"Existing member: {row['existing_name']}\n"
-                f"New card name: {row['new_name']}\n\n"
-                f"Are these the same person or different people?"
-            )
-            keyboard = [[
-                {"text": "Same Person ✓",      "callback_data": f"mc_same:{cid}"},
-                {"text": "Different People ✓", "callback_data": f"mc_diff:{cid}"},
-                {"text": "Skip",               "callback_data": f"mc_skip:{cid}"},
-            ]]
-        else:  # same_name_diff_email
-            text = (
-                f"⚠️ Name Match, Different Email\n"
-                f"Name: {row['existing_name']}\n\n"
-                f"Existing email: {row['existing_email']}\n"
-                f"New card email: {row['new_email']}\n\n"
-                f"Should the email be updated?"
-            )
-            keyboard = [[
-                {"text": "Update Email ✓",          "callback_data": f"mc_update_email:{cid}"},
-                {"text": "Keep Both as Separate ✓", "callback_data": f"mc_keep_sep:{cid}"},
-                {"text": "Skip",                    "callback_data": f"mc_skip:{cid}"},
-            ]]
+        conflict_label = "Shared Email" if row["conflict_type"] == "shared_email" else "Name Match, Different Email"
+        text = (
+            f"⚠️ Member Conflict — {conflict_label}\n\n"
+            f"OLD: {row['existing_name']} | {row['existing_email'] or 'no email'}\n"
+            f"NEW: {row['new_name']} | {row['new_email'] or 'no email'}\n\n"
+            f"Which record should be canonical?"
+        )
+        keyboard = [[
+            {"text": "Keep Old ✓",  "callback_data": f"merge_old_{cid}"},
+            {"text": "Keep New ✓",  "callback_data": f"merge_new_{cid}"},
+            {"text": "Skip",        "callback_data": f"skip_{cid}"},
+        ]]
 
         try:
             _send(text, keyboard)

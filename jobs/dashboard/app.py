@@ -466,6 +466,7 @@ _TERM_COMMANDS = {
     "count connect cards": ("sqlite", "connect_cards"),
     "watson audit skills": ("skill", "jobs.dev.skill_tester"),
     "watson fix all failing skills": ("fix_skills", None),
+    "conflict_check": ("skill", "jobs.connect_cards.conflict_report"),
 }
 
 

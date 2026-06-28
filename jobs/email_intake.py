@@ -795,6 +795,11 @@ def run():
         addr = _extract_address(sender_raw)
         name = _extract_name(sender_raw)
 
+        if "snappages.com" in addr:
+            log.info("Skipping connect card email from %s", sender_raw)
+            mark_as_read(msg_id)
+            continue
+
         # Bill's own email — directive path (unchanged behavior)
         if addr in WHITELIST:
             _handle_bill_email(sender_raw, subject, body, received_at, msg_id)
