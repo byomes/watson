@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-06-27*
+*Generated: 2026-06-28*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -91,6 +91,12 @@ deploy/
   people-server.service
   start_people_server.sh
   watson-dashboard.service
+dev/
+  csv-json-final/
+    main.py
+    spec.md
+  weather/
+    main.py
 docs/
   .gitkeep
   briefing.html
@@ -198,7 +204,9 @@ jobs/
     update_arch.py
   dev_loop/
     __init__.py
+    cleanup.py
     deliver.py
+    loop.py
     trigger.py
   documents/
     __init__.py
@@ -261,6 +269,7 @@ jobs/
   memory/
     __init__.py
     new_project.py
+    prompt_builder.py
     propose.py
     reflect.py
     sync.py
@@ -433,9 +442,12 @@ memory/
     python.md
     sqlite.md
     telegram.md
+  commands.json
   core.md
   projects/
     _index.md
+    congregation.md
+    dev_loop.md
     godfidence/
       files/
         Godfidence.pdf.pdf
@@ -447,8 +459,10 @@ memory/
         2026-06-06.md
     testing_project/
       testing_project.md
+    twj.md
     watson/
       watson.md
+    writing_room.md
   relational.md
   skills.json
   skip_keywords.txt
