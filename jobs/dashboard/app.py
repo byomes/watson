@@ -485,6 +485,96 @@ def terminal():
         if blocked in cmd_lower:
             return jsonify({"output": f"Blocked: '{blocked}' is not allowed.", "success": False})
 
+    # Directive prefix routing — early-return before _TERM_COMMANDS lookup
+    def _pfx_out(text):
+        return jsonify({"output": (text or "(no output)").strip(), "success": True})
+
+    if cmd_lower.startswith("cdb:"):
+        try:
+            from jobs.skills.cdb_query import run as _cdb_run
+            return _pfx_out(_cdb_run(cmd[4:].strip()) or "No results.")
+        except Exception as _exc:
+            return jsonify({"output": f"cdb error: {_exc}", "success": False})
+
+    if cmd_lower.startswith("wdb:"):
+        try:
+            from jobs.skills.wdb_query import run as _wdb_run
+            return _pfx_out(_wdb_run(cmd[4:].strip()) or "No results.")
+        except Exception as _exc:
+            return jsonify({"output": f"wdb error: {_exc}", "success": False})
+
+    if cmd_lower.startswith("web:"):
+        try:
+            from jobs.research.web_search import run as _web_run
+            return _pfx_out(_web_run(cmd[4:].strip()) or "No results.")
+        except Exception as _exc:
+            return jsonify({"output": f"web error: {_exc}", "success": False})
+
+    if cmd_lower.startswith("bible:"):
+        try:
+            from jobs.bible import run as _bible_run
+            return _pfx_out(_bible_run(cmd[6:].strip()) or "No results.")
+        except Exception as _exc:
+            return jsonify({"output": f"bible error: {_exc}", "success": False})
+
+    if cmd_lower.startswith("polish this:"):
+        try:
+            from jobs.skills.polish import polish_text as _polish_text
+            return _pfx_out(_polish_text(cmd[12:].strip()) or "No results.")
+        except Exception as _exc:
+            return jsonify({"output": f"polish error: {_exc}", "success": False})
+
+    if cmd_lower.startswith("polish:"):
+        try:
+            from jobs.skills.polish import run as _polish_run
+            return _pfx_out(_polish_run(cmd[7:].strip()) or "No results.")
+        except Exception as _exc:
+            return jsonify({"output": f"polish error: {_exc}", "success": False})
+
+    if cmd_lower.startswith("search the kb:") or cmd_lower.startswith("kb:"):
+        try:
+            from jobs.skills.kb_search import search_kb as _search_kb, format_result as _fmt_kb
+            _kq = cmd[14:].strip() if cmd_lower.startswith("search the kb:") else cmd[3:].strip()
+            return _pfx_out(_fmt_kb(_search_kb(_kq)))
+        except Exception as _exc:
+            return jsonify({"output": f"KB error: {_exc}", "success": False})
+
+    if cmd_lower.startswith("build:"):
+        import threading as _th
+        import re as _re_build
+        try:
+            from jobs.dev_loop.trigger import trigger_dev_loop as _trigger_dev_loop
+            _desc = cmd[6:].strip()
+            _slug = _re_build.sub(r"[^a-z0-9]+", "-", _desc.lower())[:32].strip("-")
+            _th.Thread(
+                target=_trigger_dev_loop,
+                kwargs={"slug": _slug, "title": _desc[:60], "input_type": "description", "input_text": _desc},
+                daemon=True,
+            ).start()
+            return _pfx_out("Build triggered — follow progress on the Dev Loop tab or via Telegram.")
+        except Exception as _exc:
+            return jsonify({"output": f"build error: {_exc}", "success": False})
+
+    if cmd_lower.startswith("debug:"):
+        try:
+            from jobs.dev.claude_debug import run as _debug_run
+            return _pfx_out(str(_debug_run(cmd)))
+        except Exception as _exc:
+            return jsonify({"output": f"debug error: {_exc}", "success": False})
+
+    if cmd_lower.startswith("run:"):
+        try:
+            from jobs.skillbuilder import router as _router
+            _run_parts = cmd[4:].strip().split(None, 1)
+            _slug = _run_parts[0] if _run_parts else ""
+            _skill_msg = _run_parts[1] if len(_run_parts) > 1 else ""
+            _skills = _router._load_skills("dashboard")
+            _skill = next((s for s in _skills if s["slug"] == _slug), None)
+            _out = str(_router._run_skill(_skill, message=_skill_msg)) if _skill else f"Skill not found: {_slug}"
+            return _pfx_out(_out)
+        except Exception as _exc:
+            return jsonify({"output": f"run error: {_exc}", "success": False})
+
     output = ""
     success = True
     entry = _TERM_COMMANDS.get(cmd_lower)
@@ -1685,18 +1775,20 @@ def chat_stream():
             _reply = f"Reminder set for {_rt}: {_title}" if _rt else f"Reminder saved: {_title}"
             return _sse_response(_stream_simple(_reply))
 
-    # build: dispatch — route to Gemini coder
+    # build: dispatch — route to Dev Loop
     if msg_lower.startswith('build:'):
         description = message[6:].strip()
         import threading
-        from jobs.dev.gemini_coder import request_build
-
-        def _run_build():
-            request_build(description)
-
-        threading.Thread(target=_run_build, daemon=True).start()
+        import re as _re_build2
+        from jobs.dev_loop.trigger import trigger_dev_loop as _trigger_dev_loop2
+        _slug2 = _re_build2.sub(r"[^a-z0-9]+", "-", description.lower())[:32].strip("-")
+        threading.Thread(
+            target=_trigger_dev_loop2,
+            kwargs={"slug": _slug2, "title": description[:60], "input_type": "description", "input_text": description},
+            daemon=True,
+        ).start()
         return _sse_response(_stream_simple(
-            "Sending to Gemini... I'll notify you via Telegram when the build is ready."
+            "Build triggered — follow progress on the Dev Loop tab or via Telegram."
         ))
 
     if msg_lower.startswith('debug:'):
@@ -2435,11 +2527,18 @@ def siri():
                     )
                 return _reply(f"Reminder set for {_rt}: {_title}" if _rt else f"Reminder saved: {_title}")
 
-        # build: dispatch
+        # build: dispatch — route to Dev Loop
         if msg_lower.startswith('build:'):
-            from jobs.dev.gemini_coder import request_build
-            _siri_threading.Thread(target=request_build, args=(msg[6:].strip(),), daemon=True).start()
-            return _reply("Sending to Gemini... I'll notify you via Telegram when the build is ready.")
+            import re as _re_build3
+            from jobs.dev_loop.trigger import trigger_dev_loop as _trigger_dev_loop3
+            _desc3 = msg[6:].strip()
+            _slug3 = _re_build3.sub(r"[^a-z0-9]+", "-", _desc3.lower())[:32].strip("-")
+            _siri_threading.Thread(
+                target=_trigger_dev_loop3,
+                kwargs={"slug": _slug3, "title": _desc3[:60], "input_type": "description", "input_text": _desc3},
+                daemon=True,
+            ).start()
+            return _reply("Build triggered — follow progress on the Dev Loop tab or via Telegram.")
 
         if msg_lower.startswith('debug:'):
             from jobs.dev.claude_debug import run
