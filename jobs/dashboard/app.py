@@ -1625,23 +1625,7 @@ def chat_stream():
         if msg_lower in _DASH_CONF_AFFIRM:
             mark_pending_status(_dash_conf["id"], "confirmed")
             _action = _stored.get("action_type")
-            if _action == "skill":
-                _conf_slug  = _stored.get("slug", "")
-                _prefetched = _stored.get("prefetched_result")
-                if _prefetched:
-                    return _sse_response(_stream_simple("✓ " + _prefetched))
-                _conf_msg = _stored.get("original_message", message)
-                _skills = _router._load_skills("dashboard")
-                _skill  = next((s for s in _skills if s["slug"] == _conf_slug), None)
-                if _skill:
-                    try:
-                        _res = _router._run_skill(_skill, message=_conf_msg)
-                        return _sse_response(_stream_simple("✓ " + str(_res)))
-                    except Exception as _exc:
-                        return _sse_response(_stream_simple(f"Skill error: {_exc}"))
-                else:
-                    return _sse_response(_stream_simple(f"Skill '{_conf_slug}' not available."))
-            elif _action == "sms_me":
+            if _action == "sms_me":
                 from jobs.sms.sms_send import send_sms as _send_sms_direct_conf
                 _op = os.getenv("WATSON_OWNER_PHONE")
                 _oc = os.getenv("WATSON_OWNER_CARRIER", "verizon")
@@ -2195,19 +2179,8 @@ def chat_stream():
                     yield f"data: [CONFIRM_EMAIL]{cj}\n\n"
                     yield "data: [DONE]\n\n"
                 return _sse_response(_email_gen())
-            # All other skills — confirmation gate before returning result
-            _desc = _dash_skill_description(_slug, message)
-            from jobs.telegram.pending import store_skill_confirmation as _store_skill_dash
-            _store_skill_dash(_slug, {
-                "source": "dashboard",
-                "action_type": "skill",
-                "slug": _slug,
-                "original_message": message,
-                "prefetched_result": str(_result),
-            })
-            return _sse_response(_stream_simple(
-                f"Just to confirm — you want me to {_desc}. Reply yes to proceed or no to cancel."
-            ))
+            # Execute immediately — no confirmation gate for skills
+            return _sse_response(_stream_simple("✓ " + str(_result)))
 
     if route_result["action"] == "build":
         import threading
