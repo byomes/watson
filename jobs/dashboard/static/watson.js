@@ -1403,17 +1403,21 @@ function moreRenderSkills(cmds) {
     </button>`).join('');
 }
 
-function launchCommand(command) {
-  const ta = document.getElementById('chat-textarea');
-  if (ta) {
-    ta.value = command;
-    ta.dispatchEvent(new Event('input'));
-  }
+async function launchCommand(command) {
   switchTab('chat');
-  setTimeout(() => {
-    const ta2 = document.getElementById('chat-textarea');
-    if (ta2) ta2.focus();
-  }, 50);
+  appendChatMsg('user', command);
+  const bubble = appendChatMsg('watson', '…');
+  try {
+    const res = await fetch('/api/terminal', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ command }),
+    });
+    const data = await res.json();
+    if (bubble) bubble.textContent = data.output || '(no output)';
+  } catch (err) {
+    if (bubble) bubble.textContent = `Error: ${err.message}`;
+  }
 }
 
 // ── Events ───────────────────────────────────────────────────────────────────
