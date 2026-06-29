@@ -207,15 +207,17 @@ def sync_attendance(service_date: str | None = None) -> None:
     d = service_date or most_recent_sunday()
     cutoff = _previous_monday_5am(d)
 
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(CONG_DB_PATH)
     conn.row_factory = sqlite3.Row
     try:
         new_cards = conn.execute(
             """
-            SELECT name, email, phone, campus, service_date
-            FROM connect_cards
-            WHERE service_date = ?
-              AND created_at > ?
+            SELECT cc.id, cc.service_date, cc.campus,
+                   m.name AS name, m.email, m.phone
+            FROM connect_cards cc
+            JOIN members m ON m.id = cc.member_id
+            WHERE cc.service_date = ?
+              AND cc.processed_at > ?
             """,
             (d, cutoff),
         ).fetchall()
@@ -233,12 +235,12 @@ def sync_attendance(service_date: str | None = None) -> None:
             cong = None
             if email:
                 cong = conn.execute(
-                    "SELECT id, email, phone FROM congregation WHERE email = ?",
+                    "SELECT id, email, phone FROM members WHERE email = ?",
                     (email,),
                 ).fetchone()
             if cong is None and name:
                 cong = conn.execute(
-                    "SELECT id, email, phone FROM congregation WHERE name = ? COLLATE NOCASE",
+                    "SELECT id, email, phone FROM members WHERE name = ? COLLATE NOCASE",
                     (name,),
                 ).fetchone()
 
@@ -247,7 +249,7 @@ def sync_attendance(service_date: str | None = None) -> None:
 
             conn.execute(
                 """
-                UPDATE congregation
+                UPDATE members
                 SET last_seen = ?,
                     email = CASE WHEN TRIM(COALESCE(email, '')) = '' THEN ? ELSE email END,
                     phone = CASE WHEN TRIM(COALESCE(phone, '')) = '' THEN ? ELSE phone END,
