@@ -782,3 +782,17 @@ WATSON_API_URL=https://watson.tail0243ff.ts.net
 - 0ee0e81 refactor: move dev loop from FMSPC SSH to local Beelink execution
 - b546d84 docs: file map 2026-06-27
 - ad2428d docs: architecture update 2026-06-27
+
+---
+
+## Recent Changes — 2026-06-29
+
+### ~/watson
+- fea0062 feat: cdb_query — add 7 new pattern blocks, eliminate Ollama fallthrough for common queries
+- c87850f feat: wire all 10 directive prefixes to terminal endpoint; replace gemini_coder with Dev Loop trigger
+- fdfabf5 feat: Skills tab auto-fires self-contained commands, loads input-required commands into chat
+- acaa598 fix: Skills tab commands route to /api/terminal instead of chat
+- 727d0f1 fix: conflict_check fires async from dashboard — no timeout
+- 5f3b606 fix: Brenda Boling name correction + conflict merge direction buttons (Keep Old/Keep New/Skip)
+- 870f14e docs: file map 2026-06-28
+- 2efbb9e docs: architecture update 2026-06-28
