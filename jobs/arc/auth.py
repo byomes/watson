@@ -183,7 +183,7 @@ def arc_update_commitments(reader):
             evidence_text = (upd.get("evidence_text") or "").strip() or None
 
             # Commitments 4-6 require evidence_text to be checked
-            if commitment_number in {4, 5, 6} and is_checked and not evidence_text:
+            if commitment_number in {3, 4, 5} and is_checked and not evidence_text:
                 return jsonify({
                     "error": f"commitment {commitment_number} requires evidence_text"
                 }), 400
