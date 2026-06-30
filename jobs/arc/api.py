@@ -38,7 +38,7 @@ _COMMITMENT_TEXTS = [
     "Read the book before the launch date",
     "Post an honest review on Amazon on launch day",
     "Share about the book on at least one social media platform",
-    "Spread the word to anyone who might benefit from reading it",
+    "Tell people in your life who you think would connect with this book",
 ]
 _EVIDENCE_REQUIRED = {3, 4, 5}  # commitment_number values
 
