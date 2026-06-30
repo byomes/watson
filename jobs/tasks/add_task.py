@@ -133,8 +133,8 @@ def run(message: str = None) -> str:
 
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute(
-            """INSERT INTO team_tasks (member_id, title, due_date, status, source)
-               VALUES (12, ?, ?, 'open', 'personal')""",
+            """INSERT INTO team_tasks (member_id, title, due_date, status, source, category)
+               VALUES (12, ?, ?, 'open', 'personal', 'catalyst')""",
             (title, due_date),
         )
 

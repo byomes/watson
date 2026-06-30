@@ -289,6 +289,7 @@ function _homeTasksHtml(tasks) {
   return sorted.map(t => {
     const done = t.status === 'completed';
     const p = t.priority || '3';
+    const cat = t.category || 'catalyst';
     const dueStr = fmtTaskDue(t.due_date);
     return `
     <div class="task-card" id="home-task-${t.id}" style="align-items:center${done ? ';opacity:0.5' : ''}">
@@ -296,10 +297,18 @@ function _homeTasksHtml(tasks) {
         <div class="home-chk${done ? ' is-done' : ''}" id="home-chk-${t.id}"></div>
       </div>
       <div style="flex:1;min-width:0">
-        <div class="home-task-title${done ? ' struck' : ''}" id="home-task-title-${t.id}">${esc(t.title)}</div>
+        <div class="home-task-title${done ? ' struck' : ''}" id="home-task-title-${t.id}" onclick="${done ? '' : `editTaskTitle(${t.id})`}" style="${done ? '' : 'cursor:text'}">${esc(t.title)}</div>
         <div class="home-task-meta">
           <span class="pri ${priClass(p)}" style="margin-top:0">${esc(p)}</span>
           ${dueStr ? `<span style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted)">${esc(dueStr)}</span>` : ''}
+          <div class="cat-wrap">
+            <span class="cat-pill" onclick="toggleCatDrop(${t.id}, event)">${catLabel(cat)}</span>
+            <div class="cat-drop" id="cat-drop-${t.id}">
+              <div class="cat-opt${cat === 'catalyst' ? ' selected' : ''}" onclick="reassignCat(${t.id}, 'catalyst', event)">Catalyst</div>
+              <div class="cat-opt${cat === 'fms' ? ' selected' : ''}" onclick="reassignCat(${t.id}, 'fms', event)">FMS</div>
+              <div class="cat-opt${cat === 'personal' ? ' selected' : ''}" onclick="reassignCat(${t.id}, 'personal', event)">Personal</div>
+            </div>
+          </div>
         </div>
       </div>
     </div>`;
@@ -324,6 +333,10 @@ async function checkOffTask(taskId, wrapEl) {
       const numEl = document.getElementById('home-stat-tasks-num');
       if (numEl) numEl.textContent = Math.max(0, (parseInt(numEl.textContent, 10) || 0) - 1);
     }
+    setTimeout(() => {
+      const cardEl = document.getElementById(`home-task-${taskId}`);
+      if (cardEl) cardEl.remove();
+    }, 600000);
   } catch {
     if (chkEl) chkEl.classList.remove('is-done');
     if (titleEl) titleEl.classList.remove('struck');
@@ -417,6 +430,55 @@ function openTaskDatePicker(taskId) {
       inp.replaceWith(div);
     }
   });
+}
+
+async function editTaskTitle(taskId) {
+  const el = document.getElementById(`home-task-title-${taskId}`);
+  if (!el) return;
+  const origClass = el.className;
+  const origTitle = el.textContent;
+  const inp = document.createElement('input');
+  inp.type  = 'text';
+  inp.value = origTitle;
+  inp.style.cssText = 'font-size:14px;font-family:inherit;background:transparent;border:none;border-bottom:1px solid var(--border);outline:none;padding:0;width:100%;color:var(--text)';
+  el.replaceWith(inp);
+  inp.focus();
+  inp.select();
+  let committed = false;
+  function restore(title, error) {
+    const div = document.createElement('div');
+    div.className = origClass;
+    div.id = `home-task-title-${taskId}`;
+    div.textContent = title;
+    div.style.cursor = 'text';
+    div.onclick = () => editTaskTitle(taskId);
+    inp.replaceWith(div);
+    if (error) {
+      div.style.color = '#e74c3c';
+      setTimeout(() => { div.style.color = ''; }, 2000);
+    }
+  }
+  async function commit() {
+    if (committed) return;
+    committed = true;
+    const newTitle = inp.value.trim();
+    if (!newTitle || newTitle === origTitle) { restore(newTitle || origTitle); return; }
+    try {
+      await api(`/api/team/tasks/${taskId}/title`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: newTitle }),
+      });
+      restore(newTitle);
+    } catch {
+      restore(origTitle, true);
+    }
+  }
+  inp.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter')  { e.preventDefault(); commit(); }
+    if (e.key === 'Escape') { committed = true; restore(origTitle); }
+  });
+  inp.addEventListener('blur', () => commit());
 }
 
 function togglePendingExp(idx) {

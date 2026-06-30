@@ -4541,6 +4541,21 @@ def admin_task_due_date():
     return jsonify({"success": True})
 
 
+@app.route("/api/team/tasks/<int:task_id>/title", methods=["PATCH"])
+def api_task_title(task_id):
+    data  = request.get_json(force=True) or {}
+    title = (data.get("title") or "").strip()
+    if not title:
+        return jsonify({"error": "title is required"}), 400
+    db   = _db()
+    task = db.execute("SELECT member_id FROM team_tasks WHERE id=?", (task_id,)).fetchone()
+    if not task or task["member_id"] != 12:
+        return jsonify({"error": "not found"}), 404
+    db.execute("UPDATE team_tasks SET title=? WHERE id=?", (title, task_id))
+    db.commit()
+    return jsonify({"success": True})
+
+
 @app.route("/api/team/tasks/<int:task_id>", methods=["DELETE"])
 def admin_delete_task(task_id):
     redir = _admin_required()
