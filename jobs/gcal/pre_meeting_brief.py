@@ -174,11 +174,15 @@ def _get_pastoral_note(name: str) -> str | None:
 def _build_message(prefix: str, guest_name: str, start_dt: datetime,
                    location: str | None, meet_link: str | None,
                    pastoral: dict, pastoral_note: str | None,
-                   match_info: str) -> str:
+                   match_info: str, description: str | None = None) -> str:
     loc_line = meet_link or location or "TBD"
     lines = [
         f"📅 *{prefix}: {guest_name}* in 30 minutes",
         f"🕐 {start_dt.strftime('%-I:%M %p')} — {loc_line}",
+    ]
+    if description:
+        lines += ["", "*Meeting Context:*", description]
+    lines += [
         "",
         "*Pastoral Notes:*",
         f"• Last seen: {pastoral.get('last_seen') or 'not on record'}",
@@ -244,8 +248,9 @@ def run() -> None:
                 log.info("Already briefed %s (%s) — skipping.", event_id, summary)
                 continue
 
-            prefix     = "VA" if summary.startswith("VA: ") else "IP"
-            guest_name = summary[4:].strip()
+            prefix            = "VA" if summary.startswith("VA: ") else "IP"
+            guest_name        = summary[4:].strip()
+            event_description = (event.get("description") or "").strip() or None
 
             if any(blocked.lower() in summary.lower() for blocked in _BRIEF_BLOCKLIST):
                 log.info("Blocked event, skipping brief: %s", summary)
@@ -268,7 +273,8 @@ def run() -> None:
                 note       = _get_pastoral_note(guest_name)
 
             text = _build_message(prefix, guest_name, start_dt, location,
-                                  meet_link, pastoral, note, match_info)
+                                  meet_link, pastoral, note, match_info,
+                                  event_description)
             try:
                 _send_telegram(text, meet_link)
                 _mark_briefed(watson_conn, event_id)

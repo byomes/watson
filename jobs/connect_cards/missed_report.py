@@ -96,6 +96,7 @@ def run() -> None:
             SELECT m.id, m.name, m.campus_preference
             FROM members m
             WHERE m.active = 1
+              AND (m.member_status IS NULL OR m.member_status = 'active')
               AND NOT EXISTS (
                 SELECT 1 FROM attendance a
                 WHERE a.member_id = m.id
@@ -118,10 +119,15 @@ def run() -> None:
         for r in missed
         if (r["campus_preference"] or "").strip().lower() == "online"
     ]
+    hybrid = [
+        r["name"]
+        for r in missed
+        if (r["campus_preference"] or "").strip().lower() == "hybrid"
+    ]
 
     subject = f"Missed — {date_label}"
 
-    if not wilmington and not online:
+    if not wilmington and not online and not hybrid:
         body = f"All members accounted for on {date_label}. No missed report."
         _send_email(subject, body)
         _send_telegram(f"✅ Full attendance on {date_label} — no missed report needed.")
@@ -129,28 +135,43 @@ def run() -> None:
         return
 
     wilmington_section = "\n".join(wilmington) if wilmington else "(none)"
-    online_section     = "\n".join(online)     if online     else "(none)"
 
-    body = (
-        f"Watson — Missed Attendance Report\n"
-        f"Sunday, {date_label}\n"
-        f"\n"
-        f"WILMINGTON CAMPUS\n"
-        f"{wilmington_section}\n"
-        f"\n"
-        f"ONLINE CAMPUS\n"
-        f"{online_section}\n"
-        f"\n"
-        f"---\n"
-        f"Reply to this email with the names of anyone who was actually present "
-        f"and Watson will update the records.\n"
-        f"Watson / AI-powered digital assistant / Office of Dr. Bill Yomes"
-    )
+    body_parts = [
+        "Watson — Missed Attendance Report",
+        f"Sunday, {date_label}",
+        "",
+        "WILMINGTON CAMPUS",
+        wilmington_section,
+    ]
+
+    if online:
+        body_parts += [
+            "",
+            "ONLINE CAMPUS",
+            "\n".join(online),
+        ]
+
+    if hybrid:
+        body_parts += [
+            "",
+            "HYBRID CAMPUS",
+            "\n".join(hybrid),
+        ]
+
+    body_parts += [
+        "",
+        "---",
+        "Reply to this email with the names of anyone who was actually present "
+        "and Watson will update the records.",
+        "Watson / AI-powered digital assistant / Office of Dr. Bill Yomes",
+    ]
+
+    body = "\n".join(body_parts)
 
     _send_email(subject, body)
     _send_telegram(
         f"📊 Missed report sent for {date_label} — "
-        f"{len(wilmington)} Wilmington, {len(online)} Online"
+        f"{len(wilmington)} Wilmington, {len(online)} Online, {len(hybrid)} Hybrid"
     )
 
 
