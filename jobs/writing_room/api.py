@@ -42,6 +42,7 @@ def _require_key(f):
 
 @writing_room_bp.route("/api/writing-room/login", methods=["POST"])
 def login():
+    import threading as _threading
     data     = request.get_json(force=True)
     username = (data.get("username") or "").strip()
     password = data.get("password") or ""
@@ -64,13 +65,83 @@ def login():
 
     conn = get_db()
     try:
+        # Try by username first, then by email (for ARC-promoted partners)
         row = conn.execute(
-            "SELECT id, name, username, password_hash, status FROM writing_room_partners "
-            "WHERE username = ?",
-            (username,),
+            "SELECT id, name, username, password_hash, status, first_login_at "
+            "FROM writing_room_partners WHERE username = ? OR email = ? LIMIT 1",
+            (username, username),
         ).fetchone()
+
         if not row:
-            return jsonify({"error": "invalid credentials"}), 401
+            # ARC fallback: check arc_readers where approved_for_writing_room = 1
+            arc_row = conn.execute(
+                "SELECT id, first_name, last_name, email, password_hash "
+                "FROM arc_readers WHERE email = ? AND approved_for_writing_room = 1",
+                (username,),
+            ).fetchone()
+            if not arc_row:
+                # Check if email is in arc_readers but NOT approved — give clear message
+                pending = conn.execute(
+                    "SELECT id FROM arc_readers WHERE email = ? AND approved_for_writing_room = 0",
+                    (username,),
+                ).fetchone()
+                if pending:
+                    return jsonify({
+                        "error": "You're not yet approved to access the Writing Room. "
+                                 "Check your email for next steps."
+                    }), 403
+                return jsonify({"error": "invalid credentials"}), 401
+
+            if not arc_row["password_hash"]:
+                return jsonify({"error": "invalid credentials"}), 401
+            if not bcrypt.checkpw(password.encode(), arc_row["password_hash"].encode()):
+                return jsonify({"error": "invalid credentials"}), 401
+
+            # Create writing_room_partners row on the fly
+            name      = f"{arc_row['first_name']} {arc_row['last_name']}"
+            email     = arc_row["email"]
+            from datetime import datetime as _dt
+            joined_at = _dt.utcnow().isoformat()
+            try:
+                conn.execute(
+                    "INSERT OR IGNORE INTO writing_room_partners "
+                    "(name, email, username, password_hash, status, joined_at, "
+                    "agreed_to_participate, first_login_at) "
+                    "VALUES (?, ?, ?, ?, 'active', ?, 1, ?)",
+                    (name, email, email, arc_row["password_hash"], joined_at, joined_at),
+                )
+                conn.commit()
+            except Exception as exc:
+                log.warning("On-the-fly writing_room_partners insert failed: %s", exc)
+
+            new_row = conn.execute(
+                "SELECT id, name, username FROM writing_room_partners WHERE email = ?",
+                (email,),
+            ).fetchone()
+            conn.execute(
+                "UPDATE writing_room_partners SET last_active = datetime('now') WHERE id = ?",
+                (new_row["id"],),
+            )
+            conn.commit()
+
+            def _welcome(e, fn):
+                try:
+                    from jobs.writing_room.send_arc_welcome_email import send_arc_welcome_email
+                    send_arc_welcome_email(e, fn)
+                except Exception as exc:
+                    log.error("ARC welcome email failed for %s: %s", e, exc)
+
+            _threading.Thread(
+                target=_welcome, args=(email, arc_row["first_name"]), daemon=True
+            ).start()
+
+            return jsonify({
+                "partnerId": new_row["id"],
+                "name": new_row["name"],
+                "username": new_row["username"],
+            }), 200
+
+        # Normal partner path
         if row["status"] == "approved":
             return jsonify({"error": "pending_verification"}), 403
         if row["status"] != "active":
@@ -79,11 +150,17 @@ def login():
             return jsonify({"error": "invalid credentials"}), 401
         if not bcrypt.checkpw(password.encode(), row["password_hash"].encode()):
             return jsonify({"error": "invalid credentials"}), 401
+
+        first_login = not row["first_login_at"]
         conn.execute(
-            "UPDATE writing_room_partners SET last_active = datetime('now') WHERE id = ?",
+            "UPDATE writing_room_partners "
+            "SET last_active = datetime('now')"
+            + (", first_login_at = datetime('now')" if first_login else "")
+            + " WHERE id = ?",
             (row["id"],),
         )
         conn.commit()
+
         return jsonify({"partnerId": row["id"], "name": row["name"], "username": row["username"]}), 200
     finally:
         conn.close()

@@ -3,3 +3,4 @@
 */15 * * * * set -a && . /home/billyomes/watson/.env && set +a && PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python /home/billyomes/watson/jobs/email_reply/reader.py >> /home/billyomes/watson/logs/email_reply.log 2>&1
 */5 * * * * set -a && . /home/billyomes/watson/.env && set +a && PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python /home/billyomes/watson/jobs/writing_room/monitor.py >> /home/billyomes/watson/logs/writing_room.log 2>&1
 */15 * * * * set -a && . /home/billyomes/watson/.env && set +a && PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python /home/billyomes/watson/jobs/writing_room/remind.py >> /home/billyomes/watson/logs/writing_room.log 2>&1
+*/5 * * * * set -a && . /home/billyomes/watson/.env && set +a && PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python -m jobs.arc.commitment_validator >> /home/billyomes/watson/logs/arc_validator.log 2>&1

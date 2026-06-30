@@ -303,6 +303,9 @@ app.register_blueprint(writing_room_bp)
 from jobs.arc.api import arc_bp
 app.register_blueprint(arc_bp)
 
+from jobs.arc.auth import arc_auth_bp
+app.register_blueprint(arc_auth_bp)
+
 from jobs.team.api import team_bp
 app.register_blueprint(team_bp)
 
