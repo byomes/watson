@@ -94,6 +94,17 @@ def _ensure_table() -> None:
                 expires_at    TEXT NOT NULL
             )
         """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS arc_reader_feedback (
+                id             INTEGER PRIMARY KEY AUTOINCREMENT,
+                arc_reader_id  INTEGER NOT NULL REFERENCES arc_readers(id),
+                target_type    TEXT NOT NULL,
+                target_slug    TEXT NOT NULL,
+                reaction       TEXT,
+                comment        TEXT,
+                created_at     TEXT NOT NULL DEFAULT (datetime('now'))
+            )
+        """)
         conn.commit()
 
         # Idempotent column additions for existing rows

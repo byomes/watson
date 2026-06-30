@@ -199,3 +199,30 @@ def arc_update_commitments(reader):
         conn.close()
 
     return jsonify({"ok": True}), 200
+
+
+# ── POST /api/arc/feedback ────────────────────────────────────────────────────
+
+@arc_auth_bp.route("/api/arc/feedback", methods=["POST"])
+@_require_key
+@_require_session
+def arc_feedback(reader):
+    data        = request.get_json(force=True)
+    target_type = (data.get("target_type") or "").strip()
+    target_slug = (data.get("target_slug") or "").strip()
+    if not (target_type and target_slug):
+        return jsonify({"error": "target_type and target_slug are required"}), 400
+    reaction = (data.get("reaction") or "").strip() or None
+    comment  = (data.get("comment") or "").strip() or None
+    conn = get_db()
+    try:
+        conn.execute(
+            "INSERT INTO arc_reader_feedback "
+            "(arc_reader_id, target_type, target_slug, reaction, comment) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (reader["id"], target_type, target_slug, reaction, comment),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return jsonify({"ok": True}), 200
