@@ -563,3 +563,21 @@ WATSON_API_URL=https://watson.tail0243ff.ts.net
 - fix: missed_report.py — three campus sections (Wilmington/Online/Hybrid), each suppressed if empty
 - feat: dashboard member management — campus dropdown added to member expand panel
 - fix: app.py PATCH /api/members — campus_preference added to allowed fields
+
+---
+
+## Recent Changes — 2026-06-30
+
+### ~/watson
+- 6c4f10d Add Christmas sermon notes for book project
+- 871fbae Add FBC conference transcripts nights 1-4
+- 06a96b2 transcript: add 2026-06-29-FBC-Night4-JesusTheOnlyWay
+- 0ace47d transcript: add 2026-06-29-FBC-Night3-JesusAndMiracles
+- 0deaf10 transcript: add 2026-06-29-FBC-Night2-JesusGodIncarnate
+- c0c0c64 transcript: add 2026-06-29-FBC-Night1-ThePromisedMessiah
+- 474629c feat: add /api/kit/subscribe route
+- 9200976 transcript: add 2026-06-29-Joshua-Ch4-Legacy-Before-Victory
+- b22778e fix: sync_attendance — join members table, retire --sync cron
+- 8d1d53c docs: architecture and build list updated June 29, 2026
+- 5b2a72f docs: file map 2026-06-29
+- 9a142ed docs: architecture update 2026-06-29
