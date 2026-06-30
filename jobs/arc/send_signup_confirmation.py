@@ -7,9 +7,18 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
 
+from dotenv import load_dotenv
+
+load_dotenv(os.path.expanduser("~/watson/.env"))
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 log = logging.getLogger(__name__)
+
+SMTP_HOST = "smtp.gmail.com"
+SMTP_PORT = 587
+SMTP_USER = os.getenv("WATSON_GMAIL_ADDRESS", "")
+SMTP_PASS = os.getenv("WATSON_GMAIL_APP_PASSWORD", "")
 
 _FROM      = "FMS Team <watson@faithmakessense.com>"
 _SUBJECT   = "Your ARC Team Login — Track Your Commitments"
@@ -41,10 +50,10 @@ def send_signup_confirmation(to_email: str, first_name: str, temp_password: str)
     html = plain.replace("\n", "<br>")
     html = f"<html><body style='font-family:Georgia,serif;font-size:16px;line-height:1.7;color:#1a1a1a;max-width:600px;margin:0 auto;padding:40px;'>{html}</body></html>"
 
-    host     = os.getenv("WATSON_SMTP_HOST", "smtp.gmail.com")
-    port     = int(os.getenv("WATSON_SMTP_PORT", "587"))
-    user     = os.getenv("WATSON_SMTP_USER", "")
-    password = os.getenv("WATSON_SMTP_PASS", "")
+    host     = SMTP_HOST
+    port     = SMTP_PORT
+    user     = SMTP_USER
+    password = SMTP_PASS
 
     msg = MIMEMultipart("alternative")
     msg["To"]      = to_email

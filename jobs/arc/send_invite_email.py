@@ -7,9 +7,18 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
 
+from dotenv import load_dotenv
+
+load_dotenv(os.path.expanduser("~/watson/.env"))
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 log = logging.getLogger(__name__)
+
+SMTP_HOST = "smtp.gmail.com"
+SMTP_PORT = 587
+SMTP_USER = os.getenv("WATSON_GMAIL_ADDRESS", "")
+SMTP_PASS = os.getenv("WATSON_GMAIL_APP_PASSWORD", "")
 
 _TEMPLATE = Path(__file__).parent / "templates" / "arc_invite_email.html"
 _LOGIN_URL = "https://williamckyomes.com/room"
@@ -37,10 +46,10 @@ def send_arc_invite_email(to_email: str, first_name: str) -> None:
         "Watson · AI-powered digital assistant · Office of Dr. Bill Yomes"
     )
 
-    host     = os.getenv("WATSON_SMTP_HOST", "smtp.gmail.com")
-    port     = int(os.getenv("WATSON_SMTP_PORT", "587"))
-    user     = os.getenv("WATSON_SMTP_USER", "")
-    password = os.getenv("WATSON_SMTP_PASS", "")
+    host     = SMTP_HOST
+    port     = SMTP_PORT
+    user     = SMTP_USER
+    password = SMTP_PASS
 
     msg = MIMEMultipart("alternative")
     msg["To"]      = to_email
