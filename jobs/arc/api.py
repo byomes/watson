@@ -35,13 +35,12 @@ _ARC_TAG_ID = 19285341  # Kit tag applied to every ARC signup
 
 _COMMITMENT_TEXTS = [
     "Pray for the book's impact",
-    "Receive an advance copy of The Wrong Jesus before it's published",
     "Read the book before the launch date",
     "Post an honest review on Amazon on launch day",
     "Share about the book on at least one social media platform",
     "Spread the word to anyone who might benefit from reading it",
 ]
-_EVIDENCE_REQUIRED = {4, 5, 6}  # commitment_number values
+_EVIDENCE_REQUIRED = {3, 4, 5}  # commitment_number values
 
 
 def _require_key(f):
@@ -143,16 +142,12 @@ def _kit_tag_subscriber(email: str, first_name: str, last_name: str) -> bool:
 
 
 def _seed_commitments(conn, reader_id: int) -> None:
-    from datetime import datetime as _dt
-    now = _dt.utcnow().isoformat()
     for i, text in enumerate(_COMMITMENT_TEXTS, start=1):
-        is_checked   = 1 if i == 2 else 0
-        submitted_at = now if i == 2 else None
         conn.execute(
             "INSERT OR IGNORE INTO arc_reader_commitments "
             "(arc_reader_id, commitment_number, commitment_text, is_checked, submitted_at) "
-            "VALUES (?, ?, ?, ?, ?)",
-            (reader_id, i, text, is_checked, submitted_at),
+            "VALUES (?, ?, ?, 0, NULL)",
+            (reader_id, i, text),
         )
 
 
@@ -337,13 +332,13 @@ def invite_to_writing_room():
         if reader["approved_for_writing_room"]:
             return jsonify({"error": "reader already invited to Writing Room"}), 409
 
-        # Verify all 6 commitments are admin-approved
+        # Verify all 5 commitments are admin-approved
         commitments = conn.execute(
             "SELECT commitment_number, approved_by_admin FROM arc_reader_commitments "
             "WHERE arc_reader_id = ? ORDER BY commitment_number",
             (reader_id,),
         ).fetchall()
-        if len(commitments) != 6:
+        if len(commitments) != 5:
             return jsonify({"error": "commitment records incomplete — cannot invite"}), 400
         unapproved = [c["commitment_number"] for c in commitments if not c["approved_by_admin"]]
         if unapproved:

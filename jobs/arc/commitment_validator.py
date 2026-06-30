@@ -2,8 +2,8 @@
 """jobs/arc/commitment_validator.py — Flag suspicious bulk-submission patterns.
 
 Runs every 5 minutes. Checks commitments submitted in the last 5 minutes.
-If all 6 rows for a single reader were submitted within 30 seconds of each other,
-marks all 6 as flagged_as_suspicious=1. Admin-dashboard-only review — no Telegram.
+If all 5 rows for a single reader were submitted within 30 seconds of each other,
+marks all 5 as flagged_as_suspicious=1. Admin-dashboard-only review — no Telegram.
 
 Cron:
 */5 * * * * PYTHONPATH=/home/billyomes/watson \
@@ -49,7 +49,7 @@ def run() -> None:
                 (reader_id,),
             ).fetchall()
 
-            if len(all_commitments) < 6:
+            if len(all_commitments) < 5:
                 continue
 
             timestamps = [c["submitted_at"] for c in all_commitments]
@@ -61,7 +61,7 @@ def run() -> None:
             span = (max(parsed) - min(parsed)).total_seconds()
             if span <= 30:
                 log.info(
-                    "Reader %d: all 6 commitments submitted within %.1fs — flagging.",
+                    "Reader %d: all 5 commitments submitted within %.1fs — flagging.",
                     reader_id, span,
                 )
                 conn.execute(
