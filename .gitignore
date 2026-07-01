@@ -36,3 +36,5 @@ config/token.json
 *.csv
 import_connect_cards.py
 *.deb
+briefing/templates/briefing.html
+briefing/templates/briefing.html
