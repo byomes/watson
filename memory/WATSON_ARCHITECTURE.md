@@ -581,3 +581,49 @@ WATSON_API_URL=https://watson.tail0243ff.ts.net
 - 8d1d53c docs: architecture and build list updated June 29, 2026
 - 5b2a72f docs: file map 2026-06-29
 - 9a142ed docs: architecture update 2026-06-29
+
+---
+
+## Recent Changes — 2026-07-01
+
+### ~/watson
+- 3268c6b feat: Writing Room password management — admin reset + self-serve change
+- 159eff8 fix: Writing Room invite email says five things, not six
+- 47ef65e fix: reword 5th ARC commitment to 'tell people in your life...', fix stale 6-commitment email copy
+- 084ff14 fix: evidence_required check uses {3,4,5} not stale {4,5,6}
+- 11d14c3 feat: ARC manuscript reader on dashboard, feedback table/route; fix evidence_required {3,4,5}
+- 443a497 feat: drop 'receive a copy' ARC commitment, now 5 commitments (auto-check removed)
+- aba8b63 fix: ARC email senders use correct WATSON_GMAIL env vars + load_dotenv
+- 01b3945 feat: Kit subscribe API, team task title editing, weekly completed report job
+- cc75240 feat: ARC reader auth, commitment tracking, admin approval routes, Writing Room promotion flow
+- d24d2ad feat: campus_classifier.py, KB reorg into subfolders, missed_report campus sections, dashboard/skills updates
+- fe78489 feat: ARC reader signup endpoint — arc_readers table, Kit tag application, Telegram notification
+- 3c62229 docs: file map 2026-06-30
+- 697be3f docs: architecture update 2026-06-30
+
+### ~/wcky
+- db4eab7 feat: Writing Room self-serve password change
+- 8232dbb feat: add Back to Commitments shortcut to ARC manuscript TOC
+- aaca4c4 feat: add light/dark theme toggle to ARC manuscript reader
+- 39267be fix: correct chapter counter labeling and TOC scroll offset in ARC manuscript reader
+- 0de3284 fix: increase top padding below sticky bar from pt-12 to pt-16
+- cc5c1ec fix: sticky bar offsets for global Header; commitment tracker now renders above manuscript
+- a0c74b6 fix: sticky TOC bar now full-width and properly pinned outside reading column
+- 5d6070f feat: replace chapter nav with full-width sticky bar + dropdown TOC, progress indicator
+- 152a65f fix: ARC signup checkbox says fulfill all five, not six
+- af87e83 fix: reword 5th ARC commitment on public signup page
+- 96a4e37 fix: update commitment count copy from six to five
+- 03bc8d9 fix: remove 'receive advance copy' from public ARC commitments list
+- 8921f3a feat: ARC dashboard shows manuscript reader above commitment tracker
+- acfc7c9 feat: ArcDashboard reflects 5 commitments, remove auto-check special case
+- d9a30eb feat: add wcky favicon and apple-touch-icon
+- 9fa36c1 fix: public nav 'Room' link replaced with 'ARC' pointing to /arc
+- 6ae8e20 Merge branch 'main' of https://github.com/byomes/wcky
+- 5e51159 feat: ARC reader login + commitment tracker dashboard with auto-save
+- 2cc50fc publish: You Are Not What You Do
+- 179a4c9 Merge branch 'main' of https://github.com/byomes/wcky
+- f4c4703 fix: restore public ARC signup, wire to Watson-backed API instead of direct Kit form
+
+### ~/watson-admin
+- ba945b1 feat: Writing Room partner password reset
+- c161ad2 feat: ARC Commitments admin review tab — approve/reject, suspicious flagging, Writing Room invite
