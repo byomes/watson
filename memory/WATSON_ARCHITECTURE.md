@@ -454,6 +454,9 @@ WATSON_API_URL=https://watson.tail0243ff.ts.net
 - **Build:** Claude Code on Beelink (`--dangerously-skip-permissions`)
 - **Deploy:** Claude Code commits + pushes → Vercel auto-deploys / Bill manually pulls Watson
 - **Claude Code never SSHes.** Bill always pulls and restarts services manually.
+- **Sudo access:** Claude Code has exactly one passwordless sudo permission — restarting
+  watson-dashboard.service and watson-bot.service (via /etc/sudoers.d/watson-restart).
+  No other sudo command is permitted under any circumstances.
 - **sed vs Claude Code:** ≤3 steps use sed. 4+ steps go to Claude Code.
 - **PYTHONPATH:** Always inline in cron — `PYTHONPATH=/home/billyomes/watson` — do not rely on standalone crontab variable.
 - **Ghost directory danger:** Never name job directories after Python stdlib modules. `jobs/calendar/` → renamed `jobs/gcal/`. `jobs/email/` → renamed `jobs/email_job/`.
