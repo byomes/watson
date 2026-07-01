@@ -81,12 +81,12 @@ html, body {
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   padding: 16px;
-  padding-bottom: calc(60px + env(safe-area-inset-bottom));
+  padding-bottom: calc(var(--nav-h, 90px) + 16px + env(safe-area-inset-bottom));
 }
 
 /* Extra bottom padding on tasks page for sticky add bar */
 #page-content.has-add-bar {
-  padding-bottom: 68px;
+  padding-bottom: calc(var(--nav-h, 90px) + 56px + 16px + env(safe-area-inset-bottom));
 }
 
 /* ── Add-task bar (tasks page only) ─────────────────────────────────────── */
@@ -821,7 +821,7 @@ html, body {
   </div>
   <div style="display:flex;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:20px;padding:2px;gap:2px;flex-shrink:0">
     <a href="/" style="padding:4px 12px;border-radius:16px;font-size:12px;font-weight:500;background:#c9a84c;color:#000;text-decoration:none">Dashboard</a>
-    <a href="/team" style="padding:4px 12px;border-radius:16px;font-size:12px;font-weight:500;color:#666;text-decoration:none">Team</a>
+    <a href="/admin" style="padding:4px 12px;border-radius:16px;font-size:12px;font-weight:500;color:#666;text-decoration:none">Team</a>
   </div>
   <a href="https://t.me/wckyWatsonbot" target="_blank" rel="noopener" style="color:#c9a84c;display:flex;align-items:center;flex-shrink:0;text-decoration:none">
     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
