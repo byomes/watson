@@ -83,6 +83,7 @@ function priLabel(p) {
 function catLabel(c) {
   if (c === 'fms') return 'FMS';
   if (c === 'personal') return 'Personal';
+  if (c === 'elders') return 'Elders';
   return 'Catalyst';
 }
 
@@ -212,6 +213,8 @@ async function renderHome() {
     style="flex:1;padding:7px 0;border:none;cursor:pointer;background:transparent;color:var(--muted);font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.04em">FMS</button>
   <button id="htab-personal" onclick="switchHomeTaskTab('personal')"
     style="flex:1;padding:7px 0;border:none;cursor:pointer;background:transparent;color:var(--muted);font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.04em">Personal</button>
+  <button id="htab-elders" onclick="switchHomeTaskTab('elders')"
+    style="flex:1;padding:7px 0;border:none;cursor:pointer;background:transparent;color:var(--muted);font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.04em">Elders</button>
 </div>
 <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:8px">
   <input id="home-task-inp" type="text" placeholder="Add a Catalyst task…"
@@ -234,8 +237,8 @@ async function renderHome() {
 
 async function switchHomeTaskTab(tab) {
   _homeTaskTab = tab;
-  const labels = { catalyst: 'Catalyst', fms: 'FMS', personal: 'Personal' };
-  ['catalyst', 'fms', 'personal'].forEach(t => {
+  const labels = { catalyst: 'Catalyst', fms: 'FMS', personal: 'Personal', elders: 'Elders' };
+  ['catalyst', 'fms', 'personal', 'elders'].forEach(t => {
     const btn = document.getElementById(`htab-${t}`);
     if (!btn) return;
     btn.style.background = t === tab ? 'var(--gold)' : 'transparent';
@@ -307,6 +310,7 @@ function _homeTasksHtml(tasks) {
               <div class="cat-opt${cat === 'catalyst' ? ' selected' : ''}" onclick="reassignCat(${t.id}, 'catalyst', event)">Catalyst</div>
               <div class="cat-opt${cat === 'fms' ? ' selected' : ''}" onclick="reassignCat(${t.id}, 'fms', event)">FMS</div>
               <div class="cat-opt${cat === 'personal' ? ' selected' : ''}" onclick="reassignCat(${t.id}, 'personal', event)">Personal</div>
+              <div class="cat-opt${cat === 'elders' ? ' selected' : ''}" onclick="reassignCat(${t.id}, 'elders', event)">Elders</div>
             </div>
           </div>
         </div>
