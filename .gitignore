@@ -38,3 +38,4 @@ import_connect_cards.py
 *.deb
 briefing/templates/briefing.html
 briefing/templates/briefing.html
+docs/briefing.html
