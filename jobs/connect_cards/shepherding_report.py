@@ -197,7 +197,14 @@ def _build_critical_section() -> tuple[str, int]:
                        MAX(
                          COALESCE((SELECT MAX(service_date) FROM connect_cards WHERE member_id = m.id), '1900-01-01'),
                          COALESCE((SELECT MAX(service_date) FROM attendance  WHERE member_id = m.id), '1900-01-01')
-                       ) AS last_seen
+                       ) AS last_seen,
+                       (
+                         SELECT COUNT(*) FROM (
+                           SELECT service_date FROM connect_cards WHERE member_id = m.id
+                           UNION
+                           SELECT service_date FROM attendance WHERE member_id = m.id
+                         )
+                       ) AS visit_count
                 FROM members m
                 WHERE m.status != 'inactive'
                   AND (m.shepherding_exempt IS NULL OR m.shepherding_exempt = 0)
@@ -210,7 +217,7 @@ def _build_critical_section() -> tuple[str, int]:
             SELECT id, name, last_seen,
                    CAST((julianday('now') - julianday(last_seen)) / 7 AS INTEGER) AS weeks_absent
             FROM base
-            WHERE last_seen <= ?
+            WHERE last_seen <= ? AND visit_count >= 3
             ORDER BY weeks_absent DESC
             """,
             (cutoff,),
