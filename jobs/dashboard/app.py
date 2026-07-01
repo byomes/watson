@@ -990,6 +990,11 @@ def _cong_conn():
     return c
 
 
+def _no_cache(resp):
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    return resp
+
+
 @app.route("/api/members")
 def members_list_api():
     try:
@@ -998,16 +1003,16 @@ def members_list_api():
             f"SELECT {_MEMBER_FIELDS} FROM members m ORDER BY m.name COLLATE NOCASE"
         ).fetchall()
         c.close()
-        return jsonify([dict(r) for r in rows])
+        return _no_cache(jsonify([dict(r) for r in rows]))
     except Exception as exc:
-        return jsonify({"error": str(exc)}), 500
+        return _no_cache(jsonify({"error": str(exc)})), 500
 
 
 @app.route("/api/members/search")
 def members_search_api():
     q = (request.args.get("q") or "").strip()
     if not q:
-        return jsonify([])
+        return _no_cache(jsonify([]))
     try:
         c = _cong_conn()
         rows = c.execute(
@@ -1016,9 +1021,9 @@ def members_search_api():
             (f"%{q}%",),
         ).fetchall()
         c.close()
-        return jsonify([dict(r) for r in rows])
+        return _no_cache(jsonify([dict(r) for r in rows]))
     except Exception as exc:
-        return jsonify({"error": str(exc)}), 500
+        return _no_cache(jsonify({"error": str(exc)})), 500
 
 
 @app.route("/api/members/<int:member_id>", methods=["PATCH"])
