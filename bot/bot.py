@@ -2469,6 +2469,55 @@ async def handle_room_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         await query.edit_message_text("🚫 Denied.", reply_markup=None)
 
 
+async def handle_meeting_pattern_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle mtp_approve: and mtp_reject: inline button presses from scan_meeting_patterns.py."""
+    query = update.callback_query
+    await query.answer()
+
+    if not _is_authorized(update):
+        return
+
+    data = query.data or ""
+    if data.startswith("mtp_approve:"):
+        action = "approved"
+        pattern_id = int(data[len("mtp_approve:"):])
+    elif data.startswith("mtp_reject:"):
+        action = "rejected"
+        pattern_id = int(data[len("mtp_reject:"):])
+    else:
+        return
+
+    db_path = os.path.expanduser("~/watson/data/watson.db")
+    try:
+        with sqlite3.connect(db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                "SELECT prefix FROM meeting_type_patterns WHERE id=?", (pattern_id,)
+            ).fetchone()
+            if not row:
+                await query.edit_message_text("Pattern not found.", reply_markup=None)
+                return
+            conn.execute(
+                "UPDATE meeting_type_patterns SET status=?, resolved_at=datetime('now') WHERE id=?",
+                (action, pattern_id),
+            )
+    except Exception as exc:
+        await query.edit_message_text(f"Failed to update: {exc}", reply_markup=None)
+        return
+
+    prefix = row["prefix"]
+    if action == "approved":
+        await query.edit_message_text(
+            f"Approved — future '{prefix}' events will get pre-meeting briefs.",
+            reply_markup=None,
+        )
+    else:
+        await query.edit_message_text(
+            f"Noted — '{prefix}' events will be ignored.",
+            reply_markup=None,
+        )
+
+
 async def handle_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -3029,6 +3078,7 @@ def main():
     app.add_handler(CallbackQueryHandler(handle_acquire_callback, pattern=r"^acquire_"))
     app.add_handler(CallbackQueryHandler(handle_reject_callback, pattern=r"^reject:"))
     app.add_handler(CallbackQueryHandler(handle_room_callback, pattern=r"^room_(?:approve|deny):"))
+    app.add_handler(CallbackQueryHandler(handle_meeting_pattern_callback, pattern=r"^mtp_(approve|reject):"))
     app.add_handler(CallbackQueryHandler(handle_facebook_callback, pattern=r"^fb_"))
     app.add_handler(CallbackQueryHandler(handle_email_triage_callback, pattern=r"^et_"))
     app.add_handler(CallbackQueryHandler(handle_email_callback, pattern=r"^email_"))

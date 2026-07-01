@@ -71,6 +71,37 @@ def _mark_briefed(conn: sqlite3.Connection, event_id: str) -> None:
     conn.commit()
 
 
+# ── Recognized meeting prefixes (Bill-approved via scan_meeting_patterns.py) ──
+
+def _ensure_meeting_type_patterns_table(conn: sqlite3.Connection) -> None:
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS meeting_type_patterns (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            prefix TEXT UNIQUE NOT NULL,
+            label TEXT,
+            status TEXT DEFAULT 'pending',
+            created_at TEXT DEFAULT (datetime('now')),
+            resolved_at TEXT
+        )
+    """)
+    conn.commit()
+
+
+def _get_approved_prefixes(conn: sqlite3.Connection) -> list[tuple[str, str]]:
+    """Load Bill-approved prefixes once per run — (prefix, label) pairs."""
+    rows = conn.execute(
+        "SELECT prefix, label FROM meeting_type_patterns WHERE status = 'approved'"
+    ).fetchall()
+    return [(r["prefix"], r["label"] or r["prefix"].rstrip(": ").strip()) for r in rows]
+
+
+def _match_prefix(summary: str, approved_prefixes: list[tuple[str, str]]) -> tuple[str, str] | None:
+    for prefix, label in approved_prefixes:
+        if summary.startswith(prefix):
+            return prefix, label
+    return None
+
+
 # ── Calendar ──────────────────────────────────────────────────────────────────
 
 def _get_upcoming_events() -> list[dict]:
@@ -229,12 +260,16 @@ def run() -> None:
     watson_conn = sqlite3.connect(WATSON_DB)
     watson_conn.row_factory = sqlite3.Row
     _ensure_briefed_table(watson_conn)
+    _ensure_meeting_type_patterns_table(watson_conn)
+    approved_prefixes = _get_approved_prefixes(watson_conn)  # cached once per run
 
     try:
         for event in events:
             summary = event.get("summary", "")
-            if not (summary.startswith("VA: ") or summary.startswith("IP: ")):
+            match = _match_prefix(summary, approved_prefixes)
+            if not match:
                 continue
+            matched_prefix, prefix = match
 
             start_str = event["start"].get("dateTime")
             if not start_str:
@@ -248,8 +283,7 @@ def run() -> None:
                 log.info("Already briefed %s (%s) — skipping.", event_id, summary)
                 continue
 
-            prefix            = "VA" if summary.startswith("VA: ") else "IP"
-            guest_name        = summary[4:].strip()
+            guest_name        = summary[len(matched_prefix):].strip()
             event_description = (event.get("description") or "").strip() or None
 
             if any(blocked.lower() in summary.lower() for blocked in _BRIEF_BLOCKLIST):
