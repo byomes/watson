@@ -7,7 +7,7 @@ import re
 import shutil
 import sqlite3
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 log = logging.getLogger(__name__)
@@ -32,6 +32,7 @@ if not _secret_key:
     log.warning("FLASK_SECRET_KEY is not set — using insecure default. Set it in .env.")
     _secret_key = "watson-dashboard-secret"
 app.secret_key = _secret_key
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=30)
 CORS(app)
 
 
@@ -4215,6 +4216,7 @@ def admin_login_post():
         "SELECT password_hash FROM admin_users WHERE username=?", (username,)
     ).fetchone()
     if row and check_password_hash(row["password_hash"], password):
+        session.permanent = True
         session["admin_logged_in"] = True
         session["admin_user"] = username
         return redirect(url_for("admin_index"))
