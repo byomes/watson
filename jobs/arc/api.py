@@ -321,15 +321,14 @@ def list_readers_with_commitments():
 
 # ── Admin: invite to Writing Room ─────────────────────────────────────────────
 
-@arc_bp.route("/api/arc/invite-to-writing-room", methods=["POST"])
-@_require_key
-def invite_to_writing_room():
-    _ensure_table()
-    data      = request.get_json(force=True)
-    reader_id = data.get("arc_reader_id")
-    if not reader_id:
-        return jsonify({"error": "arc_reader_id required"}), 400
+def invite_reader_to_writing_room(reader_id: int) -> tuple[bool, str | None, int]:
+    """Core logic behind /api/arc/invite-to-writing-room, factored out so both the
+    external (X-Watson-Key) route and the dashboard-only route can call it without
+    duplicating the commitment-check / insert / Kit-tag / email flow.
 
+    Returns (ok, error_message, http_status).
+    """
+    _ensure_table()
     conn = get_db()
     try:
         reader = conn.execute(
@@ -338,10 +337,10 @@ def invite_to_writing_room():
             (reader_id,),
         ).fetchone()
         if not reader:
-            return jsonify({"error": "reader not found"}), 404
+            return False, "reader not found", 404
 
         if reader["approved_for_writing_room"]:
-            return jsonify({"error": "reader already invited to Writing Room"}), 409
+            return False, "reader already invited to Writing Room", 409
 
         # Verify all 5 commitments are admin-approved
         commitments = conn.execute(
@@ -350,17 +349,14 @@ def invite_to_writing_room():
             (reader_id,),
         ).fetchall()
         if len(commitments) != 5:
-            return jsonify({"error": "commitment records incomplete — cannot invite"}), 400
+            return False, "commitment records incomplete — cannot invite", 400
         unapproved = [c["commitment_number"] for c in commitments if not c["approved_by_admin"]]
         if unapproved:
-            return jsonify({
-                "error": f"commitments {unapproved} not yet approved",
-                "unapproved": unapproved,
-            }), 400
+            return False, f"commitments {unapproved} not yet approved", 400
 
-        name     = f"{reader['first_name']} {reader['last_name']}"
-        email    = reader["email"]
-        pw_hash  = reader["password_hash"]
+        name    = f"{reader['first_name']} {reader['last_name']}"
+        email   = reader["email"]
+        pw_hash = reader["password_hash"]
 
         # Create writing_room_partners row (username = email, password = same as ARC)
         from datetime import datetime as _dt
@@ -399,4 +395,18 @@ def invite_to_writing_room():
     threading.Thread(target=_tag_and_notify, daemon=True).start()
 
     log.info("ARC reader %d (%s) invited to Writing Room.", reader_id, email)
+    return True, None, 200
+
+
+@arc_bp.route("/api/arc/invite-to-writing-room", methods=["POST"])
+@_require_key
+def invite_to_writing_room():
+    data      = request.get_json(force=True)
+    reader_id = data.get("arc_reader_id")
+    if not reader_id:
+        return jsonify({"error": "arc_reader_id required"}), 400
+
+    ok, error, status = invite_reader_to_writing_room(int(reader_id))
+    if not ok:
+        return jsonify({"error": error}), status
     return jsonify({"ok": True}), 200
