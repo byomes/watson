@@ -1098,6 +1098,15 @@ function renderMore() {
         <div class="msec-inner" id="msec-inner-dev"><div class="loading">Loading&hellip;</div></div>
       </div>
     </div>
+    <div class="msec" id="msec-publishing">
+      <div class="msec-hdr" onclick="moreToggle('publishing')">
+        <span class="msec-title">Publishing</span>
+        <span class="msec-chev" id="msec-chev-publishing">›</span>
+      </div>
+      <div class="msec-body" id="msec-body-publishing">
+        <div class="msec-inner" id="msec-inner-publishing"><div class="loading">Loading&hellip;</div></div>
+      </div>
+    </div>
     <div class="mrrow" onclick="openLogins()" style="cursor:pointer">
       <span style="font-size:13px;font-weight:500">Logins</span>
       <span style="color:var(--gold);font-size:15px">›</span>
@@ -1122,6 +1131,7 @@ function moreToggle(sec) {
     if (sec === 'events')   moreLoadEvents();
     if (sec === 'members')  moreLoadMembers();
     if (sec === 'dev')      devLoopLoad();
+    if (sec === 'publishing') publishingLoad();
   }
 }
 
@@ -2687,4 +2697,402 @@ async function devLoopRetrigger(slug) {
   } catch(e) {
     alert('Failed: ' + e.message);
   }
+}
+
+// ─── Publishing (Writing Room / ARC / TWJ Readers) ─────────────────────────────
+// Replaces watson-admin. Backed by /api/dashboard/* routes (jobs/dashboard/publishing_routes.py) —
+// dashboard-only, no X-Watson-Key, same trust model as Dev Loop's /api/dev-loop/projects* routes.
+
+let _pubTab          = 'wr';
+let _pubTabsLoaded    = {};
+let _pubWrPartners   = [];
+let _pubWrMessages   = [];
+let _pubWrCalls      = [];
+let _pubArcReaders   = [];
+let _pubTwjReaders   = [];
+let _pubTwjFeedback  = [];
+let _pubTwjChapter   = '';
+
+function _pubStatusBadge(status) {
+  const map = {
+    active:   { style: 'background:rgba(76,175,125,.12);color:var(--green);border:1px solid rgba(76,175,125,.3)' },
+    pending:  { cls: 'badge-EMAIL' },
+    approved: { cls: 'badge-NOTE' },
+    revoked:  { style: 'background:rgba(201,80,76,.12);color:var(--red);border:1px solid rgba(201,80,76,.3)' },
+    denied:   { style: 'background:rgba(201,80,76,.12);color:var(--red);border:1px solid rgba(201,80,76,.3)' },
+  };
+  const s = map[status] || { style: 'background:rgba(102,102,102,.10);color:var(--muted);border:1px solid var(--border)' };
+  const style = s.style ? ` style="${s.style}"` : '';
+  return `<span class="badge ${s.cls || ''}"${style}>${esc((status || '').toUpperCase())}</span>`;
+}
+
+function publishingLoad() {
+  const el = document.getElementById('msec-inner-publishing');
+  if (!el) return;
+  el.innerHTML = `
+    <div class="mtabs">
+      <button class="mtab${_pubTab === 'wr'  ? ' active' : ''}" onclick="publishingSetTab('wr')">Writing Room</button>
+      <button class="mtab${_pubTab === 'arc' ? ' active' : ''}" onclick="publishingSetTab('arc')">ARC</button>
+      <button class="mtab${_pubTab === 'twj' ? ' active' : ''}" onclick="publishingSetTab('twj')">TWJ Readers</button>
+    </div>
+    <div id="pub-tab-body"><div class="loading">Loading&hellip;</div></div>`;
+  publishingSetTab(_pubTab, true);
+}
+
+function publishingSetTab(tab, isInitial) {
+  _pubTab = tab;
+  if (!isInitial) {
+    document.querySelectorAll('#msec-inner-publishing .mtab').forEach(b => b.classList.remove('active'));
+    const idx = { wr: 0, arc: 1, twj: 2 }[tab];
+    const btn = document.querySelectorAll('#msec-inner-publishing .mtab')[idx];
+    if (btn) btn.classList.add('active');
+  }
+  if (tab === 'wr')  pubLoadWR();
+  if (tab === 'arc') pubLoadArc();
+  if (tab === 'twj') pubLoadTwj();
+}
+
+// ── Writing Room ─────────────────────────────────────────────────────────────
+
+async function pubLoadWR() {
+  const el = document.getElementById('pub-tab-body');
+  if (!el) return;
+  el.innerHTML = '<div class="loading">Loading&hellip;</div>';
+  try {
+    const [partners, messages, calls] = await Promise.all([
+      api('/api/dashboard/writing-room/partners'),
+      api('/api/dashboard/writing-room/messages?limit=10'),
+      api('/api/dashboard/writing-room/calls'),
+    ]);
+    _pubWrPartners = partners;
+    _pubWrMessages = messages;
+    _pubWrCalls    = calls;
+    _pubRenderWR();
+  } catch (e) {
+    el.innerHTML = '<div class="empty">Failed to load Writing Room data.</div>';
+  }
+}
+
+function _pubRenderWR() {
+  const el = document.getElementById('pub-tab-body');
+  if (!el) return;
+  const pending = _pubWrPartners.filter(p => p.status === 'pending');
+  const others  = _pubWrPartners.filter(p => p.status !== 'pending');
+
+  let html = `<div class="mlabel">Pending Applications (${pending.length})</div>`;
+  if (!pending.length) {
+    html += '<div class="empty">No pending applications.</div>';
+  } else {
+    html += pending.map(p => `
+      <div class="mpn-card">
+        <div style="font-size:13px;font-weight:500">${esc(p.name)}</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:6px">${esc(p.email)}</div>
+        ${p.why_join ? `<div style="font-size:12px;margin-bottom:8px">${esc(p.why_join)}</div>` : ''}
+        <div class="mfrow">
+          <button class="mbtn mbtn-p mbtn-sm" onclick="pubWrApprove(${p.id})">Approve</button>
+          <button class="mbtn mbtn-sm mbtn-d" onclick="pubWrDeny(${p.id})">Deny</button>
+        </div>
+      </div>`).join('');
+  }
+
+  html += `<div class="mlabel">Partners (${others.length})</div>`;
+  if (!others.length) {
+    html += '<div class="empty">No partners yet.</div>';
+  } else {
+    html += `<div class="mshep-wrap"><table class="mshep-table">
+      <tr><th>Name</th><th>Email</th><th>Status</th><th></th></tr>
+      ${others.map(p => `
+        <tr>
+          <td>${esc(p.name)}</td>
+          <td>${esc(p.email)}</td>
+          <td>${_pubStatusBadge(p.status)}</td>
+          <td style="white-space:nowrap">
+            <button class="mbtn mbtn-sm" onclick="pubWrResend(${p.id})">Resend Welcome</button>
+            <button class="mbtn mbtn-sm" onclick="pubWrResetPw(${p.id})">Reset Password</button>
+            <button class="mbtn mbtn-sm mbtn-d" onclick="pubWrRevoke(${p.id})">Revoke</button>
+          </td>
+        </tr>`).join('')}
+    </table></div>`;
+  }
+
+  html += `<div class="mlabel">Messages</div>`;
+  html += !_pubWrMessages.length
+    ? '<div class="empty">No messages.</div>'
+    : _pubWrMessages.map(m => `
+        <div class="mpn-card">
+          <div style="font-size:12px;font-weight:500">${esc(m.name)} <span style="color:var(--muted);font-weight:400">(${esc(m.email)})</span></div>
+          <div style="font-size:12px;margin-top:4px">${esc(m.message)}</div>
+        </div>`).join('');
+
+  html += `<div class="mlabel">Calls</div>`;
+  html += !_pubWrCalls.length
+    ? '<div class="empty">No calls scheduled.</div>'
+    : _pubWrCalls.map(c => `
+        <div class="mpn-card">
+          <div style="font-size:13px;font-weight:500">${esc(c.title)}</div>
+          <div style="font-size:11px;color:var(--muted)">${_devFmtDate(c.scheduled_at)}${c.meeting_url ? ` · <a href="${esc(c.meeting_url)}" target="_blank" rel="noopener" style="color:var(--gold)">Join</a>` : ''}</div>
+        </div>`).join('');
+
+  el.innerHTML = html;
+}
+
+async function pubWrApprove(id) {
+  try { await api('/api/dashboard/writing-room/approve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ partner_id: id }) }); await pubLoadWR(); }
+  catch (e) { alert('Failed to approve: ' + e.message); }
+}
+
+async function pubWrDeny(id) {
+  if (!confirm('Deny this application?')) return;
+  try { await api('/api/dashboard/writing-room/deny', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ partner_id: id }) }); await pubLoadWR(); }
+  catch (e) { alert('Failed to deny: ' + e.message); }
+}
+
+async function pubWrRevoke(id) {
+  if (!confirm('Revoke this partner’s access?')) return;
+  try { await api('/api/dashboard/writing-room/revoke', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ partner_id: id }) }); await pubLoadWR(); }
+  catch (e) { alert('Failed to revoke: ' + e.message); }
+}
+
+async function pubWrResend(id) {
+  try { await api('/api/dashboard/writing-room/resend-welcome', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ partner_id: id }) }); alert('Welcome email resent.'); }
+  catch (e) { alert('Failed to resend: ' + e.message); }
+}
+
+async function pubWrResetPw(id) {
+  if (!confirm('Reset this partner’s password?')) return;
+  try {
+    const result = await api('/api/dashboard/writing-room/reset-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ partner_id: id }) });
+    alert('New password: ' + result.password);
+  } catch (e) { alert('Failed to reset password: ' + e.message); }
+}
+
+// ── ARC ──────────────────────────────────────────────────────────────────────
+
+async function pubLoadArc() {
+  const el = document.getElementById('pub-tab-body');
+  if (!el) return;
+  el.innerHTML = '<div class="loading">Loading&hellip;</div>';
+  try {
+    _pubArcReaders = await api('/api/dashboard/arc/readers');
+    _pubRenderArc();
+  } catch (e) {
+    el.innerHTML = '<div class="empty">Failed to load ARC readers.</div>';
+  }
+}
+
+function _pubRenderArc() {
+  const el = document.getElementById('pub-tab-body');
+  if (!el) return;
+  if (!_pubArcReaders.length) {
+    el.innerHTML = `<div class="mlabel">ARC Applicants (0)</div><div class="empty">No ARC readers yet.</div>`;
+    return;
+  }
+  el.innerHTML = `<div class="mlabel">ARC Applicants (${_pubArcReaders.length})</div>` +
+    _pubArcReaders.map(r => {
+      const allApproved = r.commitments.length === 5 && r.commitments.every(c => c.approved_by_admin);
+      const anyFlagged   = r.commitments.some(c => c.flagged_as_suspicious);
+      return `
+      <div class="mpn-card">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div>
+            <div style="font-size:13px;font-weight:500">${esc(r.first_name)} ${esc(r.last_name)}</div>
+            <div style="font-size:11px;color:var(--muted)">${esc(r.email)}</div>
+          </div>
+          ${r.approved_for_writing_room
+            ? '<span class="badge" style="background:rgba(76,175,125,.12);color:var(--green);border:1px solid rgba(76,175,125,.3)">IN WRITING ROOM</span>'
+            : anyFlagged ? '<span class="badge" style="background:rgba(201,80,76,.12);color:var(--red);border:1px solid rgba(201,80,76,.3)">FLAGGED</span>' : ''}
+        </div>
+        <div style="margin-top:8px">
+          ${r.commitments.map(c => `
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;font-size:12px">
+              <span style="${c.approved_by_admin ? 'color:var(--green)' : ''}">${c.approved_by_admin ? '✓' : c.is_checked ? '○' : '—'} ${esc(c.commitment_text)}</span>
+              ${c.is_checked && !c.approved_by_admin ? `
+                <span style="white-space:nowrap">
+                  <button class="mbtn mbtn-sm" onclick="pubArcApproveCommitment(${c.id})">Approve</button>
+                  <button class="mbtn mbtn-sm mbtn-d" onclick="pubArcRejectCommitment(${c.id})">Reject</button>
+                </span>` : ''}
+            </div>`).join('')}
+        </div>
+        ${!r.approved_for_writing_room ? `
+          <div style="margin-top:8px">
+            <button class="mbtn mbtn-p mbtn-sm" ${allApproved ? '' : 'disabled style="opacity:.4;cursor:not-allowed"'} onclick="pubArcInvite(${r.id})">Send Writing Room Invite</button>
+          </div>` : ''}
+      </div>`;
+    }).join('');
+}
+
+async function pubArcApproveCommitment(id) {
+  try { await api(`/api/dashboard/arc/commitments/${id}/approve`, { method: 'POST' }); await pubLoadArc(); }
+  catch (e) { alert('Failed: ' + e.message); }
+}
+
+async function pubArcRejectCommitment(id) {
+  try { await api(`/api/dashboard/arc/commitments/${id}/reject`, { method: 'POST' }); await pubLoadArc(); }
+  catch (e) { alert('Failed: ' + e.message); }
+}
+
+async function pubArcInvite(readerId) {
+  if (!confirm('Send this reader a Writing Room invite?')) return;
+  try {
+    await api('/api/dashboard/arc/invite-to-writing-room', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ arc_reader_id: readerId }) });
+    await pubLoadArc();
+  } catch (e) { alert('Failed to invite: ' + e.message); }
+}
+
+// ── TWJ Readers ──────────────────────────────────────────────────────────────
+
+async function pubLoadTwj() {
+  const el = document.getElementById('pub-tab-body');
+  if (!el) return;
+  el.innerHTML = '<div class="loading">Loading&hellip;</div>';
+  try {
+    const [readers, feedback] = await Promise.all([
+      api('/api/dashboard/twj/readers'),
+      api('/api/dashboard/twj/feedback'),
+    ]);
+    _pubTwjReaders  = readers;
+    _pubTwjFeedback = feedback;
+    _pubRenderTwj();
+  } catch (e) {
+    el.innerHTML = '<div class="empty">Failed to load TWJ readers.</div>';
+  }
+}
+
+function _pubRenderTwj() {
+  const el = document.getElementById('pub-tab-body');
+  if (!el) return;
+  const chapters = [...new Set(_pubTwjFeedback.map(f => f.chapter))].sort();
+  const feedbackShown = _pubTwjChapter
+    ? _pubTwjFeedback.filter(f => f.chapter === _pubTwjChapter)
+    : _pubTwjFeedback;
+
+  el.innerHTML = `
+    <div style="display:flex;gap:8px;margin-bottom:10px">
+      <button class="mbtn mbtn-p mbtn-sm" onclick="pubTwjShowAdd()">+ Add Reader</button>
+      <button class="mbtn mbtn-sm" onclick="pubTwjShowBulk()">Bulk Upload</button>
+    </div>
+    <div id="pub-twj-add-form" style="display:none"></div>
+    <div id="pub-twj-bulk-form" style="display:none"></div>
+    <div class="mlabel">Readers (${_pubTwjReaders.length})</div>
+    ${!_pubTwjReaders.length ? '<div class="empty">No readers yet.</div>' : `
+    <div class="mshep-wrap"><table class="mshep-table">
+      <tr><th>Name</th><th>Username</th><th>Email</th><th>Status</th><th>Last Login</th><th></th></tr>
+      ${_pubTwjReaders.map(r => `
+        <tr>
+          <td>${esc(r.name || '')}</td>
+          <td style="font-family:'DM Mono',monospace;font-size:11px">${esc(r.username)}</td>
+          <td>${esc(r.email || '')}</td>
+          <td>${_pubStatusBadge(r.status)}</td>
+          <td style="white-space:nowrap">${_devFmtDate(r.last_login) || '—'}</td>
+          <td style="white-space:nowrap">
+            <button class="mbtn mbtn-sm" onclick="pubTwjResetPw(${r.id})">Reset Password</button>
+            <button class="mbtn mbtn-sm mbtn-d" onclick="pubTwjRevoke(${r.id})">Revoke</button>
+          </td>
+        </tr>`).join('')}
+    </table></div>`}
+
+    <div class="mlabel">Feedback</div>
+    ${chapters.length ? `
+      <select id="pub-twj-chapter-filter" onchange="pubTwjFilterFeedback(this.value)"
+        style="width:100%;padding:7px 10px;margin-bottom:8px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:13px;outline:none">
+        <option value="">All chapters</option>
+        ${chapters.map(c => `<option value="${esc(c)}"${_pubTwjChapter === c ? ' selected' : ''}>${esc(c)}</option>`).join('')}
+      </select>` : ''}
+    ${!feedbackShown.length ? '<div class="empty">No feedback yet.</div>' : feedbackShown.map(f => `
+      <div class="mpn-card">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div style="font-size:12px;font-weight:500">${esc(f.name || f.username)} <span style="color:var(--muted);font-weight:400">· ${esc(f.chapter)}</span></div>
+          <button class="mbtn mbtn-sm mbtn-d" onclick="pubTwjDeleteFeedback(${f.id})">Delete</button>
+        </div>
+        <div style="font-size:12px;margin-top:4px">${esc(f.feedback)}</div>
+      </div>`).join('')}`;
+}
+
+function pubTwjShowAdd() {
+  const el = document.getElementById('pub-twj-add-form');
+  const bulkEl = document.getElementById('pub-twj-bulk-form');
+  if (bulkEl) bulkEl.style.display = 'none';
+  if (!el) return;
+  const isOpen = el.style.display === 'block';
+  el.style.display = isOpen ? 'none' : 'block';
+  if (isOpen) return;
+  el.innerHTML = `
+    <div class="mform">
+      <input id="pub-twj-first" type="text" placeholder="First name">
+      <input id="pub-twj-last" type="text" placeholder="Last name">
+      <input id="pub-twj-email" type="email" placeholder="Email">
+      <button class="mbtn mbtn-p" onclick="pubTwjAdd()">Add Reader</button>
+    </div>`;
+}
+
+function pubTwjShowBulk() {
+  const el = document.getElementById('pub-twj-bulk-form');
+  const addEl = document.getElementById('pub-twj-add-form');
+  if (addEl) addEl.style.display = 'none';
+  if (!el) return;
+  const isOpen = el.style.display === 'block';
+  el.style.display = isOpen ? 'none' : 'block';
+  if (isOpen) return;
+  el.innerHTML = `
+    <div class="mform">
+      <div style="font-size:11px;color:var(--muted);margin-bottom:8px">CSV format: name,email (one per line, no header)</div>
+      <input id="pub-twj-bulk-file" type="file" accept=".csv,text/csv" style="margin-bottom:8px">
+      <button class="mbtn mbtn-p" onclick="pubTwjBulkUpload()">Upload</button>
+    </div>`;
+}
+
+async function pubTwjAdd() {
+  const first_name = (document.getElementById('pub-twj-first')?.value || '').trim();
+  const last_name  = (document.getElementById('pub-twj-last')?.value || '').trim();
+  const email      = (document.getElementById('pub-twj-email')?.value || '').trim();
+  if (!(first_name && last_name && email)) { alert('First name, last name, and email are required.'); return; }
+  try {
+    const result = await api('/api/dashboard/twj/readers', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ first_name, last_name, email }),
+    });
+    alert(`Reader added: ${result.username} / ${result.password}`);
+    await pubLoadTwj();
+  } catch (e) { alert('Failed to add reader: ' + e.message); }
+}
+
+async function pubTwjBulkUpload() {
+  const fileEl = document.getElementById('pub-twj-bulk-file');
+  const file = fileEl?.files?.[0];
+  if (!file) { alert('Choose a CSV file first.'); return; }
+  const fd = new FormData();
+  fd.append('file', file);
+  try {
+    const result = await api('/api/dashboard/twj/readers/bulk', { method: 'POST', body: fd });
+    alert(`Added ${result.count} readers. Credentials CSV:\n\n${result.csv}`);
+    await pubLoadTwj();
+  } catch (e) { alert('Bulk upload failed: ' + e.message); }
+}
+
+async function pubTwjResetPw(id) {
+  if (!confirm('Reset this reader’s password?')) return;
+  try {
+    const result = await api(`/api/dashboard/twj/readers/${id}/reset-password`, { method: 'POST' });
+    alert('New password: ' + result.password);
+  } catch (e) { alert('Failed to reset password: ' + e.message); }
+}
+
+async function pubTwjRevoke(id) {
+  if (!confirm('Revoke this reader’s access?')) return;
+  try { await api(`/api/dashboard/twj/readers/${id}/revoke`, { method: 'POST' }); await pubLoadTwj(); }
+  catch (e) { alert('Failed to revoke: ' + e.message); }
+}
+
+function pubTwjFilterFeedback(chapter) {
+  _pubTwjChapter = chapter;
+  _pubRenderTwj();
+}
+
+async function pubTwjDeleteFeedback(id) {
+  if (!confirm('Delete this feedback entry?')) return;
+  try {
+    await api(`/api/dashboard/twj/feedback/${id}`, { method: 'DELETE' });
+    _pubTwjFeedback = _pubTwjFeedback.filter(f => f.id !== id);
+    _pubRenderTwj();
+  } catch (e) { alert('Failed to delete: ' + e.message); }
 }

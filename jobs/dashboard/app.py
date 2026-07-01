@@ -307,6 +307,14 @@ app.register_blueprint(arc_bp)
 from jobs.arc.auth import arc_auth_bp
 app.register_blueprint(arc_auth_bp)
 
+from jobs.publishing.api import publishing_bp
+from jobs.publishing import bootstrap_db as _publishing_bootstrap
+_publishing_bootstrap()
+app.register_blueprint(publishing_bp)
+
+from jobs.dashboard.publishing_routes import publishing_dashboard_bp
+app.register_blueprint(publishing_dashboard_bp)
+
 from jobs.team.api import team_bp
 app.register_blueprint(team_bp)
 
