@@ -2617,10 +2617,14 @@ function _pubRenderArc() {
           <div>
             <div style="font-size:13px;font-weight:500">${esc(r.first_name)} ${esc(r.last_name)}</div>
             <div style="font-size:11px;color:var(--muted)">${esc(r.email)}</div>
+            <div style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;margin-top:2px">no separate username — ARC readers log in by email</div>
           </div>
-          ${r.approved_for_writing_room
-            ? '<span class="badge" style="background:rgba(76,175,125,.12);color:var(--green);border:1px solid rgba(76,175,125,.3)">IN WRITING ROOM</span>'
-            : anyFlagged ? '<span class="badge" style="background:rgba(201,80,76,.12);color:var(--red);border:1px solid rgba(201,80,76,.3)">FLAGGED</span>' : ''}
+          <div style="display:flex;align-items:center;gap:6px">
+            ${_pubStatusBadge(r.status)}
+            ${r.approved_for_writing_room
+              ? '<span class="badge" style="background:rgba(76,175,125,.12);color:var(--green);border:1px solid rgba(76,175,125,.3)">IN WRITING ROOM</span>'
+              : anyFlagged ? '<span class="badge" style="background:rgba(201,80,76,.12);color:var(--red);border:1px solid rgba(201,80,76,.3)">FLAGGED</span>' : ''}
+          </div>
         </div>
         <div style="margin-top:8px">
           ${r.commitments.map(c => `
@@ -2632,6 +2636,11 @@ function _pubRenderArc() {
                   <button class="mbtn mbtn-sm mbtn-d" onclick="pubArcRejectCommitment(${c.id})">Reject</button>
                 </span>` : ''}
             </div>`).join('')}
+        </div>
+        <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="mbtn mbtn-sm" onclick="pubArcResend(${r.id})">Resend Welcome</button>
+          <button class="mbtn mbtn-sm" onclick="pubArcResetPw(${r.id})">Reset Password</button>
+          <button class="mbtn mbtn-sm mbtn-d" onclick="pubArcRevoke(${r.id})">Revoke</button>
         </div>
         ${!r.approved_for_writing_room ? `
           <div style="margin-top:8px">
@@ -2657,4 +2666,23 @@ async function pubArcInvite(readerId) {
     await api('/api/dashboard/arc/invite-to-writing-room', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ arc_reader_id: readerId }) });
     await pubLoadArc();
   } catch (e) { alert('Failed to invite: ' + e.message); }
+}
+
+async function pubArcResend(id) {
+  try { await api(`/api/dashboard/arc/readers/${id}/resend-welcome`, { method: 'POST' }); alert('Welcome email resent with a new password.'); }
+  catch (e) { alert('Failed to resend: ' + e.message); }
+}
+
+async function pubArcResetPw(id) {
+  if (!confirm('Reset this reader’s password?')) return;
+  try {
+    const result = await api(`/api/dashboard/arc/readers/${id}/reset-password`, { method: 'POST' });
+    alert('New password: ' + result.password);
+  } catch (e) { alert('Failed to reset password: ' + e.message); }
+}
+
+async function pubArcRevoke(id) {
+  if (!confirm('Revoke this reader’s access?')) return;
+  try { await api(`/api/dashboard/arc/readers/${id}/revoke`, { method: 'POST' }); await pubLoadArc(); }
+  catch (e) { alert('Failed to revoke: ' + e.message); }
 }

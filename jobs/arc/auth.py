@@ -85,11 +85,13 @@ def arc_login():
     conn = get_db()
     try:
         reader = conn.execute(
-            "SELECT id, first_name, last_name, email, password_hash, first_login_at "
+            "SELECT id, first_name, last_name, email, password_hash, first_login_at, status "
             "FROM arc_readers WHERE email = ?",
             (email,),
         ).fetchone()
         if not reader or not reader["password_hash"]:
+            return jsonify({"error": "invalid credentials"}), 401
+        if reader["status"] != "active":
             return jsonify({"error": "invalid credentials"}), 401
         if not bcrypt.checkpw(password.encode(), reader["password_hash"].encode()):
             return jsonify({"error": "invalid credentials"}), 401

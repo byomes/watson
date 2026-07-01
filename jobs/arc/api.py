@@ -319,6 +319,51 @@ def list_readers_with_commitments():
         conn.close()
 
 
+# ── Admin: password reset / resend welcome ────────────────────────────────────
+
+def set_reader_password(reader_id: int, new_password: str) -> None:
+    """Bcrypt-hash new_password and store it on the reader row — same pattern as
+    jobs.writing_room.api.set_partner_password() and jobs.publishing.set_reader_password()."""
+    pw_hash = bcrypt.hashpw(new_password.encode(), bcrypt.gensalt()).decode()
+    conn = get_db()
+    try:
+        conn.execute("UPDATE arc_readers SET password_hash = ? WHERE id = ?", (pw_hash, reader_id))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def resend_welcome(reader_id: int) -> bool:
+    """Re-send the signup confirmation email with a freshly generated password.
+
+    ARC has no token-based verify/reset flow like Writing Room — the original
+    confirmation email carries the plaintext password directly, and only the
+    bcrypt hash is ever stored — so "resend" necessarily means "issue a new one."
+    """
+    conn = get_db()
+    try:
+        reader = conn.execute(
+            "SELECT id, first_name, email FROM arc_readers WHERE id = ?", (reader_id,)
+        ).fetchone()
+    finally:
+        conn.close()
+    if not reader:
+        return False
+
+    new_password = secrets.token_urlsafe(12)
+    set_reader_password(reader_id, new_password)
+
+    def _send():
+        try:
+            from jobs.arc.send_signup_confirmation import send_signup_confirmation
+            send_signup_confirmation(reader["email"], reader["first_name"], new_password)
+        except Exception as exc:
+            log.error("Resend welcome email failed for ARC reader %s: %s", reader["email"], exc)
+
+    threading.Thread(target=_send, daemon=True).start()
+    return True
+
+
 # ── Admin: invite to Writing Room ─────────────────────────────────────────────
 
 def invite_reader_to_writing_room(reader_id: int) -> tuple[bool, str | None, int]:

@@ -22,6 +22,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from jobs.arc.api import _ensure_table as _ensure_arc_tables
 from jobs.arc.api import invite_reader_to_writing_room
+from jobs.arc.api import resend_welcome as arc_resend_welcome
+from jobs.arc.api import set_reader_password as set_arc_reader_password
 from jobs.publishing import (
     generate_reader_password, generate_reader_username, get_db as get_pub_db,
     set_reader_password,
@@ -230,6 +232,47 @@ def dash_arc_invite():
     if not ok:
         return jsonify({"error": error}), status
     return jsonify({"ok": True}), 200
+
+
+@publishing_dashboard_bp.route("/api/dashboard/arc/readers/<int:reader_id>/reset-password", methods=["POST"])
+def dash_arc_reset_password(reader_id: int):
+    _ensure_arc_tables()
+    conn = get_wr_db()
+    try:
+        row = conn.execute("SELECT id FROM arc_readers WHERE id = ?", (reader_id,)).fetchone()
+    finally:
+        conn.close()
+    if not row:
+        return jsonify({"error": "reader not found"}), 404
+
+    new_password = generate_reader_password()
+    set_arc_reader_password(reader_id, new_password)
+    return jsonify({"ok": True, "password": new_password}), 200
+
+
+@publishing_dashboard_bp.route("/api/dashboard/arc/readers/<int:reader_id>/resend-welcome", methods=["POST"])
+def dash_arc_resend_welcome(reader_id: int):
+    _ensure_arc_tables()
+    ok = arc_resend_welcome(reader_id)
+    if not ok:
+        return jsonify({"error": "reader not found"}), 404
+    return jsonify({"ok": True}), 200
+
+
+@publishing_dashboard_bp.route("/api/dashboard/arc/readers/<int:reader_id>/revoke", methods=["POST"])
+def dash_arc_revoke(reader_id: int):
+    _ensure_arc_tables()
+    conn = get_wr_db()
+    try:
+        row = conn.execute("SELECT id FROM arc_readers WHERE id = ?", (reader_id,)).fetchone()
+        if not row:
+            return jsonify({"error": "reader not found"}), 404
+        conn.execute("UPDATE arc_readers SET status = 'revoked' WHERE id = ?", (reader_id,))
+        conn.execute("DELETE FROM arc_sessions WHERE arc_reader_id = ?", (reader_id,))
+        conn.commit()
+        return jsonify({"ok": True}), 200
+    finally:
+        conn.close()
 
 
 # ── TWJ Readers ────────────────────────────────────────────────────────────────
