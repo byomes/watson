@@ -89,6 +89,40 @@ def process_approval(partner_id: int) -> None:
         conn.close()
 
 
+def resend_welcome(partner_id: int) -> bool:
+    """Re-issue a verify token and resend the welcome/verification email.
+
+    Unlike process_approval(), this does not check welcome_sent — it's for partners
+    who lost the original email or whose 72h token expired before they verified.
+    """
+    import secrets as _secrets
+    from datetime import timedelta
+
+    conn = get_db()
+    try:
+        row = conn.execute(
+            "SELECT * FROM writing_room_partners WHERE id = ?", (partner_id,)
+        ).fetchone()
+        if not row:
+            return False
+
+        first_name = row["name"].split()[0]
+        token      = _secrets.token_urlsafe(32)
+        expires_at = (datetime.utcnow() + timedelta(hours=72)).isoformat()
+
+        conn.execute(
+            "INSERT INTO writing_room_verify_tokens (partner_id, token, expires_at) VALUES (?, ?, ?)",
+            (partner_id, token, expires_at),
+        )
+        conn.commit()
+
+        send_verification_email(row["email"], first_name, token)
+        send_telegram(f"✉️ Welcome email resent to {row['name']} ({row['email']}).")
+        return True
+    finally:
+        conn.close()
+
+
 def process_denial(partner_id: int) -> None:
     conn = get_db()
     try:

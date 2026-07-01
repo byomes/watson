@@ -19,6 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from jobs.writing_room import bootstrap_db, get_db, send_telegram
 from jobs.writing_room.onboard import (
     alert_new_application, kit_tag_on_activation, process_approval, process_denial,
+    resend_welcome,
 )
 from jobs.writing_room.reset import confirm_reset, request_reset, validate_token
 
@@ -657,6 +658,19 @@ def deny():
     except Exception as exc:
         log.error("Denial failed for partner %s: %s", partner_id, exc)
         return jsonify({"error": "denial failed"}), 500
+    return jsonify({"ok": True}), 200
+
+
+@writing_room_bp.route("/api/writing-room/resend-welcome", methods=["POST"])
+@_require_key
+def resend_welcome_route():
+    data       = request.get_json(force=True)
+    partner_id = data.get("partner_id")
+    if not partner_id:
+        return jsonify({"error": "partner_id required"}), 400
+    ok = resend_welcome(int(partner_id))
+    if not ok:
+        return jsonify({"error": "partner not found"}), 404
     return jsonify({"ok": True}), 200
 
 
