@@ -38,6 +38,20 @@ def _require_key(f):
     return wrapper
 
 
+def set_partner_password(partner_id, new_password):
+    """Bcrypt-hash new_password and store it on the partner row."""
+    pw_hash = bcrypt.hashpw(new_password.encode(), bcrypt.gensalt()).decode()
+    conn = get_db()
+    try:
+        conn.execute(
+            "UPDATE writing_room_partners SET password_hash = ? WHERE id = ?",
+            (pw_hash, partner_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
 # ── Login ─────────────────────────────────────────────────────────────────────
 
 @writing_room_bp.route("/api/writing-room/login", methods=["POST"])
@@ -558,6 +572,60 @@ def verify_confirm():
         return jsonify({"ok": True}), 200
     finally:
         conn.close()
+
+
+# ── Password Management ───────────────────────────────────────────────────────
+
+@writing_room_bp.route("/api/writing-room/admin/reset-password", methods=["POST"])
+@_require_key
+def admin_reset_password():
+    import secrets as _secrets
+    data       = request.get_json(force=True)
+    partner_id = data.get("partner_id")
+    if not partner_id:
+        return jsonify({"error": "partner_id required"}), 400
+
+    conn = get_db()
+    try:
+        row = conn.execute(
+            "SELECT id FROM writing_room_partners WHERE id = ?", (partner_id,)
+        ).fetchone()
+    finally:
+        conn.close()
+    if not row:
+        return jsonify({"error": "partner not found"}), 404
+
+    new_password = _secrets.token_urlsafe(12)[:16]
+    set_partner_password(partner_id, new_password)
+    return jsonify({"ok": True, "password": new_password}), 200
+
+
+@writing_room_bp.route("/api/writing-room/change-password", methods=["POST"])
+@_require_key
+def change_password():
+    data              = request.get_json(force=True)
+    partner_id        = data.get("partner_id")
+    current_password  = data.get("current_password") or ""
+    new_password      = data.get("new_password") or ""
+
+    if not (partner_id and current_password and new_password):
+        return jsonify({"error": "partner_id, current_password, and new_password required"}), 400
+
+    conn = get_db()
+    try:
+        row = conn.execute(
+            "SELECT password_hash FROM writing_room_partners WHERE id = ?", (partner_id,)
+        ).fetchone()
+    finally:
+        conn.close()
+
+    if not row or not row["password_hash"]:
+        return jsonify({"error": "invalid credentials"}), 401
+    if not bcrypt.checkpw(current_password.encode(), row["password_hash"].encode()):
+        return jsonify({"error": "invalid credentials"}), 401
+
+    set_partner_password(partner_id, new_password)
+    return jsonify({"ok": True}), 200
 
 
 # ── Admin Actions ─────────────────────────────────────────────────────────────
