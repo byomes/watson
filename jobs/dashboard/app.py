@@ -581,6 +581,13 @@ def terminal():
         except Exception as _exc:
             return jsonify({"output": f"run error: {_exc}", "success": False})
 
+    if cmd_lower.startswith("shepherding:"):
+        try:
+            from jobs.connect_cards.shepherding_report import telegram_shepherding_summary
+            return _pfx_out(telegram_shepherding_summary() or "No results.")
+        except Exception as _exc:
+            return jsonify({"output": f"shepherding error: {_exc}", "success": False})
+
     output = ""
     success = True
     entry = _TERM_COMMANDS.get(cmd_lower)

@@ -51,6 +51,6 @@
   {"name": "Pastoral note — direct", "command": "pastoral note: Spoke with James after service — struggling with job loss. Praying for peace.", "category": "Congregation", "description": "Save a pastoral note directly without a post-meeting prompt", "requires_input": true},
   {"name": "Congregation member count", "command": "count congregation members", "category": "Congregation", "description": "Quick count of total congregation members in the database"},
   {"name": "Active task count", "command": "count tasks", "category": "Tasks & Reminders", "description": "Count of currently active tasks across all categories"},
-  {"name": "Shepherding report", "command": "cdb: who is slipping away", "category": "Congregation", "description": "Members overdue for pastoral contact based on attendance history"},
+  {"name": "Shepherding report", "command": "shepherding:", "category": "Congregation", "description": "Members overdue for pastoral contact based on attendance history"},
   {"name": "Run Conflict Check", "command": "conflict_check", "category": "Congregation", "description": "Run the member conflict report now — sends any pending conflicts to Telegram with merge buttons"}
 ]
