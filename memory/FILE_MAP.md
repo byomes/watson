@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-06-30*
+*Generated: 2026-07-01*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -107,6 +107,15 @@ jobs/
   acquired/
     chump.py
     send.py
+  arc/
+    __init__.py
+    api.py
+    auth.py
+    commitment_validator.py
+    send_invite_email.py
+    send_signup_confirmation.py
+    templates/
+      arc_invite_email.html
   ask.py
   backup.py
   batch.py
@@ -366,6 +375,7 @@ jobs/
     note_task_scan.py
     pre_meeting.py
     reminders.py
+    weekly_completed_report.py
   telegram/
     __init__.py
     pending.py
@@ -401,6 +411,9 @@ jobs/
     onboard.py
     remind.py
     reset.py
+    send_arc_welcome_email.py
+    templates/
+      arc_welcome_email.html
 kb/
   .collection_id_cache.json
   bible-studies/
@@ -934,8 +947,12 @@ watson.db
 
 ```
 ~/wcky/
+.env.local
 .gitattributes
 .gitignore
+.vercel/
+  README.txt
+  repo.json
 content/
   blog/
     2026-04-21-your-life-is-a-passport.md
@@ -962,6 +979,9 @@ content/
     2026-06-17-the-inheritance-you-didn-t-build.md
     2026-06-21-covenant-before-conquest.md
     2026-06-24-passion-isn-t-character.md
+    2026-06-26-still-fighting-for-someone-else-s-land.md
+    2026-06-28-the-inheritance-was-already-written.md
+    2026-06-30-you-are-not-what-you-do.md
     the-flashlight-of-your-focus.md
     where-your-treasure-is.md
 next-env.d.ts
@@ -994,6 +1014,17 @@ src/
     about/
       page.tsx
     api/
+      arc/
+        apply/
+          route.ts
+        commitments/
+          route.ts
+        dashboard/
+          route.ts
+        feedback/
+          route.ts
+        login/
+          route.ts
       ingest/
         route.ts
       meet/
@@ -1014,6 +1045,8 @@ src/
           login/
             route.ts
         apply/
+          route.ts
+        change-password/
           route.ts
         feedback/
           route.ts
@@ -1043,7 +1076,16 @@ src/
           route.ts
         logout/
           route.ts
+    apple-touch-icon.png
     arc/
+      ArcSignupForm.tsx
+      dashboard/
+        ArcDashboard.tsx
+        ManuscriptReader.tsx
+        page.tsx
+      login/
+        ArcLoginForm.tsx
+        page.tsx
       page.tsx
     blog/
       [slug]/
@@ -1061,6 +1103,7 @@ src/
       page.tsx
     dreamstone/
       page.tsx
+    favicon.ico
     globals.css
     ingest/
       page.tsx
@@ -1077,6 +1120,8 @@ src/
         PostList.tsx
         RoomNav.tsx
         RoomShell.tsx
+        account/
+          page.tsx
         beta/
           BetaDraftList.tsx
           page.tsx
@@ -1155,6 +1200,7 @@ src/
           .gitkeep
           sample-draft.md
   lib/
+    arc-api.ts
     posts.ts
     writing-room-api.ts
     writing-room-auth.ts
@@ -1170,12 +1216,18 @@ tsconfig.tsbuildinfo
 
 ```
 ~/watson-admin/
+.env.local
 .gitignore
+.vercel/
+  README.txt
+  repo.json
 AGENTS.md
 CLAUDE.md
 README.md
 app/
   (admin)/
+    arc-commitments/
+      page.tsx
     books/
       page.tsx
       twj/
@@ -1185,6 +1237,15 @@ app/
       page.tsx
   api/
     admin/
+      arc-commitments/
+        approve/
+          route.ts
+        invite/
+          route.ts
+        readers/
+          route.ts
+        reject/
+          route.ts
       writing-room/
         approve/
           route.ts
@@ -1199,6 +1260,8 @@ app/
         partners/
           route.ts
         resend/
+          route.ts
+        reset-password/
           route.ts
         revoke/
           route.ts
