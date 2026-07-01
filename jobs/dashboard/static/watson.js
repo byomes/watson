@@ -1089,15 +1089,6 @@ function renderMore() {
         <div class="msec-inner" id="msec-inner-members"></div>
       </div>
     </div>
-    <div class="msec" id="msec-dev">
-      <div class="msec-hdr" onclick="moreToggle('dev')">
-        <span class="msec-title">Dev Loop</span>
-        <span class="msec-chev" id="msec-chev-dev">›</span>
-      </div>
-      <div class="msec-body" id="msec-body-dev">
-        <div class="msec-inner" id="msec-inner-dev"><div class="loading">Loading&hellip;</div></div>
-      </div>
-    </div>
     <div class="msec" id="msec-publishing">
       <div class="msec-hdr" onclick="moreToggle('publishing')">
         <span class="msec-title">Publishing</span>
@@ -1110,11 +1101,7 @@ function renderMore() {
     <div class="mrrow" onclick="openLogins()" style="cursor:pointer">
       <span style="font-size:13px;font-weight:500">Logins</span>
       <span style="color:var(--gold);font-size:15px">›</span>
-    </div>
-    <a href="/admin" target="_blank" rel="noopener" class="mrrow" style="text-decoration:none;cursor:pointer">
-      <span style="font-size:13px;font-weight:500;color:var(--text)">Team Admin</span>
-      <span style="color:var(--gold);font-size:15px">›</span>
-    </a>`);
+    </div>`);
 }
 
 function moreToggle(sec) {
@@ -1130,7 +1117,6 @@ function moreToggle(sec) {
     if (sec === 'reading')  moreLoadReading();
     if (sec === 'events')   moreLoadEvents();
     if (sec === 'members')  moreLoadMembers();
-    if (sec === 'dev')      devLoopLoad();
     if (sec === 'publishing') publishingLoad();
   }
 }
@@ -2436,272 +2422,11 @@ async function loginsDelete(id) {
   }
 }
 
-// ─── Dev Loop ─────────────────────────────────────────────────────────────────
-
-let _devProjects = [];
-let _devView = 'list';
-let _devActiveSlug = null;
-
-const _DEV_STATUS_BADGE = {
-  pending:   { cls: 'badge-NOTE',     label: 'PENDING'   },
-  running:   { cls: 'badge-CALENDAR', label: 'RUNNING'   },
-  paused:    { cls: 'badge-EMAIL',    label: 'PAUSED'     },
-  delivered: { cls: '',               label: 'DELIVERED',  style: 'background:rgba(76,175,125,.12);color:var(--green);border:1px solid rgba(76,175,125,.3)' },
-  stopped:   { cls: '',               label: 'STOPPED',    style: 'background:rgba(102,102,102,.10);color:var(--muted);border:1px solid var(--border)' },
-  failed:    { cls: '',               label: 'FAILED',     style: 'background:rgba(201,80,76,.12);color:var(--red);border:1px solid rgba(201,80,76,.3)' },
-};
-
-function _devBadge(status) {
-  const s = _DEV_STATUS_BADGE[status] || { cls: '', label: status.toUpperCase(), style: '' };
-  const style = s.style ? ` style="${s.style}"` : '';
-  return `<span class="badge ${s.cls}"${style}>${s.label}</span>`;
-}
-
-function _devFmtDate(iso) {
-  if (!iso) return '';
-  try { return new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); }
-  catch { return iso; }
-}
-
-async function devLoopLoad() {
-  const el = document.getElementById('msec-inner-dev');
-  if (!el) return;
-  try {
-    _devProjects = await api('/api/dev-loop/projects');
-    _devView = 'list';
-    _devActiveSlug = null;
-    _devRenderList(el);
-  } catch(e) {
-    el.innerHTML = `<div class="empty">Failed to load projects.</div>`;
-  }
-}
-
-function _devRenderList(el) {
-  if (!el) el = document.getElementById('msec-inner-dev');
-  if (!el) return;
-  let html = `
-    <div style="display:flex;justify-content:flex-end;margin-bottom:10px">
-      <button class="mbtn mbtn-p mbtn-sm" onclick="devLoopShowNew()">+ New Project</button>
-    </div>`;
-  if (!_devProjects.length) {
-    html += `<div class="empty">No projects yet.</div>`;
-  } else {
-    _devProjects.forEach(p => {
-      const paused = p.status === 'paused';
-      html += `
-        <div class="card" style="cursor:pointer;margin-bottom:8px" onclick="devLoopOpenProject('${esc(p.slug)}')">
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
-            <div>
-              <div class="card-title">${esc(p.title)}</div>
-              <div class="card-sub" style="font-family:'DM Mono',monospace;font-size:11px">${esc(p.slug)}</div>
-            </div>
-            ${_devBadge(p.status)}
-          </div>
-          <div class="card-sub" style="margin-top:6px">${_devFmtDate(p.updated_at)}</div>
-          ${paused ? `
-            <div style="display:flex;gap:8px;margin-top:10px" onclick="event.stopPropagation()">
-              <button class="mbtn mbtn-p mbtn-sm" onclick="devLoopKeepGoing('${esc(p.slug)}')">Keep Going</button>
-              <button class="mbtn mbtn-sm mbtn-d" onclick="devLoopStop('${esc(p.slug)}')">Stop</button>
-            </div>` : ''}
-        </div>`;
-    });
-  }
-  el.innerHTML = html;
-}
-
-async function devLoopOpenProject(slug) {
-  const el = document.getElementById('msec-inner-dev');
-  if (!el) return;
-  el.innerHTML = `<div class="loading">Loading&hellip;</div>`;
-  try {
-    const p = await api(`/api/dev-loop/projects/${encodeURIComponent(slug)}`);
-    _devActiveSlug = slug;
-    _devView = 'detail';
-    const code = p.code || '';
-    const spec = p.spec || '';
-    const history = p.iteration_history ? JSON.parse(p.iteration_history || '[]') : [];
-    el.innerHTML = `
-      <div style="margin-bottom:12px">
-        <button class="mbtn mbtn-sm" onclick="devLoopBackToList()" style="margin-bottom:8px">← Back</button>
-        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
-          <div>
-            <div style="font-size:15px;font-weight:600">${esc(p.title)}</div>
-            <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted)">${esc(p.slug)}</div>
-          </div>
-          ${_devBadge(p.status)}
-        </div>
-        ${p.status === 'paused' ? `
-          <div style="display:flex;gap:8px;margin-top:10px">
-            <button class="mbtn mbtn-p mbtn-sm" onclick="devLoopKeepGoing('${esc(slug)}')">Keep Going</button>
-            <button class="mbtn mbtn-sm mbtn-d" onclick="devLoopStop('${esc(slug)}')">Stop + Review</button>
-          </div>` : ''}
-      </div>
-      ${code ? `
-        <div class="mlabel">Generated Code</div>
-        <div style="position:relative;margin-bottom:10px">
-          <button class="mbtn mbtn-sm" onclick="devLoopCopyCode()" style="position:absolute;top:8px;right:8px;z-index:2">Copy</button>
-          <pre id="dev-code-block" style="background:var(--bg);border:1px solid var(--border);border-radius:var(--r-card);padding:12px;font-size:12px;font-family:'DM Mono',monospace;overflow-x:auto;white-space:pre;max-height:400px;overflow-y:auto;margin:0">${esc(code)}</pre>
-        </div>` : ''}
-      <div class="mlabel">Feedback & Re-trigger</div>
-      <div class="mform" style="margin-bottom:10px">
-        <textarea id="dev-feedback-ta" rows="4" placeholder="Paste Claude's review or write your own feedback…" style="resize:vertical"></textarea>
-        <div style="display:flex;gap:8px">
-          <button class="mbtn mbtn-p" style="flex:1;margin-bottom:0" onclick="devLoopRetrigger('${esc(slug)}')">Re-trigger Loop</button>
-          <button class="mbtn" style="margin-bottom:0" onclick="devLoopShowNew()">New Project</button>
-        </div>
-      </div>
-      ${spec ? `
-        <div class="mlabel">Spec</div>
-        <pre style="background:var(--bg);border:1px solid var(--border);border-radius:var(--r-card);padding:12px;font-size:12px;font-family:'DM Mono',monospace;white-space:pre-wrap;word-break:break-word;max-height:200px;overflow-y:auto;margin-bottom:10px">${esc(spec)}</pre>` : ''}
-      <div class="mlabel">Details</div>
-      <div class="card" style="font-size:12px;font-family:'DM Mono',monospace;margin-bottom:6px">
-        <div>Iterations: ${p.current_iteration || 0} / ${p.max_iterations || 3}</div>
-        ${p.delivered_at ? `<div>Delivered: ${_devFmtDate(p.delivered_at)}</div>` : ''}
-        ${p.staging_path ? `<div style="color:var(--muted);margin-top:4px;word-break:break-all">${esc(p.staging_path)}</div>` : ''}
-      </div>`;
-  } catch(e) {
-    el.innerHTML = `<div class="empty">Failed to load project.</div>`;
-  }
-}
-
-function devLoopBackToList() {
-  _devView = 'list';
-  _devActiveSlug = null;
-  const el = document.getElementById('msec-inner-dev');
-  if (!el) return;
-  _devRenderList(el);
-}
-
-function devLoopCopyCode() {
-  const el = document.getElementById('dev-code-block');
-  if (!el) return;
-  const text = el.textContent || '';
-  const btn = el.parentElement && el.parentElement.querySelector('button');
-  function onSuccess() {
-    if (btn) { btn.textContent = 'Copied!'; setTimeout(() => { btn.textContent = 'Copy'; }, 1500); }
-  }
-  function onFailure() {
-    if (btn) { btn.textContent = 'Select & copy manually'; setTimeout(() => { btn.textContent = 'Copy'; }, 2500); }
-  }
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(text).then(onSuccess).catch(() => {
-      execCommandFallback(text) ? onSuccess() : onFailure();
-    });
-  } else {
-    execCommandFallback(text) ? onSuccess() : onFailure();
-  }
-  function execCommandFallback(str) {
-    try {
-      const ta = document.createElement('textarea');
-      ta.value = str;
-      ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;pointer-events:none';
-      document.body.appendChild(ta);
-      ta.focus();
-      ta.select();
-      const ok = document.execCommand('copy');
-      document.body.removeChild(ta);
-      return ok;
-    } catch (e) { return false; }
-  }
-}
-
-function devLoopShowNew() {
-  _devView = 'new';
-  const el = document.getElementById('msec-inner-dev');
-  if (!el) return;
-  el.innerHTML = `
-    <div style="margin-bottom:12px">
-      <button class="mbtn mbtn-sm" onclick="devLoopBackToList()" style="margin-bottom:8px">← Back</button>
-      <div style="font-size:15px;font-weight:600">New Dev Project</div>
-    </div>
-    <div class="mform">
-      <input id="dev-new-title" type="text" placeholder="Title *" autocomplete="off">
-      <input id="dev-new-slug"  type="text" placeholder="Slug (auto-generated if blank)" autocomplete="off">
-      <div style="display:flex;border:1px solid var(--border);border-radius:var(--r-btn);overflow:hidden;margin-bottom:8px">
-        <button id="dev-type-desc" onclick="devLoopSetType('description')"
-          style="flex:1;padding:7px 0;border:none;cursor:pointer;background:var(--gold);color:#0f0f0f;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.04em">Description</button>
-        <button id="dev-type-spec" onclick="devLoopSetType('spec')"
-          style="flex:1;padding:7px 0;border:none;cursor:pointer;background:transparent;color:var(--muted);font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.04em">Spec</button>
-      </div>
-      <textarea id="dev-new-input" rows="6" placeholder="Describe what you want to build…" style="resize:vertical"></textarea>
-      <button class="mbtn mbtn-p" onclick="devLoopSubmit()">Submit → FMSPC</button>
-    </div>`;
-}
-
-let _devNewType = 'description';
-function devLoopSetType(t) {
-  _devNewType = t;
-  const d = document.getElementById('dev-type-desc');
-  const s = document.getElementById('dev-type-spec');
-  if (d && s) {
-    d.style.background = t === 'description' ? 'var(--gold)' : 'transparent';
-    d.style.color       = t === 'description' ? '#0f0f0f' : 'var(--muted)';
-    s.style.background  = t === 'spec' ? 'var(--gold)' : 'transparent';
-    s.style.color       = t === 'spec' ? '#0f0f0f' : 'var(--muted)';
-    const ta = document.getElementById('dev-new-input');
-    if (ta) ta.placeholder = t === 'spec' ? 'Paste or write your technical spec…' : 'Describe what you want to build…';
-  }
-}
-
-async function devLoopSubmit() {
-  const title      = (document.getElementById('dev-new-title')?.value || '').trim();
-  const slug       = (document.getElementById('dev-new-slug')?.value || '').trim().toLowerCase();
-  const input_text = (document.getElementById('dev-new-input')?.value || '').trim();
-  if (!title || !input_text) { alert('Title and input are required.'); return; }
-  const body = { title, input_text, input_type: _devNewType };
-  if (slug) body.slug = slug;
-  try {
-    const result = await api('/api/dev-loop/projects', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
-    });
-    _devProjects.unshift(result);
-    _devView = 'list';
-    const el = document.getElementById('msec-inner-dev');
-    if (el) _devRenderList(el);
-    alert(`Loop started: ${result.slug || title}`);
-  } catch(e) {
-    alert('Failed to start loop: ' + e.message);
-  }
-}
-
-async function devLoopKeepGoing(slug) {
-  try {
-    await api(`/api/dev-loop/projects/${encodeURIComponent(slug)}/keep-going`, { method: 'POST' });
-    await devLoopLoad();
-    alert('Loop extended — Keep Going sent to FMSPC.');
-  } catch(e) {
-    alert('Failed: ' + e.message);
-  }
-}
-
-async function devLoopStop(slug) {
-  if (!confirm(`Stop the loop for "${slug}"?`)) return;
-  try {
-    await api(`/api/dev-loop/projects/${encodeURIComponent(slug)}/stop`, { method: 'POST' });
-    await devLoopLoad();
-  } catch(e) {
-    alert('Failed: ' + e.message);
-  }
-}
-
-async function devLoopRetrigger(slug) {
-  const feedback = (document.getElementById('dev-feedback-ta')?.value || '').trim();
-  if (!feedback && !confirm('Re-trigger with no feedback?')) return;
-  try {
-    await api(`/api/dev-loop/projects/${encodeURIComponent(slug)}/retrigger`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ feedback }),
-    });
-    await devLoopLoad();
-    alert('Re-trigger sent to FMSPC.');
-  } catch(e) {
-    alert('Failed: ' + e.message);
-  }
-}
-
-// ─── Publishing (Writing Room / ARC / TWJ Readers) ─────────────────────────────
+// ─── Publishing (Writing Room / ARC) ────────────────────────────────────────────
 // Replaces watson-admin. Backed by /api/dashboard/* routes (jobs/dashboard/publishing_routes.py) —
 // dashboard-only, no X-Watson-Key, same trust model as Dev Loop's /api/dev-loop/projects* routes.
+// TWJ Readers tab retired (feedback closed, TWJ moved to ARC/Writing Room) — backend routes and
+// data are untouched, just no longer surfaced here.
 
 let _pubTab          = 'wr';
 let _pubTabsLoaded    = {};
@@ -2709,9 +2434,6 @@ let _pubWrPartners   = [];
 let _pubWrMessages   = [];
 let _pubWrCalls      = [];
 let _pubArcReaders   = [];
-let _pubTwjReaders   = [];
-let _pubTwjFeedback  = [];
-let _pubTwjChapter   = '';
 
 function _pubStatusBadge(status) {
   const map = {
@@ -2733,7 +2455,6 @@ function publishingLoad() {
     <div class="mtabs">
       <button class="mtab${_pubTab === 'wr'  ? ' active' : ''}" onclick="publishingSetTab('wr')">Writing Room</button>
       <button class="mtab${_pubTab === 'arc' ? ' active' : ''}" onclick="publishingSetTab('arc')">ARC</button>
-      <button class="mtab${_pubTab === 'twj' ? ' active' : ''}" onclick="publishingSetTab('twj')">TWJ Readers</button>
     </div>
     <div id="pub-tab-body"><div class="loading">Loading&hellip;</div></div>`;
   publishingSetTab(_pubTab, true);
@@ -2743,13 +2464,12 @@ function publishingSetTab(tab, isInitial) {
   _pubTab = tab;
   if (!isInitial) {
     document.querySelectorAll('#msec-inner-publishing .mtab').forEach(b => b.classList.remove('active'));
-    const idx = { wr: 0, arc: 1, twj: 2 }[tab];
+    const idx = { wr: 0, arc: 1 }[tab];
     const btn = document.querySelectorAll('#msec-inner-publishing .mtab')[idx];
     if (btn) btn.classList.add('active');
   }
   if (tab === 'wr')  pubLoadWR();
   if (tab === 'arc') pubLoadArc();
-  if (tab === 'twj') pubLoadTwj();
 }
 
 // ── Writing Room ─────────────────────────────────────────────────────────────
@@ -2830,7 +2550,7 @@ function _pubRenderWR() {
     : _pubWrCalls.map(c => `
         <div class="mpn-card">
           <div style="font-size:13px;font-weight:500">${esc(c.title)}</div>
-          <div style="font-size:11px;color:var(--muted)">${_devFmtDate(c.scheduled_at)}${c.meeting_url ? ` · <a href="${esc(c.meeting_url)}" target="_blank" rel="noopener" style="color:var(--gold)">Join</a>` : ''}</div>
+          <div style="font-size:11px;color:var(--muted)">${fmtGenerated(c.scheduled_at)}${c.meeting_url ? ` · <a href="${esc(c.meeting_url)}" target="_blank" rel="noopener" style="color:var(--gold)">Join</a>` : ''}</div>
         </div>`).join('');
 
   el.innerHTML = html;
@@ -2937,162 +2657,4 @@ async function pubArcInvite(readerId) {
     await api('/api/dashboard/arc/invite-to-writing-room', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ arc_reader_id: readerId }) });
     await pubLoadArc();
   } catch (e) { alert('Failed to invite: ' + e.message); }
-}
-
-// ── TWJ Readers ──────────────────────────────────────────────────────────────
-
-async function pubLoadTwj() {
-  const el = document.getElementById('pub-tab-body');
-  if (!el) return;
-  el.innerHTML = '<div class="loading">Loading&hellip;</div>';
-  try {
-    const [readers, feedback] = await Promise.all([
-      api('/api/dashboard/twj/readers'),
-      api('/api/dashboard/twj/feedback'),
-    ]);
-    _pubTwjReaders  = readers;
-    _pubTwjFeedback = feedback;
-    _pubRenderTwj();
-  } catch (e) {
-    el.innerHTML = '<div class="empty">Failed to load TWJ readers.</div>';
-  }
-}
-
-function _pubRenderTwj() {
-  const el = document.getElementById('pub-tab-body');
-  if (!el) return;
-  const chapters = [...new Set(_pubTwjFeedback.map(f => f.chapter))].sort();
-  const feedbackShown = _pubTwjChapter
-    ? _pubTwjFeedback.filter(f => f.chapter === _pubTwjChapter)
-    : _pubTwjFeedback;
-
-  el.innerHTML = `
-    <div style="display:flex;gap:8px;margin-bottom:10px">
-      <button class="mbtn mbtn-p mbtn-sm" onclick="pubTwjShowAdd()">+ Add Reader</button>
-      <button class="mbtn mbtn-sm" onclick="pubTwjShowBulk()">Bulk Upload</button>
-    </div>
-    <div id="pub-twj-add-form" style="display:none"></div>
-    <div id="pub-twj-bulk-form" style="display:none"></div>
-    <div class="mlabel">Readers (${_pubTwjReaders.length})</div>
-    ${!_pubTwjReaders.length ? '<div class="empty">No readers yet.</div>' : `
-    <div class="mshep-wrap"><table class="mshep-table">
-      <tr><th>Name</th><th>Username</th><th>Email</th><th>Status</th><th>Last Login</th><th></th></tr>
-      ${_pubTwjReaders.map(r => `
-        <tr>
-          <td>${esc(r.name || '')}</td>
-          <td style="font-family:'DM Mono',monospace;font-size:11px">${esc(r.username)}</td>
-          <td>${esc(r.email || '')}</td>
-          <td>${_pubStatusBadge(r.status)}</td>
-          <td style="white-space:nowrap">${_devFmtDate(r.last_login) || '—'}</td>
-          <td style="white-space:nowrap">
-            <button class="mbtn mbtn-sm" onclick="pubTwjResetPw(${r.id})">Reset Password</button>
-            <button class="mbtn mbtn-sm mbtn-d" onclick="pubTwjRevoke(${r.id})">Revoke</button>
-          </td>
-        </tr>`).join('')}
-    </table></div>`}
-
-    <div class="mlabel">Feedback</div>
-    ${chapters.length ? `
-      <select id="pub-twj-chapter-filter" onchange="pubTwjFilterFeedback(this.value)"
-        style="width:100%;padding:7px 10px;margin-bottom:8px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:13px;outline:none">
-        <option value="">All chapters</option>
-        ${chapters.map(c => `<option value="${esc(c)}"${_pubTwjChapter === c ? ' selected' : ''}>${esc(c)}</option>`).join('')}
-      </select>` : ''}
-    ${!feedbackShown.length ? '<div class="empty">No feedback yet.</div>' : feedbackShown.map(f => `
-      <div class="mpn-card">
-        <div style="display:flex;align-items:center;justify-content:space-between">
-          <div style="font-size:12px;font-weight:500">${esc(f.name || f.username)} <span style="color:var(--muted);font-weight:400">· ${esc(f.chapter)}</span></div>
-          <button class="mbtn mbtn-sm mbtn-d" onclick="pubTwjDeleteFeedback(${f.id})">Delete</button>
-        </div>
-        <div style="font-size:12px;margin-top:4px">${esc(f.feedback)}</div>
-      </div>`).join('')}`;
-}
-
-function pubTwjShowAdd() {
-  const el = document.getElementById('pub-twj-add-form');
-  const bulkEl = document.getElementById('pub-twj-bulk-form');
-  if (bulkEl) bulkEl.style.display = 'none';
-  if (!el) return;
-  const isOpen = el.style.display === 'block';
-  el.style.display = isOpen ? 'none' : 'block';
-  if (isOpen) return;
-  el.innerHTML = `
-    <div class="mform">
-      <input id="pub-twj-first" type="text" placeholder="First name">
-      <input id="pub-twj-last" type="text" placeholder="Last name">
-      <input id="pub-twj-email" type="email" placeholder="Email">
-      <button class="mbtn mbtn-p" onclick="pubTwjAdd()">Add Reader</button>
-    </div>`;
-}
-
-function pubTwjShowBulk() {
-  const el = document.getElementById('pub-twj-bulk-form');
-  const addEl = document.getElementById('pub-twj-add-form');
-  if (addEl) addEl.style.display = 'none';
-  if (!el) return;
-  const isOpen = el.style.display === 'block';
-  el.style.display = isOpen ? 'none' : 'block';
-  if (isOpen) return;
-  el.innerHTML = `
-    <div class="mform">
-      <div style="font-size:11px;color:var(--muted);margin-bottom:8px">CSV format: name,email (one per line, no header)</div>
-      <input id="pub-twj-bulk-file" type="file" accept=".csv,text/csv" style="margin-bottom:8px">
-      <button class="mbtn mbtn-p" onclick="pubTwjBulkUpload()">Upload</button>
-    </div>`;
-}
-
-async function pubTwjAdd() {
-  const first_name = (document.getElementById('pub-twj-first')?.value || '').trim();
-  const last_name  = (document.getElementById('pub-twj-last')?.value || '').trim();
-  const email      = (document.getElementById('pub-twj-email')?.value || '').trim();
-  if (!(first_name && last_name && email)) { alert('First name, last name, and email are required.'); return; }
-  try {
-    const result = await api('/api/dashboard/twj/readers', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ first_name, last_name, email }),
-    });
-    alert(`Reader added: ${result.username} / ${result.password}`);
-    await pubLoadTwj();
-  } catch (e) { alert('Failed to add reader: ' + e.message); }
-}
-
-async function pubTwjBulkUpload() {
-  const fileEl = document.getElementById('pub-twj-bulk-file');
-  const file = fileEl?.files?.[0];
-  if (!file) { alert('Choose a CSV file first.'); return; }
-  const fd = new FormData();
-  fd.append('file', file);
-  try {
-    const result = await api('/api/dashboard/twj/readers/bulk', { method: 'POST', body: fd });
-    alert(`Added ${result.count} readers. Credentials CSV:\n\n${result.csv}`);
-    await pubLoadTwj();
-  } catch (e) { alert('Bulk upload failed: ' + e.message); }
-}
-
-async function pubTwjResetPw(id) {
-  if (!confirm('Reset this reader’s password?')) return;
-  try {
-    const result = await api(`/api/dashboard/twj/readers/${id}/reset-password`, { method: 'POST' });
-    alert('New password: ' + result.password);
-  } catch (e) { alert('Failed to reset password: ' + e.message); }
-}
-
-async function pubTwjRevoke(id) {
-  if (!confirm('Revoke this reader’s access?')) return;
-  try { await api(`/api/dashboard/twj/readers/${id}/revoke`, { method: 'POST' }); await pubLoadTwj(); }
-  catch (e) { alert('Failed to revoke: ' + e.message); }
-}
-
-function pubTwjFilterFeedback(chapter) {
-  _pubTwjChapter = chapter;
-  _pubRenderTwj();
-}
-
-async function pubTwjDeleteFeedback(id) {
-  if (!confirm('Delete this feedback entry?')) return;
-  try {
-    await api(`/api/dashboard/twj/feedback/${id}`, { method: 'DELETE' });
-    _pubTwjFeedback = _pubTwjFeedback.filter(f => f.id !== id);
-    _pubRenderTwj();
-  } catch (e) { alert('Failed to delete: ' + e.message); }
 }
