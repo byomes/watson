@@ -49,6 +49,7 @@ html, body {
   font-size: 14px;
   -webkit-font-smoothing: antialiased;
   min-height: 100vh;
+  overflow-x: hidden;
 }
 
 /* ── Header ─────────────────────────────────────────────────────────── */
@@ -56,9 +57,20 @@ html, body {
   position: sticky; top: 0; z-index: 100;
   background: var(--bg);
   border-bottom: 1px solid var(--border);
-  display: flex; align-items: center; gap: 12px;
+  display: flex; align-items: center; flex-wrap: wrap; gap: 12px;
   padding: 10px 20px;
   min-height: 56px;
+}
+@media (max-width: 600px) {
+  #hdr {
+    row-gap: 10px;
+  }
+  /* Force everything after the title block (toggle pill, Add leader,
+     Assign Task, theme pill, sign-out) onto its own row(s) so #hdr-mark
+     and #hdr-text always keep the first row to themselves. */
+  #hdr-text + div {
+    flex-basis: 100%;
+  }
 }
 #hdr-mark {
   width: 34px; height: 34px;
@@ -152,10 +164,14 @@ html, body {
 }
 
 /* ── Table ───────────────────────────────────────────────────────────── */
+.table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin-bottom: 10px;
+}
 .leaders-table {
   width: 100%;
   border-collapse: collapse;
-  margin-bottom: 10px;
 }
 .leaders-table th {
   font-size: 10px; font-family: 'DM Mono', monospace;
@@ -739,6 +755,7 @@ html, body {
   </div>
 
   <!-- Table -->
+  <div class="table-scroll">
   <table class="leaders-table" id="leaders-table">
     <thead>
       <tr>
@@ -805,6 +822,7 @@ html, body {
       {% endfor %}
     </tbody>
   </table>
+  </div>
 
   <!-- Detail panel -->
   <div id="detail-panel" style="display:none">
