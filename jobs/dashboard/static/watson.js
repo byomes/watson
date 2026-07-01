@@ -1760,6 +1760,11 @@ function moreExpandMember(id) {
         <input type="date" id="mmem-return-${id}" value="${esc(m.snowbird_return || '')}"
           style="width:100%;padding:7px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:13px;outline:none;box-sizing:border-box;color-scheme:dark">
       </div>
+      <div style="margin-bottom:8px">
+        <label style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);display:block;margin-bottom:4px">LAST SEEN</label>
+        <input type="date" id="mmem-lastseen-${id}" value="${esc(m.last_seen || '')}"
+          style="width:100%;padding:7px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:13px;outline:none;box-sizing:border-box;color-scheme:dark">
+      </div>
       <div style="margin-bottom:10px">
         <label style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);display:block;margin-bottom:4px">NOTES</label>
         <textarea id="mmem-note-${id}" rows="2"
@@ -1781,16 +1786,18 @@ function memberStatusChange(id) {
 }
 
 async function memberSave(id) {
-  const sel     = document.getElementById(`mmem-status-${id}`);
-  const noteEl  = document.getElementById(`mmem-note-${id}`);
-  const retEl   = document.getElementById(`mmem-return-${id}`);
-  const savedEl = document.getElementById(`mmem-saved-${id}`);
-  const status  = sel?.value || 'active';
+  const sel        = document.getElementById(`mmem-status-${id}`);
+  const noteEl     = document.getElementById(`mmem-note-${id}`);
+  const retEl      = document.getElementById(`mmem-return-${id}`);
+  const lastSeenEl = document.getElementById(`mmem-lastseen-${id}`);
+  const savedEl    = document.getElementById(`mmem-saved-${id}`);
+  const status     = sel?.value || 'active';
   const body = {
     member_status:   status,
     status_note:     (noteEl?.value || '').trim() || null,
     snowbird_return:   (status === 'snowbird' && retEl?.value) ? retEl.value : null,
     campus_preference: document.getElementById(`mmem-campus-${id}`)?.value || 'Wilmington',
+    last_seen:         lastSeenEl?.value || '',
   };
   try {
     const updated = await api(`/api/members/${id}`, {

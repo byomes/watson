@@ -967,8 +967,13 @@ def congregation_list_api():
 
 
 _MEMBER_FIELDS = (
-    "id, name, email, phone, campus_preference, active, shepherding_exempt, "
-    "member_status, status_reason, status_since, status_note, snowbird_return"
+    "m.id, m.name, m.email, m.phone, m.campus_preference, m.active, m.shepherding_exempt, "
+    "m.member_status, m.status_reason, m.status_since, m.status_note, m.snowbird_return, "
+    "(SELECT MAX(service_date) FROM ("
+    "  SELECT service_date FROM connect_cards WHERE member_id = m.id "
+    "  UNION "
+    "  SELECT service_date FROM attendance WHERE member_id = m.id"
+    ")) AS last_seen"
 )
 
 
@@ -983,7 +988,7 @@ def members_list_api():
     try:
         c = _cong_conn()
         rows = c.execute(
-            f"SELECT {_MEMBER_FIELDS} FROM members ORDER BY name COLLATE NOCASE"
+            f"SELECT {_MEMBER_FIELDS} FROM members m ORDER BY m.name COLLATE NOCASE"
         ).fetchall()
         c.close()
         return jsonify([dict(r) for r in rows])
@@ -999,8 +1004,8 @@ def members_search_api():
     try:
         c = _cong_conn()
         rows = c.execute(
-            f"SELECT {_MEMBER_FIELDS} FROM members "
-            "WHERE name LIKE ? COLLATE NOCASE ORDER BY name COLLATE NOCASE LIMIT 20",
+            f"SELECT {_MEMBER_FIELDS} FROM members m "
+            "WHERE m.name LIKE ? COLLATE NOCASE ORDER BY m.name COLLATE NOCASE LIMIT 20",
             (f"%{q}%",),
         ).fetchall()
         c.close()
@@ -1014,18 +1019,52 @@ def members_update_api(member_id):
     data = request.get_json(force=True) or {}
     allowed = {"member_status", "status_reason", "status_since", "status_note", "snowbird_return", "campus_preference"}
     fields = {k: v for k, v in data.items() if k in allowed}
-    if not fields:
+
+    last_seen_input = data.get("last_seen")
+    if isinstance(last_seen_input, str):
+        last_seen_input = last_seen_input.strip() or None
+
+    if not fields and last_seen_input is None:
         return jsonify({"error": "nothing to update"}), 400
     try:
         c = _cong_conn()
-        set_clause = ", ".join(f"{k} = ?" for k in fields)
-        c.execute(
-            f"UPDATE members SET {set_clause} WHERE id = ?",
-            (*fields.values(), member_id),
-        )
+
+        existing = c.execute(
+            "SELECT campus_preference, "
+            "(SELECT MAX(service_date) FROM ("
+            "  SELECT service_date FROM connect_cards WHERE member_id = members.id "
+            "  UNION "
+            "  SELECT service_date FROM attendance WHERE member_id = members.id"
+            ")) AS last_seen "
+            "FROM members WHERE id = ?",
+            (member_id,),
+        ).fetchone()
+        if not existing:
+            c.close()
+            return jsonify({"error": "not found"}), 404
+
+        if fields:
+            set_clause = ", ".join(f"{k} = ?" for k in fields)
+            c.execute(
+                f"UPDATE members SET {set_clause} WHERE id = ?",
+                (*fields.values(), member_id),
+            )
+
+        if last_seen_input and last_seen_input != existing["last_seen"]:
+            dup = c.execute(
+                "SELECT 1 FROM attendance WHERE member_id = ? AND service_date = ?",
+                (member_id, last_seen_input),
+            ).fetchone()
+            if not dup:
+                campus = fields.get("campus_preference") or existing["campus_preference"] or "Wilmington"
+                c.execute(
+                    "INSERT INTO attendance (member_id, service_date, campus, card_id) VALUES (?, ?, ?, NULL)",
+                    (member_id, last_seen_input, campus),
+                )
+
         c.commit()
         row = c.execute(
-            f"SELECT {_MEMBER_FIELDS} FROM members WHERE id = ?", (member_id,)
+            f"SELECT {_MEMBER_FIELDS} FROM members m WHERE m.id = ?", (member_id,)
         ).fetchone()
         c.close()
         if not row:
