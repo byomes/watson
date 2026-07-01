@@ -2109,9 +2109,18 @@ async function sendChatStream() {
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 
+function _syncNavHeight() {
+  const nav = document.getElementById('nav');
+  if (!nav) return;
+  document.documentElement.style.setProperty('--nav-h', nav.offsetHeight + 'px');
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   const savedTheme = localStorage.getItem('watson-theme') || 'dark';
   document.documentElement.setAttribute('data-theme', savedTheme);
+
+  _syncNavHeight();
+  window.addEventListener('resize', _syncNavHeight);
 
   const dateEl = document.getElementById('hdr-date');
   if (dateEl) {
