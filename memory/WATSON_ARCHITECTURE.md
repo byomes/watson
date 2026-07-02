@@ -630,3 +630,40 @@ WATSON_API_URL=https://watson.tail0243ff.ts.net
 ### ~/watson-admin
 - ba945b1 feat: Writing Room partner password reset
 - c161ad2 feat: ARC Commitments admin review tab — approve/reject, suspicious flagging, Writing Room invite
+
+---
+
+## Recent Changes — 2026-07-02
+
+### ~/watson
+- 6af90c0 feat: ARC password reset, resend welcome, and revoke — parity with Writing Room
+- b5af9b1 fix: remove TWJ Readers, Dev Loop, and Team Admin from dashboard nav
+- 8ca2cd1 docs: document Claude Code's scoped sudo restart permission
+- bdd1da1 feat: Publishing dashboard UI — Writing Room / ARC / TWJ Readers tabs
+- 219b2e1 refactor: extract ARC invite-to-writing-room into reusable function
+- 531f667 feat: Writing Room resend-welcome action
+- 7cee92e feat: TWJ Reader Watson API — admin CRUD + reader-facing login/session/feedback
+- 6c112aa feat: TWJ reader KV→watson.db migration (twj_readers/twj_feedback tables)
+- c9e6b36 chore: gitignore docs/briefing.html (auto-generated daily)
+- 889baf5 chore: stop tracking auto-generated briefing.html
+- ba2c524 chore: gitignore generated briefing.html at correct path
+- 53173bc chore: stop tracking auto-generated briefing.html
+- 9aa6af9 fix: sync --nav-h CSS var on load and resize
+- c6d60a1 feat: auto-detect new calendar meeting-title prefixes, Telegram approval flow
+- 87212ff fix: mobile toggle pill splits evenly into two equal tap targets
+- 0346ee4 fix: mobile header wrapping and table scroll containment on Team Admin page
+- 57200de feat: two-way Dashboard/Team toggle — header points to /admin, admin.html gets matching toggle back to /
+- 36795c0 feat: 30-day persistent admin session, no re-login on every dashboard open
+- e383ea0 feat: add Elders task category to Home dashboard tabs
+- 1a7fbd1 fix: no-cache headers on /api/members and /api/members/search to prevent stale WebView cache
+- f17fd31 feat: shepherding: directive prefix, Skills button now matches emailed report
+- dcca945 feat: editable Last Seen date on member panel, inserts attendance row
+- 49bd70a fix: critical care section requires 3+ visits (cards+attendance) before flagging
+- c712a54 docs: file map 2026-07-01
+- 5b381f9 docs: architecture update 2026-07-01
+
+### ~/wcky
+- bcf4e15 fix: /arc/dashboard shows error instead of redirecting on expired session
+- 8ddc9dc fix: retire /twj/read, redirect to /arc/dashboard
+- 92f5920 feat: repoint TWJ reader login/session/feedback at Watson instead of Upstash KV
+- 071ce53 chore: gitignore tsconfig.tsbuildinfo
