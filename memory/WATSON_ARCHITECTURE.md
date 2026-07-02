@@ -667,3 +667,44 @@ WATSON_API_URL=https://watson.tail0243ff.ts.net
 - 8ddc9dc fix: retire /twj/read, redirect to /arc/dashboard
 - 92f5920 feat: repoint TWJ reader login/session/feedback at Watson instead of Upstash KV
 - 071ce53 chore: gitignore tsconfig.tsbuildinfo
+
+---
+
+## Recent Changes — 2026-07-02
+
+### ~/watson
+- 2b0fb14 docs: file map 2026-07-02
+- a33e4b5 feat: add is_admin_preview bypass for ARC manuscript time lock
+- 7f5ec82 fix: dynamic commitment total in arc_dashboard, was hardcoded to 6
+- ab2c8cc feat: delete-credentials action for ARC/Writing Room, preserves posts/feedback
+- 385b7df feat: word-based password generation for ARC/Writing Room (EFF wordlist, 3 words)
+- 112791f docs: file map 2026-07-02
+- 9777084 docs: architecture update 2026-07-02
+- 6af90c0 feat: ARC password reset, resend welcome, and revoke — parity with Writing Room
+- b5af9b1 fix: remove TWJ Readers, Dev Loop, and Team Admin from dashboard nav
+- 8ca2cd1 docs: document Claude Code's scoped sudo restart permission
+- bdd1da1 feat: Publishing dashboard UI — Writing Room / ARC / TWJ Readers tabs
+- 219b2e1 refactor: extract ARC invite-to-writing-room into reusable function
+- 531f667 feat: Writing Room resend-welcome action
+- 7cee92e feat: TWJ Reader Watson API — admin CRUD + reader-facing login/session/feedback
+- 6c112aa feat: TWJ reader KV→watson.db migration (twj_readers/twj_feedback tables)
+
+### ~/wcky
+- a9b05fa feat: move TWJ section above recent posts on homepage
+- 645d9cc refactor: consolidate lead magnet modal into single shared instance
+- 3e7cbdd feat: add small-print ARC link below launch page email signup
+- 5833366 fix: homepage TWJ section links to launch page instead of ARC signup
+- 4f5d0ff fix: open Givebutter monthly partner link in new tab
+- ff36972 fix: correct FMS monthly partner Givebutter link
+- 69c27fe fix: apply Kit tag via correct v4 tags endpoint on TWJ signup
+- 43bbaef content: update TWJ manuscript chapters (07-02-2026)
+- bd45613 copy: rework /thewrongjesus description block
+- 1e52dcb feat: admin preview bypass for manuscript time lock
+- 18fe657 feat: time-lock ARC manuscript access, unlock 7/15 close 9/15
+- befeeda publish: When Culture Knocks at the Door
+- 6d5e35e copy: rename commitment tracker link text to ARC Login
+- 4cefb94 copy: rename Commitment Tracker to ARC Login on login page
+- bcf4e15 fix: /arc/dashboard shows error instead of redirecting on expired session
+- 8ddc9dc fix: retire /twj/read, redirect to /arc/dashboard
+- 92f5920 feat: repoint TWJ reader login/session/feedback at Watson instead of Upstash KV
+- 071ce53 chore: gitignore tsconfig.tsbuildinfo
