@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-07-01*
+*Generated: 2026-07-02*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -164,6 +164,7 @@ jobs/
     app.py.bak
     migrate_admin.py
     migrate_sessions.py
+    publishing_routes.py
     static/
       favicon-w.svg
       favicon.svg
@@ -253,6 +254,7 @@ jobs/
     pre_meeting_brief.py
     reasoner.py
     reauth.py
+    scan_meeting_patterns.py
     token_health.py
   generate.py
   givebutter/
@@ -285,6 +287,9 @@ jobs/
     sync.py
     wrap_up.py
   memory_manager.py
+  migrate/
+    __init__.py
+    twj_kv_to_db.py
   misc/
     __init__.py
     both_read_pdf.py
@@ -312,6 +317,9 @@ jobs/
     migrate.py
     registry.py
     server.py
+  publishing/
+    __init__.py
+    api.py
   qr/
     __init__.py
     qr_generate.py
@@ -1202,6 +1210,7 @@ src/
   lib/
     arc-api.ts
     posts.ts
+    twj-api.ts
     writing-room-api.ts
     writing-room-auth.ts
   middleware.ts
