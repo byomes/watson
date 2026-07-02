@@ -45,7 +45,7 @@ def _get_session_reader(session_token: str):
     try:
         row = conn.execute(
             "SELECT s.arc_reader_id, s.expires_at, "
-            "r.id, r.first_name, r.last_name, r.email, r.first_login_at "
+            "r.id, r.first_name, r.last_name, r.email, r.first_login_at, r.is_admin_preview "
             "FROM arc_sessions s "
             "JOIN arc_readers r ON r.id = s.arc_reader_id "
             "WHERE s.session_token = ?",
@@ -147,6 +147,7 @@ def arc_dashboard(reader):
                 "first_name": reader["first_name"],
                 "last_name": reader["last_name"],
                 "email": reader["email"],
+                "is_admin_preview": bool(reader["is_admin_preview"]),
             },
             "commitments": [dict(c) for c in commitments],
             "progress": {"checked": checked_count, "total": len(_COMMITMENT_TEXTS)},
