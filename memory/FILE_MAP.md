@@ -81,9 +81,14 @@ data/
     qr_20260611_114652.png
     qr_20260611_114932.png
     qr_20260611_115908.png
+    qr_20260702_115204.png
+    qr_20260702_120717.png
+    qr_20260702_121611.png
+    qr_20260702_122730.png
   riddle_history.json
   skill_audit.json
   watson.db
+  watson.db.backup-20260702-072434
 deploy/
   .gitkeep
   connect_cards_cron.txt
@@ -112,6 +117,7 @@ jobs/
     api.py
     auth.py
     commitment_validator.py
+    migrate_admin_preview.py
     send_invite_email.py
     send_signup_confirmation.py
     templates/
@@ -422,6 +428,7 @@ jobs/
     send_arc_welcome_email.py
     templates/
       arc_welcome_email.html
+    wordlist.txt
 kb/
   .collection_id_cache.json
   bible-studies/
@@ -990,6 +997,7 @@ content/
     2026-06-26-still-fighting-for-someone-else-s-land.md
     2026-06-28-the-inheritance-was-already-written.md
     2026-06-30-you-are-not-what-you-do.md
+    2026-07-02-when-culture-knocks-at-the-door.md
     the-flashlight-of-your-focus.md
     where-your-treasure-is.md
 next-env.d.ts
@@ -1192,6 +1200,21 @@ src/
           chapter-12.md
           conclusion.md
           introduction.md
+        chapters_backup_20260702/
+          chapter-01.md
+          chapter-02.md
+          chapter-03.md
+          chapter-04.md
+          chapter-05.md
+          chapter-06.md
+          chapter-07.md
+          chapter-08.md
+          chapter-09.md
+          chapter-10.md
+          chapter-11.md
+          chapter-12.md
+          conclusion.md
+          introduction.md
         page.tsx
   components/
     Footer.tsx
@@ -1200,6 +1223,7 @@ src/
     HeroButtons.tsx
     HomePopup.tsx
     LeadMagnetModal.tsx
+    LeadMagnetModalContext.tsx
     StartCTA.tsx
   content/
     books/
@@ -1209,6 +1233,7 @@ src/
           sample-draft.md
   lib/
     arc-api.ts
+    launch-dates.ts
     posts.ts
     twj-api.ts
     writing-room-api.ts
