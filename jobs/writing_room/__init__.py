@@ -3,7 +3,6 @@ import os
 import secrets
 import smtplib
 import sqlite3
-import string
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
@@ -164,6 +163,11 @@ def generate_username(first_name: str) -> str:
     return f"{slug}{num}"
 
 
-def generate_password(length: int = 16) -> str:
-    alphabet = string.ascii_letters + string.digits
-    return "".join(secrets.choice(alphabet) for _ in range(length))
+def generate_password(word_count: int = 3) -> str:
+    """Generate a readable password from random dictionary words.
+    E.g. 'TigerMapleRiver' — capitalized, no separator, no digits."""
+    wordlist_path = Path(__file__).parent / "wordlist.txt"
+    with open(wordlist_path) as f:
+        words = [w.strip() for w in f if w.strip()]
+    chosen = [secrets.choice(words) for _ in range(word_count)]
+    return "".join(w.capitalize() for w in chosen)

@@ -10,7 +10,6 @@ Also register arc_auth_bp:
 """
 import logging
 import os
-import secrets
 import sys
 import threading
 import uuid
@@ -23,7 +22,7 @@ from flask import Blueprint, jsonify, request
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from jobs.writing_room import get_db, send_telegram
+from jobs.writing_room import generate_password, get_db, send_telegram
 
 log = logging.getLogger(__name__)
 
@@ -182,7 +181,7 @@ def arc_apply():
         if existing:
             return jsonify({"ok": True, "message": "already registered"}), 200
 
-        temp_password = secrets.token_urlsafe(12)
+        temp_password = generate_password()
         pw_hash       = bcrypt.hashpw(temp_password.encode(), bcrypt.gensalt()).decode()
         login_token   = str(uuid.uuid4())
 
@@ -350,7 +349,7 @@ def resend_welcome(reader_id: int) -> bool:
     if not reader:
         return False
 
-    new_password = secrets.token_urlsafe(12)
+    new_password = generate_password()
     set_reader_password(reader_id, new_password)
 
     def _send():

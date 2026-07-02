@@ -16,7 +16,7 @@ from flask import Blueprint, jsonify, request
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from jobs.writing_room import bootstrap_db, get_db, send_telegram
+from jobs.writing_room import bootstrap_db, generate_password, get_db, send_telegram
 from jobs.writing_room.onboard import (
     alert_new_application, kit_tag_on_activation, process_approval, process_denial,
     resend_welcome,
@@ -580,7 +580,6 @@ def verify_confirm():
 @writing_room_bp.route("/api/writing-room/admin/reset-password", methods=["POST"])
 @_require_key
 def admin_reset_password():
-    import secrets as _secrets
     data       = request.get_json(force=True)
     partner_id = data.get("partner_id")
     if not partner_id:
@@ -596,7 +595,7 @@ def admin_reset_password():
     if not row:
         return jsonify({"error": "partner not found"}), 404
 
-    new_password = _secrets.token_urlsafe(12)[:16]
+    new_password = generate_password()
     set_partner_password(partner_id, new_password)
     return jsonify({"ok": True, "password": new_password}), 200
 
