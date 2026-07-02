@@ -17,6 +17,7 @@ from flask import Blueprint, jsonify, request
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from jobs.arc.api import _COMMITMENT_TEXTS
 from jobs.writing_room import get_db
 
 log = logging.getLogger(__name__)
@@ -148,7 +149,7 @@ def arc_dashboard(reader):
                 "email": reader["email"],
             },
             "commitments": [dict(c) for c in commitments],
-            "progress": {"checked": checked_count, "total": 6},
+            "progress": {"checked": checked_count, "total": len(_COMMITMENT_TEXTS)},
         }), 200
     finally:
         conn.close()
