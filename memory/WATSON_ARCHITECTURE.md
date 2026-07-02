@@ -72,7 +72,7 @@ Watson acts on Dr. Bill's behalf under his supervision. Always identified openly
 | `williamckyomes.com/thewrongjesus` | `byomes/wcky` | TWJ book launch page — countdown, Kit signup |
 | `williamckyomes.com/arc` | `byomes/wcky` | ARC reader signup (open) |
 | `williamckyomes.com/room` | `byomes/wcky` | Writing Room — private partner community (invitation-only) |
-| `williamckyomes.com/twj/read` | `byomes/wcky` | TWJ manuscript reader — **DO NOT change route** |
+| `williamckyomes.com/twj/read` | `byomes/wcky` | **Retired** (2026-07-01, TWJ/ARC consolidation) — redirects to `/arc/dashboard` |
 | `williamckyomes.com/twj/press` | `byomes/wcky` | TWJ press kit |
 | `williamckyomes.com/meet` | `byomes/wcky` | Public booking page |
 | `williamckyomes.com/dashboard` | `byomes/wcky` | Redirect → `https://watson.tail0243ff.ts.net` |
@@ -99,6 +99,8 @@ Watson acts on Dr. Bill's behalf under his supervision. Always identified openly
 - `connect_cards`, `donors`, `appointments`
 - `writing_room_partners`, `writing_room_posts`, `writing_room_beta_feedback`
 - `writing_room_messages`, `writing_room_calls`, `writing_room_reset_tokens`
+- `arc_readers`, `arc_reader_commitments`, `arc_reader_feedback`, `arc_sessions` — ARC reader signup, commitment tracking, manuscript feedback, sessions
+- `twj_readers`, `twj_feedback` — legacy TWJ reader accounts/feedback, migrated from Upstash KV; dashboard UI tab retired, data and routes intact
 - `login_challenges` — login vault challenge/response pairs (dashboard-only)
 - `dev_projects` — Dev Loop project tracking
 - `memory_sessions` — persistent chat memory, injected into Ollama system prompt
@@ -257,11 +259,11 @@ Dashboard trigger available: "Run Conflict Check" in More tab.
 
 - Runs locally on Beelink via `subprocess.Popen` (non-blocking)
 - Script: `~/watson/jobs/dev_loop/loop.py`
-- Trigger: `jobs/dev_loop/trigger.py` — called from Telegram `devloop:` command or dashboard
+- Trigger: `jobs/dev_loop/trigger.py` — called from Telegram `devloop:` command (no dashboard UI trigger since 2026-07-01)
 - Ollama model: `qwen2.5-coder:7b` at `localhost:11434`
 - Test method: syntax check only (`python3 -m py_compile`) — not execution
 - Callback: `POST /api/dev-loop/callback` with `X-Watson-Key: WRITING_ROOM_API_KEY`
-- Dashboard: Dev Loop tab in More menu — project list, status badges, code viewer, Keep Going/Stop buttons
+- Dashboard: no UI tab as of 2026-07-01 (removed from More menu, TWJ/ARC consolidation) — `/api/dev-loop/*` routes still live, reachable directly, just no dashboard entry point
 - Logs: `~/watson/logs/devloop-{slug}.log`
 - Cleanup: `jobs/dev_loop/cleanup.py` — Monday 4am, purges projects older than 7 days
 - Projects staged to `~/watson/dev/<slug>/` — never auto-committed to main
@@ -276,8 +278,13 @@ Private community hub for Writing Room Partners (invitation-only, earned via ARC
 **Watson API base:** `https://watson.tail0243ff.ts.net` (Tailscale Funnel)
 **Auth:** `X-Watson-Key` header shared secret (`WRITING_ROOM_API_KEY`)
 
-**Partner funnel:** ARC signup (`/arc`) → complete 6 commitments → Writing Room invitation
-**ARC commitments:** advance copy, read before launch, Amazon review on launch day, share on ≥1 social platform, pray for impact, spread the word
+**Partner funnel:** ARC signup (`/arc`) → complete 5 commitments → Writing Room invitation
+**ARC commitments** (`src/app/arc/page.tsx`):
+1. Pray for the book's impact
+2. Read the book before the launch date
+3. Post an honest review on Amazon on launch day
+4. Share about the book on at least one social media platform
+5. Tell people in your life who you think would connect with this book
 **Kit tags:** `arc-reader`, `arc-complete`, `writing-room-partner`
 
 **Sections:** Board (threaded posts), Beta (draft feedback), Read (ARC manuscript), Prayer (prayer wall), Write (direct message to William), Calls (upcoming video calls)
@@ -294,7 +301,8 @@ Private community hub for Writing Room Partners (invitation-only, earned via ARC
 
 ## The Wrong Jesus (Book)
 
-- **Status:** Manuscript complete. 14 sections live at `/twj/read`.
+- **Status:** Manuscript complete. Reader retired from `/twj/read` (2026-07-01, TWJ/ARC consolidation) — now read via ARC manuscript reader at `/arc/dashboard`.
+- **Manuscript time-lock** (`src/lib/launch-dates.ts`): unlocks 2026-07-15, closes 2026-09-15 (pinned to `TWJ_LAUNCH_DATE`). Admin-preview bypass (`is_admin_preview`) available to view outside the window.
 - **Launch page:** `williamckyomes.com/thewrongjesus` — countdown timer, Kit signup
 - **Launch page pending:** `KIT_API_KEY` + `KIT_TWJ_TAG_ID` Vercel env vars; `GIVEBUTTER_LINK`; `AMAZON_LINK`; flip `AMAZON_LIVE=true` at preorder
 - **Press kit:** `williamckyomes.com/twj/press`
@@ -311,7 +319,8 @@ Private community hub for Writing Room Partners (invitation-only, earned via ARC
 - **URL (Tailscale):** `http://100.117.237.96:5200`
 - **URL (public):** `https://watson.tail0243ff.ts.net`
 - **Nav tabs:** Home, Notes, Tasks (in Team), Reminders, Reading, More
-- **More menu sections:** Theme toggle, Briefing, Skills (command launcher), Reports, Members, Church Events, Login Vault, Dev Loop, Team Admin
+- **More menu sections (current):** Theme toggle, Briefing, Skills (command launcher), Reading List, Ministry, Events, Members, Publishing (Writing Room / ARC), Logins
+- **More menu history:** "Reports" deleted 2026-06-27 (dead code removed, not merged elsewhere — `385b7fc`). "Church Events" renamed to "Events" (same feature, same `church_events` table/`/api/events`). Dev Loop section and Team Admin link removed from nav 2026-07-01, TWJ/ARC consolidation (`b5af9b1`) — UI-only cleanup, backend cron jobs/tables and `/admin` + `/api/dev-loop/*` routes untouched, just no dashboard entry point anymore.
 - **Saved as iPhone PWA** — remove and re-add to Home Screen after safe area CSS changes
 - **Dashboard interfaces:** `/` (Bill), `/admin` (Donna), `/team` (shared team view)
 
@@ -463,7 +472,7 @@ WATSON_API_URL=https://watson.tail0243ff.ts.net
 - **Ollama async:** All Ollama calls in bot must use `asyncio.to_thread()`. Never bare `requests.post()` in async context.
 - **Kit API:** v3 and v4 require separate credentials. v3 tag creation: nested `{"tag": {"name": "..."}}`. v3 auth: `api_key` query param for GET, `api_secret` in POST body. v4: `X-Kit-Api-Key` header.
 - **httpx pin:** Must stay at `0.25.2` for `python-telegram-bot 20.7` compatibility.
-- **`/twj/read`:** Never change this route. Reader bookmarks depend on it.
+- **`/twj/read`:** Retired 2026-07-01 (TWJ/ARC consolidation) — now redirects to `/arc/dashboard`. Manuscript reading lives under ARC (`ManuscriptReader.tsx`).
 - **Two-database architecture:** `congregation.db` for all pastoral/church data; `watson.db` for Watson system data. Jobs must target the correct DB.
 - **Direct Python over Ollama for structured DB queries:** `cdb:` pattern matcher is more reliable than LLM SQL generation. Ollama falls through/times out on structured queries.
 - **`_SKILL_PRE_CHECKS` and `skills.json` are independent:** Both must be updated when adding/changing skills.
@@ -503,10 +512,9 @@ WATSON_API_URL=https://watson.tail0243ff.ts.net
 
 ## Active Bugs (June 29, 2026)
 
-1. Telegram "View on Dashboard" Dev Loop link opens `/#devloop` tab but doesn't deep-link to specific project
-2. "Send to Claude Code" button — legacy button in dashboard, not yet removed
-3. KB search (`qwen2.5-coder:7b`) — timed out at 14 min during testing; root cause unresolved
-4. `/draft` page UI copy — may still say "Pushing to GitHub…" — verify and update to "Queuing…"
+1. "Send to Claude Code" button — legacy button in dashboard, not yet removed
+2. KB search (`qwen2.5-coder:7b`) — timed out at 14 min during testing; root cause unresolved
+3. `/draft` page UI copy — may still say "Pushing to GitHub…" — verify and update to "Queuing…"
 
 ---
 
@@ -636,6 +644,13 @@ WATSON_API_URL=https://watson.tail0243ff.ts.net
 ## Recent Changes — 2026-07-02
 
 ### ~/watson
+- 2b0fb14 docs: file map 2026-07-02
+- a33e4b5 feat: add is_admin_preview bypass for ARC manuscript time lock
+- 7f5ec82 fix: dynamic commitment total in arc_dashboard, was hardcoded to 6
+- ab2c8cc feat: delete-credentials action for ARC/Writing Room, preserves posts/feedback
+- 385b7df feat: word-based password generation for ARC/Writing Room (EFF wordlist, 3 words)
+- 112791f docs: file map 2026-07-02
+- 9777084 docs: architecture update 2026-07-02
 - 6af90c0 feat: ARC password reset, resend welcome, and revoke — parity with Writing Room
 - b5af9b1 fix: remove TWJ Readers, Dev Loop, and Team Admin from dashboard nav
 - 8ca2cd1 docs: document Claude Code's scoped sudo restart permission
@@ -661,33 +676,6 @@ WATSON_API_URL=https://watson.tail0243ff.ts.net
 - 49bd70a fix: critical care section requires 3+ visits (cards+attendance) before flagging
 - c712a54 docs: file map 2026-07-01
 - 5b381f9 docs: architecture update 2026-07-01
-
-### ~/wcky
-- bcf4e15 fix: /arc/dashboard shows error instead of redirecting on expired session
-- 8ddc9dc fix: retire /twj/read, redirect to /arc/dashboard
-- 92f5920 feat: repoint TWJ reader login/session/feedback at Watson instead of Upstash KV
-- 071ce53 chore: gitignore tsconfig.tsbuildinfo
-
----
-
-## Recent Changes — 2026-07-02
-
-### ~/watson
-- 2b0fb14 docs: file map 2026-07-02
-- a33e4b5 feat: add is_admin_preview bypass for ARC manuscript time lock
-- 7f5ec82 fix: dynamic commitment total in arc_dashboard, was hardcoded to 6
-- ab2c8cc feat: delete-credentials action for ARC/Writing Room, preserves posts/feedback
-- 385b7df feat: word-based password generation for ARC/Writing Room (EFF wordlist, 3 words)
-- 112791f docs: file map 2026-07-02
-- 9777084 docs: architecture update 2026-07-02
-- 6af90c0 feat: ARC password reset, resend welcome, and revoke — parity with Writing Room
-- b5af9b1 fix: remove TWJ Readers, Dev Loop, and Team Admin from dashboard nav
-- 8ca2cd1 docs: document Claude Code's scoped sudo restart permission
-- bdd1da1 feat: Publishing dashboard UI — Writing Room / ARC / TWJ Readers tabs
-- 219b2e1 refactor: extract ARC invite-to-writing-room into reusable function
-- 531f667 feat: Writing Room resend-welcome action
-- 7cee92e feat: TWJ Reader Watson API — admin CRUD + reader-facing login/session/feedback
-- 6c112aa feat: TWJ reader KV→watson.db migration (twj_readers/twj_feedback tables)
 
 ### ~/wcky
 - a9b05fa feat: move TWJ section above recent posts on homepage
