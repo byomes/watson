@@ -92,6 +92,46 @@ def dash_wr_revoke():
         conn.close()
 
 
+@publishing_dashboard_bp.route("/api/dashboard/writing-room/<int:partner_id>/delete-preview", methods=["GET"])
+def dash_wr_delete_preview(partner_id: int):
+    conn = get_wr_db()
+    try:
+        posts = conn.execute(
+            "SELECT COUNT(*) FROM writing_room_posts WHERE partner_id = ?", (partner_id,)
+        ).fetchone()[0]
+        messages = conn.execute(
+            "SELECT COUNT(*) FROM writing_room_messages WHERE partner_id = ?", (partner_id,)
+        ).fetchone()[0]
+        beta_feedback = conn.execute(
+            "SELECT COUNT(*) FROM writing_room_beta_feedback WHERE partner_id = ?", (partner_id,)
+        ).fetchone()[0]
+        return jsonify({"posts": posts, "messages": messages, "beta_feedback": beta_feedback}), 200
+    finally:
+        conn.close()
+
+
+@publishing_dashboard_bp.route("/api/dashboard/writing-room/<int:partner_id>/delete", methods=["POST"])
+def dash_wr_delete(partner_id: int):
+    conn = get_wr_db()
+    try:
+        row = conn.execute(
+            "SELECT id FROM writing_room_partners WHERE id = ?", (partner_id,)
+        ).fetchone()
+        if not row:
+            return jsonify({"error": "partner not found"}), 404
+        conn.execute(
+            "UPDATE writing_room_partners SET username = NULL, password_hash = NULL, "
+            "status = 'deleted' WHERE id = ?",
+            (partner_id,),
+        )
+        conn.execute("DELETE FROM writing_room_reset_tokens WHERE partner_id = ?", (partner_id,))
+        conn.execute("DELETE FROM writing_room_verify_tokens WHERE partner_id = ?", (partner_id,))
+        conn.commit()
+        return jsonify({"ok": True}), 200
+    finally:
+        conn.close()
+
+
 @publishing_dashboard_bp.route("/api/dashboard/writing-room/resend-welcome", methods=["POST"])
 def dash_wr_resend_welcome():
     partner_id = (request.get_json(force=True) or {}).get("partner_id")
@@ -268,6 +308,42 @@ def dash_arc_revoke(reader_id: int):
         if not row:
             return jsonify({"error": "reader not found"}), 404
         conn.execute("UPDATE arc_readers SET status = 'revoked' WHERE id = ?", (reader_id,))
+        conn.execute("DELETE FROM arc_sessions WHERE arc_reader_id = ?", (reader_id,))
+        conn.commit()
+        return jsonify({"ok": True}), 200
+    finally:
+        conn.close()
+
+
+@publishing_dashboard_bp.route("/api/dashboard/arc/readers/<int:reader_id>/delete-preview", methods=["GET"])
+def dash_arc_delete_preview(reader_id: int):
+    _ensure_arc_tables()
+    conn = get_wr_db()
+    try:
+        commitments = conn.execute(
+            "SELECT COUNT(*) FROM arc_reader_commitments WHERE arc_reader_id = ?", (reader_id,)
+        ).fetchone()[0]
+        feedback = conn.execute(
+            "SELECT COUNT(*) FROM arc_reader_feedback WHERE arc_reader_id = ?", (reader_id,)
+        ).fetchone()[0]
+        return jsonify({"commitments": commitments, "feedback": feedback}), 200
+    finally:
+        conn.close()
+
+
+@publishing_dashboard_bp.route("/api/dashboard/arc/readers/<int:reader_id>/delete", methods=["POST"])
+def dash_arc_delete(reader_id: int):
+    _ensure_arc_tables()
+    conn = get_wr_db()
+    try:
+        row = conn.execute("SELECT id FROM arc_readers WHERE id = ?", (reader_id,)).fetchone()
+        if not row:
+            return jsonify({"error": "reader not found"}), 404
+        conn.execute(
+            "UPDATE arc_readers SET login_token = NULL, password_hash = NULL, "
+            "status = 'deleted' WHERE id = ?",
+            (reader_id,),
+        )
         conn.execute("DELETE FROM arc_sessions WHERE arc_reader_id = ?", (reader_id,))
         conn.commit()
         return jsonify({"ok": True}), 200

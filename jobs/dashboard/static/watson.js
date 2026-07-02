@@ -2442,10 +2442,16 @@ function _pubStatusBadge(status) {
     approved: { cls: 'badge-NOTE' },
     revoked:  { style: 'background:rgba(201,80,76,.12);color:var(--red);border:1px solid rgba(201,80,76,.3)' },
     denied:   { style: 'background:rgba(201,80,76,.12);color:var(--red);border:1px solid rgba(201,80,76,.3)' },
+    deleted:  { style: 'background:rgba(102,102,102,.10);color:var(--muted);border:1px solid var(--border)', label: 'Deleted' },
   };
   const s = map[status] || { style: 'background:rgba(102,102,102,.10);color:var(--muted);border:1px solid var(--border)' };
   const style = s.style ? ` style="${s.style}"` : '';
-  return `<span class="badge ${s.cls || ''}"${style}>${esc((status || '').toUpperCase())}</span>`;
+  return `<span class="badge ${s.cls || ''}"${style}>${esc((s.label || status || '').toUpperCase())}</span>`;
+}
+
+function _pubJoinList(parts) {
+  if (parts.length <= 1) return parts.join('');
+  return parts.slice(0, -1).join(', ') + ' and ' + parts[parts.length - 1];
 }
 
 function publishingLoad() {
@@ -2530,6 +2536,7 @@ function _pubRenderWR() {
             <button class="mbtn mbtn-sm" onclick="pubWrResend(${p.id})">Resend Welcome</button>
             <button class="mbtn mbtn-sm" onclick="pubWrResetPw(${p.id})">Reset Password</button>
             <button class="mbtn mbtn-sm mbtn-d" onclick="pubWrRevoke(${p.id})">Revoke</button>
+            <button class="mbtn mbtn-sm mbtn-d" onclick="pubWrDelete(${p.id})">Delete</button>
           </td>
         </tr>`).join('')}
     </table></div>`;
@@ -2571,6 +2578,25 @@ async function pubWrRevoke(id) {
   if (!confirm('Revoke this partner’s access?')) return;
   try { await api('/api/dashboard/writing-room/revoke', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ partner_id: id }) }); await pubLoadWR(); }
   catch (e) { alert('Failed to revoke: ' + e.message); }
+}
+
+async function pubWrDelete(id) {
+  const p = _pubWrPartners.find(x => x.id === id);
+  const name = p ? p.name : 'this partner';
+  try {
+    const preview = await api(`/api/dashboard/writing-room/${id}/delete-preview`);
+    const parts = [];
+    if (preview.posts) parts.push(`${preview.posts} post${preview.posts === 1 ? '' : 's'}`);
+    if (preview.messages) parts.push(`${preview.messages} message${preview.messages === 1 ? '' : 's'}`);
+    if (preview.beta_feedback) parts.push(`${preview.beta_feedback} feedback item${preview.beta_feedback === 1 ? '' : 's'}`);
+    let msg = `Delete login credentials for ${name}? This cannot be undone.`;
+    msg += parts.length
+      ? `\n\nTheir ${_pubJoinList(parts)} will remain in the system under their name.`
+      : '\n\nNo posts or feedback exist for this account.';
+    if (!confirm(msg)) return;
+    await api(`/api/dashboard/writing-room/${id}/delete`, { method: 'POST' });
+    await pubLoadWR();
+  } catch (e) { alert('Failed to delete: ' + e.message); }
 }
 
 async function pubWrResend(id) {
@@ -2641,6 +2667,7 @@ function _pubRenderArc() {
           <button class="mbtn mbtn-sm" onclick="pubArcResend(${r.id})">Resend Welcome</button>
           <button class="mbtn mbtn-sm" onclick="pubArcResetPw(${r.id})">Reset Password</button>
           <button class="mbtn mbtn-sm mbtn-d" onclick="pubArcRevoke(${r.id})">Revoke</button>
+          <button class="mbtn mbtn-sm mbtn-d" onclick="pubArcDelete(${r.id})">Delete</button>
         </div>
         ${!r.approved_for_writing_room ? `
           <div style="margin-top:8px">
@@ -2685,4 +2712,22 @@ async function pubArcRevoke(id) {
   if (!confirm('Revoke this reader’s access?')) return;
   try { await api(`/api/dashboard/arc/readers/${id}/revoke`, { method: 'POST' }); await pubLoadArc(); }
   catch (e) { alert('Failed to revoke: ' + e.message); }
+}
+
+async function pubArcDelete(id) {
+  const r = _pubArcReaders.find(x => x.id === id);
+  const name = r ? `${r.first_name} ${r.last_name}` : 'this reader';
+  try {
+    const preview = await api(`/api/dashboard/arc/readers/${id}/delete-preview`);
+    const parts = [];
+    if (preview.commitments) parts.push(`${preview.commitments} commitment${preview.commitments === 1 ? '' : 's'}`);
+    if (preview.feedback) parts.push(`${preview.feedback} feedback item${preview.feedback === 1 ? '' : 's'}`);
+    let msg = `Delete login credentials for ${name}? This cannot be undone.`;
+    msg += parts.length
+      ? `\n\nTheir ${_pubJoinList(parts)} will remain in the system under their name.`
+      : '\n\nNo posts or feedback exist for this account.';
+    if (!confirm(msg)) return;
+    await api(`/api/dashboard/arc/readers/${id}/delete`, { method: 'POST' });
+    await pubLoadArc();
+  } catch (e) { alert('Failed to delete: ' + e.message); }
 }
