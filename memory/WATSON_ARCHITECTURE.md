@@ -553,6 +553,7 @@ WATSON_API_URL=https://watson.tail0243ff.ts.net
 - ~~Upstash KV in blog pipeline~~ — `ingest_drafts.py` retired, direct POST to Flask
 - ~~FMSPC SSH for Dev Loop~~ — moved to local Beelink execution
 - ~~iOS keyboard patch in dashboard chat~~ — attempted and reverted 7 times, permanently removed from build queue
+- ~~Build Pipeline (`jobs/dev/build_pipeline.py`)~~ — Claude API spec/review/approve flow triggered by bare `build <request>` / `approve` in Telegram; last ran 2026-06-15, superseded by Dev Loop. Bot triggers removed 2026-07-03. File left in place, unreferenced.
 
 ---
 
