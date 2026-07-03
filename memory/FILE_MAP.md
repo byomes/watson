@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-07-02*
+*Generated: 2026-07-03*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -1028,7 +1028,9 @@ scripts/
 src/
   app/
     about/
+      opengraph-image.tsx
       page.tsx
+      twitter-image.tsx
     api/
       arc/
         apply/
@@ -1102,23 +1104,35 @@ src/
       login/
         ArcLoginForm.tsx
         page.tsx
+      opengraph-image.tsx
       page.tsx
+      twitter-image.tsx
     blog/
       [slug]/
+        opengraph-image.tsx
         page.tsx
+        twitter-image.tsx
+      opengraph-image.tsx
       page.tsx
+      twitter-image.tsx
     books/
+      opengraph-image.tsx
       page.tsx
+      twitter-image.tsx
     cv/
       CvDownloadButton.tsx
       cv.css
+      opengraph-image.tsx
       page.tsx
+      twitter-image.tsx
     dashboard/
       page.tsx
     draft/
       page.tsx
     dreamstone/
+      opengraph-image.tsx
       page.tsx
+      twitter-image.tsx
     favicon.ico
     globals.css
     ingest/
@@ -1130,6 +1144,7 @@ src/
         page.tsx
       page.tsx
     not-found.tsx
+    opengraph-image.tsx
     page.tsx
     room/
       (protected)/
@@ -1169,19 +1184,36 @@ src/
       verify/
         page.tsx
     speaking/
+      opengraph-image.tsx
       page.tsx
+      twitter-image.tsx
     start/
+      opengraph-image.tsx
       page.tsx
+      twitter-image.tsx
     theology/
+      opengraph-image.tsx
       page.tsx
+      twitter-image.tsx
     thewrongjesus/
       CountdownTimer.tsx
       SignupForm.tsx
+      fonts/
+        Inter-Regular.ttf
+        Inter-SemiBold.ttf
+        PlayfairDisplay-Bold.ttf
+        PlayfairDisplay-ExtraBold.ttf
+      opengraph-image.tsx
       page.tsx
+      twitter-image.tsx
+    twitter-image.tsx
     twj/
+      opengraph-image.tsx
       page.tsx
       press/
+        opengraph-image.tsx
         page.tsx
+        twitter-image.tsx
       read/
         LoginForm.tsx
         ManuscriptReader.tsx
@@ -1216,6 +1248,7 @@ src/
           conclusion.md
           introduction.md
         page.tsx
+      twitter-image.tsx
   components/
     Footer.tsx
     FreeResourceButton.tsx
@@ -1234,6 +1267,7 @@ src/
   lib/
     arc-api.ts
     launch-dates.ts
+    og.tsx
     posts.ts
     twj-api.ts
     writing-room-api.ts
