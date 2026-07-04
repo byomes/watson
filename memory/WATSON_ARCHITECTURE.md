@@ -738,3 +738,13 @@ WATSON_API_URL=https://watson.tail0243ff.ts.net
 - befeeda publish: When Culture Knocks at the Door
 - 6d5e35e copy: rename commitment tracker link text to ARC Login
 - 4cefb94 copy: rename Commitment Tracker to ARC Login on login page
+
+---
+
+## Recent Changes — 2026-07-04
+
+### ~/watson
+- ed55f6e fix: remove dead Build Pipeline triggers from bot.py, document retirement in architecture doc
+- 2e9488c docs: rewrite CLAUDE.md — Beelink, current systems, required-first-step session instructions
+- 8fb7dfa docs: file map 2026-07-03
+- 6e585d7 docs: architecture update 2026-07-03
