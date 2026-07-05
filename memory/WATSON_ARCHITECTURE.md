@@ -512,9 +512,10 @@ WATSON_API_URL=https://watson.tail0243ff.ts.net
 
 ## Active Bugs (June 29, 2026)
 
-1. "Send to Claude Code" button — legacy button in dashboard, not yet removed
-2. KB search (`qwen2.5-coder:7b`) — timed out at 14 min during testing; root cause unresolved
-3. `/draft` page UI copy — may still say "Pushing to GitHub…" — verify and update to "Queuing…"
+1. KB search (`qwen2.5-coder:7b`) — timed out at 14 min during testing; root cause unresolved
+2. `/draft` page UI copy — may still say "Pushing to GitHub…" — verify and update to "Queuing…"
+
+~~"Send to Claude Code" button — legacy button in dashboard, not yet removed~~ — confirmed already fixed as of commit `e3c1eb1` (2026-06-22), closed 2026-07-04.
 
 ---
 
