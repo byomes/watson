@@ -749,3 +749,20 @@ WATSON_API_URL=https://watson.tail0243ff.ts.net
 - 2e9488c docs: rewrite CLAUDE.md — Beelink, current systems, required-first-step session instructions
 - 8fb7dfa docs: file map 2026-07-03
 - 6e585d7 docs: architecture update 2026-07-03
+
+---
+
+## Recent Changes — 2026-07-05
+
+### ~/watson
+- 03e0c1f chore: remove dead app.py.bak, close stale dashboard button bug in arch doc
+- fa9e261 feat: Thesis Tracker section in dashboard More tab
+- df83d8e fix: thesis_snapshots window_type column, backfill first all-time seed row
+- b10075e feat: thesis_tracker scaffolding — token health check + scraper schema
+- 52370c0 docs: file map 2026-07-04
+- f0f7da4 docs: architecture update 2026-07-04
+
+### ~/wcky
+- 987a726 copy: drop WCKY branding and add ellipsis pause on TWJ launch page
+- 11ecb4e copy: drop WCKY branding from monthly-donor future-book copy
+- 74f1f0a fix: replace em dashes in page metadata and copy across src/app
