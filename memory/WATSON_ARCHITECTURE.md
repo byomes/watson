@@ -755,6 +755,8 @@ WATSON_API_URL=https://watson.tail0243ff.ts.net
 ## Recent Changes — 2026-07-05
 
 ### ~/watson
+- feat: `thesis_snapshots` id=2 inserted — second all-time snapshot (May 20–Jul 5 2026), 52 downloads/18 views/20 countries, pulled by hand from Digital Commons dashboard. Via throwaway script, not committed.
+- data correction: `thesis_countries` snapshot_id=2 was initially entered with only 19 of 20 countries (South Africa omitted). Added South Africa (1 download) after confirming it still shows on the live dashboard — country sum now matches `total_downloads` (52) exactly, no gap. `raw_json` note on the snapshot corrected to match (previously described the gap as an "unattributable download," which was wrong — it was just the missing country row). Direct `sqlite3` data fix via throwaway script, no code changes.
 - data correction: `thesis_countries` snapshot_id=1 (all-time backfill, May 20–Jul 4 2026) was originally entered with only 5 of 20 countries. Replaced with full 20-country list; corrected `thesis_snapshots.total_countries` from 19→20 (was miscounted at backfill time). `total_downloads` (51) unchanged — United States corrected from 24→23 to match. Direct `sqlite3` data fix, no script file, no code changes.
 - 03e0c1f chore: remove dead app.py.bak, close stale dashboard button bug in arch doc
 - fa9e261 feat: Thesis Tracker section in dashboard More tab
