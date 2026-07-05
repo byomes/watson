@@ -1045,7 +1045,10 @@ async function moreLoadThesis() {
   if (!el) return;
   el.innerHTML = '<div class="loading">Loading&hellip;</div>';
   try {
-    const data = await api('/api/thesis-tracker/latest');
+    const [data, countries] = await Promise.all([
+      api('/api/thesis-tracker/latest'),
+      api('/api/thesis-tracker/countries'),
+    ]);
     if (!data) {
       el.innerHTML = '<div class="empty">No data yet.</div>';
       return;
@@ -1069,12 +1072,10 @@ async function moreLoadThesis() {
       </div>
       <div class="mlabel" style="margin-top:0">Titles</div>
       ${thesisRows(data.titles, 'title')}
-      <div class="mlabel">Countries</div>
-      ${thesisRows(data.countries, 'country')}
+      <div class="mlabel">Countries (all-time)</div>
+      ${thesisRows(countries, 'country')}
       <div class="mlabel">Institutions</div>
-      ${thesisRows(data.institutions, 'institution')}
-      <div class="mlabel">Referrers</div>
-      ${thesisRows(data.referrers, 'referrer')}`;
+      ${thesisRows(data.institutions, 'institution')}`;
   } catch {
     el.innerHTML = '<div class="empty">Could not load thesis tracker data.</div>';
   }

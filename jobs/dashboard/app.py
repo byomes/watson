@@ -1212,6 +1212,56 @@ def thesis_tracker_latest():
         return jsonify(None)
 
 
+@app.route("/api/thesis-tracker/countries")
+def thesis_tracker_countries():
+    """All countries ever recorded across every snapshot, not just the latest one.
+
+    Rolling 30-day snapshots can drop a country that genuinely was downloaded
+    there once, just outside the current window. We want the full historical
+    picture, so for each distinct country we take the downloads value from
+    whichever snapshot most recently recorded it (not a sum across snapshots,
+    since rolling windows would double-count).
+    """
+    try:
+        db = _db()
+        rows = db.execute(
+            """
+            SELECT tc.country, tc.downloads, tc.snapshot_id,
+                   ts.pulled_at,
+                   MIN(ts.pulled_at) OVER (PARTITION BY tc.country) AS first_seen,
+                   MAX(ts.pulled_at) OVER (PARTITION BY tc.country) AS last_seen
+            FROM thesis_countries tc
+            JOIN thesis_snapshots ts ON ts.id = tc.snapshot_id
+            WHERE tc.country IS NOT NULL
+            """
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return jsonify([])
+
+    if not rows:
+        return jsonify([])
+
+    latest_by_country = {}
+    for row in rows:
+        country = row["country"]
+        key = (row["pulled_at"], row["snapshot_id"])
+        existing = latest_by_country.get(country)
+        if existing is None or key > existing[0]:
+            latest_by_country[country] = (key, row)
+
+    result = [
+        {
+            "country": country,
+            "downloads": row["downloads"],
+            "first_seen": row["first_seen"],
+            "last_seen": row["last_seen"],
+        }
+        for country, (_key, row) in latest_by_country.items()
+    ]
+    result.sort(key=lambda r: r["downloads"] or 0, reverse=True)
+    return jsonify(result)
+
+
 # ── Reminders API ────────────────────────────────────────────────────────────
 
 @app.route("/api/reminders")
