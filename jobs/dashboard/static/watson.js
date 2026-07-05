@@ -1010,6 +1010,76 @@ async function moreLoadReading() {
   }
 }
 
+// ── Thesis Tracker (More section) ─────────────────────────────────────────────
+
+function thesisFmtDate(s, withYear) {
+  if (!s) return '';
+  try {
+    const d = new Date(s + 'T00:00:00');
+    const opts = withYear
+      ? { month: 'short', day: 'numeric', year: 'numeric' }
+      : { month: 'short', day: 'numeric' };
+    return d.toLocaleDateString('en-US', opts);
+  } catch { return s; }
+}
+
+function thesisWindowLabel(data) {
+  const label = data.window_type === 'all_time' ? 'All-time' : 'Rolling 30-day';
+  const start = thesisFmtDate(data.window_start, false);
+  const end   = thesisFmtDate(data.window_end, true);
+  if (!start && !end) return label;
+  return `${label}: ${start} – ${end}`;
+}
+
+function thesisRows(items, nameKey) {
+  if (!items || !items.length) return '<div class="empty">None recorded.</div>';
+  return `<div class="mth-card">${items.map(item => `
+    <div class="mth-row">
+      <span>${esc(item[nameKey] || '—')}</span>
+      <span class="mth-row-val">${item.downloads ?? 0}</span>
+    </div>`).join('')}</div>`;
+}
+
+async function moreLoadThesis() {
+  const el = document.getElementById('msec-inner-thesis');
+  if (!el) return;
+  el.innerHTML = '<div class="loading">Loading&hellip;</div>';
+  try {
+    const data = await api('/api/thesis-tracker/latest');
+    if (!data) {
+      el.innerHTML = '<div class="empty">No data yet.</div>';
+      return;
+    }
+    el.innerHTML = `
+      <div class="mth-updated">Last updated: <b>${esc(fmtGenerated(data.pulled_at) || data.pulled_at)}</b></div>
+      <div class="mth-window">${esc(thesisWindowLabel(data))}</div>
+      <div class="mth-stats">
+        <div class="mth-stat">
+          <div class="mth-stat-num">${data.total_downloads ?? '—'}</div>
+          <div class="mth-stat-lbl">Downloads</div>
+        </div>
+        <div class="mth-stat">
+          <div class="mth-stat-num">${data.total_views ?? '—'}</div>
+          <div class="mth-stat-lbl">Views</div>
+        </div>
+        <div class="mth-stat">
+          <div class="mth-stat-num">${data.total_countries ?? '—'}</div>
+          <div class="mth-stat-lbl">Countries</div>
+        </div>
+      </div>
+      <div class="mlabel" style="margin-top:0">Titles</div>
+      ${thesisRows(data.titles, 'title')}
+      <div class="mlabel">Countries</div>
+      ${thesisRows(data.countries, 'country')}
+      <div class="mlabel">Institutions</div>
+      ${thesisRows(data.institutions, 'institution')}
+      <div class="mlabel">Referrers</div>
+      ${thesisRows(data.referrers, 'referrer')}`;
+  } catch {
+    el.innerHTML = '<div class="empty">Could not load thesis tracker data.</div>';
+  }
+}
+
 // ─── More page ────────────────────────────────────────────────────────────────
 
 let _moreSecLoaded    = {};
@@ -1098,6 +1168,15 @@ function renderMore() {
         <div class="msec-inner" id="msec-inner-publishing"><div class="loading">Loading&hellip;</div></div>
       </div>
     </div>
+    <div class="msec" id="msec-thesis">
+      <div class="msec-hdr" onclick="moreToggle('thesis')">
+        <span class="msec-title">Thesis Tracker</span>
+        <span class="msec-chev" id="msec-chev-thesis">›</span>
+      </div>
+      <div class="msec-body" id="msec-body-thesis">
+        <div class="msec-inner" id="msec-inner-thesis"><div class="loading">Loading&hellip;</div></div>
+      </div>
+    </div>
     <div class="mrrow" onclick="openLogins()" style="cursor:pointer">
       <span style="font-size:13px;font-weight:500">Logins</span>
       <span style="color:var(--gold);font-size:15px">›</span>
@@ -1118,6 +1197,7 @@ function moreToggle(sec) {
     if (sec === 'events')   moreLoadEvents();
     if (sec === 'members')  moreLoadMembers();
     if (sec === 'publishing') publishingLoad();
+    if (sec === 'thesis')   moreLoadThesis();
   }
 }
 

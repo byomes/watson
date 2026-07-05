@@ -532,6 +532,14 @@ def terminal():
         except Exception as _exc:
             return jsonify({"output": f"bible error: {_exc}", "success": False})
 
+    if cmd_lower.startswith("imagegen:") or cmd_lower.startswith("imgen:"):
+        try:
+            from jobs.skills.image_gen_skill import run as _image_gen_run
+            _prefix_len = len("imagegen:") if cmd_lower.startswith("imagegen:") else len("imgen:")
+            return _pfx_out(_image_gen_run(cmd[_prefix_len:].strip()) or "No result.")
+        except Exception as _exc:
+            return jsonify({"output": f"image error: {_exc}", "success": False})
+
     if cmd_lower.startswith("polish this:"):
         try:
             from jobs.skills.polish import polish_text as _polish_text
@@ -1164,6 +1172,44 @@ def reading_reorder(entry_id):
     _db().commit()
     row = _db().execute("SELECT * FROM reading_list WHERE id = ?", (entry_id,)).fetchone()
     return jsonify(dict(row) if row else {"error": "not found"})
+
+
+# ── Thesis Tracker API ───────────────────────────────────────────────────────
+
+@app.route("/api/thesis-tracker/latest")
+def thesis_tracker_latest():
+    try:
+        db = _db()
+        snapshot = db.execute(
+            "SELECT * FROM thesis_snapshots ORDER BY pulled_at DESC, id DESC LIMIT 1"
+        ).fetchone()
+        if not snapshot:
+            return jsonify(None)
+        snapshot_id = snapshot["id"]
+        titles = db.execute(
+            "SELECT title, downloads FROM thesis_titles WHERE snapshot_id = ? ORDER BY downloads DESC",
+            (snapshot_id,),
+        ).fetchall()
+        countries = db.execute(
+            "SELECT country, downloads FROM thesis_countries WHERE snapshot_id = ? ORDER BY downloads DESC",
+            (snapshot_id,),
+        ).fetchall()
+        institutions = db.execute(
+            "SELECT institution, downloads FROM thesis_institutions WHERE snapshot_id = ? ORDER BY downloads DESC",
+            (snapshot_id,),
+        ).fetchall()
+        referrers = db.execute(
+            "SELECT referrer, downloads FROM thesis_referrers WHERE snapshot_id = ? ORDER BY downloads DESC",
+            (snapshot_id,),
+        ).fetchall()
+        result = dict(snapshot)
+        result["titles"] = [dict(r) for r in titles]
+        result["countries"] = [dict(r) for r in countries]
+        result["institutions"] = [dict(r) for r in institutions]
+        result["referrers"] = [dict(r) for r in referrers]
+        return jsonify(result)
+    except sqlite3.OperationalError:
+        return jsonify(None)
 
 
 # ── Reminders API ────────────────────────────────────────────────────────────
