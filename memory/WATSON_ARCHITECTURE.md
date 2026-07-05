@@ -755,6 +755,7 @@ WATSON_API_URL=https://watson.tail0243ff.ts.net
 ## Recent Changes — 2026-07-05
 
 ### ~/watson
+- data correction: `thesis_countries` snapshot_id=1 (all-time backfill, May 20–Jul 4 2026) was originally entered with only 5 of 20 countries. Replaced with full 20-country list; corrected `thesis_snapshots.total_countries` from 19→20 (was miscounted at backfill time). `total_downloads` (51) unchanged — United States corrected from 24→23 to match. Direct `sqlite3` data fix, no script file, no code changes.
 - 03e0c1f chore: remove dead app.py.bak, close stale dashboard button bug in arch doc
 - fa9e261 feat: Thesis Tracker section in dashboard More tab
 - df83d8e fix: thesis_snapshots window_type column, backfill first all-time seed row
