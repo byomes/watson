@@ -1,3 +1,5 @@
+import sqlite3
+
 from jobs.thesis_tracker import get_db
 
 
@@ -7,6 +9,7 @@ def init_db():
             CREATE TABLE IF NOT EXISTS thesis_snapshots (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 pulled_at TEXT NOT NULL,
+                window_type TEXT NOT NULL DEFAULT 'rolling_30d',
                 window_start TEXT,
                 window_end TEXT,
                 total_downloads INTEGER,
@@ -16,6 +19,13 @@ def init_db():
                 raw_json TEXT
             )
         """)
+        try:
+            conn.execute(
+                "ALTER TABLE thesis_snapshots ADD COLUMN window_type TEXT NOT NULL DEFAULT 'rolling_30d'"
+            )
+        except sqlite3.OperationalError as e:
+            if "duplicate column name" not in str(e):
+                raise
         conn.execute("""
             CREATE TABLE IF NOT EXISTS thesis_titles (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -63,15 +73,16 @@ def insert_snapshot(
     countries: list[dict],
     institutions: list[dict],
     referrers: list[dict],
+    window_type: str = "rolling_30d",
 ) -> int:
     """Insert one full snapshot (parent row + breakdown rows). Returns snapshot id."""
     with get_db() as conn:
         cur = conn.execute(
             """INSERT INTO thesis_snapshots
-               (pulled_at, window_start, window_end, total_downloads, total_views,
+               (pulled_at, window_type, window_start, window_end, total_downloads, total_views,
                 total_countries, source_link, raw_json)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-            (pulled_at, window_start, window_end, total_downloads, total_views,
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (pulled_at, window_type, window_start, window_end, total_downloads, total_views,
              total_countries, source_link, raw_json),
         )
         snapshot_id = cur.lastrowid
