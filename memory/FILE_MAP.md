@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-07-04*
+*Generated: 2026-07-05*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -61,6 +61,12 @@ data/
     qr_1781039900.png
     qr_1781040379.png
     qr_1781042385.png
+  facebook_images/
+    fb_14.jpg
+    fb_15.jpg
+    fb_16.jpg
+  generated_images/
+    img_a_lighthouse_at_sunset_1783180276.jpg
   qr/
     qr_20260608_215150.png
     qr_20260608_220849.png
@@ -167,7 +173,6 @@ jobs/
     joke.py
   dashboard/
     app.py
-    app.py.bak
     migrate_admin.py
     migrate_sessions.py
     publishing_routes.py
@@ -208,6 +213,8 @@ jobs/
     dependency_scanner.py
     error_analyzer.py
     file_map.py
+    fix style.py
+    fix_style.py
     git_tools.py
     github_tools.py
     hello_dashboard.py
@@ -248,8 +255,11 @@ jobs/
   facebook/
     __init__.py
     facebook_post.py
+    image_gen.py
+    image_gen_prototype.py
     scheduler.py
     templates.py
+    test_output.jpg
   gcal/
     __init__.py
     availability.py
@@ -362,6 +372,7 @@ jobs/
     book_appointment.py
     cdb_query.py
     contacts_lookup.py
+    image_gen_skill.py
     kb_export.py
     kb_search.py
     logins.py
@@ -394,6 +405,10 @@ jobs/
     __init__.py
     pending.py
     resend_last.py
+  thesis_tracker/
+    __init__.py
+    db.py
+    token_health.py
   time_check.py
   transcribe.py
   utilities/
@@ -946,6 +961,8 @@ memory/
   relational.md
   skills.json
   skip_keywords.txt
+  style_audit_pages.md
+  style_audit_report.md
 notes/
   .gitkeep
 prompts/
