@@ -1,12 +1,14 @@
 # Watson
 
-Personal research and creative intelligence agent for Bill Yomes.
+Personal AI assistant system for Bill Yomes — an orchestrated ecosystem of jobs, hardware, and interfaces. Watson runs jobs, not agents or bots.
 
-Runs always-on on an HP Stream home server (Linux Mint XFCE). Three core jobs:
+Runs always-on on a Beelink EQi12 home server (Linux Mint XFCE). Primary interfaces: Watson Dashboard (`watson.tail0243ff.ts.net`, port 5200) and Telegram. Current major systems:
 
-1. **Daily Research Briefing** — digest RSS feeds and web sources into a morning briefing
-2. **Thought Library** — structured personal knowledge base with voice capture support
-3. **Telegram Voice Capture** — transcribe voice notes via Whisper, store in library
+1. **ARC reader program** — signup, commitment tracking, manuscript access
+2. **Writing Room** — private partner community hub
+3. **Dev Loop** — Ollama-driven code generation, triggered via Telegram
+4. **Congregation management** — pastoral CRM, connect cards, attendance, shepherding reports
+5. **Content pipeline** — sermon-to-blog/social pipeline, daily briefing
 
 ## Setup
 

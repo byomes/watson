@@ -43,3 +43,17 @@ PYTHONPATH=/home/billyomes/watson 0 4 * * 1 /home/billyomes/watson/venv/bin/pyth
 ```
 
 (Weekly, Mondays 4am)
+
+---
+
+# Thesis Tracker Token Health — Cron Entry (TEMPORARY)
+
+Added to crontab daily at 8am to check whether the Digital Commons/bepress
+dashboard auth token (`DC_DASHBOARD_LINK`) is still alive. Telegram alert
+fires only on failure. Remove after 2026-07-18 (two-week trial run).
+
+```
+0 8 * * * PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python /home/billyomes/watson/jobs/thesis_tracker/token_health.py >> /home/billyomes/watson/logs/thesis_token_health.log 2>&1
+```
+
+(Daily, 8am — remove 2026-07-18)

@@ -541,6 +541,37 @@ async def handle_facebook_callback(update: Update, context: ContextTypes.DEFAULT
         await query.edit_message_text("Discarded.", reply_markup=None)
 
 
+async def handle_facebook_image_callback(update, context):
+    query = update.callback_query
+    await query.answer()
+    data = query.data  # "fb_img_approve:{id}" / "fb_img_regen:{id}" / "fb_img_discard:{id}"
+    action, post_id_str = data.split(":", 1)
+    post_id = int(post_id_str)
+
+    from jobs.facebook.image_gen import approve_post, discard_post, regenerate_image
+
+    if action == "fb_img_approve":
+        slot = await asyncio.to_thread(approve_post, post_id)
+        slot_text = slot.strftime("%Y-%m-%d %H:%M") if slot else "no open slot found"
+        await query.edit_message_caption(
+            caption=f"{query.message.caption}\n\n✅ Approved — scheduled for {slot_text}",
+            reply_markup=None,
+        )
+    elif action == "fb_img_discard":
+        await asyncio.to_thread(discard_post, post_id)
+        await query.edit_message_caption(
+            caption=f"{query.message.caption}\n\n❌ Discarded.",
+            reply_markup=None,
+        )
+    elif action == "fb_img_regen":
+        await query.edit_message_caption(
+            caption=f"{query.message.caption}\n\n\U0001F504 Regenerating...",
+            reply_markup=None,
+        )
+        await asyncio.to_thread(regenerate_image, post_id)
+        # regenerate_image sends a fresh photo+buttons message itself
+
+
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not _is_authorized(update):
         return
@@ -1000,6 +1031,12 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if slug == "pastoral_notes":
                 await _handle_pastoral_note_direct(update, context, text_clean)
                 log.info("DEBUG pre-check: skill pre-check (pastoral_notes)")
+                return
+            if slug == "image_gen":
+                from jobs.skills.image_gen_skill import run as _image_gen_run
+                result = await asyncio.to_thread(_image_gen_run, text_clean)
+                await update.message.reply_text(result or "No result.")
+                log.info("DEBUG pre-check: skill pre-check (image_gen)")
                 return
             if slug == "add_task" and (
                 msg_lower_check.startswith("task:") or msg_lower_check.startswith("tasks:")
@@ -3056,6 +3093,7 @@ def main():
     app.add_handler(CallbackQueryHandler(handle_reject_callback, pattern=r"^reject:"))
     app.add_handler(CallbackQueryHandler(handle_room_callback, pattern=r"^room_(?:approve|deny):"))
     app.add_handler(CallbackQueryHandler(handle_meeting_pattern_callback, pattern=r"^mtp_(approve|reject):"))
+    app.add_handler(CallbackQueryHandler(handle_facebook_image_callback, pattern=r"^fb_img_(?:approve|regen|discard):"))
     app.add_handler(CallbackQueryHandler(handle_facebook_callback, pattern=r"^fb_"))
     app.add_handler(CallbackQueryHandler(handle_email_triage_callback, pattern=r"^et_"))
     app.add_handler(CallbackQueryHandler(handle_email_callback, pattern=r"^email_"))

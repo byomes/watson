@@ -132,11 +132,25 @@ def add_to_queue(title, summary, url, draft_text):
     return post_id, slot
 
 
-def post_to_facebook(text):
-    """Post text to the Faith Makes Sense Facebook page."""
+def post_to_facebook(text, image_path=None):
+    """Post to the Faith Makes Sense Facebook page.
+    If image_path is provided and exists, posts as a photo with caption.
+    Otherwise falls back to a plain text/link post.
+    """
+    if image_path and os.path.exists(image_path):
+        with open(image_path, "rb") as img_file:
+            response = requests.post(
+                f"https://graph.facebook.com/v25.0/{FB_PAGE_ID}/photos",
+                data={"caption": text, "access_token": FB_ACCESS_TOKEN},
+                files={"source": img_file},
+                timeout=30,
+            )
+        return response.json()
+
     response = requests.post(
         f"https://graph.facebook.com/v25.0/{FB_PAGE_ID}/feed",
-        data={"message": text, "access_token": FB_ACCESS_TOKEN}
+        data={"message": text, "access_token": FB_ACCESS_TOKEN},
+        timeout=30,
     )
     return response.json()
 
@@ -146,20 +160,21 @@ def run_due_posts():
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     conn = sqlite3.connect(DB_PATH)
     due = conn.execute(
-        "SELECT id, draft_text FROM facebook_queue WHERE status='approved' AND scheduled_time <= ?",
+        "SELECT id, draft_text, image_path FROM facebook_queue "
+        "WHERE status='approved' AND scheduled_time <= ?",
         (now,)
     ).fetchall()
     conn.close()
 
-    for post_id, draft_text in due:
-        result = post_to_facebook(draft_text)
+    for post_id, draft_text, image_path in due:
+        result = post_to_facebook(draft_text, image_path)
         conn = sqlite3.connect(DB_PATH)
-        if "id" in result:
+        if "id" in result or "post_id" in result:
             conn.execute(
                 "UPDATE facebook_queue SET status='posted', posted_time=? WHERE id=?",
                 (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), post_id)
             )
-            print(f"Posted ID {post_id}: {result['id']}")
+            print(f"Posted ID {post_id}: {result.get('id') or result.get('post_id')}")
         else:
             print(f"Failed ID {post_id}: {result}")
         conn.commit()

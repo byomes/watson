@@ -807,6 +807,24 @@
         "telegram"
       ],
       "status": "ready"
+    },
+    {
+      "slug": "image_gen",
+      "name": "Generate Image",
+      "description": "Generate an AI image from a text prompt and deliver it via Telegram.",
+      "category": "Design",
+      "triggers": [
+        "generate image:",
+        "generate an image:",
+        "create an image:",
+        "make an image:",
+        "imagegen:",
+        "imgen:"
+      ],
+      "module": "jobs.skills.image_gen_skill",
+      "function": "run",
+      "interfaces": ["telegram", "dashboard"],
+      "status": "ready"
     }
   ]
 }
