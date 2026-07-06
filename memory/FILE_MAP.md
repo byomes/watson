@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-07-05*
+*Generated: 2026-07-06*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -7,6 +7,7 @@
 ```
 ~/watson/
 .env
+.env.backup-20260705-211700
 .env.example
 .env.local
 .gitignore
@@ -45,6 +46,7 @@ core/
   pipeline.py
   scorer.py
   summarizer.py
+  vacation.py
 cron/
   .gitkeep
   run_pipeline.sh
@@ -1015,6 +1017,7 @@ content/
     2026-06-28-the-inheritance-was-already-written.md
     2026-06-30-you-are-not-what-you-do.md
     2026-07-02-when-culture-knocks-at-the-door.md
+    2026-07-04-everybody-heard-but-only-rahab-believed.md
     the-flashlight-of-your-focus.md
     where-your-treasure-is.md
 next-env.d.ts
@@ -1214,6 +1217,7 @@ src/
       twitter-image.tsx
     thewrongjesus/
       CountdownTimer.tsx
+      ShareButtons.tsx
       SignupForm.tsx
       fonts/
         Inter-Regular.ttf
