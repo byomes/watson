@@ -1126,76 +1126,66 @@ function renderMore() {
       View suppressed notifications <span id="vacation-suppressed-count"></span> ›
     </div>
     <div id="vacation-suppressed-list" style="display:none;padding:0 16px 12px"></div>
-    <div class="mrrow" onclick="switchTab('briefing')" style="cursor:pointer">
-      <span style="font-size:13px;font-weight:500">Briefing</span>
-      <span style="color:var(--gold);font-size:15px">›</span>
+    <div class="mgrid">
+      <button class="mtile" id="mtile-briefing" onclick="switchTab('briefing')">
+        <span class="mtile-label">Briefing</span>
+        <span class="mtile-chev">›</span>
+      </button>
+      <button class="mtile" id="mtile-skills" onclick="moreToggle('skills')">
+        <span class="mtile-label">Skills</span>
+        <span class="mtile-chev">›</span>
+      </button>
+      <button class="mtile" id="mtile-reading" onclick="moreToggle('reading')">
+        <span class="mtile-label">Reading List</span>
+        <span class="mtile-chev">›</span>
+      </button>
+      <button class="mtile" id="mtile-ministry" onclick="moreToggle('ministry')">
+        <span class="mtile-label">Ministry</span>
+        <span class="mtile-chev">›</span>
+      </button>
+      <button class="mtile" id="mtile-events" onclick="moreToggle('events')">
+        <span class="mtile-label">Events</span>
+        <span class="mtile-chev">›</span>
+      </button>
+      <button class="mtile" id="mtile-members" onclick="moreToggle('members')">
+        <span class="mtile-label">Members</span>
+        <span class="mtile-chev">›</span>
+      </button>
+      <button class="mtile" id="mtile-publishing" onclick="moreToggle('publishing')">
+        <span class="mtile-label">Publishing</span>
+        <span class="mtile-chev">›</span>
+      </button>
+      <button class="mtile" id="mtile-thesis" onclick="moreToggle('thesis')">
+        <span class="mtile-label">Thesis Tracker</span>
+        <span class="mtile-chev">›</span>
+      </button>
+      <button class="mtile" id="mtile-logins" onclick="openLogins()">
+        <span class="mtile-label">Logins</span>
+        <span class="mtile-chev">›</span>
+      </button>
     </div>
-    <div class="msec" id="msec-skills">
-      <div class="msec-hdr" onclick="moreToggle('skills')">
-        <span class="msec-title">Skills</span>
-        <span class="msec-chev" id="msec-chev-skills">›</span>
-      </div>
+    <div id="more-expand-area">
       <div class="msec-body" id="msec-body-skills">
         <div class="msec-inner" id="msec-inner-skills"></div>
-      </div>
-    </div>
-    <div class="msec" id="msec-reading">
-      <div class="msec-hdr" onclick="moreToggle('reading')">
-        <span class="msec-title">Reading List</span>
-        <span class="msec-chev" id="msec-chev-reading">›</span>
       </div>
       <div class="msec-body" id="msec-body-reading">
         <div class="msec-inner" id="msec-inner-reading"><div class="loading">Loading&hellip;</div></div>
       </div>
-    </div>
-    <div class="msec" id="msec-ministry">
-      <div class="msec-hdr" onclick="moreToggle('ministry')">
-        <span class="msec-title">Ministry</span>
-        <span class="msec-chev" id="msec-chev-ministry">›</span>
-      </div>
       <div class="msec-body" id="msec-body-ministry">
         <div class="msec-inner" id="msec-inner-ministry"><div class="loading">Loading&hellip;</div></div>
-      </div>
-    </div>
-    <div class="msec" id="msec-events">
-      <div class="msec-hdr" onclick="moreToggle('events')">
-        <span class="msec-title">Events</span>
-        <span class="msec-chev" id="msec-chev-events">›</span>
       </div>
       <div class="msec-body" id="msec-body-events">
         <div class="msec-inner" id="msec-inner-events"><div class="loading">Loading&hellip;</div></div>
       </div>
-    </div>
-    <div class="msec" id="msec-members">
-      <div class="msec-hdr" onclick="moreToggle('members')">
-        <span class="msec-title">Members</span>
-        <span class="msec-chev" id="msec-chev-members">›</span>
-      </div>
       <div class="msec-body" id="msec-body-members">
         <div class="msec-inner" id="msec-inner-members"></div>
-      </div>
-    </div>
-    <div class="msec" id="msec-publishing">
-      <div class="msec-hdr" onclick="moreToggle('publishing')">
-        <span class="msec-title">Publishing</span>
-        <span class="msec-chev" id="msec-chev-publishing">›</span>
       </div>
       <div class="msec-body" id="msec-body-publishing">
         <div class="msec-inner" id="msec-inner-publishing"><div class="loading">Loading&hellip;</div></div>
       </div>
-    </div>
-    <div class="msec" id="msec-thesis">
-      <div class="msec-hdr" onclick="moreToggle('thesis')">
-        <span class="msec-title">Thesis Tracker</span>
-        <span class="msec-chev" id="msec-chev-thesis">›</span>
-      </div>
       <div class="msec-body" id="msec-body-thesis">
         <div class="msec-inner" id="msec-inner-thesis"><div class="loading">Loading&hellip;</div></div>
       </div>
-    </div>
-    <div class="mrrow" onclick="openLogins()" style="cursor:pointer">
-      <span style="font-size:13px;font-weight:500">Logins</span>
-      <span style="color:var(--gold);font-size:15px">›</span>
     </div>`);
   moreLoadVacationStatus();
 }
@@ -1253,10 +1243,14 @@ function moreToggleSuppressedLog() {
 
 function moreToggle(sec) {
   const body = document.getElementById(`msec-body-${sec}`);
-  const chev = document.getElementById(`msec-chev-${sec}`);
+  const tile = document.getElementById(`mtile-${sec}`);
   if (!body) return;
-  const isOpen = body.classList.toggle('open');
-  if (chev) chev.textContent = isOpen ? '⌄' : '›';
+  const wasOpen = body.classList.contains('open');
+  document.querySelectorAll('#more-expand-area .msec-body.open').forEach(b => { if (b !== body) b.classList.remove('open'); });
+  document.querySelectorAll('.mgrid .mtile.active').forEach(t => { if (t !== tile) t.classList.remove('active'); });
+  const isOpen = !wasOpen;
+  body.classList.toggle('open', isOpen);
+  if (tile) tile.classList.toggle('active', isOpen);
   if (isOpen && !_moreSecLoaded[sec]) {
     _moreSecLoaded[sec] = true;
     if (sec === 'skills')   moreLoadSkills();
