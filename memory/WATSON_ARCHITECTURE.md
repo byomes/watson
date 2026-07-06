@@ -769,3 +769,21 @@ WATSON_API_URL=https://watson.tail0243ff.ts.net
 - 987a726 copy: drop WCKY branding and add ellipsis pause on TWJ launch page
 - 11ecb4e copy: drop WCKY branding from monthly-donor future-book copy
 - 74f1f0a fix: replace em dashes in page metadata and copy across src/app
+
+---
+
+## Recent Changes — 2026-07-06
+
+### ~/watson
+- 118bd2e feat: vacation mode toggle — gate Telegram sends across ~50 call sites
+- c99d3d7 docs: note thesis_snapshots id=2 insert and South Africa data correction
+- 82c0c50 docs: note thesis_countries snapshot_id=1 data correction
+- 1312e8e feat: Thesis Tracker Countries shows all-time history, drop Referrers from view
+- 231443b docs: file map 2026-07-05
+- 36afc8c archive: move aged transcripts to kb/documents
+- 95ad694 docs: architecture update 2026-07-05
+
+### ~/wcky
+- 999f955 fix: match SHARE section background to adjacent Launch Team section
+- 1eb326f fix: use dedicated SMS share copy on TWJ launch page
+- a2535fe feat: add Share via Text and Share on Social buttons to TWJ launch page
