@@ -20,6 +20,7 @@ from pathlib import Path
 import requests
 
 from config.settings import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+from core.vacation import vacation_gate
 from jobs.pastoral_notes.db import get_db
 
 log = logging.getLogger(__name__)
@@ -47,6 +48,8 @@ def _append_skip_keyword(title: str) -> None:
 
 
 def _send_telegram(text: str) -> None:
+    if vacation_gate("normal", "jobs.pastoral_notes.handler", text):
+        return
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     requests.post(url, json={"chat_id": TELEGRAM_CHAT_ID, "text": text}, timeout=10)
 

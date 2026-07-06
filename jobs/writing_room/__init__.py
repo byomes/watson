@@ -9,6 +9,8 @@ from pathlib import Path
 
 import requests
 
+from core.vacation import vacation_gate
+
 DB = Path.home() / "watson" / "data" / "watson.db"
 
 _BOT_TOKEN = lambda: os.getenv("WATSON_BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
@@ -112,6 +114,8 @@ def bootstrap_db() -> None:
 
 
 def send_telegram(text: str, reply_markup: dict | None = None) -> None:
+    if vacation_gate("normal", "jobs.writing_room", text):
+        return
     token = _BOT_TOKEN()
     chat_id = _CHAT_ID()
     if not (token and chat_id):

@@ -21,6 +21,7 @@ import requests
 from dotenv import load_dotenv
 
 from jobs.givebutter.templates import first_gift_email, repeat_gift_email
+from core.vacation import vacation_gate
 
 load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
@@ -83,6 +84,8 @@ def _build_preview(row: dict, subject: str, html_body: str) -> str:
 
 def _send_preview(text: str, txn_id: int) -> None:
     """POST a preview message with an inline Approve keyboard to the Telegram Bot API."""
+    if vacation_gate("normal", "jobs.givebutter.notify", text):
+        return
     r = requests.post(
         f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
         json={

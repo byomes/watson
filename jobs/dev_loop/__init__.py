@@ -2,10 +2,18 @@
 import os
 import sqlite3
 
+from core.vacation import vacation_gate
+
 DB = os.path.expanduser("~/watson/data/watson.db")
 
 
 def _send_telegram(text: str) -> None:
+    # NOTE: Dev Loop is triggered interactively via Telegram `devloop:` — this
+    # delivers the result of something Bill just asked for, not passive
+    # notification noise. Tagged "normal" per the two-tier scheme; flagged
+    # since suppressing it may surprise him mid-session.
+    if vacation_gate("normal", "jobs.dev_loop", text):
+        return
     import requests as _rq
     token = os.getenv("WATSON_BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
     chat_id = os.getenv("WATSON_CHAT_ID") or os.getenv("TELEGRAM_CHAT_ID")
@@ -23,6 +31,8 @@ def _send_telegram(text: str) -> None:
 
 def _send_telegram_buttons(text: str, buttons: list) -> None:
     """Send Telegram message with inline keyboard buttons."""
+    if vacation_gate("normal", "jobs.dev_loop", text):
+        return
     import requests as _rq
     token = os.getenv("WATSON_BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
     chat_id = os.getenv("WATSON_CHAT_ID") or os.getenv("TELEGRAM_CHAT_ID")

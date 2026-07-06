@@ -7,6 +7,8 @@ from datetime import datetime, timedelta
 import requests
 from dotenv import load_dotenv
 
+from core.vacation import vacation_gate
+
 load_dotenv(os.path.expanduser("~/watson/.env"))
 
 DB_PATH = os.path.expanduser("~/watson/data/watson.db")
@@ -71,6 +73,8 @@ def _review_keyboard(post_id: int) -> dict:
 def send_for_review(post_id: int, image_path: str, title: str, draft_text: str) -> bool:
     """Send the generated image to Telegram with Approve/Regenerate/Discard buttons."""
     import json
+    if vacation_gate("normal", "jobs.facebook.image_gen.send_for_review", title):
+        return False
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         return False
 

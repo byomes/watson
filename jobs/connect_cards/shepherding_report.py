@@ -502,6 +502,7 @@ def send_shepherding_report() -> None:
 if __name__ == "__main__":
     import requests
     from config.settings import WATSON_BOT_TOKEN, WATSON_CHAT_ID
+    from core.vacation import vacation_gate
 
     print("Generating and sending shepherding report...")
     send_shepherding_report()
@@ -509,7 +510,9 @@ if __name__ == "__main__":
     summary = telegram_shepherding_summary()
     print(summary)
 
-    if WATSON_BOT_TOKEN and WATSON_CHAT_ID:
+    if vacation_gate("normal", "jobs.connect_cards.shepherding_report.__main__", summary):
+        print("Vacation mode is on — Telegram summary suppressed (logged).")
+    elif WATSON_BOT_TOKEN and WATSON_CHAT_ID:
         resp = requests.post(
             f"https://api.telegram.org/bot{WATSON_BOT_TOKEN}/sendMessage",
             json={"chat_id": WATSON_CHAT_ID, "text": summary},

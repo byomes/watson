@@ -31,6 +31,7 @@ from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 
 from jobs.connect_cards.utils import format_date_for_subject, most_recent_sunday, parse_date_from_subject
+from core.vacation import vacation_gate
 
 load_dotenv(os.path.expanduser("~/watson/.env"))
 
@@ -57,6 +58,8 @@ TELEGRAM_CHAT_ID   = os.getenv("TELEGRAM_CHAT_ID", "")
 
 
 def _send_telegram(text: str) -> None:
+    if vacation_gate("normal", "jobs.connect_cards.correction_handler", text):
+        return
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         return
     try:

@@ -18,6 +18,8 @@ from pathlib import Path
 import requests
 from dotenv import load_dotenv
 
+from core.vacation import vacation_gate
+
 BASE_DIR = Path(__file__).resolve().parents[2]
 load_dotenv(BASE_DIR / ".env")
 
@@ -32,6 +34,8 @@ log = logging.getLogger(__name__)
 
 
 def _send_telegram(text: str) -> None:
+    if vacation_gate("normal", "jobs.team.contact_sync", text):
+        return
     requests.post(
         f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
         json={"chat_id": CHAT_ID, "text": text, "parse_mode": "HTML"},

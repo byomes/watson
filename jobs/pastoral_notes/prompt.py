@@ -12,6 +12,7 @@ from zoneinfo import ZoneInfo
 import requests
 
 from config.settings import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+from core.vacation import vacation_gate
 from jobs.gcal.gcal_service import get_service, CALENDAR_ID
 from jobs.pastoral_notes.db import get_db
 
@@ -27,6 +28,8 @@ def _load_skip_keywords():
 
 
 def _send_telegram(text: str) -> int | None:
+    if vacation_gate("normal", "jobs.pastoral_notes.prompt", text):
+        return None
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     try:
         resp = requests.post(url, json={"chat_id": TELEGRAM_CHAT_ID, "text": text}, timeout=10)

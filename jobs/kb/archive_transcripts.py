@@ -19,6 +19,8 @@ from pathlib import Path
 import requests
 from dotenv import load_dotenv
 
+from core.vacation import vacation_gate
+
 load_dotenv(Path(__file__).resolve().parent.parent.parent / ".env")
 
 log = logging.getLogger(__name__)
@@ -33,6 +35,8 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 
 
 def _send_telegram(text: str) -> None:
+    if vacation_gate("normal", "jobs.kb.archive_transcripts", text):
+        return
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         return
     try:

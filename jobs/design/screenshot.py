@@ -7,6 +7,8 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+from core.vacation import vacation_gate
+
 load_dotenv()
 
 REPO = Path(__file__).resolve().parents[2]
@@ -62,6 +64,8 @@ def screenshot_element(url: str, selector: str, output_path: str = None) -> str:
 
 def send_screenshot_telegram(url: str) -> bool:
     import requests
+    if vacation_gate("normal", "jobs.design.screenshot", url):
+        return False
     path = take_screenshot(url)
     if path.startswith("Error"):
         return False

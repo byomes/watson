@@ -27,6 +27,8 @@ from pathlib import Path
 import requests
 from dotenv import load_dotenv
 
+from core.vacation import vacation_gate
+
 load_dotenv()
 
 log = logging.getLogger(__name__)
@@ -84,6 +86,11 @@ def _commit_and_push(file_path: Path, commit_message: str) -> None:
 # --- Telegram ---------------------------------------------------------
 
 def _telegram_notify(raw_url: str, title: str, push_succeeded: bool = True) -> None:
+    # push_succeeded=False means the git push failed (infra problem), so that
+    # branch is tagged system_failure; the routine "archived" notice is normal.
+    priority = "normal" if push_succeeded else "system_failure"
+    if vacation_gate(priority, "jobs.generate._telegram_notify", title):
+        return
     if not WATSON_BOT_TOKEN or not WATSON_CHAT_ID:
         log.warning("Telegram not configured — skipping notification")
         return

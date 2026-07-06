@@ -1111,6 +1111,21 @@ function renderMore() {
         <span class="mswitch-thumb"></span>
       </label>
     </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-card);margin-bottom:2px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:16px">🌴</span>
+        <span style="font-size:13px;font-weight:500">Vacation Mode</span>
+      </div>
+      <label class="mswitch">
+        <input type="checkbox" id="more-vacation-chk" onchange="moreToggleVacation(this.checked)">
+        <span class="mswitch-track"></span>
+        <span class="mswitch-thumb"></span>
+      </label>
+    </div>
+    <div id="vacation-suppressed-row" style="display:none;padding:6px 16px 10px;font-size:12px;color:var(--muted);cursor:pointer" onclick="moreToggleSuppressedLog()">
+      View suppressed notifications <span id="vacation-suppressed-count"></span> ›
+    </div>
+    <div id="vacation-suppressed-list" style="display:none;padding:0 16px 12px"></div>
     <div class="mrrow" onclick="switchTab('briefing')" style="cursor:pointer">
       <span style="font-size:13px;font-weight:500">Briefing</span>
       <span style="color:var(--gold);font-size:15px">›</span>
@@ -1182,6 +1197,58 @@ function renderMore() {
       <span style="font-size:13px;font-weight:500">Logins</span>
       <span style="color:var(--gold);font-size:15px">›</span>
     </div>`);
+  moreLoadVacationStatus();
+}
+
+// ── Vacation Mode ────────────────────────────────────────────────────────────
+
+let _vacationData = null;
+
+async function moreLoadVacationStatus() {
+  try {
+    _vacationData = await api('/api/settings/vacation-mode');
+    const chk = document.getElementById('more-vacation-chk');
+    if (chk) chk.checked = !!_vacationData.vacation_mode;
+    updateVacationBanner(_vacationData.vacation_mode);
+    const row = document.getElementById('vacation-suppressed-row');
+    if (row) row.style.display = _vacationData.vacation_mode ? 'block' : 'none';
+    const cnt = document.getElementById('vacation-suppressed-count');
+    if (cnt) cnt.textContent = `(${_vacationData.suppressed_count || 0})`;
+  } catch {}
+}
+
+async function moreToggleVacation(isOn) {
+  try {
+    _vacationData = await api('/api/settings/vacation-mode', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ vacation_mode: isOn }),
+    });
+    updateVacationBanner(_vacationData.vacation_mode);
+    const row = document.getElementById('vacation-suppressed-row');
+    if (row) row.style.display = _vacationData.vacation_mode ? 'block' : 'none';
+    const cnt = document.getElementById('vacation-suppressed-count');
+    if (cnt) cnt.textContent = `(${_vacationData.suppressed_count || 0})`;
+  } catch {
+    alert('Failed to update Vacation Mode.');
+    moreLoadVacationStatus();
+  }
+}
+
+function moreToggleSuppressedLog() {
+  const list = document.getElementById('vacation-suppressed-list');
+  if (!list) return;
+  const showing = list.style.display !== 'none';
+  if (showing) { list.style.display = 'none'; return; }
+  const recent = (_vacationData && _vacationData.recent) || [];
+  list.innerHTML = recent.length
+    ? recent.map(r => `
+        <div style="padding:6px 0;border-bottom:1px solid var(--border);font-size:12px">
+          <div style="color:var(--muted);font-size:11px">${esc(r.source)} · ${esc(r.created_at)}</div>
+          <div>${esc(r.message)}</div>
+        </div>`).join('')
+    : '<div class="empty">Nothing suppressed yet.</div>';
+  list.style.display = 'block';
 }
 
 function moreToggle(sec) {
@@ -2192,6 +2259,13 @@ function _syncNavHeight() {
   document.documentElement.style.setProperty('--nav-h', nav.offsetHeight + 'px');
 }
 
+function updateVacationBanner(on) {
+  const banner = document.getElementById('vacation-banner');
+  if (!banner) return;
+  banner.classList.toggle('active', !!on);
+  document.documentElement.style.setProperty('--banner-h', on ? banner.offsetHeight + 'px' : '0px');
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   const savedTheme = localStorage.getItem('watson-theme') || 'dark';
   document.documentElement.setAttribute('data-theme', savedTheme);
@@ -2203,6 +2277,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (dateEl) {
     dateEl.textContent = new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
   }
+  fetch('/api/settings/vacation-mode').then(r => r.json()).then(d => updateVacationBanner(d.vacation_mode)).catch(() => {});
   const wMark = document.getElementById('hdr-mark');
   if (wMark) wMark.addEventListener('click', () => location.reload(true));
 

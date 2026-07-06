@@ -24,6 +24,8 @@ from pathlib import Path
 import requests
 from dotenv import load_dotenv
 
+from core.vacation import vacation_gate
+
 load_dotenv()
 
 log = logging.getLogger(__name__)
@@ -217,7 +219,8 @@ def publish_due(dry_run: bool = False, target_date: str = None) -> None:
         except Exception as e:
             log.error("Failed to publish draft #%d: %s", draft["id"], e)
             try:
-                if WATSON_BOT_TOKEN and WATSON_CHAT_ID:
+                suppressed = vacation_gate("system_failure", "jobs.scheduler.publish_due", filename)
+                if not suppressed and WATSON_BOT_TOKEN and WATSON_CHAT_ID:
                     requests.post(
                         f"https://api.telegram.org/bot{WATSON_BOT_TOKEN}/sendMessage",
                         json={"chat_id": WATSON_CHAT_ID, "text": f"⚠️ Watson scheduler failed to publish: {filename}\n\nError: {e}", "parse_mode": "HTML"},

@@ -28,6 +28,8 @@ from datetime import date, timedelta
 import requests
 from dotenv import load_dotenv
 
+from core.vacation import vacation_gate
+
 load_dotenv(os.path.expanduser("~/watson/.env"))
 
 logging.basicConfig(
@@ -44,6 +46,8 @@ TELEGRAM_CHAT_ID   = os.getenv("TELEGRAM_CHAT_ID", "")
 
 
 def _send_telegram(text: str) -> None:
+    if vacation_gate("normal", "jobs.connect_cards.campus_classifier", text):
+        return
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         return
     try:

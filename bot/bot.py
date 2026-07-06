@@ -2977,13 +2977,15 @@ async def _handle_devloop(update: Update, context: ContextTypes.DEFAULT_TYPE, de
         result = trigger_dev_loop(slug=slug, title=title, input_type="description", input_text=description)
         if not result["ok"]:
             import requests as _rq
+            from core.vacation import vacation_gate
+            fail_text = f"Dev Loop failed to start: {result.get('error')}"
             token = os.getenv("WATSON_BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
             chat_id = os.getenv("WATSON_CHAT_ID") or os.getenv("TELEGRAM_CHAT_ID")
-            if token and chat_id:
+            if token and chat_id and not vacation_gate("system_failure", "bot.bot._handle_devloop", fail_text):
                 try:
                     _rq.post(
                         f"https://api.telegram.org/bot{token}/sendMessage",
-                        json={"chat_id": chat_id, "text": f"Dev Loop failed to start: {result.get('error')}"},
+                        json={"chat_id": chat_id, "text": fail_text},
                         timeout=10,
                     )
                 except Exception:

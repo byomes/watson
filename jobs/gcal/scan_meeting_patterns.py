@@ -18,6 +18,7 @@ import requests
 from dotenv import load_dotenv
 
 from config.settings import WATSON_BOT_TOKEN, WATSON_CHAT_ID
+from core.vacation import vacation_gate
 from jobs.gcal.gcal_service import get_service
 from jobs.gcal.pre_meeting_brief import _BRIEF_BLOCKLIST
 
@@ -78,6 +79,8 @@ def _extract_prefix(summary: str) -> str | None:
 # ── Telegram ──────────────────────────────────────────────────────────────────
 
 def _send_prompt(prefix: str, summary: str, pattern_id: int) -> None:
+    if vacation_gate("normal", "jobs.gcal.scan_meeting_patterns", summary):
+        return
     text = (
         f"New meeting title pattern found: '{prefix}' "
         f"(e.g. from event '{summary}'). "

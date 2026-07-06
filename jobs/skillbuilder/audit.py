@@ -13,6 +13,8 @@ from pathlib import Path
 import requests
 from dotenv import load_dotenv
 
+from core.vacation import vacation_gate
+
 load_dotenv()
 
 REPO = Path(__file__).resolve().parents[2]
@@ -47,6 +49,8 @@ def _job_path_exists(job_path: str) -> bool:
 
 
 def _telegram(text: str) -> None:
+    if vacation_gate("normal", "jobs.skillbuilder.audit", text):
+        return
     bot_token = os.getenv("WATSON_BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
     chat_id = os.getenv("WATSON_CHAT_ID") or os.getenv("TELEGRAM_CHAT_ID")
     if not (bot_token and chat_id):

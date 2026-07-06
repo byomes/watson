@@ -24,6 +24,7 @@ import requests
 from dotenv import load_dotenv
 
 from config.settings import DB_PATH, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+from core.vacation import vacation_gate
 from jobs.team.inbound import is_forwarded_email, process_inbound
 import jobs.code_agent.agent as code_agent
 
@@ -201,6 +202,8 @@ def _extract_name(sender_field: str) -> str:
 
 
 def _tg(text: str) -> None:
+    if vacation_gate("normal", "jobs.email_intake._tg", text):
+        return
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         log.error("Telegram credentials not set")
         return
@@ -215,10 +218,12 @@ def _tg(text: str) -> None:
 
 
 def _send_directive_telegram(sender, subject):
+    text = f"📬 New directive\n\nFrom: {sender}\nSubject: {subject}"
+    if vacation_gate("normal", "jobs.email_intake._send_directive_telegram", text):
+        return
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         log.error("Telegram credentials not set — cannot send directive alert")
         return
-    text = f"📬 New directive\n\nFrom: {sender}\nSubject: {subject}"
     try:
         requests.post(
             f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
@@ -539,6 +544,8 @@ def _send_triage_prompt(
     reply_warranted: bool,
 ) -> int | None:
     """Send the triage Telegram message with inline buttons. Returns Telegram message_id."""
+    if vacation_gate("normal", "jobs.email_intake._send_triage_prompt", subject):
+        return None
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         log.error("Telegram credentials not set — cannot send triage prompt")
         return None

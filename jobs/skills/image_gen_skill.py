@@ -14,6 +14,8 @@ from pathlib import Path
 import requests
 from dotenv import load_dotenv
 
+from core.vacation import vacation_gate
+
 log = logging.getLogger(__name__)
 
 BASE_DIR = Path(__file__).resolve().parents[2]
@@ -60,6 +62,12 @@ def generate_image(prompt: str, width: int = 1080, height: int = 1080) -> str:
 
 
 def send_image_telegram(filepath: str, caption: str) -> bool:
+    # NOTE: this delivers the result of a direct, interactive request (Bill asked
+    # Watson to generate an image right now), not a passive notification — flagged
+    # since suppressing it during vacation may surprise him. Tagged "normal" per
+    # the two-tier scheme since it isn't a system failure.
+    if vacation_gate("normal", "jobs.skills.image_gen_skill", caption):
+        return False
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         log.error("Missing Telegram credentials for image delivery.")
         return False

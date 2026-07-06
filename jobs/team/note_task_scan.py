@@ -23,6 +23,8 @@ from pathlib import Path
 import requests
 from dotenv import load_dotenv
 
+from core.vacation import vacation_gate
+
 load_dotenv(Path.home() / "watson" / ".env")
 
 log = logging.getLogger(__name__)
@@ -322,6 +324,8 @@ def _assign_corrected(conn, batch_id, pending, corrected):
 # ── Telegram ──────────────────────────────────────────────────────────────────
 
 def _send_telegram(text):
+    if vacation_gate("normal", "jobs.team.note_task_scan", text):
+        return
     token   = os.getenv("WATSON_BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
     chat_id = os.getenv("WATSON_CHAT_ID")   or os.getenv("TELEGRAM_CHAT_ID")
     if not token or not chat_id:

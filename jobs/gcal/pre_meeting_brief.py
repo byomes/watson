@@ -18,6 +18,7 @@ import requests
 from dotenv import load_dotenv
 
 from jobs.gcal.gcal_service import get_service
+from core.vacation import vacation_gate
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 load_dotenv(BASE_DIR / ".env")
@@ -229,6 +230,8 @@ def _build_message(prefix: str, guest_name: str, start_dt: datetime,
 
 
 def _send_telegram(text: str, meet_link: str | None) -> None:
+    if vacation_gate("normal", "jobs.gcal.pre_meeting_brief", text):
+        return
     payload: dict = {
         "chat_id":    CHAT_ID,
         "text":       text,

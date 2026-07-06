@@ -73,10 +73,25 @@ html, body {
 #hdr-sub { font-size: 11px; color: var(--muted); margin-top: 1px; }
 #hdr-date { font-size: 11px; color: var(--muted); flex-shrink: 0; text-align: right; white-space: nowrap; }
 
+/* ── Vacation Mode banner ────────────────────────────────────────────────── */
+#vacation-banner {
+  display: none;
+  position: fixed;
+  top: calc(57px + env(safe-area-inset-top)); left: 0; right: 0;
+  z-index: 95;
+  background: var(--gold);
+  color: #000;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  padding: 6px 12px;
+}
+#vacation-banner.active { display: block; }
+
 /* ── Scrollable page area ────────────────────────────────────────────────── */
 #page-content {
   position: fixed;
-  top: calc(57px + env(safe-area-inset-top)); left: 0; right: 0;
+  top: calc(57px + env(safe-area-inset-top) + var(--banner-h, 0px)); left: 0; right: 0;
   bottom: 0;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
@@ -839,6 +854,8 @@ html, body {
   </a>
   <div id="hdr-date"></div>
 </header>
+
+<div id="vacation-banner">🌴 Vacation Mode is ON — Telegram notifications are paused except system alerts</div>
 
 <div id="page-content"><div class="loading">Loading&hellip;</div></div>
 

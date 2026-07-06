@@ -7,6 +7,8 @@ from pathlib import Path
 
 import requests
 
+from core.vacation import vacation_gate
+
 REPO = Path(__file__).resolve().parents[2]
 DB_PATH = os.getenv("WATSON_DB", str(REPO / "data" / "watson.db"))
 CORE_MD = REPO / "memory" / "core.md"
@@ -40,8 +42,8 @@ def propose_core_update(proposed_change: str) -> int:
     bot_token = os.getenv("WATSON_BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
     chat_id = os.getenv("WATSON_CHAT_ID") or os.getenv("TELEGRAM_CHAT_ID")
 
-    if bot_token and chat_id:
-        msg = f"MEMORY UPDATE PROPOSAL\n\n{proposed_change}\n\nReply APPROVE or REJECT."
+    msg = f"MEMORY UPDATE PROPOSAL\n\n{proposed_change}\n\nReply APPROVE or REJECT."
+    if bot_token and chat_id and not vacation_gate("normal", "jobs.memory.propose", msg):
         try:
             requests.post(
                 f"https://api.telegram.org/bot{bot_token}/sendMessage",

@@ -18,6 +18,7 @@ from flask import Flask, Response, g, jsonify, redirect, render_template, reques
 from flask_cors import CORS
 from jobs.people.api import congregation_list, people_create, people_delete, people_list, people_update
 from config.settings import WATSON_SYSTEM
+from core.vacation import is_vacation_mode, set_vacation_mode, vacation_gate
 
 
 DB = os.path.expanduser("~/watson/data/watson.db")
@@ -365,6 +366,8 @@ def _build_email_body(content: str) -> str:
 
 def _send_telegram(text: str) -> None:
     """Send a plain text message via Telegram."""
+    if vacation_gate("normal", "jobs.dashboard.app._send_telegram", text):
+        return
     import requests as _rq
     token = os.getenv("WATSON_BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
     chat_id = os.getenv("WATSON_CHAT_ID") or os.getenv("TELEGRAM_CHAT_ID")
@@ -382,6 +385,8 @@ def _send_telegram(text: str) -> None:
 
 def _send_qr_telegram(png_bytes: bytes, content: str) -> None:
     """Send QR code photo via Telegram."""
+    if vacation_gate("normal", "jobs.dashboard.app._send_qr_telegram", content):
+        return
     import io as _io
     import requests as _rq
     token = os.getenv("WATSON_BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
@@ -464,6 +469,26 @@ def team():
 @app.route("/api/status", methods=["GET"])
 def status():
     return jsonify({"current_time": datetime.now().isoformat()})
+
+
+@app.route("/api/settings/vacation-mode", methods=["GET", "PATCH"])
+def vacation_mode_api():
+    if request.method == "PATCH":
+        data = request.get_json(force=True) or {}
+        if "vacation_mode" not in data:
+            return jsonify({"error": "vacation_mode is required"}), 400
+        set_vacation_mode(bool(data["vacation_mode"]))
+
+    conn = _db()
+    count_row = conn.execute("SELECT COUNT(*) AS n FROM vacation_suppressed_log").fetchone()
+    recent = conn.execute(
+        "SELECT source, message, created_at FROM vacation_suppressed_log ORDER BY id DESC LIMIT 20"
+    ).fetchall()
+    return jsonify({
+        "vacation_mode": is_vacation_mode(),
+        "suppressed_count": count_row["n"] if count_row else 0,
+        "recent": [dict(r) for r in recent],
+    })
 
 
 _TERM_BLOCKLIST = ("rm ", "sudo rm", "drop ", "drop;", "format ", "shutdown", "reboot", ":(){", ">(")
@@ -1119,6 +1144,8 @@ def contacts_import():
         except Exception as exc:
             log.error("Google Contacts import failed: %s", exc)
             summary = f"Google Contacts import failed: {exc}"
+        if vacation_gate("normal", "jobs.dashboard.app.contacts_import", summary):
+            return
         bot_token = os.getenv("WATSON_BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
         chat_id = os.getenv("WATSON_CHAT_ID") or os.getenv("TELEGRAM_CHAT_ID")
         if bot_token and chat_id:
@@ -3005,12 +3032,15 @@ def calendar_busy_rest_of_day():
         count = mark_day_busy_from_now()
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
+    text = f"\U0001f6ab Marked rest of day as busy. {count} appointment(s) affected."
+    if vacation_gate("normal", "jobs.dashboard.app.calendar_busy_rest_of_day", text):
+        return jsonify({"ok": True})
     try:
         _req.post(
             f"https://api.telegram.org/bot{WATSON_BOT_TOKEN}/sendMessage",
             json={
                 "chat_id": WATSON_CHAT_ID,
-                "text": f"\U0001f6ab Marked rest of day as busy. {count} appointment(s) affected.",
+                "text": text,
             },
             timeout=10,
         )
@@ -4116,6 +4146,8 @@ def lock_vault() -> None:
             "UPDATE vault_status SET locked = 1, locked_at = datetime('now') WHERE id = 1"
         )
     try:
+        if vacation_gate("system_failure", "jobs.dashboard.app.lock_vault", "vault locked — 3 failed attempts"):
+            return
         import requests as _rq
         from telegram import InlineKeyboardButton, InlineKeyboardMarkup
         token   = os.getenv("WATSON_BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")

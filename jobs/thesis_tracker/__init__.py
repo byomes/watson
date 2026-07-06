@@ -5,6 +5,8 @@ from pathlib import Path
 
 import requests
 
+from core.vacation import vacation_gate
+
 DB = Path.home() / "watson" / "data" / "watson.db"
 
 _BOT_TOKEN = lambda: os.getenv("WATSON_BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
@@ -32,6 +34,10 @@ def bootstrap_db() -> None:
 
 
 def send_telegram(text: str) -> None:
+    # Only caller is token_health.py's "dashboard token appears dead" alert —
+    # tagged system_failure, same category as gcal/facebook token health checks.
+    if vacation_gate("system_failure", "jobs.thesis_tracker", text):
+        return
     token = _BOT_TOKEN()
     chat_id = _CHAT_ID()
     if not (token and chat_id):

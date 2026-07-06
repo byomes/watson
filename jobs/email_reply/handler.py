@@ -18,6 +18,7 @@ import requests
 from dotenv import load_dotenv
 
 from config.settings import DB_PATH, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+from core.vacation import vacation_gate
 
 load_dotenv(Path.home() / "watson" / ".env")
 
@@ -96,6 +97,8 @@ def send_telegram_notification(email: dict, draft: str) -> int | None:
 
     Returns the Telegram message_id so callers can store it for reply-threading.
     """
+    if vacation_gate("normal", "jobs.email_reply.handler.send_telegram_notification", email.get("subject", "")):
+        return None
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         log.warning("Telegram credentials not set; skipping notification")
         return None
@@ -126,6 +129,8 @@ def send_telegram_notification(email: dict, draft: str) -> int | None:
 
 
 def _send_telegram_text(msg: str) -> None:
+    if vacation_gate("normal", "jobs.email_reply.handler._send_telegram_text", msg):
+        return
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         return
     try:

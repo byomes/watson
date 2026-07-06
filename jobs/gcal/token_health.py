@@ -1,6 +1,7 @@
 import requests
 
 from config.settings import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+from core.vacation import vacation_gate
 
 REAUTH_MESSAGE = (
     "⚠️ Google Calendar token has expired and needs reauthorization.\n\n"
@@ -10,6 +11,8 @@ REAUTH_MESSAGE = (
 
 
 def _send_telegram(text: str) -> None:
+    if vacation_gate("system_failure", "jobs.gcal.token_health", text):
+        return
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     requests.post(url, json={"chat_id": TELEGRAM_CHAT_ID, "text": text}, timeout=10)
 

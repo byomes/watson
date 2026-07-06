@@ -7,6 +7,7 @@ import requests
 
 from config.settings import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 from core.database import get_connection
+from core.vacation import vacation_gate
 from jobs.reminders import ensure_reminders_schema
 
 logging.basicConfig(
@@ -18,6 +19,8 @@ log = logging.getLogger(__name__)
 
 
 def send_telegram(text):
+    if vacation_gate("normal", "jobs.reminders.daily_summary", text):
+        return
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     requests.post(url, json={"chat_id": TELEGRAM_CHAT_ID, "text": text}, timeout=10)
 

@@ -9,12 +9,15 @@ import logging
 import requests
 
 from config.settings import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+from core.vacation import vacation_gate
 from jobs.pastoral_notes.db import get_db
 
 log = logging.getLogger(__name__)
 
 
 def _send_telegram(text: str) -> int | None:
+    if vacation_gate("normal", "jobs.pastoral_notes.reminder", text):
+        return None
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     try:
         resp = requests.post(url, json={"chat_id": TELEGRAM_CHAT_ID, "text": text}, timeout=10)

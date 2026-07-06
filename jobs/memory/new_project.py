@@ -6,11 +6,15 @@ from pathlib import Path
 
 import requests
 
+from core.vacation import vacation_gate
+
 REPO = Path(__file__).resolve().parents[2]
 MEMORY = REPO / "memory"
 
 
 def _send_telegram(text: str) -> None:
+    if vacation_gate("normal", "jobs.memory.new_project", text):
+        return
     bot_token = os.getenv("WATSON_BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
     chat_id = os.getenv("WATSON_CHAT_ID") or os.getenv("TELEGRAM_CHAT_ID")
     if not (bot_token and chat_id):

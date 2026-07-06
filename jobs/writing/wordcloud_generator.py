@@ -5,12 +5,16 @@ import re
 from datetime import datetime
 from pathlib import Path
 
+from core.vacation import vacation_gate
+
 log = logging.getLogger(__name__)
 REPO = Path(__file__).resolve().parents[2]
 OUTPUT_DIR = REPO / "outputs" / "wordclouds"
 
 
 def _send_telegram_photo(photo_path: str, caption: str = "") -> None:
+    if vacation_gate("normal", "jobs.writing.wordcloud_generator", caption):
+        return
     bot_token = os.getenv("WATSON_BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
     chat_id = os.getenv("WATSON_CHAT_ID") or os.getenv("TELEGRAM_CHAT_ID")
     if not (bot_token and chat_id):

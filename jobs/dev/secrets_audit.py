@@ -7,6 +7,8 @@ from pathlib import Path
 import requests
 from dotenv import load_dotenv
 
+from core.vacation import vacation_gate
+
 REPO = Path(__file__).resolve().parents[2]
 ENV_FILE = REPO / ".env"
 JOBS_DIR = REPO / "jobs"
@@ -60,6 +62,10 @@ def _scan_jobs(jobs_dir: Path) -> tuple[set, set]:
 
 
 def _telegram(text: str) -> None:
+    # Manual dev-tooling audit, not a scheduled job — tagged "normal", not
+    # a system-health/service-down alert.
+    if vacation_gate("normal", "jobs.dev.secrets_audit", text):
+        return
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
     chat_id = os.getenv("TELEGRAM_CHAT_ID")
     if not (bot_token and chat_id):

@@ -9,6 +9,8 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+from core.vacation import vacation_gate
+
 WATSON_ROOT = Path.home() / "watson"
 load_dotenv(WATSON_ROOT / ".env")
 
@@ -167,6 +169,11 @@ def _ask_bill_continue(problem: str, iteration: int, summary: str) -> bool:
 
 
 def _send_telegram(message: str) -> None:
+    # This fires while Watson is actively mid-diagnosis on a live problem
+    # (the debug loop's "continue or stop?" check-in) — treated as a system
+    # alert, not routine noise, so it always sends regardless of vacation mode.
+    if vacation_gate("system_failure", "jobs.dev.claude_debug", message):
+        return
     import asyncio
     from telegram import Bot
     token = os.getenv("TELEGRAM_BOT_TOKEN")

@@ -5,6 +5,8 @@ import requests
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 
+from core.vacation import vacation_gate
+
 load_dotenv(os.path.expanduser("~/watson/.env"))
 
 DB_PATH = os.path.expanduser("~/watson/data/watson.db")
@@ -47,25 +49,28 @@ def check_token_expiry():
                 "Renew at developers.facebook.com/tools/explorer"
             )
             print(f"Facebook token check: {days_remaining} days remaining — Telegram warning sent")
-            requests.post(
-                f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
-                data={"chat_id": TELEGRAM_CHAT_ID, "text": msg},
-                timeout=10,
-            )
+            if not vacation_gate("system_failure", "jobs.facebook.facebook_post.check_token_expiry", msg):
+                requests.post(
+                    f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+                    data={"chat_id": TELEGRAM_CHAT_ID, "text": msg},
+                    timeout=10,
+                )
         else:
             print(f"Facebook token check: OK ({days_remaining} days remaining, expires {expiry_date})")
 
     except Exception as e:
         print(f"Facebook token check failed: {e}")
         try:
-            requests.post(
-                f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
-                data={
-                    "chat_id": TELEGRAM_CHAT_ID,
-                    "text": "🚨 Facebook token is expired or invalid. Posts will not go out.",
-                },
-                timeout=10,
-            )
+            invalid_msg = "🚨 Facebook token is expired or invalid. Posts will not go out."
+            if not vacation_gate("system_failure", "jobs.facebook.facebook_post.check_token_expiry", invalid_msg):
+                requests.post(
+                    f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+                    data={
+                        "chat_id": TELEGRAM_CHAT_ID,
+                        "text": invalid_msg,
+                    },
+                    timeout=10,
+                )
         except Exception:
             pass
 

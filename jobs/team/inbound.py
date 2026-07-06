@@ -9,6 +9,8 @@ from pathlib import Path
 import requests
 from dotenv import load_dotenv
 
+from core.vacation import vacation_gate
+
 BASE_DIR = Path(__file__).resolve().parents[2]
 load_dotenv(BASE_DIR / ".env")
 
@@ -154,6 +156,11 @@ def _ollama_digest(member_name: str, body: str) -> dict:
 
 
 def _send_telegram(text: str) -> None:
+    # NOTE: this includes emails Ollama tone-classifies as "urgent" (jobs/team/inbound.py
+    # _TONE_EMOJI) — that's a business-urgency label for forwarded staff email, not a
+    # pastoral crisis or system failure, so it's tagged "normal" per the two-tier scheme.
+    if vacation_gate("normal", "jobs.team.inbound", text):
+        return
     requests.post(
         f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
         json={"chat_id": CHAT_ID, "text": text, "parse_mode": "HTML"},

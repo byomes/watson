@@ -120,9 +120,10 @@ def run(message: str = None) -> str:
         return path
     import os
     import requests
+    from core.vacation import vacation_gate
     bot_token = os.getenv("WATSON_BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
     chat_id = os.getenv("WATSON_CHAT_ID") or os.getenv("TELEGRAM_CHAT_ID")
-    if bot_token and chat_id:
+    if bot_token and chat_id and not vacation_gate("normal", "jobs.design.svg_generator", message[:200]):
         try:
             with open(path, "rb") as f:
                 requests.post(

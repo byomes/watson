@@ -11,6 +11,7 @@ import requests
 import sqlite3
 from datetime import datetime
 from dotenv import load_dotenv
+from core.vacation import vacation_gate
 load_dotenv(os.path.expanduser("~/watson/.env"))
 
 DB_PATH = os.path.expanduser("~/watson/data/watson.db")
@@ -139,6 +140,8 @@ def create_kit_broadcast(subject, body):
 
 
 def notify_telegram(message):
+    if vacation_gate("normal", "jobs.email_job.draft_email", message):
+        return
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         return
     requests.post(

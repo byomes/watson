@@ -8,6 +8,8 @@ import sqlite3
 import subprocess
 from pathlib import Path
 
+from core.vacation import vacation_gate
+
 log = logging.getLogger(__name__)
 REPO = Path(__file__).resolve().parents[2]
 SKILLS_FILE = REPO / "memory" / "skills.json"
@@ -26,6 +28,9 @@ def _save_skills(skills: list) -> None:
 
 
 def _telegram(text: str) -> None:
+    # Dev-tooling validation results, not a core scheduled job — tagged "normal".
+    if vacation_gate("normal", "jobs.dev.skill_validator", text):
+        return
     bot_token = os.getenv("WATSON_BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
     chat_id = os.getenv("WATSON_CHAT_ID") or os.getenv("TELEGRAM_CHAT_ID")
     if not (bot_token and chat_id):

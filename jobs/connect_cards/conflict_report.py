@@ -34,9 +34,12 @@ CONG_DB_PATH = os.path.expanduser("~/watson/data/congregation.db")
 
 # Import via config.settings so WATSON_BOT_TOKEN / TELEGRAM_BOT_TOKEN both work
 from config.settings import WATSON_BOT_TOKEN, WATSON_CHAT_ID
+from core.vacation import vacation_gate
 
 
 def _send(text: str, keyboard: list | None = None) -> None:
+    if vacation_gate("normal", "jobs.connect_cards.conflict_report", text):
+        return
     payload: dict = {"chat_id": WATSON_CHAT_ID, "text": text}
     if keyboard:
         payload["reply_markup"] = {"inline_keyboard": keyboard}
