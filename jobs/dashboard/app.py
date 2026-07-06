@@ -302,6 +302,11 @@ from jobs.writing_room import bootstrap_db as _wr_bootstrap
 _wr_bootstrap()
 app.register_blueprint(writing_room_bp)
 
+from jobs.bodyrec.api import bodyrec_bp
+from jobs.bodyrec import bootstrap_db as _bodyrec_bootstrap
+_bodyrec_bootstrap()
+app.register_blueprint(bodyrec_bp)
+
 from jobs.arc.api import arc_bp
 app.register_blueprint(arc_bp)
 
