@@ -1081,6 +1081,29 @@ async function moreLoadThesis() {
   }
 }
 
+async function thesisPullNew() {
+  const btn = document.getElementById('mth-pull-btn');
+  const errEl = document.getElementById('mth-pull-error');
+  if (!btn) return;
+  const origText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Pulling…';
+  if (errEl) errEl.textContent = '';
+  try {
+    const data = await api('/api/thesis-tracker/pull', { method: 'POST' });
+    if (data && data.success) {
+      await moreLoadThesis();
+    } else if (errEl) {
+      errEl.textContent = (data && data.error) || 'Pull failed.';
+    }
+  } catch {
+    if (errEl) errEl.textContent = 'Pull failed — check connection.';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = origText;
+  }
+}
+
 // ─── More page ────────────────────────────────────────────────────────────────
 
 let _moreSecLoaded    = {};
@@ -1184,6 +1207,10 @@ function renderMore() {
         <div class="msec-inner" id="msec-inner-publishing"><div class="loading">Loading&hellip;</div></div>
       </div>
       <div class="msec-body" id="msec-body-thesis">
+        <div class="mth-pull-row">
+          <button class="mbtn mbtn-p mbtn-sm" id="mth-pull-btn" onclick="thesisPullNew()">Pull New Data</button>
+          <span class="mth-pull-error" id="mth-pull-error"></span>
+        </div>
         <div class="msec-inner" id="msec-inner-thesis"><div class="loading">Loading&hellip;</div></div>
       </div>
     </div>`);

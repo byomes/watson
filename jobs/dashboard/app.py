@@ -1294,6 +1294,16 @@ def thesis_tracker_countries():
     return jsonify(result)
 
 
+@app.route("/api/thesis-tracker/pull", methods=["POST"])
+def thesis_tracker_pull():
+    dashboard_link = os.getenv("DC_DASHBOARD_LINK")
+    if not dashboard_link:
+        return jsonify({"success": False, "error": "DC_DASHBOARD_LINK missing from .env"}), 400
+    from jobs.thesis_tracker.scrape import scrape
+    result = scrape(dashboard_link)
+    return jsonify(result)
+
+
 # ── Reminders API ────────────────────────────────────────────────────────────
 
 @app.route("/api/reminders")
