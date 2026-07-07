@@ -34,8 +34,8 @@ def bootstrap_db() -> None:
 
 
 def send_telegram(text: str) -> None:
-    # Only caller is token_health.py's "dashboard token appears dead" alert —
-    # tagged system_failure, same category as gcal/facebook token health checks.
+    # Snapshot summaries and failure alerts from scrape.py — tagged system_failure,
+    # same category as gcal/facebook token health checks, so it always sends.
     if vacation_gate("system_failure", "jobs.thesis_tracker", text):
         return
     token = _BOT_TOKEN()
