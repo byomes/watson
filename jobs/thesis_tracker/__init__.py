@@ -19,20 +19,6 @@ def get_db() -> sqlite3.Connection:
     return conn
 
 
-def bootstrap_db() -> None:
-    with get_db() as conn:
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS thesis_token_health (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                checked_at TEXT NOT NULL,
-                success INTEGER NOT NULL,
-                status_code INTEGER,
-                final_url TEXT,
-                note TEXT
-            )
-        """)
-
-
 def send_telegram(text: str) -> None:
     # Snapshot summaries and failure alerts from scrape.py — tagged system_failure,
     # same category as gcal/facebook token health checks, so it always sends.
