@@ -2584,6 +2584,8 @@ let _pubWrPartners   = [];
 let _pubWrMessages   = [];
 let _pubWrCalls      = [];
 let _pubArcReaders   = [];
+let _pubArcShowAll   = false;
+let _pubWRShowAll    = false;
 
 function _pubStatusBadge(status) {
   const map = {
@@ -2636,7 +2638,7 @@ async function pubLoadWR() {
   el.innerHTML = '<div class="loading">Loading&hellip;</div>';
   try {
     const [partners, messages, calls] = await Promise.all([
-      api('/api/dashboard/writing-room/partners'),
+      api(`/api/dashboard/writing-room/partners${_pubWRShowAll ? '?all=1' : ''}`),
       api('/api/dashboard/writing-room/messages?limit=10'),
       api('/api/dashboard/writing-room/calls'),
     ]);
@@ -2647,6 +2649,11 @@ async function pubLoadWR() {
   } catch (e) {
     el.innerHTML = '<div class="empty">Failed to load Writing Room data.</div>';
   }
+}
+
+function pubWRToggleShowAll() {
+  _pubWRShowAll = !_pubWRShowAll;
+  pubLoadWR();
 }
 
 function _pubRenderWR() {
@@ -2671,7 +2678,8 @@ function _pubRenderWR() {
       </div>`).join('');
   }
 
-  html += `<div class="mlabel">Partners (${others.length})</div>`;
+  const wrToggleBtn = `<button class="mbtn mbtn-sm" onclick="pubWRToggleShowAll()">${_pubWRShowAll ? 'Show Active Only' : 'Show All / Revoked'}</button>`;
+  html += `<div class="mlabel" style="display:flex;align-items:center;justify-content:space-between">Partners (${others.length})${wrToggleBtn}</div>`;
   if (!others.length) {
     html += '<div class="empty">No partners yet.</div>';
   } else {
@@ -2769,21 +2777,27 @@ async function pubLoadArc() {
   if (!el) return;
   el.innerHTML = '<div class="loading">Loading&hellip;</div>';
   try {
-    _pubArcReaders = await api('/api/dashboard/arc/readers');
+    _pubArcReaders = await api(`/api/dashboard/arc/readers${_pubArcShowAll ? '?all=1' : ''}`);
     _pubRenderArc();
   } catch (e) {
     el.innerHTML = '<div class="empty">Failed to load ARC readers.</div>';
   }
 }
 
+function pubArcToggleShowAll() {
+  _pubArcShowAll = !_pubArcShowAll;
+  pubLoadArc();
+}
+
 function _pubRenderArc() {
   const el = document.getElementById('pub-tab-body');
   if (!el) return;
+  const toggleBtn = `<button class="mbtn mbtn-sm" onclick="pubArcToggleShowAll()">${_pubArcShowAll ? 'Show Active Only' : 'Show All / Revoked'}</button>`;
   if (!_pubArcReaders.length) {
-    el.innerHTML = `<div class="mlabel">ARC Applicants (0)</div><div class="empty">No ARC readers yet.</div>`;
+    el.innerHTML = `<div class="mlabel">ARC Applicants (0)</div>${toggleBtn}<div class="empty">No ARC readers yet.</div>`;
     return;
   }
-  el.innerHTML = `<div class="mlabel">ARC Applicants (${_pubArcReaders.length})</div>` +
+  el.innerHTML = `<div class="mlabel" style="display:flex;align-items:center;justify-content:space-between">ARC Applicants (${_pubArcReaders.length})${toggleBtn}</div>` +
     _pubArcReaders.map(r => {
       const allApproved = r.commitments.length === 5 && r.commitments.every(c => c.approved_by_admin);
       const anyFlagged   = r.commitments.some(c => c.flagged_as_suspicious);

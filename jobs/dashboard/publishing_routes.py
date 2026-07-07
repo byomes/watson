@@ -40,6 +40,7 @@ publishing_dashboard_bp = Blueprint("publishing_dashboard", __name__)
 @publishing_dashboard_bp.route("/api/dashboard/writing-room/partners", methods=["GET"])
 def dash_wr_partners():
     status_filter = request.args.get("status")
+    show_all = request.args.get("all") == "1"
     conn = get_wr_db()
     _cols = ("id, name, email, username, status, joined_at, last_active, "
              "why_join, faith_description, agreed_to_participate, created_at")
@@ -49,9 +50,14 @@ def dash_wr_partners():
                 f"SELECT {_cols} FROM writing_room_partners WHERE status = ? ORDER BY created_at DESC",
                 (status_filter,),
             ).fetchall()
-        else:
+        elif show_all:
             rows = conn.execute(
                 f"SELECT {_cols} FROM writing_room_partners ORDER BY created_at DESC"
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                f"SELECT {_cols} FROM writing_room_partners "
+                "WHERE status NOT IN ('revoked', 'deleted') ORDER BY created_at DESC"
             ).fetchall()
         return jsonify([dict(r) for r in rows]), 200
     finally:
@@ -193,12 +199,19 @@ def dash_wr_calls():
 @publishing_dashboard_bp.route("/api/dashboard/arc/readers", methods=["GET"])
 def dash_arc_readers():
     _ensure_arc_tables()
+    show_all = request.args.get("all") == "1"
     conn = get_wr_db()
     try:
-        readers = conn.execute(
-            "SELECT id, first_name, last_name, email, status, approved_for_writing_room, created_at "
-            "FROM arc_readers ORDER BY created_at DESC"
-        ).fetchall()
+        if show_all:
+            readers = conn.execute(
+                "SELECT id, first_name, last_name, email, status, approved_for_writing_room, created_at "
+                "FROM arc_readers ORDER BY created_at DESC"
+            ).fetchall()
+        else:
+            readers = conn.execute(
+                "SELECT id, first_name, last_name, email, status, approved_for_writing_room, created_at "
+                "FROM arc_readers WHERE status NOT IN ('revoked', 'deleted') ORDER BY created_at DESC"
+            ).fetchall()
         result = []
         for r in readers:
             commitments = conn.execute(
