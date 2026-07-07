@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-07-06*
+*Generated: 2026-07-07*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -54,6 +54,7 @@ cron_additions.txt
 data/
   .gitkeep
   congregation.db
+  congregation.db.backup-20260706-170337
   donors.db
   exports/
     qr_1780863713.png
@@ -104,12 +105,6 @@ deploy/
   people-server.service
   start_people_server.sh
   watson-dashboard.service
-dev/
-  csv-json-final/
-    main.py
-    spec.md
-  weather/
-    main.py
 docs/
   .gitkeep
   briefing.html
@@ -134,6 +129,9 @@ jobs/
   backup.py
   batch.py
   bible.py
+  bodyrec/
+    __init__.py
+    api.py
   build_kb.py
   cleanup.py
   cleanup_library.ps1
@@ -1036,6 +1034,7 @@ public/
     DS2-cover.png
     DS3-cover.png
     HeIsRisen-Cover.jpg
+    TWJ_Launch_2.PNG
     lead-magnet.png
     lead-magnet2.png
     og-default.png
@@ -1229,9 +1228,11 @@ src/
       twitter-image.tsx
     twitter-image.tsx
     twj/
+      TWJPressKitClient.tsx
       opengraph-image.tsx
       page.tsx
       press/
+        TWJPressKitClient.tsx
         opengraph-image.tsx
         page.tsx
         twitter-image.tsx
