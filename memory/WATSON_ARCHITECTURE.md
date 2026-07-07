@@ -787,3 +787,16 @@ WATSON_API_URL=https://watson.tail0243ff.ts.net
 - 999f955 fix: match SHARE section background to adjacent Launch Team section
 - 1eb326f fix: use dedicated SMS share copy on TWJ launch page
 - a2535fe feat: add Share via Text and Share on Social buttons to TWJ launch page
+
+---
+
+## Recent Changes — 2026-07-07
+
+### ~/watson
+- ff12422 feat: More tab 2-column button grid with shared expand area below
+- edb51d9 feat: bodyrec Watson API blueprint — migrate off Supabase
+- f8ea23d docs: file map 2026-07-06
+- 3603783 docs: architecture update 2026-07-06
+
+### ~/wcky
+- edcb202 feat: use TWJ_Launch_2.PNG as the OG/Twitter image site-wide
