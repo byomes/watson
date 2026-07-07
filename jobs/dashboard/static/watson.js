@@ -1012,25 +1012,6 @@ async function moreLoadReading() {
 
 // ── Thesis Tracker (More section) ─────────────────────────────────────────────
 
-function thesisFmtDate(s, withYear) {
-  if (!s) return '';
-  try {
-    const d = new Date(s + 'T00:00:00');
-    const opts = withYear
-      ? { month: 'short', day: 'numeric', year: 'numeric' }
-      : { month: 'short', day: 'numeric' };
-    return d.toLocaleDateString('en-US', opts);
-  } catch { return s; }
-}
-
-function thesisWindowLabel(data) {
-  const label = data.window_type === 'all_time' ? 'All-time' : 'Rolling 30-day';
-  const start = thesisFmtDate(data.window_start, false);
-  const end   = thesisFmtDate(data.window_end, true);
-  if (!start && !end) return label;
-  return `${label}: ${start} – ${end}`;
-}
-
 function thesisRows(items, nameKey) {
   if (!items || !items.length) return '<div class="empty">None recorded.</div>';
   return `<div class="mth-card">${items.map(item => `
@@ -1055,7 +1036,6 @@ async function moreLoadThesis() {
     }
     el.innerHTML = `
       <div class="mth-updated">Last updated: <b>${esc(fmtGenerated(data.pulled_at) || data.pulled_at)}</b></div>
-      <div class="mth-window">${esc(thesisWindowLabel(data))}</div>
       <div class="mth-stats">
         <div class="mth-stat">
           <div class="mth-stat-num">${data.total_downloads ?? '—'}</div>
