@@ -5,6 +5,8 @@ The dashboard link's session is only established via a real browser JS handshake
 (a plain requests.Session() GET does not receive the sessionJwt cookie — confirmed
 during discovery). Playwright loads the link headless once, then hits the JSON API
 endpoints directly through the authenticated context.request — no DOM scraping.
+
+Cron: 10 8 * * * PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python /home/billyomes/watson/jobs/thesis_tracker/scrape.py
 """
 from datetime import datetime, timezone
 
