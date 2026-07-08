@@ -1021,10 +1021,14 @@ function thesisRows(items, nameKey) {
     </div>`).join('')}</div>`;
 }
 
+let _thesisCountriesData = null;
+let _thesisMapInstance = null;
+
 async function moreLoadThesis() {
   const el = document.getElementById('msec-inner-thesis');
   if (!el) return;
   el.innerHTML = '<div class="loading">Loading&hellip;</div>';
+  _thesisMapInstance = null; // old DOM node is being replaced below
   try {
     const [data, countries] = await Promise.all([
       api('/api/thesis-tracker/latest'),
@@ -1034,6 +1038,7 @@ async function moreLoadThesis() {
       el.innerHTML = '<div class="empty">No data yet.</div>';
       return;
     }
+    _thesisCountriesData = countries;
     el.innerHTML = `
       <div class="mth-updated">Last updated: <b>${esc(fmtGenerated(data.pulled_at) || data.pulled_at)}</b></div>
       <div class="mth-stats">
@@ -1052,12 +1057,204 @@ async function moreLoadThesis() {
       </div>
       <div class="mlabel" style="margin-top:0">Titles</div>
       ${thesisRows(data.titles, 'title')}
-      <div class="mlabel">Countries (all-time)</div>
-      ${thesisRows(countries, 'country')}
+      <div class="mth-label-row">
+        <span class="mlabel">Countries (all-time)</span>
+        <button class="mbtn mbtn-sm" id="mth-map-toggle-btn" onclick="thesisToggleCountryView()">View Map</button>
+      </div>
+      <div id="mth-countries-list">${thesisRows(countries, 'country')}</div>
+      <div id="mth-countries-map" style="display:none">
+        <div id="thesis-map-wrap">
+          <div id="thesis-map-loading"><span class="mth-spinner"></span>Loading map&hellip;</div>
+          <div id="thesis-map"></div>
+        </div>
+      </div>
       <div class="mlabel">Institutions</div>
       ${thesisRows(data.institutions, 'institution')}`;
   } catch {
     el.innerHTML = '<div class="empty">Could not load thesis tracker data.</div>';
+  }
+}
+
+function thesisToggleCountryView() {
+  const listEl = document.getElementById('mth-countries-list');
+  const mapEl  = document.getElementById('mth-countries-map');
+  const btn    = document.getElementById('mth-map-toggle-btn');
+  if (!listEl || !mapEl || !btn) return;
+  const showMap = listEl.style.display !== 'none';
+  listEl.style.display = showMap ? 'none' : '';
+  mapEl.style.display  = showMap ? '' : 'none';
+  btn.textContent = showMap ? 'View List' : 'View Map';
+  if (showMap) initThesisMap();
+}
+
+// ── Thesis Tracker: world map ────────────────────────────────────────────────
+
+// Maps known Digital Commons / bepress country-name variants onto the exact
+// `name` property used by the bundled countries.geojson (Natural Earth based).
+// Keyed lowercase so matching is case-insensitive.
+const THESIS_COUNTRY_ALIASES = {
+  'united states': 'United States of America',
+  'united states of america': 'United States of America',
+  'usa': 'United States of America',
+  'united kingdom of great britain and northern ireland': 'United Kingdom',
+  'hong kong': 'Hong Kong S.A.R.',
+  'macau': 'Macao S.A.R',
+  'macao': 'Macao S.A.R',
+  'venezuela, bolivarian republic of': 'Venezuela',
+  'venezuela (bolivarian republic of)': 'Venezuela',
+  'korea, republic of': 'South Korea',
+  'republic of korea': 'South Korea',
+  "korea, democratic people's republic of": 'North Korea',
+  'russian federation': 'Russia',
+  'taiwan, province of china': 'Taiwan',
+  'iran, islamic republic of': 'Iran',
+  'iran (islamic republic of)': 'Iran',
+  'syrian arab republic': 'Syria',
+  "lao people's democratic republic": 'Laos',
+  'viet nam': 'Vietnam',
+  'congo': 'Republic of the Congo',
+  'congo, the democratic republic of the': 'Democratic Republic of the Congo',
+  'congo (the democratic republic of the)': 'Democratic Republic of the Congo',
+  "cote d'ivoire": 'Ivory Coast',
+  "côte d'ivoire": 'Ivory Coast',
+  'tanzania, united republic of': 'United Republic of Tanzania',
+  'tanzania, the united republic of': 'United Republic of Tanzania',
+  'moldova, republic of': 'Moldova',
+  'republic of moldova': 'Moldova',
+  'macedonia, the former yugoslav republic of': 'North Macedonia',
+  'macedonia': 'North Macedonia',
+  'czech republic': 'Czechia',
+  'swaziland': 'eSwatini',
+  'bolivia, plurinational state of': 'Bolivia',
+  'bolivia (plurinational state of)': 'Bolivia',
+  'palestinian territory, occupied': 'Palestine',
+  'palestine, state of': 'Palestine',
+  'micronesia, federated states of': 'Federated States of Micronesia',
+  'micronesia (federated states of)': 'Federated States of Micronesia',
+  'brunei darussalam': 'Brunei',
+  'myanmar (burma)': 'Myanmar',
+  'burma': 'Myanmar',
+  'timor-leste': 'East Timor',
+};
+
+let _leafletLoadPromise = null;
+
+function loadLeaflet() {
+  if (window.L) return Promise.resolve();
+  if (_leafletLoadPromise) return _leafletLoadPromise;
+  _leafletLoadPromise = new Promise((resolve, reject) => {
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css';
+    document.head.appendChild(link);
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js';
+    script.onload = resolve;
+    script.onerror = reject;
+    document.head.appendChild(script);
+  });
+  return _leafletLoadPromise;
+}
+
+let _thesisGeoJsonPromise = null;
+
+function loadThesisGeoJson() {
+  if (!_thesisGeoJsonPromise) {
+    _thesisGeoJsonPromise = fetch('/static/countries.geojson').then(r => r.json());
+  }
+  return _thesisGeoJsonPromise;
+}
+
+function thesisResolveCountryName(apiName, geoNameSet) {
+  if (geoNameSet.has(apiName)) return apiName;
+  const alias = THESIS_COUNTRY_ALIASES[(apiName || '').toLowerCase().trim()];
+  if (alias && geoNameSet.has(alias)) return alias;
+  return null;
+}
+
+function thesisColorForDownloads(downloads, minD, maxD) {
+  if (!downloads) return '#2a2a2a'; // zero downloads — neutral gray
+  const t = maxD > minD ? (downloads - minD) / (maxD - minD) : 1;
+  // Single blue hue, light (few downloads) to saturated (most downloads).
+  const lightness = 78 - t * 48; // 78% down to 30%
+  return `hsl(210, 70%, ${lightness}%)`;
+}
+
+async function initThesisMap() {
+  if (_thesisMapInstance) {
+    setTimeout(() => _thesisMapInstance.invalidateSize(), 50);
+    return;
+  }
+  const loadingEl = document.getElementById('thesis-map-loading');
+  try {
+    await loadLeaflet();
+    const geo = await loadThesisGeoJson();
+    const countries = _thesisCountriesData || [];
+
+    const geoNameSet = new Set(geo.features.map(f => f.properties.name));
+    const byGeoName = {};
+    const unmatched = [];
+    countries.forEach(c => {
+      const resolved = thesisResolveCountryName(c.country, geoNameSet);
+      if (resolved) {
+        byGeoName[resolved] = c;
+      } else {
+        unmatched.push(c.country);
+      }
+    });
+    if (unmatched.length) {
+      console.warn('[thesis map] no GeoJSON match for country/countries:', unmatched);
+    }
+
+    const downloadVals = countries.map(c => c.downloads || 0).filter(d => d > 0);
+    const minD = downloadVals.length ? Math.min(...downloadVals) : 0;
+    const maxD = downloadVals.length ? Math.max(...downloadVals) : 0;
+
+    const map = L.map('thesis-map', {
+      minZoom: 1,
+      maxZoom: 6,
+      maxBoundsViscosity: 1.0,
+      worldCopyJump: false,
+    }).setView([20, 0], 2);
+    map.setMaxBounds([[-90, -200], [90, 200]]);
+
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+      subdomains: 'abcd',
+      maxZoom: 6,
+    }).addTo(map);
+
+    L.geoJSON(geo, {
+      style: feature => {
+        const match = byGeoName[feature.properties.name];
+        const downloads = match ? (match.downloads || 0) : 0;
+        return {
+          fillColor: thesisColorForDownloads(downloads, minD, maxD),
+          fillOpacity: 0.85,
+          color: '#2a2a2a',
+          weight: 0.5,
+        };
+      },
+      onEachFeature: (feature, layer) => {
+        const match = byGeoName[feature.properties.name];
+        if (!match) return;
+        const first = fmtGenerated(match.first_seen) || match.first_seen || '—';
+        const last  = fmtGenerated(match.last_seen) || match.last_seen || '—';
+        layer.bindPopup(`
+          <div class="thesis-popup">
+            <b>${esc(match.country)}</b>
+            ${match.downloads ?? 0} download${match.downloads === 1 ? '' : 's'}
+            <div>First seen: ${esc(first)}</div>
+            <div>Last seen: ${esc(last)}</div>
+          </div>`);
+      },
+    }).addTo(map);
+
+    _thesisMapInstance = map;
+    if (loadingEl) loadingEl.style.display = 'none';
+  } catch (err) {
+    console.warn('[thesis map] failed to initialize:', err);
+    if (loadingEl) loadingEl.innerHTML = '<span>Could not load map.</span>';
   }
 }
 

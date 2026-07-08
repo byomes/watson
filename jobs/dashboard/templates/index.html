@@ -534,6 +534,22 @@ html, body {
 .mth-row-val { font-family: 'DM Mono', monospace; color: var(--muted); font-size: 12px; }
 .mth-pull-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
 .mth-pull-error { font-size: 12px; color: var(--danger); }
+.mth-label-row { display: flex; align-items: center; justify-content: space-between; margin: 16px 0 8px; }
+.mth-label-row .mlabel { margin: 0; }
+#thesis-map-wrap { position: relative; height: 340px; border-radius: var(--r-card); overflow: hidden; border: 1px solid var(--border); margin-bottom: 12px; background: var(--surface); }
+#thesis-map { height: 100%; width: 100%; background: var(--bg); }
+#thesis-map-loading { position: absolute; inset: 0; z-index: 5; display: flex; align-items: center; justify-content: center; gap: 8px; background: var(--surface); font-size: 12px; color: var(--muted); font-family: 'DM Mono', monospace; }
+.mth-spinner { width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--gold); border-radius: 50%; animation: mth-spin .8s linear infinite; }
+@keyframes mth-spin { to { transform: rotate(360deg); } }
+.thesis-popup { font-family: 'DM Sans', sans-serif; font-size: 13px; }
+.thesis-popup b { display: block; margin-bottom: 4px; font-size: 13px; }
+.thesis-popup div { color: var(--muted); font-size: 11px; margin-top: 2px; }
+.leaflet-container { background: var(--bg); font-family: 'DM Sans', sans-serif; }
+.leaflet-popup-content-wrapper, .leaflet-popup-tip { background: var(--surface) !important; color: var(--text) !important; }
+.leaflet-popup-content-wrapper { border-radius: var(--r-btn) !important; }
+.leaflet-popup-close-button { color: var(--muted) !important; }
+.leaflet-control-attribution { background: rgba(0,0,0,.5) !important; color: var(--muted) !important; font-size: 9px !important; }
+.leaflet-control-attribution a { color: var(--muted) !important; }
 .mpill.active { background: rgba(201,168,76,.12); border-color: var(--gold); color: var(--gold); }
 .mtheme-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; }
 .mswitch { position: relative; width: 44px; height: 26px; display: inline-block; }
