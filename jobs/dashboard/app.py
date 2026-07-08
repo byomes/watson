@@ -2610,7 +2610,7 @@ def chat_stream():
             resp = _req.post(
                 "http://localhost:11434/api/chat",
                 json={
-                    "model": "qwen2.5:14b",
+                    "model": "llama3.2:3b",
                     "messages": ollama_msgs,
                     "stream": True,
                     "num_predict": 300,
@@ -2812,7 +2812,7 @@ def siri():
             resp = _siri_req.post(
                 "http://localhost:11434/api/chat",
                 json={
-                    "model": "qwen2.5:14b",
+                    "model": "llama3.2:3b",
                     "messages": [{"role": "system", "content": WATSON_SYSTEM}, {"role": "user", "content": msg}],
                     "stream": True,
                     "num_predict": 300,
