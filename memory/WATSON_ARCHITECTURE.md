@@ -814,3 +814,20 @@ WATSON_API_URL=https://watson.tail0243ff.ts.net
 - 2926cb8 fix: default-hide revoked/deleted accounts in Writing Room + ARC admin lists
 - 657cc74 docs: file map 2026-07-07
 - c0d9b0f docs: architecture update 2026-07-07
+
+---
+
+## Recent Changes — 2026-07-08
+
+### ~/watson
+- bd2888f docs: file map 2026-07-08
+- 90f6606 feat: gold choropleth scale + theme-aware map (dark/light tile + fill swap)
+- 08e3dd7 feat: interactive world map for Thesis Tracker countries
+- 6f40c5f docs: file map 2026-07-08
+- dd97b48 docs: architecture update 2026-07-08
+- 06d1101 Remove invalid all-time date range line from thesis tracker
+- f82061d chore: drop thesis_token_health table, remove dead bootstrap_db()
+- 2b1a8c0 chore: remove thesis_tracker/token_health.py, superseded by scrape.py
+- 1e9da58 docs: note thesis_tracker scrape.py daily cron schedule
+- fa295f2 feat: Thesis Tracker scraper + Pull New Data button
+- 2926cb8 fix: default-hide revoked/deleted accounts in Writing Room + ARC admin lists
