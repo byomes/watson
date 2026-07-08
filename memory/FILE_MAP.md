@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-07-07*
+*Generated: 2026-07-08*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -408,7 +408,7 @@ jobs/
   thesis_tracker/
     __init__.py
     db.py
-    token_health.py
+    scrape.py
   time_check.py
   transcribe.py
   utilities/
