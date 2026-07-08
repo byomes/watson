@@ -800,3 +800,17 @@ WATSON_API_URL=https://watson.tail0243ff.ts.net
 
 ### ~/wcky
 - edcb202 feat: use TWJ_Launch_2.PNG as the OG/Twitter image site-wide
+
+---
+
+## Recent Changes — 2026-07-08
+
+### ~/watson
+- 06d1101 Remove invalid all-time date range line from thesis tracker
+- f82061d chore: drop thesis_token_health table, remove dead bootstrap_db()
+- 2b1a8c0 chore: remove thesis_tracker/token_health.py, superseded by scrape.py
+- 1e9da58 docs: note thesis_tracker scrape.py daily cron schedule
+- fa295f2 feat: Thesis Tracker scraper + Pull New Data button
+- 2926cb8 fix: default-hide revoked/deleted accounts in Writing Room + ARC admin lists
+- 657cc74 docs: file map 2026-07-07
+- c0d9b0f docs: architecture update 2026-07-07
