@@ -1029,6 +1029,8 @@ async function moreLoadThesis() {
   if (!el) return;
   el.innerHTML = '<div class="loading">Loading&hellip;</div>';
   _thesisMapInstance = null; // old DOM node is being replaced below
+  _thesisTileLayer = null;
+  _thesisGeoLayer  = null;
   try {
     const [data, countries] = await Promise.all([
       api('/api/thesis-tracker/latest'),
@@ -1059,7 +1061,7 @@ async function moreLoadThesis() {
       ${thesisRows(data.titles, 'title')}
       <div class="mth-label-row">
         <span class="mlabel">Countries (all-time)</span>
-        <button class="mbtn mbtn-sm" id="mth-map-toggle-btn" onclick="thesisToggleCountryView()">View Map</button>
+        <button class="mbtn mbtn-sm" id="mth-map-toggle-btn" onclick="thesisToggleCountryView()" style="background:#D4AF37;color:#1a1a1a;border-color:#D4AF37;">View Map</button>
       </div>
       <div id="mth-countries-list">${thesisRows(countries, 'country')}</div>
       <div id="mth-countries-map" style="display:none">
@@ -1172,12 +1174,63 @@ function thesisResolveCountryName(apiName, geoNameSet) {
   return null;
 }
 
-function thesisColorForDownloads(downloads, minD, maxD) {
-  if (!downloads) return '#2a2a2a'; // zero downloads — neutral gray
+function thesisCurrentThemeIsLight() {
+  return document.documentElement.getAttribute('data-theme') === 'light';
+}
+
+// CartoDB Dark Matter / Positron — same CDN already used for Leaflet itself.
+const THESIS_TILE_URL = {
+  dark:  'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+  light: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+};
+
+function thesisZeroFillColor(isLight) {
+  return isLight ? '#5a5a5a' : '#2a2a2a';
+}
+
+function thesisBorderColor(isLight) {
+  return isLight ? '#c9c9c9' : '#2a2a2a';
+}
+
+function thesisColorForDownloads(downloads, minD, maxD, isLight) {
+  if (!downloads) return thesisZeroFillColor(isLight);
   const t = maxD > minD ? (downloads - minD) / (maxD - minD) : 1;
-  // Single blue hue, light (few downloads) to saturated (most downloads).
+  // Gold family (#D4AF37 ≈ hsl(45, 65%, 52%)) — light gold (few downloads) to
+  // deep/saturated gold (most downloads). Same scale in both themes.
   const lightness = 78 - t * 48; // 78% down to 30%
-  return `hsl(210, 70%, ${lightness}%)`;
+  return `hsl(45, 65%, ${lightness}%)`;
+}
+
+let _thesisTileLayer = null;
+let _thesisGeoLayer  = null;
+let _thesisByGeoName = null;
+let _thesisDownloadRange = { min: 0, max: 0 };
+
+function thesisRestyleMap(isLight) {
+  if (!_thesisMapInstance) return;
+  if (_thesisTileLayer) _thesisMapInstance.removeLayer(_thesisTileLayer);
+  _thesisTileLayer = L.tileLayer(THESIS_TILE_URL[isLight ? 'light' : 'dark'], {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+    subdomains: 'abcd',
+    maxZoom: 6,
+  }).addTo(_thesisMapInstance);
+  if (_thesisGeoLayer) {
+    _thesisGeoLayer.setStyle(feature => {
+      const match = _thesisByGeoName[feature.properties.name];
+      const downloads = match ? (match.downloads || 0) : 0;
+      return {
+        fillColor: thesisColorForDownloads(downloads, _thesisDownloadRange.min, _thesisDownloadRange.max, isLight),
+        fillOpacity: 0.85,
+        color: thesisBorderColor(isLight),
+        weight: 0.5,
+      };
+    });
+  }
+}
+
+function updateThesisMapTheme(isLight) {
+  if (!_thesisMapInstance) return; // not open — next open reads theme fresh
+  thesisRestyleMap(isLight);
 }
 
 async function initThesisMap() {
@@ -1190,6 +1243,7 @@ async function initThesisMap() {
     await loadLeaflet();
     const geo = await loadThesisGeoJson();
     const countries = _thesisCountriesData || [];
+    const isLight = thesisCurrentThemeIsLight();
 
     const geoNameSet = new Set(geo.features.map(f => f.properties.name));
     const byGeoName = {};
@@ -1209,6 +1263,8 @@ async function initThesisMap() {
     const downloadVals = countries.map(c => c.downloads || 0).filter(d => d > 0);
     const minD = downloadVals.length ? Math.min(...downloadVals) : 0;
     const maxD = downloadVals.length ? Math.max(...downloadVals) : 0;
+    _thesisByGeoName = byGeoName;
+    _thesisDownloadRange = { min: minD, max: maxD };
 
     const map = L.map('thesis-map', {
       minZoom: 1,
@@ -1218,20 +1274,20 @@ async function initThesisMap() {
     }).setView([20, 0], 2);
     map.setMaxBounds([[-90, -200], [90, 200]]);
 
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    _thesisTileLayer = L.tileLayer(THESIS_TILE_URL[isLight ? 'light' : 'dark'], {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
       subdomains: 'abcd',
       maxZoom: 6,
     }).addTo(map);
 
-    L.geoJSON(geo, {
+    _thesisGeoLayer = L.geoJSON(geo, {
       style: feature => {
         const match = byGeoName[feature.properties.name];
         const downloads = match ? (match.downloads || 0) : 0;
         return {
-          fillColor: thesisColorForDownloads(downloads, minD, maxD),
+          fillColor: thesisColorForDownloads(downloads, minD, maxD, isLight),
           fillOpacity: 0.85,
-          color: '#2a2a2a',
+          color: thesisBorderColor(isLight),
           weight: 0.5,
         };
       },
@@ -2167,6 +2223,7 @@ function moreToggleTheme(isLight) {
   const theme = isLight ? 'light' : 'dark';
   document.documentElement.setAttribute('data-theme', theme);
   localStorage.setItem('watson-theme', theme);
+  updateThesisMapTheme(isLight);
 }
 
 // ─── Chat tab ─────────────────────────────────────────────────────────────────
