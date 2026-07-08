@@ -177,6 +177,7 @@ jobs/
     migrate_sessions.py
     publishing_routes.py
     static/
+      countries.geojson
       favicon-w.svg
       favicon.svg
       style.css
