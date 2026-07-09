@@ -577,6 +577,14 @@ def terminal():
         except Exception as _exc:
             return jsonify({"output": f"polish error: {_exc}", "success": False})
 
+    if cmd_lower.startswith("bug:"):
+        _bug_title = cmd[4:].strip()
+        if not _bug_title:
+            return _pfx_out("Format: bug: <title>")
+        _db().execute("INSERT INTO bug_tracker (title, repo) VALUES (?, 'watson')", (_bug_title,))
+        _db().commit()
+        return _pfx_out(f"Logged: {_bug_title}")
+
     if cmd_lower.startswith("polish:"):
         try:
             from jobs.skills.polish import run as _polish_run
@@ -1610,6 +1618,69 @@ def events_serve_file(event_id, filename):
     return send_file(str(filepath))
 
 
+@app.route("/api/bugs")
+def bugs_list():
+    rows = _db().execute("""
+        SELECT id, title, description, repo, status, commit_hash, discovered_at, resolved_at
+        FROM bug_tracker
+        ORDER BY (status = 'open') DESC, discovered_at DESC
+    """).fetchall()
+    return jsonify([dict(r) for r in rows])
+
+
+@app.route("/api/bugs", methods=["POST"])
+def bugs_create():
+    data = request.get_json(force=True) or {}
+    title = (data.get("title") or "").strip()
+    if not title:
+        return jsonify({"error": "title is required"}), 400
+    description = (data.get("description") or "").strip() or None
+    repo = (data.get("repo") or "watson").strip()
+
+    db = _db()
+    cur = db.execute(
+        "INSERT INTO bug_tracker (title, description, repo) VALUES (?, ?, ?)",
+        (title, description, repo),
+    )
+    db.commit()
+    row = db.execute("SELECT * FROM bug_tracker WHERE id = ?", (cur.lastrowid,)).fetchone()
+    return jsonify(dict(row)), 201
+
+
+@app.route("/api/bugs/<int:bug_id>", methods=["PATCH"])
+def bugs_update(bug_id):
+    data = request.get_json(force=True) or {}
+    db = _db()
+    row = db.execute("SELECT * FROM bug_tracker WHERE id = ?", (bug_id,)).fetchone()
+    if not row:
+        return jsonify({"error": "not found"}), 404
+
+    if data.get("status") == "resolved":
+        commit_hash = (data.get("commit_hash") or "").strip()
+        if not commit_hash:
+            return jsonify({"error": "commit_hash is required to mark a bug resolved"}), 400
+        db.execute(
+            "UPDATE bug_tracker SET status = 'resolved', commit_hash = ?, resolved_at = datetime('now') WHERE id = ?",
+            (commit_hash, bug_id),
+        )
+    elif data.get("status") == "open":
+        db.execute(
+            "UPDATE bug_tracker SET status = 'open', commit_hash = NULL, resolved_at = NULL WHERE id = ?",
+            (bug_id,),
+        )
+    db.commit()
+    row = db.execute("SELECT * FROM bug_tracker WHERE id = ?", (bug_id,)).fetchone()
+    return jsonify(dict(row))
+
+
+@app.route("/api/bugs/<int:bug_id>", methods=["DELETE"])
+def bugs_delete(bug_id):
+    db = _db()
+    db.execute("DELETE FROM bug_tracker WHERE id = ?", (bug_id,))
+    db.commit()
+    return jsonify({"ok": True})
+
+
 # ── Upload API ────────────────────────────────────────────────────────────────
 
 _TEXT_EXTS = {".txt", ".md", ".csv", ".json", ".py", ".html", ".xml"}
@@ -1917,6 +1988,13 @@ def chat_stream():
         from jobs.skills.polish import run as _polish_run
         _q = message[7:].strip()
         return _sse_response(_stream_simple(_polish_run(_q) or "No results."))
+    if msg_lower.startswith("bug:"):
+        _bug_title = message[4:].strip()
+        if not _bug_title:
+            return _sse_response(_stream_simple("Format: bug: <title>"))
+        _db().execute("INSERT INTO bug_tracker (title, repo) VALUES (?, 'watson')", (_bug_title,))
+        _db().commit()
+        return _sse_response(_stream_simple(f"Logged: {_bug_title}"))
 
 
     # Dashboard confirmation gate — check for a pending skill confirmation before routing

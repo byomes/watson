@@ -1185,11 +1185,11 @@ const THESIS_TILE_URL = {
 };
 
 function thesisZeroFillColor(isLight) {
-  return isLight ? '#5a5a5a' : '#2a2a2a';
+  return isLight ? '#5a5a5a' : '#454545';
 }
 
 function thesisBorderColor(isLight) {
-  return isLight ? '#c9c9c9' : '#2a2a2a';
+  return isLight ? '#c9c9c9' : '#3a3a3a';
 }
 
 function thesisColorForDownloads(downloads, minD, maxD, isLight) {
@@ -1415,6 +1415,10 @@ function renderMore() {
         <span class="mtile-label">Thesis Tracker</span>
         <span class="mtile-chev">›</span>
       </button>
+      <button class="mtile" id="mtile-issues" onclick="moreToggle('issues')">
+        <span class="mtile-label">Issues</span>
+        <span class="mtile-chev">›</span>
+      </button>
       <button class="mtile" id="mtile-logins" onclick="openLogins()">
         <span class="mtile-label">Logins</span>
         <span class="mtile-chev">›</span>
@@ -1445,6 +1449,9 @@ function renderMore() {
           <span class="mth-pull-error" id="mth-pull-error"></span>
         </div>
         <div class="msec-inner" id="msec-inner-thesis"><div class="loading">Loading&hellip;</div></div>
+      </div>
+      <div class="msec-body" id="msec-body-issues">
+        <div class="msec-inner" id="msec-inner-issues"><div class="loading">Loading&hellip;</div></div>
       </div>
     </div>`);
   moreLoadVacationStatus();
@@ -1520,6 +1527,7 @@ function moreToggle(sec) {
     if (sec === 'members')  moreLoadMembers();
     if (sec === 'publishing') publishingLoad();
     if (sec === 'thesis')   moreLoadThesis();
+    if (sec === 'issues')   moreLoadIssues();
   }
 }
 
@@ -1932,6 +1940,80 @@ async function moreLoadEvents() {
   } catch {
     const inner = document.getElementById('msec-inner-events');
     if (inner) inner.innerHTML = '<div class="empty">Could not load events.</div>';
+  }
+}
+
+// ── Issues (bug_tracker) ─────────────────────────────────────────────────────
+
+async function moreLoadIssues() {
+  const el = document.getElementById('msec-inner-issues');
+  if (!el) return;
+  el.innerHTML = '<div class="loading">Loading&hellip;</div>';
+  try {
+    const issues = await api('/api/bugs');
+    if (!Array.isArray(issues) || !issues.length) {
+      el.innerHTML = '<div class="empty">No issues logged.</div>';
+      return;
+    }
+    el.innerHTML = issues.map(b => `
+      <div class="mpn-card" id="mbug-card-${b.id}">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:600">${esc(b.title)}</div>
+            <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--text-muted);margin-top:2px">
+              ${esc(b.repo)} · ${b.status === 'resolved' ? `resolved ${esc(b.commit_hash || '')}` : 'open'} · ${esc(b.discovered_at)}
+            </div>
+          </div>
+          <span style="flex-shrink:0;font-size:10px;font-family:'DM Mono',monospace;padding:2px 6px;border-radius:4px;background:${b.status === 'resolved' ? 'var(--surface-2)' : 'var(--gold)'};color:${b.status === 'resolved' ? 'var(--text-muted)' : 'var(--bg)'}">${b.status}</span>
+        </div>
+        ${b.description ? `<div style="font-size:12px;color:var(--text);margin-top:6px">${esc(b.description)}</div>` : ''}
+        <div style="display:flex;gap:8px;margin-top:8px">
+          ${b.status === 'open'
+            ? `<button class="mbtn mbtn-sm mbtn-p" onclick="moreResolveIssue(${b.id})">Resolve</button>`
+            : `<button class="mbtn mbtn-sm" onclick="moreReopenIssue(${b.id})">Reopen</button>`}
+          <button class="mbtn mbtn-sm mbtn-d" onclick="moreDeleteIssue(${b.id})">Delete</button>
+        </div>
+      </div>`).join('');
+  } catch {
+    el.innerHTML = '<div class="empty">Could not load issues.</div>';
+  }
+}
+
+async function moreResolveIssue(id) {
+  const commitHash = prompt('Commit hash for this fix:');
+  if (!commitHash) return;
+  try {
+    await api(`/api/bugs/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'resolved', commit_hash: commitHash.trim() }),
+    });
+    moreLoadIssues();
+  } catch {
+    alert('Failed to resolve issue.');
+  }
+}
+
+async function moreReopenIssue(id) {
+  try {
+    await api(`/api/bugs/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'open' }),
+    });
+    moreLoadIssues();
+  } catch {
+    alert('Failed to reopen issue.');
+  }
+}
+
+async function moreDeleteIssue(id) {
+  if (!confirm('Delete this issue?')) return;
+  try {
+    await api(`/api/bugs/${id}`, { method: 'DELETE' });
+    moreLoadIssues();
+  } catch {
+    alert('Failed to delete issue.');
   }
 }
 

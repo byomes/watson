@@ -588,7 +588,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Directive prefix intercepts — colon-prefixed commands, highest priority
     _DIRECTIVE_PREFIXES = (
         "cdb:", "wdb:", "kb:", "web:", "task:", "note:",
-        "remind:", "sms:", "polish:", "bible:", "devloop:",
+        "remind:", "sms:", "polish:", "bible:", "devloop:", "bug:",
     )
     for _dpfx in _DIRECTIVE_PREFIXES:
         if text_lower.startswith(_dpfx):
@@ -650,6 +650,17 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 _log_telegram_exchange(text_clean, _dr or "")
             elif _dpfx == "devloop:":
                 await _handle_devloop(update, context, _darg)
+            elif _dpfx == "bug:":
+                if not _darg:
+                    await update.message.reply_text("Format: bug: <title>")
+                else:
+                    with get_connection() as _bc:
+                        _bc.execute(
+                            "INSERT INTO bug_tracker (title, repo) VALUES (?, 'watson')",
+                            (_darg,),
+                        )
+                    await update.message.reply_text(f"Logged: {_darg}")
+                    _log_telegram_exchange(text_clean, f"Logged: {_darg}")
             log.info("DEBUG directive: %s", _dpfx)
             return
 

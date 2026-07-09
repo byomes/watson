@@ -24,3 +24,4 @@ These are the source of truth. If anything in this file conflicts with them, the
 - Claude Code's only sudo permission is restarting `watson-dashboard.service` and `watson-bot.service` — no other sudo command, ever.
 - `PYTHONPATH=/home/billyomes/watson` must be inlined in every cron entry.
 - Never commit credentials. Runtime secrets live in `~/watson/.env`; master store is `SECRETS.md` on OneDrive.
+- **Bug tracking:** any bug found or fixed during a session gets logged to the `bug_tracker` table in `watson.db` (open on discovery, resolved with a `commit_hash` on fix) — not written directly into `WATSON_ARCHITECTURE.md` prose. Only set `status = 'resolved'` once the fix has an actual commit hash; a live/local-only fix (e.g. a `pip install` not yet pinned in `requirements.txt`) stays `open` with a note.

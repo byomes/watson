@@ -107,6 +107,7 @@ Watson acts on Dr. Bill's behalf under his supervision. Always identified openly
 - `routing_corrections` — intent correction log; memory note prepended after 5+ in 30 days
 - `team_tasks`, `shared_notes`, `team_members` — leadership team management
 - `church_events` — special events log, feeds State of the Church report
+- `bug_tracker` — session bug log (open on discovery, resolved with commit_hash on fix); see Issues tab
 
 ### congregation.db Key Tables
 
@@ -510,13 +511,9 @@ WATSON_API_URL=https://watson.tail0243ff.ts.net
 
 ---
 
-## Active Bugs (June 29, 2026)
+## Active Bugs
 
-1. `/draft` page UI copy — may still say "Pushing to GitHub…" — verify and update to "Queuing…"
-
-~~"Send to Claude Code" button — legacy button in dashboard, not yet removed~~ — confirmed already fixed as of commit `e3c1eb1` (2026-06-22), closed 2026-07-04.
-
-~~KB search (`qwen2.5-coder:7b`) — timed out at 14 min during testing; root cause unresolved~~ — closed 2026-07-08. Root cause was `jobs/skills/kb_search.py` hardcoding `qwen2.5:14b` (the FMSPC/GPU-only model, per the LLM Stack table) for synthesis on the CPU-only Beelink; the 5-excerpt prompt also ran ~3,389 tokens, and prefill on CPU-only 7B/14B ran at ~16-17 tok/s. Fixed by trimming to 3 excerpts (each a ~500-char window centered on the first query-term hit) and switching synthesis to `llama3.2:3b`, cutting the prompt to ~433 tokens and total response time to ~29s.
+Tracked in the `bug_tracker` table (`watson.db`) — see the dashboard Issues tab, not this file. Open on discovery, resolved with a `commit_hash` once the fix is actually committed.
 
 ### Known limitation — KB search excerpt trimming (added 2026-07-08)
 
