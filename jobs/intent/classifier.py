@@ -7,7 +7,7 @@ import requests
 log = logging.getLogger(__name__)
 
 _OLLAMA_URL = "http://localhost:11434/api/generate"
-_MODEL = "qwen2.5:7b"
+_MODEL = "llama3.2:3b"
 
 _SYSTEM_PROMPT = """
 You are a strict intent classifier. Your only job is to read a command and return a JSON object.
