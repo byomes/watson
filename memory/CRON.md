@@ -53,7 +53,7 @@ dashboard auth token (`DC_DASHBOARD_LINK`) is still alive. Telegram alert
 fires only on failure. Remove after 2026-07-18 (two-week trial run).
 
 ```
-0 8 * * * PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python /home/billyomes/watson/jobs/thesis_tracker/token_health.py >> /home/billyomes/watson/logs/thesis_token_health.log 2>&1
+10 8 * * 6 PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python /home/billyomes/watson/jobs/thesis_tracker/scrape.py >> /home/billyomes/watson/logs/thesis_scrape.log 2>&1  # weekly Sat, changed from daily 2026-07-07, token_health.py retired
 ```
 
 (Daily, 8am — remove 2026-07-18)
