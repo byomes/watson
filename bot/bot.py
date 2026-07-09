@@ -1092,7 +1092,7 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 _skills = _router._load_skills("telegram")
                 _skill = next((s for s in _skills if s["slug"] == slug), None)
                 if _skill:
-                    result = _router._run_skill(_skill, message=text_clean)
+                    result = await asyncio.to_thread(_router._run_skill, _skill, message=text_clean)
                 else:
                     result = f"Skill '{slug}' not available."
             except Exception as exc:
@@ -1128,7 +1128,9 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 _skills = _router._load_skills("telegram")
                 _skill = next((s for s in _skills if s["slug"] == route_result["slug"]), None)
                 if _skill:
-                    skill_result = _router._run_skill(_skill, message=route_result.get("message", text_clean))
+                    skill_result = await asyncio.to_thread(
+                        _router._run_skill, _skill, message=route_result.get("message", text_clean)
+                    )
                 else:
                     skill_result = f"Skill '{route_result['slug']}' not available."
             except Exception as exc:
@@ -2523,7 +2525,7 @@ async def handle_room_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     elif query.data.startswith("room_deny:"):
         partner_id = int(query.data.split(":", 1)[1])
         from jobs.writing_room.onboard import process_denial
-        process_denial(partner_id)
+        threading.Thread(target=process_denial, args=(partner_id,), daemon=True).start()
         await query.edit_message_text("🚫 Denied.", reply_markup=None)
 
 
@@ -2690,7 +2692,7 @@ async def handle_ask(update: Update, context: ContextTypes.DEFAULT_TYPE):
     question = " ".join(context.args)
     await update.message.reply_text("Searching your sermons...")
     try:
-        answer = ask(question)
+        answer = await asyncio.to_thread(ask, question)
         await update.message.reply_text(answer)
     except Exception as exc:
         log.error("Ask failed: %s", exc)

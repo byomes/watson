@@ -47,11 +47,13 @@ def _append_skip_keyword(title: str) -> None:
         f.write(f"\n{keyword}")
 
 
-def _send_telegram(text: str) -> None:
+async def _send_telegram(text: str) -> None:
     if vacation_gate("normal", "jobs.pastoral_notes.handler", text):
         return
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    requests.post(url, json={"chat_id": TELEGRAM_CHAT_ID, "text": text}, timeout=10)
+    await asyncio.to_thread(
+        requests.post, url, json={"chat_id": TELEGRAM_CHAT_ID, "text": text}, timeout=10
+    )
 
 
 def _get_active_pending() -> dict | None:
@@ -174,7 +176,7 @@ async def _maybe_extract_tasks(note_text: str, appointment_title: str) -> None:
         return
 
     task_list = "\n".join(f"• {t}" for t in tasks)
-    _send_telegram(f"📋 Tasks saved:\n{task_list}")
+    await _send_telegram(f"📋 Tasks saved:\n{task_list}")
     log.info("Saved %d task(s) from notes for %s.", len(tasks), appointment_title)
 
 
@@ -192,7 +194,7 @@ async def _process_note_text(row: dict, note_text: str) -> None:
         person = matches[0]
         _store_note(event_id, appointment_title, appointment_time, note_text, person["id"])
         _mark_complete(pending_id)
-        _send_telegram(f"Note stored and linked to {person['name']}.")
+        await _send_telegram(f"Note stored and linked to {person['name']}.")
 
     elif len(matches) > 1:
         top = matches[0]
@@ -203,13 +205,13 @@ async def _process_note_text(row: dict, note_text: str) -> None:
             "appointment_title": appointment_title,
             "appointment_time": appointment_time,
         }
-        _send_telegram(f"Is this about {top['name']}? Reply yes or no.")
+        await _send_telegram(f"Is this about {top['name']}? Reply yes or no.")
         return  # Don't extract tasks yet — wait for confirmation
 
     else:
         _store_note(event_id, appointment_title, appointment_time, note_text, None)
         _mark_complete(pending_id)
-        _send_telegram("Note stored.")
+        await _send_telegram("Note stored.")
 
     await _maybe_extract_tasks(note_text, appointment_title)
 
@@ -256,11 +258,11 @@ async def handle_confirmation_reply(reply_text: str, event_id: str) -> bool:
         person = candidates[0]
         _store_note(event_id, appointment_title, appointment_time, note_text, person["id"])
         _mark_complete(pending_id)
-        _send_telegram(f"Note stored and linked to {person['name']}.")
+        await _send_telegram(f"Note stored and linked to {person['name']}.")
     else:
         _store_note(event_id, appointment_title, appointment_time, note_text, None)
         _mark_complete(pending_id)
-        _send_telegram("Note stored.")
+        await _send_telegram("Note stored.")
 
     await _maybe_extract_tasks(note_text, appointment_title)
     return True
@@ -301,7 +303,7 @@ async def handle_notes_reply(reply_text: str) -> None:
     if lower == "skip all":
         _append_skip_keyword(appointment_title)
         _mark_dismissed(pending_id)
-        _send_telegram(f'Got it — I\'ll never ask for notes on "{appointment_title}" again.')
+        await _send_telegram(f'Got it — I\'ll never ask for notes on "{appointment_title}" again.')
         return
 
     await _process_note_text(dict(pending), reply_text)

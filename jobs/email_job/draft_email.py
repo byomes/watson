@@ -134,7 +134,8 @@ def create_kit_broadcast(subject, body):
             "content": body,
             "description": f"Weekly email draft — {datetime.now().strftime('%Y-%m-%d')}",
             "public": False,
-        }
+        },
+        timeout=15,
     )
     return response.json()
 
@@ -146,7 +147,8 @@ def notify_telegram(message):
         return
     requests.post(
         f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
-        data={"chat_id": TELEGRAM_CHAT_ID, "text": message, "parse_mode": "HTML"}
+        data={"chat_id": TELEGRAM_CHAT_ID, "text": message, "parse_mode": "HTML"},
+        timeout=10,
     )
 
 
