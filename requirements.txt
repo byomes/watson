@@ -55,3 +55,4 @@ google-auth-oauthlib>=1.2.0
 google-api-python-client>=2.127.0
 google-genai>=1.0.0
 anthropic>=0.40.0
+huggingface-hub>=1.5.0,<2.0
