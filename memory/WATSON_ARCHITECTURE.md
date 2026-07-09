@@ -833,3 +833,19 @@ The 500-char excerpt window in `kb_search.py` centers on literal query-term prox
 - 1e9da58 docs: note thesis_tracker scrape.py daily cron schedule
 - fa295f2 feat: Thesis Tracker scraper + Pull New Data button
 - 2926cb8 fix: default-hide revoked/deleted accounts in Writing Room + ARC admin lists
+
+---
+
+## Recent Changes — 2026-07-09
+
+### ~/watson
+- 4ba9e30 feat: bug_tracker table + Issues tab + bug: directive
+- f00e78d fix: pin huggingface-hub>=1.5.0,<2.0 for sentence_transformers compat
+- 9ccb9ef fix: KB search timeout — trim excerpts + swap to llama3.2:3b
+- 35c03ca fix: chat fallback timeout — use llama3.2:3b instead of qwen2.5:14b
+- 7acf3e3 docs: architecture update 2026-07-08
+- bd2888f docs: file map 2026-07-08
+- 90f6606 feat: gold choropleth scale + theme-aware map (dark/light tile + fill swap)
+- 08e3dd7 feat: interactive world map for Thesis Tracker countries
+- 6f40c5f docs: file map 2026-07-08
+- dd97b48 docs: architecture update 2026-07-08
