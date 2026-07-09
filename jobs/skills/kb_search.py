@@ -6,7 +6,7 @@ import os
 CHROMA_PATH = "/home/billyomes/watson/data/chroma"
 COLLECTION_NAME = "sermons"
 OLLAMA_URL = "http://localhost:11434/api/generate"
-MODEL = "qwen2.5:14b"
+MODEL = "llama3.2:3b"
 
 SYNOPSIS_PROMPT = """You are a research assistant summarizing content from a pastor's personal knowledge base of sermons and theological documents.
 
@@ -19,6 +19,23 @@ Excerpts:
 
 Return only the synopsis. No preamble, no commentary."""
 
+EXCERPT_WINDOW = 500
+
+def _trim_excerpt(text: str, query: str, window: int = EXCERPT_WINDOW) -> str:
+    """Return a window of `text` centered on the first query-term hit, or the head of `text` if no hit is found."""
+    lower_text = text.lower()
+    pos = -1
+    for term in query.lower().split():
+        pos = lower_text.find(term)
+        if pos != -1:
+            break
+    if pos == -1:
+        return text[:window]
+    half = window // 2
+    start = max(0, pos - half)
+    end = min(len(text), start + window)
+    return text[start:end]
+
 def search_kb(query: str) -> dict:
     ef = embedding_functions.SentenceTransformerEmbeddingFunction(
         model_name="all-MiniLM-L6-v2",
@@ -27,9 +44,9 @@ def search_kb(query: str) -> dict:
     )
     client = chromadb.PersistentClient(path=CHROMA_PATH)
     collection = client.get_collection(COLLECTION_NAME, embedding_function=ef)
-    results = collection.query(query_texts=[query], n_results=5)
+    results = collection.query(query_texts=[query], n_results=3)
 
-    chunks = results["documents"][0]
+    chunks = [_trim_excerpt(c, query) for c in results["documents"][0]]
     sources = list(dict.fromkeys([
         m["title"] for m in results["metadatas"][0]
     ]))

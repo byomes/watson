@@ -512,10 +512,15 @@ WATSON_API_URL=https://watson.tail0243ff.ts.net
 
 ## Active Bugs (June 29, 2026)
 
-1. KB search (`qwen2.5-coder:7b`) — timed out at 14 min during testing; root cause unresolved
-2. `/draft` page UI copy — may still say "Pushing to GitHub…" — verify and update to "Queuing…"
+1. `/draft` page UI copy — may still say "Pushing to GitHub…" — verify and update to "Queuing…"
 
 ~~"Send to Claude Code" button — legacy button in dashboard, not yet removed~~ — confirmed already fixed as of commit `e3c1eb1` (2026-06-22), closed 2026-07-04.
+
+~~KB search (`qwen2.5-coder:7b`) — timed out at 14 min during testing; root cause unresolved~~ — closed 2026-07-08. Root cause was `jobs/skills/kb_search.py` hardcoding `qwen2.5:14b` (the FMSPC/GPU-only model, per the LLM Stack table) for synthesis on the CPU-only Beelink; the 5-excerpt prompt also ran ~3,389 tokens, and prefill on CPU-only 7B/14B ran at ~16-17 tok/s. Fixed by trimming to 3 excerpts (each a ~500-char window centered on the first query-term hit) and switching synthesis to `llama3.2:3b`, cutting the prompt to ~433 tokens and total response time to ~29s.
+
+### Known limitation — KB search excerpt trimming (added 2026-07-08)
+
+The 500-char excerpt window in `kb_search.py` centers on literal query-term proximity (first substring match of a query word in the chunk), not semantic relevance. Synthesis quality will degrade on queries where the underlying concept is present in a chunk but the exact search term doesn't appear near it in the source text. Not currently a fix target — noted for awareness only.
 
 ---
 
