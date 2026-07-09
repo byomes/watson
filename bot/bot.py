@@ -18,6 +18,7 @@ import json
 import logging
 import os
 import re
+import socket
 import sqlite3
 from datetime import date, datetime
 from pathlib import Path
@@ -572,7 +573,31 @@ async def handle_facebook_image_callback(update, context):
         # regenerate_image sends a fresh photo+buttons message itself
 
 
+_HANDLE_TEXT_TIMEOUT_SECONDS = 15
+
+
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        await asyncio.wait_for(
+            _handle_text_body(update, context), timeout=_HANDLE_TEXT_TIMEOUT_SECONDS
+        )
+    except asyncio.TimeoutError:
+        log.error("handle_text timed out after %ss", _HANDLE_TEXT_TIMEOUT_SECONDS)
+        try:
+            await update.message.reply_text(
+                "That's taking too long — something's stuck. Try again in a moment."
+            )
+        except Exception:
+            pass
+    except Exception as exc:
+        log.error("handle_text failed: %s", exc)
+        try:
+            await update.message.reply_text(f"Something went wrong: {exc}")
+        except Exception:
+            pass
+
+
+async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not _is_authorized(update):
         return
 
@@ -1059,6 +1084,10 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_text("Task saved.")
                 log.info("DEBUG pre-check: skill pre-check (add_task direct)")
                 return
+            if slug == "calendar_query":
+                await _handle_calendar_day(update, context, {"day": "today"})
+                log.info("DEBUG pre-check: skill pre-check (calendar_query)")
+                return
             try:
                 _skills = _router._load_skills("telegram")
                 _skill = next((s for s in _skills if s["slug"] == slug), None)
@@ -1076,7 +1105,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if getattr(_router, '_is_factual_query', None) and _router._is_factual_query(text_clean):
         from jobs.research.web_search import run as web_search_run
-        ws_result = web_search_run(text_clean)
+        ws_result = await asyncio.to_thread(web_search_run, text_clean)
         reply = "✓ " + ws_result
         await update.message.reply_text(reply)
         _log_telegram_exchange(text_clean, reply)
@@ -1087,7 +1116,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # 2. Skill routing — explicit triggers only (skill/build/propose/wrap_up)
     # action:"chat" falls through to the intent classifier below
     try:
-        route_result = _router.route(text_clean, "telegram")
+        route_result = await asyncio.to_thread(_router.route, text_clean, "telegram")
     except Exception as exc:
         log.warning("Skill router failed: %s", exc)
         route_result = {"action": "chat"}
@@ -1526,7 +1555,7 @@ async def _handle_task_done(update: Update, context: ContextTypes.DEFAULT_TYPE, 
         await update.message.reply_text(f"Error updating task: {exc}")
 
 
-async def _get_general_reply(text: str) -> str:
+def _get_general_reply_sync(text: str) -> str:
     system = build_prompt(task=text, project=None)
     db_path = os.path.expanduser("~/watson/data/watson.db")
     try:
@@ -1562,6 +1591,10 @@ async def _get_general_reply(text: str) -> str:
     except Exception as exc:
         log.error("Ollama general chat failed: %s", exc)
         return "I'm having trouble thinking right now. Try again in a moment."
+
+
+async def _get_general_reply(text: str) -> str:
+    return await asyncio.to_thread(_get_general_reply_sync, text)
 
 
 async def _handle_general(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str) -> str:
@@ -2666,6 +2699,12 @@ async def handle_ask(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # --- Calendar handlers --------------------------------------------------------
 
+def _calendar_error_text(exc: Exception) -> str:
+    if isinstance(exc, (TimeoutError, socket.timeout)):
+        return "Couldn't reach your calendar — request timed out."
+    return f"Couldn't reach your calendar — {exc}"
+
+
 async def _handle_calendar_day(update: Update, context: ContextTypes.DEFAULT_TYPE, params: dict) -> None:
     from zoneinfo import ZoneInfo
     from jobs.gcal.gcal_service import get_events
@@ -2678,7 +2717,7 @@ async def _handle_calendar_day(update: Update, context: ContextTypes.DEFAULT_TYP
             d = datetime.now(ny).date()
         day_start = datetime(d.year, d.month, d.day, 0, 0, tzinfo=ny)
         day_end = datetime(d.year, d.month, d.day, 23, 59, 59, tzinfo=ny)
-        events = get_events(day_start, day_end)
+        events = await asyncio.to_thread(get_events, day_start, day_end)
         if not events:
             label = "Today" if d == datetime.now(ny).date() else d.strftime("%A, %B %-d")
             await update.message.reply_text(f"📅 Nothing on the calendar for {label}.")
@@ -2699,23 +2738,23 @@ async def _handle_calendar_day(update: Update, context: ContextTypes.DEFAULT_TYP
         await update.message.reply_text("\n".join(lines))
     except Exception as exc:
         log.error("Calendar day failed: %s", exc)
-        await update.message.reply_text(f"Calendar error: {exc}")
+        await update.message.reply_text(_calendar_error_text(exc))
 
 
 async def _handle_mark_busy(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     from jobs.gcal.gcal_service import mark_day_busy_from_now
     try:
-        mark_day_busy_from_now()
+        await asyncio.to_thread(mark_day_busy_from_now)
         await update.message.reply_text("🚫 Done — marked rest of today as busy.")
     except Exception as exc:
         log.error("Mark busy failed: %s", exc)
-        await update.message.reply_text(f"Error: {exc}")
+        await update.message.reply_text(_calendar_error_text(exc))
 
 
 async def _handle_calendar_availability(update: Update, context: ContextTypes.DEFAULT_TYPE, params: dict) -> None:
     from jobs.gcal.availability import get_available_slots_next_30_days
     try:
-        all_slots = get_available_slots_next_30_days("virtual")
+        all_slots = await asyncio.to_thread(get_available_slots_next_30_days, "virtual")
         lines = ["📆 Next available slots:\n"]
         count = 0
         for date_str, slots in all_slots.items():
@@ -2734,7 +2773,7 @@ async def _handle_calendar_availability(update: Update, context: ContextTypes.DE
             await update.message.reply_text("\n".join(lines))
     except Exception as exc:
         log.error("Calendar availability failed: %s", exc)
-        await update.message.reply_text(f"Error: {exc}")
+        await update.message.reply_text(_calendar_error_text(exc))
 async def handle_merge_conflict_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle merge_old_ / merge_new_ / skip_ button taps from conflict_report.py."""
     query = update.callback_query

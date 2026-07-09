@@ -94,6 +94,12 @@ _SKILL_PRE_CHECKS: dict[str, tuple] = {
     "skip_all": (
         "skip all",
     ),
+    "calendar_query": (
+        "what's on my calendar", "whats on my calendar", "check my calendar",
+        "my schedule", "today's schedule", "todays schedule",
+        "what's my day", "whats my day", "what's my schedule", "whats my schedule",
+        "what do i have today", "what do i have on",
+    ),
 }
 
 # Matched against msg_lower BEFORE the LLM call — returns run_audit immediately, no fallthrough

@@ -2,8 +2,10 @@ from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+import httplib2
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
+from google_auth_httplib2 import AuthorizedHttp
 from googleapiclient.discovery import build
 
 NY = ZoneInfo("America/New_York")
@@ -13,6 +15,7 @@ CREDENTIALS_FILE = Path.home() / "watson" / "config" / "credentials.json"
 SCOPES = [
     "https://www.googleapis.com/auth/calendar",
 ]
+REQUEST_TIMEOUT_SECONDS = 8
 
 
 def get_service():
@@ -34,7 +37,8 @@ def get_service():
             flow.fetch_token(code=code)
             creds = flow.credentials
             TOKEN_FILE.write_text(creds.to_json())
-    return build("calendar", "v3", credentials=creds)
+    http = AuthorizedHttp(creds, http=httplib2.Http(timeout=REQUEST_TIMEOUT_SECONDS))
+    return build("calendar", "v3", http=http)
 
 
 def _to_rfc3339(dt: datetime) -> str:
