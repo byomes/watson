@@ -849,3 +849,16 @@ The 500-char excerpt window in `kb_search.py` centers on literal query-term prox
 - 08e3dd7 feat: interactive world map for Thesis Tracker countries
 - 6f40c5f docs: file map 2026-07-08
 - dd97b48 docs: architecture update 2026-07-08
+
+---
+
+## Recent Changes — 2026-07-10
+
+### ~/watson
+- 7444974 fix: bible_lookup skill silently ignored input via _run_skill dispatch
+- 1e52f34 fix: close remaining bare-blocking-call findings from the sweep
+- 278de54 fix: intent classifier uses llama3.2:3b instead of qwen2.5:7b
+- 9c0c3e7 fix: unwrap bare requests.post() calls to Ollama/Calendar API from async bot handlers
+- a9c9a3a docs: file map 2026-07-09
+- 94b2627 archive: move aged transcripts to kb/documents
+- 5bb3b43 docs: architecture update 2026-07-09
