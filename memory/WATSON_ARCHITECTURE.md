@@ -862,3 +862,11 @@ The 500-char excerpt window in `kb_search.py` centers on literal query-term prox
 - a9c9a3a docs: file map 2026-07-09
 - 94b2627 archive: move aged transcripts to kb/documents
 - 5bb3b43 docs: architecture update 2026-07-09
+
+---
+
+## Recent Changes — 2026-07-11
+
+### ~/watson
+- 635ec10 docs: file map 2026-07-10
+- f23659f docs: architecture update 2026-07-10
