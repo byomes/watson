@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-07-10*
+*Generated: 2026-07-11*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -105,6 +105,8 @@ deploy/
   people-server.service
   start_people_server.sh
   watson-dashboard.service
+dev/
+  vtg_probe.py
 docs/
   .gitkeep
   briefing.html
