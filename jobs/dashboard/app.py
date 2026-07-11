@@ -592,6 +592,13 @@ def terminal():
         except Exception as _exc:
             return jsonify({"output": f"polish error: {_exc}", "success": False})
 
+    if cmd_lower.startswith("classics:"):
+        try:
+            from jobs.skills.kb_search import search_kb as _classics_search_kb_t, format_result as _fmt_classics_t
+            return _pfx_out(_fmt_classics_t(_classics_search_kb_t(cmd[9:].strip(), "gutenberg")))
+        except Exception as _exc:
+            return jsonify({"output": f"classics error: {_exc}", "success": False})
+
     if cmd_lower.startswith("search the kb:") or cmd_lower.startswith("kb:"):
         try:
             from jobs.skills.kb_search import search_kb as _search_kb, format_result as _fmt_kb
@@ -1995,10 +2002,73 @@ def chat_stream():
         _db().execute("INSERT INTO bug_tracker (title, repo) VALUES (?, 'watson')", (_bug_title,))
         _db().commit()
         return _sse_response(_stream_simple(f"Logged: {_bug_title}"))
+    if msg_lower.startswith("gutenberg:"):
+        _gb_q = message[len("gutenberg:"):].strip()
+        if not _gb_q:
+            return _sse_response(_stream_simple("What would you like to search for on Project Gutenberg?"))
+        from jobs.research.gutenberg import search as _gutenberg_search
+        def _gutenberg_stream(q=_gb_q):
+            yield _emit_status("→ Searching Project Gutenberg...")
+            hits = _gutenberg_search(q)
+            if not hits:
+                yield _sse(f"No Project Gutenberg matches for: {q}")
+                yield "data: [DONE]\n\n"
+                return
+            lines = [f'Project Gutenberg results for "{q}":\n']
+            for i, hit in enumerate(hits, start=1):
+                year = hit["year"] or "n/a"
+                lines.append(
+                    f"{i}. {hit['title']} — {hit['authors']} ({year}) — {hit['download_count']} downloads"
+                )
+            lines.append("\nReply with a number to download and add it to the classics knowledge base.")
+            from jobs.telegram.pending import store_skill_confirmation as _store_gb_pending
+            _store_gb_pending("gutenberg_select", {"source": "dashboard", "candidates": hits, "query": q})
+            yield _sse("\n".join(lines))
+            yield "data: [DONE]\n\n"
+        return _sse_response(_gutenberg_stream())
+    if msg_lower.startswith("classics:"):
+        _cl_q = message[len("classics:"):].strip()
+        if not _cl_q:
+            return _sse_response(_stream_simple("What would you like to ask the classics knowledge base?"))
+        from jobs.skills.kb_search import search_kb as _classics_search_kb, format_result as _classics_fmt
+        def _classics_stream(q=_cl_q):
+            yield _emit_status("→ Searching classics knowledge base...")
+            result = _classics_search_kb(q, "gutenberg")
+            yield _sse(_classics_fmt(result))
+            yield "data: [DONE]\n\n"
+        return _sse_response(_classics_stream())
 
+
+    # Gutenberg selection gate — bare 1-N reply while a search is pending
+    from jobs.telegram.pending import get_pending_confirmation, mark_pending_status
+    _dash_conf = get_pending_confirmation()
+    if _dash_conf and _dash_conf["type"] == "gutenberg_select":
+        _gb_candidates = _dash_conf["payload"].get("candidates", [])
+        _gb_choice_m = _re.fullmatch(r"[1-5]", message.strip())
+        if _gb_choice_m and int(_gb_choice_m.group(0)) <= len(_gb_candidates):
+            mark_pending_status(_dash_conf["id"], "confirmed")
+            _gb_book = _gb_candidates[int(_gb_choice_m.group(0)) - 1]
+            from jobs.research.gutenberg import download_and_ingest as _gb_ingest
+            def _gb_ingest_stream(book=_gb_book):
+                yield _emit_status(f"→ Downloading and ingesting: {book['title']}...")
+                result = _gb_ingest(book["id"])
+                if not result["ok"]:
+                    yield _sse(f"Ingestion failed: {result['error']}")
+                elif result["already_ingested"]:
+                    yield _sse(f"'{result['title']}' is already in the classics knowledge base.")
+                else:
+                    yield _sse(
+                        f"Added '{result['title']}' to the classics knowledge base — "
+                        f"{result['chunks_added']} chunks."
+                    )
+                yield "data: [DONE]\n\n"
+            return _sse_response(_gb_ingest_stream())
+        else:
+            # Not a valid 1-N selection — cancel the stale pending state and
+            # fall through so this message is processed normally below.
+            mark_pending_status(_dash_conf["id"], "cancelled")
 
     # Dashboard confirmation gate — check for a pending skill confirmation before routing
-    from jobs.telegram.pending import get_pending_confirmation, mark_pending_status
     _dash_conf = get_pending_confirmation()
     if _dash_conf and _dash_conf["payload"].get("source") == "dashboard":
         _stored = _dash_conf["payload"]
