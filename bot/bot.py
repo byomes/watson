@@ -614,6 +614,7 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
     _DIRECTIVE_PREFIXES = (
         "cdb:", "wdb:", "kb:", "web:", "task:", "note:",
         "remind:", "sms:", "polish:", "bible:", "devloop:", "bug:",
+        "gutenberg:", "classics:",
     )
     for _dpfx in _DIRECTIVE_PREFIXES:
         if text_lower.startswith(_dpfx):
@@ -686,6 +687,10 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         )
                     await update.message.reply_text(f"Logged: {_darg}")
                     _log_telegram_exchange(text_clean, f"Logged: {_darg}")
+            elif _dpfx == "gutenberg:":
+                await _handle_gutenberg_search(update, context, _darg)
+            elif _dpfx == "classics:":
+                await _handle_classics(update, context, _darg)
             log.info("DEBUG directive: %s", _dpfx)
             return
 
@@ -1410,6 +1415,57 @@ async def _handle_kb(update: Update, context: ContextTypes.DEFAULT_TYPE, text: s
         await update.message.reply_text(f"KB search failed: {exc}")
 
 
+async def _handle_gutenberg_search(update: Update, context: ContextTypes.DEFAULT_TYPE, query: str) -> None:
+    if not query:
+        await update.message.reply_text("What would you like to search for on Project Gutenberg?")
+        return
+    await update.message.reply_text("Searching Project Gutenberg...")
+    try:
+        from jobs.research.gutenberg import search as gutenberg_search
+        hits = await asyncio.to_thread(gutenberg_search, query)
+    except Exception as exc:
+        log.error("Gutenberg search failed: %s", exc)
+        await update.message.reply_text(f"Gutenberg search failed: {exc}")
+        return
+    if not hits:
+        await update.message.reply_text(f"No Project Gutenberg matches for: {query}")
+        return
+    lines = [f'Project Gutenberg results for "{query}":\n']
+    for i, hit in enumerate(hits, start=1):
+        year = hit["year"] or "n/a"
+        lines.append(
+            f"{i}. {hit['title']} — {hit['authors']} ({year}) — {hit['download_count']} downloads"
+        )
+    lines.append("\nReply with a number to download and add it to the classics knowledge base.")
+    reply = "\n".join(lines)
+    sent = await update.message.reply_text(reply)
+    _log_telegram_exchange(query, reply)
+    from jobs.telegram.pending import store_pending_action
+    store_pending_action("gutenberg_select", sent.message_id, {"candidates": hits, "query": query})
+
+
+async def _handle_classics(update: Update, context: ContextTypes.DEFAULT_TYPE, question: str) -> None:
+    if not question:
+        await update.message.reply_text("What would you like to ask the classics knowledge base?")
+        return
+    await update.message.reply_text("Searching classics knowledge base...")
+    try:
+        from jobs.skills.kb_search import search_kb, format_result
+        result = await asyncio.to_thread(search_kb, question, "gutenberg")
+        reply = format_result(result)
+        sent = await update.message.reply_text(reply)
+        _log_telegram_exchange(question, reply)
+        from jobs.telegram.pending import store_pending_action
+        store_pending_action("kb_email", sent.message_id, {
+            "synopsis": result["synopsis"],
+            "sources": result["sources"],
+            "query": result["query"],
+        })
+    except Exception as exc:
+        log.error("Classics KB search failed: %s", exc)
+        await update.message.reply_text(f"Classics search failed: {exc}")
+
+
 async def _handle_polish(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str) -> None:
     lower = text.lower()
     if lower.startswith("polish this:"):
@@ -1700,6 +1756,41 @@ async def _route_tg_pending_reply(
                 await update.message.reply_text(f"Email failed: {exc}")
             return True
         return False
+
+    if action_type == "gutenberg_select":
+        candidates = payload.get("candidates", [])
+        if text_lower in ("cancel", "no", "never mind"):
+            mark_cancelled(pending_id)
+            await update.message.reply_text("Cancelled.")
+            return True
+        try:
+            choice = int(text_lower)
+        except ValueError:
+            await update.message.reply_text(
+                f"Reply with a number 1-{len(candidates)} to select, or 'cancel' to stop."
+            )
+            return True
+        if choice < 1 or choice > len(candidates):
+            await update.message.reply_text(f"Pick a number between 1 and {len(candidates)}.")
+            return True
+        book = candidates[choice - 1]
+        await update.message.reply_text(f"Downloading and ingesting: {book['title']}...")
+        from jobs.research.gutenberg import download_and_ingest
+        result = await asyncio.to_thread(download_and_ingest, book["id"])
+        if not result["ok"]:
+            await update.message.reply_text(f"Ingestion failed: {result['error']}")
+            return True
+        if result["already_ingested"]:
+            await update.message.reply_text(
+                f"'{result['title']}' is already in the classics knowledge base."
+            )
+        else:
+            await update.message.reply_text(
+                f"✅ Added '{result['title']}' to the classics knowledge base — "
+                f"{result['chunks_added']} chunks."
+            )
+        mark_done(pending_id)
+        return True
 
     return False
 

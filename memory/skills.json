@@ -809,6 +809,36 @@
       "status": "ready"
     },
     {
+      "slug": "gutenberg",
+      "name": "Gutenberg Search",
+      "description": "Search Project Gutenberg via Gutendex, reply with a number to download and ingest into the separate 'gutenberg' ChromaDB collection.",
+      "category": "Research",
+      "triggers": [
+        "gutenberg:"
+      ],
+      "module": "jobs.research.gutenberg",
+      "function": "search",
+      "interfaces": [
+        "telegram"
+      ],
+      "status": "ready"
+    },
+    {
+      "slug": "classics",
+      "name": "Classics KB Search",
+      "description": "Query the 'gutenberg' ChromaDB collection (Project Gutenberg texts) with llama3.2:3b synopsis — kept separate from the sermons KB.",
+      "category": "Research",
+      "triggers": [
+        "classics:"
+      ],
+      "module": "jobs.skills.kb_search",
+      "function": "search_kb",
+      "interfaces": [
+        "telegram"
+      ],
+      "status": "ready"
+    },
+    {
       "slug": "image_gen",
       "name": "Generate Image",
       "description": "Generate an AI image from a text prompt and deliver it via Telegram.",

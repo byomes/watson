@@ -20,15 +20,19 @@ def chunk_text(text, size=CHUNK_SIZE, overlap=CHUNK_OVERLAP):
         i += size - overlap
     return chunks
 
-def ingest():
-    files = list(TRANSCRIPTS_DIR.glob('*.txt')) + list(TRANSCRIPTS_DIR.glob('*.md'))
+def ingest_dir(files_dir, collection_name):
+    """Chunk and ingest all .txt/.md files in files_dir into the named ChromaDB collection.
+
+    Returns the number of new chunks added.
+    """
+    files = list(Path(files_dir).glob('*.txt')) + list(Path(files_dir).glob('*.md'))
     if not files:
-        log.error('No document files found')
-        return
+        log.error('No document files found in %s', files_dir)
+        return 0
     log.info('Found %d document files', len(files))
     client = chromadb.PersistentClient(path=str(CHROMA_DIR))
     ef = embedding_functions.SentenceTransformerEmbeddingFunction(model_name='all-MiniLM-L6-v2')
-    collection = client.get_or_create_collection(name='sermons', embedding_function=ef, metadata={'hnsw:space': 'cosine'})
+    collection = client.get_or_create_collection(name=collection_name, embedding_function=ef, metadata={'hnsw:space': 'cosine'})
     existing = set(collection.get()['ids'])
     log.info('Existing chunks in DB: %d', len(existing))
     added = 0
@@ -46,6 +50,11 @@ def ingest():
             collection.add(ids=[chunk_id], documents=[chunk], metadatas=[{'title': title, 'chunk': i}])
             added += 1
     log.info('Added %d new chunks. Total in DB: %d', added, collection.count())
+    return added
+
+
+def ingest():
+    ingest_dir(TRANSCRIPTS_DIR, 'sermons')
 
 def main():
     logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s', datefmt='%H:%M:%S')

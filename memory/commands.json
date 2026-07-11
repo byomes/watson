@@ -52,5 +52,7 @@
   {"name": "Congregation member count", "command": "count congregation members", "category": "Congregation", "description": "Quick count of total congregation members in the database"},
   {"name": "Active task count", "command": "count tasks", "category": "Tasks & Reminders", "description": "Count of currently active tasks across all categories"},
   {"name": "Shepherding report", "command": "shepherding:", "category": "Congregation", "description": "Members overdue for pastoral contact based on attendance history"},
-  {"name": "Run Conflict Check", "command": "conflict_check", "category": "Congregation", "description": "Run the member conflict report now — sends any pending conflicts to Telegram with merge buttons"}
+  {"name": "Run Conflict Check", "command": "conflict_check", "category": "Congregation", "description": "Run the member conflict report now — sends any pending conflicts to Telegram with merge buttons"},
+  {"name": "Search Project Gutenberg", "command": "gutenberg: Meditations Marcus Aurelius", "category": "Knowledge Base", "description": "Search Project Gutenberg, reply with a number 1-5 to download and ingest the pick into the classics KB", "requires_input": true},
+  {"name": "Search classics knowledge base", "command": "classics: what does Marcus Aurelius say about death", "category": "Knowledge Base", "description": "Query the separate Project Gutenberg 'gutenberg' ChromaDB collection, isolated from sermon search", "requires_input": true}
 ]

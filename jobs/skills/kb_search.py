@@ -36,14 +36,14 @@ def _trim_excerpt(text: str, query: str, window: int = EXCERPT_WINDOW) -> str:
     end = min(len(text), start + window)
     return text[start:end]
 
-def search_kb(query: str) -> dict:
+def search_kb(query: str, collection_name: str = COLLECTION_NAME) -> dict:
     ef = embedding_functions.SentenceTransformerEmbeddingFunction(
         model_name="all-MiniLM-L6-v2",
         device="cpu",
         local_files_only=True
     )
     client = chromadb.PersistentClient(path=CHROMA_PATH)
-    collection = client.get_collection(COLLECTION_NAME, embedding_function=ef)
+    collection = client.get_collection(collection_name, embedding_function=ef)
     results = collection.query(query_texts=[query], n_results=3)
 
     chunks = [_trim_excerpt(c, query) for c in results["documents"][0]]
