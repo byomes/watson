@@ -2033,8 +2033,11 @@ def chat_stream():
         from jobs.skills.kb_search import search_kb as _classics_search_kb, format_result as _classics_fmt
         def _classics_stream(q=_cl_q):
             yield _emit_status("→ Searching classics knowledge base...")
-            result = _classics_search_kb(q, "gutenberg")
-            yield _sse(_classics_fmt(result))
+            try:
+                result = _classics_search_kb(q, "gutenberg")
+                yield _sse(_classics_fmt(result))
+            except Exception as exc:
+                yield _sse(f"Classics search failed: {exc}")
             yield "data: [DONE]\n\n"
         return _sse_response(_classics_stream())
 
