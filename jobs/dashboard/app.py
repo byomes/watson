@@ -2009,7 +2009,12 @@ def chat_stream():
         from jobs.research.gutenberg import search as _gutenberg_search
         def _gutenberg_stream(q=_gb_q):
             yield _emit_status("→ Searching Project Gutenberg...")
-            hits = _gutenberg_search(q)
+            try:
+                hits = _gutenberg_search(q)
+            except Exception as exc:
+                yield _sse(f"Gutenberg search failed: {exc}")
+                yield "data: [DONE]\n\n"
+                return
             if not hits:
                 yield _sse(f"No Project Gutenberg matches for: {q}")
                 yield "data: [DONE]\n\n"

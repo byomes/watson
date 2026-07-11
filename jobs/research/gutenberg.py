@@ -92,14 +92,14 @@ def _parse_book(book: dict) -> dict | None:
 
 
 def search(query: str, limit: int = 5) -> list[dict]:
-    """Search Gutendex for query, return up to `limit` hits with metadata + plain-text URL."""
-    try:
-        resp = requests.get(GUTENDEX_BOOKS_URL, params={"search": query}, timeout=15)
-        resp.raise_for_status()
-        data = resp.json()
-    except Exception as exc:
-        log.error("Gutendex search failed: %s", exc)
-        return []
+    """Search Gutendex for query, return up to `limit` hits with metadata + plain-text URL.
+
+    Raises on a failed request (network error, non-2xx status) rather than swallowing it —
+    callers must be able to tell "no matches" (empty list) apart from "the request failed."
+    """
+    resp = requests.get(GUTENDEX_BOOKS_URL, params={"search": query}, timeout=15)
+    resp.raise_for_status()
+    data = resp.json()
 
     hits = []
     for book in data.get("results", []):
@@ -112,14 +112,14 @@ def search(query: str, limit: int = 5) -> list[dict]:
 
 
 def _fetch_book(book_id: int) -> dict | None:
-    """Look up a single book's metadata/URL by id via Gutendex's /books/{id} endpoint."""
-    try:
-        resp = requests.get(f"{GUTENDEX_BOOKS_URL}/{book_id}", timeout=15)
-        resp.raise_for_status()
-        return _parse_book(resp.json())
-    except Exception as exc:
-        log.error("Gutendex lookup failed for id=%s: %s", book_id, exc)
-        return None
+    """Look up a single book's metadata/URL by id via Gutendex's /books/{id} endpoint.
+
+    Raises on a failed request. Returns None only for the non-error case where Gutendex
+    has the book but offers no usable plain-text edition.
+    """
+    resp = requests.get(f"{GUTENDEX_BOOKS_URL}/{book_id}", timeout=15)
+    resp.raise_for_status()
+    return _parse_book(resp.json())
 
 
 def _strip_license_boilerplate(text: str) -> str:
@@ -149,10 +149,15 @@ def download_and_ingest(book_id: int) -> dict:
             "error": None,
         }
 
-    book = _fetch_book(book_id)
+    try:
+        book = _fetch_book(book_id)
+    except Exception as exc:
+        log.error("Gutendex lookup failed for id=%s: %s", book_id, exc)
+        return {"ok": False, "title": None, "chunks_added": 0, "already_ingested": False,
+                 "error": f"Could not fetch book metadata from Gutendex: {exc}"}
     if not book:
         return {"ok": False, "title": None, "chunks_added": 0, "already_ingested": False,
-                 "error": "Could not fetch book metadata from Gutendex."}
+                 "error": "Gutendex has no usable plain-text edition for this book."}
 
     try:
         text_resp = requests.get(book["text_url"], timeout=60)
