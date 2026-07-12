@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-07-11*
+*Generated: 2026-07-12*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -353,6 +353,7 @@ jobs/
     academic_search.py
     article_reader.py
     feed_reader.py
+    gutenberg.py
     isbn_lookup.py
     language_detector.py
     news_search.py
