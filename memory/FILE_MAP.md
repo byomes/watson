@@ -1463,3 +1463,60 @@ public/
 tsconfig.json
 tsconfig.tsbuildinfo
 ```
+
+## ~/bodyrec/
+
+```
+~/bodyrec/
+.env.local
+.gitignore
+.vercel/
+  .env.production.local
+  README.txt
+  project.json
+AGENTS.md
+CLAUDE.md
+README.md
+eslint.config.mjs
+next-env.d.ts
+next.config.ts
+package-lock.json
+package.json
+postcss.config.mjs
+public/
+  file.svg
+  globe.svg
+  next.svg
+  vercel.svg
+  window.svg
+src/
+  app/
+    api/
+      entries/
+        [id]/
+          route.ts
+        route.ts
+      settings/
+        route.ts
+    favicon.ico
+    globals.css
+    history/
+      page.tsx
+    layout.tsx
+    log/
+      page.tsx
+    page.tsx
+    settings/
+      page.tsx
+  components/
+    Nav.tsx
+    StatsChart.tsx
+  context/
+    ProfileContext.tsx
+  lib/
+    calculations.ts
+    storage.ts
+    types.ts
+    watson.ts
+tsconfig.json
+```
