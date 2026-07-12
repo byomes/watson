@@ -1975,6 +1975,8 @@ function devLoad() {
 function devSetTab(tab, isInitial) {
   _devTab = tab;
   _devExpandedId = null;
+  _devExpandedProjectId = null;
+  _devExpandedBacklogId = null;
   if (!isInitial) {
     document.querySelectorAll('#msec-inner-dev .mtab').forEach(b => b.classList.remove('active'));
     const idx = { dev: 0, bugs: 1 }[tab];
@@ -2013,70 +2015,110 @@ function _devProjectBadge(status) {
   return _devBadge(style, label);
 }
 
-// ── Dev sub-tab (dev_projects) ──────────────────────────────────────────────
+function _devBacklogBadge(status) {
+  if (status === 'planned') return _devBadge('background:rgba(201,168,76,.12);color:var(--gold);border:1px solid rgba(201,168,76,.3)', 'Planned');
+  return _devBadge('background:rgba(76,175,125,.12);color:var(--green);border:1px solid rgba(76,175,125,.3)', status || 'Unknown');
+}
+
+// ── Dev sub-tab (dev_projects + project_backlog) ────────────────────────────
+// Two independent card sections stacked in one sub-tab: live Dev Loop runs
+// (dev_projects — has a slug/staging_path/real code-gen state machine) and
+// the planning backlog (project_backlog — lightweight, no runtime state).
+// Kept as separate tables/sections rather than merged rows since their
+// fields and lifecycles don't line up.
+
+let _devBacklog             = [];
+let _devShowCompletedBacklog = false;
+let _devExpandedProjectId    = null;
+let _devExpandedBacklogId    = null;
 
 async function devLoadProjects() {
   const el = document.getElementById('dev-tab-body');
   if (!el) return;
   el.innerHTML = '<div class="loading">Loading&hellip;</div>';
   try {
-    _devProjects = await api('/api/dev-loop/projects');
+    [_devProjects, _devBacklog] = await Promise.all([
+      api('/api/dev-loop/projects'),
+      api('/api/project-backlog'),
+    ]);
     _devRenderProjects();
   } catch {
-    el.innerHTML = '<div class="empty">Could not load Dev Loop projects.</div>';
+    el.innerHTML = '<div class="empty">Could not load Dev Loop data.</div>';
   }
 }
 
 function devToggleShowCompletedProjects() {
   _devShowCompletedDev = !_devShowCompletedDev;
-  _devExpandedId = null;
+  _devExpandedProjectId = null;
+  _devRenderProjects();
+}
+
+function devToggleShowCompletedBacklog() {
+  _devShowCompletedBacklog = !_devShowCompletedBacklog;
+  _devExpandedBacklogId = null;
   _devRenderProjects();
 }
 
 function _devRenderProjects() {
   const el = document.getElementById('dev-tab-body');
   if (!el) return;
+
   const OPEN = ['running', 'paused'];
-  const source = (_devShowCompletedDev ? _devProjects : _devProjects.filter(p => OPEN.includes(p.status)))
+  const projSource = (_devShowCompletedDev ? _devProjects : _devProjects.filter(p => OPEN.includes(p.status)))
     .slice()
     .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  const backlogSource = (_devShowCompletedBacklog ? _devBacklog : _devBacklog.filter(b => b.status === 'planned'))
+    .slice()
+    .sort((a, b) => new Date(b.added_date) - new Date(a.added_date));
 
-  const toggleBtn = `<button class="mbtn mbtn-sm" onclick="devToggleShowCompletedProjects()">${_devShowCompletedDev ? 'Show Active Only' : 'Show Completed'}</button>`;
-  let html = `<div class="mlabel" style="display:flex;align-items:center;justify-content:space-between">Dev Loop Projects (${source.length})${toggleBtn}</div>`;
+  const projToggleBtn = `<button class="mbtn mbtn-sm" onclick="devToggleShowCompletedProjects()">${_devShowCompletedDev ? 'Show Active Only' : 'Show Completed'}</button>`;
+  let html = `<div class="mlabel" style="display:flex;align-items:center;justify-content:space-between">Dev Loop Projects (${projSource.length})${projToggleBtn}</div>`;
+  html += projSource.length
+    ? projSource.map(p => `
+        <div class="mpn-card" id="mdev-card-${p.id}">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;cursor:pointer;-webkit-tap-highlight-color:transparent" onclick="devExpandProject(${p.id})">
+            <div style="flex:1;min-width:0">
+              <div style="font-size:13px;font-weight:600">${esc(p.title)}</div>
+              <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);margin-top:2px">${esc(p.created_at)}</div>
+            </div>
+            <span style="flex-shrink:0">${_devProjectBadge(p.status)}</span>
+          </div>
+          <div id="mdev-exp-${p.id}" style="display:none"></div>
+        </div>`).join('')
+    : `<div class="empty">${_devShowCompletedDev ? 'No completed projects.' : 'No active Dev Loop projects.'}</div>`;
 
-  if (!source.length) {
-    html += `<div class="empty">${_devShowCompletedDev ? 'No completed projects.' : 'No active Dev Loop projects.'}</div>`;
-    el.innerHTML = html;
-    return;
-  }
+  const backlogToggleBtn = `<button class="mbtn mbtn-sm" onclick="devToggleShowCompletedBacklog()">${_devShowCompletedBacklog ? 'Show Planned Only' : 'Show Completed'}</button>`;
+  html += `<div class="mlabel" style="display:flex;align-items:center;justify-content:space-between">Backlog (${backlogSource.length})${backlogToggleBtn}</div>`;
+  html += backlogSource.length
+    ? backlogSource.map(b => `
+        <div class="mpn-card" id="mbl-card-${b.id}">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;cursor:pointer;-webkit-tap-highlight-color:transparent" onclick="devExpandBacklog(${b.id})">
+            <div style="flex:1;min-width:0">
+              <div style="font-size:13px;font-weight:600">${esc(b.title)}</div>
+              <div style="font-size:12px;color:var(--muted);margin-top:2px">${esc(_devTruncate(b.summary, 150))}</div>
+            </div>
+            <span style="flex-shrink:0">${_devBacklogBadge(b.status)}</span>
+          </div>
+          <div id="mbl-exp-${b.id}" style="display:none"></div>
+        </div>`).join('')
+    : `<div class="empty">${_devShowCompletedBacklog ? 'No completed backlog items.' : 'No planned backlog items.'}</div>`;
 
-  html += source.map(p => `
-    <div class="mpn-card" id="mdev-card-${p.id}">
-      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;cursor:pointer;-webkit-tap-highlight-color:transparent" onclick="devExpandProject(${p.id})">
-        <div style="flex:1;min-width:0">
-          <div style="font-size:13px;font-weight:600">${esc(p.title)}</div>
-          <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);margin-top:2px">${esc(p.created_at)}</div>
-        </div>
-        <span style="flex-shrink:0">${_devProjectBadge(p.status)}</span>
-      </div>
-      <div id="mdev-exp-${p.id}" style="display:none"></div>
-    </div>`).join('');
   el.innerHTML = html;
 }
 
 function devExpandProject(id) {
   const expEl = document.getElementById(`mdev-exp-${id}`);
   if (!expEl) return;
-  if (_devExpandedId === id) {
+  if (_devExpandedProjectId === id) {
     expEl.style.display = 'none';
-    _devExpandedId = null;
+    _devExpandedProjectId = null;
     return;
   }
-  if (_devExpandedId !== null) {
-    const prev = document.getElementById(`mdev-exp-${_devExpandedId}`);
+  if (_devExpandedProjectId !== null) {
+    const prev = document.getElementById(`mdev-exp-${_devExpandedProjectId}`);
     if (prev) prev.style.display = 'none';
   }
-  _devExpandedId = id;
+  _devExpandedProjectId = id;
   const p = _devProjects.find(x => x.id === id);
   if (!p) return;
   expEl.innerHTML = `
@@ -2087,6 +2129,31 @@ function devExpandProject(id) {
       <div style="margin-bottom:4px"><span style="color:var(--muted)">Created:</span> ${esc(p.created_at)}</div>
       <div style="margin-bottom:4px"><span style="color:var(--muted)">Updated:</span> ${esc(p.updated_at)}</div>
       <div><span style="color:var(--muted)">Delivered:</span> ${esc(p.delivered_at || '—')}</div>
+    </div>`;
+  expEl.style.display = 'block';
+}
+
+function devExpandBacklog(id) {
+  const expEl = document.getElementById(`mbl-exp-${id}`);
+  if (!expEl) return;
+  if (_devExpandedBacklogId === id) {
+    expEl.style.display = 'none';
+    _devExpandedBacklogId = null;
+    return;
+  }
+  if (_devExpandedBacklogId !== null) {
+    const prev = document.getElementById(`mbl-exp-${_devExpandedBacklogId}`);
+    if (prev) prev.style.display = 'none';
+  }
+  _devExpandedBacklogId = id;
+  const b = _devBacklog.find(x => x.id === id);
+  if (!b) return;
+  expEl.innerHTML = `
+    <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);font-size:12px;color:var(--text)">
+      <div style="margin-bottom:8px">${esc(b.summary)}</div>
+      ${b.detail ? `<div style="margin-bottom:8px;color:var(--muted)">${esc(b.detail)}</div>` : ''}
+      <div style="margin-bottom:4px"><span style="color:var(--muted)">Status:</span> ${esc(b.status)}</div>
+      <div><span style="color:var(--muted)">Added:</span> ${esc(b.added_date)}</div>
     </div>`;
   expEl.style.display = 'block';
 }

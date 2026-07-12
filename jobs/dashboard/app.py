@@ -1688,6 +1688,16 @@ def bugs_delete(bug_id):
     return jsonify({"ok": True})
 
 
+@app.route("/api/project-backlog")
+def project_backlog_list():
+    rows = _db().execute("""
+        SELECT id, title, summary, detail, status, added_date
+        FROM project_backlog
+        ORDER BY (status = 'planned') DESC, added_date DESC, id DESC
+    """).fetchall()
+    return jsonify([dict(r) for r in rows])
+
+
 # ── Upload API ────────────────────────────────────────────────────────────────
 
 _TEXT_EXTS = {".txt", ".md", ".csv", ".json", ".py", ".html", ".xml"}
