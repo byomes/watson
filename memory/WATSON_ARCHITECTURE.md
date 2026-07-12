@@ -870,3 +870,15 @@ The 500-char excerpt window in `kb_search.py` centers on literal query-term prox
 ### ~/watson
 - 635ec10 docs: file map 2026-07-10
 - f23659f docs: architecture update 2026-07-10
+
+---
+
+## Recent Changes — 2026-07-12
+
+### ~/watson
+- 21ff4c3 fix: gutenberg.py surfaces request failures instead of silent empty results
+- 66ec361 fix: classics: crashes SSE stream when gutenberg collection missing
+- 479cdec feat: wire gutenberg:/classics: directives into Dashboard chat
+- 6461011 feat: Project Gutenberg research job — gutenberg: search + approval-gated ingest, classics: query
+- 1ecb80c docs: file map 2026-07-11
+- 9b66172 docs: architecture update 2026-07-11
