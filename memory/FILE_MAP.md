@@ -7,7 +7,6 @@
 ```
 ~/watson/
 .env
-.env.backup-20260705-211700
 .env.example
 .env.local
 .gitignore
@@ -54,7 +53,6 @@ cron_additions.txt
 data/
   .gitkeep
   congregation.db
-  congregation.db.backup-20260706-170337
   donors.db
   exports/
     qr_1780863713.png
@@ -97,7 +95,6 @@ data/
   riddle_history.json
   skill_audit.json
   watson.db
-  watson.db.backup-20260702-072434
 deploy/
   .gitkeep
   connect_cards_cron.txt
