@@ -537,6 +537,26 @@ The 500-char excerpt window in `kb_search.py` centers on literal query-term prox
 
 ---
 
+## Pre-Tracker Resolved Items (reconciled 2026-07-12)
+
+Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` table (created 2026-07-09, `4ba9e30`) and confirmed fixed against current code during a 2026-07-12 reconciliation pass. Not backfilled as `bug_tracker` rows — they were already closed before the table existed, and inserting them now would misrepresent the table's actual discovery-to-fix usage history. Logged here instead for a complete record.
+
+| Item | Resolved | Commit |
+|------|----------|--------|
+| Dashboard briefing tab buttons not fully functional | 2026-06-11 | `f4fda9a` |
+| Scheduler publishing drafts immediately instead of queuing | 2026-05-11 | `f6bb959` |
+| Facebook queue confirmation message too verbose | 2026-05-17 | `179700d` |
+| `run:image_search` routing to QR generator instead of image search | 2026-06-10 | `fee3d1d` |
+| `kb/transcripts` gitignore / broken Telegram URL on archiving | 2026-06-20 (superseded by rewrite) | `2324529` |
+| `.btn-save` CSS renders blue on briefing static template | 2026-06-04 | `7c6e4bc` |
+| `pastoral_notes` insert schema mismatch (`person_id` etc.) | 2026-06-20 | `61f0de7` |
+| Task handler silently swallows exceptions, no Telegram error reply | 2026-07-09 | `2bea12f` |
+| Dead `refine:` code in BUILD pipeline (91 lines) | 2026-06-20 | `b93db3e` |
+| Task router misrouting "add a task" to BUILD system | 2026-06-11 | `fc0949a` |
+| Siri shortcut pointing at LAN IP instead of Tailscale IP | unconfirmed (device-side iOS Shortcuts setting, not a code fix) | N/A — documented correct in `03143bf` (2026-06-13) |
+
+---
+
 ## Planned / Not Yet Built
 
 1. Morning briefing auto-push — no manual Telegram command needed
@@ -555,8 +575,7 @@ The 500-char excerpt window in `kb_search.py` centers on literal query-term prox
 14. Transcription backlog — 10 years of sermon audio on FMSPC
 15. Weekly email end-to-end test
 16. Adelphos Academy Watson integration (8 planned jobs)
-17. GitHub token renewal — `watson-all` may need renewal; update SECRETS.md + `.env`
-18. Watson self-improvement system — architecture approved, build deferred
+17. Watson self-improvement system — architecture approved, build deferred
 
 ---
 
