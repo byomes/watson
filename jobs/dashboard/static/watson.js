@@ -1423,6 +1423,10 @@ function renderMore() {
         <span class="mtile-label">Logins</span>
         <span class="mtile-chev">›</span>
       </button>
+      <button class="mtile" id="mtile-bodyrec" onclick="window.open('https://bodyrec.vercel.app', '_blank', 'noopener,noreferrer')">
+        <span class="mtile-label">BodyRec</span>
+        <span class="mtile-chev">›</span>
+      </button>
     </div>
     <div id="more-expand-area">
       <div class="msec-body" id="msec-body-skills">
