@@ -12,6 +12,7 @@ REPOS = [
     ("~/wcky",         "~/wcky/"),
     ("~/watson-admin", "~/watson-admin/"),
     ("~/watson-ui",    "~/watson-ui/"),
+    ("~/bodyrec",      "~/bodyrec/"),
 ]
 
 EXCLUDE_PATTERNS = [
