@@ -1415,8 +1415,8 @@ function renderMore() {
         <span class="mtile-label">Thesis Tracker</span>
         <span class="mtile-chev">›</span>
       </button>
-      <button class="mtile" id="mtile-issues" onclick="moreToggle('issues')">
-        <span class="mtile-label">Issues</span>
+      <button class="mtile" id="mtile-dev" onclick="moreToggle('dev')">
+        <span class="mtile-label">Dev</span>
         <span class="mtile-chev">›</span>
       </button>
       <button class="mtile" id="mtile-logins" onclick="openLogins()">
@@ -1454,8 +1454,8 @@ function renderMore() {
         </div>
         <div class="msec-inner" id="msec-inner-thesis"><div class="loading">Loading&hellip;</div></div>
       </div>
-      <div class="msec-body" id="msec-body-issues">
-        <div class="msec-inner" id="msec-inner-issues"><div class="loading">Loading&hellip;</div></div>
+      <div class="msec-body" id="msec-body-dev">
+        <div class="msec-inner" id="msec-inner-dev"></div>
       </div>
     </div>`);
   moreLoadVacationStatus();
@@ -1531,7 +1531,7 @@ function moreToggle(sec) {
     if (sec === 'members')  moreLoadMembers();
     if (sec === 'publishing') publishingLoad();
     if (sec === 'thesis')   moreLoadThesis();
-    if (sec === 'issues')   moreLoadIssues();
+    if (sec === 'dev')      devLoad();
   }
 }
 
@@ -1947,43 +1947,233 @@ async function moreLoadEvents() {
   }
 }
 
-// ── Issues (bug_tracker) ─────────────────────────────────────────────────────
+// ── Dev (dev_projects / bug_tracker) ────────────────────────────────────────
+// Two sub-tabs sharing one "Dev" More-menu tile, same pattern as Publishing's
+// Writing Room / ARC tabs. Resolved/delivered/failed/stopped rows are never
+// deleted by this UI — they just drop out of the default filtered view and
+// stay reachable forever via "Show completed".
 
-async function moreLoadIssues() {
-  const el = document.getElementById('msec-inner-issues');
+let _devTab              = 'dev';
+let _devProjects         = [];
+let _devBugs             = [];
+let _devShowCompletedDev  = false;
+let _devShowCompletedBugs = false;
+let _devExpandedId        = null;
+
+function devLoad() {
+  const el = document.getElementById('msec-inner-dev');
+  if (!el) return;
+  el.innerHTML = `
+    <div class="mtabs">
+      <button class="mtab${_devTab === 'dev'  ? ' active' : ''}" onclick="devSetTab('dev')">Dev</button>
+      <button class="mtab${_devTab === 'bugs' ? ' active' : ''}" onclick="devSetTab('bugs')">Bugs</button>
+    </div>
+    <div id="dev-tab-body"><div class="loading">Loading&hellip;</div></div>`;
+  devSetTab(_devTab, true);
+}
+
+function devSetTab(tab, isInitial) {
+  _devTab = tab;
+  _devExpandedId = null;
+  if (!isInitial) {
+    document.querySelectorAll('#msec-inner-dev .mtab').forEach(b => b.classList.remove('active'));
+    const idx = { dev: 0, bugs: 1 }[tab];
+    const btn = document.querySelectorAll('#msec-inner-dev .mtab')[idx];
+    if (btn) btn.classList.add('active');
+  }
+  if (tab === 'dev')  devLoadProjects();
+  if (tab === 'bugs') devLoadBugs();
+}
+
+function _devTruncate(text, maxLen) {
+  if (!text) return '';
+  const clean = text.replace(/\s+/g, ' ').trim();
+  if (clean.length <= maxLen) return clean;
+  return clean.slice(0, maxLen).replace(/\s+\S*$/, '') + '…';
+}
+
+function _devBadge(style, label) {
+  return `<span class="badge" style="${style}">${esc(label.toUpperCase())}</span>`;
+}
+
+function _devBugBadge(status) {
+  if (status === 'resolved') return _devBadge('background:rgba(76,175,125,.12);color:var(--green);border:1px solid rgba(76,175,125,.3)', 'Resolved');
+  return _devBadge('background:rgba(201,168,76,.12);color:var(--gold);border:1px solid rgba(201,168,76,.3)', 'Open');
+}
+
+function _devProjectBadge(status) {
+  const map = {
+    running:   ['background:rgba(201,168,76,.12);color:var(--gold);border:1px solid rgba(201,168,76,.3)',   'Running'],
+    paused:    ['background:rgba(76,126,201,.12);color:var(--blue);border:1px solid rgba(76,126,201,.3)',   'Paused'],
+    delivered: ['background:rgba(76,175,125,.12);color:var(--green);border:1px solid rgba(76,175,125,.3)',  'Delivered'],
+    failed:    ['background:rgba(201,80,76,.12);color:var(--red);border:1px solid rgba(201,80,76,.3)',      'Failed'],
+    stopped:   ['background:rgba(102,102,102,.10);color:var(--muted);border:1px solid var(--border)',       'Stopped'],
+  };
+  const [style, label] = map[status] || ['background:rgba(102,102,102,.10);color:var(--muted);border:1px solid var(--border)', status || 'Unknown'];
+  return _devBadge(style, label);
+}
+
+// ── Dev sub-tab (dev_projects) ──────────────────────────────────────────────
+
+async function devLoadProjects() {
+  const el = document.getElementById('dev-tab-body');
   if (!el) return;
   el.innerHTML = '<div class="loading">Loading&hellip;</div>';
   try {
-    const issues = await api('/api/bugs');
-    if (!Array.isArray(issues) || !issues.length) {
-      el.innerHTML = '<div class="empty">No issues logged.</div>';
-      return;
-    }
-    el.innerHTML = issues.map(b => `
-      <div class="mpn-card" id="mbug-card-${b.id}">
-        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
-          <div style="flex:1;min-width:0">
-            <div style="font-size:13px;font-weight:600">${esc(b.title)}</div>
-            <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--text-muted);margin-top:2px">
-              ${esc(b.repo)} · ${b.status === 'resolved' ? `resolved ${esc(b.commit_hash || '')}` : 'open'} · ${esc(b.discovered_at)}
-            </div>
-          </div>
-          <span style="flex-shrink:0;font-size:10px;font-family:'DM Mono',monospace;padding:2px 6px;border-radius:4px;background:${b.status === 'resolved' ? 'var(--surface-2)' : 'var(--gold)'};color:${b.status === 'resolved' ? 'var(--text-muted)' : 'var(--bg)'}">${b.status}</span>
-        </div>
-        ${b.description ? `<div style="font-size:12px;color:var(--text);margin-top:6px">${esc(b.description)}</div>` : ''}
-        <div style="display:flex;gap:8px;margin-top:8px">
-          ${b.status === 'open'
-            ? `<button class="mbtn mbtn-sm mbtn-p" onclick="moreResolveIssue(${b.id})">Resolve</button>`
-            : `<button class="mbtn mbtn-sm" onclick="moreReopenIssue(${b.id})">Reopen</button>`}
-          <button class="mbtn mbtn-sm mbtn-d" onclick="moreDeleteIssue(${b.id})">Delete</button>
-        </div>
-      </div>`).join('');
+    _devProjects = await api('/api/dev-loop/projects');
+    _devRenderProjects();
   } catch {
-    el.innerHTML = '<div class="empty">Could not load issues.</div>';
+    el.innerHTML = '<div class="empty">Could not load Dev Loop projects.</div>';
   }
 }
 
-async function moreResolveIssue(id) {
+function devToggleShowCompletedProjects() {
+  _devShowCompletedDev = !_devShowCompletedDev;
+  _devExpandedId = null;
+  _devRenderProjects();
+}
+
+function _devRenderProjects() {
+  const el = document.getElementById('dev-tab-body');
+  if (!el) return;
+  const OPEN = ['running', 'paused'];
+  const source = (_devShowCompletedDev ? _devProjects : _devProjects.filter(p => OPEN.includes(p.status)))
+    .slice()
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+  const toggleBtn = `<button class="mbtn mbtn-sm" onclick="devToggleShowCompletedProjects()">${_devShowCompletedDev ? 'Show Active Only' : 'Show Completed'}</button>`;
+  let html = `<div class="mlabel" style="display:flex;align-items:center;justify-content:space-between">Dev Loop Projects (${source.length})${toggleBtn}</div>`;
+
+  if (!source.length) {
+    html += `<div class="empty">${_devShowCompletedDev ? 'No completed projects.' : 'No active Dev Loop projects.'}</div>`;
+    el.innerHTML = html;
+    return;
+  }
+
+  html += source.map(p => `
+    <div class="mpn-card" id="mdev-card-${p.id}">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;cursor:pointer;-webkit-tap-highlight-color:transparent" onclick="devExpandProject(${p.id})">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:600">${esc(p.title)}</div>
+          <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);margin-top:2px">${esc(p.created_at)}</div>
+        </div>
+        <span style="flex-shrink:0">${_devProjectBadge(p.status)}</span>
+      </div>
+      <div id="mdev-exp-${p.id}" style="display:none"></div>
+    </div>`).join('');
+  el.innerHTML = html;
+}
+
+function devExpandProject(id) {
+  const expEl = document.getElementById(`mdev-exp-${id}`);
+  if (!expEl) return;
+  if (_devExpandedId === id) {
+    expEl.style.display = 'none';
+    _devExpandedId = null;
+    return;
+  }
+  if (_devExpandedId !== null) {
+    const prev = document.getElementById(`mdev-exp-${_devExpandedId}`);
+    if (prev) prev.style.display = 'none';
+  }
+  _devExpandedId = id;
+  const p = _devProjects.find(x => x.id === id);
+  if (!p) return;
+  expEl.innerHTML = `
+    <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);font-size:12px;color:var(--text)">
+      <div style="margin-bottom:4px"><span style="color:var(--muted)">Slug:</span> ${esc(p.slug)}</div>
+      <div style="margin-bottom:4px"><span style="color:var(--muted)">Status:</span> ${esc(p.status)}</div>
+      <div style="margin-bottom:4px"><span style="color:var(--muted)">Staging path:</span> ${esc(p.staging_path || '—')}</div>
+      <div style="margin-bottom:4px"><span style="color:var(--muted)">Created:</span> ${esc(p.created_at)}</div>
+      <div style="margin-bottom:4px"><span style="color:var(--muted)">Updated:</span> ${esc(p.updated_at)}</div>
+      <div><span style="color:var(--muted)">Delivered:</span> ${esc(p.delivered_at || '—')}</div>
+    </div>`;
+  expEl.style.display = 'block';
+}
+
+// ── Bugs sub-tab (bug_tracker) ──────────────────────────────────────────────
+
+async function devLoadBugs() {
+  const el = document.getElementById('dev-tab-body');
+  if (!el) return;
+  el.innerHTML = '<div class="loading">Loading&hellip;</div>';
+  try {
+    _devBugs = await api('/api/bugs');
+    _devRenderBugs();
+  } catch {
+    el.innerHTML = '<div class="empty">Could not load bugs.</div>';
+  }
+}
+
+function devToggleShowCompletedBugs() {
+  _devShowCompletedBugs = !_devShowCompletedBugs;
+  _devExpandedId = null;
+  _devRenderBugs();
+}
+
+function _devRenderBugs() {
+  const el = document.getElementById('dev-tab-body');
+  if (!el) return;
+  const source = (_devShowCompletedBugs ? _devBugs : _devBugs.filter(b => b.status === 'open'))
+    .slice()
+    .sort((a, b) => new Date(b.discovered_at) - new Date(a.discovered_at));
+
+  const toggleBtn = `<button class="mbtn mbtn-sm" onclick="devToggleShowCompletedBugs()">${_devShowCompletedBugs ? 'Show Open Only' : 'Show Completed'}</button>`;
+  let html = `<div class="mlabel" style="display:flex;align-items:center;justify-content:space-between">Bugs (${source.length})${toggleBtn}</div>`;
+
+  if (!source.length) {
+    html += `<div class="empty">${_devShowCompletedBugs ? 'No resolved bugs.' : 'No open bugs.'}</div>`;
+    el.innerHTML = html;
+    return;
+  }
+
+  html += source.map(b => `
+    <div class="mpn-card" id="mbug-card-${b.id}">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;cursor:pointer;-webkit-tap-highlight-color:transparent" onclick="devExpandBug(${b.id})">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:600">${esc(b.title)}</div>
+          ${b.description ? `<div style="font-size:12px;color:var(--muted);margin-top:2px">${esc(_devTruncate(b.description, 150))}</div>` : ''}
+        </div>
+        <span style="flex-shrink:0">${_devBugBadge(b.status)}</span>
+      </div>
+      <div id="mbug-exp-${b.id}" style="display:none"></div>
+    </div>`).join('');
+  el.innerHTML = html;
+}
+
+function devExpandBug(id) {
+  const expEl = document.getElementById(`mbug-exp-${id}`);
+  if (!expEl) return;
+  if (_devExpandedId === id) {
+    expEl.style.display = 'none';
+    _devExpandedId = null;
+    return;
+  }
+  if (_devExpandedId !== null) {
+    const prev = document.getElementById(`mbug-exp-${_devExpandedId}`);
+    if (prev) prev.style.display = 'none';
+  }
+  _devExpandedId = id;
+  const b = _devBugs.find(x => x.id === id);
+  if (!b) return;
+  expEl.innerHTML = `
+    <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);font-size:12px;color:var(--text)">
+      ${b.description ? `<div style="margin-bottom:8px">${esc(b.description)}</div>` : ''}
+      <div style="margin-bottom:4px"><span style="color:var(--muted)">Repo:</span> ${esc(b.repo)}</div>
+      <div style="margin-bottom:4px"><span style="color:var(--muted)">Status:</span> ${esc(b.status)}</div>
+      <div style="margin-bottom:4px"><span style="color:var(--muted)">Commit:</span> ${esc(b.commit_hash || '—')}</div>
+      <div style="margin-bottom:4px"><span style="color:var(--muted)">Discovered:</span> ${esc(b.discovered_at)}</div>
+      <div style="margin-bottom:10px"><span style="color:var(--muted)">Resolved:</span> ${esc(b.resolved_at || '—')}</div>
+      <div style="display:flex;gap:8px">
+        ${b.status === 'open'
+          ? `<button class="mbtn mbtn-sm mbtn-p" onclick="devResolveBug(${b.id})">Resolve</button>`
+          : `<button class="mbtn mbtn-sm" onclick="devReopenBug(${b.id})">Reopen</button>`}
+      </div>
+    </div>`;
+  expEl.style.display = 'block';
+}
+
+async function devResolveBug(id) {
   const commitHash = prompt('Commit hash for this fix:');
   if (!commitHash) return;
   try {
@@ -1992,32 +2182,22 @@ async function moreResolveIssue(id) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: 'resolved', commit_hash: commitHash.trim() }),
     });
-    moreLoadIssues();
+    devLoadBugs();
   } catch {
-    alert('Failed to resolve issue.');
+    alert('Failed to resolve bug.');
   }
 }
 
-async function moreReopenIssue(id) {
+async function devReopenBug(id) {
   try {
     await api(`/api/bugs/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: 'open' }),
     });
-    moreLoadIssues();
+    devLoadBugs();
   } catch {
-    alert('Failed to reopen issue.');
-  }
-}
-
-async function moreDeleteIssue(id) {
-  if (!confirm('Delete this issue?')) return;
-  try {
-    await api(`/api/bugs/${id}`, { method: 'DELETE' });
-    moreLoadIssues();
-  } catch {
-    alert('Failed to delete issue.');
+    alert('Failed to reopen bug.');
   }
 }
 
