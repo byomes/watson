@@ -59,6 +59,7 @@ Watson acts on Dr. Bill's behalf under his supervision. Always identified openly
 | Watson Admin | `github.com/byomes/watson-admin` | `~/watson-admin` | Vercel auto on push |
 | Watson UI | `github.com/byomes/watson-ui` | `~/watson-ui` | Vercel auto on push |
 | FMS site | `github.com/byomes/fms` | `~/fms` (planned) | Vercel auto on push |
+| bodyrec | `github.com/byomes/bodyrec` | `~/bodyrec` | Vercel auto on push |
 
 **All web development happens on the Beelink.** Claude Code builds on the Beelink, commits, pushes to GitHub, Vercel deploys automatically.
 
@@ -80,6 +81,7 @@ Watson acts on Dr. Bill's behalf under his supervision. Always identified openly
 | `watson-admin.vercel.app` | `byomes/watson-admin` | Book/reader management admin |
 | `faithmakessense.com` | `byomes/fms` (planned) | FMS ministry site — rebuild pending |
 | `adelphosacademy.com` | — | Moodle 5.0 theology school |
+| `bodyrec.vercel.app` | `byomes/bodyrec` | Body composition tracker (bill/mel profiles), backed by Watson API |
 
 ---
 
@@ -108,6 +110,7 @@ Watson acts on Dr. Bill's behalf under his supervision. Always identified openly
 - `team_tasks`, `shared_notes`, `team_members` — leadership team management
 - `church_events` — special events log, feeds State of the Church report
 - `bug_tracker` — session bug log (open on discovery, resolved with commit_hash on fix); see Issues tab
+- `body_entries`, `body_settings` — bodyrec body composition tracker data
 
 ### congregation.db Key Tables
 
@@ -297,6 +300,19 @@ Private community hub for Writing Room Partners (invitation-only, earned via ARC
 - `jobs/writing_room/reset.py` — password reset token flow
 - `jobs/writing_room/remind.py` — video call reminders to all partners
 - `jobs/writing_room/api.py` — Flask blueprint, routes registered on dashboard app
+
+---
+
+## Body Composition Tracker (bodyrec)
+
+`bodyrec.vercel.app` — body composition tracker with separate bill/mel profiles.
+
+**Architecture:** Next.js frontend (`~/bodyrec`) → Watson API → `watson.db`
+**Watson API base:** `https://watson.tail0243ff.ts.net` (Tailscale Funnel)
+**Auth:** `X-Watson-Key` header shared secret — same pattern as Writing Room
+**Watson job file:** `jobs/bodyrec/api.py` — Flask blueprint, routes registered on dashboard app
+**Tables:** `body_entries`, `body_settings`
+**Supabase:** Fully retired for this project — all data and API needs route through Watson (`watson.db`), no Supabase dependency remains.
 
 ---
 
