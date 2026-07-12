@@ -1367,7 +1367,7 @@ function renderMore() {
         <span class="mswitch-thumb"></span>
       </label>
     </div>
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-card);margin-bottom:2px">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-card);margin-bottom:12px">
       <div style="display:flex;align-items:center;gap:8px">
         <span style="font-size:16px">🌴</span>
         <span style="font-size:13px;font-weight:500">Vacation Mode</span>
