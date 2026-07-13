@@ -255,6 +255,20 @@ def _resolve_member(
     name_key    = name.lower().strip()
     now         = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
 
+    # Exact match on both name and email is always a clean match. This also
+    # keeps already-resolved conflicts (merged, skipped, or confirmed as two
+    # different people) from being re-flagged on a later card: any prior
+    # resolution leaves a member row with this exact (name, email) pair, so
+    # a repeat submission lands here before the single-field lookups below
+    # can grab an unrelated same-name or same-email member and re-raise it.
+    if email_lower and name_key:
+        exact = conn.execute(
+            "SELECT id FROM members WHERE LOWER(email) = ? AND LOWER(TRIM(name)) = ?",
+            (email_lower, name_key),
+        ).fetchone()
+        if exact:
+            return find_or_create_member(conn, name, email_addr, phone, svc_date), None
+
     if email_lower:
         by_email = conn.execute(
             "SELECT id, name, email FROM members WHERE LOWER(email) = ?", (email_lower,)
@@ -293,22 +307,32 @@ def _resolve_member(
         if by_name:
             existing_email = (by_name["email"] or "").lower().strip()
             if email_lower and email_lower != existing_email:
-                # Same name, different email — use existing member; log conflict
+                # Same name, different email — could be a typo on an existing
+                # member, or two different people sharing a name. Create a
+                # real new member for the incoming card (mirrors shared_email
+                # above) so the conflict has a genuine new_member_id and is
+                # mergeable either way; log it for review.
+                cur_m = conn.execute(
+                    "INSERT INTO members (name, email, phone, first_visit_date, updated_at)"
+                    " VALUES (?, ?, ?, ?, ?)",
+                    (name, email_addr, phone or None, svc_date, now),
+                )
+                new_member_id = cur_m.lastrowid
                 cur_c = conn.execute(
                     """
                     INSERT INTO member_conflicts
                       (conflict_type, existing_member_id, existing_name, existing_email,
                        new_member_id, new_name, new_email)
-                    VALUES ('same_name_diff_email', ?, ?, ?, NULL, ?, ?)
+                    VALUES ('same_name_diff_email', ?, ?, ?, ?, ?, ?)
                     """,
                     (by_name["id"], by_name["name"], by_name["email"],
-                     name, email_addr),
+                     new_member_id, name, email_addr),
                 )
                 log.warning(
                     "Conflict (same_name_diff_email): name=%r existing_email=%r new_email=%r conflict_id=%d",
                     name, by_name["email"], email_addr, cur_c.lastrowid,
                 )
-                return by_name["id"], cur_c.lastrowid
+                return new_member_id, cur_c.lastrowid
 
     return find_or_create_member(conn, name, email_addr, phone, svc_date), None
 

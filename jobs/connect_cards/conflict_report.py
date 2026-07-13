@@ -192,6 +192,10 @@ def run() -> None:
             {"text": "Keep New ✓",  "callback_data": f"merge_new_{cid}"},
             {"text": "Skip",        "callback_data": f"skip_{cid}"},
         ]]
+        if row["conflict_type"] in ("same_name_diff_email", "shared_email"):
+            keyboard.append([
+                {"text": "Two Different People", "callback_data": f"different_{cid}"},
+            ])
 
         try:
             _send(text, keyboard)

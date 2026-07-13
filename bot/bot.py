@@ -2868,20 +2868,23 @@ async def _handle_calendar_availability(update: Update, context: ContextTypes.DE
         log.error("Calendar availability failed: %s", exc)
         await update.message.reply_text(_calendar_error_text(exc))
 async def handle_merge_conflict_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle merge_old_ / merge_new_ / skip_ button taps from conflict_report.py."""
+    """Handle merge_old_ / merge_new_ / skip_ / different_ button taps from conflict_report.py."""
     query = update.callback_query
     await query.answer()
 
     if not _is_authorized(update):
         return
 
-    data = query.data  # e.g. "merge_old_42" / "merge_new_42" / "skip_42"
+    data = query.data  # e.g. "merge_old_42" / "merge_new_42" / "skip_42" / "different_42"
     if data.startswith("merge_old_"):
         action = "merge_old"
         conflict_id = int(data[len("merge_old_"):])
     elif data.startswith("merge_new_"):
         action = "merge_new"
         conflict_id = int(data[len("merge_new_"):])
+    elif data.startswith("different_"):
+        action = "different"
+        conflict_id = int(data[len("different_"):])
     else:  # skip_
         action = "skip"
         conflict_id = int(data[len("skip_"):])
@@ -2915,6 +2918,21 @@ async def handle_merge_conflict_callback(update: Update, context: ContextTypes.D
             )
             conn.commit()
             await query.edit_message_text("⏭ Skipped — flagged for manual review.", reply_markup=None)
+            return
+
+        if action == "different":
+            # Two distinct people — no merge, no data changes. Terminal state:
+            # find_fuzzy_duplicates()'s pair check and intake.py's exact-match
+            # guard both key off member_conflicts rows with real IDs, so this
+            # pairing won't be re-flagged in a future report.
+            conn.execute(
+                "UPDATE member_conflicts SET status='confirmed_different', resolved_at=? WHERE id=?",
+                (now, conflict_id),
+            )
+            conn.commit()
+            await query.edit_message_text(
+                "✅ Confirmed — two different people, no changes made.", reply_markup=None
+            )
             return
 
         if not old_id or not new_id:
@@ -3230,7 +3248,7 @@ def main():
     app.add_handler(CommandHandler("saved",       handle_saved))
     app.add_handler(CommandHandler("ask",         handle_ask))
     app.add_handler(CallbackQueryHandler(handle_devloop_callback,         pattern=r"^devloop_"))
-    app.add_handler(CallbackQueryHandler(handle_merge_conflict_callback,  pattern=r"^(merge_old_|merge_new_|skip_)\d+$"))
+    app.add_handler(CallbackQueryHandler(handle_merge_conflict_callback,  pattern=r"^(merge_old_|merge_new_|skip_|different_)\d+$"))
     app.add_handler(CallbackQueryHandler(handle_member_conflict_callback, pattern=r"^mc_"))
     app.add_handler(CallbackQueryHandler(handle_command_callback, pattern=r"^cmd_"))
     app.add_handler(CallbackQueryHandler(handle_vault_callback,   pattern=r"^vault_"))
