@@ -917,3 +917,23 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - 6461011 feat: Project Gutenberg research job — gutenberg: search + approval-gated ingest, classics: query
 - 1ecb80c docs: file map 2026-07-11
 - 9b66172 docs: architecture update 2026-07-11
+
+---
+
+## Recent Changes — 2026-07-13
+
+### ~/watson
+- a0417bf fix: same_name_diff_email now creates mergeable member record; add Two Different People resolution
+- 9cbb53c feat: add project_backlog to Dev tab, reopen bug #11 pending real Gutenberg fix
+- 7230e5b feat: rename Issues tab to Dev, split into Dev/Bugs sub-tabs
+- db48502 docs: reconcile pre-tracker resolved items, remove stale GitHub token item
+- e964548 feat: flag stuck 'running' Dev Loop projects for manual review
+- ae43a3c feat: add BodyRec tile to dashboard More menu, links to bodyrec.vercel.app
+- b78441b fix: add ~/bodyrec to file_map.py REPOS so FILE_MAP.md keeps tracking it
+- 5ef79d6 docs: add bodyrec as tracked repo/web property in architecture doc
+- 3b039e6 docs: file map 2026-07-12
+- c27bbb4 docs: file map 2026-07-12
+- 6100585 chore: ignore .env.backup-* and *.db.backup-* files
+- ddabe9b fix: match More tab spacing above tile grid to grid's internal row-gap
+- 85e044f docs: file map 2026-07-12
+- 084928c docs: architecture update 2026-07-12
