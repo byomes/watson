@@ -3244,6 +3244,9 @@ def calendar_today():
 
 @app.route("/api/book-appointment", methods=["POST"])
 def book_appointment():
+    key = request.headers.get("X-Watson-Key", "")
+    if not key or key != os.getenv("WRITING_ROOM_API_KEY"):
+        return jsonify({"error": "unauthorized"}), 401
     data = request.get_json(silent=True) or {}
     confirmation_id = data.get("confirmation_id", "").strip()
     event_id = data.get("event_id", "").strip()
