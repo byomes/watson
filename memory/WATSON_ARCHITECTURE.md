@@ -1,5 +1,5 @@
 # Watson Architecture
-*Single source of truth. Last updated: June 29, 2026.*
+*Single source of truth. Last updated: July 13, 2026.*
 *Claude Code must read this file before any build.*
 
 ---
@@ -151,7 +151,7 @@ Deploy pattern: `cd ~/watson && git pull && sudo systemctl restart watson-bot.se
 
 | Service | Purpose | Notes |
 |---------|---------|-------|
-| Google Calendar | Scheduling, booking, pre-meeting briefs | OAuth2, `~/watson/config/token.json`, scopes: Gmail + Calendar |
+| Google Calendar | Scheduling, booking, pre-meeting briefs, wcky `/meet` availability + booking | OAuth2 (Watson-Web client, `watson-498401` project), `~/watson/config/token.json`, scope: Calendar. Shared by wcky's Vercel env vars — not a separate credential. |
 | Gmail IMAP | Connect cards, email intake, reply handler | `watson.wcky@gmail.com` |
 | Gmail SMTP | Outbound email | `smtp.gmail.com:587`, sends as `watson@williamckyomes.com` alias |
 | Telegram | Primary away interface | `@wckyWatsonbot`, `watson-bot.service` |
@@ -196,7 +196,8 @@ Deploy pattern: `cd ~/watson && git pull && sudo systemctl restart watson-bot.se
 | `jobs/email_reply/reader.py` | Every 15 min | Email reply handler |
 | `jobs/reminders/daily_summary.py` | 10am, 1:30pm, 5pm (Mon–Sat) | Daily reminders |
 | `jobs/reminders/check_timed.py` | Every 5 min | Timed reminder checks |
-| `jobs/gcal/token_health.py` | Daily 7am | Google OAuth token health check |
+| `jobs/gcal/token_health.py` | Daily 7am | Google OAuth token health check (Watson's own `token.json`) |
+| `jobs/gcal/meet_token_health.py` | Daily 7am | wcky `/meet` availability endpoint health check (live HTTP probe, not local token check) |
 | `jobs/gcal/pre_meeting_brief.py` | Every 5 min | Pre-meeting brief (25–35 min before VA/IP events) |
 | `jobs/pastoral_notes/prompt.py` | Every 15 min | Post-meeting pastoral note prompts |
 | `jobs/pastoral_notes/reminder.py` | Every 15 min | Pastoral note reminders |
@@ -427,10 +428,20 @@ Wired into both `bot.py` and `jobs/dev_loop/loop.py`.
 ## Google Calendar
 
 - **Auth:** OAuth2 — `~/watson/config/credentials.json` + `token.json`
+- **Watson-Web OAuth client:** `717658188112-fjmm14rb3asfutnppql2dldftpd1djc5.apps.googleusercontent.com`, GCP project `watson-498401`, publish status "In production"
 - **Calendar ID:** `bill.yomes@gmail.com`
-- **Scopes:** Gmail + Calendar
-- **Token health check:** Daily 7am (`jobs/gcal/token_health.py`)
-- **Reauth:** `/gcal-auth` web route in dashboard app
+- **Scope:** `https://www.googleapis.com/auth/calendar` (Calendar only — `token.json`'s `scopes` field and the actual `/gcal-auth` authorization call both confirm this; a `gmail.send` entry exists in an unused constant in `app.py` but is never requested)
+- **Token health check:** Daily 7am (`jobs/gcal/token_health.py`) — checks Watson's own `token.json` only
+- **Reauth (Watson):** `/gcal-auth` web route in dashboard app, or `jobs/gcal/reauth.py` (terminal flow) — both write to `~/watson/config/token.json`
+
+### wcky `/meet` — shares Watson-Web's OAuth client (as of 2026-07-13)
+
+`williamckyomes.com/meet` (`src/app/api/meet/availability/route.ts` and `book/route.ts`, on Vercel) calls Google Calendar **directly from the Vercel serverless function** — it does not route through Watson/Tailscale Funnel at all. It used to run on its own separate OAuth client (`...nb0j56bqpb68g1mbn5oi0lorvkk9g302...`), which had its grant silently revoked on the Google account side and broke repeatedly with no monitoring in place to catch it. It has been migrated to **reuse Watson-Web's OAuth client** above — one client for Bill's calendar, not two.
+
+- **wcky Vercel env vars** (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN` — Production + Preview, all type `sensitive` so their values can't be read back via `vercel env pull`/API once set) now hold Watson-Web's client_id/secret and a refresh token minted independently for wcky (does not live in `~/watson/config/token.json` — separate token instance, same client, same scope).
+- **Reauth (wcky only):** `~/watson/scripts/wcky_meet_reauth.py` — one-time standalone script, deliberately *not* wired to Watson's `token.json`. Mints a fresh refresh token via a local-loopback OAuth flow (`http://localhost:8765/`, registered as an extra redirect URI on the Watson-Web client for exactly this purpose) and prints it to the terminal for manual copy into Vercel. Run this, then update `GOOGLE_REFRESH_TOKEN` in Vercel (wcky project) and redeploy, if `/meet` availability ever breaks again.
+- **Health check:** Daily 7am (`jobs/gcal/meet_token_health.py`) — unlike `token_health.py`, this does a live HTTP probe of `https://www.williamckyomes.com/api/meet/availability?duration=30` and confirms real slot data comes back, since wcky's credential lives entirely in Vercel and isn't visible to any local check. Alerts via the same Telegram path as `token_health.py`.
+- **Old client not yet deleted:** `...nb0j56bqpb68g1mbn5oi0lorvkk9g302...` still exists in Google Cloud Console (`watson-498401`), kept intentionally for a few days post-migration before manual deletion — do not delete without checking with Bill first.
 
 ---
 
