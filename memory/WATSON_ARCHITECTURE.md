@@ -182,13 +182,12 @@ Deploy pattern: `cd ~/watson && git pull && sudo systemctl restart watson-bot.se
 | `jobs/facebook/facebook_post.py` | Every 15 min | Facebook post queue |
 | `jobs/email_job/draft_email.py` | Thu 7am | Weekly email draft |
 | `jobs/connect_cards/intake.py` | Every 30 min | Parse Subsplash connect cards from Gmail |
-| `jobs/connect_cards/email_reports.py --bill` | Mon 5am | Prayer + follow-ups → Dr. Bill |
-| `jobs/connect_cards/email_reports.py --donna --kaci` | Tue 5am | Attendance → Donna + Kaci |
-| `jobs/connect_cards/email_reports.py --sync` | Sun 4am | Silent attendance sync |
+| `jobs/connect_cards/email_reports.py --bill --prayer --kaci` | Mon 5am | Next steps/comments → Bill; prayer digest → Bill; prayer requests report → Kaci |
+| `jobs/connect_cards/email_reports.py --donna` | Tue 5am | Attendance → Donna |
 | `jobs/connect_cards/attendance_intake.py` | Every 30 min | Attendance intake |
 | `jobs/connect_cards/correction_handler.py` | Every 30 min | Attendance corrections |
 | `jobs/connect_cards/campus_classifier.py` | Mon 5:45am | Classify member campus from 8-week connect card history |
-| `jobs/connect_cards/missed_report.py` | Mon 6am | Missed report — 3 sections: Wilmington, Online, Hybrid |
+| `jobs/connect_cards/missed_report.py` | Mon 6am | Missed report — 3 sections: Wilmington, Online, Hybrid — recipients: Bill, Donna, Kaci |
 | `jobs/connect_cards/shepherding_report.py` | Wed 6am | Pastoral care digest |
 | `jobs/connect_cards/conflict_report.py` | Sun 5pm | Member conflict report with 3-button Telegram resolution |
 | `jobs/connect_cards/state_of_church.py` | Thu 4pm | State of the Church HTML email |
