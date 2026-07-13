@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-07-12*
+*Generated: 2026-07-13*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -53,6 +53,7 @@ cron_additions.txt
 data/
   .gitkeep
   congregation.db
+  congregation.db.bak-20260712-200522
   donors.db
   exports/
     qr_1780863713.png
