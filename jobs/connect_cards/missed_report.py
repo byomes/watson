@@ -2,7 +2,7 @@
 Missed attendance report — sends a Monday morning email of who missed that Sunday.
 
 Queries congregation.db for members with no attendance record for the most
-recent Sunday, then emails Donna and Dr. Bill with the list grouped by campus.
+recent Sunday, then emails Dr. Bill, Donna, and Kaci with the list grouped by campus.
 
 Usage:
   PYTHONPATH=/home/billyomes/watson python jobs/connect_cards/missed_report.py
@@ -41,6 +41,7 @@ SMTP_PASS  = os.getenv("WATSON_GMAIL_APP_PASSWORD", "")
 
 REPORT_EMAIL = os.getenv("REPORT_EMAIL", "bill.yomes@gmail.com")
 DONNA_EMAIL  = os.getenv("DONNA_EMAIL", "")
+KACI_EMAIL   = os.getenv("KACI_EMAIL", "")
 
 DB_PATH = os.path.expanduser("~/watson/data/congregation.db")
 
@@ -67,9 +68,9 @@ def _send_email(subject: str, body: str) -> None:
     if not SMTP_USER or not SMTP_PASS:
         raise RuntimeError("WATSON_GMAIL_ADDRESS and WATSON_GMAIL_APP_PASSWORD must be set.")
 
-    recipients = [r for r in [REPORT_EMAIL, DONNA_EMAIL] if r]
+    recipients = [r for r in [REPORT_EMAIL, DONNA_EMAIL, KACI_EMAIL] if r]
     if not recipients:
-        raise RuntimeError("No recipients configured — set REPORT_EMAIL and DONNA_EMAIL.")
+        raise RuntimeError("No recipients configured — set REPORT_EMAIL, DONNA_EMAIL, and KACI_EMAIL.")
 
     msg = MIMEText(body, "plain")
     msg["Subject"]  = subject
