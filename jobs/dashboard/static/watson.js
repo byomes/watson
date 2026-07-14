@@ -2506,12 +2506,78 @@ function moreExpandMember(id) {
           style="display:block;width:100%;padding:7px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:13px;outline:none;resize:vertical;box-sizing:border-box"
           placeholder="Optional note&hellip;">${esc(m.status_note || '')}</textarea>
       </div>
+      <div style="margin-bottom:10px">
+        <label style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);display:block;margin-bottom:4px">ROLES</label>
+        <div id="mmem-roles-chips-${id}" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px;font-size:12px;color:var(--muted)">Loading&hellip;</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">
+          <button class="mbtn mbtn-sm" onclick="memberAddRole(${id},'elder')">+ elder</button>
+          <button class="mbtn mbtn-sm" onclick="memberAddRole(${id},'staff')">+ staff</button>
+          <button class="mbtn mbtn-sm" onclick="memberAddRole(${id},'leader')">+ leader</button>
+        </div>
+        <div style="display:flex;gap:6px">
+          <input id="mmem-role-inp-${id}" placeholder="Custom role&hellip;"
+            style="flex:1;padding:6px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:13px;outline:none;box-sizing:border-box"
+            onkeydown="if(event.key==='Enter'){event.preventDefault();memberAddRoleFromInput(${id});}">
+          <button class="mbtn mbtn-sm" onclick="memberAddRoleFromInput(${id})">Add</button>
+        </div>
+      </div>
       <div style="display:flex;align-items:center;gap:10px">
         <button class="mbtn mbtn-p mbtn-sm" onclick="memberSave(${id})">Save</button>
         <span id="mmem-saved-${id}" style="display:none;font-size:12px;color:#2e7d32">✓ Saved</span>
       </div>
     </div>`;
   expEl.style.display = 'block';
+  moreLoadRoles(id);
+}
+
+function _renderRoleChips(id, roles) {
+  const wrap = document.getElementById(`mmem-roles-chips-${id}`);
+  if (!wrap) return;
+  if (!roles.length) {
+    wrap.innerHTML = '<span style="color:var(--muted)">No roles tagged.</span>';
+    return;
+  }
+  wrap.innerHTML = roles.map(r => `
+    <span style="display:inline-flex;align-items:center;gap:5px;padding:3px 8px;background:var(--surface);border:1px solid var(--border);border-radius:12px;color:var(--text)">
+      ${esc(r)}
+      <span onclick="memberRemoveRole(${id},'${esc(r)}')" style="cursor:pointer;color:var(--red);font-weight:600" title="Remove">&times;</span>
+    </span>`).join('');
+}
+
+async function moreLoadRoles(id) {
+  try {
+    const roles = await api(`/api/members/${id}/roles`);
+    _renderRoleChips(id, roles);
+  } catch {
+    const wrap = document.getElementById(`mmem-roles-chips-${id}`);
+    if (wrap) wrap.innerHTML = '<span style="color:var(--red)">Failed to load roles.</span>';
+  }
+}
+
+async function memberAddRole(id, role) {
+  try {
+    const roles = await api(`/api/members/${id}/roles`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role }),
+    });
+    _renderRoleChips(id, roles);
+  } catch { alert('Failed to add role.'); }
+}
+
+function memberAddRoleFromInput(id) {
+  const inp = document.getElementById(`mmem-role-inp-${id}`);
+  const role = (inp?.value || '').trim();
+  if (!role) return;
+  memberAddRole(id, role);
+  if (inp) inp.value = '';
+}
+
+async function memberRemoveRole(id, role) {
+  try {
+    const roles = await api(`/api/members/${id}/roles/${encodeURIComponent(role)}`, { method: 'DELETE' });
+    _renderRoleChips(id, roles);
+  } catch { alert('Failed to remove role.'); }
 }
 
 function memberStatusChange(id) {

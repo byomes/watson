@@ -1148,6 +1148,67 @@ def members_update_api(member_id):
         return jsonify({"error": str(exc)}), 500
 
 
+@app.route("/api/members/<int:member_id>/roles", methods=["GET"])
+def member_roles_list_api(member_id):
+    try:
+        c = _cong_conn()
+        rows = c.execute(
+            "SELECT role FROM leadership_roles WHERE member_id = ? ORDER BY role",
+            (member_id,),
+        ).fetchall()
+        c.close()
+        return _no_cache(jsonify([r["role"] for r in rows]))
+    except Exception as exc:
+        return _no_cache(jsonify({"error": str(exc)})), 500
+
+
+@app.route("/api/members/<int:member_id>/roles", methods=["POST"])
+def member_roles_add_api(member_id):
+    data = request.get_json(force=True) or {}
+    role = (data.get("role") or "").strip().lower()
+    if not role:
+        return jsonify({"error": "role is required"}), 400
+    try:
+        c = _cong_conn()
+        member = c.execute("SELECT id FROM members WHERE id = ?", (member_id,)).fetchone()
+        if not member:
+            c.close()
+            return jsonify({"error": "not found"}), 404
+        c.execute(
+            "INSERT OR IGNORE INTO leadership_roles (member_id, role) VALUES (?, ?)",
+            (member_id, role),
+        )
+        c.commit()
+        rows = c.execute(
+            "SELECT role FROM leadership_roles WHERE member_id = ? ORDER BY role",
+            (member_id,),
+        ).fetchall()
+        c.close()
+        return jsonify([r["role"] for r in rows])
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/members/<int:member_id>/roles/<role>", methods=["DELETE"])
+def member_roles_delete_api(member_id, role):
+    role = (role or "").strip().lower()
+    try:
+        c = _cong_conn()
+        c.execute(
+            "DELETE FROM leadership_roles WHERE member_id = ? AND role = ?",
+            (member_id, role),
+        )
+        c.commit()
+        rows = c.execute(
+            "SELECT role FROM leadership_roles WHERE member_id = ? ORDER BY role",
+            (member_id,),
+        ).fetchall()
+        c.close()
+        return jsonify([r["role"] for r in rows])
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
 @app.route("/api/contacts/import", methods=["POST"])
 def contacts_import():
     import threading
