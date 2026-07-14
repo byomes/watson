@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-07-13*
+*Generated: 2026-07-14*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -7,6 +7,7 @@
 ```
 ~/watson/
 .env
+.env.backup-20260713-112740
 .env.example
 .env.local
 .gitignore
@@ -216,6 +217,7 @@ jobs/
     file_map.py
     fix style.py
     fix_style.py
+    git_sync.py
     git_tools.py
     github_tools.py
     hello_dashboard.py
@@ -266,6 +268,7 @@ jobs/
     availability.py
     create_event.py
     gcal_service.py
+    meet_token_health.py
     notify.py
     pending.py
     pre_meeting_brief.py
@@ -973,6 +976,8 @@ prompts/
   generate_social.md
 requirements.txt
 run.sh
+scripts/
+  wcky_meet_reauth.py
 vercel.json
 watson.db
 ```
@@ -1018,6 +1023,9 @@ content/
     2026-06-30-you-are-not-what-you-do.md
     2026-07-02-when-culture-knocks-at-the-door.md
     2026-07-04-everybody-heard-but-only-rahab-believed.md
+    2026-07-07-the-scarlet-cord-in-the-window.md
+    2026-07-09-a-brothel-to-a-bloodline.md
+    2026-07-11-the-wilderness-was-never-the-destination.md
     the-flashlight-of-your-focus.md
     where-your-treasure-is.md
 next-env.d.ts
@@ -1040,12 +1048,9 @@ public/
     lead-magnet.png
     lead-magnet2.png
     og-default.png
-    og-meet.png
     wrong-jesus-cover-iso.png
   posts/
     williamckyomes.WordPress.2026-05-05.xml
-scripts/
-  generate-og-meet.py
 src/
   app/
     about/
@@ -1163,7 +1168,9 @@ src/
       MeetClient.tsx
       cancel/
         page.tsx
+      opengraph-image.tsx
       page.tsx
+      twitter-image.tsx
     not-found.tsx
     opengraph-image.tsx
     page.tsx
