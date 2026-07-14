@@ -298,7 +298,5 @@ if __name__ == "__main__":
             send_bill_report(service_date, updated=updated, preview=preview)
         if args.donna or args.all:
             send_donna_report(service_date, updated=updated, preview=preview)
-        if args.kaci or args.all:
-            send_kaci_report(service_date, updated=updated, preview=preview)
         if args.prayer or args.all:
             send_prayer_requests(service_date)
