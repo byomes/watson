@@ -27,6 +27,7 @@ Env vars (~/watson/.env):
 import json
 import logging
 import os
+import re
 import smtplib
 import sqlite3
 from datetime import datetime, timezone
@@ -311,6 +312,49 @@ def _ollama_generate(prompt: str) -> str:
     return resp.json().get("response", "").strip()
 
 
+# Fireflies' own summary.action_items field is NOT a JSON list/array (that
+# was the working assumption before checking a real payload) — it's a
+# single markdown-ish string, already grouped by owner via a bold header
+# line per person, one action item per line below it, e.g.:
+#   **Jim Boucher**
+#   Send the sabbatical plan document to Chipwood for review (05:32)
+#   Follow up with Donna to confirm school supply needs (11:09)
+#
+#   **Bill Crook**
+#   Contact the company that installed the sanctuary screens (18:21)
+# Confirmed against a real elders meeting (meeting_id
+# 01KXGCN2PA0R4QXN7W4800FXY9): 15 items across 3 groups, matching Fireflies'
+# own recap count exactly. _parse_fireflies_action_items() below splits this
+# into individual {"owner_guess", "text"} items with a plain regex — no
+# Ollama involved — and is used both as the fallback path (see
+# _fallback_structured_content()) and as the raw material fed to Ollama
+# (see _build_structured_prompt()), replacing the old approach of sending
+# the full raw transcript and asking Ollama to re-derive this structure
+# from scratch.
+_OWNER_HEADER_RE = re.compile(r"^\*\*(.+?)\*\*$")
+
+
+def _parse_fireflies_action_items(raw: str) -> list[dict]:
+    """Split Fireflies' action_items text into individual
+    {"owner_guess", "text"} items. Text before the first bold header (if
+    any) is attributed to "Unassigned" rather than dropped."""
+    raw = (raw or "").strip()
+    if not raw:
+        return []
+    items: list[dict] = []
+    current_owner = "Unassigned"
+    for line in raw.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        m = _OWNER_HEADER_RE.match(line)
+        if m:
+            current_owner = m.group(1).strip()
+            continue
+        items.append({"owner_guess": current_owner, "text": line})
+    return items
+
+
 _STRUCTURED_JSON_INSTRUCTIONS = (
     "You are drafting structured content for an elders meeting review for "
     "Catalyst Community Church leadership. Return ONLY a JSON object — no prose, "
@@ -319,20 +363,49 @@ _STRUCTURED_JSON_INSTRUCTIONS = (
     '{"summary_points": ["point 1", "point 2", ...], '
     '"action_items": [{"owner_guess": "Name or Unassigned", "text": "item text"}]}\n\n'
     "Guidelines: summary_points should be 3-6 concise bullet points capturing key "
-    "discussion and decisions. For each action item, give your best guess at who is "
-    "responsible in owner_guess (use \"Unassigned\" if unclear) and keep text concise "
-    "and actionable. One action_items entry per item — do not group them."
+    "discussion and decisions, based on the meeting summary below. The action items "
+    "below are already grouped by owner under a bold name — convert each one into "
+    "its own action_items entry, using the name above it as owner_guess (or "
+    "\"Unassigned\" for items with no name above them). Keep item text as-is, one "
+    "action_items entry per item — do not merge or group them."
 )
 
 
 def _build_structured_prompt(transcript_data: dict) -> str:
+    # Feeds Ollama Fireflies' own condensed overview + action_items text
+    # (already organized, ~2-3k chars combined on a real meeting) instead
+    # of the full raw transcript (~37k chars on that same meeting, capped
+    # at 8000 here previously). Every real production run timed out at
+    # both 60s and 300s sending the raw-transcript version — confirmed via
+    # journalctl, always a plain socket read timeout, never actual
+    # malformed JSON — because asking a CPU-bound 14B model to both
+    # comprehend raw dialogue AND derive structure from it in one call is
+    # much slower than asking it to reformat text Fireflies has already
+    # organized. Ollama's job here is reformatting, not comprehension.
+    overview = transcript_data.get("overview", "") or "(none provided)"
+    action_items_raw = transcript_data.get("action_items", "") or "(none provided)"
     return (
         f"{_STRUCTURED_JSON_INSTRUCTIONS}\n\n"
         f"Meeting title: {transcript_data.get('title', '')}\n"
-        f"Attendees: {', '.join(transcript_data.get('attendees') or [])}\n"
-        f"Summary: {transcript_data.get('overview', '')}\n"
-        f"Action items (raw): {transcript_data.get('action_items', '')}\n\n"
-        f"Full transcript:\n{transcript_data.get('transcript', '')[:8000]}"
+        f"Attendees: {', '.join(transcript_data.get('attendees') or []) or '(not provided)'}\n\n"
+        f"Meeting summary:\n{overview}\n\n"
+        f"Action items (grouped by owner):\n{action_items_raw}"
+    )
+
+
+def _build_retry_prompt(transcript_data: dict) -> str:
+    """Second-attempt prompt — shorter and more blunt than the primary
+    prompt, per the fix spec: a different, simpler prompt on retry rather
+    than repeating the same one verbatim. Same source content (overview +
+    action_items), since that content itself isn't the problem."""
+    overview = transcript_data.get("overview", "") or "(none provided)"
+    action_items_raw = transcript_data.get("action_items", "") or "(none provided)"
+    return (
+        "Return ONLY this JSON — no explanation, no markdown fences, nothing else:\n"
+        '{"summary_points": ["..."], "action_items": [{"owner_guess": "...", "text": "..."}]}\n\n'
+        f"Turn this summary into 3-6 summary_points bullets:\n{overview}\n\n"
+        "Turn each line below into one action_items entry — use the bold name "
+        f"above each group as owner_guess:\n{action_items_raw}"
     )
 
 
@@ -369,36 +442,43 @@ def _parse_structured_json(raw: str) -> dict | None:
 
 
 def _fallback_structured_content(transcript_data: dict) -> dict:
-    """Basic version built directly from the raw transcript data, used when
-    Ollama's structured JSON fails to parse even after a retry — never
-    silent, so a marker note is prepended to summary_points and logged."""
+    """Basic version built directly from Fireflies' own data, used when
+    Ollama's structured JSON fails entirely (both attempts) — never silent,
+    so a marker note is prepended to summary_points and logged. Critically,
+    this must never collapse all action items into one entry: parses
+    Fireflies' action_items text into individual items via
+    _parse_fireflies_action_items() rather than dumping the whole string
+    into a single {"owner_guess": "Unassigned", "text": <everything>} blob,
+    so Bill always gets real, individually reviewable items — even in the
+    worst case where Ollama is completely unavailable."""
     overview = (transcript_data.get("overview") or "").strip()
     summary_points = ["[Auto-formatting failed — review this draft carefully]"]
     if overview:
         summary_points.append(overview)
-    raw_action_items = (transcript_data.get("action_items") or "").strip()
-    action_items = (
-        [{"owner_guess": "Unassigned", "text": raw_action_items}] if raw_action_items else []
-    )
+    action_items = _parse_fireflies_action_items(transcript_data.get("action_items"))
     return {"summary_points": summary_points, "action_items": action_items}
 
 
 def draft_review_email(transcript_data: dict) -> dict:
     """Get structured content (summary points + per-item action items with
     an owner guess) for a meeting via Ollama — NOT final formatted text/
-    HTML. Retries once on malformed JSON, then falls back to a basic,
-    clearly-marked version built straight from the raw transcript data
-    rather than silently failing. Bill reviews and can edit any of this in
-    the dashboard before anything is sent."""
-    prompt = _build_structured_prompt(transcript_data)
+    HTML. Tries a primary prompt, then a shorter/blunter retry prompt on
+    ANY failure (a request exception/timeout, or a response that doesn't
+    parse as valid structured JSON) — the previous version only retried on
+    malformed JSON and gave up immediately on a timeout, which was the
+    actual failure mode in every real run so far. Falls back to a basic,
+    clearly-marked version built straight from Fireflies' own data if both
+    attempts fail. Bill reviews and can edit any of this in the dashboard
+    before anything is sent."""
+    prompts = [_build_structured_prompt(transcript_data), _build_retry_prompt(transcript_data)]
 
     structured = None
-    for attempt in (1, 2):
+    for attempt, prompt in enumerate(prompts, start=1):
         try:
             raw = _ollama_generate(prompt)
         except Exception as exc:
             log.warning("draft_review_email Ollama call failed (attempt %d): %s", attempt, exc)
-            break
+            continue
         structured = _parse_structured_json(raw)
         if structured is not None:
             break
