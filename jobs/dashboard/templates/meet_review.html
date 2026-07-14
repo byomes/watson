@@ -80,7 +80,7 @@ textarea:focus, input[type=text]:focus, select:focus { border-color: var(--gold)
   </div>
 
   <div style="display:flex;gap:10px;flex-wrap:wrap;">
-    <button class="mbtn" onclick="saveReview()">Save</button>
+    <button class="mbtn" onclick="saveReviewUi()">Save</button>
     <button class="mbtn" onclick="sendPreview()">Send Preview to Me</button>
     <button class="mbtn mbtn-p" id="approve-send-btn" onclick="approveAndSend()" {% if review.status == 'sent' %}disabled{% endif %}>Approve &amp; Send</button>
   </div>
