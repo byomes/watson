@@ -575,6 +575,11 @@ async def handle_facebook_image_callback(update, context):
 
 _HANDLE_TEXT_TIMEOUT_SECONDS = 15
 
+# Holds references to detached asyncio.create_task() background jobs (e.g. the
+# fireflies: directive) so they aren't garbage-collected mid-run — a task with
+# no live reference can be silently dropped by the event loop.
+_background_tasks: set = set()
+
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
@@ -695,10 +700,36 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 if not _darg:
                     await update.message.reply_text("Format: fireflies: <meeting_id>")
                 else:
-                    from jobs.meet.fireflies_review import process_meeting
-                    _dr = await asyncio.to_thread(process_meeting, _darg)
-                    await update.message.reply_text(_dr["msg"])
-                    _log_telegram_exchange(text_clean, _dr["msg"])
+                    _ff_meeting_id = _darg
+                    _ff_text_clean = text_clean
+                    await update.message.reply_text(
+                        f"Processing meeting {_ff_meeting_id} — this may take a few minutes..."
+                    )
+
+                    # Detached on purpose: handle_text() wraps this whole function in a
+                    # 15s asyncio.wait_for(), and process_meeting() can legitimately take
+                    # several minutes (large-transcript Ollama call). Awaiting it here
+                    # would let the 15s timeout fire and send a "stuck" message while the
+                    # real pipeline kept running in the background — sending Bill a
+                    # false-alarm message followed by the actual result. Running it as a
+                    # separate task escapes that wrapper; the result is reported back via
+                    # its own reply_text() call whenever it actually finishes.
+                    async def _run_fireflies_directive():
+                        from jobs.meet.fireflies_review import process_meeting
+                        try:
+                            result = await asyncio.to_thread(process_meeting, _ff_meeting_id)
+                        except Exception as exc:
+                            log.error("fireflies: directive failed for %s: %s", _ff_meeting_id, exc)
+                            result = {"ok": False, "msg": f"Fireflies processing failed: {exc}"}
+                        try:
+                            await update.message.reply_text(result["msg"])
+                        except Exception:
+                            pass
+                        _log_telegram_exchange(_ff_text_clean, result["msg"])
+
+                    _ff_task = asyncio.create_task(_run_fireflies_directive())
+                    _background_tasks.add(_ff_task)
+                    _ff_task.add_done_callback(_background_tasks.discard)
             log.info("DEBUG directive: %s", _dpfx)
             return
 

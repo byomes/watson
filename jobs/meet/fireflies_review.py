@@ -127,10 +127,18 @@ def get_elder_emails() -> list[tuple[str, str]]:
 
 
 def _ollama_generate(prompt: str) -> str:
+    # 60s (the timeout used elsewhere for short single-note/article prompts —
+    # jobs/pastoral_notes/handler.py, jobs/email_job/draft_email.py) is not
+    # enough for a full meeting transcript: qwen2.5:14b on the Beelink's
+    # CPU-bound inference is slow on large context (same known slowness
+    # documented for qwen2.5-coder:7b in KB search), and this timed out
+    # against a real elders meeting transcript. 300s (5 min) gives headroom;
+    # if that's still not enough on retest, the next step is chunking/staged
+    # summarization rather than raising the timeout further.
     resp = requests.post(
         _OLLAMA_URL,
         json={"model": _OLLAMA_MODEL, "prompt": prompt, "stream": False},
-        timeout=60,
+        timeout=300,
     )
     resp.raise_for_status()
     return resp.json().get("response", "").strip()
