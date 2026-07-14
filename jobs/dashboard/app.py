@@ -1485,7 +1485,7 @@ def meet_review_send(review_id):
         if not title:
             continue
         try:
-            task_id = _create_team_task(owner["id"], title, source="fireflies_review", category="elders")
+            task_id = _create_team_task(owner["id"], title, source="fireflies_review", category="catalyst")
             created_tasks.append((owner["display_name"], task_id))
         except Exception as exc:
             log.error("Failed to auto-create task for %s (review %s): %s", owner["display_name"], review_id, exc)
