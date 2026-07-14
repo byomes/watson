@@ -492,7 +492,7 @@ def tasks_update(task_id):
 def tasks_patch(task_id):
     try:
         data = request.get_json(force=True) or {}
-        allowed = {"category", "priority", "status"}
+        allowed = {"category", "priority", "status", "due_date"}
         fields = {k: v for k, v in data.items() if k in allowed}
         if not fields:
             return jsonify({"error": "nothing to update"}), 400

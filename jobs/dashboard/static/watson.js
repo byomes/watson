@@ -293,7 +293,20 @@ function _homeTasksHtml(tasks) {
     const done = t.status === 'completed';
     const p = t.priority || '3';
     const cat = t.category || 'catalyst';
+    const dueVal = t.due_date || '';
     const dueStr = fmtTaskDue(t.due_date);
+    const priHtml = done
+      ? `<span class="pri ${priClass(p)}" style="margin-top:0">${esc(p)}</span>`
+      : `<select class="pri-sel" onchange="setHomeTaskPriority(${t.id}, this.value)">
+          <option value="1"${p === '1' ? ' selected' : ''}>1</option>
+          <option value="2"${p === '2' ? ' selected' : ''}>2</option>
+          <option value="3"${p === '3' ? ' selected' : ''}>3</option>
+          <option value="4"${p === '4' ? ' selected' : ''}>4</option>
+          <option value="5"${p === '5' ? ' selected' : ''}>5</option>
+        </select>`;
+    const dueHtml = done
+      ? (dueStr ? `<span style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted)">${esc(dueStr)}</span>` : '')
+      : `<span class="task-due${dueVal ? '' : ' no-date'}" id="task-due-${t.id}" onclick="openTaskDatePicker(${t.id})">${dueVal ? esc(dueStr) : 'Add date'}</span>`;
     return `
     <div class="task-card" id="home-task-${t.id}" style="align-items:center${done ? ';opacity:0.5' : ''}">
       <div class="home-chk-wrap" onclick="${done ? '' : `checkOffTask(${t.id}, this)`}">
@@ -302,8 +315,8 @@ function _homeTasksHtml(tasks) {
       <div style="flex:1;min-width:0">
         <div class="home-task-title${done ? ' struck' : ''}" id="home-task-title-${t.id}" onclick="${done ? '' : `editTaskTitle(${t.id})`}" style="${done ? '' : 'cursor:text'}">${esc(t.title)}</div>
         <div class="home-task-meta">
-          <span class="pri ${priClass(p)}" style="margin-top:0">${esc(p)}</span>
-          ${dueStr ? `<span style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted)">${esc(dueStr)}</span>` : ''}
+          ${priHtml}
+          ${dueHtml}
           <div class="cat-wrap">
             <span class="cat-pill" onclick="toggleCatDrop(${t.id}, event)">${catLabel(cat)}</span>
             <div class="cat-drop" id="cat-drop-${t.id}">
@@ -398,6 +411,16 @@ async function reassignCat(taskId, newCat, event) {
 
 document.addEventListener('click', _closeCatDrop);
 
+async function setHomeTaskPriority(taskId, priority) {
+  try {
+    await api(`/api/team/tasks/${taskId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ priority }),
+    });
+  } catch { alert('Failed to update priority.'); }
+}
+
 function openTaskDatePicker(taskId) {
   const el = document.getElementById(`task-due-${taskId}`);
   if (!el) return;
@@ -415,23 +438,22 @@ function openTaskDatePicker(taskId) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ due_date: val }),
       });
-      const div = document.createElement('div');
-      div.className = 'task-due';
-      div.id = `task-due-${taskId}`;
-      div.textContent = new Date(val).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-      inp.replaceWith(div);
+      const span = document.createElement('span');
+      span.className = 'task-due';
+      span.id = `task-due-${taskId}`;
+      span.textContent = new Date(val).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      span.onclick = () => openTaskDatePicker(taskId);
+      inp.replaceWith(span);
     } catch { alert('Failed to set due date.'); }
   });
   inp.addEventListener('blur', () => {
     if (!inp.value) {
-      const div = document.createElement('div');
-      div.className = 'task-due';
-      div.id = `task-due-${taskId}`;
-      div.style.color = 'var(--muted)';
-      div.style.cursor = 'pointer';
-      div.textContent = 'n/a';
-      div.onclick = () => openTaskDatePicker(taskId);
-      inp.replaceWith(div);
+      const span = document.createElement('span');
+      span.className = 'task-due no-date';
+      span.id = `task-due-${taskId}`;
+      span.textContent = 'Add date';
+      span.onclick = () => openTaskDatePicker(taskId);
+      inp.replaceWith(span);
     }
   });
 }

@@ -282,6 +282,21 @@ html, body {
 .task-title { font-size: 14px; line-height: 1.4; }
 .task-title.struck { color: var(--muted); text-decoration: line-through; }
 .task-due { font-size: 11px; font-family: 'DM Mono', monospace; color: var(--gold-dim); margin-top: 2px; }
+.task-due.no-date { color: var(--muted); }
+.home-task-meta .task-due { cursor: pointer; margin-top: 0; }
+.home-task-meta .task-due:hover { text-decoration: underline; }
+.pri-sel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 4px;
+  font-size: 10px;
+  font-family: 'DM Mono', monospace;
+  color: var(--text);
+  outline: none;
+  cursor: pointer;
+}
+.pri-sel:focus { border-color: var(--gold); }
 
 /* ── Home task rows (checkbox + two-line layout) ─────────────────────────── */
 .home-chk-wrap {
