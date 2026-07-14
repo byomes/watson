@@ -947,3 +947,23 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - ddabe9b fix: match More tab spacing above tile grid to grid's internal row-gap
 - 85e044f docs: file map 2026-07-12
 - 084928c docs: architecture update 2026-07-12
+
+---
+
+## Recent Changes — 2026-07-14
+
+### ~/watson
+- e627581 fix: require X-Watson-Key auth on /api/book-appointment now that it's reachable via public Funnel
+- b90e6ee docs: update Mon/Tue email report schedule, Kaci added to missed report
+- c1438a5 docs: architecture update 2026-07-13 (auto-generated, recovered from failed push)
+- cd01708 feat: add Kaci as recipient to missed attendance report
+- 4aa5df2 docs: file map 2026-07-13
+- 8aa85a2 docs: architecture update 2026-07-13
+
+### ~/wcky
+- 8592963 fix: Pastor Bill to Dr. Bill on /meet page
+- 395c951 feat: remove 60-minute duration option from /meet booking
+- 5c43aaa copy: /meet confirmation email says Dr. Bill, not Pastor Bill
+- 0b7cfe2 fix: /meet OG/Twitter preview image never rendered — wrong image + broken redirect
+- d006f60 fix: guard /meet booking against double-submit with a synchronous ref
+- a0c49d5 fix: /meet booking store call was hitting an unreachable Tailscale IP
