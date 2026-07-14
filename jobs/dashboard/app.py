@@ -1274,9 +1274,22 @@ def fireflies_webhook():
     payload = request.get_json(silent=True) or {}
     log.info("Fireflies webhook payload: %s", payload)
 
-    event_type = payload.get("eventType")
+    # Confirmed from a real test payload: {"event": "test", "timestamp": ...,
+    # "meeting_id": "test_00000000"} — the key is "event", not "eventType" as
+    # general docs describe, and "meeting_id" (snake_case), not "meetingId".
+    # Check both key names defensively in case real events differ in shape.
+    event_type = payload.get("event") or payload.get("eventType")
     meeting_id = payload.get("meetingId") or payload.get("meeting_id")
 
+    # event == "test" is Fireflies' webhook test-button payload — intentionally
+    # a no-op (falls through to the else branch below like any other
+    # unrecognized event), not a bug.
+    #
+    # TODO: "Transcription completed" is an unconfirmed guess at the real event
+    # value Fireflies sends (docs mention "Meeting Summarized" / "Meeting
+    # Transcribed" but we haven't seen the actual string yet). Raw payload
+    # logging above is left in place so the next real (non-test) webhook event
+    # reveals it — update this match once we know it.
     if event_type == "Transcription completed" and meeting_id:
         def _run():
             from jobs.meet.fireflies_review import process_transcript
@@ -1287,7 +1300,7 @@ def fireflies_webhook():
 
         threading.Thread(target=_run, daemon=True).start()
     else:
-        log.info("Fireflies webhook ignored: eventType=%r meeting_id=%r", event_type, meeting_id)
+        log.info("Fireflies webhook ignored: event=%r meeting_id=%r", event_type, meeting_id)
 
     return jsonify({"ok": True}), 200
 

@@ -2,7 +2,8 @@
 fireflies_review.py — Fireflies.ai -> elder meeting review pipeline.
 
 Triggered by POST /api/fireflies/webhook (jobs/dashboard/app.py) on
-eventType == "Transcription completed". Fetches the transcript via the
+payload["event"] == "Transcription completed" (unconfirmed real value —
+see TODO in app.py's webhook route). Fetches the transcript via the
 Fireflies GraphQL API, checks whether it's an elders meeting, drafts a
 review email via Ollama, and sends Bill a Telegram approval message
 (reply-threaded via tg_pending_actions, dispatched in bot.py) before
