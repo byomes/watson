@@ -614,7 +614,7 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
     _DIRECTIVE_PREFIXES = (
         "cdb:", "wdb:", "kb:", "web:", "task:", "note:",
         "remind:", "sms:", "polish:", "bible:", "devloop:", "bug:",
-        "gutenberg:", "classics:",
+        "gutenberg:", "classics:", "fireflies:",
     )
     for _dpfx in _DIRECTIVE_PREFIXES:
         if text_lower.startswith(_dpfx):
@@ -691,6 +691,14 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await _handle_gutenberg_search(update, context, _darg)
             elif _dpfx == "classics:":
                 await _handle_classics(update, context, _darg)
+            elif _dpfx == "fireflies:":
+                if not _darg:
+                    await update.message.reply_text("Format: fireflies: <meeting_id>")
+                else:
+                    from jobs.meet.fireflies_review import process_meeting
+                    _dr = await asyncio.to_thread(process_meeting, _darg)
+                    await update.message.reply_text(_dr["msg"])
+                    _log_telegram_exchange(text_clean, _dr["msg"])
             log.info("DEBUG directive: %s", _dpfx)
             return
 

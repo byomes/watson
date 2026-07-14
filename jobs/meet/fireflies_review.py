@@ -3,11 +3,12 @@ fireflies_review.py — Fireflies.ai -> elder meeting review pipeline.
 
 Triggered by POST /api/fireflies/webhook (jobs/dashboard/app.py) on
 payload["event"] == "Transcription completed" (unconfirmed real value —
-see TODO in app.py's webhook route). Fetches the transcript via the
-Fireflies GraphQL API, checks whether it's an elders meeting, drafts a
-review email via Ollama, and sends Bill a Telegram approval message
-(reply-threaded via tg_pending_actions, dispatched in bot.py) before
-emailing the elders tagged in Member Management.
+see TODO in app.py's webhook route), or manually via the `fireflies:
+<meeting_id>` Telegram directive (bot/bot.py). Both callers run the same
+process_meeting() pipeline: fetch the transcript, check whether it's an
+elders meeting, draft a review email via Ollama, and send Bill a Telegram
+approval message (reply-threaded via tg_pending_actions, dispatched in
+bot.py) before emailing the elders tagged in Member Management.
 
 Env vars (~/watson/.env):
   FIREFLIES_API_KEY        Bearer token for api.fireflies.ai/graphql
@@ -237,24 +238,35 @@ def _mark_resolved(record_id: int, status: str) -> None:
         )
 
 
-# ── Entry point (called from the webhook route) ─────────────────────────────
+# ── Entry point (shared by the webhook route and the `fireflies:` Telegram
+#    directive — the only difference between those two callers is how
+#    meeting_id gets in and what they do with the returned result: the
+#    webhook logs it and stays silent on skips; the manual trigger always
+#    relays result["msg"] back to Bill, since a silent no-op on an explicit
+#    manual request would be confusing) ───────────────────────────────────
 
-def process_transcript(meeting_id: str) -> None:
+def process_meeting(meeting_id: str) -> dict:
+    """Run the full pipeline for a single meeting: fetch transcript →
+    is_elders_meeting() check → draft review email → Telegram approval
+    prompt with resolved recipient list. Returns {"ok": bool, "msg": str}."""
     transcript_data = fetch_transcript(meeting_id)
     if not transcript_data:
-        log.error("Could not fetch transcript for meeting_id=%s; aborting.", meeting_id)
-        return
+        msg = f"Could not fetch transcript for meeting_id={meeting_id}."
+        log.error(msg)
+        return {"ok": False, "msg": msg}
 
     title = transcript_data.get("title", "")
     if not is_elders_meeting(title):
+        msg = f"Skipped — meeting title {title!r} doesn't look like an elders meeting."
         log.info("Skipping non-elders meeting: %r", title)
-        return
+        return {"ok": False, "msg": msg}
 
     elders = get_elder_emails()
     if not elders:
-        _send_telegram("No members tagged 'elder' found — tag elders in Member Management first.")
+        no_elders_msg = "No members tagged 'elder' found — tag elders in Member Management first."
+        _send_telegram(no_elders_msg)
         log.warning("No elder emails found; not sending. meeting_id=%s", meeting_id)
-        return
+        return {"ok": False, "msg": no_elders_msg}
 
     draft = draft_review_email(transcript_data)
     recipient_lines = "\n".join(f"• {name} <{email}>" for name, email in elders)
@@ -272,14 +284,17 @@ def process_transcript(meeting_id: str) -> None:
     result = _send_telegram(text)
     tg_msg_id = result.get("message_id") if result else None
     if not tg_msg_id:
-        log.error("Could not send Telegram approval message for meeting_id=%s; aborting.", meeting_id)
-        return
+        msg = f"Could not send Telegram approval message for meeting_id={meeting_id}."
+        log.error(msg)
+        return {"ok": False, "msg": msg}
 
     record_id = _save_pending(meeting_id, title, transcript_data.get("date", ""), draft, elders)
     try:
         store_pending_action("fireflies_review", tg_msg_id, {"record_id": record_id})
     except Exception as exc:
         log.warning("Failed to store tg_pending_action for fireflies review: %s", exc)
+
+    return {"ok": True, "msg": f"Draft sent for approval — {title} ({transcript_data.get('date', '')})."}
 
 
 # ── Resolution functions (called from bot.py reply-threading dispatch) ──────

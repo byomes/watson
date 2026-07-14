@@ -1292,9 +1292,9 @@ def fireflies_webhook():
     # reveals it — update this match once we know it.
     if event_type == "Transcription completed" and meeting_id:
         def _run():
-            from jobs.meet.fireflies_review import process_transcript
+            from jobs.meet.fireflies_review import process_meeting
             try:
-                process_transcript(meeting_id)
+                process_meeting(meeting_id)
             except Exception as exc:
                 log.error("Fireflies review processing failed for %s: %s", meeting_id, exc)
 
