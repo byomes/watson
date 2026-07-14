@@ -13,7 +13,16 @@ date_display, summary_points, action_items grouped by owner, fallback flag)
 — it does not call Ollama and does not know anything about how that content
 was produced. jobs/meet/fireflies_review.py owns getting Ollama's JSON into
 this shape; this module only renders.
+
+build_structured_content_from_review() adapts the dashboard-editable schema
+(meeting_reviews + meeting_review_action_items, watson.db — flat per-item
+rows with an owner_member_id Bill can reassign) into that same grouped
+shape, so the one render function serves both the original Ollama-straight-
+through path and the reviewed/edited dashboard path without duplicating any
+HTML.
 """
+
+from jobs.meet.fireflies_review import get_member_name
 
 
 def _esc(s: str) -> str:
@@ -172,3 +181,38 @@ def render_elder_review_plain(structured: dict) -> str:
             lines.append(f"  - {item}")
 
     return "\n".join(lines)
+
+
+def build_structured_content_from_review(review: dict, items: list[dict]) -> dict:
+    """Adapt meeting_reviews + meeting_review_action_items rows into the
+    structured content shape render_elder_review_email()/
+    render_elder_review_plain() expect. Groups the flat per-item rows by
+    resolved owner: owner_member_id (Bill's correction, or the original
+    fuzzy-match guess) wins when set, falling back to the stored owner_text
+    (Fireflies' raw guess, or whatever Bill typed for an added item)
+    otherwise. Called from jobs/dashboard/app.py's /meet/review/<id>
+    preview and send routes — review and items come straight from watson.db.
+    """
+    groups: dict[str, list[str]] = {}
+    order: list[str] = []
+    for item in sorted(items, key=lambda it: it.get("sort_order", 0)):
+        item_text = (item.get("item_text") or "").strip()
+        if not item_text:
+            continue
+        owner_member_id = item.get("owner_member_id")
+        owner = (get_member_name(owner_member_id) if owner_member_id else None) \
+            or (item.get("owner_text") or "").strip() or "Unassigned"
+        if owner not in groups:
+            groups[owner] = []
+            order.append(owner)
+        groups[owner].append(item_text)
+
+    summary_text = review.get("summary_text") or ""
+    summary_points = [line.strip() for line in summary_text.split("\n") if line.strip()]
+
+    return {
+        "title": review.get("title") or "Elders Meeting",
+        "date_display": review.get("meeting_date") or "Unknown date",
+        "summary_points": summary_points,
+        "action_items": [{"owner": o, "items": groups[o]} for o in order],
+    }
