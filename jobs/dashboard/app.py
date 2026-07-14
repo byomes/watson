@@ -4880,8 +4880,6 @@ def admin_task_priority():
     task = db.execute("SELECT title, category FROM team_tasks WHERE id=?", (task_id,)).fetchone()
     if not task:
         return jsonify({"error": "task not found"}), 404
-    if (task["category"] or "catalyst") != "catalyst":
-        return jsonify({"error": "priority changes only allowed on Catalyst tasks"}), 403
     db.execute("UPDATE team_tasks SET priority=? WHERE id=?", (priority, task_id))
     db.commit()
     try:
