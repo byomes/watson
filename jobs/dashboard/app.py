@@ -1305,6 +1305,157 @@ def fireflies_webhook():
     return jsonify({"ok": True}), 200
 
 
+# ── Fireflies meeting review (dashboard) ─────────────────────────────────────
+# Gated by _admin_required() — same session check as /admin/*. Not explicitly
+# specified, but this handles pastoral/leadership meeting content, and the
+# admin session is the closest existing precedent for "protected, sensitive
+# dashboard content" in this app.
+
+@app.route("/meet/review/<int:review_id>")
+def meet_review_page(review_id):
+    redir = _admin_required()
+    if redir:
+        return redir
+    db = _db()
+    review = db.execute("SELECT * FROM meeting_reviews WHERE id=?", (review_id,)).fetchone()
+    if not review:
+        return "Review not found", 404
+    items = db.execute(
+        "SELECT * FROM meeting_review_action_items WHERE review_id=? ORDER BY sort_order",
+        (review_id,),
+    ).fetchall()
+
+    from jobs.meet.fireflies_review import get_active_members
+    members = get_active_members()
+
+    return render_template(
+        "meet_review.html",
+        review=dict(review),
+        items=[dict(i) for i in items],
+        members=members,
+    )
+
+
+@app.route("/api/meet/review/<int:review_id>", methods=["POST"])
+def meet_review_save(review_id):
+    redir = _admin_required()
+    if redir:
+        return jsonify({"error": "not authenticated"}), 401
+
+    data = request.get_json(force=True) or {}
+    summary_text = data.get("summary_text", "")
+    items = data.get("items") or []
+
+    db = _db()
+    review = db.execute("SELECT id FROM meeting_reviews WHERE id=?", (review_id,)).fetchone()
+    if not review:
+        return jsonify({"error": "not found"}), 404
+
+    db.execute("UPDATE meeting_reviews SET summary_text=? WHERE id=?", (summary_text, review_id))
+
+    # Simplest correct way to handle add/delete/reorder from the UI in one
+    # save: replace the full item set. Low-volume, single-editor table, no
+    # other table references these rows.
+    db.execute("DELETE FROM meeting_review_action_items WHERE review_id=?", (review_id,))
+    for i, item in enumerate(items):
+        item_text = (item.get("item_text") or "").strip()
+        if not item_text:
+            continue
+        owner_member_id = item.get("owner_member_id") or None
+        db.execute(
+            """INSERT INTO meeting_review_action_items
+               (review_id, owner_text, owner_member_id, item_text, sort_order)
+               VALUES (?, ?, ?, ?, ?)""",
+            (review_id, item.get("owner_text") or "", owner_member_id, item_text, i),
+        )
+    db.commit()
+    return jsonify({"success": True})
+
+
+@app.route("/api/meet/review/<int:review_id>/preview", methods=["POST"])
+def meet_review_preview(review_id):
+    redir = _admin_required()
+    if redir:
+        return jsonify({"error": "not authenticated"}), 401
+
+    db = _db()
+    review = db.execute("SELECT * FROM meeting_reviews WHERE id=?", (review_id,)).fetchone()
+    if not review:
+        return jsonify({"error": "not found"}), 404
+    items = db.execute(
+        "SELECT * FROM meeting_review_action_items WHERE review_id=? ORDER BY sort_order",
+        (review_id,),
+    ).fetchall()
+
+    from jobs.meet.fireflies_review import BILL_PREVIEW_EMAIL, send_html_email
+    from jobs.meet.templates.elder_review import (
+        build_structured_content_from_review, render_elder_review_email, render_elder_review_plain,
+    )
+
+    structured = build_structured_content_from_review(dict(review), [dict(i) for i in items])
+    subject, html = render_elder_review_email(structured, preview=True)
+    plain = render_elder_review_plain(structured)
+    try:
+        send_html_email(BILL_PREVIEW_EMAIL, subject, html, plain)
+    except Exception as exc:
+        log.error("Preview email failed for review %s: %s", review_id, exc)
+        return jsonify({"error": str(exc)}), 500
+
+    return jsonify({"success": True, "sent_to": BILL_PREVIEW_EMAIL})
+
+
+@app.route("/api/meet/review/<int:review_id>/send", methods=["POST"])
+def meet_review_send(review_id):
+    redir = _admin_required()
+    if redir:
+        return jsonify({"error": "not authenticated"}), 401
+
+    db = _db()
+    review = db.execute("SELECT * FROM meeting_reviews WHERE id=?", (review_id,)).fetchone()
+    if not review:
+        return jsonify({"error": "not found"}), 404
+    if review["status"] == "sent":
+        return jsonify({"error": "This review has already been sent."}), 409
+
+    items = db.execute(
+        "SELECT * FROM meeting_review_action_items WHERE review_id=? ORDER BY sort_order",
+        (review_id,),
+    ).fetchall()
+
+    from jobs.meet.fireflies_review import get_elder_emails, send_html_email
+    from jobs.meet.templates.elder_review import (
+        build_structured_content_from_review, render_elder_review_email, render_elder_review_plain,
+    )
+
+    elders = get_elder_emails()
+    if not elders:
+        return jsonify({"error": "No members tagged 'elder' found — tag elders in Member Management first."}), 400
+
+    structured = build_structured_content_from_review(dict(review), [dict(i) for i in items])
+    subject, html = render_elder_review_email(structured, preview=False)
+    plain = render_elder_review_plain(structured)
+
+    sent, failed = 0, []
+    for name, email in elders:
+        try:
+            send_html_email(email, subject, html, plain)
+            sent += 1
+        except Exception as exc:
+            log.error("Failed to send elders review to %s <%s>: %s", name, email, exc)
+            failed.append(name)
+
+    db.execute(
+        "UPDATE meeting_reviews SET status='sent', sent_at=datetime('now') WHERE id=?",
+        (review_id,),
+    )
+    db.commit()
+
+    msg = f"Sent to {sent} recipient(s)."
+    if failed:
+        msg += f" Failed: {', '.join(failed)}."
+    return jsonify({"success": True, "sent": sent, "failed": failed, "msg": msg})
+
+
 # ── Reading API ───────────────────────────────────────────────────────────────
 
 @app.route("/api/reading")

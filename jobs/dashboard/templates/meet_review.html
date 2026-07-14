@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Meeting Review — Watson</title>
+<link rel="icon" type="image/svg+xml" href="/static/favicon-w.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:       #f8f9fa;
+  --surface:  #ffffff;
+  --border:   #e2e5e9;
+  --gold:     #b8920d;
+  --muted:    #6b7280;
+  --green:    #16a34a;
+  --red:      #dc2626;
+  --text:     #1a1d21;
+  --r-card:   10px;
+  --r-btn:    6px;
+}
+[data-theme="dark"] {
+  --bg:       #0f0f0f;
+  --surface:  #1a1a1a;
+  --border:   #2a2a2a;
+  --gold:     #c9a84c;
+  --muted:    #888;
+  --green:    #4caf7d;
+  --red:      #c9504c;
+  --text:     #e8e8e8;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { background: var(--bg); color: var(--text); font-family: 'DM Sans', -apple-system, sans-serif; font-size: 14px; min-height: 100vh; }
+.wrap { max-width: 720px; margin: 0 auto; padding: 28px 20px 80px; }
+.label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; font-family: 'DM Mono', monospace; display: block; margin-bottom: 8px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-card); padding: 18px; margin-bottom: 16px; }
+textarea, input[type=text], select {
+  width: 100%; padding: 8px 10px; background: var(--bg); border: 1px solid var(--border);
+  border-radius: var(--r-btn); color: var(--text); font-family: inherit; font-size: 13px; outline: none;
+}
+textarea:focus, input[type=text]:focus, select:focus { border-color: var(--gold); }
+.item-row { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
+.item-row select { width: 190px; flex-shrink: 0; }
+.mbtn {
+  display: inline-block; padding: 9px 16px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-btn); color: var(--text); font-family: inherit; font-size: 13px; cursor: pointer;
+}
+.mbtn-p { background: var(--gold); color: #0f0f0f; border-color: var(--gold); font-weight: 600; }
+.mbtn-d { border-color: var(--red); color: var(--red); background: none; padding: 8px 10px; }
+.mbtn:disabled { opacity: 0.5; cursor: not-allowed; }
+#status-msg { margin-top: 12px; font-size: 13px; min-height: 18px; }
+.sent-banner { border-color: var(--green); background: rgba(76,175,125,.08); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div style="margin-bottom:20px;">
+    <span class="label" style="margin-bottom:2px;">Meeting Review</span>
+    <div style="font-size:20px;font-weight:700;">{{ review.title }}</div>
+    <div style="font-size:13px;color:var(--muted);">{{ review.meeting_date }}</div>
+  </div>
+
+  {% if review.status == 'sent' %}
+  <div class="card sent-banner">
+    <strong style="color:var(--green);">&#10003; Sent</strong> — this review was emailed to elders{% if review.sent_at %} on {{ review.sent_at }}{% endif %}. Saving further edits here won't re-send it.
+  </div>
+  {% endif %}
+
+  <div class="card">
+    <label class="label" for="summary-text">Meeting Overview</label>
+    <textarea id="summary-text" rows="6" placeholder="One point per line...">{{ review.summary_text or '' }}</textarea>
+  </div>
+
+  <div class="card">
+    <label class="label">Action Items</label>
+    <div id="items-list"></div>
+    <button class="mbtn" onclick="addItemRow()">+ Add item</button>
+  </div>
+
+  <div style="display:flex;gap:10px;flex-wrap:wrap;">
+    <button class="mbtn" onclick="saveReview()">Save</button>
+    <button class="mbtn" onclick="sendPreview()">Send Preview to Me</button>
+    <button class="mbtn mbtn-p" id="approve-send-btn" onclick="approveAndSend()" {% if review.status == 'sent' %}disabled{% endif %}>Approve &amp; Send</button>
+  </div>
+  <div id="status-msg"></div>
+</div>
+
+<script>
+(function(){var t=localStorage.getItem('admin-theme')||'light';document.documentElement.setAttribute('data-theme',t)})();
+
+const REVIEW_ID = {{ review.id }};
+const MEMBERS = {{ members | tojson }};
+let ITEMS = {{ items | tojson }};
+let ALREADY_SENT = {{ 'true' if review.status == 'sent' else 'false' }};
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function memberOptions(selectedId) {
+  let opts = `<option value="">Unassigned</option>`;
+  for (const m of MEMBERS) {
+    opts += `<option value="${m.id}" ${m.id === selectedId ? 'selected' : ''}>${esc(m.name)}</option>`;
+  }
+  return opts;
+}
+
+function renderItems() {
+  const wrap = document.getElementById('items-list');
+  if (!ITEMS.length) {
+    wrap.innerHTML = '<p style="color:var(--muted);font-size:13px;margin-bottom:10px;">No action items.</p>';
+    return;
+  }
+  wrap.innerHTML = ITEMS.map((it, i) => `
+    <div class="item-row" data-idx="${i}" data-owner-text="${esc(it.owner_text || '')}">
+      <input type="text" class="item-text-inp" value="${esc(it.item_text || '')}" placeholder="Action item...">
+      <select class="item-owner-sel">${memberOptions(it.owner_member_id)}</select>
+      <button class="mbtn mbtn-d" onclick="deleteItemRow(${i})" title="Delete">&#10005;</button>
+    </div>
+  `).join('');
+}
+
+// Preserves Fireflies' original owner guess (owner_text) across saves
+// unless Bill actively reassigns to a specific member — otherwise every
+// unmatched guess would silently blank out the moment the row is saved,
+// even if Bill never touched that row's owner dropdown at all.
+function collectItems() {
+  const rows = document.querySelectorAll('.item-row');
+  const items = [];
+  rows.forEach(row => {
+    const text = row.querySelector('.item-text-inp').value.trim();
+    if (!text) return;
+    const ownerSel = row.querySelector('.item-owner-sel');
+    const ownerId = ownerSel.value ? parseInt(ownerSel.value, 10) : null;
+    const originalOwnerText = row.dataset.ownerText || '';
+    const memberName = ownerId ? (MEMBERS.find(m => m.id === ownerId) || {}).name : null;
+    items.push({ item_text: text, owner_member_id: ownerId, owner_text: memberName || originalOwnerText });
+  });
+  return items;
+}
+
+function addItemRow() {
+  ITEMS = collectItems();
+  ITEMS.push({ item_text: '', owner_member_id: null, owner_text: '' });
+  renderItems();
+}
+
+function deleteItemRow(idx) {
+  ITEMS = collectItems();
+  ITEMS.splice(idx, 1);
+  renderItems();
+}
+
+function setStatus(msg, isError) {
+  const el = document.getElementById('status-msg');
+  el.textContent = msg;
+  el.style.color = isError ? 'var(--red)' : 'var(--green)';
+}
+
+async function saveReview() {
+  const body = {
+    summary_text: document.getElementById('summary-text').value,
+    items: collectItems(),
+  };
+  const res = await fetch(`/api/meet/review/${REVIEW_ID}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (!res.ok || data.error) throw new Error(data.error || 'Save failed');
+  return data;
+}
+
+async function saveReviewUi() {
+  try {
+    await saveReview();
+    setStatus('✓ Saved.', false);
+  } catch (e) {
+    setStatus('Save failed: ' + e.message, true);
+  }
+}
+
+async function sendPreview() {
+  try {
+    await saveReview();
+    const res = await fetch(`/api/meet/review/${REVIEW_ID}/preview`, { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.error || 'Preview failed');
+    setStatus(`✓ Preview sent to ${data.sent_to}.`, false);
+  } catch (e) {
+    setStatus('Preview failed: ' + e.message, true);
+  }
+}
+
+async function approveAndSend() {
+  if (ALREADY_SENT) {
+    alert('This review has already been sent.');
+    return;
+  }
+  if (!confirm('Send this review to all tagged elders now? This cannot be undone.')) return;
+  try {
+    await saveReview();
+    const res = await fetch(`/api/meet/review/${REVIEW_ID}/send`, { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.error || 'Send failed');
+    setStatus(`✓ ${data.msg}`, false);
+    ALREADY_SENT = true;
+    document.getElementById('approve-send-btn').disabled = true;
+  } catch (e) {
+    setStatus('Send failed: ' + e.message, true);
+  }
+}
+
+renderItems();
+</script>
+</body>
+</html>
