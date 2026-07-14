@@ -1429,6 +1429,10 @@ function renderMore() {
         <span class="mtile-label">Members</span>
         <span class="mtile-chev">›</span>
       </button>
+      <button class="mtile" id="mtile-meet-reviews" onclick="window.location.href='/meet/reviews'">
+        <span class="mtile-label">Meeting Reviews</span>
+        <span class="mtile-chev">›</span>
+      </button>
       <button class="mtile" id="mtile-publishing" onclick="moreToggle('publishing')">
         <span class="mtile-label">Publishing</span>
         <span class="mtile-chev">›</span>

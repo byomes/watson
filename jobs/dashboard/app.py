@@ -1311,6 +1311,18 @@ def fireflies_webhook():
 # admin session is the closest existing precedent for "protected, sensitive
 # dashboard content" in this app.
 
+@app.route("/meet/reviews")
+def meet_reviews_list():
+    redir = _admin_required()
+    if redir:
+        return redir
+    db = _db()
+    reviews = db.execute(
+        "SELECT id, title, meeting_date, status, created_at FROM meeting_reviews ORDER BY created_at DESC"
+    ).fetchall()
+    return render_template("meet_reviews_list.html", reviews=[dict(r) for r in reviews])
+
+
 @app.route("/meet/review/<int:review_id>")
 def meet_review_page(review_id):
     redir = _admin_required()

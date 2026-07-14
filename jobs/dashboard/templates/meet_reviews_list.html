@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Meeting Reviews — Watson</title>
+<link rel="icon" type="image/svg+xml" href="/static/favicon-w.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:       #f8f9fa;
+  --surface:  #ffffff;
+  --border:   #e2e5e9;
+  --gold:     #b8920d;
+  --muted:    #6b7280;
+  --green:    #16a34a;
+  --amber:    #b45309;
+  --text:     #1a1d21;
+  --r-card:   10px;
+  --r-btn:    6px;
+}
+[data-theme="dark"] {
+  --bg:       #0f0f0f;
+  --surface:  #1a1a1a;
+  --border:   #2a2a2a;
+  --gold:     #c9a84c;
+  --muted:    #888;
+  --green:    #4caf7d;
+  --amber:    #d97706;
+  --text:     #e8e8e8;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { background: var(--bg); color: var(--text); font-family: 'DM Sans', -apple-system, sans-serif; font-size: 14px; min-height: 100vh; }
+.wrap { max-width: 720px; margin: 0 auto; padding: 28px 20px 80px; }
+.label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; font-family: 'DM Mono', monospace; display: block; margin-bottom: 8px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-card); padding: 4px 0; }
+.table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.reviews-table { width: 100%; border-collapse: collapse; }
+.reviews-table th {
+  font-size: 10px; font-family: 'DM Mono', monospace; text-transform: uppercase; letter-spacing: .08em;
+  color: var(--muted); padding: 10px 16px; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap;
+}
+.reviews-table td { padding: 12px 16px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.reviews-table tbody tr:last-child td { border-bottom: none; }
+.reviews-table tbody tr { cursor: pointer; transition: background .1s; }
+.reviews-table tbody tr:hover { background: var(--bg); }
+.review-title { font-size: 13px; font-weight: 600; color: var(--text); }
+.review-date  { font-size: 12px; color: var(--muted); }
+.status-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-family: 'DM Mono', monospace; letter-spacing: .03em; white-space: nowrap; }
+.status-badge::before { content: ''; width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.status-badge.sent    { color: var(--green); }
+.status-badge.sent::before    { background: var(--green); }
+.status-badge.pending { color: var(--amber); }
+.status-badge.pending::before { background: var(--amber); }
+.empty-state { padding: 40px 20px; text-align: center; color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div style="margin-bottom:20px;">
+    <span class="label" style="margin-bottom:2px;">Fireflies Pipeline</span>
+    <div style="font-size:20px;font-weight:700;">Meeting Reviews</div>
+  </div>
+
+  <div class="card">
+    {% if not reviews %}
+    <div class="empty-state">No meeting reviews yet — they'll show up here once Fireflies processes an elders meeting.</div>
+    {% else %}
+    <div class="table-scroll">
+      <table class="reviews-table">
+        <thead>
+          <tr>
+            <th>Title</th>
+            <th>Date</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in reviews %}
+          <tr onclick="window.location.href='/meet/review/{{ r.id }}'">
+            <td><div class="review-title">{{ r.title or 'Elders Meeting' }}</div></td>
+            <td><div class="review-date">{{ r.meeting_date or 'Unknown date' }}</div></td>
+            <td>
+              <span class="status-badge {{ 'sent' if r.status == 'sent' else 'pending' }}">
+                {% if r.status == 'sent' %}Sent{% else %}Needs Review{% endif %}
+              </span>
+            </td>
+            <td style="text-align:right;color:var(--muted);">&rsaquo;</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+(function(){var t=localStorage.getItem('admin-theme')||'light';document.documentElement.setAttribute('data-theme',t)})();
+</script>
+</body>
+</html>
