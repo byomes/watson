@@ -1251,16 +1251,24 @@ def fireflies_webhook():
     import threading
 
     raw_body = request.get_data()
-    signature = request.headers.get("x-hub-signature", "")
+    received_raw = request.headers.get("x-hub-signature", "")
     secret = os.getenv("FIREFLIES_WEBHOOK_SECRET", "")
 
     if not secret:
         log.error("FIREFLIES_WEBHOOK_SECRET not set; rejecting Fireflies webhook.")
         return jsonify({"error": "not configured"}), 401
 
-    expected = hmac.new(secret.encode(), raw_body, hashlib.sha256).hexdigest()
-    if not signature or not hmac.compare_digest(expected, signature):
-        log.warning("Fireflies webhook signature mismatch.")
+    computed = hmac.new(secret.encode("utf-8"), raw_body, hashlib.sha256).hexdigest()
+    # Fireflies (like GitHub) prefixes the digest, e.g. "sha256=<hex>" — strip it before comparing.
+    received = received_raw[7:] if received_raw.lower().startswith("sha256=") else received_raw
+
+    if not received or not hmac.compare_digest(computed, received):
+        sig_headers = {k: v for k, v in request.headers.items() if "signature" in k.lower()}
+        log.warning(
+            "Fireflies webhook signature mismatch. computed=%s received_header(x-hub-signature)=%r "
+            "signature_headers=%s all_header_names=%s",
+            computed, received_raw, sig_headers, list(request.headers.keys()),
+        )
         return jsonify({"error": "invalid signature"}), 401
 
     payload = request.get_json(silent=True) or {}
