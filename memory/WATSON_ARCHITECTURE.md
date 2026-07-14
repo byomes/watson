@@ -319,7 +319,8 @@ Private community hub for Writing Room Partners (invitation-only, earned via ARC
 ## The Wrong Jesus (Book)
 
 - **Status:** Manuscript complete. Reader retired from `/twj/read` (2026-07-01, TWJ/ARC consolidation) — now read via ARC manuscript reader at `/arc/dashboard`.
-- **Manuscript time-lock** (`src/lib/launch-dates.ts`): unlocks 2026-07-15, closes 2026-09-15 (pinned to `TWJ_LAUNCH_DATE`). Admin-preview bypass (`is_admin_preview`) available to view outside the window.
+- **Manuscript time-lock** (`src/lib/launch-dates.ts`): unlocks 2026-07-15, closes 2026-09-14 (standalone constant, 2 hours before `TWJ_LAUNCH_DATE`, not pinned to it). Admin-preview bypass (`is_admin_preview`) available to view outside the window.
+- **Manuscript gate enforcement:** Manuscript access is gated server-side via Next.js SSR in `wcky/src/app/arc/dashboard/page.tsx` (`getManuscriptStatus()`). The Watson Python backend (`jobs/arc/`) has no manuscript-serving route and is not part of this gate. Verified 2026-07-14.
 - **Launch page:** `williamckyomes.com/thewrongjesus` — countdown timer, Kit signup
 - **Launch page pending:** `KIT_API_KEY` + `KIT_TWJ_TAG_ID` Vercel env vars; `GIVEBUTTER_LINK`; `AMAZON_LINK`; flip `AMAZON_LIVE=true` at preorder
 - **Press kit:** `williamckyomes.com/twj/press`
