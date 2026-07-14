@@ -71,12 +71,21 @@ FROM_ADDR = os.getenv("WATSON_FROM_ADDRESS") or SMTP_USER
 _OLLAMA_URL   = "http://localhost:11434/api/generate"
 _OLLAMA_MODEL = "qwen2.5:14b"
 
-# Fuzzy-match threshold for pre-filling owner_member_id from Fireflies' owner
-# guess. Lower than conflict_report.py's 85 (used there to flag confident
-# duplicate PEOPLE) since this is only a starting-point suggestion Bill can
-# always override in the dashboard review UI — a looser match here just
-# saves a click, it never sends anything on its own.
-_OWNER_MATCH_THRESHOLD = 70
+# Fuzzy-match tuning for pre-filling owner_member_id from Fireflies' owner
+# guess, against the fixed 8-person ELDER_REVIEW_OWNERS pool. Verified by
+# hand against realistic guesses (bare first names, "Dr Bill", "Pastor
+# Bill", Fireflies' actual "Boucher"/"Bouchar" misspellings of Jim Bouchat):
+# fuzz.partial_ratio scores a bare "Bill" as an exact 100/100 tie between
+# Dr. Bill Yomes and Bill Crook — genuinely ambiguous, not a bug — so a
+# minimum score alone isn't safe. _OWNER_MATCH_MIN_GAP requires the best
+# candidate to clearly beat the runner-up before auto-matching; a close
+# call is left Unassigned for Bill to pick, which is the safe failure mode
+# for exactly the kind of misattribution (Bill's own tasks going to the
+# wrong person) this whole feature exists to prevent. This is only a
+# pre-fill suggestion either way — Bill can override anything in the
+# dashboard review UI.
+_OWNER_MATCH_THRESHOLD = 75
+_OWNER_MATCH_MIN_GAP = 10
 
 _TRANSCRIPT_QUERY = """
 query Transcript($id: String!) {
@@ -164,8 +173,9 @@ def get_elder_emails() -> list[tuple[str, str]]:
 
 
 def get_active_members() -> list[dict]:
-    """All active congregation.db members (id, name) — used for the owner
-    dropdown in the dashboard review page and the fuzzy-match pre-fill."""
+    """All active congregation.db members (id, name). No longer used for the
+    elder-review owner dropdown/fuzzy-match (see get_review_owners()) — kept
+    intact in case anything else needs the full active-member list."""
     conn = sqlite3.connect(CONG_DB_PATH)
     conn.row_factory = sqlite3.Row
     try:
@@ -175,6 +185,47 @@ def get_active_members() -> list[dict]:
         return [dict(r) for r in rows]
     finally:
         conn.close()
+
+
+# The only 8 people the elder-meeting review dashboard may assign action
+# items to. Fireflies frequently misattributes items, so the assignable
+# pool is deliberately restricted to a small, curated list rather than
+# every active congregation.db member. Resolved by hand against
+# team_members and congregation.db's members table (team_members preferred
+# where a person has both — that's also what jobs/dashboard/app.py's
+# meet_review_send() task auto-creation needs): Dr. Bill, Donna, Melanie,
+# Tyler, Lucie, and Tara all have a team_members row; Bill Crook and Jim
+# Bouchat exist only in congregation.db. Jim Bouchat is frequently
+# misspelled "Boucher"/"Bouchar" by Fireflies' transcription — this list
+# uses the correct congregation.db spelling regardless of what a transcript
+# calls him.
+#
+# "id" is only unique WITHIN this 8-entry list, not globally — it's a
+# team_members id for 6 entries and a congregation.db members id for 2
+# (no table-discriminator column on meeting_review_action_items.
+# owner_member_id). The assertion below guarantees that stays collision-free
+# for this specific list; if a future edit to ELDER_REVIEW_OWNERS ever
+# introduces a same-id collision across the two tables, this fails loudly
+# at import time instead of silently resolving the wrong person.
+ELDER_REVIEW_OWNERS = [
+    {"display_name": "Dr. Bill Yomes", "table": "team_members", "id": 12},
+    {"display_name": "Donna Redman",   "table": "team_members", "id": 2},
+    {"display_name": "Melanie Yomes",  "table": "team_members", "id": 4},
+    {"display_name": "Tyler McCauley", "table": "team_members", "id": 5},
+    {"display_name": "Lucie Hale",     "table": "team_members", "id": 6},
+    {"display_name": "Tara Mathena",   "table": "team_members", "id": 7},
+    {"display_name": "Bill Crook",     "table": "members",      "id": 96},
+    {"display_name": "Jim Bouchat",    "table": "members",      "id": 3},
+]
+assert len({o["id"] for o in ELDER_REVIEW_OWNERS}) == len(ELDER_REVIEW_OWNERS), \
+    "ELDER_REVIEW_OWNERS has a same-id collision across team_members/congregation.db"
+
+
+def get_review_owners() -> list[dict]:
+    """The fixed 8-person owner list for the elder-review dropdown and
+    fuzzy-match pre-fill, shaped as {"id", "name"} for drop-in
+    compatibility with the old get_active_members()-shaped callers."""
+    return [{"id": o["id"], "name": o["display_name"]} for o in ELDER_REVIEW_OWNERS]
 
 
 def get_member_name(member_id: int | None) -> str | None:
@@ -191,19 +242,33 @@ def get_member_name(member_id: int | None) -> str | None:
         conn.close()
 
 
-def _match_owner_member_id(owner_guess: str, active_members: list[dict]) -> int | None:
-    """Best-effort fuzzy match of Fireflies' owner guess against active
-    congregation.db members. Always just a pre-fill suggestion — Bill can
-    override anything in the dashboard review UI."""
+def _match_owner_member_id(owner_guess: str, candidates: list[dict]) -> int | None:
+    """Best-effort match of Fireflies' owner guess against the fixed
+    ELDER_REVIEW_OWNERS candidate pool (see get_review_owners()). Uses
+    fuzz.partial_ratio rather than token_sort_ratio: transcripts usually
+    give a bare first name or informal address ("Bill", "Pastor Bill"), and
+    partial_ratio (best matching substring) is far better calibrated for a
+    short guess against "First Last"-shaped candidate names —
+    token_sort_ratio scored several genuinely correct single-first-name
+    matches (Donna, Tyler, Tara, Jim) below any usable threshold when this
+    was checked by hand. Requires both a minimum score and a minimum gap
+    over the runner-up (see _OWNER_MATCH_MIN_GAP) — always just a pre-fill
+    suggestion, Bill can override anything in the dashboard review UI."""
     guess = (owner_guess or "").strip()
     if not guess or guess.lower() == "unassigned":
         return None
-    best_id, best_score = None, 0
-    for m in active_members:
-        score = fuzz.token_sort_ratio(guess, m["name"])
-        if score > best_score:
-            best_id, best_score = m["id"], score
-    return best_id if best_score >= _OWNER_MATCH_THRESHOLD else None
+    scored = sorted(
+        ((fuzz.partial_ratio(guess, c["name"]), c["id"]) for c in candidates),
+        reverse=True,
+    )
+    if not scored:
+        return None
+    best_score, best_id = scored[0]
+    if best_score < _OWNER_MATCH_THRESHOLD:
+        return None
+    if len(scored) > 1 and (best_score - scored[1][0]) < _OWNER_MATCH_MIN_GAP:
+        return None
+    return best_id
 
 
 def _format_meeting_date(raw_date) -> str:
@@ -422,7 +487,7 @@ def _init_tables() -> None:
         """)
 
 
-def _save_review(meeting_id: str, structured: dict, active_members: list[dict]) -> int:
+def _save_review(meeting_id: str, structured: dict, review_owners: list[dict]) -> int:
     _init_tables()
     with _get_conn() as conn:
         cur = conn.execute(
@@ -439,7 +504,7 @@ def _save_review(meeting_id: str, structured: dict, active_members: list[dict]) 
         review_id = cur.lastrowid
         for i, item in enumerate(structured.get("action_items") or []):
             owner_guess = item.get("owner_guess") or "Unassigned"
-            owner_member_id = _match_owner_member_id(owner_guess, active_members)
+            owner_member_id = _match_owner_member_id(owner_guess, review_owners)
             conn.execute(
                 """INSERT INTO meeting_review_action_items
                    (review_id, owner_text, owner_member_id, item_text, sort_order)
@@ -486,8 +551,8 @@ def process_meeting(meeting_id: str) -> dict:
     structured = draft_review_email(transcript_data)
     date_display = structured["date_display"]
 
-    active_members = get_active_members()
-    review_id = _save_review(meeting_id, structured, active_members)
+    review_owners = get_review_owners()
+    review_id = _save_review(meeting_id, structured, review_owners)
 
     n_items = len(structured.get("action_items") or [])
     dashboard_url = f"{WATSON_API_URL}/meet/review/{review_id}"

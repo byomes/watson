@@ -183,15 +183,32 @@ def render_elder_review_plain(structured: dict) -> str:
     return "\n".join(lines)
 
 
+def _resolve_owner_display_name(owner_member_id: int | None, owner_text: str) -> str:
+    """Resolve the final owner display name for one action item.
+    owner_member_id is checked against the fixed ELDER_REVIEW_OWNERS list
+    first (the only pool the dashboard dropdown offers going forward), then
+    falls back to a direct congregation.db lookup for backward compatibility
+    with any review saved before that restriction shipped, then to the
+    stored owner_text (Fireflies' raw guess, or whatever Bill typed for an
+    added item), then "Unassigned"."""
+    if owner_member_id:
+        from jobs.meet.fireflies_review import ELDER_REVIEW_OWNERS
+        fixed = next((o for o in ELDER_REVIEW_OWNERS if o["id"] == owner_member_id), None)
+        if fixed:
+            return fixed["display_name"]
+        legacy_name = get_member_name(owner_member_id)
+        if legacy_name:
+            return legacy_name
+    return (owner_text or "").strip() or "Unassigned"
+
+
 def build_structured_content_from_review(review: dict, items: list[dict]) -> dict:
     """Adapt meeting_reviews + meeting_review_action_items rows into the
     structured content shape render_elder_review_email()/
     render_elder_review_plain() expect. Groups the flat per-item rows by
-    resolved owner: owner_member_id (Bill's correction, or the original
-    fuzzy-match guess) wins when set, falling back to the stored owner_text
-    (Fireflies' raw guess, or whatever Bill typed for an added item)
-    otherwise. Called from jobs/dashboard/app.py's /meet/review/<id>
-    preview and send routes — review and items come straight from watson.db.
+    resolved owner name — see _resolve_owner_display_name(). Called from
+    jobs/dashboard/app.py's /meet/review/<id> preview and send routes —
+    review and items come straight from watson.db.
     """
     groups: dict[str, list[str]] = {}
     order: list[str] = []
@@ -199,9 +216,7 @@ def build_structured_content_from_review(review: dict, items: list[dict]) -> dic
         item_text = (item.get("item_text") or "").strip()
         if not item_text:
             continue
-        owner_member_id = item.get("owner_member_id")
-        owner = (get_member_name(owner_member_id) if owner_member_id else None) \
-            or (item.get("owner_text") or "").strip() or "Unassigned"
+        owner = _resolve_owner_display_name(item.get("owner_member_id"), item.get("owner_text") or "")
         if owner not in groups:
             groups[owner] = []
             order.append(owner)

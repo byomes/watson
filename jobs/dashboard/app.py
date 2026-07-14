@@ -1325,8 +1325,8 @@ def meet_review_page(review_id):
         (review_id,),
     ).fetchall()
 
-    from jobs.meet.fireflies_review import get_active_members
-    members = get_active_members()
+    from jobs.meet.fireflies_review import get_review_owners
+    members = get_review_owners()
 
     return render_template(
         "meet_review.html",
