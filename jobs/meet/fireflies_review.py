@@ -6,12 +6,19 @@ payload["event"] == "Transcription completed" (unconfirmed real value —
 see TODO in app.py's webhook route), or manually via the `fireflies:
 <meeting_id>` Telegram directive (bot/bot.py). Both callers run the same
 process_meeting() pipeline: fetch the transcript, check whether it's an
-elders meeting, get structured content (summary points + action items
-grouped by owner) via Ollama, render it into the HTML template in
-jobs/meet/templates/elder_review.py, email Bill a live preview, and send
-Bill a Telegram approval message (reply-threaded via tg_pending_actions,
-dispatched in bot.py) before emailing the elders tagged in Member
-Management.
+elders meeting, get structured content (summary points + per-item action
+items with a fuzzy-matched owner guess) via Ollama, save it to
+meeting_reviews / meeting_review_action_items (watson.db) with
+status='pending_review', and notify Bill via Telegram with a dashboard
+review link — jobs/dashboard/app.py's /meet/review/<id> page.
+
+Fireflies frequently misattributes action items (confirmed: Bill's own
+tasks were dropped and reassigned to other elders in a real test), so
+nothing reaches elders without Bill reviewing and correcting assignments
+in the dashboard first. This replaces the earlier Telegram go/cancel draft
+approval — send_html_email() and get_elder_emails() below are now called
+from app.py's /api/meet/review/<id>/preview and /send routes, not from
+this module.
 
 Env vars (~/watson/.env):
   FIREFLIES_API_KEY        Bearer token for api.fireflies.ai/graphql
@@ -28,11 +35,10 @@ from email.mime.text import MIMEText
 
 import requests
 from dotenv import load_dotenv
+from rapidfuzz import fuzz
 
-from config.settings import DB_PATH, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+from config.settings import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 from core.vacation import vacation_gate
-from jobs.meet.templates.elder_review import render_elder_review_email, render_elder_review_plain
-from jobs.telegram.pending import store_pending_action
 
 load_dotenv(os.path.expanduser("~/watson/.env"))
 
@@ -42,7 +48,9 @@ FIREFLIES_API_KEY     = os.getenv("FIREFLIES_API_KEY", "")
 FIREFLIES_GRAPHQL_URL = "https://api.fireflies.ai/graphql"
 
 CONG_DB_PATH = os.path.expanduser("~/watson/data/congregation.db")
+WATSON_DB_PATH = os.path.expanduser("~/watson/data/watson.db")
 
+WATSON_API_URL = os.getenv("WATSON_API_URL", "https://watson.tail0243ff.ts.net")
 BILL_PREVIEW_EMAIL = "pastorbill@catalyst302.com"
 
 # SMTP creds — same source as jobs/email_job/gmail.py's send_as_watson(), but
@@ -50,8 +58,8 @@ BILL_PREVIEW_EMAIL = "pastorbill@catalyst302.com"
 # state_of_church.py's send_report()) instead of calling send_as_watson()
 # itself: send_as_watson() does a "\n" -> "<br>" replace on its body and
 # wraps the result in a SECOND <html><body> shell, which would double-wrap
-# and mangle a fully pre-rendered HTML template like the one this module
-# sends.
+# and mangle a fully pre-rendered HTML template. Used by app.py's
+# /api/meet/review/<id>/preview and /send routes.
 SMTP_HOST = "smtp.gmail.com"
 SMTP_PORT = 587
 SMTP_USER = os.getenv("WATSON_GMAIL_ADDRESS", "")
@@ -62,6 +70,13 @@ FROM_ADDR = os.getenv("WATSON_FROM_ADDRESS") or SMTP_USER
 # and jobs/email_job/draft_email.py.
 _OLLAMA_URL   = "http://localhost:11434/api/generate"
 _OLLAMA_MODEL = "qwen2.5:14b"
+
+# Fuzzy-match threshold for pre-filling owner_member_id from Fireflies' owner
+# guess. Lower than conflict_report.py's 85 (used there to flag confident
+# duplicate PEOPLE) since this is only a starting-point suggestion Bill can
+# always override in the dashboard review UI — a looser match here just
+# saves a click, it never sends anything on its own.
+_OWNER_MATCH_THRESHOLD = 70
 
 _TRANSCRIPT_QUERY = """
 query Transcript($id: String!) {
@@ -129,7 +144,7 @@ def is_elders_meeting(title: str) -> bool:
 
 def get_elder_emails() -> list[tuple[str, str]]:
     """Members tagged role='elder' (leadership_roles), member_status='active',
-    with a non-blank email."""
+    with a non-blank email. Reused by app.py's /api/meet/review/<id>/send."""
     conn = sqlite3.connect(CONG_DB_PATH)
     conn.row_factory = sqlite3.Row
     try:
@@ -146,6 +161,49 @@ def get_elder_emails() -> list[tuple[str, str]]:
         return [(r["name"], r["email"]) for r in rows]
     finally:
         conn.close()
+
+
+def get_active_members() -> list[dict]:
+    """All active congregation.db members (id, name) — used for the owner
+    dropdown in the dashboard review page and the fuzzy-match pre-fill."""
+    conn = sqlite3.connect(CONG_DB_PATH)
+    conn.row_factory = sqlite3.Row
+    try:
+        rows = conn.execute(
+            "SELECT id, name FROM members WHERE member_status = 'active' ORDER BY name COLLATE NOCASE"
+        ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def get_member_name(member_id: int | None) -> str | None:
+    """Look up a single congregation.db member's name by id — used to
+    render the final owner name for an action item whose owner_member_id
+    was set (fuzzy-matched or picked by Bill in the dashboard)."""
+    if not member_id:
+        return None
+    conn = sqlite3.connect(CONG_DB_PATH)
+    try:
+        row = conn.execute("SELECT name FROM members WHERE id = ?", (member_id,)).fetchone()
+        return row[0] if row else None
+    finally:
+        conn.close()
+
+
+def _match_owner_member_id(owner_guess: str, active_members: list[dict]) -> int | None:
+    """Best-effort fuzzy match of Fireflies' owner guess against active
+    congregation.db members. Always just a pre-fill suggestion — Bill can
+    override anything in the dashboard review UI."""
+    guess = (owner_guess or "").strip()
+    if not guess or guess.lower() == "unassigned":
+        return None
+    best_id, best_score = None, 0
+    for m in active_members:
+        score = fuzz.token_sort_ratio(guess, m["name"])
+        if score > best_score:
+            best_id, best_score = m["id"], score
+    return best_id if best_score >= _OWNER_MATCH_THRESHOLD else None
 
 
 def _format_meeting_date(raw_date) -> str:
@@ -176,9 +234,8 @@ def _ollama_generate(prompt: str) -> str:
     # jobs/pastoral_notes/handler.py, jobs/email_job/draft_email.py) is not
     # enough for a full meeting transcript: qwen2.5:14b on the Beelink's
     # CPU-bound inference is slow on large context (same known slowness
-    # documented for qwen2.5-coder:7b in KB search), and this timed out
-    # against a real elders meeting transcript. 300s (5 min) gives headroom;
-    # if that's still not enough on retest, the next step is chunking/staged
+    # documented for qwen2.5-coder:7b in KB search). 300s (5 min) gives
+    # headroom; if that's still not enough, the next step is chunking/staged
     # summarization rather than raising the timeout further.
     resp = requests.post(
         _OLLAMA_URL,
@@ -190,15 +247,16 @@ def _ollama_generate(prompt: str) -> str:
 
 
 _STRUCTURED_JSON_INSTRUCTIONS = (
-    "You are drafting structured content for an elders meeting review email for "
+    "You are drafting structured content for an elders meeting review for "
     "Catalyst Community Church leadership. Return ONLY a JSON object — no prose, "
     "no markdown code fences, nothing before or after the JSON — matching exactly "
     "this shape:\n"
     '{"summary_points": ["point 1", "point 2", ...], '
-    '"action_items": [{"owner": "Name or Unassigned", "items": ["item 1", "item 2"]}]}\n\n'
+    '"action_items": [{"owner_guess": "Name or Unassigned", "text": "item text"}]}\n\n'
     "Guidelines: summary_points should be 3-6 concise bullet points capturing key "
-    "discussion and decisions. Group action items by the person responsible; use "
-    '"Unassigned" for items with no clear owner. Keep item text concise and actionable.'
+    "discussion and decisions. For each action item, give your best guess at who is "
+    "responsible in owner_guess (use \"Unassigned\" if unclear) and keep text concise "
+    "and actionable. One action_items entry per item — do not group them."
 )
 
 
@@ -214,9 +272,10 @@ def _build_structured_prompt(transcript_data: dict) -> str:
 
 
 def _parse_structured_json(raw: str) -> dict | None:
-    """Extract and validate {"summary_points": [...], "action_items": [...]}
-    from Ollama's raw response. Returns None on any parse/shape failure —
-    callers decide whether to retry or fall back."""
+    """Extract and validate {"summary_points": [...], "action_items":
+    [{"owner_guess": ..., "text": ...}]} from Ollama's raw response. Returns
+    None on any parse/shape failure — callers decide whether to retry or
+    fall back."""
     start = raw.find("{")
     end = raw.rfind("}") + 1
     if start < 0 or end <= start:
@@ -232,38 +291,40 @@ def _parse_structured_json(raw: str) -> dict | None:
     action_items = data.get("action_items")
     if not isinstance(summary_points, list) or not isinstance(action_items, list):
         return None
-    if not all(isinstance(g, dict) and isinstance(g.get("items"), list) for g in action_items):
+    if not all(isinstance(it, dict) and it.get("text") for it in action_items):
         return None
 
     return {
         "summary_points": [str(p) for p in summary_points],
         "action_items": [
-            {"owner": str(g.get("owner") or "Unassigned"), "items": [str(i) for i in g.get("items", [])]}
-            for g in action_items
+            {"owner_guess": str(it.get("owner_guess") or "Unassigned"), "text": str(it.get("text"))}
+            for it in action_items
         ],
     }
 
 
 def _fallback_structured_content(transcript_data: dict) -> dict:
-    """Basic, clearly-marked version built directly from the raw transcript
-    data, used when Ollama's structured JSON fails to parse even after a
-    retry — see render_elder_review_email()'s fallback banner."""
+    """Basic version built directly from the raw transcript data, used when
+    Ollama's structured JSON fails to parse even after a retry — never
+    silent, so a marker note is prepended to summary_points and logged."""
     overview = (transcript_data.get("overview") or "").strip()
-    summary_points = [overview] if overview else []
+    summary_points = ["[Auto-formatting failed — review this draft carefully]"]
+    if overview:
+        summary_points.append(overview)
     raw_action_items = (transcript_data.get("action_items") or "").strip()
     action_items = (
-        [{"owner": "Unassigned", "items": [raw_action_items]}] if raw_action_items else []
+        [{"owner_guess": "Unassigned", "text": raw_action_items}] if raw_action_items else []
     )
-    return {"summary_points": summary_points, "action_items": action_items, "fallback": True}
+    return {"summary_points": summary_points, "action_items": action_items}
 
 
 def draft_review_email(transcript_data: dict) -> dict:
-    """Get structured content (summary points + action items grouped by
-    owner) for a meeting via Ollama — NOT final formatted text/HTML. Python
-    (jobs/meet/templates/elder_review.py) owns turning this into the actual
-    email, so formatting stays 100% consistent regardless of what Ollama
-    produces. Retries once on malformed JSON, then falls back to a basic,
-    clearly-marked version built straight from the raw transcript data."""
+    """Get structured content (summary points + per-item action items with
+    an owner guess) for a meeting via Ollama — NOT final formatted text/
+    HTML. Retries once on malformed JSON, then falls back to a basic,
+    clearly-marked version built straight from the raw transcript data
+    rather than silently failing. Bill reviews and can edit any of this in
+    the dashboard before anything is sent."""
     prompt = _build_structured_prompt(transcript_data)
 
     structured = None
@@ -280,15 +341,15 @@ def draft_review_email(transcript_data: dict) -> dict:
 
     if structured is None:
         structured = _fallback_structured_content(transcript_data)
-    else:
-        structured["fallback"] = False
 
     structured["title"] = transcript_data.get("title", "") or "Elders Meeting"
     structured["date_display"] = _format_meeting_date(transcript_data.get("date"))
     return structured
 
 
-def _send_html_email(to: str, subject: str, html: str, plain: str) -> None:
+def send_html_email(to: str, subject: str, html: str, plain: str) -> None:
+    """Send a fully pre-rendered HTML email. Called from app.py's
+    /api/meet/review/<id>/preview and /send routes."""
     if not SMTP_USER or not SMTP_PASS:
         raise RuntimeError("WATSON_GMAIL_ADDRESS and WATSON_GMAIL_APP_PASSWORD must be set.")
     msg = MIMEMultipart("alternative")
@@ -323,63 +384,69 @@ def _send_telegram(text: str) -> dict | None:
         return None
 
 
-# ── Pending-record persistence (watson.db) ──────────────────────────────────
+# ── meeting_reviews / meeting_review_action_items persistence (watson.db) ───
 
 def _get_conn():
-    conn = sqlite3.connect(str(DB_PATH))
+    conn = sqlite3.connect(WATSON_DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
 
 
-def _init_table() -> None:
+def _init_tables() -> None:
+    """Safety-net self-bootstrap matching this codebase's usual defensive
+    style — the real onboarding path is jobs/meet/migrate_meeting_reviews.py
+    (with a watson.db backup), but CREATE TABLE IF NOT EXISTS here means a
+    fresh environment that skipped the migration still works."""
     with _get_conn() as conn:
         conn.execute("""
-            CREATE TABLE IF NOT EXISTS fireflies_review_pending (
-                id           INTEGER PRIMARY KEY AUTOINCREMENT,
-                meeting_id   TEXT NOT NULL,
-                title        TEXT,
-                meeting_date TEXT,
-                draft        TEXT,
-                recipients   TEXT NOT NULL DEFAULT '[]',
-                status       TEXT NOT NULL DEFAULT 'pending',
-                created_at   TEXT NOT NULL DEFAULT (datetime('now')),
-                resolved_at  TEXT
+            CREATE TABLE IF NOT EXISTS meeting_reviews (
+                id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+                fireflies_meeting_id TEXT NOT NULL,
+                title                TEXT,
+                meeting_date         TEXT,
+                summary_text         TEXT,
+                status               TEXT NOT NULL DEFAULT 'pending_review',
+                created_at           TEXT NOT NULL DEFAULT (datetime('now')),
+                sent_at              TEXT
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS meeting_review_action_items (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                review_id       INTEGER NOT NULL REFERENCES meeting_reviews(id),
+                owner_text      TEXT,
+                owner_member_id INTEGER,
+                item_text       TEXT NOT NULL,
+                sort_order      INTEGER NOT NULL DEFAULT 0
             )
         """)
 
 
-def _save_pending(meeting_id: str, title: str, meeting_date: str, structured: dict,
-                   elders: list[tuple[str, str]]) -> int:
-    """`draft` now stores the structured-content JSON (not final text) so
-    resolve_send_by_id() can re-render the exact same content, with the
-    PREVIEW banner removed, on approval."""
-    _init_table()
+def _save_review(meeting_id: str, structured: dict, active_members: list[dict]) -> int:
+    _init_tables()
     with _get_conn() as conn:
         cur = conn.execute(
-            """INSERT INTO fireflies_review_pending
-               (meeting_id, title, meeting_date, draft, recipients)
-               VALUES (?, ?, ?, ?, ?)""",
-            (meeting_id, title, meeting_date, json.dumps(structured), json.dumps(elders)),
+            """INSERT INTO meeting_reviews
+               (fireflies_meeting_id, title, meeting_date, summary_text, status)
+               VALUES (?, ?, ?, ?, 'pending_review')""",
+            (
+                meeting_id,
+                structured.get("title", ""),
+                structured.get("date_display", ""),
+                "\n".join(structured.get("summary_points") or []),
+            ),
         )
-        return cur.lastrowid
-
-
-def _get_pending_by_id(record_id: int) -> dict | None:
-    _init_table()
-    with _get_conn() as conn:
-        row = conn.execute(
-            "SELECT * FROM fireflies_review_pending WHERE id=? AND status='pending'",
-            (record_id,),
-        ).fetchone()
-    return dict(row) if row else None
-
-
-def _mark_resolved(record_id: int, status: str) -> None:
-    with _get_conn() as conn:
-        conn.execute(
-            "UPDATE fireflies_review_pending SET status=?, resolved_at=datetime('now') WHERE id=?",
-            (status, record_id),
-        )
+        review_id = cur.lastrowid
+        for i, item in enumerate(structured.get("action_items") or []):
+            owner_guess = item.get("owner_guess") or "Unassigned"
+            owner_member_id = _match_owner_member_id(owner_guess, active_members)
+            conn.execute(
+                """INSERT INTO meeting_review_action_items
+                   (review_id, owner_text, owner_member_id, item_text, sort_order)
+                   VALUES (?, ?, ?, ?, ?)""",
+                (review_id, owner_guess, owner_member_id, item.get("text", ""), i),
+            )
+        return review_id
 
 
 # ── Entry point (shared by the webhook route and the `fireflies:` Telegram
@@ -391,9 +458,12 @@ def _mark_resolved(record_id: int, status: str) -> None:
 
 def process_meeting(meeting_id: str) -> dict:
     """Run the full pipeline for a single meeting: fetch transcript →
-    is_elders_meeting() check → structured content via Ollama → render HTML
-    → email Bill a live preview → Telegram approval prompt with resolved
-    recipient list. Returns {"ok": bool, "msg": str}."""
+    is_elders_meeting() check → structured content via Ollama → fuzzy-match
+    each action item's owner → save as a pending_review record → Telegram
+    notice with a dashboard review link. Returns {"ok": bool, "msg": str}.
+    Nothing is emailed to anyone here — that only happens from the
+    dashboard review page, after Bill has reviewed and corrected
+    assignments."""
     transcript_data = fetch_transcript(meeting_id)
     if not transcript_data:
         msg = f"Could not fetch transcript for meeting_id={meeting_id}."
@@ -416,87 +486,18 @@ def process_meeting(meeting_id: str) -> dict:
     structured = draft_review_email(transcript_data)
     date_display = structured["date_display"]
 
-    preview_subject, preview_html = render_elder_review_email(structured, preview=True)
-    preview_plain = render_elder_review_plain(structured)
-    try:
-        _send_html_email(BILL_PREVIEW_EMAIL, preview_subject, preview_html, preview_plain)
-    except Exception as exc:
-        msg = f"Could not send preview email for meeting_id={meeting_id}: {exc}"
-        log.error(msg)
-        return {"ok": False, "msg": msg}
+    active_members = get_active_members()
+    review_id = _save_review(meeting_id, structured, active_members)
 
-    recipient_lines = "\n".join(f"• {name} <{email}>" for name, email in elders)
+    n_items = len(structured.get("action_items") or [])
+    dashboard_url = f"{WATSON_API_URL}/meet/review/{review_id}"
     text = (
-        f"📋 Elders Meeting Review draft ready — {title} ({date_display})\n\n"
-        f"Preview email sent to {BILL_PREVIEW_EMAIL} — check it, then reply:\n\n"
-        f"Recipients ({len(elders)}):\n{recipient_lines}\n\n"
-        f"• go — send to all recipients above\n"
-        f"• cancel — discard, no emails sent"
+        f"📋 Meeting review ready: {title} ({date_display}) — "
+        f"{n_items} action item{'s' if n_items != 1 else ''} need your review.\n{dashboard_url}"
     )
-
-    result = _send_telegram(text)
-    tg_msg_id = result.get("message_id") if result else None
-    if not tg_msg_id:
-        msg = f"Could not send Telegram approval message for meeting_id={meeting_id}."
-        log.error(msg)
-        return {"ok": False, "msg": msg}
-
-    record_id = _save_pending(meeting_id, title, date_display, structured, elders)
-    try:
-        store_pending_action("fireflies_review", tg_msg_id, {"record_id": record_id})
-    except Exception as exc:
-        log.warning("Failed to store tg_pending_action for fireflies review: %s", exc)
+    _send_telegram(text)
 
     return {
         "ok": True,
-        "msg": f"Draft sent for approval — {title} ({date_display}). Preview emailed to {BILL_PREVIEW_EMAIL}.",
+        "msg": f"Review saved — {n_items} action item(s) to review. {dashboard_url}",
     }
-
-
-# ── Resolution functions (called from bot.py reply-threading dispatch) ──────
-
-def resolve_send_by_id(record_id: int) -> dict:
-    """Render the same structured content again (no PREVIEW banner) and send
-    it to every resolved elder recipient."""
-    record = _get_pending_by_id(record_id)
-    if not record:
-        return {"ok": False, "msg": "No pending Fireflies review found."}
-
-    elders = json.loads(record["recipients"] or "[]")
-    if not elders:
-        _mark_resolved(record["id"], "sent_none")
-        return {"ok": False, "msg": "No recipients on this review — nothing sent."}
-
-    try:
-        structured = json.loads(record["draft"] or "{}")
-    except (json.JSONDecodeError, TypeError):
-        _mark_resolved(record["id"], "send_failed")
-        return {"ok": False, "msg": "Could not read the saved draft — nothing sent."}
-
-    subject, html = render_elder_review_email(structured, preview=False)
-    plain = render_elder_review_plain(structured)
-
-    sent, failed = 0, []
-    for name, email in elders:
-        try:
-            _send_html_email(email, subject, html, plain)
-            sent += 1
-        except Exception as exc:
-            log.error("Failed to send elders review to %s <%s>: %s", name, email, exc)
-            failed.append(name)
-
-    _mark_resolved(record["id"], "sent")
-    msg = f"✅ Elders review sent to {sent} recipient(s)."
-    if failed:
-        msg += f" Failed: {', '.join(failed)}."
-    return {"ok": True, "msg": msg}
-
-
-def resolve_cancel_by_id(record_id: int) -> dict:
-    """Discard a pending elders review — no emails sent."""
-    record = _get_pending_by_id(record_id)
-    if not record:
-        return {"ok": False, "msg": None}
-    _mark_resolved(record["id"], "discarded")
-    log.info("Fireflies review discarded: id=%s meeting_id=%s", record["id"], record["meeting_id"])
-    return {"ok": True, "msg": "❌ Elders review discarded — no emails sent."}

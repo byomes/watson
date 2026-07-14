@@ -1751,24 +1751,6 @@ async def _route_tg_pending_reply(
             return True
         return False
 
-    if action_type == "fireflies_review":
-        record_id = payload.get("record_id")
-        if text_lower == "go":
-            from jobs.meet.fireflies_review import resolve_send_by_id
-            result = await asyncio.to_thread(resolve_send_by_id, record_id)
-            await update.message.reply_text(result["msg"])
-            if result["ok"]:
-                mark_done(pending_id)
-            return True
-        if text_lower in ("cancel", "no", "never mind"):
-            from jobs.meet.fireflies_review import resolve_cancel_by_id
-            result = resolve_cancel_by_id(record_id)
-            if result["ok"]:
-                await update.message.reply_text(result["msg"])
-                mark_cancelled(pending_id)
-            return True
-        return False
-
     if action_type == "pastoral_note":
         from jobs.pastoral_notes.handler import handle_notes_reply
         await handle_notes_reply(text)
