@@ -1244,6 +1244,46 @@ def contacts_import():
     return jsonify({"response": "Importing contacts from Google. This may take a moment…"})
 
 
+@app.route("/api/fireflies/webhook", methods=["POST"])
+def fireflies_webhook():
+    import hashlib
+    import hmac
+    import threading
+
+    raw_body = request.get_data()
+    signature = request.headers.get("x-hub-signature", "")
+    secret = os.getenv("FIREFLIES_WEBHOOK_SECRET", "")
+
+    if not secret:
+        log.error("FIREFLIES_WEBHOOK_SECRET not set; rejecting Fireflies webhook.")
+        return jsonify({"error": "not configured"}), 401
+
+    expected = hmac.new(secret.encode(), raw_body, hashlib.sha256).hexdigest()
+    if not signature or not hmac.compare_digest(expected, signature):
+        log.warning("Fireflies webhook signature mismatch.")
+        return jsonify({"error": "invalid signature"}), 401
+
+    payload = request.get_json(silent=True) or {}
+    log.info("Fireflies webhook payload: %s", payload)
+
+    event_type = payload.get("eventType")
+    meeting_id = payload.get("meetingId") or payload.get("meeting_id")
+
+    if event_type == "Transcription completed" and meeting_id:
+        def _run():
+            from jobs.meet.fireflies_review import process_transcript
+            try:
+                process_transcript(meeting_id)
+            except Exception as exc:
+                log.error("Fireflies review processing failed for %s: %s", meeting_id, exc)
+
+        threading.Thread(target=_run, daemon=True).start()
+    else:
+        log.info("Fireflies webhook ignored: eventType=%r meeting_id=%r", event_type, meeting_id)
+
+    return jsonify({"ok": True}), 200
+
+
 # ── Reading API ───────────────────────────────────────────────────────────────
 
 @app.route("/api/reading")
