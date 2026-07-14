@@ -1450,10 +1450,61 @@ def meet_review_send(review_id):
     )
     db.commit()
 
-    msg = f"Sent to {sent} recipient(s)."
+    # Auto-create team_tasks for action items whose FINAL resolved owner
+    # (after any edits Bill made) is one of the 8 fixed elder-review people
+    # AND has a team_members record. People on the list without one (Bill
+    # Crook, Jim Bouchat, as of this writing) stay email-only — expected,
+    # not an error. Runs after the email send + status update above are
+    # already committed: a failed task-creation call must never block the
+    # send, and one failed item must never block the rest.
+    from jobs.meet.fireflies_review import ELDER_REVIEW_OWNERS
+    owners_by_id = {o["id"]: o for o in ELDER_REVIEW_OWNERS}
+
+    created_tasks: list[tuple[str, int]] = []
+    failed_tasks: list[str] = []
+    for item in items:
+        owner_member_id = item["owner_member_id"]
+        if not owner_member_id:
+            continue
+        owner = owners_by_id.get(owner_member_id)
+        if not owner or owner["table"] != "team_members":
+            continue
+        title = (item["item_text"] or "").strip()[:500]
+        if not title:
+            continue
+        try:
+            task_id = _create_team_task(owner["id"], title, source="fireflies_review", category="elders")
+            created_tasks.append((owner["display_name"], task_id))
+        except Exception as exc:
+            log.error("Failed to auto-create task for %s (review %s): %s", owner["display_name"], review_id, exc)
+            failed_tasks.append(owner["display_name"])
+    if created_tasks:
+        db.commit()
+
+    task_counts: dict[str, int] = {}
+    for name, _task_id in created_tasks:
+        task_counts[name] = task_counts.get(name, 0) + 1
+    task_breakdown = ", ".join(f"{count} for {name}" for name, count in task_counts.items())
+
+    msg = f"Sent to {sent} elder(s)."
     if failed:
         msg += f" Failed: {', '.join(failed)}."
-    return jsonify({"success": True, "sent": sent, "failed": failed, "msg": msg})
+    if created_tasks:
+        msg += f" Created {len(created_tasks)} task(s)"
+        if task_breakdown:
+            msg += f" ({task_breakdown})"
+        msg += "."
+    if failed_tasks:
+        msg += f" Task creation failed for: {', '.join(failed_tasks)}."
+
+    return jsonify({
+        "success": True,
+        "sent": sent,
+        "failed": failed,
+        "tasks_created": len(created_tasks),
+        "tasks_failed": failed_tasks,
+        "msg": msg,
+    })
 
 
 # ── Reading API ───────────────────────────────────────────────────────────────
@@ -4907,6 +4958,26 @@ def admin_leader(member_id):
     })
 
 
+def _create_team_task(member_id: int, title: str, source: str, due_date: str | None = None,
+                       category: str = "catalyst", priority: str = "3") -> int:
+    """Shared team_tasks insert, extracted from admin_task() (the Home
+    dashboard / Team tab "add task" route) so meet_review_send()'s
+    auto-task-creation for elder-review action items (jobs/dashboard/app.py)
+    reuses the exact same insert path rather than a second one. Does not
+    commit — callers control the transaction boundary."""
+    today = datetime.now().date().isoformat()
+    db = _db()
+    cur = db.execute(
+        "INSERT INTO team_tasks (member_id, title, due_date, source, status, category, priority) VALUES (?,?,?,?,?,?,?)",
+        (member_id, title, due_date, source, "open", category, priority),
+    )
+    db.execute(
+        "UPDATE team_members SET last_activity_date=? WHERE id=?",
+        (today, member_id),
+    )
+    return cur.lastrowid
+
+
 @app.route("/admin/task", methods=["POST"])
 def admin_task():
     redir = _admin_required()
@@ -4917,18 +4988,13 @@ def admin_task():
     title = (data.get("title") or "").strip()
     if not member_id or not title:
         return jsonify({"error": "team_member_id and title required"}), 400
-    today = datetime.now().date().isoformat()
-    db = _db()
-    cur = db.execute(
-        "INSERT INTO team_tasks (member_id, title, due_date, source, status, category, priority) VALUES (?,?,?,?,?,?,?)",
-        (member_id, title, data.get("due_date") or None, session.get("admin_user", "donna"), "open", "catalyst", "3"),
+    task_id = _create_team_task(
+        member_id, title,
+        source=session.get("admin_user", "donna"),
+        due_date=data.get("due_date") or None,
     )
-    db.execute(
-        "UPDATE team_members SET last_activity_date=? WHERE id=?",
-        (today, member_id),
-    )
-    db.commit()
-    return jsonify({"success": True, "task_id": cur.lastrowid})
+    _db().commit()
+    return jsonify({"success": True, "task_id": task_id})
 
 
 @app.route("/admin/task/reassign", methods=["POST"])
