@@ -44,7 +44,7 @@ def _send_call_reminder(call: dict, tier: str) -> None:
             f"  {day_date} at {time_str}\n"
             f"  Join here: {call['meeting_url'] or '(link coming)'}\n\n"
             f"See you there.\n\n"
-            f"— William Yomes"
+            f"— Watson"
         )
 
         col = "reminder_24h_sent" if tier == "24h" else "reminder_1h_sent"

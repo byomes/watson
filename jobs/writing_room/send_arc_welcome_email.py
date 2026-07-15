@@ -35,7 +35,7 @@ def send_arc_welcome_email(to_email: str, first_name: str) -> None:
         "Write — direct messages to Dr. Bill.\n\n"
         "Calls — occasional live video calls with the Writing Room community.\n\n"
         "You didn't just read a book. You committed to the work behind it. That's why you're here.\n\n"
-        "— Dr. Bill\n\n"
+        "— Watson\n\n"
         "Watson · AI-powered digital assistant · Office of Dr. Bill Yomes"
     )
 
