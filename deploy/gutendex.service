@@ -1,0 +1,17 @@
+[Unit]
+Description=Gutendex (self-hosted Project Gutenberg catalog API)
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=billyomes
+WorkingDirectory=/home/billyomes/gutendex
+Environment=PYTHONPATH=/home/billyomes/gutendex
+ExecStart=/home/billyomes/gutendex/venv/bin/gunicorn gutendex.wsgi:application --bind 127.0.0.1:8010 --workers 2
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
