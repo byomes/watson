@@ -1209,6 +1209,82 @@ def member_roles_delete_api(member_id, role):
         return jsonify({"error": str(exc)}), 500
 
 
+@app.route("/api/members/<int:member_id>/aliases", methods=["GET"])
+def member_aliases_list_api(member_id):
+    """Read-only — aliases are managed via 'cdb: alias <name> = <alias>' only."""
+    try:
+        c = _cong_conn()
+        rows = c.execute(
+            "SELECT alias FROM member_aliases WHERE member_id = ? ORDER BY alias COLLATE NOCASE",
+            (member_id,),
+        ).fetchall()
+        c.close()
+        return _no_cache(jsonify([r["alias"] for r in rows]))
+    except Exception as exc:
+        return _no_cache(jsonify({"error": str(exc)})), 500
+
+
+@app.route("/api/members/batch-update", methods=["POST"])
+def members_batch_update_api():
+    from jobs.connect_cards.batch_update import FIELDS as _BU_FIELDS, validate_value, batch_update_members
+
+    data = request.get_json(force=True) or {}
+    field = (data.get("field") or "").strip()
+    value = data.get("value")
+    names_raw = data.get("names")
+    if isinstance(names_raw, list):
+        names = [str(n).strip() for n in names_raw if str(n).strip()]
+    else:
+        names = [n.strip() for n in re.split(r"[,\n]", names_raw or "") if n.strip()]
+
+    if field not in _BU_FIELDS:
+        return jsonify({"error": f"invalid field: {field!r}"}), 400
+    if field == "shepherding_exempt" and isinstance(value, str):
+        value = value.strip().lower() in ("true", "1", "yes", "exempt")
+    if not names:
+        return jsonify({"error": "no names provided"}), 400
+
+    err = validate_value(field, value)
+    if err:
+        return jsonify({"error": err}), 400
+
+    try:
+        resolution = batch_update_members(field, value, names)
+        return jsonify(resolution)
+    except Exception as exc:
+        log.error("batch-update preview error: %s", exc)
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/members/batch-update/confirm", methods=["POST"])
+def members_batch_update_confirm_api():
+    from jobs.connect_cards.batch_update import validate_value, commit_batch_update
+
+    data = request.get_json(force=True) or {}
+    field = (data.get("field") or "").strip()
+    value = data.get("value")
+    if field == "shepherding_exempt" and isinstance(value, str):
+        value = value.strip().lower() in ("true", "1", "yes", "exempt")
+
+    try:
+        member_ids = [int(x) for x in (data.get("member_ids") or [])]
+    except (TypeError, ValueError):
+        return jsonify({"error": "invalid member_ids"}), 400
+    if not member_ids:
+        return jsonify({"error": "no member_ids provided"}), 400
+
+    err = validate_value(field, value)
+    if err:
+        return jsonify({"error": err}), 400
+
+    try:
+        result = commit_batch_update(field, value, member_ids, actor="Bill (Dashboard)")
+        return jsonify(result), (200 if not result["errors"] else 400)
+    except Exception as exc:
+        log.error("batch-update confirm error: %s", exc)
+        return jsonify({"error": str(exc)}), 500
+
+
 @app.route("/api/contacts/import", methods=["POST"])
 def contacts_import():
     import threading
@@ -4930,15 +5006,21 @@ def admin_leader(member_id):
     member = db.execute("SELECT * FROM team_members WHERE id=?", (member_id,)).fetchone()
     if not member:
         return jsonify({"error": "not found"}), 404
+    # A task stays visible for 12h after being checked off (completed_at set),
+    # then drops out of this list — row is kept, not deleted, for history/reporting.
+    _active_or_recent = (
+        "(status NOT IN ('done','completed') "
+        "OR (completed_at IS NOT NULL AND completed_at > datetime('now', '-12 hours')))"
+    )
     if member_id == 12:
         tasks = db.execute(
-            "SELECT * FROM team_tasks WHERE member_id=? AND category='catalyst' AND status='open' "
+            f"SELECT * FROM team_tasks WHERE member_id=? AND category='catalyst' AND {_active_or_recent} "
             "ORDER BY CAST(priority AS INTEGER) ASC, due_date ASC",
             (member_id,),
         ).fetchall()
     else:
         tasks = db.execute(
-            "SELECT * FROM team_tasks WHERE member_id=? "
+            f"SELECT * FROM team_tasks WHERE member_id=? AND {_active_or_recent} "
             "ORDER BY CAST(priority AS INTEGER) ASC, due_date ASC",
             (member_id,),
         ).fetchall()

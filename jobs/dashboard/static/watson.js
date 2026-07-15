@@ -627,7 +627,6 @@ async function _pollHomeData() {
   const ae = document.activeElement;
   if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT')) return;
   try {
-    await fetch('/api/team/tasks/archive-completed');
     await _fetchAndRenderTasks(_homeTaskTab);
   } catch(e) { /* silent — stale data is acceptable */ }
 }
@@ -2396,6 +2395,8 @@ async function moreLoadMembers() {
   _memberCurrentList = null;
   _expandedMemberId = null;
   el.innerHTML = `
+    <button class="mbtn mbtn-sm" onclick="batchShowForm()" style="margin-bottom:8px">Batch Update Members</button>
+    <div id="mbatch-panel" style="display:none;margin-bottom:12px"></div>
     <input id="mmem-search" type="search" class="msrch" placeholder="Search members&hellip;"
       oninput="memberSearchDebounced(this.value)" style="margin-bottom:8px">
     <div id="mmem-stats" style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);margin-bottom:8px">Loading&hellip;</div>
@@ -2409,6 +2410,180 @@ async function moreLoadMembers() {
     const listEl = document.getElementById('mmem-list');
     if (listEl) listEl.innerHTML = '<div class="empty">Could not load members.</div>';
   }
+}
+
+// ─── Batch Update Members ───────────────────────────────────────────────────
+
+let _batchState = null;
+
+function batchShowForm() {
+  const panel = document.getElementById('mbatch-panel');
+  if (!panel) return;
+  if (panel.style.display !== 'none') {
+    panel.style.display = 'none';
+    panel.innerHTML = '';
+    _batchState = null;
+    return;
+  }
+  panel.style.display = 'block';
+  panel.innerHTML = `
+    <div class="mpn-card">
+      <label style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);display:block;margin-bottom:4px">NAMES (one per line or comma-separated)</label>
+      <textarea id="mbatch-names" rows="3" placeholder="Jane Smith, Bob Wilson"
+        style="display:block;width:100%;padding:7px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:13px;outline:none;resize:vertical;box-sizing:border-box;margin-bottom:8px"></textarea>
+      <label style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);display:block;margin-bottom:4px">FIELD</label>
+      <select id="mbatch-field" onchange="batchFieldChange()"
+        style="width:100%;padding:7px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:13px;outline:none;margin-bottom:8px">
+        <option value="attendance">Attendance</option>
+        <option value="member_status">Status</option>
+        <option value="campus_preference">Campus</option>
+        <option value="shepherding_exempt">Shepherding Exempt</option>
+      </select>
+      <div id="mbatch-value-wrap" style="margin-bottom:10px"></div>
+      <button class="mbtn mbtn-p mbtn-sm" onclick="batchPreview()">Preview</button>
+      <div id="mbatch-result" style="margin-top:10px"></div>
+    </div>`;
+  batchFieldChange();
+}
+
+function batchFieldChange() {
+  const field = document.getElementById('mbatch-field')?.value;
+  const wrap = document.getElementById('mbatch-value-wrap');
+  if (!wrap) return;
+  const labelStyle = "font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);display:block;margin-bottom:4px";
+  const inputStyle = "width:100%;padding:7px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:13px;outline:none;box-sizing:border-box;color-scheme:dark";
+  if (field === 'attendance') {
+    wrap.innerHTML = `<label style="${labelStyle}">DATE</label><input type="date" id="mbatch-value" style="${inputStyle}">`;
+  } else if (field === 'member_status') {
+    wrap.innerHTML = `<label style="${labelStyle}">STATUS</label>
+      <select id="mbatch-value" style="${inputStyle}">
+        <option value="active">Active</option>
+        <option value="deceased">Deceased</option>
+        <option value="disconnected">Disconnected</option>
+        <option value="non_local">Non-local</option>
+        <option value="snowbird">Snowbird</option>
+      </select>`;
+  } else if (field === 'campus_preference') {
+    wrap.innerHTML = `<label style="${labelStyle}">CAMPUS</label>
+      <select id="mbatch-value" style="${inputStyle}">
+        <option value="Wilmington">Wilmington</option>
+        <option value="Online">Online</option>
+        <option value="Hybrid">Hybrid</option>
+      </select>`;
+  } else if (field === 'shepherding_exempt') {
+    wrap.innerHTML = `<label style="${labelStyle}">EXEMPT</label>
+      <select id="mbatch-value" style="${inputStyle}">
+        <option value="true">Exempt</option>
+        <option value="false">Not Exempt</option>
+      </select>`;
+  }
+}
+
+async function batchPreview() {
+  const field = document.getElementById('mbatch-field')?.value;
+  const value = document.getElementById('mbatch-value')?.value;
+  const namesRaw = document.getElementById('mbatch-names')?.value || '';
+  const resultEl = document.getElementById('mbatch-result');
+  if (!namesRaw.trim()) { if (resultEl) resultEl.innerHTML = '<div class="empty">Enter at least one name.</div>'; return; }
+  if (field === 'attendance' && !value) { if (resultEl) resultEl.innerHTML = '<div class="empty">Pick a date.</div>'; return; }
+  if (resultEl) resultEl.innerHTML = '<div class="loading">Resolving names&hellip;</div>';
+  try {
+    const data = await api('/api/members/batch-update', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ field, value, names: namesRaw }),
+    });
+    _batchState = { field, value, matched: data.matched || [], ambiguous: data.ambiguous || [], not_found: data.not_found || [] };
+    batchRenderPreview();
+  } catch {
+    if (resultEl) resultEl.innerHTML = '<div class="empty">Failed to resolve names.</div>';
+  }
+}
+
+function batchRenderPreview() {
+  const resultEl = document.getElementById('mbatch-result');
+  if (!resultEl || !_batchState) return;
+  const { field, value, matched, ambiguous, not_found } = _batchState;
+  let html = '';
+  if (ambiguous.length) {
+    html += '<div style="margin-bottom:10px"><div style="font-size:12px;font-weight:600;margin-bottom:6px">Ambiguous &mdash; pick the right member:</div>';
+    ambiguous.forEach((a, i) => {
+      const opts = a.candidates.map((c, ci) =>
+        `<option value="${ci}">${esc(c.name)}${c.campus ? ' (' + esc(c.campus) + ')' : ''}</option>`
+      ).join('');
+      html += `
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+          <span style="font-size:12px;flex:1;min-width:0">${esc(a.name)}</span>
+          <select id="mbatch-amb-${i}" style="padding:6px 8px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:12px">
+            <option value="-1">-- skip --</option>
+            ${opts}
+          </select>
+        </div>`;
+    });
+    html += '</div>';
+  }
+  if (matched.length) {
+    html += '<div style="margin-bottom:8px"><div style="font-size:12px;font-weight:600;margin-bottom:6px">Will update:</div>';
+    html += matched.map(m => {
+      const cur = (m.current_value === null || m.current_value === undefined || m.current_value === '') ? '(none)' : String(m.current_value);
+      return `<div style="font-size:12px;color:var(--muted);margin-bottom:2px">${esc(m.member_name || m.name)}: ${esc(cur)} &rarr; ${esc(String(value))}</div>`;
+    }).join('');
+    html += '</div>';
+  } else if (!ambiguous.length) {
+    html += '<div class="empty" style="margin-bottom:8px">Nothing to update.</div>';
+  }
+  if (not_found.length) {
+    html += `<div style="margin-bottom:8px"><div style="font-size:12px;font-weight:600;margin-bottom:4px">Not found (excluded):</div>
+      <div style="font-size:12px;color:var(--muted)">${not_found.map(esc).join(', ')}</div></div>`;
+  }
+  if (field === 'campus_preference') {
+    html += '<div style="font-size:11px;color:var(--muted);margin-bottom:8px">Note: campus_classifier.py (Mon 5:45am) may revert this based on future connect-card history.</div>';
+  }
+  html += `<button class="mbtn mbtn-p mbtn-sm" onclick="batchConfirm()">Confirm &amp; Apply</button>
+    <button class="mbtn mbtn-sm" onclick="batchCancelForm()">Cancel</button>`;
+  resultEl.innerHTML = html;
+}
+
+async function batchConfirm() {
+  if (!_batchState) return;
+  const { field, value, matched, ambiguous } = _batchState;
+  const memberIds = matched.map(m => m.member_id);
+  ambiguous.forEach((a, i) => {
+    const sel = document.getElementById(`mbatch-amb-${i}`);
+    const idx = parseInt(sel?.value, 10);
+    if (!isNaN(idx) && idx >= 0) memberIds.push(a.candidates[idx].member_id);
+  });
+  if (!memberIds.length) { alert('Nothing resolved to apply.'); return; }
+  try {
+    const result = await api('/api/members/batch-update/confirm', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ field, value, member_ids: memberIds }),
+    });
+    const resultEl = document.getElementById('mbatch-result');
+    if (resultEl) {
+      const lines = (result.applied || []).map(a => {
+        const old = (a.old_value === null || a.old_value === undefined) ? '(none)' : String(a.old_value);
+        return `<div style="font-size:12px;color:var(--muted)">${esc(a.name)}: ${esc(old)} &rarr; ${esc(String(a.new_value))}</div>`;
+      });
+      resultEl.innerHTML = `<div style="font-size:12px;font-weight:600;margin-bottom:6px">Applied ${result.applied.length} update(s):</div>` + lines.join('');
+    }
+    _batchState = null;
+    try {
+      const members = await api('/api/members');
+      _moreAllMembers = Array.isArray(members) ? members : _moreAllMembers;
+      _memberRenderStats();
+      _memberRenderList();
+    } catch { /* member list refresh is best-effort; the applied summary above still stands */ }
+  } catch {
+    alert('Failed to apply batch update.');
+  }
+}
+
+function batchCancelForm() {
+  _batchState = null;
+  const panel = document.getElementById('mbatch-panel');
+  if (panel) { panel.style.display = 'none'; panel.innerHTML = ''; }
 }
 
 function _memberRenderStats() {
@@ -2549,6 +2724,11 @@ function moreExpandMember(id) {
           <button class="mbtn mbtn-sm" onclick="memberAddRoleFromInput(${id})">Add</button>
         </div>
       </div>
+      <div style="margin-bottom:10px">
+        <label style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);display:block;margin-bottom:4px">ALIASES</label>
+        <div id="mmem-aliases-${id}" style="font-size:12px;color:var(--muted)">Loading&hellip;</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">Managed via <code>cdb: alias &lt;name&gt; = &lt;alias&gt;</code>.</div>
+      </div>
       <div style="display:flex;align-items:center;gap:10px">
         <button class="mbtn mbtn-p mbtn-sm" onclick="memberSave(${id})">Save</button>
         <span id="mmem-saved-${id}" style="display:none;font-size:12px;color:#2e7d32">✓ Saved</span>
@@ -2556,6 +2736,18 @@ function moreExpandMember(id) {
     </div>`;
   expEl.style.display = 'block';
   moreLoadRoles(id);
+  moreLoadAliases(id);
+}
+
+async function moreLoadAliases(id) {
+  const el = document.getElementById(`mmem-aliases-${id}`);
+  if (!el) return;
+  try {
+    const aliases = await api(`/api/members/${id}/aliases`);
+    el.textContent = aliases.length ? aliases.join(', ') : 'None on record.';
+  } catch {
+    el.textContent = 'Failed to load aliases.';
+  }
 }
 
 function _renderRoleChips(id, roles) {
