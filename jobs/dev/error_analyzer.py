@@ -10,7 +10,7 @@ import requests
 log = logging.getLogger(__name__)
 REPO = Path(__file__).resolve().parents[2]
 OLLAMA_URL = "http://localhost:11434/api/generate"
-OLLAMA_MODEL = "qwen2.5:14b"
+OLLAMA_MODEL = "qwen2.5-coder:7b"
 
 
 def analyze_traceback(traceback_str: str, code: str = None) -> dict:

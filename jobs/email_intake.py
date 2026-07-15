@@ -42,7 +42,7 @@ WHITELIST = [
 ]
 
 OLLAMA_URL = "http://localhost:11434/api/generate"
-OLLAMA_MODEL = "qwen2.5:14b"
+OLLAMA_MODEL = "llama3.2:1b"
 TELEGRAM_CHAR_LIMIT = 4000
 
 CONG_DB = os.path.expanduser("~/watson/data/congregation.db")
