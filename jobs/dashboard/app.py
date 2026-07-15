@@ -1036,7 +1036,7 @@ def congregation_list_api():
 
 
 _MEMBER_FIELDS = (
-    "m.id, m.name, m.email, m.phone, m.campus_preference, m.active, m.shepherding_exempt, "
+    "m.id, m.name, m.email, m.phone, m.campus_preference, m.partnership_status, m.active, m.shepherding_exempt, "
     "m.member_status, m.status_reason, m.status_since, m.status_note, m.snowbird_return, "
     "(SELECT MAX(service_date) FROM ("
     "  SELECT service_date FROM connect_cards WHERE member_id = m.id "
@@ -1091,7 +1091,7 @@ def members_search_api():
 @app.route("/api/members/<int:member_id>", methods=["PATCH"])
 def members_update_api(member_id):
     data = request.get_json(force=True) or {}
-    allowed = {"member_status", "status_reason", "status_since", "status_note", "snowbird_return", "campus_preference"}
+    allowed = {"member_status", "status_reason", "status_since", "status_note", "snowbird_return", "campus_preference", "partnership_status"}
     fields = {k: v for k, v in data.items() if k in allowed}
 
     last_seen_input = data.get("last_seen")

@@ -2691,6 +2691,15 @@ function moreExpandMember(id) {
           <option value="Hybrid"${(m.campus_preference||'')==='Hybrid'?' selected':''}>Hybrid</option>
         </select>
       </div>
+      <div style="margin-bottom:8px">
+        <label style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);display:block;margin-bottom:4px">PARTNERSHIP STATUS</label>
+        <select id="mmem-partnership-${id}"
+          style="width:100%;padding:7px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:13px;outline:none">
+          <option value="Guest"${(m.partnership_status||'Guest')==='Guest'?' selected':''}>Guest</option>
+          <option value="Regular Attender"${(m.partnership_status||'')==='Regular Attender'?' selected':''}>Regular Attender</option>
+          <option value="Partner"${(m.partnership_status||'')==='Partner'?' selected':''}>Partner</option>
+        </select>
+      </div>
       <div id="mmem-snowbird-wrap-${id}" style="margin-bottom:8px${status === 'snowbird' ? '' : ';display:none'}">
         <label style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);display:block;margin-bottom:4px">EXPECTED RETURN</label>
         <input type="date" id="mmem-return-${id}" value="${esc(m.snowbird_return || '')}"
@@ -2818,6 +2827,7 @@ async function memberSave(id) {
     status_note:     (noteEl?.value || '').trim() || null,
     snowbird_return:   (status === 'snowbird' && retEl?.value) ? retEl.value : null,
     campus_preference: document.getElementById(`mmem-campus-${id}`)?.value || 'Wilmington',
+    partnership_status: document.getElementById(`mmem-partnership-${id}`)?.value || 'Guest',
     last_seen:         lastSeenEl?.value || '',
   };
   try {
