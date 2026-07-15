@@ -337,6 +337,29 @@ def run(question: str) -> str:
     if not question:
         return "No question provided."
 
+    # Batch member update directive — 'mark ...' / 'pick ...' / 'confirm ...' /
+    # 'cancel ...' — never routed through Ollama, always resolved/previewed
+    # before any write.
+    from jobs.connect_cards import batch_update as _bu
+
+    if question.lower().startswith("mark "):
+        return _bu.handle_mark_command(question, interface="dashboard")
+
+    if question.lower().startswith("alias "):
+        return _bu.handle_alias_command(question, actor="Bill (Dashboard)")
+
+    _m = re.match(r"^pick\s+(\d+)\s+(\d+|skip)\s*$", question, re.IGNORECASE)
+    if _m:
+        return _bu.handle_pick_command(int(_m.group(1)), _m.group(2), interface="dashboard")
+
+    _m = re.match(r"^confirm\s+(\d+)\s*$", question, re.IGNORECASE)
+    if _m:
+        return _bu.handle_confirm_command(int(_m.group(1)), actor="Bill (Dashboard)")
+
+    _m = re.match(r"^cancel\s+(\d+)\s*$", question, re.IGNORECASE)
+    if _m:
+        return _bu.handle_cancel_command(int(_m.group(1)))
+
     # Try pattern match first — bypasses Ollama for common attendance queries
     from datetime import date as _date, timedelta as _td
     _pm_sql = _pattern_match(question, _last_sunday(), [(_date.today() - _td(weeks=i)).strftime('%Y-%m-%d') for i in range(1, 13)])

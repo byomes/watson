@@ -625,9 +625,12 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if text_lower.startswith(_dpfx):
             _darg = text_clean[len(_dpfx):].strip()
             if _dpfx == "cdb:":
-                from jobs.skills.cdb_query import run as _cdb_run_d
-                _dr = await asyncio.to_thread(_cdb_run_d, _darg)
-                await update.message.reply_text(_dr or "No results.")
+                if _darg.lower().startswith("mark "):
+                    await _handle_batch_mark(update, context, _darg)
+                else:
+                    from jobs.skills.cdb_query import run as _cdb_run_d
+                    _dr = await asyncio.to_thread(_cdb_run_d, _darg)
+                    await update.message.reply_text(_dr or "No results.")
             elif _dpfx == "kb:":
                 await _handle_kb(update, context, text_clean)
             elif _dpfx == "web:":
@@ -3151,6 +3154,107 @@ async def handle_member_conflict_callback(update: Update, context: ContextTypes.
         conn.close()
 
 
+# ── Batch member update (cdb: mark ...) ──────────────────────────────────────
+
+def _batch_update_message(pending_id: int):
+    """Return (text, InlineKeyboardMarkup|None) for the current state of a pending batch update."""
+    from jobs.connect_cards.batch_update import (
+        get_pending, current_ambiguous, format_ambiguous_prompt, format_preview,
+    )
+    pending = get_pending(pending_id)
+    if not pending:
+        return "Batch update not found.", None
+
+    entry = current_ambiguous(pending)
+    if entry:
+        text = format_ambiguous_prompt(entry)
+        buttons = [
+            InlineKeyboardButton(f"{i}) {c['name']}", callback_data=f"bu_pick:{pending_id}:{i}")
+            for i, c in enumerate(entry["candidates"], 1)
+        ]
+        rows = [buttons[i:i + 2] for i in range(0, len(buttons), 2)]
+        rows.append([InlineKeyboardButton("Skip", callback_data=f"bu_pick:{pending_id}:skip")])
+        return text, InlineKeyboardMarkup(rows)
+
+    text = format_preview(pending)
+    keyboard = InlineKeyboardMarkup([[
+        InlineKeyboardButton("✅ Confirm & Apply", callback_data=f"bu_confirm:{pending_id}"),
+        InlineKeyboardButton("❌ Cancel", callback_data=f"bu_cancel:{pending_id}"),
+    ]])
+    return text, keyboard
+
+
+async def _handle_batch_mark(update: Update, context: ContextTypes.DEFAULT_TYPE, darg: str) -> None:
+    """Handle a 'cdb: mark ...' directive — resolves names, then walks the
+    Bill through ambiguous picks and a final confirm via inline buttons."""
+    from jobs.connect_cards.batch_update import (
+        parse_mark_command, validate_value, batch_update_members, create_pending,
+    )
+    parsed = await asyncio.to_thread(parse_mark_command, darg)
+    if parsed is None:
+        await update.message.reply_text("Not a recognized mark command.")
+        return
+    if "error" in parsed:
+        await update.message.reply_text(parsed["error"])
+        return
+    err = validate_value(parsed["field"], parsed["value"])
+    if err:
+        await update.message.reply_text(err)
+        return
+
+    resolution = await asyncio.to_thread(
+        batch_update_members, parsed["field"], parsed["value"], parsed["names"]
+    )
+    pending_id = await asyncio.to_thread(
+        create_pending, parsed["field"], parsed["value"], parsed["value_display"], resolution, "telegram"
+    )
+    text, keyboard = _batch_update_message(pending_id)
+    await update.message.reply_text(text, reply_markup=keyboard)
+
+
+async def handle_batch_update_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle bu_pick / bu_confirm / bu_cancel button taps for batch member updates."""
+    query = update.callback_query
+    await query.answer()
+
+    if not _is_authorized(update):
+        return
+
+    from jobs.connect_cards.batch_update import (
+        resolve_current_ambiguous, finalize_pending, cancel_pending,
+    )
+
+    data = query.data
+    if data.startswith("bu_pick:"):
+        _, pending_id_s, choice = data.split(":", 2)
+        pending_id = int(pending_id_s)
+        result = await asyncio.to_thread(resolve_current_ambiguous, pending_id, choice)
+        if isinstance(result, dict) and "error" in result:
+            await query.edit_message_text(result["error"], reply_markup=None)
+            return
+        text, keyboard = _batch_update_message(pending_id)
+        await query.edit_message_text(text, reply_markup=keyboard)
+
+    elif data.startswith("bu_confirm:"):
+        pending_id = int(data[len("bu_confirm:"):])
+        result = await asyncio.to_thread(finalize_pending, pending_id, "Bill (Telegram)")
+        if result["errors"]:
+            await query.edit_message_text(
+                "Batch update failed:\n" + "\n".join(result["errors"]), reply_markup=None
+            )
+            return
+        lines = [f"Applied {len(result['applied'])} update(s):"]
+        for a in result["applied"]:
+            old = a["old_value"] if a["old_value"] not in (None, "") else "(none)"
+            lines.append(f"  {a['name']}: {old} → {a['new_value']}")
+        await query.edit_message_text("\n".join(lines), reply_markup=None)
+
+    elif data.startswith("bu_cancel:"):
+        pending_id = int(data[len("bu_cancel:"):])
+        await asyncio.to_thread(cancel_pending, pending_id)
+        await query.edit_message_text("Cancelled.", reply_markup=None)
+
+
 # ── Dev Loop handlers ─────────────────────────────────────────────────────────
 
 async def _handle_devloop(update: Update, context: ContextTypes.DEFAULT_TYPE, description: str) -> None:
@@ -3257,6 +3361,75 @@ async def handle_devloop_callback(update: Update, context: ContextTypes.DEFAULT_
         )
 
 
+async def handle_git_sync_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle gs_pull:/gs_skip: button taps from jobs/dev/git_sync.py's needs-decision alerts."""
+    query = update.callback_query
+    await query.answer()
+
+    if not _is_authorized(update):
+        return
+
+    data = query.data or ""
+    if data.startswith("gs_pull:"):
+        action = "pull"
+        pending_id = int(data[len("gs_pull:"):])
+    elif data.startswith("gs_skip:"):
+        action = "skip"
+        pending_id = int(data[len("gs_skip:"):])
+    else:
+        return
+
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT id, type, payload FROM tg_pending_actions WHERE id=? AND status='pending'",
+            (pending_id,),
+        ).fetchone()
+
+    if not row:
+        await query.edit_message_text("⚠️ Action expired or already resolved.", reply_markup=None)
+        return
+
+    payload = json.loads(row["payload"])
+    repo_path = payload["repo_path"]
+    repo_name = payload["repo_name"]
+
+    from jobs.telegram.pending import mark_done
+
+    if action == "skip":
+        mark_done(pending_id)
+        await query.edit_message_text(f"Skipped — {repo_name} left as-is.", reply_markup=None)
+        return
+
+    import subprocess
+
+    def _run_git(args):
+        return subprocess.run(["git"] + args, cwd=repo_path, capture_output=True, text=True)
+
+    rebase = await asyncio.to_thread(_run_git, ["pull", "--rebase"])
+
+    if rebase.returncode != 0:
+        await asyncio.to_thread(_run_git, ["rebase", "--abort"])
+        mark_done(pending_id)
+        await query.edit_message_text(
+            f"❌ {repo_name} has a real conflict — can't auto-resolve. "
+            f"SSH in: cd {repo_path}, git status",
+            reply_markup=None,
+        )
+        return
+
+    push = await asyncio.to_thread(_run_git, ["push", "origin", "main"])
+    mark_done(pending_id)
+
+    if push.returncode != 0:
+        await query.edit_message_text(
+            f"⚠️ {repo_name} rebased but push failed:\n{push.stderr.strip()[:300]}",
+            reply_markup=None,
+        )
+        return
+
+    await query.edit_message_text(f"✅ {repo_name} synced and pushed", reply_markup=None)
+
+
 def main():
     if not TELEGRAM_BOT_TOKEN:
         raise RuntimeError("TELEGRAM_BOT_TOKEN is not set in .env")
@@ -3287,8 +3460,10 @@ def main():
     app.add_handler(CommandHandler("saved",       handle_saved))
     app.add_handler(CommandHandler("ask",         handle_ask))
     app.add_handler(CallbackQueryHandler(handle_devloop_callback,         pattern=r"^devloop_"))
+    app.add_handler(CallbackQueryHandler(handle_git_sync_callback,        pattern=r"^gs_"))
     app.add_handler(CallbackQueryHandler(handle_merge_conflict_callback,  pattern=r"^(merge_old_|merge_new_|skip_|different_)\d+$"))
     app.add_handler(CallbackQueryHandler(handle_member_conflict_callback, pattern=r"^mc_"))
+    app.add_handler(CallbackQueryHandler(handle_batch_update_callback, pattern=r"^bu_"))
     app.add_handler(CallbackQueryHandler(handle_command_callback, pattern=r"^cmd_"))
     app.add_handler(CallbackQueryHandler(handle_vault_callback,   pattern=r"^vault_"))
     app.add_handler(CallbackQueryHandler(handle_acquire_callback, pattern=r"^acquire_"))
