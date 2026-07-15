@@ -13,6 +13,7 @@ import os
 import sys
 import threading
 import uuid
+from datetime import datetime, timedelta
 from functools import wraps
 from pathlib import Path
 
@@ -31,6 +32,7 @@ arc_bp = Blueprint("arc", __name__)
 _API_KEY    = lambda: os.getenv("WRITING_ROOM_API_KEY", "")
 _KIT_SECRET = lambda: os.getenv("KIT_API_SECRET", "")
 _ARC_TAG_ID = 19285341  # Kit tag applied to every ARC signup
+_RESET_COOLDOWN_MINUTES = 10  # forgot-password: one send per email per this window
 
 _COMMITMENT_TEXTS = [
     "Pray for the book's impact",
@@ -102,6 +104,12 @@ def _ensure_table() -> None:
                 reaction       TEXT,
                 comment        TEXT,
                 created_at     TEXT NOT NULL DEFAULT (datetime('now'))
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS arc_password_reset_requests (
+                email        TEXT PRIMARY KEY,
+                requested_at TEXT NOT NULL
             )
         """)
         conn.commit()
@@ -333,11 +341,15 @@ def set_reader_password(reader_id: int, new_password: str) -> None:
 
 
 def resend_welcome(reader_id: int) -> bool:
-    """Re-send the signup confirmation email with a freshly generated password.
+    """Issue a freshly generated password and email it with the reset template.
 
-    ARC has no token-based verify/reset flow like Writing Room — the original
-    confirmation email carries the plaintext password directly, and only the
-    bcrypt hash is ever stored — so "resend" necessarily means "issue a new one."
+    ARC has no token-based verify/reset flow like Writing Room — the email
+    carries the plaintext password directly, and only the bcrypt hash is
+    ever stored — so "resend" necessarily means "issue a new one." Called
+    both by the admin "Resend Welcome" button and by the self-service
+    forgot-password flow (via request_password_reset()) — neither is a
+    first-time signup, so this always uses send_password_reset_email(),
+    never send_signup_confirmation().
     """
     conn = get_db()
     try:
@@ -354,13 +366,97 @@ def resend_welcome(reader_id: int) -> bool:
 
     def _send():
         try:
-            from jobs.arc.send_signup_confirmation import send_signup_confirmation
-            send_signup_confirmation(reader["email"], reader["first_name"], new_password)
+            from jobs.arc.send_signup_confirmation import send_password_reset_email
+            send_password_reset_email(reader["email"], reader["first_name"], new_password)
         except Exception as exc:
-            log.error("Resend welcome email failed for ARC reader %s: %s", reader["email"], exc)
+            log.error("Password reset email failed for ARC reader %s: %s", reader["email"], exc)
 
     threading.Thread(target=_send, daemon=True).start()
     return True
+
+
+# ── Public: forgot password (self-service) ────────────────────────────────────
+#
+# Thin wrapper around resend_welcome() — reuses that exact mechanism (new
+# password generated, bcrypt-hashed over the old one, emailed to the reader).
+# Nothing new is invented here; this only adds email lookup + a per-email
+# send cooldown so the public route can't be used to spam arbitrary inboxes.
+
+def _reset_recently_requested(email: str) -> bool:
+    conn = get_db()
+    try:
+        row = conn.execute(
+            "SELECT requested_at FROM arc_password_reset_requests WHERE email = ?", (email,)
+        ).fetchone()
+    finally:
+        conn.close()
+    if not row:
+        return False
+    try:
+        last = datetime.fromisoformat(row["requested_at"])
+    except ValueError:
+        return False
+    return datetime.utcnow() - last < timedelta(minutes=_RESET_COOLDOWN_MINUTES)
+
+
+def _record_reset_request(email: str) -> None:
+    conn = get_db()
+    try:
+        conn.execute(
+            "INSERT OR REPLACE INTO arc_password_reset_requests (email, requested_at) VALUES (?, ?)",
+            (email, datetime.utcnow().isoformat()),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def request_password_reset(email: str) -> None:
+    """
+    Public-facing forgot-password entry point. Looks up the reader by email
+    and, if found, calls resend_welcome() unchanged. Silent (no-op, no
+    error) on an unknown email or a cooldown hit — callers always get the
+    same generic response either way, so this never reveals whether an
+    email is registered.
+
+    The cooldown is recorded for every submitted email, known or not, so a
+    burst of unknown-email requests can't be distinguished from a burst of
+    known-email requests by timing/behavior alone.
+    """
+    email = (email or "").strip().lower()
+    if not email or _reset_recently_requested(email):
+        return
+    _record_reset_request(email)
+
+    conn = get_db()
+    try:
+        reader = conn.execute(
+            "SELECT id FROM arc_readers WHERE email = ?", (email,)
+        ).fetchone()
+    finally:
+        conn.close()
+    if not reader:
+        return
+    resend_welcome(reader["id"])
+
+
+@arc_bp.route("/api/arc/forgot-password", methods=["POST"])
+@_require_key
+def arc_forgot_password():
+    """
+    Behind the same X-Watson-Key gate as every other ARC route — the real
+    public surface is the wcky Next.js route that holds this key
+    server-side. Always returns the same message, whether or not the email
+    matched a reader.
+    """
+    _ensure_table()
+    data  = request.get_json(force=True) or {}
+    email = (data.get("email") or "").strip()
+    request_password_reset(email)
+    return jsonify({
+        "ok": True,
+        "message": "If that email is on file, a new password has been sent to it.",
+    }), 200
 
 
 # ── Admin: invite to Writing Room ─────────────────────────────────────────────
