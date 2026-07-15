@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-07-14*
+*Generated: 2026-07-15*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -55,6 +55,7 @@ data/
   .gitkeep
   congregation.db
   congregation.db.bak-20260712-200522
+  congregation.db.bak-20260714-091212
   donors.db
   exports/
     qr_1780863713.png
@@ -64,6 +65,7 @@ data/
     qr_1781039900.png
     qr_1781040379.png
     qr_1781042385.png
+    twj_full_manuscript.md
   facebook_images/
     fb_14.jpg
     fb_15.jpg
@@ -97,9 +99,12 @@ data/
   riddle_history.json
   skill_audit.json
   watson.db
+  watson.db.bak-20260714-103753
+  watson.db.bak-20260714-133329
 deploy/
   .gitkeep
   connect_cards_cron.txt
+  gutendex.service
   index.html
   people-server.service
   start_people_server.sh
@@ -147,6 +152,7 @@ jobs/
     batch_intake.py
     init_db.py
     member_match.py
+    migrate_leadership_roles.py
     migrate_reparse.py
   connect_cards/
     __init__.py
@@ -179,6 +185,8 @@ jobs/
     publishing_routes.py
     static/
       countries.geojson
+      exports/
+        twj-manuscript-c9541b5bc112b520e429ac83bbadb106.md
       favicon-w.svg
       favicon.svg
       style.css
@@ -188,6 +196,8 @@ jobs/
       admin.html
       admin_login.html
       index.html
+      meet_review.html
+      meet_reviews_list.html
       team.html
   data/
     __init__.py
@@ -298,6 +308,13 @@ jobs/
     __init__.py
     audio_tools.py
     youtube_downloader.py
+  meet/
+    __init__.py
+    fireflies_review.py
+    migrate_meeting_reviews.py
+    templates/
+      __init__.py
+      elder_review.py
   memory/
     __init__.py
     new_project.py
@@ -1026,6 +1043,7 @@ content/
     2026-07-07-the-scarlet-cord-in-the-window.md
     2026-07-09-a-brothel-to-a-bloodline.md
     2026-07-11-the-wilderness-was-never-the-destination.md
+    2026-07-14-the-dry-ground-is-under-your-feet-only-after-you-step-in.md
     the-flashlight-of-your-focus.md
     where-your-treasure-is.md
 next-env.d.ts
@@ -1125,6 +1143,7 @@ src/
       ArcSignupForm.tsx
       dashboard/
         ArcDashboard.tsx
+        CommitmentsPreview.tsx
         ManuscriptReader.tsx
         page.tsx
       login/
