@@ -968,3 +968,42 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - 0b7cfe2 fix: /meet OG/Twitter preview image never rendered — wrong image + broken redirect
 - d006f60 fix: guard /meet booking against double-submit with a synchronous ref
 - a0c49d5 fix: /meet booking store call was hitting an unreachable Tailscale IP
+
+---
+
+## Recent Changes — 2026-07-15
+
+### ~/watson
+- e505d95 feat: gutendex.service unit file for self-hosted Gutenberg catalog API
+- 4331504 docs: document ARC manuscript gate enforcement point + close date fix
+- 852d533 fix: elder-review auto-created tasks used category='elders', invisible to Donna's Team Admin
+- 4bfc6e4 fix: Save button on meeting review page gave no confirmation on click
+- 127f3b4 fix: elder-review Ollama structured JSON timeout, and fallback item merging
+- ba129a2 feat: Meeting Reviews list page + More menu entry
+- e9cec07 feat: auto-create team_tasks on Approve & Send for tracked elder-review owners
+- 9030702 feat: restrict elder-review owner dropdown/fuzzy-match to 8 named people
+- c1a3fe6 feat: dashboard review-and-edit page for elder meeting reviews
+- b5cd088 feat: adapt elder_review.py template for the dashboard-editable review schema
+- 824dc7c feat: fireflies_review.py pipeline -> dashboard-review-first flow
+- 607977b feat: meeting_reviews + meeting_review_action_items schema (watson.db)
+- 6af28f9 feat: professional HTML template + live preview for elders review emails
+- cddd0ca fix: fireflies: directive times out — 60s Ollama timeout + 15s handle_text wrapper
+- bd17d25 feat: manual trigger for the Fireflies elder-review pipeline
+- 139ec1d feat: add deacon and partner quick-add buttons to Member Management Roles
+- 7a9c3f3 fix: Fireflies webhook reads "event" key, not "eventType"
+- db423b8 fix: Fireflies webhook signature always rejected — unstripped sha256= prefix
+- 2427104 fix: Home dashboard task list missing priority/due-date edit controls
+- 57d027f feat: Fireflies.ai elder meeting review pipeline
+- 17e39c8 feat: leadership role tagging — leadership_roles table + Member Management Roles control
+- 05dacf1 fix: team task priority editing blocked by category gate + isBill UI gate
+- 512a0b0 Merge branch 'main' of https://github.com/byomes/watson
+- af0d702 fix: remove Kaci as recipient of prayer requests report, keep attendance report
+- be18664 docs: file map 2026-07-14
+- 7cf5642 docs: architecture update 2026-07-14
+
+### ~/wcky
+- df6c4e1 feat: show countdown + commitments list on ARC dashboard pre-unlock
+- 6ed2384 docs: note manuscript gate enforcement lives in SSR page, not Watson backend
+- b39728c Close ARC manuscript access the night before launch, not at launch instant
+- abc3908 Push ARC manuscript unlock time to 8am Eastern
+- beea900 publish: The Dry Ground Is Under Your Feet Only After You Step In
