@@ -9,7 +9,7 @@ log = logging.getLogger(__name__)
 BASE_DIR = Path(__file__).resolve().parent.parent
 CHROMA_DIR = BASE_DIR / "data" / "chroma"
 OLLAMA_URL = "http://localhost:11434/api/generate"
-OLLAMA_MODEL = "phi3:mini"
+OLLAMA_MODEL = "qwen2.5-coder:7b"
 TOP_K = 5
 
 def search(question, k=TOP_K):
