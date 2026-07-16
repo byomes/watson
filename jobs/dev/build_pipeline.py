@@ -147,7 +147,7 @@ def _draft_spec(build_request: str, chat_id: int | None = None) -> str:
         resp = requests.post(
             "http://localhost:11434/api/chat",
             json={
-                "model": "qwen2.5:14b",
+                "model": "qwen2.5:7b",
                 "messages": [
                     {"role": "system", "content": _SPEC_SYSTEM_PROMPT},
                     {"role": "user", "content": build_request},

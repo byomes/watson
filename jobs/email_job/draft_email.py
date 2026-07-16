@@ -61,7 +61,7 @@ def fetch_and_summarize(article):
         result = requests.post(
             "http://localhost:11434/api/generate",
             json={
-                "model": "qwen2.5:14b",
+                "model": "qwen2.5:7b",
                 "prompt": (
                     "Write 1-2 sentences summarizing this article for a Christian pastor's weekly email newsletter. "
                     f"Be concise and clear.\n\n{text}"
@@ -84,7 +84,7 @@ def draft_intro(articles):
         result = requests.post(
             "http://localhost:11434/api/generate",
             json={
-                "model": "qwen2.5:14b",
+                "model": "qwen2.5:7b",
                 "prompt": (
                     "Write a 2-3 sentence intro paragraph for a Christian pastor's weekly email newsletter. "
                     f"The articles this week cover: {titles}. "

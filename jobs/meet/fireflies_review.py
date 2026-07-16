@@ -67,10 +67,11 @@ SMTP_USER = os.getenv("WATSON_GMAIL_ADDRESS", "")
 SMTP_PASS = os.getenv("WATSON_GMAIL_APP_PASSWORD", "")
 FROM_ADDR = os.getenv("WATSON_FROM_ADDRESS") or SMTP_USER
 
-# Matches the qwen2.5:14b call pattern used in jobs/pastoral_notes/handler.py
-# and jobs/email_job/draft_email.py.
+# Matches the qwen2.5:7b call pattern used in jobs/pastoral_notes/handler.py
+# and jobs/email_job/draft_email.py — qwen2.5:14b was retired from the
+# Beelink's automated job loop (too heavy, starved concurrent Ollama calls).
 _OLLAMA_URL   = "http://localhost:11434/api/generate"
-_OLLAMA_MODEL = "qwen2.5:14b"
+_OLLAMA_MODEL = "qwen2.5:7b"
 
 # Fuzzy-match tuning for pre-filling owner_member_id from Fireflies' owner
 # guess, against the fixed 8-person ELDER_REVIEW_OWNERS pool. Verified by
@@ -298,7 +299,7 @@ def _format_meeting_date(raw_date) -> str:
 def _ollama_generate(prompt: str) -> str:
     # 60s (the timeout used elsewhere for short single-note/article prompts —
     # jobs/pastoral_notes/handler.py, jobs/email_job/draft_email.py) is not
-    # enough for a full meeting transcript: qwen2.5:14b on the Beelink's
+    # enough for a full meeting transcript: qwen2.5:7b on the Beelink's
     # CPU-bound inference is slow on large context (same known slowness
     # documented for qwen2.5-coder:7b in KB search). 300s (5 min) gives
     # headroom; if that's still not enough, the next step is chunking/staged

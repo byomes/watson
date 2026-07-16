@@ -1,7 +1,7 @@
 """
 state_of_church.py — Weekly State of the Church report.
 
-Queries congregation.db, synthesizes via Ollama (qwen2.5:14b),
+Queries congregation.db, synthesizes via Ollama (qwen2.5:7b),
 and emails an HTML pastoral digest to pastorbill@catalyst302.com.
 
 Cron: Thu 4:00pm
@@ -40,7 +40,7 @@ FROM_ADDR    = os.getenv("WATSON_FROM_ADDRESS") or SMTP_USER
 TO_ADDR      = "pastorbill@catalyst302.com"
 CONG_DB      = os.path.expanduser("~/watson/data/congregation.db")
 OLLAMA_URL   = "http://localhost:11434/api/generate"
-OLLAMA_MODEL = "qwen2.5:14b"
+OLLAMA_MODEL = "qwen2.5:7b"
 OLLAMA_TIMEOUT = 180
 
 

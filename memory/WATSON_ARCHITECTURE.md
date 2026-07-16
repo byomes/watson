@@ -30,15 +30,30 @@ Watson acts on Dr. Bill's behalf under his supervision. Always identified openly
 - **SSH:** `ssh billyomes@watson` or `ssh billyomes@192.168.1.204`
 - **Tailscale Funnel:** `https://watson.tail0243ff.ts.net` → publicly reachable → proxies to `http://localhost:5200`
 - **Dashboard:** Flask app, port 5200, `watson-dashboard.service`
-- **Ollama:** Bound to `0.0.0.0`. Models: `llama3.2:3b` (primary chat/intent), `qwen2.5-coder:7b` (Dev Loop, KB, structured reasoning), `phi3:mini` (background tasks), `gemma3:1b` (fast/lightweight)
+- **Ollama:** Bound to `0.0.0.0`. Models: `llama3.2:3b` (primary chat/intent), `qwen2.5-coder:7b` (Dev Loop, KB, structured reasoning), `qwen2.5:7b` (accuracy-sensitive background jobs — pastoral notes, email drafts, task/goal extraction, State of Church synthesis, skill/capability audits), `phi3:mini` (background tasks), `gemma3:1b` (fast/lightweight)
 
 ### FMSPC — Windows Desktop (GPU Tasks Only)
 
 - **Specs:** RTX 3070 Ti (8GB VRAM), 128GB RAM
-- **Role:** Whisper transcription, large-model Ollama inference
+- **Role:** Whisper transcription only.
 - **Whisper:** faster-whisper, Whisper Large-v3
-- **Ollama:** `qwen2.5:14b` (accuracy-sensitive jobs: pastoral notes, email drafts, shepherding reports)
 - **Not always-on.** FMSPC env vars left in `.env` for future use.
+- **⚠️ FMSPC is excluded from Watson's automated job loop, permanently — standing
+  decision, not a temporary state.** No cron job, Telegram-triggered job, or
+  dashboard-triggered job may call an Ollama model hosted on FMSPC. Every
+  automated Ollama call must target the Beelink's own `localhost:11434` with a
+  model sized for the Beelink (32GB RAM, no dedicated GPU) — see LLM Stack
+  below. Root cause history: `qwen2.5:14b` (9GB, 14.8B params) was originally
+  routed to FMSPC for "accuracy-sensitive" jobs, but FMSPC isn't always on, so
+  in practice those jobs silently fell back to requesting `qwen2.5:14b` against
+  the Beelink's own `localhost:11434` instead — loading a model that heavy into
+  the Beelink's RAM starved concurrent Ollama calls (e.g. simple intent
+  classification) of scheduling priority, causing intermittent multi-second-to-
+  60+-second hangs across unrelated Telegram queries. Traced and fixed
+  2026-07-16 (12 files moved to `qwen2.5:7b` on the Beelink); this note exists
+  because the fix has been lost between sessions once already — if a future
+  build proposes routing any automated job to FMSPC, that is the bug, not a
+  valid solution.
 
 ### PBLaptop — Windows Laptop
 
@@ -139,11 +154,19 @@ Deploy pattern: `cd ~/watson && git pull && sudo systemctl restart watson-bot.se
 | Claude Code | `--dangerously-skip-permissions` on Beelink | File editing, building, committing |
 | `llama3.2:3b` | Beelink Ollama | Primary Watson chat, intent classification, session summarization |
 | `qwen2.5-coder:7b` | Beelink Ollama | Dev Loop, KB search, structured reasoning |
+| `qwen2.5:7b` | Beelink Ollama | Accuracy-sensitive background jobs: pastoral notes, meeting/note task+goal extraction, email drafts, State of Church synthesis, skill/capability audits, elder-review meeting summaries |
 | `phi3:mini` | Beelink Ollama | Background tasks |
 | `gemma3:1b` | Beelink Ollama | Fast/lightweight queries |
-| `qwen2.5:14b` | FMSPC Ollama | Accuracy-sensitive: pastoral notes, email drafts, shepherding, State of Church synthesis |
 
 **No Claude API calls in automated Watson jobs.** Ollama handles all automated inference.
+
+**Retired — `qwen2.5:14b` (FMSPC Ollama):** was listed here for "accuracy-sensitive"
+jobs, but FMSPC isn't always on, so those jobs actually ran `qwen2.5:14b` against
+the *Beelink's* `localhost:11434` — a 9GB/14.8B-param model too heavy for the
+Beelink, which starved concurrent Ollama calls and caused intermittent
+multi-second-to-60+-second hangs (root-caused 2026-07-16). Replaced by
+`qwen2.5:7b` on the Beelink across all 12 call sites. See the FMSPC note under
+Hardware — FMSPC is excluded from the automated job loop entirely, permanently.
 
 ---
 

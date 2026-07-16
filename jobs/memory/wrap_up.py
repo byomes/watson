@@ -17,7 +17,7 @@ REPO = Path(__file__).resolve().parents[2]
 MEMORY = REPO / "memory"
 DB_PATH = REPO / "data" / "watson.db"
 OLLAMA_URL = "http://localhost:11434/api/generate"
-OLLAMA_MODEL = "qwen2.5:14b"
+OLLAMA_MODEL = "qwen2.5:7b"
 SESSION_DIVIDER = "---SESSION SUMMARIES---"
 
 log = logging.getLogger(__name__)

@@ -12,7 +12,7 @@ load_dotenv(BASE_DIR / ".env")
 log = logging.getLogger(__name__)
 
 OLLAMA_URL = "http://localhost:11434/api/generate"
-MODEL = "qwen2.5:14b"
+MODEL = "qwen2.5:7b"
 
 
 def _build_prompt(member_name: str, transcript: str, date_str: str) -> tuple[str, str]:
