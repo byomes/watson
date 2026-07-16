@@ -18,7 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from flask import Flask, Response, g, jsonify, redirect, render_template, request, send_file, session, stream_with_context, url_for
 from flask_cors import CORS
-from jobs.people.api import congregation_list, people_create, people_delete, people_list, people_update
+from jobs.people.api import congregation_list, people_create, people_delete, people_get, people_list, people_update
 from config.settings import WATSON_SYSTEM
 from core.vacation import is_vacation_mode, set_vacation_mode, vacation_gate
 
@@ -1014,7 +1014,21 @@ def people_create_api():
 
 @app.route("/api/people/<int:person_id>", methods=["PATCH"])
 def people_update_api(person_id):
-    return jsonify(people_update(person_id, request.get_json(force=True)))
+    data = request.get_json(force=True) or {}
+    # Carrier is routed through phone_carriers (watson.db), not the legacy
+    # people.carrier column — pop it before it ever reaches people_update().
+    carrier_value = data.pop("carrier", None)
+
+    result = people_update(person_id, data) if data else people_get(person_id)
+
+    if carrier_value is not None and isinstance(result, dict) and "error" not in result:
+        if carrier_value.strip():
+            phone_for_carrier = data.get("phone") or result.get("phone")
+            result["carrier_result"] = _apply_carrier_update(phone_for_carrier, carrier_value)
+        else:
+            result["carrier_result"] = {"status": "skipped"}
+
+    return jsonify(result)
 
 
 @app.route("/api/people/<int:person_id>", methods=["DELETE"])
@@ -1052,6 +1066,43 @@ def _cong_conn():
     c = sqlite3.connect(CONG_DB)
     c.row_factory = sqlite3.Row
     return c
+
+
+def _apply_carrier_update(phone_raw, carrier_value):
+    """Save a confirmed carrier via jobs.sms.carrier_lookup.save_carrier — the
+    single source of truth for carrier data (phone_carriers, watson.db), keyed
+    by normalized phone number. Never writes to members or the legacy
+    people.carrier column.
+
+    Returns {"status": "saved"} / {"status": "skipped_no_phone"} /
+    {"status": "error", "error": str}.
+    """
+    from jobs.sms.carrier_lookup import normalize_phone, save_carrier
+    digits = normalize_phone(phone_raw or "")
+    if not digits:
+        return {"status": "skipped_no_phone"}
+    try:
+        save_carrier(digits, carrier_value, source="manual", confirmed=True)
+        return {"status": "saved"}
+    except Exception as exc:
+        return {"status": "error", "error": str(exc)}
+
+
+@app.route("/api/phone-carrier")
+def phone_carrier_lookup_api():
+    """Look up the confirmed carrier for a phone number from phone_carriers
+    (watson.db) — the shared cache used by SMS sending. Only ever returns a
+    carrier when confirmed=1; an unconfirmed NumVerify guess is never
+    surfaced as if it were a known fact."""
+    from jobs.sms.carrier_lookup import normalize_phone
+    digits = normalize_phone(request.args.get("phone", ""))
+    if not digits:
+        return _no_cache(jsonify({"carrier": None}))
+    row = _db().execute(
+        "SELECT carrier FROM phone_carriers WHERE phone_number = ? AND confirmed = 1",
+        (digits,),
+    ).fetchone()
+    return _no_cache(jsonify({"carrier": row["carrier"] if row else None}))
 
 
 def _no_cache(resp):
@@ -1093,20 +1144,31 @@ def members_search_api():
 @app.route("/api/members/<int:member_id>", methods=["PATCH"])
 def members_update_api(member_id):
     data = request.get_json(force=True) or {}
-    allowed = {"member_status", "status_reason", "status_since", "status_note", "snowbird_return", "campus_preference", "partnership_status"}
+    allowed = {"member_status", "status_reason", "status_since", "status_note", "snowbird_return", "campus_preference", "partnership_status", "name"}
     fields = {k: v for k, v in data.items() if k in allowed}
+
+    if "name" in fields:
+        name_val = (fields["name"] or "").strip()
+        if not name_val:
+            return jsonify({"error": "name cannot be empty"}), 400
+        fields["name"] = name_val
+
+    # Carrier is not a members column — it's saved separately to phone_carriers
+    # (watson.db), keyed by phone number, not member id. Presence of the key
+    # (even "") signals intent; absence means "don't touch."
+    carrier_value = data.get("carrier")
 
     last_seen_input = data.get("last_seen")
     if isinstance(last_seen_input, str):
         last_seen_input = last_seen_input.strip() or None
 
-    if not fields and last_seen_input is None:
+    if not fields and last_seen_input is None and carrier_value is None:
         return jsonify({"error": "nothing to update"}), 400
     try:
         c = _cong_conn()
 
         existing = c.execute(
-            "SELECT campus_preference, "
+            "SELECT campus_preference, phone, "
             "(SELECT MAX(service_date) FROM ("
             "  SELECT service_date FROM connect_cards WHERE member_id = members.id "
             "  UNION "
@@ -1145,9 +1207,17 @@ def members_update_api(member_id):
         c.close()
         if not row:
             return jsonify({"error": "not found"}), 404
-        return jsonify(dict(row))
+        result = dict(row)
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
+
+    if carrier_value is not None:
+        if carrier_value.strip():
+            result["carrier_result"] = _apply_carrier_update(existing["phone"], carrier_value)
+        else:
+            result["carrier_result"] = {"status": "skipped"}
+
+    return jsonify(result)
 
 
 # ── Members CSV export / import (update-only, id is the match key) ────────────

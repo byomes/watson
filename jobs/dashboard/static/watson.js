@@ -1372,6 +1372,11 @@ let _memberPage        = 0;
 let _memberCurrentList = null;
 let _memberSearchTimer = null;
 let _expandedMemberId  = null;
+let _moreAllPeople     = [];
+let _peoplePage        = 0;
+let _peopleCurrentList = null;
+let _peopleSearchTimer = null;
+let _expandedPersonId  = null;
 
 function renderMore() {
   _moreSecLoaded = {};
@@ -1428,6 +1433,10 @@ function renderMore() {
         <span class="mtile-label">Members</span>
         <span class="mtile-chev">›</span>
       </button>
+      <button class="mtile" id="mtile-people" onclick="moreToggle('people')">
+        <span class="mtile-label">Contacts</span>
+        <span class="mtile-chev">›</span>
+      </button>
       <button class="mtile" id="mtile-meet-reviews" onclick="window.location.href='/meet/reviews'">
         <span class="mtile-label">Meeting Reviews</span>
         <span class="mtile-chev">›</span>
@@ -1468,6 +1477,9 @@ function renderMore() {
       </div>
       <div class="msec-body" id="msec-body-members">
         <div class="msec-inner" id="msec-inner-members"></div>
+      </div>
+      <div class="msec-body" id="msec-body-people">
+        <div class="msec-inner" id="msec-inner-people"></div>
       </div>
       <div class="msec-body" id="msec-body-publishing">
         <div class="msec-inner" id="msec-inner-publishing"><div class="loading">Loading&hellip;</div></div>
@@ -1554,6 +1566,7 @@ function moreToggle(sec) {
     if (sec === 'reading')  moreLoadReading();
     if (sec === 'events')   moreLoadEvents();
     if (sec === 'members')  moreLoadMembers();
+    if (sec === 'people')   moreLoadPeople();
     if (sec === 'publishing') publishingLoad();
     if (sec === 'thesis')   moreLoadThesis();
     if (sec === 'dev')      devLoad();
@@ -2760,7 +2773,7 @@ function _memberRenderList() {
     <div class="mpn-card" id="mmem-row-${m.id}">
       <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;-webkit-tap-highlight-color:transparent"
            onclick="moreExpandMember(${m.id})">
-        <span style="font-size:13px;font-weight:500">${esc(m.name || '')}</span>
+        <span id="mmem-name-label-${m.id}" style="font-size:13px;font-weight:500">${esc(m.name || '')}</span>
         <span id="mmem-badge-${m.id}">${_memberStatusBadge(m.member_status)}</span>
       </div>
       <div id="mmem-exp-${m.id}" style="display:none"></div>
@@ -2791,6 +2804,36 @@ function memberSearchDebounced(q) {
   }, 300);
 }
 
+// Mirrors jobs/sms/carrier_lookup.py CARRIER_GATEWAY_MAP — keep in sync.
+const _CARRIER_OPTIONS = [
+  'AT&T', 'Verizon', 'T-Mobile', 'Sprint', 'Boost Mobile',
+  'Cricket', 'MetroPCS', 'US Cellular', 'Google Fi', 'Xfinity Mobile',
+];
+
+function _carrierSelectHtml(selectId) {
+  const opts = _CARRIER_OPTIONS.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  return `<select id="${selectId}" data-loaded="" ` +
+    `style="width:100%;padding:7px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:13px;outline:none">` +
+    `<option value="">Other/Unknown</option>${opts}</select>`;
+}
+
+// Fetches the confirmed carrier (if any) for `phone` from phone_carriers
+// (watson.db) and pre-selects it in the <select id="selectId"> built by
+// _carrierSelectHtml. Never shows an unconfirmed NumVerify guess as fact.
+async function _loadCarrierIntoSelect(phone, selectId) {
+  const sel = document.getElementById(selectId);
+  if (!sel || !phone) return;
+  try {
+    const res = await api(`/api/phone-carrier?phone=${encodeURIComponent(phone)}`);
+    const carrier = res && res.carrier ? res.carrier : '';
+    sel.value = carrier;
+    if (sel.value !== carrier) sel.value = ''; // carrier not in dropdown list — fall back to Other/Unknown
+    sel.dataset.loaded = sel.value;
+  } catch {
+    // leave at Other/Unknown — don't block the rest of the panel on this
+  }
+}
+
 function moreExpandMember(id) {
   const expEl = document.getElementById(`mmem-exp-${id}`);
   if (!expEl) return;
@@ -2815,6 +2858,17 @@ function moreExpandMember(id) {
     <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
       ${m.email ? `<div style="margin-bottom:6px"><a href="mailto:${esc(m.email)}" style="color:var(--gold);font-size:13px;text-decoration:none">${esc(m.email)}</a></div>` : ''}
       ${m.phone ? `<div style="margin-bottom:10px"><a href="tel:${esc(m.phone)}" style="color:var(--gold);font-size:13px;text-decoration:none">${esc(m.phone)}</a></div>` : ''}
+      <div style="margin-bottom:8px">
+        <label style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);display:block;margin-bottom:4px">NAME</label>
+        <input id="mmem-name-${id}" type="text" value="${esc(m.name || '')}"
+          style="width:100%;padding:7px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:13px;outline:none;box-sizing:border-box">
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">Renaming may affect existing aliases and connect-card matching.</div>
+      </div>
+      <div style="margin-bottom:8px">
+        <label style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);display:block;margin-bottom:4px">MOBILE CARRIER</label>
+        ${_carrierSelectHtml(`mmem-carrier-${id}`)}
+        ${!m.phone ? '<div style="font-size:11px;color:var(--muted);margin-top:4px">No phone on file — carrier can\'t be saved.</div>' : ''}
+      </div>
       <div style="margin-bottom:8px">
         <label style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);display:block;margin-bottom:4px">STATUS</label>
         <select id="mmem-status-${id}" onchange="memberStatusChange(${id})"
@@ -2884,6 +2938,7 @@ function moreExpandMember(id) {
   expEl.style.display = 'block';
   moreLoadRoles(id);
   moreLoadAliases(id);
+  if (m.phone) _loadCarrierIntoSelect(m.phone, `mmem-carrier-${id}`);
 }
 
 async function moreLoadAliases(id) {
@@ -2955,12 +3010,22 @@ function memberStatusChange(id) {
 
 async function memberSave(id) {
   const sel        = document.getElementById(`mmem-status-${id}`);
+  const nameEl     = document.getElementById(`mmem-name-${id}`);
   const noteEl     = document.getElementById(`mmem-note-${id}`);
   const retEl      = document.getElementById(`mmem-return-${id}`);
   const lastSeenEl = document.getElementById(`mmem-lastseen-${id}`);
+  const carrierEl  = document.getElementById(`mmem-carrier-${id}`);
   const savedEl    = document.getElementById(`mmem-saved-${id}`);
   const status     = sel?.value || 'active';
+
+  const name = (nameEl?.value || '').trim();
+  if (!name) {
+    alert('Name cannot be empty.');
+    return;
+  }
+
   const body = {
+    name,
     member_status:   status,
     status_note:     (noteEl?.value || '').trim() || null,
     snowbird_return:   (status === 'snowbird' && retEl?.value) ? retEl.value : null,
@@ -2968,6 +3033,9 @@ async function memberSave(id) {
     partnership_status: document.getElementById(`mmem-partnership-${id}`)?.value || 'Guest',
     last_seen:         lastSeenEl?.value || '',
   };
+  if (carrierEl && carrierEl.value !== carrierEl.dataset.loaded) {
+    body.carrier = carrierEl.value;
+  }
   try {
     const updated = await api(`/api/members/${id}`, {
       method: 'PATCH',
@@ -2979,9 +3047,189 @@ async function memberSave(id) {
     _memberRenderStats();
     const badgeEl = document.getElementById(`mmem-badge-${id}`);
     if (badgeEl) badgeEl.innerHTML = _memberStatusBadge(status);
+    const nameLabelEl = document.getElementById(`mmem-name-label-${id}`);
+    if (nameLabelEl) nameLabelEl.textContent = name;
+    if (carrierEl && updated.carrier_result) carrierEl.dataset.loaded = carrierEl.value;
     if (savedEl) {
       savedEl.style.display = 'inline';
       setTimeout(() => { savedEl.style.display = 'none'; }, 2500);
+    }
+    if (updated.carrier_result && updated.carrier_result.status === 'error') {
+      alert(`Name/status saved, but carrier failed to save: ${updated.carrier_result.error}`);
+    } else if (updated.carrier_result && updated.carrier_result.status === 'skipped_no_phone') {
+      alert('Saved, but carrier could not be saved — no phone on file for this member.');
+    }
+  } catch { alert('Failed to save.'); }
+}
+
+// ── Contacts (people, watson.db) ─────────────────────────────────────────────
+
+async function moreLoadPeople() {
+  const el = document.getElementById('msec-inner-people');
+  if (!el) return;
+  _moreAllPeople     = [];
+  _peoplePage        = 0;
+  _peopleCurrentList = null;
+  _expandedPersonId  = null;
+  el.innerHTML = `
+    <input id="mppl-search" type="search" class="msrch" placeholder="Search contacts&hellip;"
+      oninput="peopleSearchDebounced(this.value)" style="margin-bottom:8px">
+    <div id="mppl-list"><div class="loading">Loading&hellip;</div></div>`;
+  try {
+    const people = await api('/api/people');
+    _moreAllPeople = Array.isArray(people) ? people : [];
+    _peopleRenderList();
+  } catch {
+    const listEl = document.getElementById('mppl-list');
+    if (listEl) listEl.innerHTML = '<div class="empty">Could not load contacts.</div>';
+  }
+}
+
+function _peopleRenderList() {
+  const el = document.getElementById('mppl-list');
+  if (!el) return;
+  const source = _peopleCurrentList !== null ? _peopleCurrentList : _moreAllPeople;
+  if (!source.length) {
+    el.innerHTML = '<div class="empty">No contacts found.</div>';
+    return;
+  }
+  const page = source.slice(0, (_peoplePage + 1) * 20);
+  let html = page.map(p => `
+    <div class="mpn-card" id="mppl-row-${p.id}">
+      <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;-webkit-tap-highlight-color:transparent"
+           onclick="morePeopleExpand(${p.id})">
+        <span id="mppl-name-label-${p.id}" style="font-size:13px;font-weight:500">${esc(p.name || '')}</span>
+        <span class="mtile-chev">›</span>
+      </div>
+      <div id="mppl-exp-${p.id}" style="display:none"></div>
+    </div>`).join('');
+  if (source.length > page.length) {
+    html += `<button class="mbtn mbtn-sm" onclick="peopleLoadMore()" style="margin-top:8px">Load more (${source.length - page.length} remaining)</button>`;
+  }
+  el.innerHTML = html;
+}
+
+function peopleLoadMore() {
+  _peoplePage++;
+  _peopleRenderList();
+}
+
+function peopleSearchDebounced(q) {
+  if (_peopleSearchTimer) clearTimeout(_peopleSearchTimer);
+  _peopleSearchTimer = setTimeout(() => {
+    _peoplePage = 0;
+    if (q.length >= 2) {
+      _peopleCurrentList = _moreAllPeople.filter(p =>
+        (p.name || '').toLowerCase().includes(q.toLowerCase())
+      );
+    } else {
+      _peopleCurrentList = null;
+    }
+    _peopleRenderList();
+  }, 300);
+}
+
+function morePeopleExpand(id) {
+  const expEl = document.getElementById(`mppl-exp-${id}`);
+  if (!expEl) return;
+  if (_expandedPersonId === id) {
+    expEl.style.display = 'none';
+    _expandedPersonId = null;
+    return;
+  }
+  if (_expandedPersonId !== null) {
+    const prev = document.getElementById(`mppl-exp-${_expandedPersonId}`);
+    if (prev) prev.style.display = 'none';
+  }
+  _expandedPersonId = id;
+  const p = _moreAllPeople.find(x => x.id === id);
+  if (!p) return;
+  expEl.innerHTML = `
+    <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+      <div style="margin-bottom:8px">
+        <label style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);display:block;margin-bottom:4px">NAME</label>
+        <input id="mppl-name-${id}" type="text" value="${esc(p.name || '')}"
+          style="width:100%;padding:7px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:13px;outline:none;box-sizing:border-box">
+      </div>
+      <div style="margin-bottom:8px">
+        <label style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);display:block;margin-bottom:4px">EMAIL</label>
+        <input id="mppl-email-${id}" type="email" value="${esc(p.email || '')}"
+          style="width:100%;padding:7px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:13px;outline:none;box-sizing:border-box">
+      </div>
+      <div style="margin-bottom:8px">
+        <label style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);display:block;margin-bottom:4px">PHONE</label>
+        <input id="mppl-phone-${id}" type="tel" value="${esc(p.phone || '')}"
+          style="width:100%;padding:7px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:13px;outline:none;box-sizing:border-box">
+      </div>
+      <div style="margin-bottom:8px">
+        <label style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);display:block;margin-bottom:4px">MOBILE CARRIER</label>
+        ${_carrierSelectHtml(`mppl-carrier-${id}`)}
+        ${!p.phone ? '<div style="font-size:11px;color:var(--muted);margin-top:4px">No phone on file — carrier can\'t be saved.</div>' : ''}
+      </div>
+      <div style="margin-bottom:8px">
+        <label style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);display:block;margin-bottom:4px">RELATIONSHIP</label>
+        <input id="mppl-relationship-${id}" type="text" value="${esc(p.relationship || '')}"
+          style="width:100%;padding:7px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:13px;outline:none;box-sizing:border-box">
+      </div>
+      <div style="margin-bottom:10px">
+        <label style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);display:block;margin-bottom:4px">NOTES</label>
+        <textarea id="mppl-notes-${id}" rows="2"
+          style="display:block;width:100%;padding:7px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:13px;outline:none;resize:vertical;box-sizing:border-box"
+          placeholder="Optional note&hellip;">${esc(p.notes || '')}</textarea>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <button class="mbtn mbtn-p mbtn-sm" onclick="peopleSave(${id})">Save</button>
+        <span id="mppl-saved-${id}" style="display:none;font-size:12px;color:#2e7d32">✓ Saved</span>
+      </div>
+    </div>`;
+  expEl.style.display = 'block';
+  if (p.phone) _loadCarrierIntoSelect(p.phone, `mppl-carrier-${id}`);
+}
+
+async function peopleSave(id) {
+  const nameEl        = document.getElementById(`mppl-name-${id}`);
+  const emailEl       = document.getElementById(`mppl-email-${id}`);
+  const phoneEl        = document.getElementById(`mppl-phone-${id}`);
+  const relationshipEl = document.getElementById(`mppl-relationship-${id}`);
+  const notesEl        = document.getElementById(`mppl-notes-${id}`);
+  const carrierEl      = document.getElementById(`mppl-carrier-${id}`);
+  const savedEl        = document.getElementById(`mppl-saved-${id}`);
+
+  const name = (nameEl?.value || '').trim();
+  if (!name) {
+    alert('Name cannot be empty.');
+    return;
+  }
+
+  const body = {
+    name,
+    email:        (emailEl?.value || '').trim() || null,
+    phone:        (phoneEl?.value || '').trim() || null,
+    relationship: (relationshipEl?.value || '').trim() || null,
+    notes:        (notesEl?.value || '').trim() || null,
+  };
+  if (carrierEl && carrierEl.value !== carrierEl.dataset.loaded) {
+    body.carrier = carrierEl.value;
+  }
+  try {
+    const updated = await api(`/api/people/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const idx = _moreAllPeople.findIndex(p => p.id === id);
+    if (idx !== -1) Object.assign(_moreAllPeople[idx], updated);
+    const nameLabelEl = document.getElementById(`mppl-name-label-${id}`);
+    if (nameLabelEl) nameLabelEl.textContent = name;
+    if (carrierEl && updated.carrier_result) carrierEl.dataset.loaded = carrierEl.value;
+    if (savedEl) {
+      savedEl.style.display = 'inline';
+      setTimeout(() => { savedEl.style.display = 'none'; }, 2500);
+    }
+    if (updated.carrier_result && updated.carrier_result.status === 'error') {
+      alert(`Contact saved, but carrier failed to save: ${updated.carrier_result.error}`);
+    } else if (updated.carrier_result && updated.carrier_result.status === 'skipped_no_phone') {
+      alert('Saved, but carrier could not be saved — no phone on file for this contact.');
     }
   } catch { alert('Failed to save.'); }
 }
