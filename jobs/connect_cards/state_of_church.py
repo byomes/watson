@@ -27,6 +27,8 @@ from email.mime.text import MIMEText
 import requests
 from dotenv import load_dotenv
 
+from jobs.connect_cards.utils import _display_name
+
 load_dotenv(os.path.expanduser("~/watson/.env"))
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -43,7 +45,7 @@ CONG_DB      = os.path.expanduser("~/watson/data/congregation.db")
 BENCHMARKS_DOC = os.path.expanduser("~/watson/memory/projects/benchmarks.md")
 OLLAMA_URL   = "http://localhost:11434/api/generate"
 OLLAMA_MODEL = "qwen2.5:7b"
-OLLAMA_TIMEOUT = 180
+OLLAMA_TIMEOUT = 240
 
 
 # ── Date helpers ───────────────────────────────────────────────────────────────
@@ -111,7 +113,7 @@ def _first_time_visitors(conn: sqlite3.Connection, service_date: str) -> list[st
         """,
         (service_date,),
     ).fetchall()
-    return [r["name"] for r in rows]
+    return [_display_name(r["name"]) for r in rows]
 
 
 def _open_follow_ups(conn: sqlite3.Connection) -> list[dict]:
@@ -124,7 +126,7 @@ def _open_follow_ups(conn: sqlite3.Connection) -> list[dict]:
         ORDER BY fu.created_at ASC
         """,
     ).fetchall()
-    return [dict(r) for r in rows]
+    return [{**dict(r), "name": _display_name(r["name"])} for r in rows]
 
 
 def _prayer_requests(conn: sqlite3.Connection) -> list[dict]:
@@ -138,7 +140,7 @@ def _prayer_requests(conn: sqlite3.Connection) -> list[dict]:
         ORDER BY m.name
         """,
     ).fetchall()
-    return [dict(r) for r in rows]
+    return [{**dict(r), "name": _display_name(r["name"])} for r in rows]
 
 
 def _members_not_seen(conn: sqlite3.Connection) -> list[dict]:
@@ -155,7 +157,7 @@ def _members_not_seen(conn: sqlite3.Connection) -> list[dict]:
         LIMIT 25
         """,
     ).fetchall()
-    return [dict(r) for r in rows]
+    return [{**dict(r), "name": _display_name(r["name"])} for r in rows]
 
 
 def _members_excluded_counts(conn: sqlite3.Connection) -> dict:
@@ -269,8 +271,11 @@ def _ollama_synthesis(condensed: str, benchmarks_context: str) -> str | None:
         f"{benchmarks_context}\n\n"
         "Based on this week's church data below, write exactly one cohesive 2-3 paragraph pastoral "
         "synthesis for Dr. Bill, following these rules:\n"
-        "a. Judge attendance against the 4-week and 8-week rolling averages given below, never against "
-        "a single week's number in isolation.\n"
+        "a. The normal range and in/out-of-range verdict given below (COMBINED TOTAL VS NORMAL RANGE) "
+        "apply ONLY to the combined total across both campuses. Never state or imply that a single "
+        "campus's average is 'within' or 'outside' that combined range — campus-level averages are for "
+        "descriptive context only, not range comparison. Judge overall attendance health using the "
+        "combined verdict, not campus-level arithmetic.\n"
         "b. Only use language like 'trend' or 'decline' if CONSECUTIVE WEEKS OUTSIDE NORMAL RANGE below "
         "is 3 or more. A number inside the normal range, or a one-week dip, is not a trend — say so "
         "plainly if that's the case.\n"
@@ -857,6 +862,13 @@ def build_report() -> tuple[str, str, str]:
     last_by_campus = {r["campus"]: r["count"] for r in last_att}
     this_total = sum(r["count"] for r in this_att)
     last_total = sum(r["count"] for r in last_att)
+
+    combined_in_range = band_low <= this_total <= band_high
+    range_verdict = (
+        f"WITHIN (range {band_low:.0f}-{band_high:.0f})" if combined_in_range
+        else f"OUTSIDE (range {band_low:.0f}-{band_high:.0f})"
+    )
+
     att_parts = []
     for r in this_att:
         campus = r["campus"]
@@ -894,6 +906,7 @@ def build_report() -> tuple[str, str, str]:
         f"8-WEEK AVG: Wilmington {wil8}, Online {onl8}\n"
         f"TREND: Wilmington {wil_d}, Online {onl_d}\n"
         f"NORMAL RANGE (8-wk mean ± 1 std dev, combined): {band_low:.0f}–{band_high:.0f}\n"
+        f"COMBINED TOTAL VS NORMAL RANGE: {this_total} — {range_verdict}\n"
         f"CONSECUTIVE WEEKS OUTSIDE NORMAL RANGE: {consecutive_outside_band}\n"
         f"SEASONAL CAVEAT: {seasonal_caveat}\n"
         f"ENGAGEMENT: Consistent {engagement['consistent']}, Active {engagement['active']}, "
