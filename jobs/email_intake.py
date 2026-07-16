@@ -233,17 +233,90 @@ def _resolve_sms_reply_sender(digits: str) -> str | None:
     return None
 
 
+def _generate_sms_reply(body: str) -> str | None:
+    """Generate an autonomous SMS reply via local Ollama.
+
+    Reuses the same system-prompt construction (build_prompt) as the Telegram
+    bot's general chat fallback (bot/bot.py:_get_general_reply_sync) so this
+    first autonomous, no-approval external channel carries the same identity
+    constraints as everywhere else Watson talks — plus an SMS-specific length
+    instruction, since a full paragraph gets truncated at sms_send.py's
+    150-char limit. Returns None on any failure; callers must not send blindly.
+    """
+    from jobs.memory.prompt_builder import build_prompt
+    system = build_prompt(task=body, project=None) + (
+        "\n\nThis reply goes out as an SMS text message, not a chat message. "
+        "Keep it to 1-2 short sentences — anything longer gets cut off at the "
+        "150-character SMS limit."
+    )
+    try:
+        resp = requests.post(
+            "http://localhost:11434/api/chat",
+            json={
+                "model": "llama3.2:3b",
+                "messages": [
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": body},
+                ],
+                "stream": False,
+            },
+            timeout=60,
+        )
+        resp.raise_for_status()
+        reply = resp.json()["message"]["content"].strip()
+        return reply or None
+    except Exception as exc:
+        log.error("SMS auto-reply Ollama call failed: %s", exc)
+        return None
+
+
 def _handle_sms_reply(sender_email: str, body: str) -> None:
-    """Deliver an inbound SMS-gateway reply straight to Telegram — no triage."""
+    """Autonomous SMS reply: resolve sender, generate a reply via Ollama, send
+    it back via the carrier-gateway SMS path, and log the full exchange to
+    Telegram in one message. No approval gate, no allowlist — per Bill's
+    explicit scope, only leadership realistically texts this number in.
+    """
     local = sender_email.split("@", 1)[0]
     digits = normalize_phone(local)
     name = _resolve_sms_reply_sender(digits) if digits else None
     who = name or digits or local
-    _tg(f"📱 Text from {who}: {body.strip()}")
+    body_clean = body.strip()
+
     log.info(
         "SMS reply — sender=%s digits=%s resolved=%s",
         sender_email, digits, name or "None",
     )
+
+    if not digits:
+        # _is_sms_reply already validated the address shape, so this
+        # shouldn't happen — but never leave an inbound message unreported.
+        _tg(f"⚠️ SMS reply detected from {sender_email} but couldn't parse a phone number.\n\n{body_clean}")
+        return
+
+    reply = _generate_sms_reply(body_clean)
+    if not reply:
+        _tg(
+            f"⚠️ Text from {who}: {body_clean}\n\n"
+            f"Watson's auto-reply failed (Ollama error) — no reply sent. Follow up manually."
+        )
+        return
+
+    from jobs.sms.sms_send import send_sms
+    result = send_sms(who, digits, "", reply)
+
+    if result.get("success"):
+        _tg(f"📱 SMS exchange — {who}\n→ Them: {body_clean}\n→ Watson: {reply}")
+    elif result.get("needs_carrier"):
+        _tg(
+            f"⚠️ Text from {who}: {body_clean}\n\n"
+            f"Watson drafted a reply but couldn't send — no carrier on file for this "
+            f"number. Drafted reply: {reply}"
+        )
+    else:
+        _tg(
+            f"⚠️ Text from {who}: {body_clean}\n\n"
+            f"Watson drafted a reply but sending failed: {result.get('error')}"
+        )
 
 
 def _tg(text: str) -> None:
