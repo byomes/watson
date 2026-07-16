@@ -30,7 +30,7 @@ def synthesize(question, chunks, memory_context=""):
     if memory_context:
         prompt += memory_context + "\n\n## Current Message\n"
     prompt += "Question: " + question + "\n\nSermon excerpts:\n" + context + "\n\nAnswer:"
-    resp = requests.post(OLLAMA_URL, json={"model": OLLAMA_MODEL, "prompt": prompt, "stream": False}, timeout=120)
+    resp = requests.post(OLLAMA_URL, json={"model": OLLAMA_MODEL, "prompt": prompt, "stream": False}, timeout=240)
     resp.raise_for_status()
     return resp.json()["response"].strip()
 
