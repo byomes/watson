@@ -663,12 +663,19 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     _hits = _lm_d(_sms_name)
                     _ct = next((c for c in _hits if c.get("phone")), None)
                     if _ct:
-                        _res = _sms_tc_d(_ct, _sms_body)
-                        _dr = f"Text sent to {_ct['name']}." if _res["success"] else f"Failed: {_res['error']}"
+                        _res = await asyncio.to_thread(_sms_tc_d, _ct, _sms_body)
+                        if _res["success"]:
+                            _dr = f"Text sent to {_ct['name']}."
+                        elif _res.get("needs_carrier"):
+                            await _send_carrier_confirm_keyboard(update, _ct["name"], _res["phone"], _sms_body)
+                            _dr = None
+                        else:
+                            _dr = f"Failed: {_res['error']}"
                     else:
                         _dr = f"No contact with phone found for '{_sms_name}'."
-                    await update.message.reply_text(_dr)
-                    _log_telegram_exchange(text_clean, _dr)
+                    if _dr is not None:
+                        await update.message.reply_text(_dr)
+                        _log_telegram_exchange(text_clean, _dr)
                 else:
                     await update.message.reply_text("Format: sms: Name: message")
             elif _dpfx == "polish:":
@@ -1714,6 +1721,80 @@ async def _handle_general(update: Update, context: ContextTypes.DEFAULT_TYPE, te
     return reply
 
 
+_CARRIER_CONFIRM_BUTTONS = (
+    ("AT&T", "AT&T"), ("Verizon", "Verizon"), ("T-Mobile", "T-Mobile"),
+    ("Boost", "Boost Mobile"), ("Cricket", "Cricket"),
+)
+
+
+async def _send_carrier_confirm_keyboard(update: Update, name: str, phone: str, message: str) -> None:
+    """Ask which carrier a number belongs to, via the shared tg_pending_actions
+    reply-threading mechanism — buttons for common carriers, or reply with the name."""
+    from jobs.telegram.pending import store_pending_action
+
+    sent = await update.message.reply_text(
+        f"I don't have a carrier on file for {name}'s number. Which one?"
+    )
+    pending_id = store_pending_action(
+        "carrier_confirm", sent.message_id, {"name": name, "phone": phone, "message": message}
+    )
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton(label, callback_data=f"carrier_pick:{pending_id}:{value}")
+         for label, value in _CARRIER_CONFIRM_BUTTONS[:3]],
+        [InlineKeyboardButton(label, callback_data=f"carrier_pick:{pending_id}:{value}")
+         for label, value in _CARRIER_CONFIRM_BUTTONS[3:]]
+        + [InlineKeyboardButton("Other — type it", callback_data=f"carrier_other:{pending_id}")],
+    ])
+    await sent.edit_reply_markup(reply_markup=keyboard)
+
+
+async def handle_carrier_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    if not _is_authorized(update):
+        return
+
+    data = query.data
+    from jobs.telegram.pending import mark_done
+
+    pending_id = int(data.split(":")[1])
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT id, payload FROM tg_pending_actions WHERE id=? AND status='pending'",
+            (pending_id,),
+        ).fetchone()
+
+    if not row:
+        await query.edit_message_text("⚠️ Action expired or already resolved.", reply_markup=None)
+        return
+
+    import json as _json
+    payload = _json.loads(row["payload"])
+
+    if data.startswith("carrier_other:"):
+        await query.edit_message_text(
+            f"Reply to this message with {payload['name']}'s carrier (e.g. \"Cricket\")."
+        )
+        return
+
+    carrier = data.split(":", 2)[2]
+    from jobs.sms.carrier_lookup import save_carrier
+    from jobs.sms.sms_send import send_sms
+
+    save_carrier(payload["phone"], carrier, source="manual", confirmed=True)
+    result = await asyncio.to_thread(send_sms, payload["name"], payload["phone"], carrier, payload["message"])
+    mark_done(pending_id)
+    if result["success"]:
+        await query.edit_message_text(
+            f"✅ Carrier set to {carrier}. Text sent to {payload['name']}.", reply_markup=None
+        )
+    else:
+        await query.edit_message_text(
+            f"Carrier saved ({carrier}), but send failed: {result['error']}", reply_markup=None
+        )
+
+
 async def _route_tg_pending_reply(
     update: Update, context: ContextTypes.DEFAULT_TYPE, text: str, tg_pending: dict
 ) -> bool:
@@ -1830,6 +1911,27 @@ async def _route_tg_pending_reply(
             await update.message.reply_text(
                 f"✅ Added '{result['title']}' to the classics knowledge base — "
                 f"{result['chunks_added']} chunks."
+            )
+        mark_done(pending_id)
+        return True
+
+    if action_type == "carrier_confirm":
+        if text_lower in ("cancel", "no", "never mind"):
+            mark_cancelled(pending_id)
+            await update.message.reply_text("Cancelled.")
+            return True
+        carrier = text.strip()
+        from jobs.sms.carrier_lookup import save_carrier
+        from jobs.sms.sms_send import send_sms
+        save_carrier(payload["phone"], carrier, source="manual", confirmed=True)
+        result = await asyncio.to_thread(
+            send_sms, payload["name"], payload["phone"], carrier, payload["message"]
+        )
+        if result["success"]:
+            await update.message.reply_text(f"✅ Carrier set to {carrier}. Text sent to {payload['name']}.")
+        else:
+            await update.message.reply_text(
+                f"Carrier saved ({carrier}), but send failed: {result['error']}"
             )
         mark_done(pending_id)
         return True
@@ -3473,6 +3575,7 @@ def main():
     app.add_handler(CallbackQueryHandler(handle_facebook_image_callback, pattern=r"^fb_img_(?:approve|regen|discard):"))
     app.add_handler(CallbackQueryHandler(handle_facebook_callback, pattern=r"^fb_"))
     app.add_handler(CallbackQueryHandler(handle_email_triage_callback, pattern=r"^et_"))
+    app.add_handler(CallbackQueryHandler(handle_carrier_callback, pattern=r"^carrier_"))
     app.add_handler(CallbackQueryHandler(handle_email_callback, pattern=r"^email_"))
     app.add_handler(CallbackQueryHandler(handle_book_callback, pattern=r"^book_"))
     app.add_handler(CallbackQueryHandler(handle_menu_callback, pattern=r"^menu_"))

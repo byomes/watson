@@ -7,7 +7,7 @@ an explicit Telegram response from Dr. Bill. If Dr. Bill does not respond, the e
 stays unread in Gmail indefinitely. No timeout, no auto-archive, no fallback.
 
 Crontab (run on watson server):
-  */15 * * * * PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python /home/billyomes/watson/jobs/email_intake.py
+  * * * * * PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python /home/billyomes/watson/jobs/email_intake.py
 """
 
 import email as email_lib
@@ -139,7 +139,7 @@ def get_unread():
     uids = data[0].split()
     results = []
     for uid in uids:
-        _, msg_data = mail.fetch(uid, "(RFC822)")
+        _, msg_data = mail.fetch(uid, "(BODY.PEEK[])")
         raw = msg_data[0][1]
         msg = email_lib.message_from_bytes(raw)
         subject_parts = email.header.decode_header(msg.get("Subject", ""))

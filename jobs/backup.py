@@ -7,6 +7,11 @@ import subprocess
 import os
 from datetime import datetime
 
+import requests
+
+from config.settings import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+from core.vacation import vacation_gate
+
 WATSON_DIR = "/home/billyomes/watson"
 REMOTE = "Watson-Backup:Watson-Backup"
 LOG = f"{WATSON_DIR}/logs/backup.log"
@@ -24,6 +29,17 @@ def log(msg):
     print(line)
     with open(LOG, "a") as f:
         f.write(line + "\n")
+
+def _send_telegram(text):
+    if vacation_gate("system_failure", "jobs.backup", text):
+        return
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        return
+    requests.post(
+        f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+        json={"chat_id": TELEGRAM_CHAT_ID, "text": text},
+        timeout=10,
+    )
 
 def run_backup():
     log("=== Watson backup started ===")
@@ -56,6 +72,9 @@ def run_backup():
 
     if errors:
         log(f"=== Backup completed WITH ERRORS: {errors} ===")
+        _send_telegram(
+            f"❌ OneDrive backup failed — check rclone auth/logs\n\nFailed targets: {', '.join(errors)}"
+        )
     else:
         log("=== Backup completed successfully ===")
 

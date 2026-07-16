@@ -1,22 +1,28 @@
 """jobs/research/gutenberg.py — Project Gutenberg research via Gutendex, approval-gated
 ingestion into a separate 'gutenberg' ChromaDB collection (kept isolated from 'sermons').
 
-Gutendex (https://gutendex.com) is used for metadata/URLs only. The actual book text is
-always downloaded directly from the URL Gutendex supplies (typically gutenberg.org), never
-proxied through Gutendex.
+Gutendex is used for metadata/URLs only — self-hosted locally by default (see
+GUTENDEX_BASE_URL in .env), since the public gutendex.com API is blocked by a Cloudflare
+challenge (bug_tracker #11). The actual book text is always downloaded directly from the
+URL Gutendex supplies (typically gutenberg.org), never proxied through Gutendex.
 """
 import logging
+import os
 import re
 from pathlib import Path
 
 import requests
+from dotenv import load_dotenv
 
 from core.database import get_connection
 from jobs.build_kb import ingest_dir
 
+load_dotenv()
+
 log = logging.getLogger(__name__)
 
-GUTENDEX_BOOKS_URL = "https://gutendex.com/books"
+GUTENDEX_BASE_URL = os.getenv("GUTENDEX_BASE_URL", "http://127.0.0.1:8010")
+GUTENDEX_BOOKS_URL = f"{GUTENDEX_BASE_URL}/books"
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 DOCS_DIR = BASE_DIR / "kb" / "documents" / "gutenberg"
 COLLECTION_NAME = "gutenberg"

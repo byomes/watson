@@ -2395,8 +2395,13 @@ async function moreLoadMembers() {
   _memberCurrentList = null;
   _expandedMemberId = null;
   el.innerHTML = `
-    <button class="mbtn mbtn-sm" onclick="batchShowForm()" style="margin-bottom:8px">Batch Update Members</button>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+      <button class="mbtn mbtn-sm" onclick="batchShowForm()">Batch Update Members</button>
+      <button class="mbtn mbtn-sm" onclick="membersExportCsv()">Export CSV</button>
+      <button class="mbtn mbtn-sm" onclick="csvImportShowForm()">Upload CSV</button>
+    </div>
     <div id="mbatch-panel" style="display:none;margin-bottom:12px"></div>
+    <div id="mcsv-panel" style="display:none;margin-bottom:12px"></div>
     <input id="mmem-search" type="search" class="msrch" placeholder="Search members&hellip;"
       oninput="memberSearchDebounced(this.value)" style="margin-bottom:8px">
     <div id="mmem-stats" style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);margin-bottom:8px">Loading&hellip;</div>
@@ -2584,6 +2589,139 @@ function batchCancelForm() {
   _batchState = null;
   const panel = document.getElementById('mbatch-panel');
   if (panel) { panel.style.display = 'none'; panel.innerHTML = ''; }
+}
+
+// ─── CSV Export / Import ─────────────────────────────────────────────────────
+
+function membersExportCsv() {
+  const a = document.createElement('a');
+  a.href = '/api/members/export';
+  a.download = '';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+let _csvImportState = null;
+
+function csvImportShowForm() {
+  const panel = document.getElementById('mcsv-panel');
+  if (!panel) return;
+  if (panel.style.display !== 'none') {
+    csvImportCancelForm();
+    return;
+  }
+  panel.style.display = 'block';
+  panel.innerHTML = `
+    <div class="mpn-card">
+      <label style="display:inline-block;cursor:pointer;padding:5px 10px;border:1px solid var(--border);border-radius:var(--r-btn);font-size:11px;color:var(--text);background:var(--surface)">
+        Choose CSV File
+        <input id="mcsv-file" type="file" accept=".csv" style="display:none" onchange="csvImportFileChosen(this)">
+      </label>
+      <div id="mcsv-filename" style="font-size:11px;color:var(--muted);margin-top:6px"></div>
+      <div id="mcsv-result" style="margin-top:10px"></div>
+    </div>`;
+}
+
+function csvImportCancelForm() {
+  _csvImportState = null;
+  const panel = document.getElementById('mcsv-panel');
+  if (panel) { panel.style.display = 'none'; panel.innerHTML = ''; }
+}
+
+function csvImportFileChosen(input) {
+  const file = input.files && input.files[0];
+  const nameEl = document.getElementById('mcsv-filename');
+  const resultEl = document.getElementById('mcsv-result');
+  if (!file) return;
+  _csvImportState = { file };
+  if (nameEl) nameEl.textContent = file.name;
+  if (resultEl) resultEl.innerHTML = '<button class="mbtn mbtn-p mbtn-sm" onclick="csvImportPreview()">Preview Changes</button>';
+}
+
+async function csvImportPreview() {
+  if (!_csvImportState?.file) return;
+  const resultEl = document.getElementById('mcsv-result');
+  if (resultEl) resultEl.innerHTML = '<div class="loading">Analyzing CSV&hellip;</div>';
+  const fd = new FormData();
+  fd.append('file', _csvImportState.file);
+  try {
+    const res = await fetch('/api/members/import/preview', { method: 'POST', body: fd });
+    if (!res.ok) throw new Error(await res.text());
+    _csvImportState.preview = await res.json();
+    csvImportRenderPreview();
+  } catch {
+    if (resultEl) resultEl.innerHTML = '<div class="empty">Failed to preview CSV. Check the file and try again.</div>';
+  }
+}
+
+function csvImportRenderPreview() {
+  const resultEl = document.getElementById('mcsv-result');
+  if (!resultEl || !_csvImportState?.preview) return;
+  const { counts, changes, errors, skipped } = _csvImportState.preview;
+  let html = `<div style="font-size:12px;font-family:'DM Mono',monospace;color:var(--muted);margin-bottom:10px">
+    Unchanged: ${counts.unchanged} &middot; To update: ${counts.to_update} &middot; Skipped (unknown id): ${counts.skipped_unknown_id} &middot; Errors: ${counts.errors}
+  </div>`;
+
+  if (changes.length) {
+    html += '<div style="margin-bottom:10px"><div style="font-size:12px;font-weight:600;margin-bottom:6px">Changes to apply:</div>';
+    html += '<div style="max-height:260px;overflow-y:auto">';
+    html += changes.map(c => {
+      const old = (c.old_value === null || c.old_value === undefined || c.old_value === '') ? '(none)' : String(c.old_value);
+      return `<div style="font-size:12px;color:var(--muted);margin-bottom:2px">#${c.id} ${esc(c.name)} &mdash; ${esc(c.field)}: ${esc(old)} &rarr; ${esc(String(c.new_value))}</div>`;
+    }).join('');
+    html += '</div></div>';
+  } else {
+    html += '<div class="empty" style="margin-bottom:10px">No changes to apply.</div>';
+  }
+
+  if (errors.length) {
+    html += '<div style="margin-bottom:10px"><div style="font-size:12px;font-weight:600;color:var(--red);margin-bottom:4px">Errors (not applied):</div>';
+    html += errors.map(e => `<div style="font-size:12px;color:var(--red)">#${e.id ?? '?'} ${esc(e.name)}: ${esc(e.reason)}</div>`).join('');
+    html += '</div>';
+  }
+
+  if (skipped.length) {
+    html += `<div style="margin-bottom:10px"><div style="font-size:12px;font-weight:600;margin-bottom:4px">Skipped &mdash; unknown id:</div>
+      <div style="font-size:12px;color:var(--muted)">${skipped.map(s => `#${s.id ?? '?'} ${esc(s.name)}`).join(', ')}</div></div>`;
+  }
+
+  if (changes.length) {
+    html += `<button class="mbtn mbtn-p mbtn-sm" onclick="csvImportConfirm()">Confirm Import</button>
+      <button class="mbtn mbtn-sm" onclick="csvImportCancelForm()">Cancel</button>`;
+  } else {
+    html += `<button class="mbtn mbtn-sm" onclick="csvImportCancelForm()">Close</button>`;
+  }
+  resultEl.innerHTML = html;
+}
+
+async function csvImportConfirm() {
+  if (!_csvImportState?.file) return;
+  const resultEl = document.getElementById('mcsv-result');
+  if (resultEl) resultEl.innerHTML = '<div class="loading">Applying changes&hellip;</div>';
+  const fd = new FormData();
+  fd.append('file', _csvImportState.file);
+  try {
+    const res = await fetch('/api/members/import/confirm', { method: 'POST', body: fd });
+    if (!res.ok) throw new Error(await res.text());
+    const result = await res.json();
+    if (resultEl) {
+      resultEl.innerHTML = `<div style="font-size:12px;font-weight:600;margin-bottom:6px">Import complete:</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:8px">
+          ${result.updated} updated &middot; ${result.unchanged} unchanged &middot; ${result.skipped_unknown_id} skipped (unknown id) &middot; ${result.errors} errors
+        </div>
+        <button class="mbtn mbtn-sm" onclick="csvImportCancelForm()">Close</button>`;
+    }
+    _csvImportState = null;
+    try {
+      const members = await api('/api/members');
+      _moreAllMembers = Array.isArray(members) ? members : _moreAllMembers;
+      _memberRenderStats();
+      _memberRenderList();
+    } catch { /* member list refresh is best-effort; the summary above still stands */ }
+  } catch {
+    if (resultEl) resultEl.innerHTML = '<div class="empty">Failed to apply import. Try again.</div>';
+  }
 }
 
 function _memberRenderStats() {

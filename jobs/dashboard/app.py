@@ -1,5 +1,7 @@
 """Watson dashboard — port 5200, Tailscale-only."""
 import concurrent.futures
+import csv
+import io
 import json
 import logging
 import os
@@ -1146,6 +1148,189 @@ def members_update_api(member_id):
         return jsonify(dict(row))
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
+
+
+# ── Members CSV export / import (update-only, id is the match key) ────────────
+
+_CSV_MEMBER_STATUS_VALUES = {"active", "deceased", "disconnected", "non_local", "snowbird"}
+_CSV_CAMPUS_VALUES = {"Wilmington", "Online", "Hybrid"}
+_CSV_PARTNERSHIP_VALUES = {"Guest", "Regular Attender", "Partner"}
+_CSV_EXPORT_COLUMNS = ["id", "name", "email", "phone", "member_status", "campus_preference", "partnership_status"]
+_CSV_DIFF_FIELDS = ["name", "email", "phone", "member_status", "campus_preference", "partnership_status"]
+
+
+@app.route("/api/members/export")
+def members_export_api():
+    c = _cong_conn()
+    rows = c.execute(
+        "SELECT id, name, email, phone, member_status, campus_preference, partnership_status "
+        "FROM members ORDER BY name COLLATE NOCASE"
+    ).fetchall()
+    c.close()
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(_CSV_EXPORT_COLUMNS)
+    for r in rows:
+        writer.writerow([r[col] if r[col] is not None else "" for col in _CSV_EXPORT_COLUMNS])
+    filename = f"members-export-{datetime.now().strftime('%Y-%m-%d')}.csv"
+    resp = Response(buf.getvalue(), mimetype="text/csv")
+    resp.headers["Content-Disposition"] = f"attachment; filename={filename}"
+    return resp
+
+
+def _parse_members_import_csv(file_storage):
+    """Parse an uploaded members CSV, match rows to existing members by id, validate
+    enums, and diff changed fields against current DB values. Read-only — never writes.
+
+    Blank cells in name/email/phone/member_status/campus_preference/partnership_status
+    are treated as "leave unchanged" rather than a value to apply, so a stray blank
+    cell in a bulk edit can't silently wipe a field (name is NOT NULL and the three
+    status fields are true enums with no blank member).
+
+    Returns {"rows": [...], "counts": {...}}. Each row dict has: id, name, status
+    (one of "to_update" / "unchanged" / "skipped_unknown_id" / "error"), reason,
+    changes (list of {field, old_value, new_value}), and — only for "to_update" rows —
+    new_values (dict of field -> validated new value, ready to write).
+    """
+    raw = file_storage.read()
+    text = raw.decode("utf-8-sig") if isinstance(raw, bytes) else raw
+    reader = csv.DictReader(io.StringIO(text))
+
+    c = _cong_conn()
+    result_rows = []
+    counts = {"unchanged": 0, "to_update": 0, "skipped_unknown_id": 0, "errors": 0}
+
+    for row in reader:
+        raw_id = (row.get("id") or "").strip()
+        try:
+            member_id = int(raw_id)
+        except (TypeError, ValueError):
+            counts["skipped_unknown_id"] += 1
+            result_rows.append({
+                "id": raw_id or None, "name": (row.get("name") or "").strip(),
+                "status": "skipped_unknown_id", "reason": "missing or non-numeric id", "changes": [],
+            })
+            continue
+
+        existing = c.execute(
+            "SELECT id, name, email, phone, member_status, campus_preference, partnership_status "
+            "FROM members WHERE id = ?", (member_id,),
+        ).fetchone()
+        if not existing:
+            counts["skipped_unknown_id"] += 1
+            result_rows.append({
+                "id": member_id, "name": (row.get("name") or "").strip(),
+                "status": "skipped_unknown_id", "reason": "unknown id", "changes": [],
+            })
+            continue
+
+        errors = []
+        incoming_status = (row.get("member_status") or "").strip()
+        if incoming_status and incoming_status not in _CSV_MEMBER_STATUS_VALUES:
+            errors.append(f"invalid member_status: {incoming_status!r}")
+        incoming_campus = (row.get("campus_preference") or "").strip()
+        if incoming_campus and incoming_campus not in _CSV_CAMPUS_VALUES:
+            errors.append(f"invalid campus_preference: {incoming_campus!r}")
+        incoming_partnership = (row.get("partnership_status") or "").strip()
+        if incoming_partnership and incoming_partnership not in _CSV_PARTNERSHIP_VALUES:
+            errors.append(f"invalid partnership_status: {incoming_partnership!r}")
+
+        if errors:
+            counts["errors"] += 1
+            result_rows.append({
+                "id": member_id, "name": existing["name"], "status": "error",
+                "reason": "; ".join(errors), "changes": [],
+            })
+            continue
+
+        changes = []
+        new_values = {}
+        for field in _CSV_DIFF_FIELDS:
+            new_val = (row.get(field) or "").strip()
+            if not new_val:
+                continue  # blank cell: leave this field unchanged
+            old_val = existing[field]
+            old_norm = (old_val or "").strip() if old_val is not None else ""
+            if new_val != old_norm:
+                changes.append({"field": field, "old_value": old_val, "new_value": new_val})
+                new_values[field] = new_val
+
+        if changes:
+            counts["to_update"] += 1
+            result_rows.append({
+                "id": member_id, "name": existing["name"], "status": "to_update",
+                "reason": None, "changes": changes, "new_values": new_values,
+            })
+        else:
+            counts["unchanged"] += 1
+            result_rows.append({
+                "id": member_id, "name": existing["name"], "status": "unchanged",
+                "reason": None, "changes": [],
+            })
+
+    c.close()
+    return {"rows": result_rows, "counts": counts}
+
+
+@app.route("/api/members/import/preview", methods=["POST"])
+def members_import_preview_api():
+    f = request.files.get("file")
+    if not f:
+        return jsonify({"error": "file required"}), 400
+    try:
+        parsed = _parse_members_import_csv(f)
+    except Exception as exc:
+        return jsonify({"error": f"failed to parse CSV: {exc}"}), 400
+
+    changes = [
+        {"id": r["id"], "name": r["name"], "field": ch["field"], "old_value": ch["old_value"], "new_value": ch["new_value"]}
+        for r in parsed["rows"] if r["status"] == "to_update" for ch in r["changes"]
+    ]
+    errors = [{"id": r["id"], "name": r["name"], "reason": r["reason"]} for r in parsed["rows"] if r["status"] == "error"]
+    skipped = [{"id": r["id"], "name": r["name"], "reason": r["reason"]} for r in parsed["rows"] if r["status"] == "skipped_unknown_id"]
+
+    return jsonify({"counts": parsed["counts"], "changes": changes, "errors": errors, "skipped": skipped})
+
+
+@app.route("/api/members/import/confirm", methods=["POST"])
+def members_import_confirm_api():
+    f = request.files.get("file")
+    if not f:
+        return jsonify({"error": "file required"}), 400
+    try:
+        parsed = _parse_members_import_csv(f)
+    except Exception as exc:
+        return jsonify({"error": f"failed to parse CSV: {exc}"}), 400
+
+    to_update = [r for r in parsed["rows"] if r["status"] == "to_update"]
+    backup_created = False
+    if to_update:
+        ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+        backup_path = f"{CONG_DB}.bak-{ts}"
+        shutil.copy2(CONG_DB, backup_path)
+        backup_created = True
+
+        c = sqlite3.connect(CONG_DB)
+        try:
+            for r in to_update:
+                set_clause = ", ".join(f"{field} = ?" for field in r["new_values"])
+                values = list(r["new_values"].values()) + [r["id"]]
+                c.execute(f"UPDATE members SET {set_clause} WHERE id = ?", values)
+            c.commit()
+        except Exception:
+            c.rollback()
+            c.close()
+            return jsonify({"error": "import failed, no changes applied, backup preserved"}), 500
+        c.close()
+
+    counts = parsed["counts"]
+    return jsonify({
+        "updated": counts["to_update"],
+        "unchanged": counts["unchanged"],
+        "skipped_unknown_id": counts["skipped_unknown_id"],
+        "errors": counts["errors"],
+        "backup_created": backup_created,
+    })
 
 
 @app.route("/api/members/<int:member_id>/roles", methods=["GET"])

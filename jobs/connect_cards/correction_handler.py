@@ -155,6 +155,10 @@ _SKIP_PATTERNS = re.compile(
     re.IGNORECASE,
 )
 
+# Missed-report campus section headers (e.g. "WILMINGTON CAMPUS", "Online Campus") —
+# these are structural, not attendee names, and must never be inserted as members.
+_CAMPUS_HEADER_RE = re.compile(r"^\s*\S.*\bcampus\s*$", re.IGNORECASE)
+
 
 def _valid_name(s: str) -> bool:
     if len(s) < 3:
@@ -162,6 +166,8 @@ def _valid_name(s: str) -> bool:
     if s.startswith(">") or s.lower().startswith("on "):
         return False
     if _SKIP_PATTERNS.search(s):
+        return False
+    if _CAMPUS_HEADER_RE.match(s):
         return False
     if s.isupper() and len(s) > 20:
         return False
