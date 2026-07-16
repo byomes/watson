@@ -56,7 +56,22 @@ def _merge(cong_rows: list[dict], watson_rows: list[dict]) -> list[dict]:
     return merged
 
 
-def lookup_member(query: str) -> list[dict]:
+_SELF_ALIASES = {"me", "myself", "my number", "my phone"}
+
+
+def lookup_member(query: str, chat_id: int | str | None = None) -> list[dict]:
+    if chat_id is not None and query.strip().lower() in _SELF_ALIASES:
+        watson = sqlite3.connect(WATSON_DB)
+        watson.row_factory = sqlite3.Row
+        try:
+            rows = watson.execute(
+                "SELECT name, email, phone, carrier FROM people WHERE telegram_chat_id = ?",
+                (str(chat_id),),
+            ).fetchall()
+        finally:
+            watson.close()
+        return [dict(r) for r in rows]
+
     cong = sqlite3.connect(CONG_DB)
     cong.row_factory = sqlite3.Row
     try:

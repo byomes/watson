@@ -660,7 +660,7 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     _sms_name, _sms_body = _sms_parts[0].strip(), _sms_parts[1].strip()
                     from jobs.people.lookup import lookup_member as _lm_d
                     from jobs.sms.sms_send import send_sms_to_contact as _sms_tc_d
-                    _hits = _lm_d(_sms_name)
+                    _hits = _lm_d(_sms_name, update.effective_chat.id)
                     _ct = next((c for c in _hits if c.get("phone")), None)
                     if _ct:
                         _res = await asyncio.to_thread(_sms_tc_d, _ct, _sms_body)
@@ -974,7 +974,7 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if _email_qr_match and _last_qr:
         _contact_name = _email_qr_match.group(1).strip().rstrip('.')
         from jobs.people.lookup import lookup_member as _lm
-        _hits = _lm(_contact_name)
+        _hits = _lm(_contact_name, update.effective_chat.id)
         _contact = next((c for c in _hits if c.get('email')), None)
         if _contact:
             from jobs.qr.qr_generate import send_qr_email as _send_qr_email
@@ -1031,7 +1031,7 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
             _sms_name = _sms_contact_m.group(1).strip()
             _sms_msg = _sms_contact_m.group(2).strip()
             from jobs.people.lookup import lookup_member as _lm_sms
-            _hits = _lm_sms(_sms_name)
+            _hits = _lm_sms(_sms_name, update.effective_chat.id)
             _contact = next((c for c in _hits if c.get('phone')), None)
             if _contact:
                 _result = _sms_to_contact(_contact, _sms_msg)
@@ -1373,7 +1373,7 @@ async def _handle_contact_lookup(
     if not name:
         await update.message.reply_text("Who would you like me to look up?")
         return
-    members = lookup_member(name)
+    members = lookup_member(name, update.effective_chat.id)
     if not members:
         reply = f"No members found matching '{name}'."
     else:
@@ -1708,7 +1708,7 @@ async def _handle_general(update: Update, context: ContextTypes.DEFAULT_TYPE, te
     _possessive = re.search(r"(\w+)'s\s+(?:email|phone|number|contact)", text, re.IGNORECASE)
     if _possessive:
         from jobs.people.lookup import lookup_member
-        _hits = lookup_member(_possessive.group(1))
+        _hits = lookup_member(_possessive.group(1), update.effective_chat.id)
         if _hits:
             _lines = []
             for m in _hits:
