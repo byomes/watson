@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-07-15*
+*Generated: 2026-07-16*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -56,6 +56,8 @@ data/
   congregation.db
   congregation.db.bak-20260712-200522
   congregation.db.bak-20260714-091212
+  congregation.db.bak-20260715-115821
+  congregation.db.bak-20260715-124007
   donors.db
   exports/
     qr_1780863713.png
@@ -158,6 +160,7 @@ jobs/
     __init__.py
     attendance_intake.py
     backfill.py
+    batch_update.py
     campus_classifier.py
     conflict_report.py
     correction_handler.py
@@ -301,7 +304,6 @@ jobs/
     archive_transcripts.py
   marketing/
     __init__.py
-    content_calendar.py
     seo_tools.py
     social_poster.py
   media/
@@ -403,6 +405,7 @@ jobs/
     wdb_query.py
   sms/
     __init__.py
+    carrier_lookup.py
     sms_send.py
   social/
     __init__.py
@@ -442,7 +445,6 @@ jobs/
   watcher.py
   web/
     __init__.py
-    page_generator.py
     site_deployer.py
   writing/
     __init__.py
@@ -961,6 +963,7 @@ memory/
     telegram.md
   commands.json
   core.md
+  model_benchmark_20260715.md
   projects/
     _index.md
     congregation.md
@@ -985,6 +988,7 @@ memory/
   skip_keywords.txt
   style_audit_pages.md
   style_audit_report.md
+  working.md
 notes/
   .gitkeep
 prompts/
@@ -1085,6 +1089,8 @@ src/
           route.ts
         feedback/
           route.ts
+        forgot-password/
+          route.ts
         login/
           route.ts
       ingest/
@@ -1145,6 +1151,9 @@ src/
         ArcDashboard.tsx
         CommitmentsPreview.tsx
         ManuscriptReader.tsx
+        page.tsx
+      forgot-password/
+        ArcForgotPasswordForm.tsx
         page.tsx
       login/
         ArcLoginForm.tsx
