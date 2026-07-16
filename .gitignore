@@ -41,3 +41,4 @@ import_connect_cards.py
 briefing/templates/briefing.html
 briefing/templates/briefing.html
 docs/briefing.html
+*.db.bak-*

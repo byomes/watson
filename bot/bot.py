@@ -3311,6 +3311,31 @@ async def handle_merge_conflict_callback(update: Update, context: ContextTypes.D
         conn.close()
 
 
+async def handle_benchmark_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle bench_update: / bench_ignore: button taps from benchmark_check.py."""
+    query = update.callback_query
+    await query.answer()
+
+    if not _is_authorized(update):
+        return
+
+    from jobs.research.benchmark_check import apply_update, ignore_source
+
+    data = query.data  # e.g. "bench_update:7" / "bench_ignore:7"
+    action, id_str = data.split(":", 1)
+    source_id = int(id_str)
+
+    try:
+        result = apply_update(source_id) if action == "bench_update" else ignore_source(source_id)
+        prefix = "✅" if result["ok"] else "❌"
+        await query.edit_message_text(
+            f"{query.message.text}\n\n{prefix} {result['msg']}", reply_markup=None
+        )
+    except Exception as exc:
+        log.error("benchmark callback failed (id=%d action=%s): %s", source_id, action, exc)
+        await query.edit_message_text(f"❌ Error: {exc}", reply_markup=None)
+
+
 async def handle_member_conflict_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle mc_same / mc_diff / mc_update_email / mc_keep_sep / mc_skip button taps."""
     query = update.callback_query
@@ -3716,6 +3741,7 @@ def main():
     app.add_handler(CallbackQueryHandler(handle_devloop_callback,         pattern=r"^devloop_"))
     app.add_handler(CallbackQueryHandler(handle_git_sync_callback,        pattern=r"^gs_"))
     app.add_handler(CallbackQueryHandler(handle_merge_conflict_callback,  pattern=r"^(merge_old_|merge_new_|skip_|different_)\d+$"))
+    app.add_handler(CallbackQueryHandler(handle_benchmark_callback, pattern=r"^bench_(update|ignore):\d+$"))
     app.add_handler(CallbackQueryHandler(handle_member_conflict_callback, pattern=r"^mc_"))
     app.add_handler(CallbackQueryHandler(handle_batch_update_callback, pattern=r"^bu_"))
     app.add_handler(CallbackQueryHandler(handle_command_callback, pattern=r"^cmd_"))
