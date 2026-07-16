@@ -1007,3 +1007,24 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - b39728c Close ARC manuscript access the night before launch, not at launch instant
 - abc3908 Push ARC manuscript unlock time to 8am Eastern
 - beea900 publish: The Dry Ground Is Under Your Feet Only After You Step In
+
+---
+
+## Recent Changes — 2026-07-16
+
+### ~/watson
+- d8c0c50 feat: SMS carrier lookup + email-to-SMS gateway with manual-confirm fallback
+- d124dc1 fix: raise ask.py synthesize() timeout to 240s — cold-start qwen2.5-coder:7b load exceeded 120s
+- be7ab8c fix: router.py accuracy fix (qwen2.5-coder:7b), resolve bug #18 — ask.py KB search model swap
+- 25963e3 chore: retire dead files with unreferenced qwen2.5:14b calls (page_generator.py, content_calendar.py)
+- 4f113cc fix: route model calls off qwen2.5:14b — llama3.2:1b for classification, qwen2.5-coder:7b for code-adjacent tasks, FMSPC fully removed from architecture
+- 7985876 feat: add partnership_status field (Guest/Regular Attender/Partner) to members
+- 4157354 fix: correct Writing Room email sign-offs to Watson (arc welcome + call reminder)
+- d15acdf feat: ARC self-service forgot-password + split email templates
+- 7a7aec0 feat: Batch Update Members panel + read-only alias display (Member Management)
+- f6bf51b feat: batch member update engine + per-member nickname aliases (cdb: mark / alias)
+- 1fd5e8a docs: file map 2026-07-15
+- 7a35db2 docs: architecture update 2026-07-15
+
+### ~/wcky
+- 35f83da feat: ARC self-service forgot-password page
