@@ -2916,7 +2916,6 @@ function moreExpandMember(id) {
           <button class="mbtn mbtn-sm" onclick="memberAddRole(${id},'staff')">+ staff</button>
           <button class="mbtn mbtn-sm" onclick="memberAddRole(${id},'leader')">+ leader</button>
           <button class="mbtn mbtn-sm" onclick="memberAddRole(${id},'deacon')">+ deacon</button>
-          <button class="mbtn mbtn-sm" onclick="memberAddRole(${id},'partner')">+ partner</button>
         </div>
         <div style="display:flex;gap:6px">
           <input id="mmem-role-inp-${id}" placeholder="Custom role&hellip;"
