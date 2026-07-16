@@ -1803,9 +1803,16 @@ async def _send_carrier_confirm_keyboard(update: Update, name: str, phone: str, 
     reply-threading mechanism — buttons for common carriers, or reply with the name."""
     from jobs.telegram.pending import store_pending_action
 
-    sent = await update.message.reply_text(
-        f"I don't have a carrier on file for {name}'s number. Which one?"
-    )
+    prompt = f"I don't have a confirmed carrier on file for {name}'s number. Which one?"
+    with get_connection() as conn:
+        guess = conn.execute(
+            "SELECT carrier FROM phone_carriers WHERE phone_number = ? AND confirmed = 0 AND source = 'numverify'",
+            (phone,),
+        ).fetchone()
+    if guess and guess["carrier"]:
+        prompt += f" (NumVerify suggests {guess['carrier']} — unconfirmed, so not used automatically.)"
+
+    sent = await update.message.reply_text(prompt)
     pending_id = store_pending_action(
         "carrier_confirm", sent.message_id, {"name": name, "phone": phone, "message": message}
     )

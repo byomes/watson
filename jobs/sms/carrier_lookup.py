@@ -131,11 +131,16 @@ def _numverify_lookup(phone_digits: str, api_key: str) -> str | None:
 def get_sms_address(phone_number: str) -> str | None:
     """
     1. Normalize the number.
-    2. Reuse a cached row if one exists (regardless of confirmed status) — never
-       burns NumVerify quota twice on the same number.
-    3. If NUMVERIFY_KEY is set and nothing is cached, call NumVerify, cache the
-       result with source='numverify', confirmed=0, and return the address.
-    4. Otherwise None — caller must trigger a manual-confirm flow.
+    2. Reuse a cached row only if confirmed=1 — never burns NumVerify quota
+       twice on the same number, but an unconfirmed row is treated the same
+       as no row at all. NumVerify's carrier data is unreliable (number
+       portability), so a guess must never be trusted as if a human verified
+       it — that silently sends to a dead gateway domain when it's wrong.
+    3. If NUMVERIFY_KEY is set and nothing is cached at all, call NumVerify
+       and cache the result as source='numverify', confirmed=0 — a
+       pre-filled suggestion for a human to confirm, not a usable address.
+    4. Otherwise (or after step 3) None — caller must trigger a manual-confirm
+       flow.
     """
     digits = normalize_phone(phone_number)
     if not digits:
@@ -143,12 +148,14 @@ def get_sms_address(phone_number: str) -> str | None:
 
     with get_connection() as conn:
         row = conn.execute(
-            "SELECT sms_gateway FROM phone_carriers WHERE phone_number = ?",
+            "SELECT sms_gateway, confirmed FROM phone_carriers WHERE phone_number = ?",
             (digits,),
         ).fetchone()
 
     if row is not None:
-        return f"{digits}@{row['sms_gateway']}" if row["sms_gateway"] else None
+        if row["confirmed"] and row["sms_gateway"]:
+            return f"{digits}@{row['sms_gateway']}"
+        return None
 
     api_key = os.getenv("NUMVERIFY_KEY")
     if not api_key:
@@ -159,6 +166,4 @@ def get_sms_address(phone_number: str) -> str | None:
         return None
 
     save_carrier(digits, carrier, source="numverify", confirmed=False)
-    canonical = normalize_carrier_name(carrier)
-    gateway = CARRIER_GATEWAY_MAP.get(canonical) if canonical else None
-    return f"{digits}@{gateway}" if gateway else None
+    return None
