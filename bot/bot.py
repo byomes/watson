@@ -995,6 +995,77 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
         log.info("DEBUG pre-check: QR email follow-up")
         return
 
+    # Forward Telegram content to any contact — "email/text/sms that to X" (last
+    # outbound message) or "email/text/sms this to X: content" (inline content).
+    # Supersedes the earlier unbuilt "remember last contact" idea; pulls from
+    # telegram_log rather than a dedicated context table. Checked ahead of the
+    # SMS interception block below because its free-form contact regex would
+    # otherwise swallow "text this/that to X" (captures "this to"/"that to" as
+    # a bogus contact name) before reaching these patterns.
+    _FORWARD_LAST = re.compile(r'^(email|text|sms)\s+that\s+to\s+(.+)$', re.IGNORECASE)
+    _FORWARD_INLINE = re.compile(
+        r'^(email|text|sms)\s+this\s+to\s+([^\n:]+)[:\n]?\s*(.*)$',
+        re.IGNORECASE | re.DOTALL,
+    )
+    # Medium-unspecified variants — ask rather than guess (section 2 of spec)
+    _FORWARD_LAST_AMBIG = re.compile(r'^send\s+that\s+to\s+(.+)$', re.IGNORECASE)
+    _FORWARD_INLINE_AMBIG = re.compile(
+        r'^send\s+this\s+to\s+([^\n:]+)[:\n]?\s*(.*)$',
+        re.IGNORECASE | re.DOTALL,
+    )
+
+    _fwd_medium = None   # 'sms' | 'email' | None (ambiguous)
+    _fwd_mode = None      # 'last' | 'inline'
+    _fwd_name = None
+    _fwd_content = None
+
+    _fm = _FORWARD_LAST.match(text_clean.strip())
+    if _fm:
+        _fwd_medium = "sms" if _fm.group(1).lower() in ("text", "sms") else "email"
+        _fwd_mode = "last"
+        _fwd_name = _fm.group(2).strip()
+    else:
+        _fm = _FORWARD_INLINE.match(text_clean.strip())
+        if _fm:
+            _fwd_medium = "sms" if _fm.group(1).lower() in ("text", "sms") else "email"
+            _fwd_mode = "inline"
+            _fwd_name = _fm.group(2).strip()
+            _fwd_content = _fm.group(3).strip()
+        else:
+            _fm = _FORWARD_LAST_AMBIG.match(text_clean.strip())
+            if _fm:
+                _fwd_mode = "last"
+                _fwd_name = _fm.group(1).strip()
+            else:
+                _fm = _FORWARD_INLINE_AMBIG.match(text_clean.strip())
+                if _fm:
+                    _fwd_mode = "inline"
+                    _fwd_name = _fm.group(1).strip()
+                    _fwd_content = _fm.group(2).strip()
+
+    if _fwd_mode:
+        if _fwd_mode == "inline" and not _fwd_content:
+            await update.message.reply_text(f"What should I send to {_fwd_name}?")
+            log.info("DEBUG pre-check: forward — empty inline content")
+            return
+
+        if _fwd_medium is None:
+            from jobs.telegram.pending import store_pending_action
+            sent = await update.message.reply_text(
+                f"Email or text — which should I use to reach {_fwd_name}?"
+            )
+            store_pending_action(
+                "forward_medium_clarify",
+                sent.message_id,
+                {"name": _fwd_name, "mode": _fwd_mode, "content": _fwd_content},
+            )
+            log.info("DEBUG pre-check: forward — medium ambiguous, asked")
+            return
+
+        await _forward_to_contact(update, _fwd_medium, _fwd_name, _fwd_mode, _fwd_content)
+        log.info("DEBUG pre-check: forward (%s, %s)", _fwd_medium, _fwd_mode)
+        return
+
     # SMS interception
     # 'text ' must be a startswith check — substring match catches "polish this text for me"
     _sms_triggers = (
@@ -1748,6 +1819,61 @@ async def _send_carrier_confirm_keyboard(update: Update, name: str, phone: str, 
     await sent.edit_reply_markup(reply_markup=keyboard)
 
 
+async def _forward_to_contact(
+    update: Update, medium: str, name: str, mode: str, content: str | None
+) -> None:
+    """Resolve `name` via lookup_member and send `content` via `medium` ('sms'/'email').
+
+    mode='last' pulls the most recent direction='out' telegram_log row as content;
+    mode='inline' uses `content` as given. Forwards verbatim — no reformatting.
+    """
+    if mode == "last":
+        with get_connection() as conn:
+            row = conn.execute(
+                "SELECT message FROM telegram_log WHERE direction='out' ORDER BY id DESC LIMIT 1"
+            ).fetchone()
+        if not row:
+            await update.message.reply_text("Nothing recent to forward.")
+            return
+        content = row["message"]
+
+    from jobs.people.lookup import lookup_member as _lm_fwd
+    hits = _lm_fwd(name, update.effective_chat.id)
+    field = "phone" if medium == "sms" else "email"
+    contact = next((c for c in hits if c.get(field)), None)
+    if not contact:
+        if not hits:
+            await update.message.reply_text(f"No contact found for '{name}'.")
+        else:
+            missing = "phone number" if medium == "sms" else "email address"
+            await update.message.reply_text(f"Found {hits[0]['name']} but no {missing} on file.")
+        return
+
+    if medium == "sms":
+        from jobs.sms.sms_send import send_sms_to_contact as _sms_send_fwd
+        result = await asyncio.to_thread(_sms_send_fwd, contact, content)
+        if result["success"]:
+            note = " (truncated to 150 chars)" if len(content) > 150 else ""
+            reply = f"Sent to {contact['name']} via text{note}."
+            await update.message.reply_text(reply)
+            _log_telegram_exchange(f"[forward:sms:{name}]", reply)
+        elif result.get("needs_carrier"):
+            await _send_carrier_confirm_keyboard(update, contact["name"], result["phone"], content)
+        else:
+            await update.message.reply_text(f"Failed: {result['error']}")
+    else:
+        try:
+            await asyncio.to_thread(
+                send_as_watson, contact["email"], "Message from Dr. Bill", content
+            )
+            reply = f"Sent to {contact['name']} via email."
+            await update.message.reply_text(reply)
+            _log_telegram_exchange(f"[forward:email:{name}]", reply)
+        except Exception as exc:
+            log.error("Forward email send failed: %s", exc)
+            await update.message.reply_text(f"Failed: {exc}")
+
+
 async def handle_carrier_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -1912,6 +2038,25 @@ async def _route_tg_pending_reply(
                 f"✅ Added '{result['title']}' to the classics knowledge base — "
                 f"{result['chunks_added']} chunks."
             )
+        mark_done(pending_id)
+        return True
+
+    if action_type == "forward_medium_clarify":
+        name = payload.get("name")
+        mode = payload.get("mode")
+        content = payload.get("content")
+        if text_lower in ("cancel", "no", "never mind"):
+            mark_cancelled(pending_id)
+            await update.message.reply_text("Cancelled.")
+            return True
+        if text_lower in ("email", "e-mail"):
+            medium = "email"
+        elif text_lower in ("text", "sms", "text message"):
+            medium = "sms"
+        else:
+            await update.message.reply_text("Email or text?")
+            return True
+        await _forward_to_contact(update, medium, name, mode, content)
         mark_done(pending_id)
         return True
 
