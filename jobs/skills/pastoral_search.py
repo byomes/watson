@@ -20,7 +20,7 @@ def run(message: str = None) -> str:
     if not message:
         return "Please provide a name to search."
 
-    match = re.search(r'(?:pastoral\s+search\s+)+(.+)', message.strip(), re.IGNORECASE)
+    match = re.search(r'pastoral\s+search\s*:?\s*(?:for\s+)?(.+)', message.strip(), re.IGNORECASE)
     name = match.group(1).strip() if match else message.strip()
 
     if not name:
