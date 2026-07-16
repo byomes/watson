@@ -17,6 +17,7 @@ import logging
 import os
 import smtplib
 import sqlite3
+import statistics
 import sys
 from collections import defaultdict
 from datetime import date, timedelta
@@ -39,6 +40,7 @@ FROM_ADDR    = os.getenv("WATSON_FROM_ADDRESS") or SMTP_USER
 
 TO_ADDR      = "pastorbill@catalyst302.com"
 CONG_DB      = os.path.expanduser("~/watson/data/congregation.db")
+BENCHMARKS_DOC = os.path.expanduser("~/watson/memory/projects/benchmarks.md")
 OLLAMA_URL   = "http://localhost:11434/api/generate"
 OLLAMA_MODEL = "qwen2.5:7b"
 OLLAMA_TIMEOUT = 180
@@ -54,6 +56,38 @@ def most_recent_sunday() -> date:
 def week_monday() -> date:
     today = date.today()
     return today - timedelta(days=today.weekday())
+
+
+def _seasonal_caveat(d: date) -> str | None:
+    """Return a seasonal caveat string if `d` falls in a known low-attendance
+    window (summer months, or a major holiday week), else None. Per
+    memory/projects/benchmarks.md section 1: these dips are structural
+    (school out, travel, holiday schedules), not a signal of decline."""
+    m, day = d.month, d.day
+
+    if m in (6, 7, 8):
+        return (
+            "Currently inside the June–August seasonal dip window — "
+            "20–30% below baseline is normal here, not a decline."
+        )
+    if (m == 6 and day >= 29) or (m == 7 and day <= 8):
+        return "Independence Day week — dips here are calendar-driven, not a trend signal."
+    if m == 11:
+        thursdays = [dd for dd in range(1, 31) if date(d.year, 11, dd).weekday() == 3]
+        if len(thursdays) >= 4 and abs(day - thursdays[3]) <= 3:
+            return "Thanksgiving holiday week — dips here are calendar-driven, not a trend signal."
+    if (m == 12 and day >= 20) or (m == 1 and day <= 2):
+        return "Christmas/New Year holiday window — dips here are calendar-driven, not a trend signal."
+    return None
+
+
+def _load_benchmarks_doc() -> str:
+    try:
+        with open(BENCHMARKS_DOC, "r", encoding="utf-8") as f:
+            return f.read()
+    except Exception as exc:
+        log.warning("benchmarks.md unavailable: %s", exc)
+        return ""
 
 
 # ── congregation.db ────────────────────────────────────────────────────────────
@@ -226,15 +260,29 @@ def _trend_direction(avg4: float, avg8: float) -> str:
 
 # ── Ollama ─────────────────────────────────────────────────────────────────────
 
-def _ollama_synthesis(condensed: str) -> str | None:
+def _ollama_synthesis(condensed: str, benchmarks_context: str) -> str | None:
     prompt = (
         "You are Watson, AI assistant to Dr. Bill Yomes, Senior Pastor of Catalyst Community Church "
         "in Wilmington, DE, with both a Wilmington campus and an Online campus.\n\n"
-        "Based on this week's church data, write exactly one cohesive 2-3 paragraph pastoral synthesis "
-        "for Dr. Bill. Be concise, pastoral, and direct. Comment on attendance trend direction and what "
-        "it signals, engagement health (what the Consistent/Active/Occasional/Lapsed distribution reveals), "
-        "areas of concern, and who may need attention. Do not include a summary paragraph at the end. "
-        "Do not repeat yourself. "
+        "Reference context — church attendance benchmarks (use this only to judge whether this week's "
+        "numbers reflect normal variance or an actual trend; do not quote or repeat it verbatim):\n"
+        f"{benchmarks_context}\n\n"
+        "Based on this week's church data below, write exactly one cohesive 2-3 paragraph pastoral "
+        "synthesis for Dr. Bill, following these rules:\n"
+        "a. Judge attendance against the 4-week and 8-week rolling averages given below, never against "
+        "a single week's number in isolation.\n"
+        "b. Only use language like 'trend' or 'decline' if CONSECUTIVE WEEKS OUTSIDE NORMAL RANGE below "
+        "is 3 or more. A number inside the normal range, or a one-week dip, is not a trend — say so "
+        "plainly if that's the case.\n"
+        "c. If SEASONAL CAVEAT below is not 'none', lead with it before commenting on any dip — never "
+        "call a summer or holiday-week dip a decline.\n"
+        "d. Do not imply continuous week-over-week growth is the expected baseline — a plateau is "
+        "healthy, not a symptom.\n"
+        "e. Report the numbers plainly. Only add interpretive or diagnostic language when it's grounded "
+        "in the benchmarks context above or a real sustained deviation; otherwise describe, don't diagnose.\n\n"
+        "Also comment on engagement health (what the Consistent/Active/Occasional/Lapsed distribution "
+        "reveals), areas of concern, and who may need attention. Do not include a summary paragraph at "
+        "the end. Do not repeat yourself. "
         "Do not include a 'Watson\\'s Read:' label or any other label inside the text.\n\n"
         f"{condensed}\n\n"
         "You must respond in English only. Do not use any other language. Begin writing now:"
@@ -778,6 +826,19 @@ def build_report() -> tuple[str, str, str]:
     comb_avg8 = sum(totals_by_date.get(d, 0) for d in dates_8) / max(len(dates_8), 1) if dates_8 else 0.0
     combined_trend = {"avg4": comb_avg4, "avg8": comb_avg8, "direction": _trend_direction(comb_avg4, comb_avg8)}
 
+    # ── Normal-variance band (rolling 8-wk mean ± 1 std dev) ──────────────────
+    combined_series_8 = [totals_by_date.get(d, 0) for d in dates_8]  # newest first
+    stdev8 = statistics.pstdev(combined_series_8) if len(combined_series_8) >= 2 else 0.0
+    band_low = comb_avg8 - stdev8
+    band_high = comb_avg8 + stdev8
+
+    consecutive_outside_band = 0
+    for total in combined_series_8:
+        if total < band_low or total > band_high:
+            consecutive_outside_band += 1
+        else:
+            break
+
     campus_mix: dict[str, dict] = {}
     for c in all_campuses:
         campus_mix[c] = {
@@ -825,12 +886,16 @@ def build_report() -> tuple[str, str, str]:
         if excluded_counts.get(_s, 0) > 0:
             _excl_parts.append(f"{excluded_counts[_s]} {_l}")
     excl_condensed = f"; excluded from reporting: {', '.join(_excl_parts)}" if _excl_parts else ""
+    seasonal_caveat = _seasonal_caveat(this_sunday) or "none"
     condensed = (
         f"WEEK OF: {monday.strftime('%B %d, %Y')}\n"
         f"ATTENDANCE: {', '.join(att_parts) or 'no data'}, Total {this_total} ({att_total_sign}{att_total_diff})\n"
         f"4-WEEK AVG: Wilmington {wil4}, Online {onl4}\n"
         f"8-WEEK AVG: Wilmington {wil8}, Online {onl8}\n"
         f"TREND: Wilmington {wil_d}, Online {onl_d}\n"
+        f"NORMAL RANGE (8-wk mean ± 1 std dev, combined): {band_low:.0f}–{band_high:.0f}\n"
+        f"CONSECUTIVE WEEKS OUTSIDE NORMAL RANGE: {consecutive_outside_band}\n"
+        f"SEASONAL CAVEAT: {seasonal_caveat}\n"
         f"ENGAGEMENT: Consistent {engagement['consistent']}, Active {engagement['active']}, "
         f"Occasional {engagement['occasional']}, Lapsed {engagement['lapsed']}\n"
         f"SPECIAL EVENTS (past 14 days): {len(special_events)} — {ev_names}\n"
@@ -839,7 +904,8 @@ def build_report() -> tuple[str, str, str]:
         f"PRAYER REQUESTS: {len(prayers)} requests from: {prayer_names}\n"
         f"MEMBERS NOT SEEN 14+ DAYS: {len(missing)} members: {absent_names}{excl_condensed}"
     )
-    synthesis = _ollama_synthesis(condensed)
+    benchmarks_context = _load_benchmarks_doc()
+    synthesis = _ollama_synthesis(condensed, benchmarks_context)
 
     kwargs = dict(
         monday=monday,
