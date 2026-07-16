@@ -25,6 +25,7 @@ from dotenv import load_dotenv
 
 from config.settings import DB_PATH, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 from core.vacation import vacation_gate
+from jobs.sms.carrier_lookup import normalize_phone
 from jobs.team.inbound import is_forwarded_email, process_inbound
 import jobs.code_agent.agent as code_agent
 
@@ -199,6 +200,50 @@ def _extract_name(sender_field: str) -> str:
         return match.group(1).strip()
     addr = _extract_address(sender_field)
     return addr.split("@")[0]
+
+
+# ── SMS reply detection (carrier-gateway address shape, any carrier) ──────────
+
+_SMS_REPLY_SENDER = re.compile(r'^1?\d{10}@')
+
+
+def _is_sms_reply(sender_email: str) -> bool:
+    return bool(_SMS_REPLY_SENDER.match(sender_email.strip()))
+
+
+def _resolve_sms_reply_sender(digits: str) -> str | None:
+    """Match a normalized 10-digit phone against watson.db people.phone.
+
+    people.phone values are messy/mixed-format, so normalize each row before
+    comparing rather than trusting the stored format.
+    """
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            "SELECT name, phone FROM people WHERE phone IS NOT NULL AND phone != ''"
+        ).fetchall()
+        conn.close()
+    except Exception as exc:
+        log.warning("SMS reply sender lookup failed: %s", exc)
+        return None
+    for row in rows:
+        if normalize_phone(row["phone"]) == digits:
+            return row["name"]
+    return None
+
+
+def _handle_sms_reply(sender_email: str, body: str) -> None:
+    """Deliver an inbound SMS-gateway reply straight to Telegram — no triage."""
+    local = sender_email.split("@", 1)[0]
+    digits = normalize_phone(local)
+    name = _resolve_sms_reply_sender(digits) if digits else None
+    who = name or digits or local
+    _tg(f"📱 Text from {who}: {body.strip()}")
+    log.info(
+        "SMS reply — sender=%s digits=%s resolved=%s",
+        sender_email, digits, name or "None",
+    )
 
 
 def _tg(text: str) -> None:
@@ -801,6 +846,12 @@ def run():
 
         addr = _extract_address(sender_raw)
         name = _extract_name(sender_raw)
+
+        # SMS-gateway reply — carrier-agnostic address shape, highest priority
+        if _is_sms_reply(addr):
+            _handle_sms_reply(addr, body)
+            mark_as_read(msg_id)
+            continue
 
         if "snappages.com" in addr:
             log.info("Skipping connect card email from %s", sender_raw)
