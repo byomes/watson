@@ -1310,7 +1310,7 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
         log.info("DEBUG pre-check: safety net build trigger")
         return
 
-    # 4. Classify intent via Ollama llama3.2:3b (non-blocking)
+    # 4. Classify intent via Ollama gemma3:4b (non-blocking)
     _classifier_system = build_prompt(task=text_clean, project=None)
     result = await asyncio.to_thread(_classify_intent, text_clean, _classifier_system)
     log.info("DEBUG classifier raw result: %s", result)

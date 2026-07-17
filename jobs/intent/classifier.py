@@ -7,7 +7,8 @@ import requests
 log = logging.getLogger(__name__)
 
 _OLLAMA_URL = "http://localhost:11434/api/generate"
-_MODEL = "llama3.2:3b"
+_MODEL = "gemma3:4b"
+_KEEP_ALIVE = "30m"
 
 _SYSTEM_PROMPT = """
 You are a strict intent classifier. Your only job is to read a command and return a JSON object.
@@ -67,14 +68,18 @@ Return ONLY the JSON object. No markdown. No explanation. No other text.
 
 def classify(message_text: str, system_prompt: str = "") -> dict:
     prompt = f"{_SYSTEM_PROMPT}\n\nMessage: {message_text}"
-    payload: dict = {"model": _MODEL, "prompt": prompt, "stream": False}
+    payload: dict = {"model": _MODEL, "prompt": prompt, "stream": False, "keep_alive": _KEEP_ALIVE}
     if system_prompt:
         payload["system"] = system_prompt
     try:
         resp = requests.post(
             _OLLAMA_URL,
             json=payload,
-            timeout=45,
+            # Short enough to fail fast within bot.py's 15s outer handler
+            # timeout (_HANDLE_TEXT_TIMEOUT_SECONDS) on a cold model load,
+            # so the general-chat fallback below still gets a chance to run
+            # instead of the whole message handler getting killed at 15s.
+            timeout=10,
         )
         resp.raise_for_status()
         raw = resp.json().get("response", "").strip()
