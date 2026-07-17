@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-07-16*
+*Generated: 2026-07-17*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -58,6 +58,8 @@ data/
   congregation.db.bak-20260714-091212
   congregation.db.bak-20260715-115821
   congregation.db.bak-20260715-124007
+  congregation.db.bak-20260716-101416
+  congregation.db.bak-20260716-111858
   donors.db
   exports/
     qr_1780863713.png
@@ -74,6 +76,11 @@ data/
     fb_16.jpg
   generated_images/
     img_a_lighthouse_at_sunset_1783180276.jpg
+  imports/
+    catalyst_contacts2.csv
+    church_contacts.csv
+    phone_match_review.csv
+    phone_match_review_v2.csv
   qr/
     qr_20260608_215150.png
     qr_20260608_220849.png
@@ -166,6 +173,7 @@ jobs/
     correction_handler.py
     data_audit.py
     email_reports.py
+    find_malformed_names.py
     intake.py
     migrate_prayer_leadership.py
     missed_report.py
@@ -372,10 +380,12 @@ jobs/
     __init__.py
     academic_search.py
     article_reader.py
+    benchmark_check.py
     feed_reader.py
     gutenberg.py
     isbn_lookup.py
     language_detector.py
+    migrate_benchmark_sources.py
     news_search.py
     semantic_search.py
     summarizer.py
@@ -966,6 +976,7 @@ memory/
   model_benchmark_20260715.md
   projects/
     _index.md
+    benchmarks.md
     congregation.md
     dev_loop.md
     godfidence/
