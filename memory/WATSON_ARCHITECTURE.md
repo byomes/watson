@@ -1051,3 +1051,24 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 
 ### ~/wcky
 - 35f83da feat: ARC self-service forgot-password page
+
+---
+
+## Recent Changes — 2026-07-17
+
+### ~/watson
+- 528de38 feat: display-only name title-case formatter, wired into missed/shepherding reports; add find_malformed_names.py audit script
+- ac37973 fix: state_of_church.py — range-verdict comparison bug, timeout bump, display-name formatting
+- 167eaca feat: state_of_church.py — rolling avg trend band, seasonal caveats, benchmarks context in synthesis prompt
+- f8184c3 feat: weekly church attendance benchmark check — Serper scan, Telegram approval, benchmarks.md doc
+- 39e1082 fix: replace qwen2.5:14b with qwen2.5:7b across all Beelink jobs (root cause of intermittent hangs), update architecture doc
+- 1eebd86 fix: remove redundant partner role chip (tracked via partnership_status instead)
+- dd03313 feat: dashboard name editing (members) + carrier editing (members/people) via phone_carriers cache; new people/contacts panel
+- 5c9577b fix: never auto-trust unconfirmed carrier guesses, always require manual confirmation
+- 8d8e55e feat: autonomous SMS auto-reply via Ollama for inbound texts, with Telegram exchange log
+- cb1dc6f fix: pastoral search name extraction (colon/for phrasing), vcf import case-sensitive dedup
+- 1d84911 feat: forward last/inline Telegram content to any contact via SMS/email
+- 31ec9ce feat: detect inbound SMS replies by sender address shape, bypass triage
+- 424af55 feat: resolve me/myself to Bill's own contact via telegram_chat_id
+- a42e31e docs: file map 2026-07-16
+- 61b2185 docs: architecture update 2026-07-16
