@@ -2664,6 +2664,19 @@ def chat_stream():
         from jobs.research.web_search import run as _web_run
         _q = message[4:].strip()
         return _sse_response(_stream_simple(_web_run(_q) or "No results."))
+    if msg_lower.startswith("kb:") or msg_lower.startswith("search the kb:"):
+        from jobs.skills.kb_search import search_kb as _kb_prefix_search, format_result as _kb_prefix_fmt
+        _pfx_len = len("search the kb:") if msg_lower.startswith("search the kb:") else len("kb:")
+        _q = message[_pfx_len:].strip()
+        def _kb_prefix_stream(q=_q):
+            yield _emit_status("→ Searching your notes...")
+            try:
+                result = _kb_prefix_search(q)
+                yield _sse(_kb_prefix_fmt(result))
+            except Exception as exc:
+                yield _sse(f"KB search failed: {exc}")
+            yield "data: [DONE]\n\n"
+        return _sse_response(_kb_prefix_stream())
     if msg_lower.startswith("bible:"):
         from jobs.bible import run as _bible_run
         _q = message[6:].strip()
@@ -2781,6 +2794,16 @@ def chat_stream():
                 else:
                     _reply = f"No contact found for '{_stored.get('sms_name', '')}'."
                 return _sse_response(_stream_simple(_reply))
+            elif _action == "block_time":
+                from jobs.gcal.gcal_service import mark_busy as _mark_busy_conf
+                try:
+                    _bt_start = datetime.fromisoformat(_stored["start"])
+                    _bt_end = datetime.fromisoformat(_stored["end"])
+                    _mark_busy_conf(_bt_start, _bt_end, _stored.get("title", "Blocked"))
+                    _reply = f"✅ Booked — {_stored.get('title', 'Blocked')} on {_stored.get('display', '')}"
+                except Exception as exc:
+                    _reply = f"Booking failed: {exc}"
+                return _sse_response(_stream_simple(_reply))
             else:
                 return _sse_response(_stream_simple("Couldn't execute — action not recognized."))
         elif msg_lower in _DASH_CONF_DENY:
@@ -2812,9 +2835,11 @@ def chat_stream():
             _reply = f"Reminder set for {_rt}: {_title}" if _rt else f"Reminder saved: {_title}"
             return _sse_response(_stream_simple(_reply))
 
-    # build: dispatch — route to Dev Loop
-    if msg_lower.startswith('build:'):
-        description = message[6:].strip()
+    # build:/devloop: dispatch — route to Dev Loop (devloop: is Telegram's spelling,
+    # kept here as an alias — see jobs/routing/directive_prefixes.py)
+    if msg_lower.startswith('build:') or msg_lower.startswith('devloop:'):
+        _dl_pfx_len = len('devloop:') if msg_lower.startswith('devloop:') else len('build:')
+        description = message[_dl_pfx_len:].strip()
         import threading
         import re as _re_build2
         from jobs.dev_loop.trigger import trigger_dev_loop as _trigger_dev_loop2
@@ -2957,6 +2982,69 @@ def chat_stream():
             return _sse_response(_stream_simple(
                 f"Just to confirm — you want me to text {_contact_raw}: '{_sms_message}'. Reply yes to proceed or no to cancel."
             ))
+
+    # block_time: "block 60 minutes for staff meeting on thursday" — dashboard-native
+    # path for a capability that previously only existed via Telegram's classifier
+    # stage. Uses the same channel-agnostic jobs.gcal.reasoner Telegram uses.
+    _BLOCK_TIME_RE = _re.compile(
+        r'^block\s+(\d+)\s*(minutes?|mins?|hours?|hrs?)\s+for\s+(.+?)(?:\s+on\s+(.+))?$',
+        _re.IGNORECASE,
+    )
+    _bt_m = _BLOCK_TIME_RE.match(message.strip())
+    if _bt_m:
+        _bt_amount = int(_bt_m.group(1))
+        _bt_unit = _bt_m.group(2).lower()
+        _bt_duration = _bt_amount * 60 if _bt_unit.startswith(('hour', 'hr')) else _bt_amount
+        _bt_title = _bt_m.group(3).strip()
+        _bt_day = (_bt_m.group(4) or "today").strip()
+        from jobs.gcal import reasoner as _bt_reasoner
+        try:
+            _bt_slot = _bt_reasoner.find_best_slot(_bt_day, _bt_duration)
+        except Exception as exc:
+            return _sse_response(_stream_simple(f"Couldn't check the calendar: {exc}"))
+        if not _bt_slot.get("available"):
+            return _sse_response(_stream_simple(_bt_slot.get("message", "No slot available.")))
+        from jobs.telegram.pending import store_skill_confirmation as _store_dash_block
+        _store_dash_block("block_time", {
+            "source": "dashboard",
+            "action_type": "block_time",
+            "original_message": message,
+            "start": _bt_slot["start"],
+            "end": _bt_slot["end"],
+            "display": _bt_slot["display"],
+            "title": _bt_title,
+        })
+        return _sse_response(_stream_simple(
+            f"📅 I found a slot for {_bt_title}:\n\n{_bt_slot['display']}\n\nReply yes to book it or no to cancel."
+        ))
+
+    # calendar_availability: "am I free thursday" / "next available slots" —
+    # dashboard-native path, no confirmation needed (read-only query).
+    _AVAILABILITY_TRIGGERS = (
+        "am i free", "when am i free", "next available", "available slots",
+        "my availability", "when is my next opening", "when do i have an opening",
+    )
+    if any(t in msg_lower for t in _AVAILABILITY_TRIGGERS):
+        from jobs.gcal.availability import get_available_slots_next_30_days as _avail_slots
+        try:
+            _all_slots = _avail_slots("virtual")
+        except Exception as exc:
+            return _sse_response(_stream_simple(f"Couldn't check availability: {exc}"))
+        _lines = ["📆 Next available slots:\n"]
+        _count = 0
+        for _date_str, _slots in _all_slots.items():
+            if _count >= 5:
+                break
+            _d = datetime.strptime(_date_str, "%Y-%m-%d")
+            _day_label = _d.strftime("%A, %b %-d")
+            for _slot in _slots:
+                if _count >= 5:
+                    break
+                _lines.append(f"{_day_label} — {_slot['display']}")
+                _count += 1
+        if _count == 0:
+            return _sse_response(_stream_simple("📆 No available slots in the next 30 days."))
+        return _sse_response(_stream_simple("\n".join(_lines)))
 
     # Handle yes/no follow-up on a pending skill proposal
     if _pending_skill_request is not None:

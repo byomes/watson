@@ -42,6 +42,7 @@ import jobs.gcal.pending as pending_module
 from jobs.gcal import reasoner
 from jobs.intent.classifier import classify as _classify_intent
 from jobs.memory.prompt_builder import build_prompt
+from jobs.routing.directive_prefixes import telegram_prefixes as _telegram_prefixes, canonicalize as _canonicalize_prefix
 from jobs.givebutter.templates import first_gift_email, repeat_gift_email
 
 log = logging.getLogger(__name__)
@@ -615,15 +616,14 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text_lower = text_clean.lower().strip()
     _log_tg('in', text_clean)
 
-    # Directive prefix intercepts — colon-prefixed commands, highest priority
-    _DIRECTIVE_PREFIXES = (
-        "cdb:", "wdb:", "kb:", "web:", "task:", "note:",
-        "remind:", "sms:", "polish:", "bible:", "devloop:", "bug:",
-        "gutenberg:", "classics:", "fireflies:",
-    )
-    for _dpfx in _DIRECTIVE_PREFIXES:
-        if text_lower.startswith(_dpfx):
-            _darg = text_clean[len(_dpfx):].strip()
+    # Directive prefix intercepts — colon-prefixed commands, highest priority.
+    # Prefix set is the canonical registry in jobs/routing/directive_prefixes.py —
+    # both this list and the dashboard's read from it, so they stop drifting apart.
+    _DIRECTIVE_PREFIXES = _telegram_prefixes()
+    for _dpfx_raw in _DIRECTIVE_PREFIXES:
+        if text_lower.startswith(_dpfx_raw):
+            _dpfx = _canonicalize_prefix(_dpfx_raw)
+            _darg = text_clean[len(_dpfx_raw):].strip()
             if _dpfx == "cdb:":
                 if _darg.lower().startswith("mark "):
                     await _handle_batch_mark(update, context, _darg)
