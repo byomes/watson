@@ -76,7 +76,7 @@ def _maybe_reflect(chat_id: int) -> None:
     if _msg_counter[chat_id] % 10 == 0:
         import threading
         from jobs.memory.reflect import reflect
-        session_id = f"telegram_{chat_id}"
+        session_id = _get_or_create_telegram_session()
         threading.Thread(target=reflect, args=(session_id, None), daemon=True).start()
 
 _SKILL_AFFIRM = {"yes", "yes please", "go ahead", "build it", "sure", "do it", "yep", "yeah"}
@@ -1271,7 +1271,7 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if route_result["action"] == "wrap_up":
         import threading
         from jobs.memory.wrap_up import wrap_up as _wrap_up
-        session_id = f"telegram_{chat_id}"
+        session_id = _get_or_create_telegram_session()
         threading.Thread(
             target=_wrap_up, args=(session_id, None), daemon=True
         ).start()
