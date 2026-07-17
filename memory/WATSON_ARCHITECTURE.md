@@ -179,7 +179,8 @@ Deploy pattern: `cd ~/watson && git pull && sudo systemctl restart watson-bot.se
 |-------|------|-----|
 | Claude.ai | This interface | Strategy, architecture, spec, writing |
 | Claude Code | `--dangerously-skip-permissions` on Beelink | File editing, building, committing |
-| `llama3.2:3b` | Beelink Ollama | Primary Watson chat, intent classification, session summarization |
+| `llama3.2:3b` | Beelink Ollama | Primary Watson chat (Telegram general-chat fallback), session summarization |
+| `gemma3:4b` | Beelink Ollama | Intent classification (Telegram only, `jobs/intent/classifier.py`) — swapped from `llama3.2:3b` 2026-07-17 (bug #20, `56d60dd`); `keep_alive=30m` plus `jobs/intent/keep_warm.py` cron (every 4 min) keep it resident |
 | `qwen2.5-coder:7b` | Beelink Ollama | Dev Loop, KB search, structured reasoning |
 | `qwen2.5:7b` | Beelink Ollama | Accuracy-sensitive background jobs: pastoral notes, meeting/note task+goal extraction, email drafts, State of Church synthesis, skill/capability audits, elder-review meeting summaries |
 | `phi3:mini` | Beelink Ollama | Background tasks |
@@ -400,7 +401,40 @@ Private community hub for Writing Room Partners (invitation-only, earned via ARC
 - Skills execute immediately (no confirmation gate in dashboard)
 - Telegram executes skills immediately (no gate)
 - Session summaries stored in `memory_sessions`; injected into system prompt on next session
-- 10 directive prefixes routed to `/api/terminal`: `cdb:`, `wdb:`, `web:`, `bible:`, `polish:`, `polish this:`, `kb:`, `build:`, `debug:`, `run:`
+- `/api/terminal` is a **separate manual command-console endpoint**, not the chat path —
+  handles its own prefix set: `cdb:`, `wdb:`, `web:`, `bible:`, `polish:`, `polish this:`,
+  `kb:`, `build:`, `debug:`, `run:`, plus `_TERM_COMMANDS` lookups
+- `/api/chat/stream` (the actual chat path) independently reimplements its own early
+  prefix intercepts — `cdb:`, `wdb:`, `web:`, `bible:`, `polish:`, `bug:`, `gutenberg:`,
+  `classics:`, `build:`, `debug:`, `run:` — plus separate natural-language KB triggers
+  ("search kb", "search my notes", etc.) and a time-query intercept, all ahead of the
+  identity/factual/conversational checks and the shared router fallback. **All of these
+  prefixes also exist on Telegram** via `_DIRECTIVE_PREFIXES` (see Telegram Bot) except
+  `build:`, which has a Telegram equivalent under a different name (`devloop:`) — this
+  list duplicates Telegram's, it is not a smaller subset of it.
+- Anything not caught by the above falls through to `_router.route(message, "dashboard")`
+  — see Shared Routing Module below.
+
+### Shared Routing Module (`jobs/skillbuilder/router.py`)
+`route(message: str, interface: str) -> dict` is the shared, interface-agnostic routing
+core both `bot.py` and `/api/chat/stream` call directly (`_router.route(text, "telegram")`
+and `_router.route(message, "dashboard")`). It owns `_SKILL_PRE_CHECKS` (19 entries — not
+Telegram-specific despite living conceptually under "Telegram routing" in past docs),
+`_BUILD_TRIGGERS`, `_AUDIT_TRIGGERS`, skill-trigger matching, and the LLM-based
+`SKILL:`/`LIST_SKILLS`/`BUILD`/`PROPOSE`/`WRAP_UP`/`CHAT` fallback. No Telegram objects,
+chat IDs, or reply-threading leak into it — **this already is the shared pipeline; a
+future session should not assume "unifying routing" means building this from scratch.**
+
+Both channels layer their own prefix-interception in front of it, and those layers have
+drifted into real duplication rather than a capability gap: **Telegram has three
+overlapping mechanisms** (`_DIRECTIVE_PREFIXES` → its own `_SKILL_PRE_CHECKS` pre-check
+loop → `route()`'s internal `_SKILL_PRE_CHECKS` recheck); **dashboard has two** (its own
+early intercepts → `route()`). Several prefixes (`cdb:`, `kb:`, `polish this:`,
+`gutenberg:`, `classics:`, `debug:`) are matched redundantly by two or three layers on
+Telegram alone. Consolidating all of this into one canonical prefix/trigger table both
+channels read from is the actual routing-unification task — see Known capability gap
+under Telegram Bot for what's genuinely missing (very little) versus merely duplicated
+(most of it).
 
 ### Member Management (More tab)
 - Full member list with search
@@ -415,10 +449,39 @@ Private community hub for Writing Room Partners (invitation-only, earned via ARC
 - Primary away interface
 - **Intent routing order in `bot.py`:**
   1. Pending action check (reply threading via `tg_pending_actions`)
-  2. Explicit command pre-checks (`_SKILL_PRE_CHECKS`) — 18 unambiguous triggers
-  3. Skill router (explicit skill slugs)
-  4. Ollama intent classifier (`llama3.2:3b`)
-  5. General Ollama chat fallback
+  2. `_DIRECTIVE_PREFIXES` colon-prefix intercepts (`bot.py` ~line 618) — 15 prefixes:
+     `cdb:`, `wdb:`, `kb:`, `web:`, `task:`, `note:`, `remind:`, `sms:`, `polish:`,
+     `bible:`, `devloop:`, `bug:`, `gutenberg:`, `classics:`, `fireflies:`.
+     Highest-priority, Telegram-only mechanism, checked before anything else.
+  3. `bot.py`'s own pre-check loop over `_SKILL_PRE_CHECKS` (19 triggers, not 18 — see
+     Shared Routing Module under Watson Dashboard) — dispatches 10 of those slugs to
+     Telegram-specific rich handlers. Several triggers here (`cdb:`, `kb:`,
+     `polish this:`, `gutenberg:`, `classics:`, `debug:`) duplicate stage 2 or 4.
+  4. `_router.route(text, "telegram")` — the same shared module dashboard calls;
+     re-checks `_SKILL_PRE_CHECKS` plus build/audit/wrap-up/identity/factual/skill-trigger
+     logic and an LLM fallback
+  5. Ollama intent classifier (`gemma3:4b`, not `llama3.2:3b` — see LLM Stack) —
+     **Telegram-only, no dashboard equivalent.** Handles `contact_lookup`,
+     `calendar_query`, `calendar_busy`, `calendar_availability`, `block_time`,
+     `book_appointment`, `reminder_create`, `task_create`, `task_list`, `task_done`,
+     `image_search`.
+  6. General Ollama chat fallback (`llama3.2:3b`)
+
+  Stages 2–4 overlap heavily — three separate mechanisms each independently re-match
+  `cdb:`/`kb:`/`polish this:`/`gutenberg:`/`classics:`/`debug:`. This is duplication,
+  not a capability gap; slated for consolidation into one canonical table (see Shared
+  Routing Module).
+
+**Known capability gap (2026-07-17 routing audit, corrected):** of the classifier-stage
+intents above, only **`block_time`** and **`calendar_availability`** have no dashboard
+path at all. Everything else — including every `_DIRECTIVE_PREFIXES` colon-prefix
+(`wdb:`, `bug:`, `web:`, `polish:` included) — is already reachable from both channels,
+just via inconsistent syntax and duplicated code paths rather than a real gap.
+`contact_lookup` and `reminder_create` are independently reimplemented in dashboard's
+`/api/chat/stream`; `book_appointment` and `calendar_busy` exist as dedicated dashboard
+REST endpoints/UI rather than chat intents. `build:` (dashboard) and `devloop:`
+(Telegram) trigger the identical Dev Loop function under different spellings — a naming
+mismatch, not a gap.
 
 ---
 
