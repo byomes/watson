@@ -3447,9 +3447,18 @@ def chat_stream():
                     "messages": ollama_msgs,
                     "stream": True,
                     "num_predict": 300,
+                    "keep_alive": "30m",
                 },
                 stream=True,
-                timeout=30,
+                # bug #25: measured ~1183 tokens (memory_context + WATSON_SYSTEM +
+                # history) took ~30s for prefill alone at this box's ~39 tok/s CPU
+                # throughput, before any generation -- the old timeout=30 left zero
+                # margin. sys carries up to 10 recent session summaries plus an
+                # optional project-memory file, and msgs can carry up to 20 history
+                # turns (app.py:3375), so worst case is well above 1183 tokens.
+                # 150s covers a ~4000-token worst-case prefill (~103s at 39 tok/s)
+                # plus num_predict=300 generation, with margin.
+                timeout=150,
             )
             resp.raise_for_status()
             for line in resp.iter_lines():
