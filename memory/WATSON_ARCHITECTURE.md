@@ -55,6 +55,33 @@ Watson acts on Dr. Bill's behalf under his supervision. Always identified openly
   build proposes routing any automated job to FMSPC, that is the bug, not a
   valid solution.
 
+  **2026-07-17 update:** `OLLAMA_MAX_LOADED_MODELS` was raised from `1` to `3`
+  today (`/etc/systemd/system/ollama.service.d/override.conf`). This fixes
+  *part* of the original hang mechanism — with `=1`, requesting a second model
+  while a heavy one was loaded forced an evict-and-reload cycle (cold loads
+  measured 22–80s in `memory/model_benchmark_20260715.md`), which was likely
+  the dominant cause of the observed 60+-second stalls. With `=3`, the intent
+  classifier and a heavy background-job model can now stay resident
+  simultaneously without thrashing.
+
+  **This does NOT fully resolve the original risk.** `OLLAMA_NUM_PARALLEL` is
+  still `1` — Ollama still serializes all generate requests one at a time,
+  system-wide, regardless of how many models are resident in memory. A
+  long-running call on a heavy model still blocks every other Ollama request
+  (including intent classification) for its full duration.
+
+  Because of that gap, `qwen2.5:14b` remains off every Beelink job for now —
+  **not because the 2026-07-16 fix failed**, but because concurrent-load
+  behavior was never re-tested after the `MAX_LOADED_MODELS` change. (A
+  same-day attempt to reintroduce `qwen2.5:14b` into `state_of_church.py` and
+  `draft_email.py` was made and then reverted before being committed — see the
+  commit that added this note.) Before `qwen2.5:14b` is reconsidered for any
+  job, someone needs to actually test it under real concurrent load: fire a
+  real Telegram message through `classify()` while a long `qwen2.5:14b` call
+  is mid-run, and confirm `classify()`'s 10s timeout/fallback (bug #20,
+  `56d60dd`) behaves correctly under that real contention — not just in
+  isolation.
+
 ### PBLaptop — Windows Laptop
 
 - Secondary machine. OneDrive synced. No Ollama.
@@ -167,6 +194,9 @@ Beelink, which starved concurrent Ollama calls and caused intermittent
 multi-second-to-60+-second hangs (root-caused 2026-07-16). Replaced by
 `qwen2.5:7b` on the Beelink across all 12 call sites. See the FMSPC note under
 Hardware — FMSPC is excluded from the automated job loop entirely, permanently.
+Still off every Beelink job as of 2026-07-17 despite that day's
+`OLLAMA_MAX_LOADED_MODELS` bump — see the 2026-07-17 update under the FMSPC
+note for why that change isn't sufficient on its own to bring it back.
 
 ---
 
