@@ -2935,6 +2935,23 @@ def chat_stream():
         from jobs.people.lookup import lookup_member as _lookup_sms
         from jobs.sms.sms_send import send_sms_to_contact as _send_sms
 
+        _BARE_PRONOUNS = {"that", "it", "this"}
+
+        def _resolve_sms_pronoun(raw: str) -> str:
+            """If raw is exactly a bare pronoun ("that"/"it"/"this"), resolve it to
+            the most recent assistant message in this chat session instead of
+            sending the literal word. Real content (e.g. a quoted phrase, or a
+            pronoun embedded in a longer sentence) is left untouched -- only an
+            exact match after stripping counts."""
+            if raw.strip().lower() not in _BARE_PRONOUNS or not session_id:
+                return raw
+            _row = _db().execute(
+                "SELECT content FROM chat_messages WHERE session_id = ? AND role = 'assistant' "
+                "ORDER BY created_at DESC LIMIT 1",
+                (session_id,),
+            ).fetchone()
+            return _row["content"] if _row and _row["content"] else raw
+
         _sms_me_pattern = _sms_re.search(
             r'(?:text|send a text to)\s+me\s+(?:that\s+|saying\s+)?(.+)',
             msg_lower,
@@ -2955,7 +2972,7 @@ def chat_stream():
         )
 
         if _sms_me_pattern:
-            _sms_msg_raw = message[_sms_me_pattern.start(1):].strip()
+            _sms_msg_raw = _resolve_sms_pronoun(message[_sms_me_pattern.start(1):].strip())
             _recent_qr = _db().execute(
                 "SELECT content FROM qr_cache ORDER BY created_at DESC LIMIT 1"
             ).fetchone()
@@ -2973,7 +2990,9 @@ def chat_stream():
             ))
 
         elif _sms_to_me_pattern:
-            _sms_msg_raw = message[_sms_to_me_pattern.start(1):_sms_to_me_pattern.end(1)].strip()
+            _sms_msg_raw = _resolve_sms_pronoun(
+                message[_sms_to_me_pattern.start(1):_sms_to_me_pattern.end(1)].strip()
+            )
             _recent_qr = _db().execute(
                 "SELECT content FROM qr_cache ORDER BY created_at DESC LIMIT 1"
             ).fetchone()
@@ -2993,7 +3012,7 @@ def chat_stream():
         elif _sms_pattern:
             _contact_raw = _sms_pattern.group(1).strip()
             _sms_msg_start = _sms_pattern.start(2)
-            _sms_message = message[_sms_msg_start:].strip()
+            _sms_message = _resolve_sms_pronoun(message[_sms_msg_start:].strip())
             _recent_qr = _db().execute(
                 "SELECT content FROM qr_cache ORDER BY created_at DESC LIMIT 1"
             ).fetchone()
