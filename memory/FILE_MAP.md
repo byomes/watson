@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-07-17*
+*Generated: 2026-07-18*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -307,6 +307,7 @@ jobs/
   intent/
     __init__.py
     classifier.py
+    keep_warm.py
   kb/
     __init__.py
     archive_transcripts.py
@@ -390,6 +391,9 @@ jobs/
     semantic_search.py
     summarizer.py
     web_search.py
+  routing/
+    __init__.py
+    directive_prefixes.py
   scheduler.py
   security/
     __init__.py
@@ -1010,6 +1014,15 @@ requirements.txt
 run.sh
 scripts/
   wcky_meet_reauth.py
+tests/
+  model_qualify/
+    model_qualification_spec.md
+    model_qualify.py
+    results_part1.json
+    results_part2.json
+    results_remaining.json
+    run.log
+    test_set.json
 vercel.json
 watson.db
 ```
