@@ -1165,3 +1165,17 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - 424af55 feat: resolve me/myself to Bill's own contact via telegram_chat_id
 - a42e31e docs: file map 2026-07-16
 - 61b2185 docs: architecture update 2026-07-16
+
+---
+
+## Recent Changes — 2026-07-18
+
+### ~/watson
+- ebe4616 fix: Telegram wrap_up/reflect used string session_id, silently failed to load real transcript (bug #27)
+- 186c16d feat: consolidate directive-prefix routing, add block_time/calendar_availability to dashboard
+- 4447fc4 docs: correct routing architecture against actual code (Phase 1 audit)
+- 291c27c fix: raise dashboard chat Ollama fallback timeout 30s->150s (bug #25)
+- eab4f3c test: add model qualification harness and results (bug #20, #21, #22 evidence)
+- 5fb0209 docs: document 2026-07-17 qwen2.5:14b near-miss and MAX_LOADED_MODELS gap
+- 56d60dd fix: intent classifier — swap to gemma3:4b, fix cold-start timeout (bug #20)
+- 5cb72db docs: file map 2026-07-17
