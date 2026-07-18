@@ -2105,7 +2105,7 @@ async def _execute_pending(update: Update, context: ContextTypes.DEFAULT_TYPE, p
     slot = pending["proposed_slot"]
     pending_id = pending["id"]
 
-    if action_type not in ("block_time", "book_appointment"):
+    if action_type not in ("block_time", "book_appointment", "calendar_busy"):
         await update.message.reply_text("I don't know how to execute that action.")
         return
 
@@ -2119,7 +2119,13 @@ async def _execute_pending(update: Update, context: ContextTypes.DEFAULT_TYPE, p
         end_dt = datetime.fromisoformat(slot["end"])
         display = slot.get("display", "")
 
-        if action_type == "block_time":
+        if action_type == "calendar_busy":
+            from jobs.gcal.gcal_service import mark_busy
+            mark_busy(start_dt, end_dt)
+            pending_module.confirm_pending(pending_id)
+            await update.message.reply_text("🚫 Done — marked rest of today as busy.")
+            return
+        elif action_type == "block_time":
             from jobs.gcal.gcal_service import mark_busy
             mark_busy(start_dt, end_dt, title)
         else:
@@ -3139,10 +3145,22 @@ async def _handle_calendar_day(update: Update, context: ContextTypes.DEFAULT_TYP
 
 
 async def _handle_mark_busy(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    from jobs.gcal.gcal_service import mark_day_busy_from_now
+    from jobs.gcal.gcal_service import NY
+    chat_id = update.effective_chat.id
     try:
-        await asyncio.to_thread(mark_day_busy_from_now)
-        await update.message.reply_text("🚫 Done — marked rest of today as busy.")
+        now = datetime.now(NY)
+        end_of_day = now.replace(hour=23, minute=59, second=0, microsecond=0)
+        display = f"{now.strftime('%-I:%M %p')} – 11:59 PM today"
+        slot = {"available": True, "start": now.isoformat(), "end": end_of_day.isoformat(), "display": display}
+        pending_module.save_pending(chat_id, "calendar_busy", {}, slot)
+        sent = await update.message.reply_text(
+            f"🚫 Mark the rest of today busy?\n\n{display}\n\nReply YES to confirm or NO to cancel."
+        )
+        try:
+            from jobs.telegram.pending import store_pending_action
+            store_pending_action("calendar_booking", sent.message_id, {"chat_id": chat_id})
+        except Exception:
+            pass
     except Exception as exc:
         log.error("Mark busy failed: %s", exc)
         await update.message.reply_text(_calendar_error_text(exc))
