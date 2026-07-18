@@ -1648,6 +1648,7 @@ async def _handle_reminder_create(update: Update, context: ContextTypes.DEFAULT_
     if not title:
         await update.message.reply_text("What should I remind you about?")
         return
+    chat_id = update.effective_chat.id
     # Extract HH:MM from due_datetime if present
     reminder_time = None
     if due:
@@ -1655,16 +1656,22 @@ async def _handle_reminder_create(update: Update, context: ContextTypes.DEFAULT_
             reminder_time = datetime.fromisoformat(due).strftime("%H:%M")
         except Exception:
             pass
+    display = f"{title} — due {due}" if due else title
     try:
-        with get_connection() as conn:
-            _ensure_reminders_table(conn)
-            conn.execute(
-                "INSERT INTO reminders (title, due_datetime, reminder_time, status, created_at, updated_at) "
-                "VALUES (?, ?, ?, 'active', datetime('now'), datetime('now'))",
-                (title, due or "", reminder_time),
-            )
-        reply = f"⏰ Reminder set for {reminder_time}: {title}" if reminder_time else f"⏰ Reminder saved: {title}"
-        await update.message.reply_text(reply)
+        pending_module.save_pending(
+            chat_id,
+            "reminder_create",
+            {"title": title, "due": due, "reminder_time": reminder_time},
+            {"display": display},
+        )
+        sent = await update.message.reply_text(
+            f"⏰ Set this reminder?\n\n{display}\n\nReply YES to confirm or NO to cancel."
+        )
+        try:
+            from jobs.telegram.pending import store_pending_action
+            store_pending_action("calendar_booking", sent.message_id, {"chat_id": chat_id})
+        except Exception:
+            pass
     except Exception as exc:
         log.error("Reminder create failed: %s", exc)
         await update.message.reply_text(f"Error saving reminder: {exc}")
@@ -1688,14 +1695,23 @@ async def _handle_task_create(update: Update, context: ContextTypes.DEFAULT_TYPE
     if not title:
         await update.message.reply_text("What should I call this task?")
         return
+    chat_id = update.effective_chat.id
+    display = f"{title} — due {due}" if due else title
     try:
-        with get_connection() as conn:
-            _ensure_tasks_table(conn)
-            conn.execute("INSERT INTO tasks (title, due_datetime) VALUES (?, ?)", (title, due))
-        if due:
-            await update.message.reply_text(f"✅ Reminder set for {title} on {due}.")
-        else:
-            await update.message.reply_text(f"✅ Got it — added '{title}' to your tasks.")
+        pending_module.save_pending(
+            chat_id,
+            "task_create",
+            {"title": title, "due": due},
+            {"display": display},
+        )
+        sent = await update.message.reply_text(
+            f"✅ Add this task?\n\n{display}\n\nReply YES to confirm or NO to cancel."
+        )
+        try:
+            from jobs.telegram.pending import store_pending_action
+            store_pending_action("calendar_booking", sent.message_id, {"chat_id": chat_id})
+        except Exception:
+            pass
     except Exception as exc:
         log.error("Task create failed: %s", exc)
         await update.message.reply_text(f"Error saving task: {exc}")
@@ -2126,8 +2142,52 @@ async def _execute_pending(update: Update, context: ContextTypes.DEFAULT_TYPE, p
     slot = pending["proposed_slot"]
     pending_id = pending["id"]
 
-    if action_type not in ("block_time", "book_appointment", "calendar_busy", "task_done"):
+    if action_type not in (
+        "block_time", "book_appointment", "calendar_busy", "task_done",
+        "reminder_create", "task_create",
+    ):
         await update.message.reply_text("I don't know how to execute that action.")
+        return
+
+    if action_type == "reminder_create":
+        try:
+            with get_connection() as conn:
+                _ensure_reminders_table(conn)
+                conn.execute(
+                    "INSERT INTO reminders (title, due_datetime, reminder_time, status, created_at, updated_at) "
+                    "VALUES (?, ?, ?, 'active', datetime('now'), datetime('now'))",
+                    (params["title"], params.get("due") or "", params.get("reminder_time")),
+                )
+            pending_module.confirm_pending(pending_id)
+            reminder_time = params.get("reminder_time")
+            reply = (
+                f"⏰ Reminder set for {reminder_time}: {params['title']}"
+                if reminder_time else f"⏰ Reminder saved: {params['title']}"
+            )
+            await update.message.reply_text(reply)
+        except Exception as exc:
+            log.error("Reminder create execute failed: %s", exc)
+            pending_module.cancel_pending(pending_id)
+            await update.message.reply_text(f"Error saving reminder: {exc}")
+        return
+
+    if action_type == "task_create":
+        try:
+            with get_connection() as conn:
+                _ensure_tasks_table(conn)
+                conn.execute(
+                    "INSERT INTO tasks (title, due_datetime) VALUES (?, ?)",
+                    (params["title"], params.get("due")),
+                )
+            pending_module.confirm_pending(pending_id)
+            if params.get("due"):
+                await update.message.reply_text(f"✅ Reminder set for {params['title']} on {params['due']}.")
+            else:
+                await update.message.reply_text(f"✅ Got it — added '{params['title']}' to your tasks.")
+        except Exception as exc:
+            log.error("Task create execute failed: %s", exc)
+            pending_module.cancel_pending(pending_id)
+            await update.message.reply_text(f"Error saving task: {exc}")
         return
 
     if action_type == "task_done":
