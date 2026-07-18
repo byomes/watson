@@ -1,5 +1,5 @@
 # Watson Architecture
-*Single source of truth. Last updated: July 13, 2026.*
+*Single source of truth. Last updated: July 18, 2026.*
 *Claude Code must read this file before any build.*
 
 ---
@@ -399,7 +399,9 @@ Private community hub for Writing Room Partners (invitation-only, earned via ARC
 ### Dashboard Routing
 - SSE streaming via `/api/chat/stream`
 - Skills execute immediately (no confirmation gate in dashboard)
-- Telegram executes skills immediately (no gate)
+- Telegram executes skills immediately (no gate) — this refers to `_SKILL_PRE_CHECKS`-dispatched
+  skills only (routing stages 2–4 below). The six classifier-stage write intents (stage 5) are a
+  separate mechanism and **do** have a confirmation gate — see Confirmation Gate below.
 - Session summaries stored in `memory_sessions`; injected into system prompt on next session
 - `/api/terminal` is a **separate manual command-console endpoint**, not the chat path —
   handles its own prefix set: `cdb:`, `wdb:`, `web:`, `bible:`, `polish:`, `polish this:`,
@@ -471,6 +473,41 @@ under Telegram Bot for what's genuinely missing (very little) versus merely dupl
   `cdb:`/`kb:`/`polish this:`/`gutenberg:`/`classics:`/`debug:`. This is duplication,
   not a capability gap; slated for consolidation into one canonical table (see Shared
   Routing Module).
+
+### Confirmation Gate (classifier-stage write intents)
+
+Of the 10 intents the stage-5 Ollama classifier can return, six perform a write and all
+six now require an explicit **YES/NO reply before anything is written** — `contact_lookup`,
+`calendar_query`, `calendar_availability`, `task_list`, and `image_search` are read-only
+and were never gated (nothing to confirm).
+
+| Intent | Gated | Bug | Reason |
+|--------|-------|-----|--------|
+| `block_time` | Yes | pre-existing | Writes to Google Calendar |
+| `book_appointment` | Yes | pre-existing | Writes to Google Calendar + sends email |
+| `calendar_busy` | Yes | #31 (2026-07-18) | Writes to Google Calendar — real safety fix; a skill-router timeout fell through to the classifier, misfired `calendar_busy`, and blocked the rest of a live day with zero confirmation before this fix |
+| `task_done` | Yes | #32 (2026-07-18) | Fuzzy `LIKE %title%` `UPDATE` against existing tasks — real safety fix; an ungated misfire could silently mark unrelated/multiple tasks done with no visibility into what matched |
+| `reminder_create` | Yes | #33 (2026-07-18) | Consistency addition, not a safety fix — an ungated `INSERT` is additive and trivially reversible, gated anyway for UX consistency |
+| `task_create` | Yes | #33 (2026-07-18) | Same as `reminder_create` — consistency, not safety |
+
+**Mechanism:** each handler (`_handle_block_time`, `_handle_book_appointment`,
+`_handle_mark_busy`, `_handle_task_done`, `_handle_reminder_create`, `_handle_task_create`
+in `bot.py`) builds a display string describing what it's about to do, calls
+`pending_module.save_pending(chat_id, action_type, params, proposed_slot)`
+(`jobs/gcal/pending.py`, `pending_actions` table — despite the module's `gcal` naming and
+the `proposed_slot` field name, it's the generic single-pending-action-per-chat store used
+by all six, not calendar-specific), and replies with a `Reply YES to confirm or NO to
+cancel` prompt. `store_pending_action("calendar_booking", sent.message_id, ...)`
+(`jobs/telegram/pending.py`, `tg_pending_actions` table) additionally threads the prompt
+for Telegram's reply-to-message flow. A bare "yes"/"no" (checked in `bot.py`'s top-level
+pre-check, not reply-threaded) or a threaded reply to the prompt both route to the same
+`pending_module.get_pending(chat_id)` → `_execute_pending()` (YES) /
+`pending_module.cancel_pending()` (NO) pair — `_execute_pending` dispatches on
+`action_type` and only performs the actual write (Calendar API call or DB `INSERT`/`UPDATE`)
+inside that function, never inside the `_handle_*` entry point. Adding a new gated write
+intent means: build a display string in the handler, `save_pending()` instead of writing
+directly, add a branch to `_execute_pending()`'s allowed-`action_type` tuple and dispatch —
+no new infra required.
 
 **Known capability gap (2026-07-17 routing audit, corrected):** of the classifier-stage
 intents above, only **`block_time`** and **`calendar_availability`** have no dashboard
