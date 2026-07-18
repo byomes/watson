@@ -1728,17 +1728,38 @@ async def _handle_task_done(update: Update, context: ContextTypes.DEFAULT_TYPE, 
     if not title:
         await update.message.reply_text("Which task should I mark done?")
         return
+    chat_id = update.effective_chat.id
     try:
         with get_connection() as conn:
             _ensure_tasks_table(conn)
-            conn.execute(
-                "UPDATE tasks SET status = 'done' WHERE status = 'active' AND title LIKE ?",
+            rows = conn.execute(
+                "SELECT id, title FROM tasks WHERE status = 'active' AND title LIKE ?",
                 (f"%{title}%",),
-            )
-        await update.message.reply_text(f"✅ Marked done: {title}")
+            ).fetchall()
+        if not rows:
+            await update.message.reply_text(f"No active task matching '{title}'.")
+            return
+        matched_ids = [r["id"] for r in rows]
+        matched_titles = [r["title"] for r in rows]
+        listing = "\n".join(f"• {t}" for t in matched_titles)
+        pending_module.save_pending(
+            chat_id,
+            "task_done",
+            {"title": title},
+            {"matched_ids": matched_ids, "matched_titles": matched_titles},
+        )
+        noun = "this task" if len(matched_titles) == 1 else "these tasks"
+        sent = await update.message.reply_text(
+            f"Mark {noun} done?\n\n{listing}\n\nReply YES to confirm or NO to cancel."
+        )
+        try:
+            from jobs.telegram.pending import store_pending_action
+            store_pending_action("calendar_booking", sent.message_id, {"chat_id": chat_id})
+        except Exception:
+            pass
     except Exception as exc:
-        log.error("Task done failed: %s", exc)
-        await update.message.reply_text(f"Error updating task: {exc}")
+        log.error("Task done lookup failed: %s", exc)
+        await update.message.reply_text(f"Error looking up task: {exc}")
 
 
 def _get_general_reply_sync(text: str) -> str:
@@ -2105,8 +2126,32 @@ async def _execute_pending(update: Update, context: ContextTypes.DEFAULT_TYPE, p
     slot = pending["proposed_slot"]
     pending_id = pending["id"]
 
-    if action_type not in ("block_time", "book_appointment", "calendar_busy"):
+    if action_type not in ("block_time", "book_appointment", "calendar_busy", "task_done"):
         await update.message.reply_text("I don't know how to execute that action.")
+        return
+
+    if action_type == "task_done":
+        matched_ids = slot.get("matched_ids", [])
+        matched_titles = slot.get("matched_titles", [])
+        try:
+            if matched_ids:
+                with get_connection() as conn:
+                    _ensure_tasks_table(conn)
+                    placeholders = ",".join("?" for _ in matched_ids)
+                    conn.execute(
+                        f"UPDATE tasks SET status = 'done' WHERE id IN ({placeholders})",
+                        matched_ids,
+                    )
+            pending_module.confirm_pending(pending_id)
+            if len(matched_titles) == 1:
+                await update.message.reply_text(f"✅ Marked done: {matched_titles[0]}")
+            else:
+                listing = "\n".join(f"• {t}" for t in matched_titles)
+                await update.message.reply_text(f"✅ Marked done:\n{listing}")
+        except Exception as exc:
+            log.error("Task done execute failed: %s", exc)
+            pending_module.cancel_pending(pending_id)
+            await update.message.reply_text(f"Error marking tasks done: {exc}")
         return
 
     title = params.get("title") or (
