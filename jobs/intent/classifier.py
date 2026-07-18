@@ -56,10 +56,7 @@ Examples:
 "add task buy groceries" → {"intent": "task_create", "params": {"title": "buy groceries"}, "confidence": "HIGH"}
 "lookup Sarah Mitchell" → {"intent": "contact_lookup", "params": {"name": "Sarah Mitchell"}, "confidence": "HIGH"}
 "what's Sarah's phone number" → {"intent": "contact_lookup", "params": {"name": "Sarah"}, "confidence": "MEDIUM"}
-"can you find John's info" → {"intent": "contact_lookup", "params": {"name": "John"}, "confidence": "MEDIUM"}
 "that person from last Sunday" → {"intent": "contact_lookup", "params": {"name": ""}, "confidence": "LOW"}
-"get me Sarah's email" → {"intent": "contact_lookup", "params": {"name": "Sarah"}, "confidence": "HIGH"}
-"what is Dave's email address" → {"intent": "contact_lookup", "params": {"name": "Dave"}, "confidence": "HIGH"}
 "send an email to John" → {"intent": "general", "params": {}, "confidence": "HIGH"}
 
 Return ONLY the JSON object. No markdown. No explanation. No other text.
@@ -84,11 +81,13 @@ def classify(message_text: str, system_prompt: str = "") -> dict:
         resp = requests.post(
             _OLLAMA_URL,
             json=payload,
-            # Short enough to fail fast within bot.py's 15s outer handler
-            # timeout (_HANDLE_TEXT_TIMEOUT_SECONDS) on a cold model load,
-            # so the general-chat fallback below still gets a chance to run
-            # instead of the whole message handler getting killed at 15s.
-            timeout=10,
+            # This CPU-only host's prompt-prefix cache for the ~1150-1280
+            # token classifier prompt is inconsistent — measured wall times
+            # of 2.5s-38.4s across repeated real calls (bug #29). 55s gives
+            # real margin over the worst observed case while still leaving
+            # room, under bot.py's 80s outer handle_text timeout, for the
+            # general-chat fallback to run if this does time out.
+            timeout=55,
         )
         resp.raise_for_status()
         raw = resp.json().get("response", "").strip()

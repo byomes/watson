@@ -574,7 +574,11 @@ async def handle_facebook_image_callback(update, context):
         # regenerate_image sends a fresh photo+buttons message itself
 
 
-_HANDLE_TEXT_TIMEOUT_SECONDS = 15
+# Worst-case stack inside this window (bug #29, all measured on this
+# CPU-only host): skill router's own 8s timeout, then classify()'s 55s
+# timeout, then a real shot at the general-chat fallback (measured up to
+# ~13.2s, budgeted 25s). 8 + 55 + 25 = 88s -> 100s leaves real margin.
+_HANDLE_TEXT_TIMEOUT_SECONDS = 100
 
 # Holds references to detached asyncio.create_task() background jobs (e.g. the
 # fireflies: directive) so they aren't garbage-collected mid-run — a task with
@@ -1311,6 +1315,10 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     # 4. Classify intent via Ollama gemma3:4b (non-blocking)
+    # Ack before the slow part starts (bug #29) — classify()/general-chat
+    # can legitimately take up to _HANDLE_TEXT_TIMEOUT_SECONDS on this
+    # CPU-only host, and a silent 15-80s wait reads as a broken bot.
+    await update.message.reply_text("💭 Thinking...")
     _classifier_system = build_prompt(task=text_clean, project=None)
     result = await asyncio.to_thread(_classify_intent, text_clean, _classifier_system)
     log.info("DEBUG classifier raw result: %s", result)
