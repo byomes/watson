@@ -2630,6 +2630,27 @@ def chat_stream():
         return '\n'.join(f'data: {line}' for line in lines) + '\n\n'
 
     def _stream_simple(text):
+        # Persist the assistant side of the exchange for the ~61 early-intercept
+        # handlers that route through here (bug #36) -- mirrors _save_reply's
+        # assistant-only insert further down (the user row is written separately
+        # by the frontend via POST /api/chat/sessions/<id>/messages, so only the
+        # reply needs saving here). Defined inline rather than calling
+        # _save_reply directly: that helper isn't defined until later in this
+        # function body, and every one of these early-return call sites executes
+        # before that point.
+        if session_id and text:
+            try:
+                with sqlite3.connect(DB) as _sconn:
+                    _sconn.execute(
+                        "INSERT INTO chat_messages (session_id, role, content) VALUES (?, 'assistant', ?)",
+                        (session_id, text),
+                    )
+                    _sconn.execute(
+                        "UPDATE chat_sessions SET updated_at = datetime('now') WHERE id = ?",
+                        (session_id,),
+                    )
+            except Exception as _exc:
+                log.error("Failed to save assistant reply to DB (from _stream_simple): %s", _exc)
         yield _sse(text)
         yield "data: [DONE]\n\n"
 
