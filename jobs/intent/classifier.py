@@ -27,6 +27,7 @@ Rules:
 - "book an appointment for [person]" or "schedule [person]" = book_appointment
 - "lookup [name]" or "who is [name]" or "phone/email/contact info for [name]" or "how do I reach [name]" or "find [name]'s number/email/contact" or "get me [name]'s email/phone/number" or "what is [name]'s email/phone/number" = contact_lookup
 - requests to find, search for, or show an image, photo, or picture = image_search
+- a bare greeting or social opener with no specific request (e.g. "hi", "hey", "good morning", "hi there") = general — do NOT infer calendar_query just because a greeting is otherwise content-free
 - everything else = general
 
 Intents and their params:
@@ -58,6 +59,8 @@ Examples:
 "what's Sarah's phone number" → {"intent": "contact_lookup", "params": {"name": "Sarah"}, "confidence": "MEDIUM"}
 "that person from last Sunday" → {"intent": "contact_lookup", "params": {"name": ""}, "confidence": "LOW"}
 "send an email to John" → {"intent": "general", "params": {}, "confidence": "HIGH"}
+"good morning Watson" → {"intent": "general", "params": {}, "confidence": "HIGH"}
+"hey, what's up" → {"intent": "general", "params": {}, "confidence": "HIGH"}
 
 Return ONLY the JSON object. No markdown. No explanation. No other text.
 """
