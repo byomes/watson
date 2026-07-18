@@ -57,16 +57,17 @@ def _merge(cong_rows: list[dict], watson_rows: list[dict]) -> list[dict]:
 
 
 _SELF_ALIASES = {"me", "myself", "my number", "my phone"}
+_OWNER_NAME = "Bill Yomes"
 
 
 def lookup_member(query: str, chat_id: int | str | None = None) -> list[dict]:
-    if chat_id is not None and query.strip().lower() in _SELF_ALIASES:
+    if query.strip().lower() in _SELF_ALIASES:
         watson = sqlite3.connect(WATSON_DB)
         watson.row_factory = sqlite3.Row
         try:
             rows = watson.execute(
-                "SELECT name, email, phone, carrier FROM people WHERE telegram_chat_id = ?",
-                (str(chat_id),),
+                "SELECT name, email, phone, carrier FROM people WHERE name = ? COLLATE NOCASE",
+                (_OWNER_NAME,),
             ).fetchall()
         finally:
             watson.close()

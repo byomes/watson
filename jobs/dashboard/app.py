@@ -2939,6 +2939,16 @@ def chat_stream():
             r'(?:text|send a text to)\s+me\s+(?:that\s+|saying\s+)?(.+)',
             msg_lower,
         )
+        # "text that to me" / "send this to myself" / "text that to my phone" --
+        # the self-alias trails at the end, not right after the trigger verb.
+        # Must be checked before the generic contact-name pattern below, or the
+        # self-alias word gets swallowed into a bogus contact name (e.g. "that
+        # to") while the real content word gets treated as the recipient.
+        _sms_to_me_pattern = _sms_re.search(
+            r'(?:text|send a text to|send text to|shoot a text to)\s+(.+?)\s+to\s+'
+            r'(?:me|myself|my phone|my number)\s*$',
+            msg_lower,
+        )
         _sms_pattern = _sms_re.search(
             r'(?:text|send a text to|send text to|shoot a text to)\s+(\w+(?:\s+\w+)?)\s*(?::|that\s+|saying\s+|to say\s+)?\s*(.+)',
             msg_lower,
@@ -2946,6 +2956,24 @@ def chat_stream():
 
         if _sms_me_pattern:
             _sms_msg_raw = message[_sms_me_pattern.start(1):].strip()
+            _recent_qr = _db().execute(
+                "SELECT content FROM qr_cache ORDER BY created_at DESC LIMIT 1"
+            ).fetchone()
+            if 'qr' in msg_lower and _recent_qr:
+                _sms_msg_raw = f"QR code content: {_recent_qr['content']}"
+            from jobs.telegram.pending import store_skill_confirmation as _store_dash_sms
+            _store_dash_sms("sms_me", {
+                "source": "dashboard",
+                "action_type": "sms_me",
+                "original_message": message,
+                "sms_message": _sms_msg_raw,
+            })
+            return _sse_response(_stream_simple(
+                f"Just to confirm — you want me to text you: '{_sms_msg_raw}'. Reply yes to proceed or no to cancel."
+            ))
+
+        elif _sms_to_me_pattern:
+            _sms_msg_raw = message[_sms_to_me_pattern.start(1):_sms_to_me_pattern.end(1)].strip()
             _recent_qr = _db().execute(
                 "SELECT content FROM qr_cache ORDER BY created_at DESC LIMIT 1"
             ).fetchone()
