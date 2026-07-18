@@ -2960,18 +2960,28 @@ def chat_stream():
 
         def _resolve_sms_pronoun(raw: str) -> str:
             """If raw is exactly a bare pronoun ("that"/"it"/"this"), resolve it to
-            the most recent assistant message in this chat session instead of
-            sending the literal word. Real content (e.g. a quoted phrase, or a
-            pronoun embedded in a longer sentence) is left untouched -- only an
-            exact match after stripping counts."""
-            if raw.strip().lower() not in _BARE_PRONOUNS or not session_id:
+            the most recent assistant message instead of sending the literal word.
+            Real content (e.g. a quoted phrase, or a pronoun embedded in a longer
+            sentence) is left untouched -- only an exact match after stripping
+            counts. Mirrors the session_id-present / history-fallback branching at
+            app.py:3517-3534: a caller that sends session_id reads chat_messages;
+            no current caller of /api/chat/stream does (the dashboard main chat
+            widget never sends it -- Telegram doesn't hit this endpoint at all),
+            so in practice this always falls back to the request's own `history`
+            list, which already carries the prior assistant reply."""
+            if raw.strip().lower() not in _BARE_PRONOUNS:
                 return raw
-            _row = _db().execute(
-                "SELECT content FROM chat_messages WHERE session_id = ? AND role = 'assistant' "
-                "ORDER BY created_at DESC LIMIT 1",
-                (session_id,),
-            ).fetchone()
-            return _row["content"] if _row and _row["content"] else raw
+            if session_id:
+                _row = _db().execute(
+                    "SELECT content FROM chat_messages WHERE session_id = ? AND role = 'assistant' "
+                    "ORDER BY created_at DESC LIMIT 1",
+                    (session_id,),
+                ).fetchone()
+                return _row["content"] if _row and _row["content"] else raw
+            for _h in reversed(history):
+                if _h.get("role") == "assistant" and _h.get("content"):
+                    return _h["content"]
+            return raw
 
         _sms_me_pattern = _sms_re.search(
             r'(?:text|send a text to)\s+me\s+(?:that\s+|saying\s+)?(.+)',
