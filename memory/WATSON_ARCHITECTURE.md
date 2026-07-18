@@ -522,6 +522,27 @@ mismatch, not a gap.
 
 ---
 
+## Contact Resolution
+
+`jobs/people/lookup.py::lookup_member(query, chat_id=None)` is the shared name-to-contact
+resolver — searches `congregation.db` then `watson.db` `people`, four-step cascade (exact →
+full phrase → last name → first name), each step a `LIKE` fuzzy match.
+
+**Self-alias short-circuit:** `me`, `myself`, `my number`, `my phone` (case-insensitive,
+whitespace-trimmed) never go through the fuzzy cascade — they resolve directly via exact
+name match to the canonical owner record (`watson.db` `people.id=7`, "Bill Yomes"),
+regardless of caller/channel. Originally gated on a Telegram `chat_id` match against
+`people.telegram_chat_id` (`424af55`, 2026-07-17) — that gate meant any dashboard caller
+(no `chat_id` to pass) fell through to fuzzy matching instead, which is unsafe: a fuzzy
+`LIKE` search on "me" or on a mis-extracted fragment like "that to" can match an unrelated
+substring (e.g. "Venuto" contains "to") and silently pick the wrong contact. Fixed 2026-07-18
+(bug #34) — dropped the `chat_id` gate entirely; the short-circuit is now unconditional and
+channel-agnostic. Any new caller resolving a recipient/contact string should check for
+self-aliases through this same function rather than reinventing the check, or the same
+failure mode reappears.
+
+---
+
 ## Watson Identity & Email
 
 - **Gmail:** `watson.wcky@gmail.com`
@@ -1208,6 +1229,17 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 ## Recent Changes — 2026-07-18
 
 ### ~/watson
+- fab654f docs: file map 2026-07-18
+- 9709b2e fix: "text that to me" resolved recipient to a fuzzy-matched contact instead of Bill Yomes (bug #34)
+- 5b61cd4 docs: document the classifier-stage write-intent confirmation gate pattern
+- b21970f feat: add YES/NO confirmation gate to reminder_create and task_create (bug #33)
+- 74df41c fix: add YES/NO confirmation gate to task_done before it marks tasks done (bug #32)
+- f962909 fix: add YES/NO confirmation gate to calendar_busy before it writes to Google Calendar (bug #31)
+- cf6a710 fix: classifier misrouted plain greetings to calendar_query (bug #30)
+- bfdf569 fix: trim classify() few-shot prompt and raise timeouts to match real prefill cost (bug #29)
+- 3352336 fix: bound Ollama generation length and right-size skill router model (bug #28)
+- bb6edac docs: file map 2026-07-18
+- 7cb2b1f docs: architecture update 2026-07-18
 - ebe4616 fix: Telegram wrap_up/reflect used string session_id, silently failed to load real transcript (bug #27)
 - 186c16d feat: consolidate directive-prefix routing, add block_time/calendar_availability to dashboard
 - 4447fc4 docs: correct routing architecture against actual code (Phase 1 audit)
