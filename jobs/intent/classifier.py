@@ -68,7 +68,16 @@ Return ONLY the JSON object. No markdown. No explanation. No other text.
 
 def classify(message_text: str, system_prompt: str = "") -> dict:
     prompt = f"{_SYSTEM_PROMPT}\n\nMessage: {message_text}"
-    payload: dict = {"model": _MODEL, "prompt": prompt, "stream": False, "keep_alive": _KEEP_ALIVE}
+    payload: dict = {
+        "model": _MODEL,
+        "prompt": prompt,
+        "stream": False,
+        "keep_alive": _KEEP_ALIVE,
+        # Bounds worst-case generation time — classify only ever needs a small
+        # JSON object back, but with no cap a stuck/looping generation can run
+        # for minutes under CPU contention instead of failing fast (bug #28).
+        "options": {"num_predict": 200},
+    }
     if system_prompt:
         payload["system"] = system_prompt
     try:
