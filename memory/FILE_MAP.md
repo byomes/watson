@@ -242,6 +242,7 @@ jobs/
     git_tools.py
     github_tools.py
     hello_dashboard.py
+    ollama_monitor.py
     performance_profiler.py
     secrets_audit.py
     skill_tester.py
