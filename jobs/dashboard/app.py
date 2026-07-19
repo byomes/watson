@@ -329,6 +329,11 @@ app.register_blueprint(team_bp)
 from jobs.dev_loop.deliver import dev_loop_bp
 app.register_blueprint(dev_loop_bp)
 
+from jobs.curator.api import curator_bp
+from jobs.curator import bootstrap_db as _curator_bootstrap
+_curator_bootstrap()
+app.register_blueprint(curator_bp)
+
 _EMAIL_SIGNATURE = "---\nWatson\nAI-powered digital assistant\nOffice of Dr. Bill Yomes\nwilliamckyomes.com/start"
 
 # ── Admin template filters ────────────────────────────────────────────────────

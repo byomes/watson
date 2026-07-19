@@ -34,6 +34,7 @@ DIRECTIVE_PREFIXES: dict = {
     "remind:":    {"telegram": True, "dashboard": False},   # dashboard has its own "remind me ..." regex intake
     "sms:":       {"telegram": True, "dashboard": False},   # carrier-confirm inline-keyboard flow, Telegram UX only
     "fireflies:": {"telegram": True, "dashboard": False},   # backgrounded meeting pipeline, notify-on-done via Telegram
+    "curator:":   {"telegram": True, "dashboard": False},   # book submission (title/author or link) -> Curator ingest pipeline
 }
 
 

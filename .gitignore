@@ -5,6 +5,7 @@ data/qr/
 data/chroma/
 data/congregation.db
 data/donors.db
+data/curator.db
 __pycache__/
 *.pyc
 .claude/settings.local.json

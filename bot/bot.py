@@ -744,6 +744,8 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     _ff_task = asyncio.create_task(_run_fireflies_directive())
                     _background_tasks.add(_ff_task)
                     _ff_task.add_done_callback(_background_tasks.discard)
+            elif _dpfx == "curator:":
+                await _handle_curator_text(update, context, _darg)
             log.info("DEBUG directive: %s", _dpfx)
             return
 
@@ -2019,6 +2021,17 @@ async def _route_tg_pending_reply(
         mark_done(pending_id)
         return True
 
+    if action_type == "curator_edit":
+        from jobs.curator.actions import apply_edit_reply
+        book_id = payload.get("book_id")
+        book = await asyncio.to_thread(apply_edit_reply, book_id, text)
+        if book:
+            await update.message.reply_text(f"✅ Updated & confirmed: {book['title']}")
+        else:
+            await update.message.reply_text("Couldn't find that book anymore.")
+        mark_done(pending_id)
+        return True
+
     if action_type == "calendar_booking":
         chat_id = payload.get("chat_id") or update.effective_chat.id
         if text_lower in ("yes", "confirm", "yes do it", "book it", "go ahead"):
@@ -3183,10 +3196,110 @@ async def handle_book_callback(update: Update, context: ContextTypes.DEFAULT_TYP
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not _is_authorized(update):
         return
+
+    caption = (update.message.caption or "").strip()
+    if caption.lower().startswith("curator:"):
+        await _handle_curator_photo(update, context, caption[len("curator:"):].strip())
+        return
+
     await update.message.reply_text(
         "📸 Book cover recognition is coming soon.\n\nFor now, use:\n<code>Watson add book: Title by Author</code>",
         parse_mode="HTML"
     )
+
+
+def _parse_curator_title_author(body: str) -> tuple[str | None, str | None]:
+    if not body:
+        return None, None
+    if " by " in body.lower():
+        idx = body.lower().rindex(" by ")
+        return body[:idx].strip(), body[idx + 4:].strip()
+    return body, None
+
+
+async def _handle_curator_text(update: Update, context: ContextTypes.DEFAULT_TYPE, body: str) -> None:
+    """Handle `curator: <title> by <author>` or `curator: <link>` — Curator book submission."""
+    import threading
+    from jobs.curator.ingest import ingest_submission
+
+    body = body.strip()
+    if not body:
+        await update.message.reply_text("Usage: curator: <title> by <author>  —or—  curator: <link>")
+        return
+
+    link = body if body.lower().startswith(("http://", "https://")) else None
+    title = author = None
+    if not link:
+        title, author = _parse_curator_title_author(body)
+
+    await update.message.reply_text("📚 Looking into that one…")
+
+    def _run():
+        try:
+            ingest_submission(submitted_by=None, title=title, author=author, link=link)
+        except Exception as exc:
+            log.error("curator ingest (text) failed: %s", exc)
+
+    threading.Thread(target=_run, daemon=True).start()
+
+
+async def _handle_curator_photo(update: Update, context: ContextTypes.DEFAULT_TYPE, caption_body: str) -> None:
+    """Handle a photo sent with a `curator:` caption — cover image submission."""
+    import threading
+    from jobs.curator.ingest import ingest_submission
+
+    title, author = _parse_curator_title_author(caption_body.strip())
+
+    photo = update.message.photo[-1]
+    tg_file = await context.bot.get_file(photo.file_id)
+    image_bytes = bytes(await tg_file.download_as_bytearray())
+
+    await update.message.reply_text("📚 Reading the cover…")
+
+    def _run():
+        try:
+            ingest_submission(submitted_by=None, title=title, author=author, image_bytes=image_bytes)
+        except Exception as exc:
+            log.error("curator ingest (photo) failed: %s", exc)
+
+    threading.Thread(target=_run, daemon=True).start()
+
+
+async def handle_curator_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle cur_approve:/cur_edit:/cur_reject: inline button presses."""
+    query = update.callback_query
+    await query.answer()
+    if not _is_authorized(update):
+        return
+
+    from jobs.curator.actions import approve_book, reject_book
+
+    if query.data.startswith("cur_approve:"):
+        book_id = int(query.data[len("cur_approve:"):])
+        book = await asyncio.to_thread(approve_book, book_id)
+        if book:
+            await query.edit_message_text(f"✅ Confirmed: {book['title']} by {book['author']}", reply_markup=None)
+        else:
+            await query.edit_message_text("Book not found.", reply_markup=None)
+
+    elif query.data.startswith("cur_reject:"):
+        book_id = int(query.data[len("cur_reject:"):])
+        book = await asyncio.to_thread(reject_book, book_id)
+        if book:
+            await query.edit_message_text(f"🚫 Rejected: {book['title']}", reply_markup=None)
+        else:
+            await query.edit_message_text("Book not found.", reply_markup=None)
+
+    elif query.data.startswith("cur_edit:"):
+        book_id = int(query.data[len("cur_edit:"):])
+        prompt_msg = await query.message.reply_text(
+            "Reply to THIS message with the correction — start with a digit 0-5 for a new "
+            "spice rating (e.g. \"2 - one closed-door scene ch 14\"), or just send corrected notes."
+        )
+        from jobs.telegram.pending import store_pending_action
+        store_pending_action(
+            "curator_edit", prompt_msg.message_id, {"source_db": "curator", "book_id": book_id}
+        )
 
 
 async def handle_ask(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -3880,6 +3993,7 @@ def main():
     app.add_handler(CallbackQueryHandler(handle_acquire_callback, pattern=r"^acquire_"))
     app.add_handler(CallbackQueryHandler(handle_reject_callback, pattern=r"^reject:"))
     app.add_handler(CallbackQueryHandler(handle_room_callback, pattern=r"^room_(?:approve|deny):"))
+    app.add_handler(CallbackQueryHandler(handle_curator_callback, pattern=r"^cur_(?:approve|edit|reject):"))
     app.add_handler(CallbackQueryHandler(handle_meeting_pattern_callback, pattern=r"^mtp_(approve|reject):"))
     app.add_handler(CallbackQueryHandler(handle_facebook_image_callback, pattern=r"^fb_img_(?:approve|regen|discard):"))
     app.add_handler(CallbackQueryHandler(handle_facebook_callback, pattern=r"^fb_"))
