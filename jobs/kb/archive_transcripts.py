@@ -1,3 +1,8 @@
+# RETIRED — 2026-07-20. Superseded by jobs/kb/sync_and_index.py, which pulls
+# the repo and moves every transcript into kb/documents/ the same day it
+# arrives — this job's 30-day threshold is no longer reachable. Cron entry
+# removed; file kept in place, unreferenced.
+#
 # Cron: 0 2 * * * (runs at 2am daily)
 """
 archive_transcripts.py — Move transcripts older than 30 days from kb/transcripts/ to kb/documents/.
