@@ -19,6 +19,7 @@ Cron (Monday 4am):
 """
 import os
 import sqlite3
+import subprocess
 from datetime import datetime
 from pathlib import Path
 
@@ -36,6 +37,7 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 
 STUCK_RUNNING_HOURS = 24
+STUCK_RUNNING_AUTOFAIL_HOURS = 2
 
 
 def _send_telegram(text: str) -> None:
@@ -51,6 +53,72 @@ def _send_telegram(text: str) -> None:
         )
     except Exception as exc:
         print(f"[cleanup] Telegram send failed: {exc}")
+
+
+def _get_running_loop_slugs():
+    """Return the set of slugs with a live loop.py process, or None if the
+    process list couldn't be read (caller should skip auto-fail on None
+    rather than risk failing a genuinely running project)."""
+    try:
+        out = subprocess.run(
+            ["ps", "-eo", "args"], capture_output=True, text=True, timeout=10
+        ).stdout
+    except Exception as exc:
+        print(f"[cleanup] ps check failed: {exc}")
+        return None
+
+    slugs = set()
+    for line in out.splitlines():
+        if "loop.py" not in line or "--slug" not in line:
+            continue
+        parts = line.split()
+        if "--slug" in parts:
+            idx = parts.index("--slug")
+            if idx + 1 < len(parts):
+                slugs.add(parts[idx + 1])
+    return slugs
+
+
+def auto_fail_stuck_running(conn: sqlite3.Connection) -> None:
+    """Auto-fail 'running' dev_projects stalled past STUCK_RUNNING_AUTOFAIL_HOURS
+    with no matching live loop.py process (matched on the --slug argument
+    trigger.py launches loop.py with). Runs before the age-based purge below
+    so newly-failed rows fall under the normal 48h retention on their next
+    scheduled run rather than being purged immediately.
+    """
+    live_slugs = _get_running_loop_slugs()
+    if live_slugs is None:
+        print("[cleanup] skipping auto-fail: could not read process list")
+        return
+
+    rows = conn.execute(
+        """
+        SELECT id, slug, title, updated_at
+        FROM dev_projects
+        WHERE status = 'running'
+        AND updated_at < datetime('now', ?)
+        """,
+        (f"-{STUCK_RUNNING_AUTOFAIL_HOURS} hours",),
+    ).fetchall()
+
+    stale = [row for row in rows if row["slug"] not in live_slugs]
+    if not stale:
+        return
+
+    for row in stale:
+        conn.execute(
+            "UPDATE dev_projects SET status='failed', updated_at=CURRENT_TIMESTAMP WHERE id=?",
+            (row["id"],),
+        )
+    conn.commit()
+
+    lines = [
+        f"⚠️ Dev Loop: auto-failed {len(stale)} project(s) stuck in 'running' "
+        f"past {STUCK_RUNNING_AUTOFAIL_HOURS}h with no live process:"
+    ]
+    for row in stale:
+        lines.append(f"- {row['slug']} ({row['title']}): last updated {row['updated_at']}")
+    _send_telegram("\n".join(lines))
 
 
 def flag_stuck_running(conn: sqlite3.Connection) -> None:
@@ -88,6 +156,8 @@ def flag_stuck_running(conn: sqlite3.Connection) -> None:
 def main():
     conn = sqlite3.connect(DB)
     conn.row_factory = sqlite3.Row
+
+    auto_fail_stuck_running(conn)
 
     rows = conn.execute(
         """
