@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-07-18*
+*Generated: 2026-07-20*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -60,6 +60,7 @@ data/
   congregation.db.bak-20260715-124007
   congregation.db.bak-20260716-101416
   congregation.db.bak-20260716-111858
+  curator.db
   donors.db
   exports/
     qr_1780863713.png
@@ -186,6 +187,14 @@ jobs/
   contacts/
     __init__.py
     vcf_importer.py
+  curator/
+    __init__.py
+    actions.py
+    api.py
+    ingest.py
+    refresh_ku.py
+    research.py
+    worker.py
   dadjoke/
     __init__.py
     joke.py
