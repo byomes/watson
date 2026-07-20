@@ -1248,3 +1248,13 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - 5fb0209 docs: document 2026-07-17 qwen2.5:14b near-miss and MAX_LOADED_MODELS gap
 - 56d60dd fix: intent classifier — swap to gemma3:4b, fix cold-start timeout (bug #20)
 - 5cb72db docs: file map 2026-07-17
+
+---
+
+## Recent Changes — 2026-07-20
+
+### ~/watson
+- d7df6ea feat: Curator — attributed spice findings, author backfill, title case
+- d44619b feat: Curator Phase 2 — async job queue, batch ingestion, richer book data
+- 04d27e8 fix: make /api/curator/ingest async — fixes Vercel Hobby 10s timeout
+- 048fcf2 feat: Curator — book-tracking app backend (API, ingestion, Telegram)
