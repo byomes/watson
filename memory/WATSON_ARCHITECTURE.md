@@ -1,5 +1,5 @@
 # Watson Architecture
-*Single source of truth. Last updated: July 18, 2026.*
+*Single source of truth. Last updated: July 20, 2026.*
 *Claude Code must read this file before any build.*
 
 ---
@@ -134,7 +134,7 @@ Watson acts on Dr. Bill's behalf under his supervision. Always identified openly
 | `watson.db` | `~/watson/data/watson.db` | Core system: tasks, reminders, people, chat, donors, appointments, blog drafts, facebook queue, connect cards, writing room, login vault, dev loop projects |
 | `congregation.db` | `~/watson/data/congregation.db` | Pastoral CRM: members, attendance, connect cards, next steps, prayer requests, follow-ups |
 | `donors.db` | `~/watson/data/donors.db` | Givebutter donor and transaction records |
-| ChromaDB | `~/watson/kb/chroma/` | KB vector index — 3,795 chunks from 453 documents |
+| ChromaDB | `~/watson/data/chroma/` | KB vector index — 3,792 chunks, collection `sermons` |
 
 ### watson.db Key Tables
 
@@ -267,7 +267,7 @@ note for why that change isn't sufficient on its own to bring it back.
 | `jobs/dev_loop/cleanup.py` | Mon 4am | Purge Dev Loop projects older than 7 days |
 | `jobs/dev/file_map.py` | Daily 2am | Auto-update FILE_MAP.md |
 | `jobs/dev/update_arch.py` | Daily 2am | Auto-update WATSON_ARCHITECTURE.md |
-| `jobs/kb/archive_transcripts.py` | Daily 2am | Archive transcripts >30 days to kb/documents/ |
+| `jobs/kb/sync_and_index.py` | Daily 2am | Git pull (ff-only) + same-day transcript sync (`kb/transcripts/` → `kb/documents/`) + incremental Chroma index + Telegram summary |
 
 ### Other Jobs (Available)
 
@@ -324,6 +324,7 @@ Dashboard trigger available: "Run Conflict Check" in More tab.
 - Dashboard: no UI tab as of 2026-07-01 (removed from More menu, TWJ/ARC consolidation) — `/api/dev-loop/*` routes still live, reachable directly, just no dashboard entry point
 - Logs: `~/watson/logs/devloop-{slug}.log`
 - Cleanup: `jobs/dev_loop/cleanup.py` — Monday 4am, purges projects older than 7 days
+- Stuck-running handling (`jobs/dev_loop/cleanup.py`): `auto_fail_stuck_running()` runs before the 7-day purge — checks `ps -eo args` for a live `loop.py --slug <slug>` process, and any `dev_projects` row still `'running'` past 2h with no matching process is auto-marked `'failed'` and reported via Telegram. Complements the pre-existing `flag_stuck_running()`, which is read-only and alerts at a 24h threshold without changing status.
 - Projects staged to `~/watson/dev/<slug>/` — never auto-committed to main
 
 ---
@@ -578,12 +579,12 @@ Wired into both `bot.py` and `jobs/dev_loop/loop.py`.
 
 ## Personal Knowledge Base
 
-- **Location:** `~/watson/kb/documents/` — 453 documents
+- **Location:** `~/watson/kb/documents/` — indexed source directory
 - **Contents:** Sermon transcripts, Bible study notes, handouts
-- **Vector index:** ChromaDB at `~/watson/kb/chroma/` — 3,795 chunks, collection `sermons`
+- **Vector index:** ChromaDB at `~/watson/data/chroma/` — 3,792 chunks, collection `sermons`
 - **Transcription pipeline output:** `~/watson/kb/transcripts/`
 - **Transcription backlog:** 10 years of sermon audio on FMSPC — not yet processed
-- **Archive job:** `jobs/kb/archive_transcripts.py` — moves files >30 days from `kb/transcripts/` to `kb/documents/`, daily 2am
+- **Sync job:** `jobs/kb/sync_and_index.py` — daily 2am: `git pull --ff-only`, moves every file in `kb/transcripts/` to `kb/documents/` the same day it arrives, incrementally indexes new documents into Chroma, Telegram summary. Supersedes retired `jobs/kb/archive_transcripts.py` (see Retired / Decided Against).
 
 ---
 
@@ -777,6 +778,7 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - ~~FMSPC SSH for Dev Loop~~ — moved to local Beelink execution
 - ~~iOS keyboard patch in dashboard chat~~ — attempted and reverted 7 times, permanently removed from build queue
 - ~~Build Pipeline (`jobs/dev/build_pipeline.py`)~~ — Claude API spec/review/approve flow triggered by bare `build <request>` / `approve` in Telegram; last ran 2026-06-15, superseded by Dev Loop. Bot triggers removed 2026-07-03. File left in place, unreferenced.
+- ~~`jobs/kb/archive_transcripts.py`~~ — retired 2026-07-20, superseded by `jobs/kb/sync_and_index.py`. Its 30-day-old-file threshold became unreachable once transcripts started moving to `kb/documents/` the same day they arrive. File left in place, unreferenced; cron entry removed.
 
 ---
 
