@@ -354,7 +354,7 @@ def dash_arc_delete(reader_id: int):
             return jsonify({"error": "reader not found"}), 404
         conn.execute(
             "UPDATE arc_readers SET login_token = NULL, password_hash = NULL, "
-            "status = 'deleted' WHERE id = ?",
+            "plaintext_password_recovery = NULL, status = 'deleted' WHERE id = ?",
             (reader_id,),
         )
         conn.execute("DELETE FROM arc_sessions WHERE arc_reader_id = ?", (reader_id,))

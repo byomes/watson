@@ -12,6 +12,10 @@ __pycache__/
 
 # Runtime logs
 logs/
+
+# ARC password recovery reports — plaintext credentials, never commit
+# (already covered by logs/ above; explicit rule kept in case that changes)
+arc_password_recovery_*.txt
 data/*.log
 data/reading_list.json
 data/riddle_current.json

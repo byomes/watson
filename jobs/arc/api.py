@@ -8,6 +8,7 @@ Also register arc_auth_bp:
     from jobs.arc.auth import arc_auth_bp
     app.register_blueprint(arc_auth_bp)
 """
+import base64
 import logging
 import os
 import sys
@@ -19,7 +20,7 @@ from pathlib import Path
 
 import bcrypt
 import requests
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, Response, jsonify, request
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
@@ -112,6 +113,18 @@ def _ensure_table() -> None:
                 requested_at TEXT NOT NULL
             )
         """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS arc_email_opens (
+                id             INTEGER PRIMARY KEY AUTOINCREMENT,
+                reader_id      INTEGER NOT NULL REFERENCES arc_readers(id),
+                email          TEXT NOT NULL,
+                tracking_token TEXT NOT NULL UNIQUE,
+                campaign       TEXT NOT NULL,
+                sent_at        TEXT NOT NULL DEFAULT (datetime('now')),
+                opened_at      TEXT,
+                open_count     INTEGER NOT NULL DEFAULT 0
+            )
+        """)
         conn.commit()
 
         # Idempotent column additions for existing rows
@@ -121,6 +134,13 @@ def _ensure_table() -> None:
             "ALTER TABLE arc_readers ADD COLUMN password_hash TEXT",
             "ALTER TABLE arc_readers ADD COLUMN first_login_at TEXT",
             "ALTER TABLE arc_readers ADD COLUMN approved_for_writing_room INTEGER NOT NULL DEFAULT 0",
+            # plaintext_password_recovery: PLAINTEXT, not a hash. Exists solely so a
+            # reader's real password can be recovered later without re-mining Gmail
+            # Sent Mail (see jobs/arc/password_recovery_check.py, the one-off script
+            # that originally had to reconstruct this from old emails). password_hash
+            # remains the only column ever checked during login (jobs/arc/auth.py) —
+            # this column is never read for auth, recovery-only.
+            "ALTER TABLE arc_readers ADD COLUMN plaintext_password_recovery TEXT",
             "ALTER TABLE writing_room_partners ADD COLUMN first_login_at TEXT",
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_arc_readers_login_token ON arc_readers(login_token)",
         ]:
@@ -195,9 +215,10 @@ def arc_apply():
 
         cursor = conn.execute(
             "INSERT INTO arc_readers "
-            "(first_name, last_name, email, agreed_to_commitments, login_token, password_hash) "
-            "VALUES (?, ?, ?, 1, ?, ?)",
-            (first_name, last_name, email, login_token, pw_hash),
+            "(first_name, last_name, email, agreed_to_commitments, login_token, password_hash, "
+            "plaintext_password_recovery) "
+            "VALUES (?, ?, ?, 1, ?, ?, ?)",
+            (first_name, last_name, email, login_token, pw_hash, temp_password),
         )
         reader_id = cursor.lastrowid
         _seed_commitments(conn, reader_id)
@@ -334,7 +355,10 @@ def set_reader_password(reader_id: int, new_password: str) -> None:
     pw_hash = bcrypt.hashpw(new_password.encode(), bcrypt.gensalt()).decode()
     conn = get_db()
     try:
-        conn.execute("UPDATE arc_readers SET password_hash = ? WHERE id = ?", (pw_hash, reader_id))
+        conn.execute(
+            "UPDATE arc_readers SET password_hash = ?, plaintext_password_recovery = ? WHERE id = ?",
+            (pw_hash, new_password, reader_id),
+        )
         conn.commit()
     finally:
         conn.close()
@@ -550,3 +574,40 @@ def invite_to_writing_room():
     if not ok:
         return jsonify({"error": error}), status
     return jsonify({"ok": True}), 200
+
+
+# ── Public: email open tracking pixel ──────────────────────────────────────────
+
+# 1x1 transparent GIF. No auth — this is loaded as an <img> tag from inside an
+# email client, which can't attach headers or a shared secret.
+_PIXEL_GIF = base64.b64decode("R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==")
+
+
+@arc_bp.route("/api/arc/pixel/<tracking_token>", methods=["GET"])
+def arc_pixel(tracking_token):
+    _ensure_table()
+    conn = get_db()
+    try:
+        row = conn.execute(
+            "SELECT id, opened_at FROM arc_email_opens WHERE tracking_token = ?",
+            (tracking_token,),
+        ).fetchone()
+        if row:
+            if row["opened_at"] is None:
+                conn.execute(
+                    "UPDATE arc_email_opens SET opened_at = datetime('now'), "
+                    "open_count = open_count + 1 WHERE id = ?",
+                    (row["id"],),
+                )
+            else:
+                conn.execute(
+                    "UPDATE arc_email_opens SET open_count = open_count + 1 WHERE id = ?",
+                    (row["id"],),
+                )
+            conn.commit()
+        # Unknown token: still return the pixel (no differing status code —
+        # never signal token validity back to whatever loaded the image).
+    finally:
+        conn.close()
+
+    return Response(_PIXEL_GIF, mimetype="image/gif")
