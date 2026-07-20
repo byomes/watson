@@ -88,6 +88,11 @@ def get_job_status(job_id: int) -> dict | None:
             if book:
                 book_dict = dict(book)
                 book_dict["kindle_unlimited"] = bool(book_dict["kindle_unlimited"])
+                findings = conn.execute(
+                    "SELECT * FROM spice_findings WHERE book_id = ? ORDER BY rank ASC",
+                    (job["book_id"],),
+                ).fetchall()
+                book_dict["findings"] = [dict(f) for f in findings]
                 result["book"] = book_dict
         return result
     finally:

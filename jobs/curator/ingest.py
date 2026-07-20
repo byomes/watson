@@ -28,6 +28,43 @@ _DOMAIN_TYPES = (
     ("amazon.com", "amazon"),
 )
 
+_MINOR_WORDS = {
+    "a", "an", "and", "as", "at", "but", "by", "for", "from", "in", "into",
+    "nor", "of", "off", "on", "onto", "or", "out", "over", "per", "so", "the",
+    "to", "up", "via", "vs", "vs.", "with", "yet",
+}
+
+
+def title_case(text: str) -> str:
+    """Real title-case: capitalizes major words, lowercases articles/
+    prepositions/short conjunctions unless they're the first/last word or
+    follow a colon. Leaves words that already look intentionally cased alone
+    (e.g. "McDonald", "iPhone", all-caps acronyms)."""
+    if not text:
+        return text
+    words = text.split(" ")
+    n = len(words)
+    result = []
+    for i, word in enumerate(words):
+        if not word:
+            result.append(word)
+            continue
+        is_edge = i == 0 or i == n - 1
+        prev_ends_colon = i > 0 and words[i - 1].endswith(":")
+        stripped = word.strip(".,!?;:'\"")
+        if not is_edge and not prev_ends_colon and stripped.lower() in _MINOR_WORDS:
+            result.append(word.lower())
+        else:
+            result.append(_capitalize_word(word))
+    return " ".join(result)
+
+
+def _capitalize_word(word: str) -> str:
+    if len(word) > 1 and any(c.isupper() for c in word[1:]) and not word.isupper():
+        return word  # already intentionally cased — McDonald, iPhone, etc.
+    parts = re.split(r"(-)", word)
+    return "".join(p if p == "-" else (p[:1].upper() + p[1:].lower()) for p in parts)
+
 
 def _classify_link(url: str) -> str:
     host = urlparse(url).netloc.lower()
@@ -182,7 +219,7 @@ Return JSON exactly in this shape:
 
 def _create_book(
     *, title: str, author: str, status: str, added_by, series=None, spice_rating=None,
-    spice_notes="", spice_summary="", page_count=None, kindle_unlimited=False,
+    spice_notes="", page_count=None, kindle_unlimited=False,
     cover_image_url=None, description=None, series_number=None, series_total=None,
 ) -> int:
     # series_number is Phase 1's existing column; research's "series_position" (from
@@ -191,11 +228,11 @@ def _create_book(
     try:
         cur = conn.execute(
             "INSERT INTO books (title, author, series, series_number, series_total, "
-            "spice_rating, spice_notes, spice_summary, page_count, kindle_unlimited, "
+            "spice_rating, spice_notes, page_count, kindle_unlimited, "
             "kindle_unlimited_checked_at, cover_image_url, description, status, added_by) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?, ?, ?, ?)",
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?, ?, ?, ?)",
             (title, author, series, series_number, series_total, spice_rating,
-             spice_notes, spice_summary, page_count, int(bool(kindle_unlimited)),
+             spice_notes, page_count, int(bool(kindle_unlimited)),
              cover_image_url, description, status, added_by),
         )
         conn.commit()
@@ -214,6 +251,38 @@ def _add_source(book_id: int, source_type: str, url: str | None, raw_text: str |
         conn.commit()
     finally:
         conn.close()
+
+
+def _add_spice_findings(book_id: int, findings: list[dict]) -> None:
+    """Persist the attributed, verbatim findings gathered in research.py —
+    these are what the detail page quotes directly, never re-worded here."""
+    if not findings:
+        return
+    conn = get_db()
+    try:
+        conn.executemany(
+            "INSERT INTO spice_findings (book_id, source_name, source_type, rank, excerpt, url) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            [
+                (book_id, f["source_name"], f["source_type"], f["rank"], f["excerpt"], f["url"])
+                for f in findings
+            ],
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _derive_spice_notes(findings: list[dict]) -> str:
+    """Short quick-glance note for the pending-queue card — still the source's
+    own words (attributed, truncated), not a Watson-authored paragraph."""
+    if not findings:
+        return ""
+    top = findings[0]
+    excerpt = top["excerpt"]
+    if len(excerpt) > 140:
+        excerpt = excerpt[:140].rsplit(" ", 1)[0] + "…"
+    return f"{top['source_name']}: {excerpt}"
 
 
 def _notify(book_id: int, title: str, author: str, status: str, spice_rating, source_urls: list[str]) -> None:
@@ -299,14 +368,23 @@ def ingest_submission(
             _notify(book_id, "Unknown", author or "", "needs_review", None, [])
         return {"status": "needs_review", "book_id": book_id, "reason": "could not identify a book title"}
 
+    title = title_case(title)
     author = author or "Unknown"
 
     research = research_book(title, author if author != "Unknown" else None)
     series = series or research.get("series_name")
+    # Backfill author from search results the same way series_name already does —
+    # only when the user didn't supply one, and only if 2+ independent sources agree
+    # (extract_author_from_titles never guesses off a single mention).
+    if author == "Unknown" and research.get("author"):
+        author = research["author"]
+
+    findings = research.get("findings", [])
 
     if not research["confident"]:
         book_id = _create_book(
             title=title, author=author, series=series, status="needs_review", added_by=submitted_by,
+            spice_notes=_derive_spice_notes(findings),
             page_count=research.get("page_count"), kindle_unlimited=research.get("kindle_unlimited", False),
             cover_image_url=research.get("cover_image_url"), description=research.get("description"),
             series_number=research.get("series_position"), series_total=research.get("series_total"),
@@ -315,6 +393,7 @@ def ingest_submission(
             _add_source(book_id, source_type, source_url, raw_text)
         for s in research.get("sources", []):
             _add_source(book_id, s["type"], s["url"], None)
+        _add_spice_findings(book_id, findings)
         if notify_telegram:
             _notify(book_id, title, author, "needs_review", None, [])
         return {
@@ -324,8 +403,7 @@ def ingest_submission(
 
     book_id = _create_book(
         title=title, author=author, series=series, status="pending", added_by=submitted_by,
-        spice_rating=research["spice_rating"], spice_notes=research["spice_notes"],
-        spice_summary=research.get("spice_summary", ""),
+        spice_rating=research["spice_rating"], spice_notes=_derive_spice_notes(findings),
         page_count=research.get("page_count"), kindle_unlimited=research.get("kindle_unlimited", False),
         cover_image_url=research.get("cover_image_url"), description=research.get("description"),
         series_number=research.get("series_position"), series_total=research.get("series_total"),
@@ -336,6 +414,7 @@ def ingest_submission(
     for s in research.get("sources", []):
         _add_source(book_id, s["type"], s["url"], None)
         source_urls.append(s["url"])
+    _add_spice_findings(book_id, findings)
 
     if notify_telegram:
         _notify(book_id, title, author, "pending", research["spice_rating"], source_urls)

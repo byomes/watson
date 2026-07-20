@@ -29,7 +29,7 @@ _API_KEY = lambda: os.getenv("WRITING_ROOM_API_KEY", "")
 
 _EDIT_FIELDS = (
     "title", "author", "series", "series_number", "series_total", "page_count",
-    "spice_rating", "spice_notes", "spice_summary", "cover_image_url", "description",
+    "spice_rating", "spice_notes", "cover_image_url", "description",
     "kindle_unlimited",
 )
 _VALID_STATUSES = ("pending", "confirmed", "needs_review", "rejected")
@@ -57,7 +57,6 @@ def _book_row_to_dict(row, batch_info: dict | None = None) -> dict:
         "page_count": row["page_count"],
         "spice_rating": row["spice_rating"],
         "spice_notes": row["spice_notes"],
-        "spice_summary": row["spice_summary"],
         "cover_image_url": row["cover_image_url"],
         "description": row["description"],
         "kindle_unlimited": bool(row["kindle_unlimited"]),
@@ -93,6 +92,18 @@ def _source_row_to_dict(row) -> dict:
         "url": row["url"],
         "raw_extracted_text": row["raw_extracted_text"],
         "created_at": row["created_at"],
+    }
+
+
+def _finding_row_to_dict(row) -> dict:
+    return {
+        "id": row["id"],
+        "book_id": row["book_id"],
+        "source_name": row["source_name"],
+        "source_type": row["source_type"],
+        "rank": row["rank"],
+        "excerpt": row["excerpt"],
+        "url": row["url"],
     }
 
 
@@ -191,8 +202,12 @@ def get_book(book_id):
         sources = conn.execute(
             "SELECT * FROM book_sources WHERE book_id = ? ORDER BY created_at ASC", (book_id,)
         ).fetchall()
+        findings = conn.execute(
+            "SELECT * FROM spice_findings WHERE book_id = ? ORDER BY rank ASC", (book_id,)
+        ).fetchall()
         result = _book_row_to_dict(row)
         result["sources"] = [_source_row_to_dict(s) for s in sources]
+        result["findings"] = [_finding_row_to_dict(f) for f in findings]
         return jsonify(result), 200
     finally:
         conn.close()

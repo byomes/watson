@@ -55,7 +55,6 @@ def bootstrap_db() -> None:
                 page_count              INTEGER,
                 spice_rating            INTEGER,
                 spice_notes             TEXT,
-                spice_summary           TEXT,
                 cover_image_url         TEXT,
                 series_total            INTEGER,
                 description             TEXT,
@@ -112,6 +111,21 @@ def bootstrap_db() -> None:
                 completed_at    TEXT
             );
 
+            -- Attributed spice-content findings, one row per trusted source (see
+            -- research.py's ranked source list). Excerpts are verbatim windows pulled
+            -- from the source's own page text, not an Watson-authored summary — the
+            -- detail page quotes these directly, attributed by source_name.
+            CREATE TABLE IF NOT EXISTS spice_findings (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                book_id       INTEGER NOT NULL REFERENCES books(id) ON DELETE CASCADE,
+                source_name   TEXT NOT NULL,
+                source_type   TEXT NOT NULL,
+                rank          INTEGER NOT NULL,
+                excerpt       TEXT NOT NULL,
+                url           TEXT,
+                created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+
             CREATE INDEX IF NOT EXISTS idx_books_status ON books(status);
             CREATE INDEX IF NOT EXISTS idx_books_spice ON books(spice_rating);
             CREATE INDEX IF NOT EXISTS idx_book_sources_book ON book_sources(book_id);
@@ -119,9 +133,9 @@ def bootstrap_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_reading_status_book ON reading_status(book_id);
             CREATE INDEX IF NOT EXISTS idx_ingest_jobs_status ON ingest_jobs(status);
             CREATE INDEX IF NOT EXISTS idx_ingest_jobs_batch ON ingest_jobs(batch_id);
+            CREATE INDEX IF NOT EXISTS idx_spice_findings_book ON spice_findings(book_id);
         """)
         for alter_sql in [
-            "ALTER TABLE books ADD COLUMN spice_summary TEXT",
             "ALTER TABLE books ADD COLUMN cover_image_url TEXT",
             "ALTER TABLE books ADD COLUMN series_total INTEGER",
             "ALTER TABLE books ADD COLUMN description TEXT",
@@ -131,6 +145,11 @@ def bootstrap_db() -> None:
                 conn.commit()
             except Exception:
                 pass  # column already exists
+        try:
+            conn.execute("ALTER TABLE books DROP COLUMN spice_summary")
+            conn.commit()
+        except Exception:
+            pass  # already dropped, or never existed on a fresh DB
 
 
 def send_telegram(text: str, reply_markup: dict | None = None) -> int | None:
