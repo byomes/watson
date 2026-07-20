@@ -69,7 +69,14 @@ def _run_transcribe(audio_path: Path, model: str) -> bool:
         "--model", model,
     ]
     log.info("Transcribing: %s", audio_path.name)
-    result = subprocess.run(cmd, capture_output=False)
+    env = os.environ.copy()
+    repo_root_str = str(REPO_ROOT)
+    existing_pythonpath = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = (
+        repo_root_str if not existing_pythonpath
+        else repo_root_str + os.pathsep + existing_pythonpath
+    )
+    result = subprocess.run(cmd, capture_output=False, env=env)
     if result.returncode != 0:
         log.error("Failed: %s (exit %d)", audio_path.name, result.returncode)
         return False
