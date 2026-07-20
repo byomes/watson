@@ -396,7 +396,15 @@ def get_stats(user_id, year):
 @curator_bp.route("/api/curator/ingest", methods=["POST"])
 @_require_key
 def ingest():
-    """Kick off the ingestion pipeline: text title/author, cover image, or social link."""
+    """Kick off the ingestion pipeline: text title/author, cover image, or social link.
+
+    Returns immediately (~1-2s) — the actual research pass (Serper + Amazon fetch +
+    Ollama synthesis, 15-40s) runs in a background thread and lands in the
+    pending/needs_review queue plus a Telegram notification when it's done. Vercel
+    Hobby's 10s function cap makes a synchronous response here time out the browser
+    well before the backend finishes, even though the backend request itself succeeds.
+    """
+    import threading
     from jobs.curator.ingest import ingest_submission
 
     submitted_by = request.form.get("submitted_by", type=int) or (
@@ -419,17 +427,31 @@ def ingest():
     else:
         payload = request.get_json(force=True)
 
-    try:
-        result = ingest_submission(
-            submitted_by=submitted_by,
-            title=(payload or {}).get("title"),
-            author=(payload or {}).get("author"),
-            series=(payload or {}).get("series"),
-            link=(payload or {}).get("link"),
-            image_bytes=image_bytes,
-            image_mimetype=image_type,
-        )
-        return jsonify(result), 200
-    except Exception as exc:
-        log.error("ingest failed: %s", exc)
-        return jsonify({"error": "server error"}), 500
+    title = (payload or {}).get("title")
+    author = (payload or {}).get("author")
+    series = (payload or {}).get("series")
+    link = (payload or {}).get("link")
+
+    if not (title or link or image_bytes):
+        return jsonify({"error": "must provide title, link, or image"}), 400
+
+    def _run():
+        try:
+            ingest_submission(
+                submitted_by=submitted_by,
+                title=title,
+                author=author,
+                series=series,
+                link=link,
+                image_bytes=image_bytes,
+                image_mimetype=image_type,
+            )
+        except Exception as exc:
+            log.error("background ingest failed: %s", exc)
+
+    threading.Thread(target=_run, daemon=True).start()
+
+    return jsonify({
+        "status": "researching",
+        "message": "Got it — researching now, check Pending in a bit.",
+    }), 202
