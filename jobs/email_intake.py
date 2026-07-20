@@ -48,6 +48,22 @@ TELEGRAM_CHAR_LIMIT = 4000
 
 CONG_DB = os.path.expanduser("~/watson/data/congregation.db")
 
+# Senders correction_handler.py is authorized to process "Re: Missed" replies from.
+# Bill's own address is both here and in WHITELIST below, so this check must run
+# first — otherwise email_intake's every-minute poll always wins the race against
+# correction_handler's 30-min cron and marks the reply SEEN before it can see it.
+_MISSED_REPLY_AUTHORIZED = {
+    e for e in [
+        os.getenv("DONNA_EMAIL", "").lower(),
+        os.getenv("BILL_CORRECTION_EMAIL", "").lower(),
+        os.getenv("REPORT_EMAIL", "").lower(),
+    ] if e
+}
+
+
+def _is_missed_report_reply(subject: str, addr: str) -> bool:
+    return subject.strip().lower().startswith("re: missed") and addr in _MISSED_REPLY_AUTHORIZED
+
 _CATEGORY_ICONS = {
     "congregation": "👥",
     "known_contact": "👤",
@@ -929,6 +945,12 @@ def run():
         if "snappages.com" in addr:
             log.info("Skipping connect card email from %s", sender_raw)
             mark_as_read(msg_id)
+            continue
+
+        # Missed-report reply — owned by correction_handler.py's direct-match
+        # pipeline, not email_intake's Ollama-digest path. Leave unread.
+        if _is_missed_report_reply(subject, addr):
+            log.info("Deferring missed-report reply to correction_handler.py: %s", subject)
             continue
 
         # Bill's own email — directive path (unchanged behavior)
