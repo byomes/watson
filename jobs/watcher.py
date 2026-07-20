@@ -70,7 +70,14 @@ def _run_job(script: str, *args: str) -> bool:
     python_bin = os.getenv("PYTHON_BIN", sys.executable)
     cmd = python_bin.split() + [str(REPO_ROOT / "jobs" / script), *args]
     log.info("Running: %s", " ".join(cmd))
-    result = subprocess.run(cmd, capture_output=False)
+    env = os.environ.copy()
+    repo_root_str = str(REPO_ROOT)
+    existing_pythonpath = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = (
+        repo_root_str if not existing_pythonpath
+        else repo_root_str + os.pathsep + existing_pythonpath
+    )
+    result = subprocess.run(cmd, capture_output=False, env=env)
     if result.returncode != 0:
         log.error("%s failed (exit %d)", script, result.returncode)
         return False
