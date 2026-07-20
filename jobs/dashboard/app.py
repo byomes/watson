@@ -334,6 +334,9 @@ from jobs.curator import bootstrap_db as _curator_bootstrap
 _curator_bootstrap()
 app.register_blueprint(curator_bp)
 
+from jobs.curator.worker import start_worker as _curator_start_worker
+_curator_start_worker()
+
 _EMAIL_SIGNATURE = "---\nWatson\nAI-powered digital assistant\nOffice of Dr. Bill Yomes\nwilliamckyomes.com/start"
 
 # ── Admin template filters ────────────────────────────────────────────────────

@@ -4,6 +4,7 @@ Mount on the Watson dashboard app:
     from jobs.curator.api import curator_bp
     app.register_blueprint(curator_bp)
 """
+import json
 import logging
 import os
 import sys
@@ -27,8 +28,9 @@ curator_bp = Blueprint("curator", __name__)
 _API_KEY = lambda: os.getenv("WRITING_ROOM_API_KEY", "")
 
 _EDIT_FIELDS = (
-    "title", "author", "series", "series_number", "page_count",
-    "spice_rating", "spice_notes", "kindle_unlimited",
+    "title", "author", "series", "series_number", "series_total", "page_count",
+    "spice_rating", "spice_notes", "spice_summary", "cover_image_url", "description",
+    "kindle_unlimited",
 )
 _VALID_STATUSES = ("pending", "confirmed", "needs_review", "rejected")
 _VALID_SHELVES = ("want_to_read", "reading", "read")
@@ -44,22 +46,43 @@ def _require_key(f):
     return wrapper
 
 
-def _book_row_to_dict(row) -> dict:
+def _book_row_to_dict(row, batch_info: dict | None = None) -> dict:
     return {
         "id": row["id"],
         "title": row["title"],
         "author": row["author"],
         "series": row["series"],
         "series_number": row["series_number"],
+        "series_total": row["series_total"],
         "page_count": row["page_count"],
         "spice_rating": row["spice_rating"],
         "spice_notes": row["spice_notes"],
+        "spice_summary": row["spice_summary"],
+        "cover_image_url": row["cover_image_url"],
+        "description": row["description"],
         "kindle_unlimited": bool(row["kindle_unlimited"]),
         "kindle_unlimited_checked_at": row["kindle_unlimited_checked_at"],
         "status": row["status"],
         "added_by": row["added_by"],
         "created_at": row["created_at"],
+        "batch_id": batch_info.get("batch_id") if batch_info else None,
+        "batch_total": batch_info.get("batch_total") if batch_info else None,
     }
+
+
+def _batch_info_for_books(conn, book_ids: list[int]) -> dict[int, dict]:
+    """book_id -> {"batch_id", "batch_total"} for every book that came from a batch
+    submission — used to show the "part of a batch of N" indicator in Pending."""
+    if not book_ids:
+        return {}
+    placeholders = ",".join("?" * len(book_ids))
+    rows = conn.execute(
+        f"SELECT ij.book_id, ij.batch_id, ib.total_jobs FROM ingest_jobs ij "
+        f"JOIN ingest_batches ib ON ib.id = ij.batch_id "
+        f"WHERE ij.book_id IN ({placeholders}) AND ij.batch_id IS NOT NULL",
+        book_ids,
+    ).fetchall()
+    return {r["book_id"]: {"batch_id": r["batch_id"], "batch_total": r["total_jobs"]} for r in rows}
 
 
 def _source_row_to_dict(row) -> dict:
@@ -151,7 +174,8 @@ def list_books():
         rows = conn.execute(
             f"SELECT * FROM books {where} ORDER BY created_at DESC", params
         ).fetchall()
-        return jsonify([_book_row_to_dict(r) for r in rows]), 200
+        batch_info = _batch_info_for_books(conn, [r["id"] for r in rows])
+        return jsonify([_book_row_to_dict(r, batch_info.get(r["id"])) for r in rows]), 200
     finally:
         conn.close()
 
@@ -392,20 +416,17 @@ def get_stats(user_id, year):
 
 
 # ── Ingest ───────────────────────────────────────────────────────────────────
+#
+# Single-item and batch submissions both land in ingest_jobs and are picked up by the
+# sequential background worker (jobs/curator/worker.py, started once at app boot below).
+# This route never blocks on research — it only ever writes a queue row and returns.
 
 @curator_bp.route("/api/curator/ingest", methods=["POST"])
 @_require_key
 def ingest():
-    """Kick off the ingestion pipeline: text title/author, cover image, or social link.
-
-    Returns immediately (~1-2s) — the actual research pass (Serper + Amazon fetch +
-    Ollama synthesis, 15-40s) runs in a background thread and lands in the
-    pending/needs_review queue plus a Telegram notification when it's done. Vercel
-    Hobby's 10s function cap makes a synchronous response here time out the browser
-    well before the backend finishes, even though the backend request itself succeeds.
-    """
-    import threading
-    from jobs.curator.ingest import ingest_submission
+    """Enqueue a single-book submission: text title/author, cover image, or social link.
+    Returns immediately with a job_id — poll GET /api/curator/ingest/status/<job_id>."""
+    from jobs.curator.worker import enqueue_job
 
     submitted_by = request.form.get("submitted_by", type=int) or (
         request.get_json(silent=True) or {}
@@ -435,23 +456,57 @@ def ingest():
     if not (title or link or image_bytes):
         return jsonify({"error": "must provide title, link, or image"}), 400
 
-    def _run():
-        try:
-            ingest_submission(
-                submitted_by=submitted_by,
-                title=title,
-                author=author,
-                series=series,
-                link=link,
-                image_bytes=image_bytes,
-                image_mimetype=image_type,
-            )
-        except Exception as exc:
-            log.error("background ingest failed: %s", exc)
-
-    threading.Thread(target=_run, daemon=True).start()
+    input_type = "image" if image_bytes else ("link" if link else "text")
+    job_id = enqueue_job(
+        input_type=input_type,
+        input_raw=json.dumps({"title": title, "author": author, "series": series, "link": link}),
+        image_bytes=image_bytes,
+        image_mimetype=image_type,
+        submitted_by=submitted_by,
+    )
 
     return jsonify({
+        "job_id": job_id,
+        "batch_id": None,
         "status": "researching",
         "message": "Got it — researching now, check Pending in a bit.",
     }), 202
+
+
+@curator_bp.route("/api/curator/ingest/batch", methods=["POST"])
+@_require_key
+def ingest_batch():
+    """Enqueue a batch: a list of {title,author} items, or a single {link} item for
+    reel/multi-book extraction. Returns immediately."""
+    from jobs.curator.worker import enqueue_batch
+
+    data = request.get_json(force=True)
+    items = data.get("items")
+    submitted_by = data.get("submitted_by")
+
+    if not isinstance(items, list) or not items:
+        return jsonify({"error": "items must be a non-empty list"}), 400
+    for item in items:
+        if not isinstance(item, dict) or not (item.get("title") or item.get("link")):
+            return jsonify({"error": "each item needs a title or a link"}), 400
+
+    result = enqueue_batch(items, submitted_by=submitted_by)
+
+    return jsonify({
+        "batch_id": result["batch_id"],
+        "job_ids": result["job_ids"],
+        "count": len(result["job_ids"]),
+        "message": f"Got it — {len(items)} book{'s' if len(items) != 1 else ''} queued. "
+                   "I'll text you when they're ready.",
+    }), 202
+
+
+@curator_bp.route("/api/curator/ingest/status/<int:job_id>", methods=["GET"])
+@_require_key
+def ingest_status(job_id):
+    from jobs.curator.worker import get_job_status
+
+    status = get_job_status(job_id)
+    if not status:
+        return jsonify({"error": "not found"}), 404
+    return jsonify(status), 200

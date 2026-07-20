@@ -11,7 +11,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from jobs.curator import get_db
-from jobs.curator.research import fetch_amazon_details, find_amazon_listing
+from jobs.curator.research import fetch_page_details, find_amazon_listing
 
 log = logging.getLogger(__name__)
 
@@ -48,7 +48,7 @@ def run() -> dict:
                 log.warning("refresh_ku: no Amazon URL for book %s (%s)", book["id"], book["title"])
                 continue
 
-            details = fetch_amazon_details(url)
+            details = fetch_page_details(url)
             if not details["fetched"]:
                 skipped += 1
                 continue

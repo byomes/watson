@@ -3218,9 +3218,14 @@ def _parse_curator_title_author(body: str) -> tuple[str | None, str | None]:
 
 
 async def _handle_curator_text(update: Update, context: ContextTypes.DEFAULT_TYPE, body: str) -> None:
-    """Handle `curator: <title> by <author>` or `curator: <link>` — Curator book submission."""
-    import threading
-    from jobs.curator.ingest import ingest_submission
+    """Handle `curator: <title> by <author>` or `curator: <link>` — Curator book submission.
+
+    Enqueues into the same ingest_jobs queue the web app uses (jobs/curator/worker.py)
+    rather than threading ingest_submission directly here — that keeps every entry
+    point processing sequentially through one worker, matching Watson's Ollama setup
+    (serializes requests regardless of concurrency)."""
+    import json as _json
+    from jobs.curator.worker import enqueue_job
 
     body = body.strip()
     if not body:
@@ -3232,21 +3237,18 @@ async def _handle_curator_text(update: Update, context: ContextTypes.DEFAULT_TYP
     if not link:
         title, author = _parse_curator_title_author(body)
 
-    await update.message.reply_text("📚 Looking into that one…")
-
-    def _run():
-        try:
-            ingest_submission(submitted_by=None, title=title, author=author, link=link)
-        except Exception as exc:
-            log.error("curator ingest (text) failed: %s", exc)
-
-    threading.Thread(target=_run, daemon=True).start()
+    enqueue_job(
+        input_type="link" if link else "text",
+        input_raw=_json.dumps({"title": title, "author": author, "link": link}),
+    )
+    await update.message.reply_text("📚 Looking into that one — I'll ping you when it's ready.")
 
 
 async def _handle_curator_photo(update: Update, context: ContextTypes.DEFAULT_TYPE, caption_body: str) -> None:
-    """Handle a photo sent with a `curator:` caption — cover image submission."""
-    import threading
-    from jobs.curator.ingest import ingest_submission
+    """Handle a photo sent with a `curator:` caption — cover image submission.
+    Enqueues into the same ingest_jobs queue as the text/link path (see above)."""
+    import json as _json
+    from jobs.curator.worker import enqueue_job
 
     title, author = _parse_curator_title_author(caption_body.strip())
 
@@ -3254,13 +3256,12 @@ async def _handle_curator_photo(update: Update, context: ContextTypes.DEFAULT_TY
     tg_file = await context.bot.get_file(photo.file_id)
     image_bytes = bytes(await tg_file.download_as_bytearray())
 
-    await update.message.reply_text("📚 Reading the cover…")
-
-    def _run():
-        try:
-            ingest_submission(submitted_by=None, title=title, author=author, image_bytes=image_bytes)
-        except Exception as exc:
-            log.error("curator ingest (photo) failed: %s", exc)
+    enqueue_job(
+        input_type="image",
+        input_raw=_json.dumps({"title": title, "author": author}),
+        image_bytes=image_bytes,
+    )
+    await update.message.reply_text("📚 Reading the cover — I'll ping you when it's ready.")
 
     threading.Thread(target=_run, daemon=True).start()
 

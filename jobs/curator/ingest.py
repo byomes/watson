@@ -70,7 +70,7 @@ def _ocr_cover(image_bytes: bytes) -> dict:
     return {"title": title, "author": author, "raw_text": raw}
 
 
-def _fetch_og_metadata(url: str) -> dict:
+def fetch_og_metadata(url: str) -> dict:
     """og:title / og:description scrape, or YouTube oEmbed where a full fetch works better."""
     if "youtube.com" in url or "youtu.be" in url:
         try:
@@ -138,18 +138,65 @@ identify one specific book."""
     return {"title": parsed["title"], "author": parsed.get("author"), "confident": True}
 
 
+def extract_multiple_books_from_text(raw_text: str) -> dict:
+    """LLM pass for a 'book haul'/wrap-up post that may mention several books. Never
+    guesses — a title only makes it into confident_titles if it's clearly and
+    specifically named; anything else is described in uncertain_note for a human to
+    search manually (see jobs.curator.worker's reel_link handling).
+    Returns {"confident_titles": [{"title","author"}], "uncertain_note": str}."""
+    if not raw_text or not raw_text.strip():
+        return {"confident_titles": [], "uncertain_note": "No text could be extracted from the link."}
+
+    system = (
+        "You extract book titles and authors mentioned in a social media caption or post "
+        "about multiple books (a book haul, wrap-up, or recommendation reel). You NEVER "
+        "guess — only list a title if it is clearly and specifically named, not merely "
+        "implied or ambiguous. Return only valid JSON, no other text."
+    )
+    prompt = f"""Text:
+{raw_text[:2000]}
+
+Return JSON exactly in this shape:
+{{
+  "confident_titles": [{{"title": "string", "author": "string or null"}}, ...],
+  "uncertain_note": "plain description of anything you saw but couldn't confidently identify as a specific book, or empty string if everything was clear"
+}}"""
+
+    try:
+        raw = call_ollama(system, prompt)
+        parsed = parse_json(raw)
+    except Exception as exc:
+        log.error("extract_multiple_books_from_text Ollama call failed: %s", exc)
+        parsed = None
+
+    if not parsed:
+        return {"confident_titles": [], "uncertain_note": raw_text[:1000]}
+
+    titles = parsed.get("confident_titles") or []
+    valid_titles = [t for t in titles if isinstance(t, dict) and t.get("title")]
+    return {
+        "confident_titles": valid_titles,
+        "uncertain_note": parsed.get("uncertain_note", ""),
+    }
+
+
 def _create_book(
     *, title: str, author: str, status: str, added_by, series=None, spice_rating=None,
-    spice_notes="", page_count=None, kindle_unlimited=False,
+    spice_notes="", spice_summary="", page_count=None, kindle_unlimited=False,
+    cover_image_url=None, description=None, series_number=None, series_total=None,
 ) -> int:
+    # series_number is Phase 1's existing column; research's "series_position" (from
+    # Amazon/Goodreads) fills the same slot — no separate column for the same concept.
     conn = get_db()
     try:
         cur = conn.execute(
-            "INSERT INTO books (title, author, series, spice_rating, spice_notes, page_count, "
-            "kindle_unlimited, kindle_unlimited_checked_at, status, added_by) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), ?, ?)",
-            (title, author, series, spice_rating, spice_notes, page_count,
-             int(bool(kindle_unlimited)), status, added_by),
+            "INSERT INTO books (title, author, series, series_number, series_total, "
+            "spice_rating, spice_notes, spice_summary, page_count, kindle_unlimited, "
+            "kindle_unlimited_checked_at, cover_image_url, description, status, added_by) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?, ?, ?, ?)",
+            (title, author, series, series_number, series_total, spice_rating,
+             spice_notes, spice_summary, page_count, int(bool(kindle_unlimited)),
+             cover_image_url, description, status, added_by),
         )
         conn.commit()
         return cur.lastrowid
@@ -211,8 +258,13 @@ def ingest_submission(
     link: str | None = None,
     image_bytes: bytes | None = None,
     image_mimetype: str | None = None,
+    notify_telegram: bool = True,
 ) -> dict:
-    """Entry point. Exactly one of (title given), link, or image_bytes drives identification."""
+    """Entry point. Exactly one of (title given), link, or image_bytes drives identification.
+
+    notify_telegram=False suppresses the per-book Approve/Edit/Reject message — used for
+    batch items, where the batch-completion SMS is the "done" signal instead (avoids
+    spamming one Telegram message per book in a multi-book batch)."""
     source_type = "other"
     source_url = None
     raw_text = None
@@ -227,7 +279,7 @@ def ingest_submission(
     elif link:
         source_type = _classify_link(link)
         source_url = link
-        meta = _fetch_og_metadata(link)
+        meta = fetch_og_metadata(link)
         raw_text = meta["raw_text"]
         if not title:
             extracted = _extract_book_from_text(raw_text)
@@ -243,23 +295,28 @@ def ingest_submission(
             status="needs_review", added_by=submitted_by,
         )
         _add_source(book_id, source_type, source_url, raw_text)
-        _notify(book_id, "Unknown", author or "", "needs_review", None, [])
+        if notify_telegram:
+            _notify(book_id, "Unknown", author or "", "needs_review", None, [])
         return {"status": "needs_review", "book_id": book_id, "reason": "could not identify a book title"}
 
     author = author or "Unknown"
 
     research = research_book(title, author if author != "Unknown" else None)
+    series = series or research.get("series_name")
 
     if not research["confident"]:
         book_id = _create_book(
             title=title, author=author, series=series, status="needs_review", added_by=submitted_by,
             page_count=research.get("page_count"), kindle_unlimited=research.get("kindle_unlimited", False),
+            cover_image_url=research.get("cover_image_url"), description=research.get("description"),
+            series_number=research.get("series_position"), series_total=research.get("series_total"),
         )
         if source_type or source_url or raw_text:
             _add_source(book_id, source_type, source_url, raw_text)
         for s in research.get("sources", []):
             _add_source(book_id, s["type"], s["url"], None)
-        _notify(book_id, title, author, "needs_review", None, [])
+        if notify_telegram:
+            _notify(book_id, title, author, "needs_review", None, [])
         return {
             "status": "needs_review", "book_id": book_id,
             "reason": research.get("reason", "insufficient evidence for a confident rating"),
@@ -268,7 +325,10 @@ def ingest_submission(
     book_id = _create_book(
         title=title, author=author, series=series, status="pending", added_by=submitted_by,
         spice_rating=research["spice_rating"], spice_notes=research["spice_notes"],
+        spice_summary=research.get("spice_summary", ""),
         page_count=research.get("page_count"), kindle_unlimited=research.get("kindle_unlimited", False),
+        cover_image_url=research.get("cover_image_url"), description=research.get("description"),
+        series_number=research.get("series_position"), series_total=research.get("series_total"),
     )
     if source_type or source_url or raw_text:
         _add_source(book_id, source_type, source_url, raw_text)
@@ -277,6 +337,7 @@ def ingest_submission(
         _add_source(book_id, s["type"], s["url"], None)
         source_urls.append(s["url"])
 
-    _notify(book_id, title, author, "pending", research["spice_rating"], source_urls)
+    if notify_telegram:
+        _notify(book_id, title, author, "pending", research["spice_rating"], source_urls)
 
     return {"status": "pending", "book_id": book_id, "spice_rating": research["spice_rating"]}
