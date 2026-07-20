@@ -13,7 +13,11 @@ import requests
 REPO = Path(__file__).resolve().parents[2]
 SKILLS_FILE = REPO / "memory" / "skills.json"
 OLLAMA_URL = "http://localhost:11434/api/generate"
-OLLAMA_MODEL = "qwen2.5:14b"
+# gemma3:4b, not qwen2.5-coder:7b — this is intent routing, not code
+# generation, and gemma3:4b is already kept warm for the Telegram
+# classifier (jobs/intent/keep_warm.py), so reusing it avoids loading a
+# second, heavier 7B model just to pick a short label (bug #28).
+OLLAMA_MODEL = "gemma3:4b"
 
 log = logging.getLogger(__name__)
 
@@ -330,7 +334,14 @@ def _ask_router(message: str, skills: list) -> str:
     )
     resp = requests.post(
         OLLAMA_URL,
-        json={"model": OLLAMA_MODEL, "prompt": prompt, "stream": False},
+        json={
+            "model": OLLAMA_MODEL,
+            "prompt": prompt,
+            "stream": False,
+            # Response is always a short label (SKILL:<slug>, BUILD, CHAT,
+            # etc.) — bounds worst-case generation time (bug #28).
+            "options": {"num_predict": 40},
+        },
         timeout=8,
     )
     resp.raise_for_status()

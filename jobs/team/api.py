@@ -363,26 +363,22 @@ def member_tasks_list(member_id):
         status   = request.args.get("status", "open")
         category = request.args.get("category")
         conn = _db()
-        if status == "all" and not category:
-            rows = conn.execute(
-                "SELECT * FROM team_tasks WHERE member_id=? ORDER BY due_date ASC",
-                (member_id,),
-            ).fetchall()
-        elif status == "all":
-            rows = conn.execute(
-                "SELECT * FROM team_tasks WHERE member_id=? AND category=? ORDER BY due_date ASC",
-                (member_id, category),
-            ).fetchall()
-        elif not category:
-            rows = conn.execute(
-                "SELECT * FROM team_tasks WHERE member_id=? AND status=? ORDER BY due_date ASC",
-                (member_id, status),
-            ).fetchall()
-        else:
-            rows = conn.execute(
-                "SELECT * FROM team_tasks WHERE member_id=? AND status=? AND category=? ORDER BY due_date ASC",
-                (member_id, status, category),
-            ).fetchall()
+        clauses = ["member_id=?"]
+        params  = [member_id]
+        if status != "all":
+            clauses.append("status=?")
+            params.append(status)
+        if category:
+            clauses.append("category=?")
+            params.append(category)
+        if status in ("completed", "done"):
+            # Completed/done tasks fall off the list 12h after completion —
+            # not deleted, just excluded from this query (history stays in the row).
+            clauses.append("completed_at IS NOT NULL AND completed_at > datetime('now', '-12 hours')")
+        where = " AND ".join(clauses)
+        rows = conn.execute(
+            f"SELECT * FROM team_tasks WHERE {where} ORDER BY due_date ASC", params,
+        ).fetchall()
         conn.close()
         return jsonify([dict(r) for r in rows])
     except Exception as exc:
@@ -476,6 +472,10 @@ def tasks_update(task_id):
         fields = {k: v for k, v in data.items() if k in allowed}
         if not fields:
             return jsonify({"error": "nothing to update"}), 400
+        if fields.get("status") in ("done", "completed"):
+            fields["completed_at"] = datetime.utcnow().isoformat()
+        elif fields.get("status") == "open":
+            fields["completed_at"] = None
         set_clause = ", ".join(f"{k}=?" for k in fields)
         conn = _db()
         conn.execute(f"UPDATE team_tasks SET {set_clause} WHERE id=?", (*fields.values(), task_id))
@@ -492,7 +492,7 @@ def tasks_update(task_id):
 def tasks_patch(task_id):
     try:
         data = request.get_json(force=True) or {}
-        allowed = {"category", "priority", "status"}
+        allowed = {"category", "priority", "status", "due_date"}
         fields = {k: v for k, v in data.items() if k in allowed}
         if not fields:
             return jsonify({"error": "nothing to update"}), 400

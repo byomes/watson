@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-07-13*
+*Generated: 2026-07-20*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -7,6 +7,7 @@
 ```
 ~/watson/
 .env
+.env.backup-20260713-112740
 .env.example
 .env.local
 .gitignore
@@ -54,6 +55,12 @@ data/
   .gitkeep
   congregation.db
   congregation.db.bak-20260712-200522
+  congregation.db.bak-20260714-091212
+  congregation.db.bak-20260715-115821
+  congregation.db.bak-20260715-124007
+  congregation.db.bak-20260716-101416
+  congregation.db.bak-20260716-111858
+  curator.db
   donors.db
   exports/
     qr_1780863713.png
@@ -63,12 +70,18 @@ data/
     qr_1781039900.png
     qr_1781040379.png
     qr_1781042385.png
+    twj_full_manuscript.md
   facebook_images/
     fb_14.jpg
     fb_15.jpg
     fb_16.jpg
   generated_images/
     img_a_lighthouse_at_sunset_1783180276.jpg
+  imports/
+    catalyst_contacts2.csv
+    church_contacts.csv
+    phone_match_review.csv
+    phone_match_review_v2.csv
   qr/
     qr_20260608_215150.png
     qr_20260608_220849.png
@@ -96,9 +109,12 @@ data/
   riddle_history.json
   skill_audit.json
   watson.db
+  watson.db.bak-20260714-103753
+  watson.db.bak-20260714-133329
 deploy/
   .gitkeep
   connect_cards_cron.txt
+  gutendex.service
   index.html
   people-server.service
   start_people_server.sh
@@ -146,16 +162,19 @@ jobs/
     batch_intake.py
     init_db.py
     member_match.py
+    migrate_leadership_roles.py
     migrate_reparse.py
   connect_cards/
     __init__.py
     attendance_intake.py
     backfill.py
+    batch_update.py
     campus_classifier.py
     conflict_report.py
     correction_handler.py
     data_audit.py
     email_reports.py
+    find_malformed_names.py
     intake.py
     migrate_prayer_leadership.py
     missed_report.py
@@ -168,6 +187,14 @@ jobs/
   contacts/
     __init__.py
     vcf_importer.py
+  curator/
+    __init__.py
+    actions.py
+    api.py
+    ingest.py
+    refresh_ku.py
+    research.py
+    worker.py
   dadjoke/
     __init__.py
     joke.py
@@ -178,6 +205,8 @@ jobs/
     publishing_routes.py
     static/
       countries.geojson
+      exports/
+        twj-manuscript-c9541b5bc112b520e429ac83bbadb106.md
       favicon-w.svg
       favicon.svg
       style.css
@@ -187,6 +216,8 @@ jobs/
       admin.html
       admin_login.html
       index.html
+      meet_review.html
+      meet_reviews_list.html
       team.html
   data/
     __init__.py
@@ -216,9 +247,11 @@ jobs/
     file_map.py
     fix style.py
     fix_style.py
+    git_sync.py
     git_tools.py
     github_tools.py
     hello_dashboard.py
+    ollama_monitor.py
     performance_profiler.py
     secrets_audit.py
     skill_tester.py
@@ -266,6 +299,7 @@ jobs/
     availability.py
     create_event.py
     gcal_service.py
+    meet_token_health.py
     notify.py
     pending.py
     pre_meeting_brief.py
@@ -283,18 +317,25 @@ jobs/
   intent/
     __init__.py
     classifier.py
+    keep_warm.py
   kb/
     __init__.py
     archive_transcripts.py
   marketing/
     __init__.py
-    content_calendar.py
     seo_tools.py
     social_poster.py
   media/
     __init__.py
     audio_tools.py
     youtube_downloader.py
+  meet/
+    __init__.py
+    fireflies_review.py
+    migrate_meeting_reviews.py
+    templates/
+      __init__.py
+      elder_review.py
   memory/
     __init__.py
     new_project.py
@@ -350,14 +391,19 @@ jobs/
     __init__.py
     academic_search.py
     article_reader.py
+    benchmark_check.py
     feed_reader.py
     gutenberg.py
     isbn_lookup.py
     language_detector.py
+    migrate_benchmark_sources.py
     news_search.py
     semantic_search.py
     summarizer.py
     web_search.py
+  routing/
+    __init__.py
+    directive_prefixes.py
   scheduler.py
   security/
     __init__.py
@@ -383,6 +429,7 @@ jobs/
     wdb_query.py
   sms/
     __init__.py
+    carrier_lookup.py
     sms_send.py
   social/
     __init__.py
@@ -422,7 +469,6 @@ jobs/
   watcher.py
   web/
     __init__.py
-    page_generator.py
     site_deployer.py
   writing/
     __init__.py
@@ -941,8 +987,10 @@ memory/
     telegram.md
   commands.json
   core.md
+  model_benchmark_20260715.md
   projects/
     _index.md
+    benchmarks.md
     congregation.md
     dev_loop.md
     godfidence/
@@ -965,6 +1013,7 @@ memory/
   skip_keywords.txt
   style_audit_pages.md
   style_audit_report.md
+  working.md
 notes/
   .gitkeep
 prompts/
@@ -973,6 +1022,17 @@ prompts/
   generate_social.md
 requirements.txt
 run.sh
+scripts/
+  wcky_meet_reauth.py
+tests/
+  model_qualify/
+    model_qualification_spec.md
+    model_qualify.py
+    results_part1.json
+    results_part2.json
+    results_remaining.json
+    run.log
+    test_set.json
 vercel.json
 watson.db
 ```
@@ -1018,6 +1078,10 @@ content/
     2026-06-30-you-are-not-what-you-do.md
     2026-07-02-when-culture-knocks-at-the-door.md
     2026-07-04-everybody-heard-but-only-rahab-believed.md
+    2026-07-07-the-scarlet-cord-in-the-window.md
+    2026-07-09-a-brothel-to-a-bloodline.md
+    2026-07-11-the-wilderness-was-never-the-destination.md
+    2026-07-14-the-dry-ground-is-under-your-feet-only-after-you-step-in.md
     the-flashlight-of-your-focus.md
     where-your-treasure-is.md
 next-env.d.ts
@@ -1040,12 +1104,9 @@ public/
     lead-magnet.png
     lead-magnet2.png
     og-default.png
-    og-meet.png
     wrong-jesus-cover-iso.png
   posts/
     williamckyomes.WordPress.2026-05-05.xml
-scripts/
-  generate-og-meet.py
 src/
   app/
     about/
@@ -1061,6 +1122,8 @@ src/
         dashboard/
           route.ts
         feedback/
+          route.ts
+        forgot-password/
           route.ts
         login/
           route.ts
@@ -1120,7 +1183,11 @@ src/
       ArcSignupForm.tsx
       dashboard/
         ArcDashboard.tsx
+        CommitmentsPreview.tsx
         ManuscriptReader.tsx
+        page.tsx
+      forgot-password/
+        ArcForgotPasswordForm.tsx
         page.tsx
       login/
         ArcLoginForm.tsx
@@ -1163,7 +1230,9 @@ src/
       MeetClient.tsx
       cancel/
         page.tsx
+      opengraph-image.tsx
       page.tsx
+      twitter-image.tsx
     not-found.tsx
     opengraph-image.tsx
     page.tsx

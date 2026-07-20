@@ -293,7 +293,20 @@ function _homeTasksHtml(tasks) {
     const done = t.status === 'completed';
     const p = t.priority || '3';
     const cat = t.category || 'catalyst';
+    const dueVal = t.due_date || '';
     const dueStr = fmtTaskDue(t.due_date);
+    const priHtml = done
+      ? `<span class="pri ${priClass(p)}" style="margin-top:0">${esc(p)}</span>`
+      : `<select class="pri-sel" onchange="setHomeTaskPriority(${t.id}, this.value)">
+          <option value="1"${p === '1' ? ' selected' : ''}>1</option>
+          <option value="2"${p === '2' ? ' selected' : ''}>2</option>
+          <option value="3"${p === '3' ? ' selected' : ''}>3</option>
+          <option value="4"${p === '4' ? ' selected' : ''}>4</option>
+          <option value="5"${p === '5' ? ' selected' : ''}>5</option>
+        </select>`;
+    const dueHtml = done
+      ? (dueStr ? `<span style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted)">${esc(dueStr)}</span>` : '')
+      : `<span class="task-due${dueVal ? '' : ' no-date'}" id="task-due-${t.id}" onclick="openTaskDatePicker(${t.id})">${dueVal ? esc(dueStr) : 'Add date'}</span>`;
     return `
     <div class="task-card" id="home-task-${t.id}" style="align-items:center${done ? ';opacity:0.5' : ''}">
       <div class="home-chk-wrap" onclick="${done ? '' : `checkOffTask(${t.id}, this)`}">
@@ -302,8 +315,8 @@ function _homeTasksHtml(tasks) {
       <div style="flex:1;min-width:0">
         <div class="home-task-title${done ? ' struck' : ''}" id="home-task-title-${t.id}" onclick="${done ? '' : `editTaskTitle(${t.id})`}" style="${done ? '' : 'cursor:text'}">${esc(t.title)}</div>
         <div class="home-task-meta">
-          <span class="pri ${priClass(p)}" style="margin-top:0">${esc(p)}</span>
-          ${dueStr ? `<span style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted)">${esc(dueStr)}</span>` : ''}
+          ${priHtml}
+          ${dueHtml}
           <div class="cat-wrap">
             <span class="cat-pill" onclick="toggleCatDrop(${t.id}, event)">${catLabel(cat)}</span>
             <div class="cat-drop" id="cat-drop-${t.id}">
@@ -398,6 +411,16 @@ async function reassignCat(taskId, newCat, event) {
 
 document.addEventListener('click', _closeCatDrop);
 
+async function setHomeTaskPriority(taskId, priority) {
+  try {
+    await api(`/api/team/tasks/${taskId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ priority }),
+    });
+  } catch { alert('Failed to update priority.'); }
+}
+
 function openTaskDatePicker(taskId) {
   const el = document.getElementById(`task-due-${taskId}`);
   if (!el) return;
@@ -415,23 +438,22 @@ function openTaskDatePicker(taskId) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ due_date: val }),
       });
-      const div = document.createElement('div');
-      div.className = 'task-due';
-      div.id = `task-due-${taskId}`;
-      div.textContent = new Date(val).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-      inp.replaceWith(div);
+      const span = document.createElement('span');
+      span.className = 'task-due';
+      span.id = `task-due-${taskId}`;
+      span.textContent = new Date(val).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      span.onclick = () => openTaskDatePicker(taskId);
+      inp.replaceWith(span);
     } catch { alert('Failed to set due date.'); }
   });
   inp.addEventListener('blur', () => {
     if (!inp.value) {
-      const div = document.createElement('div');
-      div.className = 'task-due';
-      div.id = `task-due-${taskId}`;
-      div.style.color = 'var(--muted)';
-      div.style.cursor = 'pointer';
-      div.textContent = 'n/a';
-      div.onclick = () => openTaskDatePicker(taskId);
-      inp.replaceWith(div);
+      const span = document.createElement('span');
+      span.className = 'task-due no-date';
+      span.id = `task-due-${taskId}`;
+      span.textContent = 'Add date';
+      span.onclick = () => openTaskDatePicker(taskId);
+      inp.replaceWith(span);
     }
   });
 }
@@ -605,7 +627,6 @@ async function _pollHomeData() {
   const ae = document.activeElement;
   if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT')) return;
   try {
-    await fetch('/api/team/tasks/archive-completed');
     await _fetchAndRenderTasks(_homeTaskTab);
   } catch(e) { /* silent — stale data is acceptable */ }
 }
@@ -1351,6 +1372,11 @@ let _memberPage        = 0;
 let _memberCurrentList = null;
 let _memberSearchTimer = null;
 let _expandedMemberId  = null;
+let _moreAllPeople     = [];
+let _peoplePage        = 0;
+let _peopleCurrentList = null;
+let _peopleSearchTimer = null;
+let _expandedPersonId  = null;
 
 function renderMore() {
   _moreSecLoaded = {};
@@ -1407,6 +1433,14 @@ function renderMore() {
         <span class="mtile-label">Members</span>
         <span class="mtile-chev">›</span>
       </button>
+      <button class="mtile" id="mtile-people" onclick="moreToggle('people')">
+        <span class="mtile-label">Contacts</span>
+        <span class="mtile-chev">›</span>
+      </button>
+      <button class="mtile" id="mtile-meet-reviews" onclick="window.location.href='/meet/reviews'">
+        <span class="mtile-label">Meeting Reviews</span>
+        <span class="mtile-chev">›</span>
+      </button>
       <button class="mtile" id="mtile-publishing" onclick="moreToggle('publishing')">
         <span class="mtile-label">Publishing</span>
         <span class="mtile-chev">›</span>
@@ -1443,6 +1477,9 @@ function renderMore() {
       </div>
       <div class="msec-body" id="msec-body-members">
         <div class="msec-inner" id="msec-inner-members"></div>
+      </div>
+      <div class="msec-body" id="msec-body-people">
+        <div class="msec-inner" id="msec-inner-people"></div>
       </div>
       <div class="msec-body" id="msec-body-publishing">
         <div class="msec-inner" id="msec-inner-publishing"><div class="loading">Loading&hellip;</div></div>
@@ -1529,6 +1566,7 @@ function moreToggle(sec) {
     if (sec === 'reading')  moreLoadReading();
     if (sec === 'events')   moreLoadEvents();
     if (sec === 'members')  moreLoadMembers();
+    if (sec === 'people')   moreLoadPeople();
     if (sec === 'publishing') publishingLoad();
     if (sec === 'thesis')   moreLoadThesis();
     if (sec === 'dev')      devLoad();
@@ -2370,6 +2408,13 @@ async function moreLoadMembers() {
   _memberCurrentList = null;
   _expandedMemberId = null;
   el.innerHTML = `
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+      <button class="mbtn mbtn-sm" onclick="batchShowForm()">Batch Update Members</button>
+      <button class="mbtn mbtn-sm" onclick="membersExportCsv()">Export CSV</button>
+      <button class="mbtn mbtn-sm" onclick="csvImportShowForm()">Upload CSV</button>
+    </div>
+    <div id="mbatch-panel" style="display:none;margin-bottom:12px"></div>
+    <div id="mcsv-panel" style="display:none;margin-bottom:12px"></div>
     <input id="mmem-search" type="search" class="msrch" placeholder="Search members&hellip;"
       oninput="memberSearchDebounced(this.value)" style="margin-bottom:8px">
     <div id="mmem-stats" style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);margin-bottom:8px">Loading&hellip;</div>
@@ -2382,6 +2427,313 @@ async function moreLoadMembers() {
   } catch {
     const listEl = document.getElementById('mmem-list');
     if (listEl) listEl.innerHTML = '<div class="empty">Could not load members.</div>';
+  }
+}
+
+// ─── Batch Update Members ───────────────────────────────────────────────────
+
+let _batchState = null;
+
+function batchShowForm() {
+  const panel = document.getElementById('mbatch-panel');
+  if (!panel) return;
+  if (panel.style.display !== 'none') {
+    panel.style.display = 'none';
+    panel.innerHTML = '';
+    _batchState = null;
+    return;
+  }
+  panel.style.display = 'block';
+  panel.innerHTML = `
+    <div class="mpn-card">
+      <label style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);display:block;margin-bottom:4px">NAMES (one per line or comma-separated)</label>
+      <textarea id="mbatch-names" rows="3" placeholder="Jane Smith, Bob Wilson"
+        style="display:block;width:100%;padding:7px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:13px;outline:none;resize:vertical;box-sizing:border-box;margin-bottom:8px"></textarea>
+      <label style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);display:block;margin-bottom:4px">FIELD</label>
+      <select id="mbatch-field" onchange="batchFieldChange()"
+        style="width:100%;padding:7px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:13px;outline:none;margin-bottom:8px">
+        <option value="attendance">Attendance</option>
+        <option value="member_status">Status</option>
+        <option value="campus_preference">Campus</option>
+        <option value="shepherding_exempt">Shepherding Exempt</option>
+      </select>
+      <div id="mbatch-value-wrap" style="margin-bottom:10px"></div>
+      <button class="mbtn mbtn-p mbtn-sm" onclick="batchPreview()">Preview</button>
+      <div id="mbatch-result" style="margin-top:10px"></div>
+    </div>`;
+  batchFieldChange();
+}
+
+function batchFieldChange() {
+  const field = document.getElementById('mbatch-field')?.value;
+  const wrap = document.getElementById('mbatch-value-wrap');
+  if (!wrap) return;
+  const labelStyle = "font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);display:block;margin-bottom:4px";
+  const inputStyle = "width:100%;padding:7px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:13px;outline:none;box-sizing:border-box;color-scheme:dark";
+  if (field === 'attendance') {
+    wrap.innerHTML = `<label style="${labelStyle}">DATE</label><input type="date" id="mbatch-value" style="${inputStyle}">`;
+  } else if (field === 'member_status') {
+    wrap.innerHTML = `<label style="${labelStyle}">STATUS</label>
+      <select id="mbatch-value" style="${inputStyle}">
+        <option value="active">Active</option>
+        <option value="deceased">Deceased</option>
+        <option value="disconnected">Disconnected</option>
+        <option value="non_local">Non-local</option>
+        <option value="snowbird">Snowbird</option>
+      </select>`;
+  } else if (field === 'campus_preference') {
+    wrap.innerHTML = `<label style="${labelStyle}">CAMPUS</label>
+      <select id="mbatch-value" style="${inputStyle}">
+        <option value="Wilmington">Wilmington</option>
+        <option value="Online">Online</option>
+        <option value="Hybrid">Hybrid</option>
+      </select>`;
+  } else if (field === 'shepherding_exempt') {
+    wrap.innerHTML = `<label style="${labelStyle}">EXEMPT</label>
+      <select id="mbatch-value" style="${inputStyle}">
+        <option value="true">Exempt</option>
+        <option value="false">Not Exempt</option>
+      </select>`;
+  }
+}
+
+async function batchPreview() {
+  const field = document.getElementById('mbatch-field')?.value;
+  const value = document.getElementById('mbatch-value')?.value;
+  const namesRaw = document.getElementById('mbatch-names')?.value || '';
+  const resultEl = document.getElementById('mbatch-result');
+  if (!namesRaw.trim()) { if (resultEl) resultEl.innerHTML = '<div class="empty">Enter at least one name.</div>'; return; }
+  if (field === 'attendance' && !value) { if (resultEl) resultEl.innerHTML = '<div class="empty">Pick a date.</div>'; return; }
+  if (resultEl) resultEl.innerHTML = '<div class="loading">Resolving names&hellip;</div>';
+  try {
+    const data = await api('/api/members/batch-update', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ field, value, names: namesRaw }),
+    });
+    _batchState = { field, value, matched: data.matched || [], ambiguous: data.ambiguous || [], not_found: data.not_found || [] };
+    batchRenderPreview();
+  } catch {
+    if (resultEl) resultEl.innerHTML = '<div class="empty">Failed to resolve names.</div>';
+  }
+}
+
+function batchRenderPreview() {
+  const resultEl = document.getElementById('mbatch-result');
+  if (!resultEl || !_batchState) return;
+  const { field, value, matched, ambiguous, not_found } = _batchState;
+  let html = '';
+  if (ambiguous.length) {
+    html += '<div style="margin-bottom:10px"><div style="font-size:12px;font-weight:600;margin-bottom:6px">Ambiguous &mdash; pick the right member:</div>';
+    ambiguous.forEach((a, i) => {
+      const opts = a.candidates.map((c, ci) =>
+        `<option value="${ci}">${esc(c.name)}${c.campus ? ' (' + esc(c.campus) + ')' : ''}</option>`
+      ).join('');
+      html += `
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+          <span style="font-size:12px;flex:1;min-width:0">${esc(a.name)}</span>
+          <select id="mbatch-amb-${i}" style="padding:6px 8px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:12px">
+            <option value="-1">-- skip --</option>
+            ${opts}
+          </select>
+        </div>`;
+    });
+    html += '</div>';
+  }
+  if (matched.length) {
+    html += '<div style="margin-bottom:8px"><div style="font-size:12px;font-weight:600;margin-bottom:6px">Will update:</div>';
+    html += matched.map(m => {
+      const cur = (m.current_value === null || m.current_value === undefined || m.current_value === '') ? '(none)' : String(m.current_value);
+      return `<div style="font-size:12px;color:var(--muted);margin-bottom:2px">${esc(m.member_name || m.name)}: ${esc(cur)} &rarr; ${esc(String(value))}</div>`;
+    }).join('');
+    html += '</div>';
+  } else if (!ambiguous.length) {
+    html += '<div class="empty" style="margin-bottom:8px">Nothing to update.</div>';
+  }
+  if (not_found.length) {
+    html += `<div style="margin-bottom:8px"><div style="font-size:12px;font-weight:600;margin-bottom:4px">Not found (excluded):</div>
+      <div style="font-size:12px;color:var(--muted)">${not_found.map(esc).join(', ')}</div></div>`;
+  }
+  if (field === 'campus_preference') {
+    html += '<div style="font-size:11px;color:var(--muted);margin-bottom:8px">Note: campus_classifier.py (Mon 5:45am) may revert this based on future connect-card history.</div>';
+  }
+  html += `<button class="mbtn mbtn-p mbtn-sm" onclick="batchConfirm()">Confirm &amp; Apply</button>
+    <button class="mbtn mbtn-sm" onclick="batchCancelForm()">Cancel</button>`;
+  resultEl.innerHTML = html;
+}
+
+async function batchConfirm() {
+  if (!_batchState) return;
+  const { field, value, matched, ambiguous } = _batchState;
+  const memberIds = matched.map(m => m.member_id);
+  ambiguous.forEach((a, i) => {
+    const sel = document.getElementById(`mbatch-amb-${i}`);
+    const idx = parseInt(sel?.value, 10);
+    if (!isNaN(idx) && idx >= 0) memberIds.push(a.candidates[idx].member_id);
+  });
+  if (!memberIds.length) { alert('Nothing resolved to apply.'); return; }
+  try {
+    const result = await api('/api/members/batch-update/confirm', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ field, value, member_ids: memberIds }),
+    });
+    const resultEl = document.getElementById('mbatch-result');
+    if (resultEl) {
+      const lines = (result.applied || []).map(a => {
+        const old = (a.old_value === null || a.old_value === undefined) ? '(none)' : String(a.old_value);
+        return `<div style="font-size:12px;color:var(--muted)">${esc(a.name)}: ${esc(old)} &rarr; ${esc(String(a.new_value))}</div>`;
+      });
+      resultEl.innerHTML = `<div style="font-size:12px;font-weight:600;margin-bottom:6px">Applied ${result.applied.length} update(s):</div>` + lines.join('');
+    }
+    _batchState = null;
+    try {
+      const members = await api('/api/members');
+      _moreAllMembers = Array.isArray(members) ? members : _moreAllMembers;
+      _memberRenderStats();
+      _memberRenderList();
+    } catch { /* member list refresh is best-effort; the applied summary above still stands */ }
+  } catch {
+    alert('Failed to apply batch update.');
+  }
+}
+
+function batchCancelForm() {
+  _batchState = null;
+  const panel = document.getElementById('mbatch-panel');
+  if (panel) { panel.style.display = 'none'; panel.innerHTML = ''; }
+}
+
+// ─── CSV Export / Import ─────────────────────────────────────────────────────
+
+function membersExportCsv() {
+  const a = document.createElement('a');
+  a.href = '/api/members/export';
+  a.download = '';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+let _csvImportState = null;
+
+function csvImportShowForm() {
+  const panel = document.getElementById('mcsv-panel');
+  if (!panel) return;
+  if (panel.style.display !== 'none') {
+    csvImportCancelForm();
+    return;
+  }
+  panel.style.display = 'block';
+  panel.innerHTML = `
+    <div class="mpn-card">
+      <label style="display:inline-block;cursor:pointer;padding:5px 10px;border:1px solid var(--border);border-radius:var(--r-btn);font-size:11px;color:var(--text);background:var(--surface)">
+        Choose CSV File
+        <input id="mcsv-file" type="file" accept=".csv" style="display:none" onchange="csvImportFileChosen(this)">
+      </label>
+      <div id="mcsv-filename" style="font-size:11px;color:var(--muted);margin-top:6px"></div>
+      <div id="mcsv-result" style="margin-top:10px"></div>
+    </div>`;
+}
+
+function csvImportCancelForm() {
+  _csvImportState = null;
+  const panel = document.getElementById('mcsv-panel');
+  if (panel) { panel.style.display = 'none'; panel.innerHTML = ''; }
+}
+
+function csvImportFileChosen(input) {
+  const file = input.files && input.files[0];
+  const nameEl = document.getElementById('mcsv-filename');
+  const resultEl = document.getElementById('mcsv-result');
+  if (!file) return;
+  _csvImportState = { file };
+  if (nameEl) nameEl.textContent = file.name;
+  if (resultEl) resultEl.innerHTML = '<button class="mbtn mbtn-p mbtn-sm" onclick="csvImportPreview()">Preview Changes</button>';
+}
+
+async function csvImportPreview() {
+  if (!_csvImportState?.file) return;
+  const resultEl = document.getElementById('mcsv-result');
+  if (resultEl) resultEl.innerHTML = '<div class="loading">Analyzing CSV&hellip;</div>';
+  const fd = new FormData();
+  fd.append('file', _csvImportState.file);
+  try {
+    const res = await fetch('/api/members/import/preview', { method: 'POST', body: fd });
+    if (!res.ok) throw new Error(await res.text());
+    _csvImportState.preview = await res.json();
+    csvImportRenderPreview();
+  } catch {
+    if (resultEl) resultEl.innerHTML = '<div class="empty">Failed to preview CSV. Check the file and try again.</div>';
+  }
+}
+
+function csvImportRenderPreview() {
+  const resultEl = document.getElementById('mcsv-result');
+  if (!resultEl || !_csvImportState?.preview) return;
+  const { counts, changes, errors, skipped } = _csvImportState.preview;
+  let html = `<div style="font-size:12px;font-family:'DM Mono',monospace;color:var(--muted);margin-bottom:10px">
+    Unchanged: ${counts.unchanged} &middot; To update: ${counts.to_update} &middot; Skipped (unknown id): ${counts.skipped_unknown_id} &middot; Errors: ${counts.errors}
+  </div>`;
+
+  if (changes.length) {
+    html += '<div style="margin-bottom:10px"><div style="font-size:12px;font-weight:600;margin-bottom:6px">Changes to apply:</div>';
+    html += '<div style="max-height:260px;overflow-y:auto">';
+    html += changes.map(c => {
+      const old = (c.old_value === null || c.old_value === undefined || c.old_value === '') ? '(none)' : String(c.old_value);
+      return `<div style="font-size:12px;color:var(--muted);margin-bottom:2px">#${c.id} ${esc(c.name)} &mdash; ${esc(c.field)}: ${esc(old)} &rarr; ${esc(String(c.new_value))}</div>`;
+    }).join('');
+    html += '</div></div>';
+  } else {
+    html += '<div class="empty" style="margin-bottom:10px">No changes to apply.</div>';
+  }
+
+  if (errors.length) {
+    html += '<div style="margin-bottom:10px"><div style="font-size:12px;font-weight:600;color:var(--red);margin-bottom:4px">Errors (not applied):</div>';
+    html += errors.map(e => `<div style="font-size:12px;color:var(--red)">#${e.id ?? '?'} ${esc(e.name)}: ${esc(e.reason)}</div>`).join('');
+    html += '</div>';
+  }
+
+  if (skipped.length) {
+    html += `<div style="margin-bottom:10px"><div style="font-size:12px;font-weight:600;margin-bottom:4px">Skipped &mdash; unknown id:</div>
+      <div style="font-size:12px;color:var(--muted)">${skipped.map(s => `#${s.id ?? '?'} ${esc(s.name)}`).join(', ')}</div></div>`;
+  }
+
+  if (changes.length) {
+    html += `<button class="mbtn mbtn-p mbtn-sm" onclick="csvImportConfirm()">Confirm Import</button>
+      <button class="mbtn mbtn-sm" onclick="csvImportCancelForm()">Cancel</button>`;
+  } else {
+    html += `<button class="mbtn mbtn-sm" onclick="csvImportCancelForm()">Close</button>`;
+  }
+  resultEl.innerHTML = html;
+}
+
+async function csvImportConfirm() {
+  if (!_csvImportState?.file) return;
+  const resultEl = document.getElementById('mcsv-result');
+  if (resultEl) resultEl.innerHTML = '<div class="loading">Applying changes&hellip;</div>';
+  const fd = new FormData();
+  fd.append('file', _csvImportState.file);
+  try {
+    const res = await fetch('/api/members/import/confirm', { method: 'POST', body: fd });
+    if (!res.ok) throw new Error(await res.text());
+    const result = await res.json();
+    if (resultEl) {
+      resultEl.innerHTML = `<div style="font-size:12px;font-weight:600;margin-bottom:6px">Import complete:</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:8px">
+          ${result.updated} updated &middot; ${result.unchanged} unchanged &middot; ${result.skipped_unknown_id} skipped (unknown id) &middot; ${result.errors} errors
+        </div>
+        <button class="mbtn mbtn-sm" onclick="csvImportCancelForm()">Close</button>`;
+    }
+    _csvImportState = null;
+    try {
+      const members = await api('/api/members');
+      _moreAllMembers = Array.isArray(members) ? members : _moreAllMembers;
+      _memberRenderStats();
+      _memberRenderList();
+    } catch { /* member list refresh is best-effort; the summary above still stands */ }
+  } catch {
+    if (resultEl) resultEl.innerHTML = '<div class="empty">Failed to apply import. Try again.</div>';
   }
 }
 
@@ -2421,7 +2773,7 @@ function _memberRenderList() {
     <div class="mpn-card" id="mmem-row-${m.id}">
       <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;-webkit-tap-highlight-color:transparent"
            onclick="moreExpandMember(${m.id})">
-        <span style="font-size:13px;font-weight:500">${esc(m.name || '')}</span>
+        <span id="mmem-name-label-${m.id}" style="font-size:13px;font-weight:500">${esc(m.name || '')}</span>
         <span id="mmem-badge-${m.id}">${_memberStatusBadge(m.member_status)}</span>
       </div>
       <div id="mmem-exp-${m.id}" style="display:none"></div>
@@ -2452,6 +2804,36 @@ function memberSearchDebounced(q) {
   }, 300);
 }
 
+// Mirrors jobs/sms/carrier_lookup.py CARRIER_GATEWAY_MAP — keep in sync.
+const _CARRIER_OPTIONS = [
+  'AT&T', 'Verizon', 'T-Mobile', 'Sprint', 'Boost Mobile',
+  'Cricket', 'MetroPCS', 'US Cellular', 'Google Fi', 'Xfinity Mobile',
+];
+
+function _carrierSelectHtml(selectId) {
+  const opts = _CARRIER_OPTIONS.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  return `<select id="${selectId}" data-loaded="" ` +
+    `style="width:100%;padding:7px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:13px;outline:none">` +
+    `<option value="">Other/Unknown</option>${opts}</select>`;
+}
+
+// Fetches the confirmed carrier (if any) for `phone` from phone_carriers
+// (watson.db) and pre-selects it in the <select id="selectId"> built by
+// _carrierSelectHtml. Never shows an unconfirmed NumVerify guess as fact.
+async function _loadCarrierIntoSelect(phone, selectId) {
+  const sel = document.getElementById(selectId);
+  if (!sel || !phone) return;
+  try {
+    const res = await api(`/api/phone-carrier?phone=${encodeURIComponent(phone)}`);
+    const carrier = res && res.carrier ? res.carrier : '';
+    sel.value = carrier;
+    if (sel.value !== carrier) sel.value = ''; // carrier not in dropdown list — fall back to Other/Unknown
+    sel.dataset.loaded = sel.value;
+  } catch {
+    // leave at Other/Unknown — don't block the rest of the panel on this
+  }
+}
+
 function moreExpandMember(id) {
   const expEl = document.getElementById(`mmem-exp-${id}`);
   if (!expEl) return;
@@ -2477,6 +2859,17 @@ function moreExpandMember(id) {
       ${m.email ? `<div style="margin-bottom:6px"><a href="mailto:${esc(m.email)}" style="color:var(--gold);font-size:13px;text-decoration:none">${esc(m.email)}</a></div>` : ''}
       ${m.phone ? `<div style="margin-bottom:10px"><a href="tel:${esc(m.phone)}" style="color:var(--gold);font-size:13px;text-decoration:none">${esc(m.phone)}</a></div>` : ''}
       <div style="margin-bottom:8px">
+        <label style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);display:block;margin-bottom:4px">NAME</label>
+        <input id="mmem-name-${id}" type="text" value="${esc(m.name || '')}"
+          style="width:100%;padding:7px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:13px;outline:none;box-sizing:border-box">
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">Renaming may affect existing aliases and connect-card matching.</div>
+      </div>
+      <div style="margin-bottom:8px">
+        <label style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);display:block;margin-bottom:4px">MOBILE CARRIER</label>
+        ${_carrierSelectHtml(`mmem-carrier-${id}`)}
+        ${!m.phone ? '<div style="font-size:11px;color:var(--muted);margin-top:4px">No phone on file — carrier can\'t be saved.</div>' : ''}
+      </div>
+      <div style="margin-bottom:8px">
         <label style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);display:block;margin-bottom:4px">STATUS</label>
         <select id="mmem-status-${id}" onchange="memberStatusChange(${id})"
           style="width:100%;padding:7px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:13px;outline:none">${opts}</select>
@@ -2488,6 +2881,15 @@ function moreExpandMember(id) {
           <option value="Wilmington"${(m.campus_preference||'Wilmington')==='Wilmington'?' selected':''}>Wilmington</option>
           <option value="Online"${(m.campus_preference||'')==='Online'?' selected':''}>Online</option>
           <option value="Hybrid"${(m.campus_preference||'')==='Hybrid'?' selected':''}>Hybrid</option>
+        </select>
+      </div>
+      <div style="margin-bottom:8px">
+        <label style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);display:block;margin-bottom:4px">PARTNERSHIP STATUS</label>
+        <select id="mmem-partnership-${id}"
+          style="width:100%;padding:7px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:13px;outline:none">
+          <option value="Guest"${(m.partnership_status||'Guest')==='Guest'?' selected':''}>Guest</option>
+          <option value="Regular Attender"${(m.partnership_status||'')==='Regular Attender'?' selected':''}>Regular Attender</option>
+          <option value="Partner"${(m.partnership_status||'')==='Partner'?' selected':''}>Partner</option>
         </select>
       </div>
       <div id="mmem-snowbird-wrap-${id}" style="margin-bottom:8px${status === 'snowbird' ? '' : ';display:none'}">
@@ -2506,12 +2908,97 @@ function moreExpandMember(id) {
           style="display:block;width:100%;padding:7px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:13px;outline:none;resize:vertical;box-sizing:border-box"
           placeholder="Optional note&hellip;">${esc(m.status_note || '')}</textarea>
       </div>
+      <div style="margin-bottom:10px">
+        <label style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);display:block;margin-bottom:4px">ROLES</label>
+        <div id="mmem-roles-chips-${id}" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px;font-size:12px;color:var(--muted)">Loading&hellip;</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">
+          <button class="mbtn mbtn-sm" onclick="memberAddRole(${id},'elder')">+ elder</button>
+          <button class="mbtn mbtn-sm" onclick="memberAddRole(${id},'staff')">+ staff</button>
+          <button class="mbtn mbtn-sm" onclick="memberAddRole(${id},'leader')">+ leader</button>
+          <button class="mbtn mbtn-sm" onclick="memberAddRole(${id},'deacon')">+ deacon</button>
+        </div>
+        <div style="display:flex;gap:6px">
+          <input id="mmem-role-inp-${id}" placeholder="Custom role&hellip;"
+            style="flex:1;padding:6px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:13px;outline:none;box-sizing:border-box"
+            onkeydown="if(event.key==='Enter'){event.preventDefault();memberAddRoleFromInput(${id});}">
+          <button class="mbtn mbtn-sm" onclick="memberAddRoleFromInput(${id})">Add</button>
+        </div>
+      </div>
+      <div style="margin-bottom:10px">
+        <label style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);display:block;margin-bottom:4px">ALIASES</label>
+        <div id="mmem-aliases-${id}" style="font-size:12px;color:var(--muted)">Loading&hellip;</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">Managed via <code>cdb: alias &lt;name&gt; = &lt;alias&gt;</code>.</div>
+      </div>
       <div style="display:flex;align-items:center;gap:10px">
         <button class="mbtn mbtn-p mbtn-sm" onclick="memberSave(${id})">Save</button>
         <span id="mmem-saved-${id}" style="display:none;font-size:12px;color:#2e7d32">✓ Saved</span>
       </div>
     </div>`;
   expEl.style.display = 'block';
+  moreLoadRoles(id);
+  moreLoadAliases(id);
+  if (m.phone) _loadCarrierIntoSelect(m.phone, `mmem-carrier-${id}`);
+}
+
+async function moreLoadAliases(id) {
+  const el = document.getElementById(`mmem-aliases-${id}`);
+  if (!el) return;
+  try {
+    const aliases = await api(`/api/members/${id}/aliases`);
+    el.textContent = aliases.length ? aliases.join(', ') : 'None on record.';
+  } catch {
+    el.textContent = 'Failed to load aliases.';
+  }
+}
+
+function _renderRoleChips(id, roles) {
+  const wrap = document.getElementById(`mmem-roles-chips-${id}`);
+  if (!wrap) return;
+  if (!roles.length) {
+    wrap.innerHTML = '<span style="color:var(--muted)">No roles tagged.</span>';
+    return;
+  }
+  wrap.innerHTML = roles.map(r => `
+    <span style="display:inline-flex;align-items:center;gap:5px;padding:3px 8px;background:var(--surface);border:1px solid var(--border);border-radius:12px;color:var(--text)">
+      ${esc(r)}
+      <span onclick="memberRemoveRole(${id},'${esc(r)}')" style="cursor:pointer;color:var(--red);font-weight:600" title="Remove">&times;</span>
+    </span>`).join('');
+}
+
+async function moreLoadRoles(id) {
+  try {
+    const roles = await api(`/api/members/${id}/roles`);
+    _renderRoleChips(id, roles);
+  } catch {
+    const wrap = document.getElementById(`mmem-roles-chips-${id}`);
+    if (wrap) wrap.innerHTML = '<span style="color:var(--red)">Failed to load roles.</span>';
+  }
+}
+
+async function memberAddRole(id, role) {
+  try {
+    const roles = await api(`/api/members/${id}/roles`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role }),
+    });
+    _renderRoleChips(id, roles);
+  } catch { alert('Failed to add role.'); }
+}
+
+function memberAddRoleFromInput(id) {
+  const inp = document.getElementById(`mmem-role-inp-${id}`);
+  const role = (inp?.value || '').trim();
+  if (!role) return;
+  memberAddRole(id, role);
+  if (inp) inp.value = '';
+}
+
+async function memberRemoveRole(id, role) {
+  try {
+    const roles = await api(`/api/members/${id}/roles/${encodeURIComponent(role)}`, { method: 'DELETE' });
+    _renderRoleChips(id, roles);
+  } catch { alert('Failed to remove role.'); }
 }
 
 function memberStatusChange(id) {
@@ -2522,18 +3009,32 @@ function memberStatusChange(id) {
 
 async function memberSave(id) {
   const sel        = document.getElementById(`mmem-status-${id}`);
+  const nameEl     = document.getElementById(`mmem-name-${id}`);
   const noteEl     = document.getElementById(`mmem-note-${id}`);
   const retEl      = document.getElementById(`mmem-return-${id}`);
   const lastSeenEl = document.getElementById(`mmem-lastseen-${id}`);
+  const carrierEl  = document.getElementById(`mmem-carrier-${id}`);
   const savedEl    = document.getElementById(`mmem-saved-${id}`);
   const status     = sel?.value || 'active';
+
+  const name = (nameEl?.value || '').trim();
+  if (!name) {
+    alert('Name cannot be empty.');
+    return;
+  }
+
   const body = {
+    name,
     member_status:   status,
     status_note:     (noteEl?.value || '').trim() || null,
     snowbird_return:   (status === 'snowbird' && retEl?.value) ? retEl.value : null,
     campus_preference: document.getElementById(`mmem-campus-${id}`)?.value || 'Wilmington',
+    partnership_status: document.getElementById(`mmem-partnership-${id}`)?.value || 'Guest',
     last_seen:         lastSeenEl?.value || '',
   };
+  if (carrierEl && carrierEl.value !== carrierEl.dataset.loaded) {
+    body.carrier = carrierEl.value;
+  }
   try {
     const updated = await api(`/api/members/${id}`, {
       method: 'PATCH',
@@ -2545,9 +3046,189 @@ async function memberSave(id) {
     _memberRenderStats();
     const badgeEl = document.getElementById(`mmem-badge-${id}`);
     if (badgeEl) badgeEl.innerHTML = _memberStatusBadge(status);
+    const nameLabelEl = document.getElementById(`mmem-name-label-${id}`);
+    if (nameLabelEl) nameLabelEl.textContent = name;
+    if (carrierEl && updated.carrier_result) carrierEl.dataset.loaded = carrierEl.value;
     if (savedEl) {
       savedEl.style.display = 'inline';
       setTimeout(() => { savedEl.style.display = 'none'; }, 2500);
+    }
+    if (updated.carrier_result && updated.carrier_result.status === 'error') {
+      alert(`Name/status saved, but carrier failed to save: ${updated.carrier_result.error}`);
+    } else if (updated.carrier_result && updated.carrier_result.status === 'skipped_no_phone') {
+      alert('Saved, but carrier could not be saved — no phone on file for this member.');
+    }
+  } catch { alert('Failed to save.'); }
+}
+
+// ── Contacts (people, watson.db) ─────────────────────────────────────────────
+
+async function moreLoadPeople() {
+  const el = document.getElementById('msec-inner-people');
+  if (!el) return;
+  _moreAllPeople     = [];
+  _peoplePage        = 0;
+  _peopleCurrentList = null;
+  _expandedPersonId  = null;
+  el.innerHTML = `
+    <input id="mppl-search" type="search" class="msrch" placeholder="Search contacts&hellip;"
+      oninput="peopleSearchDebounced(this.value)" style="margin-bottom:8px">
+    <div id="mppl-list"><div class="loading">Loading&hellip;</div></div>`;
+  try {
+    const people = await api('/api/people');
+    _moreAllPeople = Array.isArray(people) ? people : [];
+    _peopleRenderList();
+  } catch {
+    const listEl = document.getElementById('mppl-list');
+    if (listEl) listEl.innerHTML = '<div class="empty">Could not load contacts.</div>';
+  }
+}
+
+function _peopleRenderList() {
+  const el = document.getElementById('mppl-list');
+  if (!el) return;
+  const source = _peopleCurrentList !== null ? _peopleCurrentList : _moreAllPeople;
+  if (!source.length) {
+    el.innerHTML = '<div class="empty">No contacts found.</div>';
+    return;
+  }
+  const page = source.slice(0, (_peoplePage + 1) * 20);
+  let html = page.map(p => `
+    <div class="mpn-card" id="mppl-row-${p.id}">
+      <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;-webkit-tap-highlight-color:transparent"
+           onclick="morePeopleExpand(${p.id})">
+        <span id="mppl-name-label-${p.id}" style="font-size:13px;font-weight:500">${esc(p.name || '')}</span>
+        <span class="mtile-chev">›</span>
+      </div>
+      <div id="mppl-exp-${p.id}" style="display:none"></div>
+    </div>`).join('');
+  if (source.length > page.length) {
+    html += `<button class="mbtn mbtn-sm" onclick="peopleLoadMore()" style="margin-top:8px">Load more (${source.length - page.length} remaining)</button>`;
+  }
+  el.innerHTML = html;
+}
+
+function peopleLoadMore() {
+  _peoplePage++;
+  _peopleRenderList();
+}
+
+function peopleSearchDebounced(q) {
+  if (_peopleSearchTimer) clearTimeout(_peopleSearchTimer);
+  _peopleSearchTimer = setTimeout(() => {
+    _peoplePage = 0;
+    if (q.length >= 2) {
+      _peopleCurrentList = _moreAllPeople.filter(p =>
+        (p.name || '').toLowerCase().includes(q.toLowerCase())
+      );
+    } else {
+      _peopleCurrentList = null;
+    }
+    _peopleRenderList();
+  }, 300);
+}
+
+function morePeopleExpand(id) {
+  const expEl = document.getElementById(`mppl-exp-${id}`);
+  if (!expEl) return;
+  if (_expandedPersonId === id) {
+    expEl.style.display = 'none';
+    _expandedPersonId = null;
+    return;
+  }
+  if (_expandedPersonId !== null) {
+    const prev = document.getElementById(`mppl-exp-${_expandedPersonId}`);
+    if (prev) prev.style.display = 'none';
+  }
+  _expandedPersonId = id;
+  const p = _moreAllPeople.find(x => x.id === id);
+  if (!p) return;
+  expEl.innerHTML = `
+    <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+      <div style="margin-bottom:8px">
+        <label style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);display:block;margin-bottom:4px">NAME</label>
+        <input id="mppl-name-${id}" type="text" value="${esc(p.name || '')}"
+          style="width:100%;padding:7px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:13px;outline:none;box-sizing:border-box">
+      </div>
+      <div style="margin-bottom:8px">
+        <label style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);display:block;margin-bottom:4px">EMAIL</label>
+        <input id="mppl-email-${id}" type="email" value="${esc(p.email || '')}"
+          style="width:100%;padding:7px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:13px;outline:none;box-sizing:border-box">
+      </div>
+      <div style="margin-bottom:8px">
+        <label style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);display:block;margin-bottom:4px">PHONE</label>
+        <input id="mppl-phone-${id}" type="tel" value="${esc(p.phone || '')}"
+          style="width:100%;padding:7px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:13px;outline:none;box-sizing:border-box">
+      </div>
+      <div style="margin-bottom:8px">
+        <label style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);display:block;margin-bottom:4px">MOBILE CARRIER</label>
+        ${_carrierSelectHtml(`mppl-carrier-${id}`)}
+        ${!p.phone ? '<div style="font-size:11px;color:var(--muted);margin-top:4px">No phone on file — carrier can\'t be saved.</div>' : ''}
+      </div>
+      <div style="margin-bottom:8px">
+        <label style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);display:block;margin-bottom:4px">RELATIONSHIP</label>
+        <input id="mppl-relationship-${id}" type="text" value="${esc(p.relationship || '')}"
+          style="width:100%;padding:7px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:13px;outline:none;box-sizing:border-box">
+      </div>
+      <div style="margin-bottom:10px">
+        <label style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);display:block;margin-bottom:4px">NOTES</label>
+        <textarea id="mppl-notes-${id}" rows="2"
+          style="display:block;width:100%;padding:7px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:13px;outline:none;resize:vertical;box-sizing:border-box"
+          placeholder="Optional note&hellip;">${esc(p.notes || '')}</textarea>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <button class="mbtn mbtn-p mbtn-sm" onclick="peopleSave(${id})">Save</button>
+        <span id="mppl-saved-${id}" style="display:none;font-size:12px;color:#2e7d32">✓ Saved</span>
+      </div>
+    </div>`;
+  expEl.style.display = 'block';
+  if (p.phone) _loadCarrierIntoSelect(p.phone, `mppl-carrier-${id}`);
+}
+
+async function peopleSave(id) {
+  const nameEl        = document.getElementById(`mppl-name-${id}`);
+  const emailEl       = document.getElementById(`mppl-email-${id}`);
+  const phoneEl        = document.getElementById(`mppl-phone-${id}`);
+  const relationshipEl = document.getElementById(`mppl-relationship-${id}`);
+  const notesEl        = document.getElementById(`mppl-notes-${id}`);
+  const carrierEl      = document.getElementById(`mppl-carrier-${id}`);
+  const savedEl        = document.getElementById(`mppl-saved-${id}`);
+
+  const name = (nameEl?.value || '').trim();
+  if (!name) {
+    alert('Name cannot be empty.');
+    return;
+  }
+
+  const body = {
+    name,
+    email:        (emailEl?.value || '').trim() || null,
+    phone:        (phoneEl?.value || '').trim() || null,
+    relationship: (relationshipEl?.value || '').trim() || null,
+    notes:        (notesEl?.value || '').trim() || null,
+  };
+  if (carrierEl && carrierEl.value !== carrierEl.dataset.loaded) {
+    body.carrier = carrierEl.value;
+  }
+  try {
+    const updated = await api(`/api/people/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const idx = _moreAllPeople.findIndex(p => p.id === id);
+    if (idx !== -1) Object.assign(_moreAllPeople[idx], updated);
+    const nameLabelEl = document.getElementById(`mppl-name-label-${id}`);
+    if (nameLabelEl) nameLabelEl.textContent = name;
+    if (carrierEl && updated.carrier_result) carrierEl.dataset.loaded = carrierEl.value;
+    if (savedEl) {
+      savedEl.style.display = 'inline';
+      setTimeout(() => { savedEl.style.display = 'none'; }, 2500);
+    }
+    if (updated.carrier_result && updated.carrier_result.status === 'error') {
+      alert(`Contact saved, but carrier failed to save: ${updated.carrier_result.error}`);
+    } else if (updated.carrier_result && updated.carrier_result.status === 'skipped_no_phone') {
+      alert('Saved, but carrier could not be saved — no phone on file for this contact.');
     }
   } catch { alert('Failed to save.'); }
 }

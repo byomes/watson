@@ -398,7 +398,7 @@ def _save_learning(description: str, job_path: str, built_by: str, code: str) ->
         resp = requests.post(
             OLLAMA_URL,
             json={
-                "model": "qwen2.5:14b",
+                "model": OLLAMA_MODEL,
                 "prompt": (
                     "In one paragraph, what is the key coding pattern demonstrated in this code? "
                     "Focus on the approach, not the specifics.\n\n" + first_50

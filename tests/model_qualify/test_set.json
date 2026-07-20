@@ -1,0 +1,56 @@
+{
+  "battery_a_intent": [
+    {"id": "a1", "prompt": "remind me to call Dave tomorrow at 3pm", "expected": "reminder"},
+    {"id": "a2", "prompt": "kb: what did I preach on forgiveness", "expected": "kb_search"},
+    {"id": "a3", "prompt": "cdb: who missed 3 weeks in a row", "expected": "congregation_query"},
+    {"id": "a4", "prompt": "wdb: how many tasks are overdue", "expected": "watson_db_query"},
+    {"id": "a5", "prompt": "polish this: we is meeting sunday for the thing", "expected": "polish"},
+    {"id": "a6", "prompt": "what's on my calendar today", "expected": "calendar_query"},
+    {"id": "a7", "prompt": "clear my day wednesday", "expected": "clear_day"},
+    {"id": "a8", "prompt": "generate a qr code for the giving page", "expected": "qr_generate"},
+    {"id": "a9", "prompt": "who is Sarah Mitchell's contact info", "expected": "contacts_lookup"},
+    {"id": "a10", "prompt": "bible: John 3:16 in NASB", "expected": "bible_lookup"},
+    {"id": "a11", "prompt": "web: latest news on the county council vote", "expected": "web_search"},
+    {"id": "a12", "prompt": "vacation mode on", "expected": "vacation_gate"},
+    {"id": "a13", "prompt": "so I was thinking about the sermon series for fall and wondering if we should do something on Romans", "expected": "general_chat"},
+    {"id": "a14", "prompt": "hey what do you think about this idea for connect cards", "expected": "general_chat"},
+    {"id": "a15", "prompt": "remind me to follow up with dave and also whats on my calendar thursday", "expected": "AMBIGUOUS_multi_intent"},
+    {"id": "a16", "prompt": "cdb who hasnt been here in a while", "expected": "congregation_query"},
+    {"id": "a17", "prompt": "kb search sermons on grace from last year", "expected": "kb_search"},
+    {"id": "a18", "prompt": "gutenberg: pull the full text of pilgrims progress", "expected": "gutenberg"},
+    {"id": "a19", "prompt": "classics: augustine confessions book 1", "expected": "classics"},
+    {"id": "a20", "prompt": "imagegen: sunrise over a cross for facebook post", "expected": "imagegen"}
+  ],
+  "battery_b_reasoning": [
+    {
+      "id": "b1",
+      "type": "structured_extraction",
+      "prompt": "Extract {name, date, topic} as JSON from: 'Talked to Karen after service on the 14th, she wants prayer for her son's job situation, said she'd follow up next week.'",
+      "notes": "Score format compliance + correctness. Name=Karen, date=14th, topic=prayer for son's job."
+    },
+    {
+      "id": "b2",
+      "type": "hallucination_check",
+      "prompt": "Based only on this text: 'The connect card said John attended Sunday service.' — what campus does John attend, Wilmington or Online?",
+      "notes": "Correct answer: not stated, don't guess. Any invented campus is a hallucination fail."
+    },
+    {
+      "id": "b3",
+      "type": "conditional_logic",
+      "prompt": "Given: Member A last attended 25 days ago, not marked snowbird. Member B last attended 10 days ago. Member C last attended 40 days ago, marked snowbird. Which member(s) should be flagged as missed (threshold: 21+ days, snowbird excluded)?",
+      "notes": "Correct answer: Member A only."
+    },
+    {
+      "id": "b4",
+      "type": "summarization",
+      "prompt": "Summarize in 3 bullets, no invented detail: [paste a real shepherding report excerpt when running this]",
+      "notes": "Placeholder — swap in real (anonymized) report text before running."
+    },
+    {
+      "id": "b5",
+      "type": "basic_logic",
+      "prompt": "If today is Wednesday and Watson only books external meetings on Wed/Thu, and Thursday is a federal holiday this week, what days remain bookable this week?",
+      "notes": "Correct answer: Wednesday only (this week)."
+    }
+  ]
+}

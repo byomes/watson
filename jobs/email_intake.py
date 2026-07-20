@@ -7,7 +7,7 @@ an explicit Telegram response from Dr. Bill. If Dr. Bill does not respond, the e
 stays unread in Gmail indefinitely. No timeout, no auto-archive, no fallback.
 
 Crontab (run on watson server):
-  */15 * * * * PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python /home/billyomes/watson/jobs/email_intake.py
+  * * * * * PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python /home/billyomes/watson/jobs/email_intake.py
 """
 
 import email as email_lib
@@ -25,6 +25,7 @@ from dotenv import load_dotenv
 
 from config.settings import DB_PATH, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 from core.vacation import vacation_gate
+from jobs.sms.carrier_lookup import normalize_phone
 from jobs.team.inbound import is_forwarded_email, process_inbound
 import jobs.code_agent.agent as code_agent
 
@@ -42,10 +43,26 @@ WHITELIST = [
 ]
 
 OLLAMA_URL = "http://localhost:11434/api/generate"
-OLLAMA_MODEL = "qwen2.5:14b"
+OLLAMA_MODEL = "llama3.2:1b"
 TELEGRAM_CHAR_LIMIT = 4000
 
 CONG_DB = os.path.expanduser("~/watson/data/congregation.db")
+
+# Senders correction_handler.py is authorized to process "Re: Missed" replies from.
+# Bill's own address is both here and in WHITELIST below, so this check must run
+# first — otherwise email_intake's every-minute poll always wins the race against
+# correction_handler's 30-min cron and marks the reply SEEN before it can see it.
+_MISSED_REPLY_AUTHORIZED = {
+    e for e in [
+        os.getenv("DONNA_EMAIL", "").lower(),
+        os.getenv("BILL_CORRECTION_EMAIL", "").lower(),
+        os.getenv("REPORT_EMAIL", "").lower(),
+    ] if e
+}
+
+
+def _is_missed_report_reply(subject: str, addr: str) -> bool:
+    return subject.strip().lower().startswith("re: missed") and addr in _MISSED_REPLY_AUTHORIZED
 
 _CATEGORY_ICONS = {
     "congregation": "👥",
@@ -139,7 +156,7 @@ def get_unread():
     uids = data[0].split()
     results = []
     for uid in uids:
-        _, msg_data = mail.fetch(uid, "(RFC822)")
+        _, msg_data = mail.fetch(uid, "(BODY.PEEK[])")
         raw = msg_data[0][1]
         msg = email_lib.message_from_bytes(raw)
         subject_parts = email.header.decode_header(msg.get("Subject", ""))
@@ -199,6 +216,123 @@ def _extract_name(sender_field: str) -> str:
         return match.group(1).strip()
     addr = _extract_address(sender_field)
     return addr.split("@")[0]
+
+
+# ── SMS reply detection (carrier-gateway address shape, any carrier) ──────────
+
+_SMS_REPLY_SENDER = re.compile(r'^1?\d{10}@')
+
+
+def _is_sms_reply(sender_email: str) -> bool:
+    return bool(_SMS_REPLY_SENDER.match(sender_email.strip()))
+
+
+def _resolve_sms_reply_sender(digits: str) -> str | None:
+    """Match a normalized 10-digit phone against watson.db people.phone.
+
+    people.phone values are messy/mixed-format, so normalize each row before
+    comparing rather than trusting the stored format.
+    """
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            "SELECT name, phone FROM people WHERE phone IS NOT NULL AND phone != ''"
+        ).fetchall()
+        conn.close()
+    except Exception as exc:
+        log.warning("SMS reply sender lookup failed: %s", exc)
+        return None
+    for row in rows:
+        if normalize_phone(row["phone"]) == digits:
+            return row["name"]
+    return None
+
+
+def _generate_sms_reply(body: str) -> str | None:
+    """Generate an autonomous SMS reply via local Ollama.
+
+    Reuses the same system-prompt construction (build_prompt) as the Telegram
+    bot's general chat fallback (bot/bot.py:_get_general_reply_sync) so this
+    first autonomous, no-approval external channel carries the same identity
+    constraints as everywhere else Watson talks — plus an SMS-specific length
+    instruction, since a full paragraph gets truncated at sms_send.py's
+    150-char limit. Returns None on any failure; callers must not send blindly.
+    """
+    from jobs.memory.prompt_builder import build_prompt
+    system = build_prompt(task=body, project=None) + (
+        "\n\nThis reply goes out as an SMS text message, not a chat message. "
+        "Keep it to 1-2 short sentences — anything longer gets cut off at the "
+        "150-character SMS limit."
+    )
+    try:
+        resp = requests.post(
+            "http://localhost:11434/api/chat",
+            json={
+                "model": "llama3.2:3b",
+                "messages": [
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": body},
+                ],
+                "stream": False,
+            },
+            timeout=60,
+        )
+        resp.raise_for_status()
+        reply = resp.json()["message"]["content"].strip()
+        return reply or None
+    except Exception as exc:
+        log.error("SMS auto-reply Ollama call failed: %s", exc)
+        return None
+
+
+def _handle_sms_reply(sender_email: str, body: str) -> None:
+    """Autonomous SMS reply: resolve sender, generate a reply via Ollama, send
+    it back via the carrier-gateway SMS path, and log the full exchange to
+    Telegram in one message. No approval gate, no allowlist — per Bill's
+    explicit scope, only leadership realistically texts this number in.
+    """
+    local = sender_email.split("@", 1)[0]
+    digits = normalize_phone(local)
+    name = _resolve_sms_reply_sender(digits) if digits else None
+    who = name or digits or local
+    body_clean = body.strip()
+
+    log.info(
+        "SMS reply — sender=%s digits=%s resolved=%s",
+        sender_email, digits, name or "None",
+    )
+
+    if not digits:
+        # _is_sms_reply already validated the address shape, so this
+        # shouldn't happen — but never leave an inbound message unreported.
+        _tg(f"⚠️ SMS reply detected from {sender_email} but couldn't parse a phone number.\n\n{body_clean}")
+        return
+
+    reply = _generate_sms_reply(body_clean)
+    if not reply:
+        _tg(
+            f"⚠️ Text from {who}: {body_clean}\n\n"
+            f"Watson's auto-reply failed (Ollama error) — no reply sent. Follow up manually."
+        )
+        return
+
+    from jobs.sms.sms_send import send_sms
+    result = send_sms(who, digits, "", reply)
+
+    if result.get("success"):
+        _tg(f"📱 SMS exchange — {who}\n→ Them: {body_clean}\n→ Watson: {reply}")
+    elif result.get("needs_carrier"):
+        _tg(
+            f"⚠️ Text from {who}: {body_clean}\n\n"
+            f"Watson drafted a reply but couldn't send — no carrier on file for this "
+            f"number. Drafted reply: {reply}"
+        )
+    else:
+        _tg(
+            f"⚠️ Text from {who}: {body_clean}\n\n"
+            f"Watson drafted a reply but sending failed: {result.get('error')}"
+        )
 
 
 def _tg(text: str) -> None:
@@ -802,9 +936,21 @@ def run():
         addr = _extract_address(sender_raw)
         name = _extract_name(sender_raw)
 
+        # SMS-gateway reply — carrier-agnostic address shape, highest priority
+        if _is_sms_reply(addr):
+            _handle_sms_reply(addr, body)
+            mark_as_read(msg_id)
+            continue
+
         if "snappages.com" in addr:
             log.info("Skipping connect card email from %s", sender_raw)
             mark_as_read(msg_id)
+            continue
+
+        # Missed-report reply — owned by correction_handler.py's direct-match
+        # pipeline, not email_intake's Ollama-digest path. Leave unread.
+        if _is_missed_report_reply(subject, addr):
+            log.info("Deferring missed-report reply to correction_handler.py: %s", subject)
             continue
 
         # Bill's own email — directive path (unchanged behavior)

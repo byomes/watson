@@ -7,7 +7,8 @@ import requests
 log = logging.getLogger(__name__)
 
 _OLLAMA_URL = "http://localhost:11434/api/generate"
-_MODEL = "llama3.2:3b"
+_MODEL = "gemma3:4b"
+_KEEP_ALIVE = "30m"
 
 _SYSTEM_PROMPT = """
 You are a strict intent classifier. Your only job is to read a command and return a JSON object.
@@ -26,6 +27,7 @@ Rules:
 - "book an appointment for [person]" or "schedule [person]" = book_appointment
 - "lookup [name]" or "who is [name]" or "phone/email/contact info for [name]" or "how do I reach [name]" or "find [name]'s number/email/contact" or "get me [name]'s email/phone/number" or "what is [name]'s email/phone/number" = contact_lookup
 - requests to find, search for, or show an image, photo, or picture = image_search
+- a bare greeting or social opener with no specific request (e.g. "hi", "hey", "good morning", "hi there") = general — do NOT infer calendar_query just because a greeting is otherwise content-free
 - everything else = general
 
 Intents and their params:
@@ -55,11 +57,10 @@ Examples:
 "add task buy groceries" → {"intent": "task_create", "params": {"title": "buy groceries"}, "confidence": "HIGH"}
 "lookup Sarah Mitchell" → {"intent": "contact_lookup", "params": {"name": "Sarah Mitchell"}, "confidence": "HIGH"}
 "what's Sarah's phone number" → {"intent": "contact_lookup", "params": {"name": "Sarah"}, "confidence": "MEDIUM"}
-"can you find John's info" → {"intent": "contact_lookup", "params": {"name": "John"}, "confidence": "MEDIUM"}
 "that person from last Sunday" → {"intent": "contact_lookup", "params": {"name": ""}, "confidence": "LOW"}
-"get me Sarah's email" → {"intent": "contact_lookup", "params": {"name": "Sarah"}, "confidence": "HIGH"}
-"what is Dave's email address" → {"intent": "contact_lookup", "params": {"name": "Dave"}, "confidence": "HIGH"}
 "send an email to John" → {"intent": "general", "params": {}, "confidence": "HIGH"}
+"good morning Watson" → {"intent": "general", "params": {}, "confidence": "HIGH"}
+"hey, what's up" → {"intent": "general", "params": {}, "confidence": "HIGH"}
 
 Return ONLY the JSON object. No markdown. No explanation. No other text.
 """
@@ -67,14 +68,29 @@ Return ONLY the JSON object. No markdown. No explanation. No other text.
 
 def classify(message_text: str, system_prompt: str = "") -> dict:
     prompt = f"{_SYSTEM_PROMPT}\n\nMessage: {message_text}"
-    payload: dict = {"model": _MODEL, "prompt": prompt, "stream": False}
+    payload: dict = {
+        "model": _MODEL,
+        "prompt": prompt,
+        "stream": False,
+        "keep_alive": _KEEP_ALIVE,
+        # Bounds worst-case generation time — classify only ever needs a small
+        # JSON object back, but with no cap a stuck/looping generation can run
+        # for minutes under CPU contention instead of failing fast (bug #28).
+        "options": {"num_predict": 200},
+    }
     if system_prompt:
         payload["system"] = system_prompt
     try:
         resp = requests.post(
             _OLLAMA_URL,
             json=payload,
-            timeout=45,
+            # This CPU-only host's prompt-prefix cache for the ~1150-1280
+            # token classifier prompt is inconsistent — measured wall times
+            # of 2.5s-38.4s across repeated real calls (bug #29). 55s gives
+            # real margin over the worst observed case while still leaving
+            # room, under bot.py's 80s outer handle_text timeout, for the
+            # general-chat fallback to run if this does time out.
+            timeout=55,
         )
         resp.raise_for_status()
         raw = resp.json().get("response", "").strip()

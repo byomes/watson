@@ -1,5 +1,7 @@
 """Watson dashboard — port 5200, Tailscale-only."""
 import concurrent.futures
+import csv
+import io
 import json
 import logging
 import os
@@ -16,7 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from flask import Flask, Response, g, jsonify, redirect, render_template, request, send_file, session, stream_with_context, url_for
 from flask_cors import CORS
-from jobs.people.api import congregation_list, people_create, people_delete, people_list, people_update
+from jobs.people.api import congregation_list, people_create, people_delete, people_get, people_list, people_update
 from config.settings import WATSON_SYSTEM
 from core.vacation import is_vacation_mode, set_vacation_mode, vacation_gate
 
@@ -326,6 +328,14 @@ app.register_blueprint(team_bp)
 
 from jobs.dev_loop.deliver import dev_loop_bp
 app.register_blueprint(dev_loop_bp)
+
+from jobs.curator.api import curator_bp
+from jobs.curator import bootstrap_db as _curator_bootstrap
+_curator_bootstrap()
+app.register_blueprint(curator_bp)
+
+from jobs.curator.worker import start_worker as _curator_start_worker
+_curator_start_worker()
 
 _EMAIL_SIGNATURE = "---\nWatson\nAI-powered digital assistant\nOffice of Dr. Bill Yomes\nwilliamckyomes.com/start"
 
@@ -1012,7 +1022,21 @@ def people_create_api():
 
 @app.route("/api/people/<int:person_id>", methods=["PATCH"])
 def people_update_api(person_id):
-    return jsonify(people_update(person_id, request.get_json(force=True)))
+    data = request.get_json(force=True) or {}
+    # Carrier is routed through phone_carriers (watson.db), not the legacy
+    # people.carrier column — pop it before it ever reaches people_update().
+    carrier_value = data.pop("carrier", None)
+
+    result = people_update(person_id, data) if data else people_get(person_id)
+
+    if carrier_value is not None and isinstance(result, dict) and "error" not in result:
+        if carrier_value.strip():
+            phone_for_carrier = data.get("phone") or result.get("phone")
+            result["carrier_result"] = _apply_carrier_update(phone_for_carrier, carrier_value)
+        else:
+            result["carrier_result"] = {"status": "skipped"}
+
+    return jsonify(result)
 
 
 @app.route("/api/people/<int:person_id>", methods=["DELETE"])
@@ -1036,7 +1060,7 @@ def congregation_list_api():
 
 
 _MEMBER_FIELDS = (
-    "m.id, m.name, m.email, m.phone, m.campus_preference, m.active, m.shepherding_exempt, "
+    "m.id, m.name, m.email, m.phone, m.campus_preference, m.partnership_status, m.active, m.shepherding_exempt, "
     "m.member_status, m.status_reason, m.status_since, m.status_note, m.snowbird_return, "
     "(SELECT MAX(service_date) FROM ("
     "  SELECT service_date FROM connect_cards WHERE member_id = m.id "
@@ -1050,6 +1074,43 @@ def _cong_conn():
     c = sqlite3.connect(CONG_DB)
     c.row_factory = sqlite3.Row
     return c
+
+
+def _apply_carrier_update(phone_raw, carrier_value):
+    """Save a confirmed carrier via jobs.sms.carrier_lookup.save_carrier — the
+    single source of truth for carrier data (phone_carriers, watson.db), keyed
+    by normalized phone number. Never writes to members or the legacy
+    people.carrier column.
+
+    Returns {"status": "saved"} / {"status": "skipped_no_phone"} /
+    {"status": "error", "error": str}.
+    """
+    from jobs.sms.carrier_lookup import normalize_phone, save_carrier
+    digits = normalize_phone(phone_raw or "")
+    if not digits:
+        return {"status": "skipped_no_phone"}
+    try:
+        save_carrier(digits, carrier_value, source="manual", confirmed=True)
+        return {"status": "saved"}
+    except Exception as exc:
+        return {"status": "error", "error": str(exc)}
+
+
+@app.route("/api/phone-carrier")
+def phone_carrier_lookup_api():
+    """Look up the confirmed carrier for a phone number from phone_carriers
+    (watson.db) — the shared cache used by SMS sending. Only ever returns a
+    carrier when confirmed=1; an unconfirmed NumVerify guess is never
+    surfaced as if it were a known fact."""
+    from jobs.sms.carrier_lookup import normalize_phone
+    digits = normalize_phone(request.args.get("phone", ""))
+    if not digits:
+        return _no_cache(jsonify({"carrier": None}))
+    row = _db().execute(
+        "SELECT carrier FROM phone_carriers WHERE phone_number = ? AND confirmed = 1",
+        (digits,),
+    ).fetchone()
+    return _no_cache(jsonify({"carrier": row["carrier"] if row else None}))
 
 
 def _no_cache(resp):
@@ -1091,20 +1152,31 @@ def members_search_api():
 @app.route("/api/members/<int:member_id>", methods=["PATCH"])
 def members_update_api(member_id):
     data = request.get_json(force=True) or {}
-    allowed = {"member_status", "status_reason", "status_since", "status_note", "snowbird_return", "campus_preference"}
+    allowed = {"member_status", "status_reason", "status_since", "status_note", "snowbird_return", "campus_preference", "partnership_status", "name"}
     fields = {k: v for k, v in data.items() if k in allowed}
+
+    if "name" in fields:
+        name_val = (fields["name"] or "").strip()
+        if not name_val:
+            return jsonify({"error": "name cannot be empty"}), 400
+        fields["name"] = name_val
+
+    # Carrier is not a members column — it's saved separately to phone_carriers
+    # (watson.db), keyed by phone number, not member id. Presence of the key
+    # (even "") signals intent; absence means "don't touch."
+    carrier_value = data.get("carrier")
 
     last_seen_input = data.get("last_seen")
     if isinstance(last_seen_input, str):
         last_seen_input = last_seen_input.strip() or None
 
-    if not fields and last_seen_input is None:
+    if not fields and last_seen_input is None and carrier_value is None:
         return jsonify({"error": "nothing to update"}), 400
     try:
         c = _cong_conn()
 
         existing = c.execute(
-            "SELECT campus_preference, "
+            "SELECT campus_preference, phone, "
             "(SELECT MAX(service_date) FROM ("
             "  SELECT service_date FROM connect_cards WHERE member_id = members.id "
             "  UNION "
@@ -1143,8 +1215,336 @@ def members_update_api(member_id):
         c.close()
         if not row:
             return jsonify({"error": "not found"}), 404
-        return jsonify(dict(row))
+        result = dict(row)
     except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+    if carrier_value is not None:
+        if carrier_value.strip():
+            result["carrier_result"] = _apply_carrier_update(existing["phone"], carrier_value)
+        else:
+            result["carrier_result"] = {"status": "skipped"}
+
+    return jsonify(result)
+
+
+# ── Members CSV export / import (update-only, id is the match key) ────────────
+
+_CSV_MEMBER_STATUS_VALUES = {"active", "deceased", "disconnected", "non_local", "snowbird"}
+_CSV_CAMPUS_VALUES = {"Wilmington", "Online", "Hybrid"}
+_CSV_PARTNERSHIP_VALUES = {"Guest", "Regular Attender", "Partner"}
+_CSV_EXPORT_COLUMNS = ["id", "name", "email", "phone", "member_status", "campus_preference", "partnership_status"]
+_CSV_DIFF_FIELDS = ["name", "email", "phone", "member_status", "campus_preference", "partnership_status"]
+
+
+@app.route("/api/members/export")
+def members_export_api():
+    c = _cong_conn()
+    rows = c.execute(
+        "SELECT id, name, email, phone, member_status, campus_preference, partnership_status "
+        "FROM members ORDER BY name COLLATE NOCASE"
+    ).fetchall()
+    c.close()
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(_CSV_EXPORT_COLUMNS)
+    for r in rows:
+        writer.writerow([r[col] if r[col] is not None else "" for col in _CSV_EXPORT_COLUMNS])
+    filename = f"members-export-{datetime.now().strftime('%Y-%m-%d')}.csv"
+    resp = Response(buf.getvalue(), mimetype="text/csv")
+    resp.headers["Content-Disposition"] = f"attachment; filename={filename}"
+    return resp
+
+
+def _parse_members_import_csv(file_storage):
+    """Parse an uploaded members CSV, match rows to existing members by id, validate
+    enums, and diff changed fields against current DB values. Read-only — never writes.
+
+    Blank cells in name/email/phone/member_status/campus_preference/partnership_status
+    are treated as "leave unchanged" rather than a value to apply, so a stray blank
+    cell in a bulk edit can't silently wipe a field (name is NOT NULL and the three
+    status fields are true enums with no blank member).
+
+    Returns {"rows": [...], "counts": {...}}. Each row dict has: id, name, status
+    (one of "to_update" / "unchanged" / "skipped_unknown_id" / "error"), reason,
+    changes (list of {field, old_value, new_value}), and — only for "to_update" rows —
+    new_values (dict of field -> validated new value, ready to write).
+    """
+    raw = file_storage.read()
+    text = raw.decode("utf-8-sig") if isinstance(raw, bytes) else raw
+    reader = csv.DictReader(io.StringIO(text))
+
+    c = _cong_conn()
+    result_rows = []
+    counts = {"unchanged": 0, "to_update": 0, "skipped_unknown_id": 0, "errors": 0}
+
+    for row in reader:
+        raw_id = (row.get("id") or "").strip()
+        try:
+            member_id = int(raw_id)
+        except (TypeError, ValueError):
+            counts["skipped_unknown_id"] += 1
+            result_rows.append({
+                "id": raw_id or None, "name": (row.get("name") or "").strip(),
+                "status": "skipped_unknown_id", "reason": "missing or non-numeric id", "changes": [],
+            })
+            continue
+
+        existing = c.execute(
+            "SELECT id, name, email, phone, member_status, campus_preference, partnership_status "
+            "FROM members WHERE id = ?", (member_id,),
+        ).fetchone()
+        if not existing:
+            counts["skipped_unknown_id"] += 1
+            result_rows.append({
+                "id": member_id, "name": (row.get("name") or "").strip(),
+                "status": "skipped_unknown_id", "reason": "unknown id", "changes": [],
+            })
+            continue
+
+        errors = []
+        incoming_status = (row.get("member_status") or "").strip()
+        if incoming_status and incoming_status not in _CSV_MEMBER_STATUS_VALUES:
+            errors.append(f"invalid member_status: {incoming_status!r}")
+        incoming_campus = (row.get("campus_preference") or "").strip()
+        if incoming_campus and incoming_campus not in _CSV_CAMPUS_VALUES:
+            errors.append(f"invalid campus_preference: {incoming_campus!r}")
+        incoming_partnership = (row.get("partnership_status") or "").strip()
+        if incoming_partnership and incoming_partnership not in _CSV_PARTNERSHIP_VALUES:
+            errors.append(f"invalid partnership_status: {incoming_partnership!r}")
+
+        if errors:
+            counts["errors"] += 1
+            result_rows.append({
+                "id": member_id, "name": existing["name"], "status": "error",
+                "reason": "; ".join(errors), "changes": [],
+            })
+            continue
+
+        changes = []
+        new_values = {}
+        for field in _CSV_DIFF_FIELDS:
+            new_val = (row.get(field) or "").strip()
+            if not new_val:
+                continue  # blank cell: leave this field unchanged
+            old_val = existing[field]
+            old_norm = (old_val or "").strip() if old_val is not None else ""
+            if new_val != old_norm:
+                changes.append({"field": field, "old_value": old_val, "new_value": new_val})
+                new_values[field] = new_val
+
+        if changes:
+            counts["to_update"] += 1
+            result_rows.append({
+                "id": member_id, "name": existing["name"], "status": "to_update",
+                "reason": None, "changes": changes, "new_values": new_values,
+            })
+        else:
+            counts["unchanged"] += 1
+            result_rows.append({
+                "id": member_id, "name": existing["name"], "status": "unchanged",
+                "reason": None, "changes": [],
+            })
+
+    c.close()
+    return {"rows": result_rows, "counts": counts}
+
+
+@app.route("/api/members/import/preview", methods=["POST"])
+def members_import_preview_api():
+    f = request.files.get("file")
+    if not f:
+        return jsonify({"error": "file required"}), 400
+    try:
+        parsed = _parse_members_import_csv(f)
+    except Exception as exc:
+        return jsonify({"error": f"failed to parse CSV: {exc}"}), 400
+
+    changes = [
+        {"id": r["id"], "name": r["name"], "field": ch["field"], "old_value": ch["old_value"], "new_value": ch["new_value"]}
+        for r in parsed["rows"] if r["status"] == "to_update" for ch in r["changes"]
+    ]
+    errors = [{"id": r["id"], "name": r["name"], "reason": r["reason"]} for r in parsed["rows"] if r["status"] == "error"]
+    skipped = [{"id": r["id"], "name": r["name"], "reason": r["reason"]} for r in parsed["rows"] if r["status"] == "skipped_unknown_id"]
+
+    return jsonify({"counts": parsed["counts"], "changes": changes, "errors": errors, "skipped": skipped})
+
+
+@app.route("/api/members/import/confirm", methods=["POST"])
+def members_import_confirm_api():
+    f = request.files.get("file")
+    if not f:
+        return jsonify({"error": "file required"}), 400
+    try:
+        parsed = _parse_members_import_csv(f)
+    except Exception as exc:
+        return jsonify({"error": f"failed to parse CSV: {exc}"}), 400
+
+    to_update = [r for r in parsed["rows"] if r["status"] == "to_update"]
+    backup_created = False
+    if to_update:
+        ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+        backup_path = f"{CONG_DB}.bak-{ts}"
+        shutil.copy2(CONG_DB, backup_path)
+        backup_created = True
+
+        c = sqlite3.connect(CONG_DB)
+        try:
+            for r in to_update:
+                set_clause = ", ".join(f"{field} = ?" for field in r["new_values"])
+                values = list(r["new_values"].values()) + [r["id"]]
+                c.execute(f"UPDATE members SET {set_clause} WHERE id = ?", values)
+            c.commit()
+        except Exception:
+            c.rollback()
+            c.close()
+            return jsonify({"error": "import failed, no changes applied, backup preserved"}), 500
+        c.close()
+
+    counts = parsed["counts"]
+    return jsonify({
+        "updated": counts["to_update"],
+        "unchanged": counts["unchanged"],
+        "skipped_unknown_id": counts["skipped_unknown_id"],
+        "errors": counts["errors"],
+        "backup_created": backup_created,
+    })
+
+
+@app.route("/api/members/<int:member_id>/roles", methods=["GET"])
+def member_roles_list_api(member_id):
+    try:
+        c = _cong_conn()
+        rows = c.execute(
+            "SELECT role FROM leadership_roles WHERE member_id = ? ORDER BY role",
+            (member_id,),
+        ).fetchall()
+        c.close()
+        return _no_cache(jsonify([r["role"] for r in rows]))
+    except Exception as exc:
+        return _no_cache(jsonify({"error": str(exc)})), 500
+
+
+@app.route("/api/members/<int:member_id>/roles", methods=["POST"])
+def member_roles_add_api(member_id):
+    data = request.get_json(force=True) or {}
+    role = (data.get("role") or "").strip().lower()
+    if not role:
+        return jsonify({"error": "role is required"}), 400
+    try:
+        c = _cong_conn()
+        member = c.execute("SELECT id FROM members WHERE id = ?", (member_id,)).fetchone()
+        if not member:
+            c.close()
+            return jsonify({"error": "not found"}), 404
+        c.execute(
+            "INSERT OR IGNORE INTO leadership_roles (member_id, role) VALUES (?, ?)",
+            (member_id, role),
+        )
+        c.commit()
+        rows = c.execute(
+            "SELECT role FROM leadership_roles WHERE member_id = ? ORDER BY role",
+            (member_id,),
+        ).fetchall()
+        c.close()
+        return jsonify([r["role"] for r in rows])
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/members/<int:member_id>/roles/<role>", methods=["DELETE"])
+def member_roles_delete_api(member_id, role):
+    role = (role or "").strip().lower()
+    try:
+        c = _cong_conn()
+        c.execute(
+            "DELETE FROM leadership_roles WHERE member_id = ? AND role = ?",
+            (member_id, role),
+        )
+        c.commit()
+        rows = c.execute(
+            "SELECT role FROM leadership_roles WHERE member_id = ? ORDER BY role",
+            (member_id,),
+        ).fetchall()
+        c.close()
+        return jsonify([r["role"] for r in rows])
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/members/<int:member_id>/aliases", methods=["GET"])
+def member_aliases_list_api(member_id):
+    """Read-only — aliases are managed via 'cdb: alias <name> = <alias>' only."""
+    try:
+        c = _cong_conn()
+        rows = c.execute(
+            "SELECT alias FROM member_aliases WHERE member_id = ? ORDER BY alias COLLATE NOCASE",
+            (member_id,),
+        ).fetchall()
+        c.close()
+        return _no_cache(jsonify([r["alias"] for r in rows]))
+    except Exception as exc:
+        return _no_cache(jsonify({"error": str(exc)})), 500
+
+
+@app.route("/api/members/batch-update", methods=["POST"])
+def members_batch_update_api():
+    from jobs.connect_cards.batch_update import FIELDS as _BU_FIELDS, validate_value, batch_update_members
+
+    data = request.get_json(force=True) or {}
+    field = (data.get("field") or "").strip()
+    value = data.get("value")
+    names_raw = data.get("names")
+    if isinstance(names_raw, list):
+        names = [str(n).strip() for n in names_raw if str(n).strip()]
+    else:
+        names = [n.strip() for n in re.split(r"[,\n]", names_raw or "") if n.strip()]
+
+    if field not in _BU_FIELDS:
+        return jsonify({"error": f"invalid field: {field!r}"}), 400
+    if field == "shepherding_exempt" and isinstance(value, str):
+        value = value.strip().lower() in ("true", "1", "yes", "exempt")
+    if not names:
+        return jsonify({"error": "no names provided"}), 400
+
+    err = validate_value(field, value)
+    if err:
+        return jsonify({"error": err}), 400
+
+    try:
+        resolution = batch_update_members(field, value, names)
+        return jsonify(resolution)
+    except Exception as exc:
+        log.error("batch-update preview error: %s", exc)
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/members/batch-update/confirm", methods=["POST"])
+def members_batch_update_confirm_api():
+    from jobs.connect_cards.batch_update import validate_value, commit_batch_update
+
+    data = request.get_json(force=True) or {}
+    field = (data.get("field") or "").strip()
+    value = data.get("value")
+    if field == "shepherding_exempt" and isinstance(value, str):
+        value = value.strip().lower() in ("true", "1", "yes", "exempt")
+
+    try:
+        member_ids = [int(x) for x in (data.get("member_ids") or [])]
+    except (TypeError, ValueError):
+        return jsonify({"error": "invalid member_ids"}), 400
+    if not member_ids:
+        return jsonify({"error": "no member_ids provided"}), 400
+
+    err = validate_value(field, value)
+    if err:
+        return jsonify({"error": err}), 400
+
+    try:
+        result = commit_batch_update(field, value, member_ids, actor="Bill (Dashboard)")
+        return jsonify(result), (200 if not result["errors"] else 400)
+    except Exception as exc:
+        log.error("batch-update confirm error: %s", exc)
         return jsonify({"error": str(exc)}), 500
 
 
@@ -1181,6 +1581,281 @@ def contacts_import():
 
     threading.Thread(target=_run, daemon=True).start()
     return jsonify({"response": "Importing contacts from Google. This may take a moment…"})
+
+
+@app.route("/api/fireflies/webhook", methods=["POST"])
+def fireflies_webhook():
+    import hashlib
+    import hmac
+    import threading
+
+    raw_body = request.get_data()
+    received_raw = request.headers.get("x-hub-signature", "")
+    secret = os.getenv("FIREFLIES_WEBHOOK_SECRET", "")
+
+    if not secret:
+        log.error("FIREFLIES_WEBHOOK_SECRET not set; rejecting Fireflies webhook.")
+        return jsonify({"error": "not configured"}), 401
+
+    computed = hmac.new(secret.encode("utf-8"), raw_body, hashlib.sha256).hexdigest()
+    # Fireflies (like GitHub) prefixes the digest, e.g. "sha256=<hex>" — strip it before comparing.
+    received = received_raw[7:] if received_raw.lower().startswith("sha256=") else received_raw
+
+    if not received or not hmac.compare_digest(computed, received):
+        sig_headers = {k: v for k, v in request.headers.items() if "signature" in k.lower()}
+        log.warning(
+            "Fireflies webhook signature mismatch. computed=%s received_header(x-hub-signature)=%r "
+            "signature_headers=%s all_header_names=%s",
+            computed, received_raw, sig_headers, list(request.headers.keys()),
+        )
+        return jsonify({"error": "invalid signature"}), 401
+
+    payload = request.get_json(silent=True) or {}
+    log.info("Fireflies webhook payload: %s", payload)
+
+    # Confirmed from a real test payload: {"event": "test", "timestamp": ...,
+    # "meeting_id": "test_00000000"} — the key is "event", not "eventType" as
+    # general docs describe, and "meeting_id" (snake_case), not "meetingId".
+    # Check both key names defensively in case real events differ in shape.
+    event_type = payload.get("event") or payload.get("eventType")
+    meeting_id = payload.get("meetingId") or payload.get("meeting_id")
+
+    # event == "test" is Fireflies' webhook test-button payload — intentionally
+    # a no-op (falls through to the else branch below like any other
+    # unrecognized event), not a bug.
+    #
+    # TODO: "Transcription completed" is an unconfirmed guess at the real event
+    # value Fireflies sends (docs mention "Meeting Summarized" / "Meeting
+    # Transcribed" but we haven't seen the actual string yet). Raw payload
+    # logging above is left in place so the next real (non-test) webhook event
+    # reveals it — update this match once we know it.
+    if event_type == "Transcription completed" and meeting_id:
+        def _run():
+            from jobs.meet.fireflies_review import process_meeting
+            try:
+                process_meeting(meeting_id)
+            except Exception as exc:
+                log.error("Fireflies review processing failed for %s: %s", meeting_id, exc)
+
+        threading.Thread(target=_run, daemon=True).start()
+    else:
+        log.info("Fireflies webhook ignored: event=%r meeting_id=%r", event_type, meeting_id)
+
+    return jsonify({"ok": True}), 200
+
+
+# ── Fireflies meeting review (dashboard) ─────────────────────────────────────
+# Gated by _admin_required() — same session check as /admin/*. Not explicitly
+# specified, but this handles pastoral/leadership meeting content, and the
+# admin session is the closest existing precedent for "protected, sensitive
+# dashboard content" in this app.
+
+@app.route("/meet/reviews")
+def meet_reviews_list():
+    redir = _admin_required()
+    if redir:
+        return redir
+    db = _db()
+    reviews = db.execute(
+        "SELECT id, title, meeting_date, status, created_at FROM meeting_reviews ORDER BY created_at DESC"
+    ).fetchall()
+    return render_template("meet_reviews_list.html", reviews=[dict(r) for r in reviews])
+
+
+@app.route("/meet/review/<int:review_id>")
+def meet_review_page(review_id):
+    redir = _admin_required()
+    if redir:
+        return redir
+    db = _db()
+    review = db.execute("SELECT * FROM meeting_reviews WHERE id=?", (review_id,)).fetchone()
+    if not review:
+        return "Review not found", 404
+    items = db.execute(
+        "SELECT * FROM meeting_review_action_items WHERE review_id=? ORDER BY sort_order",
+        (review_id,),
+    ).fetchall()
+
+    from jobs.meet.fireflies_review import get_review_owners
+    members = get_review_owners()
+
+    return render_template(
+        "meet_review.html",
+        review=dict(review),
+        items=[dict(i) for i in items],
+        members=members,
+    )
+
+
+@app.route("/api/meet/review/<int:review_id>", methods=["POST"])
+def meet_review_save(review_id):
+    redir = _admin_required()
+    if redir:
+        return jsonify({"error": "not authenticated"}), 401
+
+    data = request.get_json(force=True) or {}
+    summary_text = data.get("summary_text", "")
+    items = data.get("items") or []
+
+    db = _db()
+    review = db.execute("SELECT id FROM meeting_reviews WHERE id=?", (review_id,)).fetchone()
+    if not review:
+        return jsonify({"error": "not found"}), 404
+
+    db.execute("UPDATE meeting_reviews SET summary_text=? WHERE id=?", (summary_text, review_id))
+
+    # Simplest correct way to handle add/delete/reorder from the UI in one
+    # save: replace the full item set. Low-volume, single-editor table, no
+    # other table references these rows.
+    db.execute("DELETE FROM meeting_review_action_items WHERE review_id=?", (review_id,))
+    for i, item in enumerate(items):
+        item_text = (item.get("item_text") or "").strip()
+        if not item_text:
+            continue
+        owner_member_id = item.get("owner_member_id") or None
+        db.execute(
+            """INSERT INTO meeting_review_action_items
+               (review_id, owner_text, owner_member_id, item_text, sort_order)
+               VALUES (?, ?, ?, ?, ?)""",
+            (review_id, item.get("owner_text") or "", owner_member_id, item_text, i),
+        )
+    db.commit()
+    return jsonify({"success": True})
+
+
+@app.route("/api/meet/review/<int:review_id>/preview", methods=["POST"])
+def meet_review_preview(review_id):
+    redir = _admin_required()
+    if redir:
+        return jsonify({"error": "not authenticated"}), 401
+
+    db = _db()
+    review = db.execute("SELECT * FROM meeting_reviews WHERE id=?", (review_id,)).fetchone()
+    if not review:
+        return jsonify({"error": "not found"}), 404
+    items = db.execute(
+        "SELECT * FROM meeting_review_action_items WHERE review_id=? ORDER BY sort_order",
+        (review_id,),
+    ).fetchall()
+
+    from jobs.meet.fireflies_review import BILL_PREVIEW_EMAIL, send_html_email
+    from jobs.meet.templates.elder_review import (
+        build_structured_content_from_review, render_elder_review_email, render_elder_review_plain,
+    )
+
+    structured = build_structured_content_from_review(dict(review), [dict(i) for i in items])
+    subject, html = render_elder_review_email(structured, preview=True)
+    plain = render_elder_review_plain(structured)
+    try:
+        send_html_email(BILL_PREVIEW_EMAIL, subject, html, plain)
+    except Exception as exc:
+        log.error("Preview email failed for review %s: %s", review_id, exc)
+        return jsonify({"error": str(exc)}), 500
+
+    return jsonify({"success": True, "sent_to": BILL_PREVIEW_EMAIL})
+
+
+@app.route("/api/meet/review/<int:review_id>/send", methods=["POST"])
+def meet_review_send(review_id):
+    redir = _admin_required()
+    if redir:
+        return jsonify({"error": "not authenticated"}), 401
+
+    db = _db()
+    review = db.execute("SELECT * FROM meeting_reviews WHERE id=?", (review_id,)).fetchone()
+    if not review:
+        return jsonify({"error": "not found"}), 404
+    if review["status"] == "sent":
+        return jsonify({"error": "This review has already been sent."}), 409
+
+    items = db.execute(
+        "SELECT * FROM meeting_review_action_items WHERE review_id=? ORDER BY sort_order",
+        (review_id,),
+    ).fetchall()
+
+    from jobs.meet.fireflies_review import get_elder_emails, send_html_email
+    from jobs.meet.templates.elder_review import (
+        build_structured_content_from_review, render_elder_review_email, render_elder_review_plain,
+    )
+
+    elders = get_elder_emails()
+    if not elders:
+        return jsonify({"error": "No members tagged 'elder' found — tag elders in Member Management first."}), 400
+
+    structured = build_structured_content_from_review(dict(review), [dict(i) for i in items])
+    subject, html = render_elder_review_email(structured, preview=False)
+    plain = render_elder_review_plain(structured)
+
+    sent, failed = 0, []
+    for name, email in elders:
+        try:
+            send_html_email(email, subject, html, plain)
+            sent += 1
+        except Exception as exc:
+            log.error("Failed to send elders review to %s <%s>: %s", name, email, exc)
+            failed.append(name)
+
+    db.execute(
+        "UPDATE meeting_reviews SET status='sent', sent_at=datetime('now') WHERE id=?",
+        (review_id,),
+    )
+    db.commit()
+
+    # Auto-create team_tasks for action items whose FINAL resolved owner
+    # (after any edits Bill made) is one of the 8 fixed elder-review people
+    # AND has a team_members record. People on the list without one (Bill
+    # Crook, Jim Bouchat, as of this writing) stay email-only — expected,
+    # not an error. Runs after the email send + status update above are
+    # already committed: a failed task-creation call must never block the
+    # send, and one failed item must never block the rest.
+    from jobs.meet.fireflies_review import ELDER_REVIEW_OWNERS
+    owners_by_id = {o["id"]: o for o in ELDER_REVIEW_OWNERS}
+
+    created_tasks: list[tuple[str, int]] = []
+    failed_tasks: list[str] = []
+    for item in items:
+        owner_member_id = item["owner_member_id"]
+        if not owner_member_id:
+            continue
+        owner = owners_by_id.get(owner_member_id)
+        if not owner or owner["table"] != "team_members":
+            continue
+        title = (item["item_text"] or "").strip()[:500]
+        if not title:
+            continue
+        try:
+            task_id = _create_team_task(owner["id"], title, source="fireflies_review", category="catalyst")
+            created_tasks.append((owner["display_name"], task_id))
+        except Exception as exc:
+            log.error("Failed to auto-create task for %s (review %s): %s", owner["display_name"], review_id, exc)
+            failed_tasks.append(owner["display_name"])
+    if created_tasks:
+        db.commit()
+
+    task_counts: dict[str, int] = {}
+    for name, _task_id in created_tasks:
+        task_counts[name] = task_counts.get(name, 0) + 1
+    task_breakdown = ", ".join(f"{count} for {name}" for name, count in task_counts.items())
+
+    msg = f"Sent to {sent} elder(s)."
+    if failed:
+        msg += f" Failed: {', '.join(failed)}."
+    if created_tasks:
+        msg += f" Created {len(created_tasks)} task(s)"
+        if task_breakdown:
+            msg += f" ({task_breakdown})"
+        msg += "."
+    if failed_tasks:
+        msg += f" Task creation failed for: {', '.join(failed_tasks)}."
+
+    return jsonify({
+        "success": True,
+        "sent": sent,
+        "failed": failed,
+        "tasks_created": len(created_tasks),
+        "tasks_failed": failed_tasks,
+        "msg": msg,
+    })
 
 
 # ── Reading API ───────────────────────────────────────────────────────────────
@@ -1963,6 +2638,27 @@ def chat_stream():
         return '\n'.join(f'data: {line}' for line in lines) + '\n\n'
 
     def _stream_simple(text):
+        # Persist the assistant side of the exchange for the ~61 early-intercept
+        # handlers that route through here (bug #36) -- mirrors _save_reply's
+        # assistant-only insert further down (the user row is written separately
+        # by the frontend via POST /api/chat/sessions/<id>/messages, so only the
+        # reply needs saving here). Defined inline rather than calling
+        # _save_reply directly: that helper isn't defined until later in this
+        # function body, and every one of these early-return call sites executes
+        # before that point.
+        if session_id and text:
+            try:
+                with sqlite3.connect(DB) as _sconn:
+                    _sconn.execute(
+                        "INSERT INTO chat_messages (session_id, role, content) VALUES (?, 'assistant', ?)",
+                        (session_id, text),
+                    )
+                    _sconn.execute(
+                        "UPDATE chat_sessions SET updated_at = datetime('now') WHERE id = ?",
+                        (session_id,),
+                    )
+            except Exception as _exc:
+                log.error("Failed to save assistant reply to DB (from _stream_simple): %s", _exc)
         yield _sse(text)
         yield "data: [DONE]\n\n"
 
@@ -1997,6 +2693,19 @@ def chat_stream():
         from jobs.research.web_search import run as _web_run
         _q = message[4:].strip()
         return _sse_response(_stream_simple(_web_run(_q) or "No results."))
+    if msg_lower.startswith("kb:") or msg_lower.startswith("search the kb:"):
+        from jobs.skills.kb_search import search_kb as _kb_prefix_search, format_result as _kb_prefix_fmt
+        _pfx_len = len("search the kb:") if msg_lower.startswith("search the kb:") else len("kb:")
+        _q = message[_pfx_len:].strip()
+        def _kb_prefix_stream(q=_q):
+            yield _emit_status("→ Searching your notes...")
+            try:
+                result = _kb_prefix_search(q)
+                yield _sse(_kb_prefix_fmt(result))
+            except Exception as exc:
+                yield _sse(f"KB search failed: {exc}")
+            yield "data: [DONE]\n\n"
+        return _sse_response(_kb_prefix_stream())
     if msg_lower.startswith("bible:"):
         from jobs.bible import run as _bible_run
         _q = message[6:].strip()
@@ -2114,6 +2823,16 @@ def chat_stream():
                 else:
                     _reply = f"No contact found for '{_stored.get('sms_name', '')}'."
                 return _sse_response(_stream_simple(_reply))
+            elif _action == "block_time":
+                from jobs.gcal.gcal_service import mark_busy as _mark_busy_conf
+                try:
+                    _bt_start = datetime.fromisoformat(_stored["start"])
+                    _bt_end = datetime.fromisoformat(_stored["end"])
+                    _mark_busy_conf(_bt_start, _bt_end, _stored.get("title", "Blocked"))
+                    _reply = f"✅ Booked — {_stored.get('title', 'Blocked')} on {_stored.get('display', '')}"
+                except Exception as exc:
+                    _reply = f"Booking failed: {exc}"
+                return _sse_response(_stream_simple(_reply))
             else:
                 return _sse_response(_stream_simple("Couldn't execute — action not recognized."))
         elif msg_lower in _DASH_CONF_DENY:
@@ -2145,9 +2864,11 @@ def chat_stream():
             _reply = f"Reminder set for {_rt}: {_title}" if _rt else f"Reminder saved: {_title}"
             return _sse_response(_stream_simple(_reply))
 
-    # build: dispatch — route to Dev Loop
-    if msg_lower.startswith('build:'):
-        description = message[6:].strip()
+    # build:/devloop: dispatch — route to Dev Loop (devloop: is Telegram's spelling,
+    # kept here as an alias — see jobs/routing/directive_prefixes.py)
+    if msg_lower.startswith('build:') or msg_lower.startswith('devloop:'):
+        _dl_pfx_len = len('devloop:') if msg_lower.startswith('devloop:') else len('build:')
+        description = message[_dl_pfx_len:].strip()
         import threading
         import re as _re_build2
         from jobs.dev_loop.trigger import trigger_dev_loop as _trigger_dev_loop2
@@ -2243,8 +2964,45 @@ def chat_stream():
         from jobs.people.lookup import lookup_member as _lookup_sms
         from jobs.sms.sms_send import send_sms_to_contact as _send_sms
 
+        _BARE_PRONOUNS = {"that", "it", "this"}
+
+        def _resolve_sms_pronoun(raw: str) -> str:
+            """If raw is exactly a bare pronoun ("that"/"it"/"this"), resolve it to
+            the most recent assistant message instead of sending the literal word.
+            Real content (e.g. a quoted phrase, or a pronoun embedded in a longer
+            sentence) is left untouched -- only an exact match after stripping
+            counts. Mirrors the session_id-present / history-fallback branching at
+            app.py:3517-3534: a caller that sends session_id reads chat_messages;
+            no current caller of /api/chat/stream does (the dashboard main chat
+            widget never sends it -- Telegram doesn't hit this endpoint at all),
+            so in practice this always falls back to the request's own `history`
+            list, which already carries the prior assistant reply."""
+            if raw.strip().lower() not in _BARE_PRONOUNS:
+                return raw
+            if session_id:
+                _row = _db().execute(
+                    "SELECT content FROM chat_messages WHERE session_id = ? AND role = 'assistant' "
+                    "ORDER BY created_at DESC LIMIT 1",
+                    (session_id,),
+                ).fetchone()
+                return _row["content"] if _row and _row["content"] else raw
+            for _h in reversed(history):
+                if _h.get("role") == "assistant" and _h.get("content"):
+                    return _h["content"]
+            return raw
+
         _sms_me_pattern = _sms_re.search(
             r'(?:text|send a text to)\s+me\s+(?:that\s+|saying\s+)?(.+)',
+            msg_lower,
+        )
+        # "text that to me" / "send this to myself" / "text that to my phone" --
+        # the self-alias trails at the end, not right after the trigger verb.
+        # Must be checked before the generic contact-name pattern below, or the
+        # self-alias word gets swallowed into a bogus contact name (e.g. "that
+        # to") while the real content word gets treated as the recipient.
+        _sms_to_me_pattern = _sms_re.search(
+            r'(?:text|send a text to|send text to|shoot a text to)\s+(.+?)\s+to\s+'
+            r'(?:me|myself|my phone|my number)\s*$',
             msg_lower,
         )
         _sms_pattern = _sms_re.search(
@@ -2253,7 +3011,27 @@ def chat_stream():
         )
 
         if _sms_me_pattern:
-            _sms_msg_raw = message[_sms_me_pattern.start(1):].strip()
+            _sms_msg_raw = _resolve_sms_pronoun(message[_sms_me_pattern.start(1):].strip())
+            _recent_qr = _db().execute(
+                "SELECT content FROM qr_cache ORDER BY created_at DESC LIMIT 1"
+            ).fetchone()
+            if 'qr' in msg_lower and _recent_qr:
+                _sms_msg_raw = f"QR code content: {_recent_qr['content']}"
+            from jobs.telegram.pending import store_skill_confirmation as _store_dash_sms
+            _store_dash_sms("sms_me", {
+                "source": "dashboard",
+                "action_type": "sms_me",
+                "original_message": message,
+                "sms_message": _sms_msg_raw,
+            })
+            return _sse_response(_stream_simple(
+                f"Just to confirm — you want me to text you: '{_sms_msg_raw}'. Reply yes to proceed or no to cancel."
+            ))
+
+        elif _sms_to_me_pattern:
+            _sms_msg_raw = _resolve_sms_pronoun(
+                message[_sms_to_me_pattern.start(1):_sms_to_me_pattern.end(1)].strip()
+            )
             _recent_qr = _db().execute(
                 "SELECT content FROM qr_cache ORDER BY created_at DESC LIMIT 1"
             ).fetchone()
@@ -2273,7 +3051,7 @@ def chat_stream():
         elif _sms_pattern:
             _contact_raw = _sms_pattern.group(1).strip()
             _sms_msg_start = _sms_pattern.start(2)
-            _sms_message = message[_sms_msg_start:].strip()
+            _sms_message = _resolve_sms_pronoun(message[_sms_msg_start:].strip())
             _recent_qr = _db().execute(
                 "SELECT content FROM qr_cache ORDER BY created_at DESC LIMIT 1"
             ).fetchone()
@@ -2290,6 +3068,69 @@ def chat_stream():
             return _sse_response(_stream_simple(
                 f"Just to confirm — you want me to text {_contact_raw}: '{_sms_message}'. Reply yes to proceed or no to cancel."
             ))
+
+    # block_time: "block 60 minutes for staff meeting on thursday" — dashboard-native
+    # path for a capability that previously only existed via Telegram's classifier
+    # stage. Uses the same channel-agnostic jobs.gcal.reasoner Telegram uses.
+    _BLOCK_TIME_RE = _re.compile(
+        r'^block\s+(\d+)\s*(minutes?|mins?|hours?|hrs?)\s+for\s+(.+?)(?:\s+on\s+(.+))?$',
+        _re.IGNORECASE,
+    )
+    _bt_m = _BLOCK_TIME_RE.match(message.strip())
+    if _bt_m:
+        _bt_amount = int(_bt_m.group(1))
+        _bt_unit = _bt_m.group(2).lower()
+        _bt_duration = _bt_amount * 60 if _bt_unit.startswith(('hour', 'hr')) else _bt_amount
+        _bt_title = _bt_m.group(3).strip()
+        _bt_day = (_bt_m.group(4) or "today").strip()
+        from jobs.gcal import reasoner as _bt_reasoner
+        try:
+            _bt_slot = _bt_reasoner.find_best_slot(_bt_day, _bt_duration)
+        except Exception as exc:
+            return _sse_response(_stream_simple(f"Couldn't check the calendar: {exc}"))
+        if not _bt_slot.get("available"):
+            return _sse_response(_stream_simple(_bt_slot.get("message", "No slot available.")))
+        from jobs.telegram.pending import store_skill_confirmation as _store_dash_block
+        _store_dash_block("block_time", {
+            "source": "dashboard",
+            "action_type": "block_time",
+            "original_message": message,
+            "start": _bt_slot["start"],
+            "end": _bt_slot["end"],
+            "display": _bt_slot["display"],
+            "title": _bt_title,
+        })
+        return _sse_response(_stream_simple(
+            f"📅 I found a slot for {_bt_title}:\n\n{_bt_slot['display']}\n\nReply yes to book it or no to cancel."
+        ))
+
+    # calendar_availability: "am I free thursday" / "next available slots" —
+    # dashboard-native path, no confirmation needed (read-only query).
+    _AVAILABILITY_TRIGGERS = (
+        "am i free", "when am i free", "next available", "available slots",
+        "my availability", "when is my next opening", "when do i have an opening",
+    )
+    if any(t in msg_lower for t in _AVAILABILITY_TRIGGERS):
+        from jobs.gcal.availability import get_available_slots_next_30_days as _avail_slots
+        try:
+            _all_slots = _avail_slots("virtual")
+        except Exception as exc:
+            return _sse_response(_stream_simple(f"Couldn't check availability: {exc}"))
+        _lines = ["📆 Next available slots:\n"]
+        _count = 0
+        for _date_str, _slots in _all_slots.items():
+            if _count >= 5:
+                break
+            _d = datetime.strptime(_date_str, "%Y-%m-%d")
+            _day_label = _d.strftime("%A, %b %-d")
+            for _slot in _slots:
+                if _count >= 5:
+                    break
+                _lines.append(f"{_day_label} — {_slot['display']}")
+                _count += 1
+        if _count == 0:
+            return _sse_response(_stream_simple("📆 No available slots in the next 30 days."))
+        return _sse_response(_stream_simple("\n".join(_lines)))
 
     # Handle yes/no follow-up on a pending skill proposal
     if _pending_skill_request is not None:
@@ -2740,7 +3581,7 @@ def chat_stream():
             )
             _r = _mreq.post(
                 "http://localhost:11434/api/generate",
-                json={"model": "qwen2.5:14b", "prompt": prompt, "stream": False},
+                json={"model": "qwen2.5-coder:7b", "prompt": prompt, "stream": False},
                 timeout=60,
             )
             _r.raise_for_status()
@@ -2780,9 +3621,18 @@ def chat_stream():
                     "messages": ollama_msgs,
                     "stream": True,
                     "num_predict": 300,
+                    "keep_alive": "30m",
                 },
                 stream=True,
-                timeout=30,
+                # bug #25: measured ~1183 tokens (memory_context + WATSON_SYSTEM +
+                # history) took ~30s for prefill alone at this box's ~39 tok/s CPU
+                # throughput, before any generation -- the old timeout=30 left zero
+                # margin. sys carries up to 10 recent session summaries plus an
+                # optional project-memory file, and msgs can carry up to 20 history
+                # turns (app.py:3375), so worst case is well above 1183 tokens.
+                # 150s covers a ~4000-token worst-case prefill (~103s at 39 tok/s)
+                # plus num_predict=300 generation, with margin.
+                timeout=150,
             )
             resp.raise_for_status()
             for line in resp.iter_lines():
@@ -4594,15 +5444,21 @@ def admin_leader(member_id):
     member = db.execute("SELECT * FROM team_members WHERE id=?", (member_id,)).fetchone()
     if not member:
         return jsonify({"error": "not found"}), 404
+    # A task stays visible for 12h after being checked off (completed_at set),
+    # then drops out of this list — row is kept, not deleted, for history/reporting.
+    _active_or_recent = (
+        "(status NOT IN ('done','completed') "
+        "OR (completed_at IS NOT NULL AND completed_at > datetime('now', '-12 hours')))"
+    )
     if member_id == 12:
         tasks = db.execute(
-            "SELECT * FROM team_tasks WHERE member_id=? AND category='catalyst' AND status='open' "
+            f"SELECT * FROM team_tasks WHERE member_id=? AND category='catalyst' AND {_active_or_recent} "
             "ORDER BY CAST(priority AS INTEGER) ASC, due_date ASC",
             (member_id,),
         ).fetchall()
     else:
         tasks = db.execute(
-            "SELECT * FROM team_tasks WHERE member_id=? "
+            f"SELECT * FROM team_tasks WHERE member_id=? AND {_active_or_recent} "
             "ORDER BY CAST(priority AS INTEGER) ASC, due_date ASC",
             (member_id,),
         ).fetchall()
@@ -4634,6 +5490,26 @@ def admin_leader(member_id):
     })
 
 
+def _create_team_task(member_id: int, title: str, source: str, due_date: str | None = None,
+                       category: str = "catalyst", priority: str = "3") -> int:
+    """Shared team_tasks insert, extracted from admin_task() (the Home
+    dashboard / Team tab "add task" route) so meet_review_send()'s
+    auto-task-creation for elder-review action items (jobs/dashboard/app.py)
+    reuses the exact same insert path rather than a second one. Does not
+    commit — callers control the transaction boundary."""
+    today = datetime.now().date().isoformat()
+    db = _db()
+    cur = db.execute(
+        "INSERT INTO team_tasks (member_id, title, due_date, source, status, category, priority) VALUES (?,?,?,?,?,?,?)",
+        (member_id, title, due_date, source, "open", category, priority),
+    )
+    db.execute(
+        "UPDATE team_members SET last_activity_date=? WHERE id=?",
+        (today, member_id),
+    )
+    return cur.lastrowid
+
+
 @app.route("/admin/task", methods=["POST"])
 def admin_task():
     redir = _admin_required()
@@ -4644,18 +5520,13 @@ def admin_task():
     title = (data.get("title") or "").strip()
     if not member_id or not title:
         return jsonify({"error": "team_member_id and title required"}), 400
-    today = datetime.now().date().isoformat()
-    db = _db()
-    cur = db.execute(
-        "INSERT INTO team_tasks (member_id, title, due_date, source, status, category, priority) VALUES (?,?,?,?,?,?,?)",
-        (member_id, title, data.get("due_date") or None, session.get("admin_user", "donna"), "open", "catalyst", "3"),
+    task_id = _create_team_task(
+        member_id, title,
+        source=session.get("admin_user", "donna"),
+        due_date=data.get("due_date") or None,
     )
-    db.execute(
-        "UPDATE team_members SET last_activity_date=? WHERE id=?",
-        (today, member_id),
-    )
-    db.commit()
-    return jsonify({"success": True, "task_id": cur.lastrowid})
+    _db().commit()
+    return jsonify({"success": True, "task_id": task_id})
 
 
 @app.route("/admin/task/reassign", methods=["POST"])
@@ -4880,8 +5751,6 @@ def admin_task_priority():
     task = db.execute("SELECT title, category FROM team_tasks WHERE id=?", (task_id,)).fetchone()
     if not task:
         return jsonify({"error": "task not found"}), 404
-    if (task["category"] or "catalyst") != "catalyst":
-        return jsonify({"error": "priority changes only allowed on Catalyst tasks"}), 403
     db.execute("UPDATE team_tasks SET priority=? WHERE id=?", (priority, task_id))
     db.commit()
     try:

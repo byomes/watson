@@ -25,6 +25,7 @@ from email.mime.text import MIMEText
 from dotenv import load_dotenv
 
 from jobs.connect_cards.reports import _CSS, _wrap, _conn
+from jobs.connect_cards.utils import _display_name
 
 load_dotenv(os.path.expanduser("~/watson/.env"))
 
@@ -167,7 +168,7 @@ def _build_at_risk_section() -> tuple[str, int]:
         )
         table_rows += (
             f"<tr data-member-id='{r['id']}'>"
-            f"<td><strong>{r['name'] or '(no name)'}</strong><br>{campus_badge}</td>"
+            f"<td><strong>{_display_name(r['name']) or '(no name)'}</strong><br>{campus_badge}</td>"
             f"<td><span style='font-size:12px;color:#aaa'>Last seen: {_fmt_date(r['last_seen'])}</span></td>"
             f"<td><span style='color:#f0c040'>{r['weeks_absent']} wks</span></td>"
             f"</tr>"
@@ -237,7 +238,7 @@ def _build_critical_section() -> tuple[str, int]:
     table_rows = ""
     for r in rows:
         name_cell = (
-            f"<strong>{r['name'] or '(no name)'}</strong>"
+            f"<strong>{_display_name(r['name']) or '(no name)'}</strong>"
             f" <span style='color:#ff6b6b;font-size:11px'>&#9679; Critical</span>"
         )
         campus = _CAMPUS_DISPLAY.get(campus_map[r["id"]], "—")
@@ -303,7 +304,7 @@ def _build_visitors_section() -> tuple[str, int]:
         )
         table_rows += (
             f"<tr data-member-id='{r['id']}'>"
-            f"<td><strong>{r['name'] or '(no name)'}</strong><br>{campus_badge}</td>"
+            f"<td><strong>{_display_name(r['name']) or '(no name)'}</strong><br>{campus_badge}</td>"
             f"<td><span style='font-size:12px;color:#aaa'>Visited: {_fmt_date(r['visit_date'])}</span></td>"
             f"<td><span style='color:#f0c040'>{r['weeks_since']} wks ago</span></td>"
             f"</tr>"
@@ -370,7 +371,7 @@ def _build_next_steps_section() -> tuple[str, int]:
             )
             parts.append(
                 f"<tr>"
-                f"<td><strong>{r['name'] or '(no name)'}</strong><br>{campus_badge}</td>"
+                f"<td><strong>{_display_name(r['name']) or '(no name)'}</strong><br>{campus_badge}</td>"
                 f"<td><span style='font-size:12px;color:#aaa'>{_fmt_date(r['date'])}</span></td>"
                 f"<td><small>{contact}</small></td>"
                 f"</tr>"
@@ -406,11 +407,12 @@ def _build_prayer_section() -> tuple[str, int]:
 
     table_rows = ""
     for r in rows:
+        norm_name = _display_name(r["name"])
         if r["leadership_only"]:
-            display_name  = r["name"] or "(no name)"
+            display_name  = norm_name or "(no name)"
             privacy_badge = "<span class='badge private'>Leadership Only</span>"
         else:
-            parts = (r["name"] or "").split()
+            parts = (norm_name or "").split()
             display_name  = parts[0] if parts else "(no name)"
             if len(parts) > 1:
                 display_name += f" {parts[-1][0]}."

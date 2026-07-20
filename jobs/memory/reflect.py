@@ -10,7 +10,7 @@ import requests
 REPO = Path(__file__).resolve().parents[2]
 MEMORY = REPO / "memory"
 DB_PATH = REPO / "data" / "watson.db"
-OLLAMA_MODEL = "qwen2.5:14b"
+OLLAMA_MODEL = "qwen2.5:7b"
 
 log = logging.getLogger(__name__)
 

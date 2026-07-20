@@ -22,7 +22,7 @@ from email.mime.text import MIMEText
 import requests
 from dotenv import load_dotenv
 
-from jobs.connect_cards.utils import format_date_for_subject, most_recent_sunday
+from jobs.connect_cards.utils import _display_name, format_date_for_subject, most_recent_sunday
 from core.vacation import vacation_gate
 
 load_dotenv(os.path.expanduser("~/watson/.env"))
@@ -114,17 +114,17 @@ def run() -> None:
         conn.close()
 
     wilmington = [
-        r["name"]
+        _display_name(r["name"])
         for r in missed
         if (r["campus_preference"] or "").strip().lower() in ("wilmington", "")
     ]
     online = [
-        r["name"]
+        _display_name(r["name"])
         for r in missed
         if (r["campus_preference"] or "").strip().lower() == "online"
     ]
     hybrid = [
-        r["name"]
+        _display_name(r["name"])
         for r in missed
         if (r["campus_preference"] or "").strip().lower() == "hybrid"
     ]

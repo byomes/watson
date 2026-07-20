@@ -42,6 +42,7 @@ import jobs.gcal.pending as pending_module
 from jobs.gcal import reasoner
 from jobs.intent.classifier import classify as _classify_intent
 from jobs.memory.prompt_builder import build_prompt
+from jobs.routing.directive_prefixes import telegram_prefixes as _telegram_prefixes, canonicalize as _canonicalize_prefix
 from jobs.givebutter.templates import first_gift_email, repeat_gift_email
 
 log = logging.getLogger(__name__)
@@ -75,7 +76,7 @@ def _maybe_reflect(chat_id: int) -> None:
     if _msg_counter[chat_id] % 10 == 0:
         import threading
         from jobs.memory.reflect import reflect
-        session_id = f"telegram_{chat_id}"
+        session_id = _get_or_create_telegram_session()
         threading.Thread(target=reflect, args=(session_id, None), daemon=True).start()
 
 _SKILL_AFFIRM = {"yes", "yes please", "go ahead", "build it", "sure", "do it", "yep", "yeah"}
@@ -573,7 +574,16 @@ async def handle_facebook_image_callback(update, context):
         # regenerate_image sends a fresh photo+buttons message itself
 
 
-_HANDLE_TEXT_TIMEOUT_SECONDS = 15
+# Worst-case stack inside this window (bug #29, all measured on this
+# CPU-only host): skill router's own 8s timeout, then classify()'s 55s
+# timeout, then a real shot at the general-chat fallback (measured up to
+# ~13.2s, budgeted 25s). 8 + 55 + 25 = 88s -> 100s leaves real margin.
+_HANDLE_TEXT_TIMEOUT_SECONDS = 100
+
+# Holds references to detached asyncio.create_task() background jobs (e.g. the
+# fireflies: directive) so they aren't garbage-collected mid-run — a task with
+# no live reference can be silently dropped by the event loop.
+_background_tasks: set = set()
 
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -610,19 +620,21 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text_lower = text_clean.lower().strip()
     _log_tg('in', text_clean)
 
-    # Directive prefix intercepts — colon-prefixed commands, highest priority
-    _DIRECTIVE_PREFIXES = (
-        "cdb:", "wdb:", "kb:", "web:", "task:", "note:",
-        "remind:", "sms:", "polish:", "bible:", "devloop:", "bug:",
-        "gutenberg:", "classics:",
-    )
-    for _dpfx in _DIRECTIVE_PREFIXES:
-        if text_lower.startswith(_dpfx):
-            _darg = text_clean[len(_dpfx):].strip()
+    # Directive prefix intercepts — colon-prefixed commands, highest priority.
+    # Prefix set is the canonical registry in jobs/routing/directive_prefixes.py —
+    # both this list and the dashboard's read from it, so they stop drifting apart.
+    _DIRECTIVE_PREFIXES = _telegram_prefixes()
+    for _dpfx_raw in _DIRECTIVE_PREFIXES:
+        if text_lower.startswith(_dpfx_raw):
+            _dpfx = _canonicalize_prefix(_dpfx_raw)
+            _darg = text_clean[len(_dpfx_raw):].strip()
             if _dpfx == "cdb:":
-                from jobs.skills.cdb_query import run as _cdb_run_d
-                _dr = await asyncio.to_thread(_cdb_run_d, _darg)
-                await update.message.reply_text(_dr or "No results.")
+                if _darg.lower().startswith("mark "):
+                    await _handle_batch_mark(update, context, _darg)
+                else:
+                    from jobs.skills.cdb_query import run as _cdb_run_d
+                    _dr = await asyncio.to_thread(_cdb_run_d, _darg)
+                    await update.message.reply_text(_dr or "No results.")
             elif _dpfx == "kb:":
                 await _handle_kb(update, context, text_clean)
             elif _dpfx == "web:":
@@ -652,15 +664,22 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     _sms_name, _sms_body = _sms_parts[0].strip(), _sms_parts[1].strip()
                     from jobs.people.lookup import lookup_member as _lm_d
                     from jobs.sms.sms_send import send_sms_to_contact as _sms_tc_d
-                    _hits = _lm_d(_sms_name)
+                    _hits = _lm_d(_sms_name, update.effective_chat.id)
                     _ct = next((c for c in _hits if c.get("phone")), None)
                     if _ct:
-                        _res = _sms_tc_d(_ct, _sms_body)
-                        _dr = f"Text sent to {_ct['name']}." if _res["success"] else f"Failed: {_res['error']}"
+                        _res = await asyncio.to_thread(_sms_tc_d, _ct, _sms_body)
+                        if _res["success"]:
+                            _dr = f"Text sent to {_ct['name']}."
+                        elif _res.get("needs_carrier"):
+                            await _send_carrier_confirm_keyboard(update, _ct["name"], _res["phone"], _sms_body)
+                            _dr = None
+                        else:
+                            _dr = f"Failed: {_res['error']}"
                     else:
                         _dr = f"No contact with phone found for '{_sms_name}'."
-                    await update.message.reply_text(_dr)
-                    _log_telegram_exchange(text_clean, _dr)
+                    if _dr is not None:
+                        await update.message.reply_text(_dr)
+                        _log_telegram_exchange(text_clean, _dr)
                 else:
                     await update.message.reply_text("Format: sms: Name: message")
             elif _dpfx == "polish:":
@@ -691,6 +710,42 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await _handle_gutenberg_search(update, context, _darg)
             elif _dpfx == "classics:":
                 await _handle_classics(update, context, _darg)
+            elif _dpfx == "fireflies:":
+                if not _darg:
+                    await update.message.reply_text("Format: fireflies: <meeting_id>")
+                else:
+                    _ff_meeting_id = _darg
+                    _ff_text_clean = text_clean
+                    await update.message.reply_text(
+                        f"Processing meeting {_ff_meeting_id} — this may take a few minutes..."
+                    )
+
+                    # Detached on purpose: handle_text() wraps this whole function in a
+                    # 15s asyncio.wait_for(), and process_meeting() can legitimately take
+                    # several minutes (large-transcript Ollama call). Awaiting it here
+                    # would let the 15s timeout fire and send a "stuck" message while the
+                    # real pipeline kept running in the background — sending Bill a
+                    # false-alarm message followed by the actual result. Running it as a
+                    # separate task escapes that wrapper; the result is reported back via
+                    # its own reply_text() call whenever it actually finishes.
+                    async def _run_fireflies_directive():
+                        from jobs.meet.fireflies_review import process_meeting
+                        try:
+                            result = await asyncio.to_thread(process_meeting, _ff_meeting_id)
+                        except Exception as exc:
+                            log.error("fireflies: directive failed for %s: %s", _ff_meeting_id, exc)
+                            result = {"ok": False, "msg": f"Fireflies processing failed: {exc}"}
+                        try:
+                            await update.message.reply_text(result["msg"])
+                        except Exception:
+                            pass
+                        _log_telegram_exchange(_ff_text_clean, result["msg"])
+
+                    _ff_task = asyncio.create_task(_run_fireflies_directive())
+                    _background_tasks.add(_ff_task)
+                    _ff_task.add_done_callback(_background_tasks.discard)
+            elif _dpfx == "curator:":
+                await _handle_curator_text(update, context, _darg)
             log.info("DEBUG directive: %s", _dpfx)
             return
 
@@ -925,7 +980,7 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if _email_qr_match and _last_qr:
         _contact_name = _email_qr_match.group(1).strip().rstrip('.')
         from jobs.people.lookup import lookup_member as _lm
-        _hits = _lm(_contact_name)
+        _hits = _lm(_contact_name, update.effective_chat.id)
         _contact = next((c for c in _hits if c.get('email')), None)
         if _contact:
             from jobs.qr.qr_generate import send_qr_email as _send_qr_email
@@ -944,6 +999,77 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"No contact found for '{_contact_name}'. Check the name and try again."
             )
         log.info("DEBUG pre-check: QR email follow-up")
+        return
+
+    # Forward Telegram content to any contact — "email/text/sms that to X" (last
+    # outbound message) or "email/text/sms this to X: content" (inline content).
+    # Supersedes the earlier unbuilt "remember last contact" idea; pulls from
+    # telegram_log rather than a dedicated context table. Checked ahead of the
+    # SMS interception block below because its free-form contact regex would
+    # otherwise swallow "text this/that to X" (captures "this to"/"that to" as
+    # a bogus contact name) before reaching these patterns.
+    _FORWARD_LAST = re.compile(r'^(email|text|sms)\s+that\s+to\s+(.+)$', re.IGNORECASE)
+    _FORWARD_INLINE = re.compile(
+        r'^(email|text|sms)\s+this\s+to\s+([^\n:]+)[:\n]?\s*(.*)$',
+        re.IGNORECASE | re.DOTALL,
+    )
+    # Medium-unspecified variants — ask rather than guess (section 2 of spec)
+    _FORWARD_LAST_AMBIG = re.compile(r'^send\s+that\s+to\s+(.+)$', re.IGNORECASE)
+    _FORWARD_INLINE_AMBIG = re.compile(
+        r'^send\s+this\s+to\s+([^\n:]+)[:\n]?\s*(.*)$',
+        re.IGNORECASE | re.DOTALL,
+    )
+
+    _fwd_medium = None   # 'sms' | 'email' | None (ambiguous)
+    _fwd_mode = None      # 'last' | 'inline'
+    _fwd_name = None
+    _fwd_content = None
+
+    _fm = _FORWARD_LAST.match(text_clean.strip())
+    if _fm:
+        _fwd_medium = "sms" if _fm.group(1).lower() in ("text", "sms") else "email"
+        _fwd_mode = "last"
+        _fwd_name = _fm.group(2).strip()
+    else:
+        _fm = _FORWARD_INLINE.match(text_clean.strip())
+        if _fm:
+            _fwd_medium = "sms" if _fm.group(1).lower() in ("text", "sms") else "email"
+            _fwd_mode = "inline"
+            _fwd_name = _fm.group(2).strip()
+            _fwd_content = _fm.group(3).strip()
+        else:
+            _fm = _FORWARD_LAST_AMBIG.match(text_clean.strip())
+            if _fm:
+                _fwd_mode = "last"
+                _fwd_name = _fm.group(1).strip()
+            else:
+                _fm = _FORWARD_INLINE_AMBIG.match(text_clean.strip())
+                if _fm:
+                    _fwd_mode = "inline"
+                    _fwd_name = _fm.group(1).strip()
+                    _fwd_content = _fm.group(2).strip()
+
+    if _fwd_mode:
+        if _fwd_mode == "inline" and not _fwd_content:
+            await update.message.reply_text(f"What should I send to {_fwd_name}?")
+            log.info("DEBUG pre-check: forward — empty inline content")
+            return
+
+        if _fwd_medium is None:
+            from jobs.telegram.pending import store_pending_action
+            sent = await update.message.reply_text(
+                f"Email or text — which should I use to reach {_fwd_name}?"
+            )
+            store_pending_action(
+                "forward_medium_clarify",
+                sent.message_id,
+                {"name": _fwd_name, "mode": _fwd_mode, "content": _fwd_content},
+            )
+            log.info("DEBUG pre-check: forward — medium ambiguous, asked")
+            return
+
+        await _forward_to_contact(update, _fwd_medium, _fwd_name, _fwd_mode, _fwd_content)
+        log.info("DEBUG pre-check: forward (%s, %s)", _fwd_medium, _fwd_mode)
         return
 
     # SMS interception
@@ -982,7 +1108,7 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
             _sms_name = _sms_contact_m.group(1).strip()
             _sms_msg = _sms_contact_m.group(2).strip()
             from jobs.people.lookup import lookup_member as _lm_sms
-            _hits = _lm_sms(_sms_name)
+            _hits = _lm_sms(_sms_name, update.effective_chat.id)
             _contact = next((c for c in _hits if c.get('phone')), None)
             if _contact:
                 _result = _sms_to_contact(_contact, _sms_msg)
@@ -1151,7 +1277,7 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if route_result["action"] == "wrap_up":
         import threading
         from jobs.memory.wrap_up import wrap_up as _wrap_up
-        session_id = f"telegram_{chat_id}"
+        session_id = _get_or_create_telegram_session()
         threading.Thread(
             target=_wrap_up, args=(session_id, None), daemon=True
         ).start()
@@ -1190,7 +1316,11 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
         log.info("DEBUG pre-check: safety net build trigger")
         return
 
-    # 4. Classify intent via Ollama llama3.2:3b (non-blocking)
+    # 4. Classify intent via Ollama gemma3:4b (non-blocking)
+    # Ack before the slow part starts (bug #29) — classify()/general-chat
+    # can legitimately take up to _HANDLE_TEXT_TIMEOUT_SECONDS on this
+    # CPU-only host, and a silent 15-80s wait reads as a broken bot.
+    await update.message.reply_text("💭 Thinking...")
     _classifier_system = build_prompt(task=text_clean, project=None)
     result = await asyncio.to_thread(_classify_intent, text_clean, _classifier_system)
     log.info("DEBUG classifier raw result: %s", result)
@@ -1324,7 +1454,7 @@ async def _handle_contact_lookup(
     if not name:
         await update.message.reply_text("Who would you like me to look up?")
         return
-    members = lookup_member(name)
+    members = lookup_member(name, update.effective_chat.id)
     if not members:
         reply = f"No members found matching '{name}'."
     else:
@@ -1520,6 +1650,7 @@ async def _handle_reminder_create(update: Update, context: ContextTypes.DEFAULT_
     if not title:
         await update.message.reply_text("What should I remind you about?")
         return
+    chat_id = update.effective_chat.id
     # Extract HH:MM from due_datetime if present
     reminder_time = None
     if due:
@@ -1527,16 +1658,22 @@ async def _handle_reminder_create(update: Update, context: ContextTypes.DEFAULT_
             reminder_time = datetime.fromisoformat(due).strftime("%H:%M")
         except Exception:
             pass
+    display = f"{title} — due {due}" if due else title
     try:
-        with get_connection() as conn:
-            _ensure_reminders_table(conn)
-            conn.execute(
-                "INSERT INTO reminders (title, due_datetime, reminder_time, status, created_at, updated_at) "
-                "VALUES (?, ?, ?, 'active', datetime('now'), datetime('now'))",
-                (title, due or "", reminder_time),
-            )
-        reply = f"⏰ Reminder set for {reminder_time}: {title}" if reminder_time else f"⏰ Reminder saved: {title}"
-        await update.message.reply_text(reply)
+        pending_module.save_pending(
+            chat_id,
+            "reminder_create",
+            {"title": title, "due": due, "reminder_time": reminder_time},
+            {"display": display},
+        )
+        sent = await update.message.reply_text(
+            f"⏰ Set this reminder?\n\n{display}\n\nReply YES to confirm or NO to cancel."
+        )
+        try:
+            from jobs.telegram.pending import store_pending_action
+            store_pending_action("calendar_booking", sent.message_id, {"chat_id": chat_id})
+        except Exception:
+            pass
     except Exception as exc:
         log.error("Reminder create failed: %s", exc)
         await update.message.reply_text(f"Error saving reminder: {exc}")
@@ -1560,14 +1697,23 @@ async def _handle_task_create(update: Update, context: ContextTypes.DEFAULT_TYPE
     if not title:
         await update.message.reply_text("What should I call this task?")
         return
+    chat_id = update.effective_chat.id
+    display = f"{title} — due {due}" if due else title
     try:
-        with get_connection() as conn:
-            _ensure_tasks_table(conn)
-            conn.execute("INSERT INTO tasks (title, due_datetime) VALUES (?, ?)", (title, due))
-        if due:
-            await update.message.reply_text(f"✅ Reminder set for {title} on {due}.")
-        else:
-            await update.message.reply_text(f"✅ Got it — added '{title}' to your tasks.")
+        pending_module.save_pending(
+            chat_id,
+            "task_create",
+            {"title": title, "due": due},
+            {"display": display},
+        )
+        sent = await update.message.reply_text(
+            f"✅ Add this task?\n\n{display}\n\nReply YES to confirm or NO to cancel."
+        )
+        try:
+            from jobs.telegram.pending import store_pending_action
+            store_pending_action("calendar_booking", sent.message_id, {"chat_id": chat_id})
+        except Exception:
+            pass
     except Exception as exc:
         log.error("Task create failed: %s", exc)
         await update.message.reply_text(f"Error saving task: {exc}")
@@ -1600,17 +1746,38 @@ async def _handle_task_done(update: Update, context: ContextTypes.DEFAULT_TYPE, 
     if not title:
         await update.message.reply_text("Which task should I mark done?")
         return
+    chat_id = update.effective_chat.id
     try:
         with get_connection() as conn:
             _ensure_tasks_table(conn)
-            conn.execute(
-                "UPDATE tasks SET status = 'done' WHERE status = 'active' AND title LIKE ?",
+            rows = conn.execute(
+                "SELECT id, title FROM tasks WHERE status = 'active' AND title LIKE ?",
                 (f"%{title}%",),
-            )
-        await update.message.reply_text(f"✅ Marked done: {title}")
+            ).fetchall()
+        if not rows:
+            await update.message.reply_text(f"No active task matching '{title}'.")
+            return
+        matched_ids = [r["id"] for r in rows]
+        matched_titles = [r["title"] for r in rows]
+        listing = "\n".join(f"• {t}" for t in matched_titles)
+        pending_module.save_pending(
+            chat_id,
+            "task_done",
+            {"title": title},
+            {"matched_ids": matched_ids, "matched_titles": matched_titles},
+        )
+        noun = "this task" if len(matched_titles) == 1 else "these tasks"
+        sent = await update.message.reply_text(
+            f"Mark {noun} done?\n\n{listing}\n\nReply YES to confirm or NO to cancel."
+        )
+        try:
+            from jobs.telegram.pending import store_pending_action
+            store_pending_action("calendar_booking", sent.message_id, {"chat_id": chat_id})
+        except Exception:
+            pass
     except Exception as exc:
-        log.error("Task done failed: %s", exc)
-        await update.message.reply_text(f"Error updating task: {exc}")
+        log.error("Task done lookup failed: %s", exc)
+        await update.message.reply_text(f"Error looking up task: {exc}")
 
 
 def _get_general_reply_sync(text: str) -> str:
@@ -1659,7 +1826,7 @@ async def _handle_general(update: Update, context: ContextTypes.DEFAULT_TYPE, te
     _possessive = re.search(r"(\w+)'s\s+(?:email|phone|number|contact)", text, re.IGNORECASE)
     if _possessive:
         from jobs.people.lookup import lookup_member
-        _hits = lookup_member(_possessive.group(1))
+        _hits = lookup_member(_possessive.group(1), update.effective_chat.id)
         if _hits:
             _lines = []
             for m in _hits:
@@ -1670,6 +1837,142 @@ async def _handle_general(update: Update, context: ContextTypes.DEFAULT_TYPE, te
     reply = await _get_general_reply(text)
     await update.message.reply_text(reply)
     return reply
+
+
+_CARRIER_CONFIRM_BUTTONS = (
+    ("AT&T", "AT&T"), ("Verizon", "Verizon"), ("T-Mobile", "T-Mobile"),
+    ("Boost", "Boost Mobile"), ("Cricket", "Cricket"),
+)
+
+
+async def _send_carrier_confirm_keyboard(update: Update, name: str, phone: str, message: str) -> None:
+    """Ask which carrier a number belongs to, via the shared tg_pending_actions
+    reply-threading mechanism — buttons for common carriers, or reply with the name."""
+    from jobs.telegram.pending import store_pending_action
+
+    prompt = f"I don't have a confirmed carrier on file for {name}'s number. Which one?"
+    with get_connection() as conn:
+        guess = conn.execute(
+            "SELECT carrier FROM phone_carriers WHERE phone_number = ? AND confirmed = 0 AND source = 'numverify'",
+            (phone,),
+        ).fetchone()
+    if guess and guess["carrier"]:
+        prompt += f" (NumVerify suggests {guess['carrier']} — unconfirmed, so not used automatically.)"
+
+    sent = await update.message.reply_text(prompt)
+    pending_id = store_pending_action(
+        "carrier_confirm", sent.message_id, {"name": name, "phone": phone, "message": message}
+    )
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton(label, callback_data=f"carrier_pick:{pending_id}:{value}")
+         for label, value in _CARRIER_CONFIRM_BUTTONS[:3]],
+        [InlineKeyboardButton(label, callback_data=f"carrier_pick:{pending_id}:{value}")
+         for label, value in _CARRIER_CONFIRM_BUTTONS[3:]]
+        + [InlineKeyboardButton("Other — type it", callback_data=f"carrier_other:{pending_id}")],
+    ])
+    await sent.edit_reply_markup(reply_markup=keyboard)
+
+
+async def _forward_to_contact(
+    update: Update, medium: str, name: str, mode: str, content: str | None
+) -> None:
+    """Resolve `name` via lookup_member and send `content` via `medium` ('sms'/'email').
+
+    mode='last' pulls the most recent direction='out' telegram_log row as content;
+    mode='inline' uses `content` as given. Forwards verbatim — no reformatting.
+    """
+    if mode == "last":
+        with get_connection() as conn:
+            row = conn.execute(
+                "SELECT message FROM telegram_log WHERE direction='out' ORDER BY id DESC LIMIT 1"
+            ).fetchone()
+        if not row:
+            await update.message.reply_text("Nothing recent to forward.")
+            return
+        content = row["message"]
+
+    from jobs.people.lookup import lookup_member as _lm_fwd
+    hits = _lm_fwd(name, update.effective_chat.id)
+    field = "phone" if medium == "sms" else "email"
+    contact = next((c for c in hits if c.get(field)), None)
+    if not contact:
+        if not hits:
+            await update.message.reply_text(f"No contact found for '{name}'.")
+        else:
+            missing = "phone number" if medium == "sms" else "email address"
+            await update.message.reply_text(f"Found {hits[0]['name']} but no {missing} on file.")
+        return
+
+    if medium == "sms":
+        from jobs.sms.sms_send import send_sms_to_contact as _sms_send_fwd
+        result = await asyncio.to_thread(_sms_send_fwd, contact, content)
+        if result["success"]:
+            note = " (truncated to 150 chars)" if len(content) > 150 else ""
+            reply = f"Sent to {contact['name']} via text{note}."
+            await update.message.reply_text(reply)
+            _log_telegram_exchange(f"[forward:sms:{name}]", reply)
+        elif result.get("needs_carrier"):
+            await _send_carrier_confirm_keyboard(update, contact["name"], result["phone"], content)
+        else:
+            await update.message.reply_text(f"Failed: {result['error']}")
+    else:
+        try:
+            await asyncio.to_thread(
+                send_as_watson, contact["email"], "Message from Dr. Bill", content
+            )
+            reply = f"Sent to {contact['name']} via email."
+            await update.message.reply_text(reply)
+            _log_telegram_exchange(f"[forward:email:{name}]", reply)
+        except Exception as exc:
+            log.error("Forward email send failed: %s", exc)
+            await update.message.reply_text(f"Failed: {exc}")
+
+
+async def handle_carrier_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    if not _is_authorized(update):
+        return
+
+    data = query.data
+    from jobs.telegram.pending import mark_done
+
+    pending_id = int(data.split(":")[1])
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT id, payload FROM tg_pending_actions WHERE id=? AND status='pending'",
+            (pending_id,),
+        ).fetchone()
+
+    if not row:
+        await query.edit_message_text("⚠️ Action expired or already resolved.", reply_markup=None)
+        return
+
+    import json as _json
+    payload = _json.loads(row["payload"])
+
+    if data.startswith("carrier_other:"):
+        await query.edit_message_text(
+            f"Reply to this message with {payload['name']}'s carrier (e.g. \"Cricket\")."
+        )
+        return
+
+    carrier = data.split(":", 2)[2]
+    from jobs.sms.carrier_lookup import save_carrier
+    from jobs.sms.sms_send import send_sms
+
+    save_carrier(payload["phone"], carrier, source="manual", confirmed=True)
+    result = await asyncio.to_thread(send_sms, payload["name"], payload["phone"], carrier, payload["message"])
+    mark_done(pending_id)
+    if result["success"]:
+        await query.edit_message_text(
+            f"✅ Carrier set to {carrier}. Text sent to {payload['name']}.", reply_markup=None
+        )
+    else:
+        await query.edit_message_text(
+            f"Carrier saved ({carrier}), but send failed: {result['error']}", reply_markup=None
+        )
 
 
 async def _route_tg_pending_reply(
@@ -1715,6 +2018,17 @@ async def _route_tg_pending_reply(
     if action_type == "pastoral_note":
         from jobs.pastoral_notes.handler import handle_notes_reply
         await handle_notes_reply(text)
+        mark_done(pending_id)
+        return True
+
+    if action_type == "curator_edit":
+        from jobs.curator.actions import apply_edit_reply
+        book_id = payload.get("book_id")
+        book = await asyncio.to_thread(apply_edit_reply, book_id, text)
+        if book:
+            await update.message.reply_text(f"✅ Updated & confirmed: {book['title']}")
+        else:
+            await update.message.reply_text("Couldn't find that book anymore.")
         mark_done(pending_id)
         return True
 
@@ -1792,6 +2106,46 @@ async def _route_tg_pending_reply(
         mark_done(pending_id)
         return True
 
+    if action_type == "forward_medium_clarify":
+        name = payload.get("name")
+        mode = payload.get("mode")
+        content = payload.get("content")
+        if text_lower in ("cancel", "no", "never mind"):
+            mark_cancelled(pending_id)
+            await update.message.reply_text("Cancelled.")
+            return True
+        if text_lower in ("email", "e-mail"):
+            medium = "email"
+        elif text_lower in ("text", "sms", "text message"):
+            medium = "sms"
+        else:
+            await update.message.reply_text("Email or text?")
+            return True
+        await _forward_to_contact(update, medium, name, mode, content)
+        mark_done(pending_id)
+        return True
+
+    if action_type == "carrier_confirm":
+        if text_lower in ("cancel", "no", "never mind"):
+            mark_cancelled(pending_id)
+            await update.message.reply_text("Cancelled.")
+            return True
+        carrier = text.strip()
+        from jobs.sms.carrier_lookup import save_carrier
+        from jobs.sms.sms_send import send_sms
+        save_carrier(payload["phone"], carrier, source="manual", confirmed=True)
+        result = await asyncio.to_thread(
+            send_sms, payload["name"], payload["phone"], carrier, payload["message"]
+        )
+        if result["success"]:
+            await update.message.reply_text(f"✅ Carrier set to {carrier}. Text sent to {payload['name']}.")
+        else:
+            await update.message.reply_text(
+                f"Carrier saved ({carrier}), but send failed: {result['error']}"
+            )
+        mark_done(pending_id)
+        return True
+
     return False
 
 
@@ -1801,8 +2155,76 @@ async def _execute_pending(update: Update, context: ContextTypes.DEFAULT_TYPE, p
     slot = pending["proposed_slot"]
     pending_id = pending["id"]
 
-    if action_type not in ("block_time", "book_appointment"):
+    if action_type not in (
+        "block_time", "book_appointment", "calendar_busy", "task_done",
+        "reminder_create", "task_create",
+    ):
         await update.message.reply_text("I don't know how to execute that action.")
+        return
+
+    if action_type == "reminder_create":
+        try:
+            with get_connection() as conn:
+                _ensure_reminders_table(conn)
+                conn.execute(
+                    "INSERT INTO reminders (title, due_datetime, reminder_time, status, created_at, updated_at) "
+                    "VALUES (?, ?, ?, 'active', datetime('now'), datetime('now'))",
+                    (params["title"], params.get("due") or "", params.get("reminder_time")),
+                )
+            pending_module.confirm_pending(pending_id)
+            reminder_time = params.get("reminder_time")
+            reply = (
+                f"⏰ Reminder set for {reminder_time}: {params['title']}"
+                if reminder_time else f"⏰ Reminder saved: {params['title']}"
+            )
+            await update.message.reply_text(reply)
+        except Exception as exc:
+            log.error("Reminder create execute failed: %s", exc)
+            pending_module.cancel_pending(pending_id)
+            await update.message.reply_text(f"Error saving reminder: {exc}")
+        return
+
+    if action_type == "task_create":
+        try:
+            with get_connection() as conn:
+                _ensure_tasks_table(conn)
+                conn.execute(
+                    "INSERT INTO tasks (title, due_datetime) VALUES (?, ?)",
+                    (params["title"], params.get("due")),
+                )
+            pending_module.confirm_pending(pending_id)
+            if params.get("due"):
+                await update.message.reply_text(f"✅ Reminder set for {params['title']} on {params['due']}.")
+            else:
+                await update.message.reply_text(f"✅ Got it — added '{params['title']}' to your tasks.")
+        except Exception as exc:
+            log.error("Task create execute failed: %s", exc)
+            pending_module.cancel_pending(pending_id)
+            await update.message.reply_text(f"Error saving task: {exc}")
+        return
+
+    if action_type == "task_done":
+        matched_ids = slot.get("matched_ids", [])
+        matched_titles = slot.get("matched_titles", [])
+        try:
+            if matched_ids:
+                with get_connection() as conn:
+                    _ensure_tasks_table(conn)
+                    placeholders = ",".join("?" for _ in matched_ids)
+                    conn.execute(
+                        f"UPDATE tasks SET status = 'done' WHERE id IN ({placeholders})",
+                        matched_ids,
+                    )
+            pending_module.confirm_pending(pending_id)
+            if len(matched_titles) == 1:
+                await update.message.reply_text(f"✅ Marked done: {matched_titles[0]}")
+            else:
+                listing = "\n".join(f"• {t}" for t in matched_titles)
+                await update.message.reply_text(f"✅ Marked done:\n{listing}")
+        except Exception as exc:
+            log.error("Task done execute failed: %s", exc)
+            pending_module.cancel_pending(pending_id)
+            await update.message.reply_text(f"Error marking tasks done: {exc}")
         return
 
     title = params.get("title") or (
@@ -1815,7 +2237,13 @@ async def _execute_pending(update: Update, context: ContextTypes.DEFAULT_TYPE, p
         end_dt = datetime.fromisoformat(slot["end"])
         display = slot.get("display", "")
 
-        if action_type == "block_time":
+        if action_type == "calendar_busy":
+            from jobs.gcal.gcal_service import mark_busy
+            mark_busy(start_dt, end_dt)
+            pending_module.confirm_pending(pending_id)
+            await update.message.reply_text("🚫 Done — marked rest of today as busy.")
+            return
+        elif action_type == "block_time":
             from jobs.gcal.gcal_service import mark_busy
             mark_busy(start_dt, end_dt, title)
         else:
@@ -2768,10 +3196,111 @@ async def handle_book_callback(update: Update, context: ContextTypes.DEFAULT_TYP
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not _is_authorized(update):
         return
+
+    caption = (update.message.caption or "").strip()
+    if caption.lower().startswith("curator:"):
+        await _handle_curator_photo(update, context, caption[len("curator:"):].strip())
+        return
+
     await update.message.reply_text(
         "📸 Book cover recognition is coming soon.\n\nFor now, use:\n<code>Watson add book: Title by Author</code>",
         parse_mode="HTML"
     )
+
+
+def _parse_curator_title_author(body: str) -> tuple[str | None, str | None]:
+    if not body:
+        return None, None
+    if " by " in body.lower():
+        idx = body.lower().rindex(" by ")
+        return body[:idx].strip(), body[idx + 4:].strip()
+    return body, None
+
+
+async def _handle_curator_text(update: Update, context: ContextTypes.DEFAULT_TYPE, body: str) -> None:
+    """Handle `curator: <title> by <author>` or `curator: <link>` — Curator book submission.
+
+    Enqueues into the same ingest_jobs queue the web app uses (jobs/curator/worker.py)
+    rather than threading ingest_submission directly here — that keeps every entry
+    point processing sequentially through one worker, matching Watson's Ollama setup
+    (serializes requests regardless of concurrency)."""
+    import json as _json
+    from jobs.curator.worker import enqueue_job
+
+    body = body.strip()
+    if not body:
+        await update.message.reply_text("Usage: curator: <title> by <author>  —or—  curator: <link>")
+        return
+
+    link = body if body.lower().startswith(("http://", "https://")) else None
+    title = author = None
+    if not link:
+        title, author = _parse_curator_title_author(body)
+
+    enqueue_job(
+        input_type="link" if link else "text",
+        input_raw=_json.dumps({"title": title, "author": author, "link": link}),
+    )
+    await update.message.reply_text("📚 Looking into that one — I'll ping you when it's ready.")
+
+
+async def _handle_curator_photo(update: Update, context: ContextTypes.DEFAULT_TYPE, caption_body: str) -> None:
+    """Handle a photo sent with a `curator:` caption — cover image submission.
+    Enqueues into the same ingest_jobs queue as the text/link path (see above)."""
+    import json as _json
+    from jobs.curator.worker import enqueue_job
+
+    title, author = _parse_curator_title_author(caption_body.strip())
+
+    photo = update.message.photo[-1]
+    tg_file = await context.bot.get_file(photo.file_id)
+    image_bytes = bytes(await tg_file.download_as_bytearray())
+
+    enqueue_job(
+        input_type="image",
+        input_raw=_json.dumps({"title": title, "author": author}),
+        image_bytes=image_bytes,
+    )
+    await update.message.reply_text("📚 Reading the cover — I'll ping you when it's ready.")
+
+    threading.Thread(target=_run, daemon=True).start()
+
+
+async def handle_curator_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle cur_approve:/cur_edit:/cur_reject: inline button presses."""
+    query = update.callback_query
+    await query.answer()
+    if not _is_authorized(update):
+        return
+
+    from jobs.curator.actions import approve_book, reject_book
+
+    if query.data.startswith("cur_approve:"):
+        book_id = int(query.data[len("cur_approve:"):])
+        book = await asyncio.to_thread(approve_book, book_id)
+        if book:
+            await query.edit_message_text(f"✅ Confirmed: {book['title']} by {book['author']}", reply_markup=None)
+        else:
+            await query.edit_message_text("Book not found.", reply_markup=None)
+
+    elif query.data.startswith("cur_reject:"):
+        book_id = int(query.data[len("cur_reject:"):])
+        book = await asyncio.to_thread(reject_book, book_id)
+        if book:
+            await query.edit_message_text(f"🚫 Rejected: {book['title']}", reply_markup=None)
+        else:
+            await query.edit_message_text("Book not found.", reply_markup=None)
+
+    elif query.data.startswith("cur_edit:"):
+        book_id = int(query.data[len("cur_edit:"):])
+        prompt_msg = await query.message.reply_text(
+            "Reply to THIS message with the correction — start with a digit 0-5 for a new "
+            "spice rating (e.g. \"2 - one closed-door scene ch 14\"), or just send corrected notes."
+        )
+        from jobs.telegram.pending import store_pending_action
+        store_pending_action(
+            "curator_edit", prompt_msg.message_id, {"source_db": "curator", "book_id": book_id}
+        )
 
 
 async def handle_ask(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -2835,10 +3364,22 @@ async def _handle_calendar_day(update: Update, context: ContextTypes.DEFAULT_TYP
 
 
 async def _handle_mark_busy(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    from jobs.gcal.gcal_service import mark_day_busy_from_now
+    from jobs.gcal.gcal_service import NY
+    chat_id = update.effective_chat.id
     try:
-        await asyncio.to_thread(mark_day_busy_from_now)
-        await update.message.reply_text("🚫 Done — marked rest of today as busy.")
+        now = datetime.now(NY)
+        end_of_day = now.replace(hour=23, minute=59, second=0, microsecond=0)
+        display = f"{now.strftime('%-I:%M %p')} – 11:59 PM today"
+        slot = {"available": True, "start": now.isoformat(), "end": end_of_day.isoformat(), "display": display}
+        pending_module.save_pending(chat_id, "calendar_busy", {}, slot)
+        sent = await update.message.reply_text(
+            f"🚫 Mark the rest of today busy?\n\n{display}\n\nReply YES to confirm or NO to cancel."
+        )
+        try:
+            from jobs.telegram.pending import store_pending_action
+            store_pending_action("calendar_booking", sent.message_id, {"chat_id": chat_id})
+        except Exception:
+            pass
     except Exception as exc:
         log.error("Mark busy failed: %s", exc)
         await update.message.reply_text(_calendar_error_text(exc))
@@ -3015,6 +3556,31 @@ async def handle_merge_conflict_callback(update: Update, context: ContextTypes.D
         conn.close()
 
 
+async def handle_benchmark_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle bench_update: / bench_ignore: button taps from benchmark_check.py."""
+    query = update.callback_query
+    await query.answer()
+
+    if not _is_authorized(update):
+        return
+
+    from jobs.research.benchmark_check import apply_update, ignore_source
+
+    data = query.data  # e.g. "bench_update:7" / "bench_ignore:7"
+    action, id_str = data.split(":", 1)
+    source_id = int(id_str)
+
+    try:
+        result = apply_update(source_id) if action == "bench_update" else ignore_source(source_id)
+        prefix = "✅" if result["ok"] else "❌"
+        await query.edit_message_text(
+            f"{query.message.text}\n\n{prefix} {result['msg']}", reply_markup=None
+        )
+    except Exception as exc:
+        log.error("benchmark callback failed (id=%d action=%s): %s", source_id, action, exc)
+        await query.edit_message_text(f"❌ Error: {exc}", reply_markup=None)
+
+
 async def handle_member_conflict_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle mc_same / mc_diff / mc_update_email / mc_keep_sep / mc_skip button taps."""
     query = update.callback_query
@@ -3110,6 +3676,107 @@ async def handle_member_conflict_callback(update: Update, context: ContextTypes.
         await query.edit_message_text(f"❌ Error: {exc}", reply_markup=None)
     finally:
         conn.close()
+
+
+# ── Batch member update (cdb: mark ...) ──────────────────────────────────────
+
+def _batch_update_message(pending_id: int):
+    """Return (text, InlineKeyboardMarkup|None) for the current state of a pending batch update."""
+    from jobs.connect_cards.batch_update import (
+        get_pending, current_ambiguous, format_ambiguous_prompt, format_preview,
+    )
+    pending = get_pending(pending_id)
+    if not pending:
+        return "Batch update not found.", None
+
+    entry = current_ambiguous(pending)
+    if entry:
+        text = format_ambiguous_prompt(entry)
+        buttons = [
+            InlineKeyboardButton(f"{i}) {c['name']}", callback_data=f"bu_pick:{pending_id}:{i}")
+            for i, c in enumerate(entry["candidates"], 1)
+        ]
+        rows = [buttons[i:i + 2] for i in range(0, len(buttons), 2)]
+        rows.append([InlineKeyboardButton("Skip", callback_data=f"bu_pick:{pending_id}:skip")])
+        return text, InlineKeyboardMarkup(rows)
+
+    text = format_preview(pending)
+    keyboard = InlineKeyboardMarkup([[
+        InlineKeyboardButton("✅ Confirm & Apply", callback_data=f"bu_confirm:{pending_id}"),
+        InlineKeyboardButton("❌ Cancel", callback_data=f"bu_cancel:{pending_id}"),
+    ]])
+    return text, keyboard
+
+
+async def _handle_batch_mark(update: Update, context: ContextTypes.DEFAULT_TYPE, darg: str) -> None:
+    """Handle a 'cdb: mark ...' directive — resolves names, then walks the
+    Bill through ambiguous picks and a final confirm via inline buttons."""
+    from jobs.connect_cards.batch_update import (
+        parse_mark_command, validate_value, batch_update_members, create_pending,
+    )
+    parsed = await asyncio.to_thread(parse_mark_command, darg)
+    if parsed is None:
+        await update.message.reply_text("Not a recognized mark command.")
+        return
+    if "error" in parsed:
+        await update.message.reply_text(parsed["error"])
+        return
+    err = validate_value(parsed["field"], parsed["value"])
+    if err:
+        await update.message.reply_text(err)
+        return
+
+    resolution = await asyncio.to_thread(
+        batch_update_members, parsed["field"], parsed["value"], parsed["names"]
+    )
+    pending_id = await asyncio.to_thread(
+        create_pending, parsed["field"], parsed["value"], parsed["value_display"], resolution, "telegram"
+    )
+    text, keyboard = _batch_update_message(pending_id)
+    await update.message.reply_text(text, reply_markup=keyboard)
+
+
+async def handle_batch_update_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle bu_pick / bu_confirm / bu_cancel button taps for batch member updates."""
+    query = update.callback_query
+    await query.answer()
+
+    if not _is_authorized(update):
+        return
+
+    from jobs.connect_cards.batch_update import (
+        resolve_current_ambiguous, finalize_pending, cancel_pending,
+    )
+
+    data = query.data
+    if data.startswith("bu_pick:"):
+        _, pending_id_s, choice = data.split(":", 2)
+        pending_id = int(pending_id_s)
+        result = await asyncio.to_thread(resolve_current_ambiguous, pending_id, choice)
+        if isinstance(result, dict) and "error" in result:
+            await query.edit_message_text(result["error"], reply_markup=None)
+            return
+        text, keyboard = _batch_update_message(pending_id)
+        await query.edit_message_text(text, reply_markup=keyboard)
+
+    elif data.startswith("bu_confirm:"):
+        pending_id = int(data[len("bu_confirm:"):])
+        result = await asyncio.to_thread(finalize_pending, pending_id, "Bill (Telegram)")
+        if result["errors"]:
+            await query.edit_message_text(
+                "Batch update failed:\n" + "\n".join(result["errors"]), reply_markup=None
+            )
+            return
+        lines = [f"Applied {len(result['applied'])} update(s):"]
+        for a in result["applied"]:
+            old = a["old_value"] if a["old_value"] not in (None, "") else "(none)"
+            lines.append(f"  {a['name']}: {old} → {a['new_value']}")
+        await query.edit_message_text("\n".join(lines), reply_markup=None)
+
+    elif data.startswith("bu_cancel:"):
+        pending_id = int(data[len("bu_cancel:"):])
+        await asyncio.to_thread(cancel_pending, pending_id)
+        await query.edit_message_text("Cancelled.", reply_markup=None)
 
 
 # ── Dev Loop handlers ─────────────────────────────────────────────────────────
@@ -3218,6 +3885,75 @@ async def handle_devloop_callback(update: Update, context: ContextTypes.DEFAULT_
         )
 
 
+async def handle_git_sync_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle gs_pull:/gs_skip: button taps from jobs/dev/git_sync.py's needs-decision alerts."""
+    query = update.callback_query
+    await query.answer()
+
+    if not _is_authorized(update):
+        return
+
+    data = query.data or ""
+    if data.startswith("gs_pull:"):
+        action = "pull"
+        pending_id = int(data[len("gs_pull:"):])
+    elif data.startswith("gs_skip:"):
+        action = "skip"
+        pending_id = int(data[len("gs_skip:"):])
+    else:
+        return
+
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT id, type, payload FROM tg_pending_actions WHERE id=? AND status='pending'",
+            (pending_id,),
+        ).fetchone()
+
+    if not row:
+        await query.edit_message_text("⚠️ Action expired or already resolved.", reply_markup=None)
+        return
+
+    payload = json.loads(row["payload"])
+    repo_path = payload["repo_path"]
+    repo_name = payload["repo_name"]
+
+    from jobs.telegram.pending import mark_done
+
+    if action == "skip":
+        mark_done(pending_id)
+        await query.edit_message_text(f"Skipped — {repo_name} left as-is.", reply_markup=None)
+        return
+
+    import subprocess
+
+    def _run_git(args):
+        return subprocess.run(["git"] + args, cwd=repo_path, capture_output=True, text=True)
+
+    rebase = await asyncio.to_thread(_run_git, ["pull", "--rebase"])
+
+    if rebase.returncode != 0:
+        await asyncio.to_thread(_run_git, ["rebase", "--abort"])
+        mark_done(pending_id)
+        await query.edit_message_text(
+            f"❌ {repo_name} has a real conflict — can't auto-resolve. "
+            f"SSH in: cd {repo_path}, git status",
+            reply_markup=None,
+        )
+        return
+
+    push = await asyncio.to_thread(_run_git, ["push", "origin", "main"])
+    mark_done(pending_id)
+
+    if push.returncode != 0:
+        await query.edit_message_text(
+            f"⚠️ {repo_name} rebased but push failed:\n{push.stderr.strip()[:300]}",
+            reply_markup=None,
+        )
+        return
+
+    await query.edit_message_text(f"✅ {repo_name} synced and pushed", reply_markup=None)
+
+
 def main():
     if not TELEGRAM_BOT_TOKEN:
         raise RuntimeError("TELEGRAM_BOT_TOKEN is not set in .env")
@@ -3248,17 +3984,22 @@ def main():
     app.add_handler(CommandHandler("saved",       handle_saved))
     app.add_handler(CommandHandler("ask",         handle_ask))
     app.add_handler(CallbackQueryHandler(handle_devloop_callback,         pattern=r"^devloop_"))
+    app.add_handler(CallbackQueryHandler(handle_git_sync_callback,        pattern=r"^gs_"))
     app.add_handler(CallbackQueryHandler(handle_merge_conflict_callback,  pattern=r"^(merge_old_|merge_new_|skip_|different_)\d+$"))
+    app.add_handler(CallbackQueryHandler(handle_benchmark_callback, pattern=r"^bench_(update|ignore):\d+$"))
     app.add_handler(CallbackQueryHandler(handle_member_conflict_callback, pattern=r"^mc_"))
+    app.add_handler(CallbackQueryHandler(handle_batch_update_callback, pattern=r"^bu_"))
     app.add_handler(CallbackQueryHandler(handle_command_callback, pattern=r"^cmd_"))
     app.add_handler(CallbackQueryHandler(handle_vault_callback,   pattern=r"^vault_"))
     app.add_handler(CallbackQueryHandler(handle_acquire_callback, pattern=r"^acquire_"))
     app.add_handler(CallbackQueryHandler(handle_reject_callback, pattern=r"^reject:"))
     app.add_handler(CallbackQueryHandler(handle_room_callback, pattern=r"^room_(?:approve|deny):"))
+    app.add_handler(CallbackQueryHandler(handle_curator_callback, pattern=r"^cur_(?:approve|edit|reject):"))
     app.add_handler(CallbackQueryHandler(handle_meeting_pattern_callback, pattern=r"^mtp_(approve|reject):"))
     app.add_handler(CallbackQueryHandler(handle_facebook_image_callback, pattern=r"^fb_img_(?:approve|regen|discard):"))
     app.add_handler(CallbackQueryHandler(handle_facebook_callback, pattern=r"^fb_"))
     app.add_handler(CallbackQueryHandler(handle_email_triage_callback, pattern=r"^et_"))
+    app.add_handler(CallbackQueryHandler(handle_carrier_callback, pattern=r"^carrier_"))
     app.add_handler(CallbackQueryHandler(handle_email_callback, pattern=r"^email_"))
     app.add_handler(CallbackQueryHandler(handle_book_callback, pattern=r"^book_"))
     app.add_handler(CallbackQueryHandler(handle_menu_callback, pattern=r"^menu_"))

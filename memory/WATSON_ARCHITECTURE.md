@@ -1,5 +1,5 @@
 # Watson Architecture
-*Single source of truth. Last updated: July 13, 2026.*
+*Single source of truth. Last updated: July 18, 2026.*
 *Claude Code must read this file before any build.*
 
 ---
@@ -30,15 +30,57 @@ Watson acts on Dr. Bill's behalf under his supervision. Always identified openly
 - **SSH:** `ssh billyomes@watson` or `ssh billyomes@192.168.1.204`
 - **Tailscale Funnel:** `https://watson.tail0243ff.ts.net` → publicly reachable → proxies to `http://localhost:5200`
 - **Dashboard:** Flask app, port 5200, `watson-dashboard.service`
-- **Ollama:** Bound to `0.0.0.0`. Models: `llama3.2:3b` (primary chat/intent), `qwen2.5-coder:7b` (Dev Loop, KB, structured reasoning), `phi3:mini` (background tasks), `gemma3:1b` (fast/lightweight)
+- **Ollama:** Bound to `0.0.0.0`. Models: `llama3.2:3b` (primary chat/intent), `qwen2.5-coder:7b` (Dev Loop, KB, structured reasoning), `qwen2.5:7b` (accuracy-sensitive background jobs — pastoral notes, email drafts, task/goal extraction, State of Church synthesis, skill/capability audits), `phi3:mini` (background tasks), `gemma3:1b` (fast/lightweight)
 
 ### FMSPC — Windows Desktop (GPU Tasks Only)
 
 - **Specs:** RTX 3070 Ti (8GB VRAM), 128GB RAM
-- **Role:** Whisper transcription, large-model Ollama inference
+- **Role:** Whisper transcription only.
 - **Whisper:** faster-whisper, Whisper Large-v3
-- **Ollama:** `qwen2.5:14b` (accuracy-sensitive jobs: pastoral notes, email drafts, shepherding reports)
 - **Not always-on.** FMSPC env vars left in `.env` for future use.
+- **⚠️ FMSPC is excluded from Watson's automated job loop, permanently — standing
+  decision, not a temporary state.** No cron job, Telegram-triggered job, or
+  dashboard-triggered job may call an Ollama model hosted on FMSPC. Every
+  automated Ollama call must target the Beelink's own `localhost:11434` with a
+  model sized for the Beelink (32GB RAM, no dedicated GPU) — see LLM Stack
+  below. Root cause history: `qwen2.5:14b` (9GB, 14.8B params) was originally
+  routed to FMSPC for "accuracy-sensitive" jobs, but FMSPC isn't always on, so
+  in practice those jobs silently fell back to requesting `qwen2.5:14b` against
+  the Beelink's own `localhost:11434` instead — loading a model that heavy into
+  the Beelink's RAM starved concurrent Ollama calls (e.g. simple intent
+  classification) of scheduling priority, causing intermittent multi-second-to-
+  60+-second hangs across unrelated Telegram queries. Traced and fixed
+  2026-07-16 (12 files moved to `qwen2.5:7b` on the Beelink); this note exists
+  because the fix has been lost between sessions once already — if a future
+  build proposes routing any automated job to FMSPC, that is the bug, not a
+  valid solution.
+
+  **2026-07-17 update:** `OLLAMA_MAX_LOADED_MODELS` was raised from `1` to `3`
+  today (`/etc/systemd/system/ollama.service.d/override.conf`). This fixes
+  *part* of the original hang mechanism — with `=1`, requesting a second model
+  while a heavy one was loaded forced an evict-and-reload cycle (cold loads
+  measured 22–80s in `memory/model_benchmark_20260715.md`), which was likely
+  the dominant cause of the observed 60+-second stalls. With `=3`, the intent
+  classifier and a heavy background-job model can now stay resident
+  simultaneously without thrashing.
+
+  **This does NOT fully resolve the original risk.** `OLLAMA_NUM_PARALLEL` is
+  still `1` — Ollama still serializes all generate requests one at a time,
+  system-wide, regardless of how many models are resident in memory. A
+  long-running call on a heavy model still blocks every other Ollama request
+  (including intent classification) for its full duration.
+
+  Because of that gap, `qwen2.5:14b` remains off every Beelink job for now —
+  **not because the 2026-07-16 fix failed**, but because concurrent-load
+  behavior was never re-tested after the `MAX_LOADED_MODELS` change. (A
+  same-day attempt to reintroduce `qwen2.5:14b` into `state_of_church.py` and
+  `draft_email.py` was made and then reverted before being committed — see the
+  commit that added this note.) Before `qwen2.5:14b` is reconsidered for any
+  job, someone needs to actually test it under real concurrent load: fire a
+  real Telegram message through `classify()` while a long `qwen2.5:14b` call
+  is mid-run, and confirm `classify()`'s 10s timeout/fallback (bug #20,
+  `56d60dd`) behaves correctly under that real contention — not just in
+  isolation.
 
 ### PBLaptop — Windows Laptop
 
@@ -137,13 +179,25 @@ Deploy pattern: `cd ~/watson && git pull && sudo systemctl restart watson-bot.se
 |-------|------|-----|
 | Claude.ai | This interface | Strategy, architecture, spec, writing |
 | Claude Code | `--dangerously-skip-permissions` on Beelink | File editing, building, committing |
-| `llama3.2:3b` | Beelink Ollama | Primary Watson chat, intent classification, session summarization |
+| `llama3.2:3b` | Beelink Ollama | Primary Watson chat (Telegram general-chat fallback), session summarization |
+| `gemma3:4b` | Beelink Ollama | Intent classification (Telegram only, `jobs/intent/classifier.py`) — swapped from `llama3.2:3b` 2026-07-17 (bug #20, `56d60dd`); `keep_alive=30m` plus `jobs/intent/keep_warm.py` cron (every 4 min) keep it resident |
 | `qwen2.5-coder:7b` | Beelink Ollama | Dev Loop, KB search, structured reasoning |
+| `qwen2.5:7b` | Beelink Ollama | Accuracy-sensitive background jobs: pastoral notes, meeting/note task+goal extraction, email drafts, State of Church synthesis, skill/capability audits, elder-review meeting summaries |
 | `phi3:mini` | Beelink Ollama | Background tasks |
 | `gemma3:1b` | Beelink Ollama | Fast/lightweight queries |
-| `qwen2.5:14b` | FMSPC Ollama | Accuracy-sensitive: pastoral notes, email drafts, shepherding, State of Church synthesis |
 
 **No Claude API calls in automated Watson jobs.** Ollama handles all automated inference.
+
+**Retired — `qwen2.5:14b` (FMSPC Ollama):** was listed here for "accuracy-sensitive"
+jobs, but FMSPC isn't always on, so those jobs actually ran `qwen2.5:14b` against
+the *Beelink's* `localhost:11434` — a 9GB/14.8B-param model too heavy for the
+Beelink, which starved concurrent Ollama calls and caused intermittent
+multi-second-to-60+-second hangs (root-caused 2026-07-16). Replaced by
+`qwen2.5:7b` on the Beelink across all 12 call sites. See the FMSPC note under
+Hardware — FMSPC is excluded from the automated job loop entirely, permanently.
+Still off every Beelink job as of 2026-07-17 despite that day's
+`OLLAMA_MAX_LOADED_MODELS` bump — see the 2026-07-17 update under the FMSPC
+note for why that change isn't sufficient on its own to bring it back.
 
 ---
 
@@ -319,7 +373,8 @@ Private community hub for Writing Room Partners (invitation-only, earned via ARC
 ## The Wrong Jesus (Book)
 
 - **Status:** Manuscript complete. Reader retired from `/twj/read` (2026-07-01, TWJ/ARC consolidation) — now read via ARC manuscript reader at `/arc/dashboard`.
-- **Manuscript time-lock** (`src/lib/launch-dates.ts`): unlocks 2026-07-15, closes 2026-09-15 (pinned to `TWJ_LAUNCH_DATE`). Admin-preview bypass (`is_admin_preview`) available to view outside the window.
+- **Manuscript time-lock** (`src/lib/launch-dates.ts`): unlocks 2026-07-15, closes 2026-09-14 (standalone constant, 2 hours before `TWJ_LAUNCH_DATE`, not pinned to it). Admin-preview bypass (`is_admin_preview`) available to view outside the window.
+- **Manuscript gate enforcement:** Manuscript access is gated server-side via Next.js SSR in `wcky/src/app/arc/dashboard/page.tsx` (`getManuscriptStatus()`). The Watson Python backend (`jobs/arc/`) has no manuscript-serving route and is not part of this gate. Verified 2026-07-14.
 - **Launch page:** `williamckyomes.com/thewrongjesus` — countdown timer, Kit signup
 - **Launch page pending:** `KIT_API_KEY` + `KIT_TWJ_TAG_ID` Vercel env vars; `GIVEBUTTER_LINK`; `AMAZON_LINK`; flip `AMAZON_LIVE=true` at preorder
 - **Press kit:** `williamckyomes.com/twj/press`
@@ -344,9 +399,44 @@ Private community hub for Writing Room Partners (invitation-only, earned via ARC
 ### Dashboard Routing
 - SSE streaming via `/api/chat/stream`
 - Skills execute immediately (no confirmation gate in dashboard)
-- Telegram executes skills immediately (no gate)
+- Telegram executes skills immediately (no gate) — this refers to `_SKILL_PRE_CHECKS`-dispatched
+  skills only (routing stages 2–4 below). The six classifier-stage write intents (stage 5) are a
+  separate mechanism and **do** have a confirmation gate — see Confirmation Gate below.
 - Session summaries stored in `memory_sessions`; injected into system prompt on next session
-- 10 directive prefixes routed to `/api/terminal`: `cdb:`, `wdb:`, `web:`, `bible:`, `polish:`, `polish this:`, `kb:`, `build:`, `debug:`, `run:`
+- `/api/terminal` is a **separate manual command-console endpoint**, not the chat path —
+  handles its own prefix set: `cdb:`, `wdb:`, `web:`, `bible:`, `polish:`, `polish this:`,
+  `kb:`, `build:`, `debug:`, `run:`, plus `_TERM_COMMANDS` lookups
+- `/api/chat/stream` (the actual chat path) independently reimplements its own early
+  prefix intercepts — `cdb:`, `wdb:`, `web:`, `bible:`, `polish:`, `bug:`, `gutenberg:`,
+  `classics:`, `build:`, `debug:`, `run:` — plus separate natural-language KB triggers
+  ("search kb", "search my notes", etc.) and a time-query intercept, all ahead of the
+  identity/factual/conversational checks and the shared router fallback. **All of these
+  prefixes also exist on Telegram** via `_DIRECTIVE_PREFIXES` (see Telegram Bot) except
+  `build:`, which has a Telegram equivalent under a different name (`devloop:`) — this
+  list duplicates Telegram's, it is not a smaller subset of it.
+- Anything not caught by the above falls through to `_router.route(message, "dashboard")`
+  — see Shared Routing Module below.
+
+### Shared Routing Module (`jobs/skillbuilder/router.py`)
+`route(message: str, interface: str) -> dict` is the shared, interface-agnostic routing
+core both `bot.py` and `/api/chat/stream` call directly (`_router.route(text, "telegram")`
+and `_router.route(message, "dashboard")`). It owns `_SKILL_PRE_CHECKS` (19 entries — not
+Telegram-specific despite living conceptually under "Telegram routing" in past docs),
+`_BUILD_TRIGGERS`, `_AUDIT_TRIGGERS`, skill-trigger matching, and the LLM-based
+`SKILL:`/`LIST_SKILLS`/`BUILD`/`PROPOSE`/`WRAP_UP`/`CHAT` fallback. No Telegram objects,
+chat IDs, or reply-threading leak into it — **this already is the shared pipeline; a
+future session should not assume "unifying routing" means building this from scratch.**
+
+Both channels layer their own prefix-interception in front of it, and those layers have
+drifted into real duplication rather than a capability gap: **Telegram has three
+overlapping mechanisms** (`_DIRECTIVE_PREFIXES` → its own `_SKILL_PRE_CHECKS` pre-check
+loop → `route()`'s internal `_SKILL_PRE_CHECKS` recheck); **dashboard has two** (its own
+early intercepts → `route()`). Several prefixes (`cdb:`, `kb:`, `polish this:`,
+`gutenberg:`, `classics:`, `debug:`) are matched redundantly by two or three layers on
+Telegram alone. Consolidating all of this into one canonical prefix/trigger table both
+channels read from is the actual routing-unification task — see Known capability gap
+under Telegram Bot for what's genuinely missing (very little) versus merely duplicated
+(most of it).
 
 ### Member Management (More tab)
 - Full member list with search
@@ -361,10 +451,95 @@ Private community hub for Writing Room Partners (invitation-only, earned via ARC
 - Primary away interface
 - **Intent routing order in `bot.py`:**
   1. Pending action check (reply threading via `tg_pending_actions`)
-  2. Explicit command pre-checks (`_SKILL_PRE_CHECKS`) — 18 unambiguous triggers
-  3. Skill router (explicit skill slugs)
-  4. Ollama intent classifier (`llama3.2:3b`)
-  5. General Ollama chat fallback
+  2. `_DIRECTIVE_PREFIXES` colon-prefix intercepts (`bot.py` ~line 618) — 15 prefixes:
+     `cdb:`, `wdb:`, `kb:`, `web:`, `task:`, `note:`, `remind:`, `sms:`, `polish:`,
+     `bible:`, `devloop:`, `bug:`, `gutenberg:`, `classics:`, `fireflies:`.
+     Highest-priority, Telegram-only mechanism, checked before anything else.
+  3. `bot.py`'s own pre-check loop over `_SKILL_PRE_CHECKS` (19 triggers, not 18 — see
+     Shared Routing Module under Watson Dashboard) — dispatches 10 of those slugs to
+     Telegram-specific rich handlers. Several triggers here (`cdb:`, `kb:`,
+     `polish this:`, `gutenberg:`, `classics:`, `debug:`) duplicate stage 2 or 4.
+  4. `_router.route(text, "telegram")` — the same shared module dashboard calls;
+     re-checks `_SKILL_PRE_CHECKS` plus build/audit/wrap-up/identity/factual/skill-trigger
+     logic and an LLM fallback
+  5. Ollama intent classifier (`gemma3:4b`, not `llama3.2:3b` — see LLM Stack) —
+     **Telegram-only, no dashboard equivalent.** Handles `contact_lookup`,
+     `calendar_query`, `calendar_busy`, `calendar_availability`, `block_time`,
+     `book_appointment`, `reminder_create`, `task_create`, `task_list`, `task_done`,
+     `image_search`.
+  6. General Ollama chat fallback (`llama3.2:3b`)
+
+  Stages 2–4 overlap heavily — three separate mechanisms each independently re-match
+  `cdb:`/`kb:`/`polish this:`/`gutenberg:`/`classics:`/`debug:`. This is duplication,
+  not a capability gap; slated for consolidation into one canonical table (see Shared
+  Routing Module).
+
+### Confirmation Gate (classifier-stage write intents)
+
+Of the 10 intents the stage-5 Ollama classifier can return, six perform a write and all
+six now require an explicit **YES/NO reply before anything is written** — `contact_lookup`,
+`calendar_query`, `calendar_availability`, `task_list`, and `image_search` are read-only
+and were never gated (nothing to confirm).
+
+| Intent | Gated | Bug | Reason |
+|--------|-------|-----|--------|
+| `block_time` | Yes | pre-existing | Writes to Google Calendar |
+| `book_appointment` | Yes | pre-existing | Writes to Google Calendar + sends email |
+| `calendar_busy` | Yes | #31 (2026-07-18) | Writes to Google Calendar — real safety fix; a skill-router timeout fell through to the classifier, misfired `calendar_busy`, and blocked the rest of a live day with zero confirmation before this fix |
+| `task_done` | Yes | #32 (2026-07-18) | Fuzzy `LIKE %title%` `UPDATE` against existing tasks — real safety fix; an ungated misfire could silently mark unrelated/multiple tasks done with no visibility into what matched |
+| `reminder_create` | Yes | #33 (2026-07-18) | Consistency addition, not a safety fix — an ungated `INSERT` is additive and trivially reversible, gated anyway for UX consistency |
+| `task_create` | Yes | #33 (2026-07-18) | Same as `reminder_create` — consistency, not safety |
+
+**Mechanism:** each handler (`_handle_block_time`, `_handle_book_appointment`,
+`_handle_mark_busy`, `_handle_task_done`, `_handle_reminder_create`, `_handle_task_create`
+in `bot.py`) builds a display string describing what it's about to do, calls
+`pending_module.save_pending(chat_id, action_type, params, proposed_slot)`
+(`jobs/gcal/pending.py`, `pending_actions` table — despite the module's `gcal` naming and
+the `proposed_slot` field name, it's the generic single-pending-action-per-chat store used
+by all six, not calendar-specific), and replies with a `Reply YES to confirm or NO to
+cancel` prompt. `store_pending_action("calendar_booking", sent.message_id, ...)`
+(`jobs/telegram/pending.py`, `tg_pending_actions` table) additionally threads the prompt
+for Telegram's reply-to-message flow. A bare "yes"/"no" (checked in `bot.py`'s top-level
+pre-check, not reply-threaded) or a threaded reply to the prompt both route to the same
+`pending_module.get_pending(chat_id)` → `_execute_pending()` (YES) /
+`pending_module.cancel_pending()` (NO) pair — `_execute_pending` dispatches on
+`action_type` and only performs the actual write (Calendar API call or DB `INSERT`/`UPDATE`)
+inside that function, never inside the `_handle_*` entry point. Adding a new gated write
+intent means: build a display string in the handler, `save_pending()` instead of writing
+directly, add a branch to `_execute_pending()`'s allowed-`action_type` tuple and dispatch —
+no new infra required.
+
+**Known capability gap (2026-07-17 routing audit, corrected):** of the classifier-stage
+intents above, only **`block_time`** and **`calendar_availability`** have no dashboard
+path at all. Everything else — including every `_DIRECTIVE_PREFIXES` colon-prefix
+(`wdb:`, `bug:`, `web:`, `polish:` included) — is already reachable from both channels,
+just via inconsistent syntax and duplicated code paths rather than a real gap.
+`contact_lookup` and `reminder_create` are independently reimplemented in dashboard's
+`/api/chat/stream`; `book_appointment` and `calendar_busy` exist as dedicated dashboard
+REST endpoints/UI rather than chat intents. `build:` (dashboard) and `devloop:`
+(Telegram) trigger the identical Dev Loop function under different spellings — a naming
+mismatch, not a gap.
+
+---
+
+## Contact Resolution
+
+`jobs/people/lookup.py::lookup_member(query, chat_id=None)` is the shared name-to-contact
+resolver — searches `congregation.db` then `watson.db` `people`, four-step cascade (exact →
+full phrase → last name → first name), each step a `LIKE` fuzzy match.
+
+**Self-alias short-circuit:** `me`, `myself`, `my number`, `my phone` (case-insensitive,
+whitespace-trimmed) never go through the fuzzy cascade — they resolve directly via exact
+name match to the canonical owner record (`watson.db` `people.id=7`, "Bill Yomes"),
+regardless of caller/channel. Originally gated on a Telegram `chat_id` match against
+`people.telegram_chat_id` (`424af55`, 2026-07-17) — that gate meant any dashboard caller
+(no `chat_id` to pass) fell through to fuzzy matching instead, which is unsafe: a fuzzy
+`LIKE` search on "me" or on a mis-extracted fragment like "that to" can match an unrelated
+substring (e.g. "Venuto" contains "to") and silently pick the wrong contact. Fixed 2026-07-18
+(bug #34) — dropped the `chat_id` gate entirely; the short-circuit is now unconditional and
+channel-agnostic. Any new caller resolving a recipient/contact string should check for
+self-aliases through this same function rather than reinventing the check, or the same
+failure mode reappears.
 
 ---
 
@@ -947,3 +1122,139 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - ddabe9b fix: match More tab spacing above tile grid to grid's internal row-gap
 - 85e044f docs: file map 2026-07-12
 - 084928c docs: architecture update 2026-07-12
+
+---
+
+## Recent Changes — 2026-07-14
+
+### ~/watson
+- e627581 fix: require X-Watson-Key auth on /api/book-appointment now that it's reachable via public Funnel
+- b90e6ee docs: update Mon/Tue email report schedule, Kaci added to missed report
+- c1438a5 docs: architecture update 2026-07-13 (auto-generated, recovered from failed push)
+- cd01708 feat: add Kaci as recipient to missed attendance report
+- 4aa5df2 docs: file map 2026-07-13
+- 8aa85a2 docs: architecture update 2026-07-13
+
+### ~/wcky
+- 8592963 fix: Pastor Bill to Dr. Bill on /meet page
+- 395c951 feat: remove 60-minute duration option from /meet booking
+- 5c43aaa copy: /meet confirmation email says Dr. Bill, not Pastor Bill
+- 0b7cfe2 fix: /meet OG/Twitter preview image never rendered — wrong image + broken redirect
+- d006f60 fix: guard /meet booking against double-submit with a synchronous ref
+- a0c49d5 fix: /meet booking store call was hitting an unreachable Tailscale IP
+
+---
+
+## Recent Changes — 2026-07-15
+
+### ~/watson
+- e505d95 feat: gutendex.service unit file for self-hosted Gutenberg catalog API
+- 4331504 docs: document ARC manuscript gate enforcement point + close date fix
+- 852d533 fix: elder-review auto-created tasks used category='elders', invisible to Donna's Team Admin
+- 4bfc6e4 fix: Save button on meeting review page gave no confirmation on click
+- 127f3b4 fix: elder-review Ollama structured JSON timeout, and fallback item merging
+- ba129a2 feat: Meeting Reviews list page + More menu entry
+- e9cec07 feat: auto-create team_tasks on Approve & Send for tracked elder-review owners
+- 9030702 feat: restrict elder-review owner dropdown/fuzzy-match to 8 named people
+- c1a3fe6 feat: dashboard review-and-edit page for elder meeting reviews
+- b5cd088 feat: adapt elder_review.py template for the dashboard-editable review schema
+- 824dc7c feat: fireflies_review.py pipeline -> dashboard-review-first flow
+- 607977b feat: meeting_reviews + meeting_review_action_items schema (watson.db)
+- 6af28f9 feat: professional HTML template + live preview for elders review emails
+- cddd0ca fix: fireflies: directive times out — 60s Ollama timeout + 15s handle_text wrapper
+- bd17d25 feat: manual trigger for the Fireflies elder-review pipeline
+- 139ec1d feat: add deacon and partner quick-add buttons to Member Management Roles
+- 7a9c3f3 fix: Fireflies webhook reads "event" key, not "eventType"
+- db423b8 fix: Fireflies webhook signature always rejected — unstripped sha256= prefix
+- 2427104 fix: Home dashboard task list missing priority/due-date edit controls
+- 57d027f feat: Fireflies.ai elder meeting review pipeline
+- 17e39c8 feat: leadership role tagging — leadership_roles table + Member Management Roles control
+- 05dacf1 fix: team task priority editing blocked by category gate + isBill UI gate
+- 512a0b0 Merge branch 'main' of https://github.com/byomes/watson
+- af0d702 fix: remove Kaci as recipient of prayer requests report, keep attendance report
+- be18664 docs: file map 2026-07-14
+- 7cf5642 docs: architecture update 2026-07-14
+
+### ~/wcky
+- df6c4e1 feat: show countdown + commitments list on ARC dashboard pre-unlock
+- 6ed2384 docs: note manuscript gate enforcement lives in SSR page, not Watson backend
+- b39728c Close ARC manuscript access the night before launch, not at launch instant
+- abc3908 Push ARC manuscript unlock time to 8am Eastern
+- beea900 publish: The Dry Ground Is Under Your Feet Only After You Step In
+
+---
+
+## Recent Changes — 2026-07-16
+
+### ~/watson
+- d8c0c50 feat: SMS carrier lookup + email-to-SMS gateway with manual-confirm fallback
+- d124dc1 fix: raise ask.py synthesize() timeout to 240s — cold-start qwen2.5-coder:7b load exceeded 120s
+- be7ab8c fix: router.py accuracy fix (qwen2.5-coder:7b), resolve bug #18 — ask.py KB search model swap
+- 25963e3 chore: retire dead files with unreferenced qwen2.5:14b calls (page_generator.py, content_calendar.py)
+- 4f113cc fix: route model calls off qwen2.5:14b — llama3.2:1b for classification, qwen2.5-coder:7b for code-adjacent tasks, FMSPC fully removed from architecture
+- 7985876 feat: add partnership_status field (Guest/Regular Attender/Partner) to members
+- 4157354 fix: correct Writing Room email sign-offs to Watson (arc welcome + call reminder)
+- d15acdf feat: ARC self-service forgot-password + split email templates
+- 7a7aec0 feat: Batch Update Members panel + read-only alias display (Member Management)
+- f6bf51b feat: batch member update engine + per-member nickname aliases (cdb: mark / alias)
+- 1fd5e8a docs: file map 2026-07-15
+- 7a35db2 docs: architecture update 2026-07-15
+
+### ~/wcky
+- 35f83da feat: ARC self-service forgot-password page
+
+---
+
+## Recent Changes — 2026-07-17
+
+### ~/watson
+- 528de38 feat: display-only name title-case formatter, wired into missed/shepherding reports; add find_malformed_names.py audit script
+- ac37973 fix: state_of_church.py — range-verdict comparison bug, timeout bump, display-name formatting
+- 167eaca feat: state_of_church.py — rolling avg trend band, seasonal caveats, benchmarks context in synthesis prompt
+- f8184c3 feat: weekly church attendance benchmark check — Serper scan, Telegram approval, benchmarks.md doc
+- 39e1082 fix: replace qwen2.5:14b with qwen2.5:7b across all Beelink jobs (root cause of intermittent hangs), update architecture doc
+- 1eebd86 fix: remove redundant partner role chip (tracked via partnership_status instead)
+- dd03313 feat: dashboard name editing (members) + carrier editing (members/people) via phone_carriers cache; new people/contacts panel
+- 5c9577b fix: never auto-trust unconfirmed carrier guesses, always require manual confirmation
+- 8d8e55e feat: autonomous SMS auto-reply via Ollama for inbound texts, with Telegram exchange log
+- cb1dc6f fix: pastoral search name extraction (colon/for phrasing), vcf import case-sensitive dedup
+- 1d84911 feat: forward last/inline Telegram content to any contact via SMS/email
+- 31ec9ce feat: detect inbound SMS replies by sender address shape, bypass triage
+- 424af55 feat: resolve me/myself to Bill's own contact via telegram_chat_id
+- a42e31e docs: file map 2026-07-16
+- 61b2185 docs: architecture update 2026-07-16
+
+---
+
+## Recent Changes — 2026-07-18
+
+### ~/watson
+- fab654f docs: file map 2026-07-18
+- 9709b2e fix: "text that to me" resolved recipient to a fuzzy-matched contact instead of Bill Yomes (bug #34)
+- 5b61cd4 docs: document the classifier-stage write-intent confirmation gate pattern
+- b21970f feat: add YES/NO confirmation gate to reminder_create and task_create (bug #33)
+- 74df41c fix: add YES/NO confirmation gate to task_done before it marks tasks done (bug #32)
+- f962909 fix: add YES/NO confirmation gate to calendar_busy before it writes to Google Calendar (bug #31)
+- cf6a710 fix: classifier misrouted plain greetings to calendar_query (bug #30)
+- bfdf569 fix: trim classify() few-shot prompt and raise timeouts to match real prefill cost (bug #29)
+- 3352336 fix: bound Ollama generation length and right-size skill router model (bug #28)
+- bb6edac docs: file map 2026-07-18
+- 7cb2b1f docs: architecture update 2026-07-18
+- ebe4616 fix: Telegram wrap_up/reflect used string session_id, silently failed to load real transcript (bug #27)
+- 186c16d feat: consolidate directive-prefix routing, add block_time/calendar_availability to dashboard
+- 4447fc4 docs: correct routing architecture against actual code (Phase 1 audit)
+- 291c27c fix: raise dashboard chat Ollama fallback timeout 30s->150s (bug #25)
+- eab4f3c test: add model qualification harness and results (bug #20, #21, #22 evidence)
+- 5fb0209 docs: document 2026-07-17 qwen2.5:14b near-miss and MAX_LOADED_MODELS gap
+- 56d60dd fix: intent classifier — swap to gemma3:4b, fix cold-start timeout (bug #20)
+- 5cb72db docs: file map 2026-07-17
+
+---
+
+## Recent Changes — 2026-07-20
+
+### ~/watson
+- d7df6ea feat: Curator — attributed spice findings, author backfill, title case
+- d44619b feat: Curator Phase 2 — async job queue, batch ingestion, richer book data
+- 04d27e8 fix: make /api/curator/ingest async — fixes Vercel Hobby 10s timeout
+- 048fcf2 feat: Curator — book-tracking app backend (API, ingestion, Telegram)

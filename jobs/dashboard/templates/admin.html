@@ -1003,7 +1003,6 @@ function esc(s) {
 
 function renderTasksTab() {
   const tasks  = (_currentData.tasks || []);
-  const isBill = _currentMemberId === 12;
   let html = '';
   if (!tasks.length) html += '<div class="empty-state">No tasks yet.</div>';
   tasks.forEach(t => {
@@ -1015,16 +1014,16 @@ function renderTasksTab() {
       <div class="dp-task-info">
         <div class="dp-task-title ${done ? 'done' : ''}">${esc(t.title)}</div>
         ${done && t.due_date ? `<div class="dp-task-due">Due ${esc(t.due_date)}</div>` : ''}
-        ${!isBill ? `<span class="pri pri-${esc(p)}" style="margin-top:3px">${esc(p)}</span>` : ''}
+        ${done ? `<span class="pri pri-${esc(p)}" style="margin-top:3px">${esc(p)}</span>` : ''}
       </div>
       ${!done ? `<div class="dp-task-right" id="dp-task-right-${t.id}">
-        ${isBill ? `<select class="dp-pri-sel" onchange="setTaskPriority(${t.id},this.value)">
+        <select class="dp-pri-sel" onchange="setTaskPriority(${t.id},this.value)">
           <option value="1" ${p==='1' ? 'selected' : ''}>1</option>
           <option value="2" ${p==='2' ? 'selected' : ''}>2</option>
           <option value="3" ${p==='3' ? 'selected' : ''}>3</option>
           <option value="4" ${p==='4' ? 'selected' : ''}>4</option>
           <option value="5" ${p==='5' ? 'selected' : ''}>5</option>
-        </select>` : ''}
+        </select>
         <span class="dp-due-wrap" id="dp-due-wrap-${t.id}">
           <span class="dp-due-label ${dueVal ? 'has-date' : 'no-date'}" id="dp-due-lbl-${t.id}" onclick="openDuePicker(${t.id})">${dueVal ? esc(dueVal) : 'Add date'}</span>
           <input type="date" class="dp-due-inp" id="dp-due-inp-${t.id}" value="${dueVal}" style="display:none" onchange="setTaskDueDate(${t.id},this.value||null)" onblur="this.style.display='none'">

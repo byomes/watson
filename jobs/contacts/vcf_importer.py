@@ -50,7 +50,7 @@ def import_vcf(path: str) -> str:
     with sqlite3.connect(DB_PATH) as conn:
         for c in contacts:
             row = conn.execute(
-                "SELECT id, phone FROM people WHERE email = ? OR name = ?",
+                "SELECT id, phone FROM people WHERE email = ? COLLATE NOCASE OR name = ? COLLATE NOCASE",
                 (c["email"], c["name"]),
             ).fetchone()
             if row:

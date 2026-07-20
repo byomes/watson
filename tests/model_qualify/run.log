@@ -1,0 +1,34 @@
+nohup: ignoring input
+
+=== Testing llama3.2:3b ===
+Battery A (intent classification)...
+  Accuracy: 0.5  Avg latency: 1.164s
+Battery B (reasoning)...
+  5 cases logged for manual grading
+
+=== Testing qwen2.5-coder:7b ===
+Battery A (intent classification)...
+  Accuracy: 0.75  Avg latency: 2.202s
+Battery B (reasoning)...
+  5 cases logged for manual grading
+
+=== Testing phi4-mini ===
+Battery A (intent classification)...
+  Accuracy: 0.75  Avg latency: 1.374s
+Battery B (reasoning)...
+  5 cases logged for manual grading
+
+=== Testing granite4:3b ===
+Battery A (intent classification)...
+  Accuracy: 0.8  Avg latency: 1.155s
+Battery B (reasoning)...
+  5 cases logged for manual grading
+
+=== Testing gemma3:4b ===
+Battery A (intent classification)...
+  Accuracy: 0.8  Avg latency: 1.836s
+Battery B (reasoning)...
+  5 cases logged for manual grading
+
+Results written to results_remaining.json
+Next: review Battery B responses manually or paste results_*.json into Claude for grading.
