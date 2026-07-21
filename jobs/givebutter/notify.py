@@ -9,7 +9,12 @@ always-running watson-bot.service (handle_thank_callback in bot/bot.py).
 Cron: 15 6 * * * PYTHONPATH=/home/billyomes/watson \
   /home/billyomes/watson/venv/bin/python -m jobs.givebutter.notify \
   >> /home/billyomes/watson/logs/givebutter_notify.log 2>&1
+
+Manual single-donor resend (bypasses the thanked=0 filter, does not touch
+donors.db, sends nothing by itself — same Telegram approval gate as normal):
+  python -m jobs.givebutter.notify --resend "Donor Name"
 """
+import argparse
 import json
 import logging
 import os
@@ -53,6 +58,37 @@ def _get_unthanked() -> list[dict]:
     """).fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
+
+def _find_transaction_for_resend(donor_name: str) -> dict | None:
+    """Look up a donor's most recent transaction by name, regardless of thanked status."""
+    if not DB_PATH.exists():
+        return None
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    row = conn.execute(
+        """SELECT t.id, t.amount, t.given_at, t.thanked,
+                  d.name, d.email, d.gift_count
+           FROM transactions t
+           JOIN donors d ON d.id = t.donor_id
+           WHERE d.name = ? COLLATE NOCASE
+           ORDER BY t.given_at DESC
+           LIMIT 1""",
+        (donor_name,),
+    ).fetchone()
+    if row is None:
+        row = conn.execute(
+            """SELECT t.id, t.amount, t.given_at, t.thanked,
+                      d.name, d.email, d.gift_count
+               FROM transactions t
+               JOIN donors d ON d.id = t.donor_id
+               WHERE d.name LIKE ? COLLATE NOCASE
+               ORDER BY t.given_at DESC
+               LIMIT 1""",
+            (f"%{donor_name}%",),
+        ).fetchone()
+    conn.close()
+    return dict(row) if row else None
 
 
 # ── Formatting ────────────────────────────────────────────────────────────────
@@ -135,6 +171,31 @@ def run() -> None:
     log.info("notify.py done — approval handled by watson-bot.service.")
 
 
+def resend(donor_name: str) -> None:
+    """Resend a single donor's thank-you preview by name, regardless of thanked
+    status. Sends exactly one Telegram preview via the normal approval gate —
+    does not touch donors.db and does not affect any other donor's queue."""
+    row = _find_transaction_for_resend(donor_name)
+    if row is None:
+        log.error("Resend: no transaction found for donor %r.", donor_name)
+        return
+
+    txn_id = row["id"]
+    gift_count = row["gift_count"] or 1
+
+    if gift_count == 1:
+        subject, html_body = first_gift_email(row["name"], row["amount"])
+    else:
+        subject, html_body = repeat_gift_email(row["name"], row["amount"], gift_count)
+
+    text = _build_preview(row, subject, html_body)
+    try:
+        _send_preview(text, txn_id)
+        log.info("Resend preview sent: txn %d (%s).", txn_id, row["name"])
+    except Exception as exc:
+        log.error("Resend preview failed for %s: %s", donor_name, exc)
+
+
 if __name__ == "__main__":
     LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
     logging.basicConfig(
@@ -145,4 +206,17 @@ if __name__ == "__main__":
             logging.StreamHandler(),
         ],
     )
-    run()
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--resend",
+        metavar="DONOR_NAME",
+        help="Resend a single donor's thank-you preview by name, bypassing the "
+             "thanked=0 filter. Does not modify donors.db or affect other donors.",
+    )
+    args = parser.parse_args()
+
+    if args.resend:
+        resend(args.resend)
+    else:
+        run()
