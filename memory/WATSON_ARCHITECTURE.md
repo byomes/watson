@@ -1260,3 +1260,22 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - d44619b feat: Curator Phase 2 — async job queue, batch ingestion, richer book data
 - 04d27e8 fix: make /api/curator/ingest async — fixes Vercel Hobby 10s timeout
 - 048fcf2 feat: Curator — book-tracking app backend (API, ingestion, Telegram)
+
+---
+
+## Recent Changes — 2026-07-21
+
+### ~/watson
+- e1430d4 feat: ARC manuscript-access email campaign — password recovery, open tracking, batch send
+- 6a611dd docs: architecture update — KB sync job, Dev Loop auto-fail, chroma path fix
+- 2f5b4a8 feat: auto-fail Dev Loop projects stuck running >2h with no live process (complements existing 24h read-only flag)
+- 4741b7c feat: same-day KB transcript sync + retire archive_transcripts.py
+- 460ce63 transcript: add 2026-07-20-Joshua---Ch6---QA
+- 693ab1f transcript: add 2026-07-20-Joshua---Ch5---QA
+- 7de1881 fix: batch.py _run_transcribe missing PYTHONPATH, same pattern as watcher.py
+- 5312238 Merge remote-tracking branch 'origin/main'
+- ee1d8f9 transcript: add 2026-07-20-Joshua---Ch6---Reception-as-Judgment
+- a6150c9 fix: watcher.py subprocess jobs missing PYTHONPATH, breaks generate.py core import
+- 09b41d2 fix: email_intake.py mis-routes Bill's missed-report replies away from correction_handler
+- 6f3a39f docs: file map 2026-07-20
+- 6079df0 docs: architecture update 2026-07-20
