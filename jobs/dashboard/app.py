@@ -1624,12 +1624,12 @@ def fireflies_webhook():
     # a no-op (falls through to the else branch below like any other
     # unrecognized event), not a bug.
     #
-    # TODO: "Transcription completed" is an unconfirmed guess at the real event
-    # value Fireflies sends (docs mention "Meeting Summarized" / "Meeting
-    # Transcribed" but we haven't seen the actual string yet). Raw payload
-    # logging above is left in place so the next real (non-test) webhook event
-    # reveals it — update this match once we know it.
-    if event_type == "Transcription completed" and meeting_id:
+    # Confirmed via journalctl 2026-07-21: Fireflies actually sends
+    # event="meeting.transcribed" (raw transcript only, no summary/action
+    # items yet) and event="meeting.summarized" (full summary ready). We act
+    # on "meeting.summarized" only — draft_review_email() needs the summary
+    # data that "meeting.transcribed" doesn't have yet.
+    if event_type == "meeting.summarized" and meeting_id:
         def _run():
             from jobs.meet.fireflies_review import process_meeting
             try:
@@ -1638,6 +1638,11 @@ def fireflies_webhook():
                 log.error("Fireflies review processing failed for %s: %s", meeting_id, exc)
 
         threading.Thread(target=_run, daemon=True).start()
+    elif event_type == "meeting.transcribed":
+        log.info(
+            "Fireflies webhook ignored (transcript only, awaiting summary): meeting_id=%r",
+            meeting_id,
+        )
     else:
         log.info("Fireflies webhook ignored: event=%r meeting_id=%r", event_type, meeting_id)
 
