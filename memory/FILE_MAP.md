@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-07-20*
+*Generated: 2026-07-21*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -136,8 +136,11 @@ jobs/
     api.py
     auth.py
     commitment_validator.py
+    manuscript_access_followup.py
     migrate_admin_preview.py
+    password_recovery_check.py
     send_invite_email.py
+    send_manuscript_access_batch.py
     send_signup_confirmation.py
     templates/
       arc_invite_email.html
@@ -321,6 +324,7 @@ jobs/
   kb/
     __init__.py
     archive_transcripts.py
+    sync_and_index.py
   marketing/
     __init__.py
     seo_tools.py
