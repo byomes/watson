@@ -602,6 +602,28 @@ def _handle_bill_email(sender, subject, body, received_at, msg_id):
 
 # ── Non-whitelist triage ───────────────────────────────────────────────────────
 
+def _has_pending_triage(uid: str) -> bool:
+    """True if an unresolved email_triage action already exists for this Gmail
+    UID. Bot.py's et_ingest/et_markread/et_delete callbacks are the only things
+    that flip an email_triage row's status off 'pending', so 'pending' is the
+    only open state to check. Without this, every poll cycle re-triages and
+    re-alerts on the same still-unread message (bug: pending_id 143-155, all
+    the same uid=487, 13 alerts in 13 minutes)."""
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        row = conn.execute(
+            "SELECT 1 FROM tg_pending_actions "
+            "WHERE type='email_triage' AND status='pending' "
+            "AND json_extract(payload, '$.uid') = ? LIMIT 1",
+            (uid,),
+        ).fetchone()
+        conn.close()
+        return row is not None
+    except Exception as exc:
+        log.warning("Pending-triage dedup check failed: %s", exc)
+        return False
+
+
 def _cross_reference_sender(email_addr: str) -> tuple[str | None, int | None, str | None]:
     """Look up an email address in congregation.db and watson.db.
 
@@ -733,6 +755,10 @@ def _handle_non_whitelist(
     received_at: str,
 ) -> None:
     """Triage a non-whitelist email. Never marks as read. Stores pending action and prompts Bill."""
+    if _has_pending_triage(msg_id):
+        log.info("Skipping re-triage — pending action already open for uid=%s", msg_id)
+        return
+
     # Cross-reference sender against congregation + people tables
     matched_name, matched_member_id, match_source = _cross_reference_sender(sender_email)
     if matched_name and not sender_name:
