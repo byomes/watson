@@ -315,6 +315,9 @@ app.register_blueprint(arc_bp)
 from jobs.arc.auth import arc_auth_bp
 app.register_blueprint(arc_auth_bp)
 
+from jobs.lead_magnet.api import lead_magnet_bp
+app.register_blueprint(lead_magnet_bp)
+
 from jobs.publishing.api import publishing_bp
 from jobs.publishing import bootstrap_db as _publishing_bootstrap
 _publishing_bootstrap()

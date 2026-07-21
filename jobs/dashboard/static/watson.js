@@ -1445,6 +1445,10 @@ function renderMore() {
         <span class="mtile-label">Publishing</span>
         <span class="mtile-chev">›</span>
       </button>
+      <button class="mtile" id="mtile-leadmagnet" onclick="moreToggle('leadmagnet')">
+        <span class="mtile-label">Lead Magnet</span>
+        <span class="mtile-chev">›</span>
+      </button>
       <button class="mtile" id="mtile-thesis" onclick="moreToggle('thesis')">
         <span class="mtile-label">Thesis Tracker</span>
         <span class="mtile-chev">›</span>
@@ -1483,6 +1487,9 @@ function renderMore() {
       </div>
       <div class="msec-body" id="msec-body-publishing">
         <div class="msec-inner" id="msec-inner-publishing"><div class="loading">Loading&hellip;</div></div>
+      </div>
+      <div class="msec-body" id="msec-body-leadmagnet">
+        <div class="msec-inner" id="msec-inner-leadmagnet"><div class="loading">Loading&hellip;</div></div>
       </div>
       <div class="msec-body" id="msec-body-thesis">
         <div class="mth-pull-row">
@@ -1570,6 +1577,43 @@ function moreToggle(sec) {
     if (sec === 'publishing') publishingLoad();
     if (sec === 'thesis')   moreLoadThesis();
     if (sec === 'dev')      devLoad();
+    if (sec === 'leadmagnet') moreLoadLeadMagnet();
+  }
+}
+
+// ── Lead Magnet ──────────────────────────────────────────────────────────────
+
+async function moreLoadLeadMagnet() {
+  const el = document.getElementById('msec-inner-leadmagnet');
+  if (!el) return;
+  el.innerHTML = '<div class="loading">Loading&hellip;</div>';
+  try {
+    const magnets = await api('/api/lead-magnet/list');
+    if (!magnets.length) {
+      el.innerHTML = '<div class="empty">No active lead magnets.</div>';
+      return;
+    }
+    const rows = await Promise.all(magnets.map(async m => {
+      try {
+        const stats = await api(`/api/lead-magnet/stats/${encodeURIComponent(m.slug)}`);
+        return { ...m, ...stats };
+      } catch {
+        return { ...m, views: 0, signups: 0, conversion_rate: 0 };
+      }
+    }));
+    el.innerHTML = `
+      <div class="mshep-wrap"><table class="mshep-table">
+        <tr><th>Book</th><th>Views</th><th>Signups</th><th>Conv.</th></tr>
+        ${rows.map(r => `
+          <tr>
+            <td>${esc(r.title)}</td>
+            <td>${r.views}</td>
+            <td>${r.signups}</td>
+            <td>${r.conversion_rate}%</td>
+          </tr>`).join('')}
+      </table></div>`;
+  } catch {
+    el.innerHTML = '<div class="empty">Could not load lead magnet stats.</div>';
   }
 }
 
