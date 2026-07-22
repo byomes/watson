@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-07-21*
+*Generated: 2026-07-22*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -51,6 +51,7 @@ cron/
   .gitkeep
   run_pipeline.sh
 cron_additions.txt
+cron_backup_20260721_1510.txt
 data/
   .gitkeep
   congregation.db
@@ -61,6 +62,8 @@ data/
   congregation.db.bak-20260716-101416
   congregation.db.bak-20260716-111858
   curator.db
+  curator.db.bak-20260721-212433
+  curator.db.bak-20260721-223148
   donors.db
   exports/
     qr_1780863713.png
@@ -106,6 +109,7 @@ data/
     qr_20260702_120717.png
     qr_20260702_121611.png
     qr_20260702_122730.png
+    qr_20260721_135815.png
   riddle_history.json
   skill_audit.json
   watson.db
@@ -325,6 +329,10 @@ jobs/
     __init__.py
     archive_transcripts.py
     sync_and_index.py
+  lead_magnet/
+    __init__.py
+    api.py
+    send_confirmation.py
   marketing/
     __init__.py
     seo_tools.py
@@ -1086,6 +1094,9 @@ content/
     2026-07-09-a-brothel-to-a-bloodline.md
     2026-07-11-the-wilderness-was-never-the-destination.md
     2026-07-14-the-dry-ground-is-under-your-feet-only-after-you-step-in.md
+    2026-07-16-consecrated-people-cross-rivers.md
+    2026-07-18-provision-and-purpose-are-not-the-same-thing.md
+    2026-07-21-miraculous-and-providential-the-two-ways-god-moves.md
     the-flashlight-of-your-focus.md
     where-your-treasure-is.md
 next-env.d.ts
@@ -1094,6 +1105,8 @@ package-lock.json
 package.json
 postcss.config.js
 public/
+  guides/
+    wrong-jesus-companion-guide.pdf
   images/
     Bill-CR.png
     Bill-HeroRC.png
@@ -1133,6 +1146,11 @@ src/
           route.ts
       ingest/
         route.ts
+      lead-magnet/
+        subscribe/
+          route.ts
+        view/
+          route.ts
       meet/
         availability/
           route.ts
@@ -1227,6 +1245,13 @@ src/
       twitter-image.tsx
     favicon.ico
     globals.css
+    guide/
+      [slug]/
+        GuideSignupForm.tsx
+        ViewPing.tsx
+        page.tsx
+        thanks/
+          page.tsx
     ingest/
       page.tsx
     layout.tsx
@@ -1364,6 +1389,7 @@ src/
   lib/
     arc-api.ts
     launch-dates.ts
+    lead-magnet-api.ts
     og.tsx
     posts.ts
     twj-api.ts
