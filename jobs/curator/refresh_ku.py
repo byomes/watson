@@ -58,7 +58,13 @@ def run() -> dict:
                 "UPDATE books SET kindle_unlimited_checked_at = datetime('now') WHERE id = ?",
                 (book["id"],),
             )
-            if not details["kindle_unlimited"]:
+            # Explicit `is False`, not `not details[...]` — fetch_page_details()
+            # now returns None (not False) when it hit Amazon's bot-block page
+            # rather than a real listing (confirmed 2026-07-22). `not None` is
+            # True in Python, so the old falsy check would have incorrectly
+            # flipped a book off KU every time this job merely got blocked,
+            # instead of only when it confirmed the badge is genuinely gone.
+            if details["kindle_unlimited"] is False:
                 conn.execute("UPDATE books SET kindle_unlimited = 0 WHERE id = ?", (book["id"],))
                 flipped += 1
 

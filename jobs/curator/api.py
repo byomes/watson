@@ -59,7 +59,9 @@ def _book_row_to_dict(row, batch_info: dict | None = None) -> dict:
         "spice_notes": row["spice_notes"],
         "cover_image_url": row["cover_image_url"],
         "description": row["description"],
-        "kindle_unlimited": bool(row["kindle_unlimited"]),
+        # Three-state: True/False/None (couldn't verify) — don't coerce with
+        # bool(), that collapses NULL (unknown) into False (confirmed not on KU).
+        "kindle_unlimited": None if row["kindle_unlimited"] is None else bool(row["kindle_unlimited"]),
         "kindle_unlimited_checked_at": row["kindle_unlimited_checked_at"],
         "status": row["status"],
         "added_by": row["added_by"],
@@ -254,6 +256,12 @@ def create_book():
     if status not in _VALID_STATUSES:
         return jsonify({"error": f"status must be one of {_VALID_STATUSES}"}), 400
 
+    # Manual add never attempts a real KU check — leave it None (unknown)
+    # unless the caller explicitly supplied one, rather than defaulting to a
+    # hardcoded False that looks like a confirmed "not on KU".
+    ku_raw = data.get("kindle_unlimited")
+    ku_db_value = None if ku_raw is None else int(bool(ku_raw))
+
     conn = get_db()
     try:
         cur = conn.execute(
@@ -263,7 +271,7 @@ def create_book():
             (
                 title, author or "Unknown", data.get("series"), data.get("series_number"),
                 data.get("page_count"), data.get("spice_rating"), data.get("spice_notes"),
-                int(bool(data.get("kindle_unlimited"))), status, added_by,
+                ku_db_value, status, added_by,
             ),
         )
         book_id = cur.lastrowid
@@ -294,7 +302,9 @@ def update_book(book_id):
             if f in data:
                 val = data[f]
                 if f == "kindle_unlimited":
-                    val = int(bool(val))
+                    # Explicit null in the PATCH body means "reset to unknown" —
+                    # only coerce to 0/1 when a real value was actually sent.
+                    val = None if val is None else int(bool(val))
                 set_clauses.append(f"{f} = ?")
                 values.append(val)
         if "status" in data:

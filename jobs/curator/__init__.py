@@ -150,6 +150,61 @@ def bootstrap_db() -> None:
             conn.commit()
         except Exception:
             pass  # already dropped, or never existed on a fresh DB
+        _migrate_kindle_unlimited_nullable(conn)
+
+
+def _migrate_kindle_unlimited_nullable(conn: sqlite3.Connection) -> None:
+    """kindle_unlimited was originally INTEGER NOT NULL DEFAULT 0 — a strict
+    boolean that collapsed "confirmed not on KU" and "never managed to check"
+    (e.g. Amazon's bot-block page, confirmed 2026-07-22 to return HTTP 200
+    with block-page content indistinguishable from a real "no KU badge"
+    listing under the old boolean-only check) into the same False value.
+    Rebuilds the table with kindle_unlimited nullable (NULL = unknown) if it's
+    still the old NOT NULL shape — SQLite has no ALTER COLUMN, so this is the
+    standard create-copy-drop-rename migration. Idempotent: checked via
+    PRAGMA table_info, no-ops once already migrated."""
+    cols = conn.execute("PRAGMA table_info(books)").fetchall()
+    ku_col = next((c for c in cols if c[1] == "kindle_unlimited"), None)
+    if ku_col is None or ku_col[3] == 0:
+        return  # column missing (shouldn't happen), or already nullable
+    conn.execute("PRAGMA foreign_keys=OFF")
+    conn.executescript("""
+        ALTER TABLE books RENAME TO books_old_ku_migration;
+
+        CREATE TABLE books (
+            id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+            title                   TEXT NOT NULL,
+            author                  TEXT NOT NULL,
+            series                  TEXT,
+            series_number           INTEGER,
+            page_count              INTEGER,
+            spice_rating            INTEGER,
+            spice_notes             TEXT,
+            kindle_unlimited        INTEGER,
+            kindle_unlimited_checked_at TEXT,
+            status                  TEXT NOT NULL DEFAULT 'pending',
+            added_by                INTEGER REFERENCES users(id),
+            created_at              TEXT NOT NULL DEFAULT (datetime('now')),
+            cover_image_url         TEXT,
+            series_total            INTEGER,
+            description             TEXT
+        );
+
+        INSERT INTO books (
+            id, title, author, series, series_number, page_count, spice_rating,
+            spice_notes, kindle_unlimited, kindle_unlimited_checked_at, status,
+            added_by, created_at, cover_image_url, series_total, description
+        )
+        SELECT
+            id, title, author, series, series_number, page_count, spice_rating,
+            spice_notes, kindle_unlimited, kindle_unlimited_checked_at, status,
+            added_by, created_at, cover_image_url, series_total, description
+        FROM books_old_ku_migration;
+
+        DROP TABLE books_old_ku_migration;
+    """)
+    conn.commit()
+    conn.execute("PRAGMA foreign_keys=ON")
 
 
 def send_telegram(text: str, reply_markup: dict | None = None) -> int | None:

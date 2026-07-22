@@ -487,13 +487,30 @@ def fetch_open_library_description(title: str, author: str | None) -> str | None
         return None
 
 
+# Amazon frequently returns a bot-block/"automated access" interstitial instead
+# of the real listing (confirmed 2026-07-20 and repeatedly since, regardless of
+# User-Agent — HTTP 200, but a small boilerplate page, not the actual product
+# page). Detecting this lets kindle_unlimited distinguish "confirmed not on
+# KU" (real page fetched, no badge) from "couldn't check at all" (blocked),
+# rather than silently collapsing both into False.
+_AMAZON_BLOCK_MARKER = "api-services-support@amazon.com"
+_AMAZON_BLOCK_MIN_LENGTH = 10000  # real Amazon product pages run 200KB+
+
+
+def _is_amazon_block_page(html: str) -> bool:
+    return _AMAZON_BLOCK_MARKER in html or len(html) < _AMAZON_BLOCK_MIN_LENGTH
+
+
 def fetch_page_details(url: str) -> dict:
     """Best-effort scrape of an Amazon/Goodreads listing for page count, KU badge,
     cover image, description (near-verbatim editorial og:description, not
     Watson-written), and series position/total. Generic og:* tag scraping — works
-    for both source types without a dedicated per-site parser."""
+    for both source types without a dedicated per-site parser.
+
+    kindle_unlimited is three-state: True (badge found), False (real page
+    fetched, no badge), or None (couldn't verify — e.g. Amazon's block page)."""
     out = {
-        "page_count": None, "kindle_unlimited": False, "fetched": False,
+        "page_count": None, "kindle_unlimited": None, "fetched": False,
         "cover_image_url": None, "description": None,
         "series_position": None, "series_total": None, "series_name": None,
     }
@@ -502,9 +519,12 @@ def fetch_page_details(url: str) -> dict:
         html = resp.text
         out["fetched"] = True
 
-        out["kindle_unlimited"] = bool(
-            re.search(r"kindle unlimited", html, re.IGNORECASE)
-        )
+        if _is_amazon_block_page(html):
+            out["kindle_unlimited"] = None
+        else:
+            out["kindle_unlimited"] = bool(
+                re.search(r"kindle unlimited", html, re.IGNORECASE)
+            )
 
         page_match = re.search(r'([\d,]+)\s*pages?\b', html, re.IGNORECASE)
         if page_match:
@@ -794,7 +814,7 @@ def research_book(title: str, author: str | None = None) -> dict:
       "findings": [{"source_name","source_type","rank","excerpt","url"}],
       "author": str|None,          # extracted from search results, only if 2+ agree
       "page_count": int|None,
-      "kindle_unlimited": bool,
+      "kindle_unlimited": bool|None,  # None = couldn't verify (e.g. Amazon blocked)
       "cover_image_url": str|None,
       "description": str|None,
       "series_position": int|None,
@@ -822,7 +842,7 @@ def research_book(title: str, author: str | None = None) -> dict:
         sources.append({"type": "goodreads", "url": goodreads_url})
 
     page_count = None
-    kindle_unlimited = False
+    kindle_unlimited = None  # unknown until an Amazon fetch actually succeeds
     cover_image_url = None
     # Open Library tried first (real API, no bot-blocking, often has a full
     # synopsis) - the per-source loop below only fills this in as a fallback
@@ -844,7 +864,8 @@ def research_book(title: str, author: str | None = None) -> dict:
         details = fetch_page_details(url)
         if source_type == "amazon":
             page_count = page_count or details["page_count"]
-            kindle_unlimited = kindle_unlimited or details["kindle_unlimited"]
+            if details["kindle_unlimited"] is not None:
+                kindle_unlimited = details["kindle_unlimited"]
         cover_image_url = cover_image_url or details["cover_image_url"]
         description = description or details["description"]
         series_position = series_position or details["series_position"]

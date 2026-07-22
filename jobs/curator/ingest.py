@@ -219,11 +219,14 @@ Return JSON exactly in this shape:
 
 def _create_book(
     *, title: str, author: str, status: str, added_by, series=None, spice_rating=None,
-    spice_notes="", page_count=None, kindle_unlimited=False,
+    spice_notes="", page_count=None, kindle_unlimited=None,
     cover_image_url=None, description=None, series_number=None, series_total=None,
 ) -> int:
     # series_number is Phase 1's existing column; research's "series_position" (from
     # Amazon/Goodreads) fills the same slot — no separate column for the same concept.
+    # kindle_unlimited is three-state (True/False/None=unknown) — coerce True/False to
+    # 1/0 but let None pass through as NULL rather than collapsing it to False.
+    ku_db_value = None if kindle_unlimited is None else int(bool(kindle_unlimited))
     conn = get_db()
     try:
         cur = conn.execute(
@@ -232,7 +235,7 @@ def _create_book(
             "kindle_unlimited_checked_at, cover_image_url, description, status, added_by) "
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?, ?, ?, ?)",
             (title, author, series, series_number, series_total, spice_rating,
-             spice_notes, page_count, int(bool(kindle_unlimited)),
+             spice_notes, page_count, ku_db_value,
              cover_image_url, description, status, added_by),
         )
         conn.commit()
@@ -393,7 +396,7 @@ def ingest_submission(
         book_id = _create_book(
             title=title, author=author, series=series, status="needs_review", added_by=submitted_by,
             spice_notes=_derive_spice_notes(findings),
-            page_count=research.get("page_count"), kindle_unlimited=research.get("kindle_unlimited", False),
+            page_count=research.get("page_count"), kindle_unlimited=research.get("kindle_unlimited"),
             cover_image_url=research.get("cover_image_url"), description=research.get("description"),
             series_number=research.get("series_position"), series_total=research.get("series_total"),
         )
@@ -411,7 +414,7 @@ def ingest_submission(
     book_id = _create_book(
         title=title, author=author, series=series, status="pending", added_by=submitted_by,
         spice_rating=research.get("spice_rating"), spice_notes=_derive_spice_notes(findings),
-        page_count=research.get("page_count"), kindle_unlimited=research.get("kindle_unlimited", False),
+        page_count=research.get("page_count"), kindle_unlimited=research.get("kindle_unlimited"),
         cover_image_url=research.get("cover_image_url"), description=research.get("description"),
         series_number=research.get("series_position"), series_total=research.get("series_total"),
     )
