@@ -381,7 +381,15 @@ def ingest_submission(
 
     findings = research.get("findings", [])
 
-    if not research["confident"]:
+    # Gate on whether any real spice-content source was found at all, not on
+    # judge_spice_rating()'s computed confidence/rating (2026-07-22: the goal
+    # is getting books in front of Mel with real excerpts for her to read and
+    # judge herself, not a computed number she has to trust blind.
+    # judge_spice_rating() is still called inside research_book() and its
+    # output still gets stored below, but no longer gates what she sees — a
+    # book with 1+ real findings goes straight to "pending"; only zero
+    # findings at all falls back to needs_review.
+    if not findings:
         book_id = _create_book(
             title=title, author=author, series=series, status="needs_review", added_by=submitted_by,
             spice_notes=_derive_spice_notes(findings),
@@ -393,17 +401,16 @@ def ingest_submission(
             _add_source(book_id, source_type, source_url, raw_text)
         for s in research.get("sources", []):
             _add_source(book_id, s["type"], s["url"], None)
-        _add_spice_findings(book_id, findings)
         if notify_telegram:
             _notify(book_id, title, author, "needs_review", None, [])
         return {
             "status": "needs_review", "book_id": book_id,
-            "reason": research.get("reason", "insufficient evidence for a confident rating"),
+            "reason": "no spice-content sources found",
         }
 
     book_id = _create_book(
         title=title, author=author, series=series, status="pending", added_by=submitted_by,
-        spice_rating=research["spice_rating"], spice_notes=_derive_spice_notes(findings),
+        spice_rating=research.get("spice_rating"), spice_notes=_derive_spice_notes(findings),
         page_count=research.get("page_count"), kindle_unlimited=research.get("kindle_unlimited", False),
         cover_image_url=research.get("cover_image_url"), description=research.get("description"),
         series_number=research.get("series_position"), series_total=research.get("series_total"),
@@ -417,6 +424,6 @@ def ingest_submission(
     _add_spice_findings(book_id, findings)
 
     if notify_telegram:
-        _notify(book_id, title, author, "pending", research["spice_rating"], source_urls)
+        _notify(book_id, title, author, "pending", research.get("spice_rating"), source_urls)
 
-    return {"status": "pending", "book_id": book_id, "spice_rating": research["spice_rating"]}
+    return {"status": "pending", "book_id": book_id, "spice_rating": research.get("spice_rating")}

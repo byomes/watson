@@ -84,6 +84,24 @@ def _batch_info_for_books(conn, book_ids: list[int]) -> dict[int, dict]:
     return {r["book_id"]: {"batch_id": r["batch_id"], "batch_total": r["total_jobs"]} for r in rows}
 
 
+def _findings_for_books(conn, book_ids: list[int]) -> dict[int, list[dict]]:
+    """book_id -> [finding dicts], ranked. Batched the same way as
+    _batch_info_for_books — used so list_books() can show Mel the actual
+    source excerpts (not just a computed rating) on the Pending screen without
+    a separate per-book request."""
+    if not book_ids:
+        return {}
+    placeholders = ",".join("?" * len(book_ids))
+    rows = conn.execute(
+        f"SELECT * FROM spice_findings WHERE book_id IN ({placeholders}) ORDER BY book_id, rank ASC",
+        book_ids,
+    ).fetchall()
+    result: dict[int, list[dict]] = {}
+    for r in rows:
+        result.setdefault(r["book_id"], []).append(_finding_row_to_dict(r))
+    return result
+
+
 def _source_row_to_dict(row) -> dict:
     return {
         "id": row["id"],
@@ -185,8 +203,15 @@ def list_books():
         rows = conn.execute(
             f"SELECT * FROM books {where} ORDER BY created_at DESC", params
         ).fetchall()
-        batch_info = _batch_info_for_books(conn, [r["id"] for r in rows])
-        return jsonify([_book_row_to_dict(r, batch_info.get(r["id"])) for r in rows]), 200
+        book_ids = [r["id"] for r in rows]
+        batch_info = _batch_info_for_books(conn, book_ids)
+        findings_by_book = _findings_for_books(conn, book_ids)
+        result = []
+        for r in rows:
+            d = _book_row_to_dict(r, batch_info.get(r["id"]))
+            d["findings"] = findings_by_book.get(r["id"], [])
+            result.append(d)
+        return jsonify(result), 200
     finally:
         conn.close()
 

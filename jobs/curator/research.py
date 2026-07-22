@@ -316,6 +316,19 @@ def search_top_content_sites(title: str, author: str | None) -> list[dict]:
     return results
 
 
+def search_for_author(title: str) -> list[dict]:
+    """Dedicated, separate Serper query restricted to goodreads.com, used only
+    to backfill titles for extract_author_from_titles() when the author is
+    unknown. Deliberately NOT merged into search_top_content_sites()'s
+    CSM/SpicyBooks queries — confirmed 2026-07-21 that combining multiple
+    domains into one shared-result-cap query lets one crowd another out, which
+    is exactly what removed Goodreads-style "Title by Author" results (and
+    with them, author-backfill signal) when the trusted-source search was
+    narrowed to CSM/SpicyBooks only. Kept fully independent so it can never
+    affect those results."""
+    return serper_search(f"{title} goodreads", max_results=5)
+
+
 def gather_spice_findings(title: str, author: str | None) -> tuple[list[dict], list[str]]:
     """Returns (findings, all_result_titles).
     findings: ranked, deduped-by-category list of
@@ -415,6 +428,65 @@ def find_goodreads_book_page(title: str, author: str | None) -> str | None:
     return None
 
 
+_OPEN_LIBRARY_DESCRIPTION_CAP = 2000
+
+# Open Library descriptions are community-editable wiki content and can carry
+# injected spam/promotional links — confirmed 2026-07-22: "Beach Read"'s
+# description ended with a markdown link to an unrelated third-party
+# PDF-download site (`[**Beach Read pdf**](https://.../beach-read-pdf/)`),
+# baked into Open Library's own API response, not something we introduced.
+# Strip markdown-style links and any remaining bare URLs before this ever
+# reaches the app.
+_MARKDOWN_LINK_RE = re.compile(r"\[[^\]]*\]\(https?://[^)]+\)")
+_BARE_URL_RE = re.compile(r"https?://\S+")
+
+
+def _strip_injected_links(text: str) -> str:
+    text = _MARKDOWN_LINK_RE.sub("", text)
+    text = _BARE_URL_RE.sub("", text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def fetch_open_library_description(title: str, author: str | None) -> str | None:
+    """Open Library's public API (openlibrary.org, no key required, no
+    bot-blocking risk — it's a real documented API, not a scrape) tried first
+    for the plot synopsis. Goodreads' og:description meta tag is frequently
+    pre-truncated to a short teaser by Goodreads itself (confirmed 2026-07-22
+    against real pages: 56 chars for multiple books, well under even our own
+    600-char cap, so the cap was never the cause). Confirmed live 2026-07-22:
+    "A Court of Thorns and Roses" returned a real 731-char synopsis this way.
+    Returns None if Open Library has no record — common for newer releases
+    (confirmed for "The Thirteenth Child", a 2024 book: zero results) — in
+    which case the caller falls back to the existing Goodreads-derived
+    description."""
+    try:
+        resp = requests.get(
+            "https://openlibrary.org/search.json",
+            params={"title": title, "author": author or "", "limit": 1},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        docs = resp.json().get("docs", [])
+        if not docs:
+            return None
+        work_key = docs[0].get("key")
+        if not work_key:
+            return None
+
+        work_resp = requests.get(f"https://openlibrary.org{work_key}.json", timeout=10)
+        work_resp.raise_for_status()
+        desc = work_resp.json().get("description")
+        if isinstance(desc, dict):
+            desc = desc.get("value")
+        if not desc or not isinstance(desc, str):
+            return None
+        desc = _strip_injected_links(desc)
+        return desc[:_OPEN_LIBRARY_DESCRIPTION_CAP] or None
+    except Exception as exc:
+        log.warning("Open Library description lookup failed for %r: %s", title, exc)
+        return None
+
+
 def fetch_page_details(url: str) -> dict:
     """Best-effort scrape of an Amazon/Goodreads listing for page count, KU badge,
     cover image, description (near-verbatim editorial og:description, not
@@ -476,17 +548,110 @@ def fetch_page_details(url: str) -> dict:
 
 # ── Rating judgment ──────────────────────────────────────────────────────────
 
+# CSM's own severity word for the "Sex, Romance & Nudity" section, mapped to a
+# rough point-estimate on OUR 0-5 scale. Confirmed 2026-07-22 against real
+# pages: CSM either states an explicit word ("a lot"/"a little") or, for "no
+# content" cases, omits any word entirely (e.g. "Sex, Romance & Nudity No
+# sexual activities are described...").
+_CSM_WORD_ESTIMATE = {"a lot": 4.5, "a little": 1.5}
+_CSM_NO_WORD_ESTIMATE = 0.0
+
+# SpicyBooks' own label text (not its raw 1-5 number, which doesn't align with
+# ours - their "1 = Mild (Fade to Black)" is our "3 = Fade to Black") mapped to
+# a rough point-estimate on OUR scale. Confirmed 2026-07-22 against SpicyBooks'
+# own canonical scale pages (spicybooks.org/spice/0 through /5). "Spicy
+# (Moderate Scenes)" is the one interpolated entry — it doesn't literally name
+# one of our own categories, so it's estimated at 4 (scenes are shown, per
+# "Moderate Scenes", but not yet at SpicyBooks' own "Explicit" tier).
+_SPICYBOOKS_LABEL_ESTIMATE = [
+    (re.compile(r"no spice", re.IGNORECASE), 0.0),
+    (re.compile(r"mild.*fade to black", re.IGNORECASE), 3.0),
+    (re.compile(r"warm.*closed door", re.IGNORECASE), 2.0),
+    (re.compile(r"spicy.*moderate scenes", re.IGNORECASE), 4.0),
+    (re.compile(r"very spicy.*explicit", re.IGNORECASE), 5.0),
+    (re.compile(r"scorching.*very explicit", re.IGNORECASE), 5.0),
+]
+
+# Above this gap (in our-scale point-estimate terms), CSM and SpicyBooks are
+# treated as a genuine disagreement, not just different granularity. Confirmed
+# 2026-07-22: at 1.0, this resolves ACOTAR/It Ends with Us/Icebreaker (gap 0.5,
+# CSM "a lot" vs SpicyBooks "Moderate Scenes") while still correctly holding
+# back on Beach Read (gap 1.5, CSM describes graphic intercourse/oral sex in
+# detail vs SpicyBooks calling it merely "Fade to Black" — a real contradiction,
+# not just calibration noise).
+_RECONCILE_GAP_THRESHOLD = 1.0
+
+
+def _csm_scale_estimate(excerpt: str) -> float | None:
+    m = re.match(r"Sex, Romance & Nudity (a lot|a little)\b", excerpt)
+    if m:
+        return _CSM_WORD_ESTIMATE[m.group(1)]
+    if excerpt.startswith("Sex, Romance & Nudity"):
+        return _CSM_NO_WORD_ESTIMATE
+    return None
+
+
+def _spicybooks_scale_estimate(excerpt: str) -> float | None:
+    m = re.match(r"\d/5 - (.+)", excerpt)
+    if not m:
+        return None
+    label = m.group(1)
+    for pattern, estimate in _SPICYBOOKS_LABEL_ESTIMATE:
+        if pattern.search(label):
+            return estimate
+    return None
+
+
+def _try_reconcile_csm_spicybooks(findings: list[dict]) -> dict | None:
+    """If findings are exactly one CSM + one SpicyBooks finding, and both map
+    to a rough point-estimate on our scale, check whether they're in the same
+    ballpark (gap <= _RECONCILE_GAP_THRESHOLD) despite reading as "different
+    severity levels" to a naive comparison. The two sources use genuinely
+    different underlying scales (CSM: prose + severity word; SpicyBooks: a 0-5
+    scale that doesn't numerically align with ours), so a small gap after
+    converting both to a common scale usually means they actually agree, just
+    at different granularity — not a real disagreement. Returns a confident
+    result dict if reconciled, else None (caller falls back to the existing
+    Ollama-based judgment, which still runs for genuine disagreements)."""
+    if len(findings) != 2:
+        return None
+    by_type = {f["source_type"]: f for f in findings}
+    if set(by_type) != {"commonsensemedia", "spicybooks"}:
+        return None
+
+    csm_est = _csm_scale_estimate(by_type["commonsensemedia"]["excerpt"])
+    sb_est = _spicybooks_scale_estimate(by_type["spicybooks"]["excerpt"])
+    if csm_est is None or sb_est is None:
+        return None
+
+    if abs(csm_est - sb_est) > _RECONCILE_GAP_THRESHOLD:
+        return None
+
+    return {"confident": True, "spice_rating": round(sb_est), "reason": ""}
+
+
 def judge_spice_rating(title: str, author: str | None, findings: list[dict]) -> dict:
     """Ollama weighs the extracted findings to produce a 0-5 spice_rating — the
     one place Watson's own judgment enters, and only the number, never wording
     shown to the user (that's always the findings' own excerpts). Refuses
-    (confident=False) rather than guess if too few findings or they disagree."""
+    (confident=False) rather than guess if too few findings or they disagree.
+
+    NOT CURRENTLY USED TO GATE VISIBILITY as of 2026-07-22 — jobs.curator.ingest
+    no longer branches on this function's confident/spice_rating output to
+    decide needs_review vs. pending (that's now gated on whether any findings
+    exist at all, full stop). This function still runs on every book and its
+    output is still stored, kept in place for potential future use — same
+    treatment as the dormant romance.io code above."""
     if len(findings) < _MIN_FINDINGS:
         return {
             "confident": False,
             "reason": f"Only {len(findings)} trusted source(s) with usable content found (need >= {_MIN_FINDINGS})",
             "spice_rating": None,
         }
+
+    reconciled = _try_reconcile_csm_spicybooks(findings)
+    if reconciled:
+        return reconciled
 
     findings_text = "\n\n".join(
         f"[{f['source_name']}] {f['excerpt']}" for f in findings
@@ -639,6 +804,14 @@ def research_book(title: str, author: str | None = None) -> dict:
     }
     """
     findings, result_titles = gather_spice_findings(title, author)
+    if author is None:
+        # Author-backfill signal (Goodreads-style "Title by Author" titles) was
+        # lost when the trusted-source search narrowed to CSM/SpicyBooks only
+        # (2026-07-21) — those sites' own titles never name the author. This
+        # dedicated, separate query restores it without touching that search.
+        result_titles = result_titles + [
+            r.get("title", "") for r in search_for_author(title) if r.get("title")
+        ]
     amazon_url = find_amazon_listing(title, author)
     goodreads_url = find_goodreads_book_page(title, author)
 
@@ -651,7 +824,11 @@ def research_book(title: str, author: str | None = None) -> dict:
     page_count = None
     kindle_unlimited = False
     cover_image_url = None
-    description = None
+    # Open Library tried first (real API, no bot-blocking, often has a full
+    # synopsis) - the per-source loop below only fills this in as a fallback
+    # if Open Library had no record for this title (see
+    # fetch_open_library_description's docstring).
+    description = fetch_open_library_description(title, author)
     series_position = None
     series_total = None
     series_name = None
