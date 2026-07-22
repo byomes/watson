@@ -499,6 +499,38 @@ def judge_spice_rating(title: str, author: str | None, findings: list[dict]) -> 
         "contradictory, or doesn't clearly describe content level, you set confident=false "
         "and do not propose a rating. Return only valid JSON, no other text."
     )
+
+    # Question and reason-example wording scale to len(findings) — a fixed
+    # plural "do these sources agree" question plus a seeded "sources disagree"
+    # example reason caused the model to hallucinate source disagreement even
+    # with exactly one finding (confirmed reproducibly 2026-07-22: 3/3 runs on
+    # single-source input returned a "sources disagree" reason regardless of
+    # what the one source actually said). The agreement-check framing is only
+    # meaningful with 2+ findings, so it's kept there; single-source prompts
+    # ask a plain confidence question instead and never see "disagree" as a
+    # suggested phrase.
+    if len(findings) == 1:
+        question = (
+            "Based on this source, can you confidently assign one spice level? Weigh "
+            "what it actually describes, not just any number it cites — its own scale "
+            "may differ from ours."
+        )
+        reason_hint = (
+            "if not confident, state specifically why (e.g. 'no specific content "
+            "details given', 'the description is too vague to place on the scale')"
+        )
+    else:
+        question = (
+            "Do these sources agree closely enough to be confident about one spice "
+            "level? Note that different sources may use different rating scales — "
+            "weigh what they actually describe, not just any number they cite."
+        )
+        reason_hint = (
+            "if not confident, state specifically why (e.g. 'the sources describe "
+            "meaningfully different severity levels', 'no specific content details "
+            "given')"
+        )
+
     prompt = f"""Book: {who}
 
 Spice scale:
@@ -512,15 +544,13 @@ Spice scale:
 Findings from trusted content-rating sources:
 {findings_text}
 
-Do these sources agree closely enough to be confident about one spice level? Note that
-different sources may use different rating scales — weigh what they actually describe,
-not just any number they cite.
+{question}
 
 Return JSON exactly in this shape:
 {{
   "confident": true or false,
   "spice_rating": integer 0-5 or null,
-  "reason": "if not confident, why (e.g. 'sources disagree', 'no specific content details found')"
+  "reason": "{reason_hint}"
 }}"""
 
     try:
