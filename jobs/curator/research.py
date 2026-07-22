@@ -112,12 +112,11 @@ _SPICYBOOKS_PATTERN = re.compile(
 )
 
 
-def call_ollama(system: str, prompt: str, timeout: int = 90) -> str:
-    resp = requests.post(
-        OLLAMA_URL,
-        json={"model": MODEL, "system": system, "prompt": prompt, "stream": False},
-        timeout=timeout,
-    )
+def call_ollama(system: str, prompt: str, timeout: int = 90, options: dict | None = None) -> str:
+    payload = {"model": MODEL, "system": system, "prompt": prompt, "stream": False}
+    if options:
+        payload["options"] = options
+    resp = requests.post(OLLAMA_URL, json=payload, timeout=timeout)
     resp.raise_for_status()
     return (resp.json().get("response") or "").strip()
 
@@ -531,6 +530,18 @@ def judge_spice_rating(title: str, author: str | None, findings: list[dict]) -> 
             "given')"
         )
 
+    # Confirmed 2026-07-22: without this, the model sometimes invents a numeric
+    # rating for a source that never gave one (e.g. attributing "4/5" to Common
+    # Sense Media, which only ever writes a severity word like "a lot", never a
+    # number) — up to ~1/3 of runs at default temperature. Reduces but doesn't
+    # fully eliminate it alone; paired with temperature=0 below for reliability.
+    number_constraint = (
+        'Only cite a numeric rating for a source if that source\'s own excerpt '
+        'explicitly states one as a number (e.g. "X/5"). If a source only uses '
+        "descriptive words or severity labels without a number, describe it in "
+        "words — do not convert it to a number yourself."
+    )
+
     prompt = f"""Book: {who}
 
 Spice scale:
@@ -546,6 +557,8 @@ Findings from trusted content-rating sources:
 
 {question}
 
+{number_constraint}
+
 Return JSON exactly in this shape:
 {{
   "confident": true or false,
@@ -554,7 +567,13 @@ Return JSON exactly in this shape:
 }}"""
 
     try:
-        raw = call_ollama(system, prompt)
+        # temperature=0: this is deterministic evidence-weighing, not creative
+        # generation. Confirmed 2026-07-22 that Ollama's default (0.8, no
+        # override previously set here) caused real run-to-run instability on
+        # identical input — e.g. "Icebreaker" flipped between confident=true
+        # and confident=false across repeated identical calls. temperature=0
+        # eliminated that: 3/3 identical results across 4 re-tested books.
+        raw = call_ollama(system, prompt, options={"temperature": 0})
         parsed = parse_json(raw)
     except Exception as exc:
         log.error("judge_spice_rating Ollama call failed: %s", exc)
