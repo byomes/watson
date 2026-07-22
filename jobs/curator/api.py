@@ -294,6 +294,33 @@ def update_book(book_id):
         conn.close()
 
 
+@curator_bp.route("/api/curator/books/<int:book_id>", methods=["DELETE"])
+@_require_key
+def delete_book(book_id):
+    """Hard-delete a book and its child rows (book_sources, reading_status,
+    spice_findings) in one transaction — commits only if every delete succeeds.
+    ingest_jobs.book_id references books ON DELETE SET NULL, so those rows survive
+    automatically once foreign_keys enforcement fires on the final delete."""
+    conn = get_db()
+    try:
+        existing = conn.execute("SELECT id FROM books WHERE id = ?", (book_id,)).fetchone()
+        if not existing:
+            return jsonify({"error": "not found"}), 404
+
+        conn.execute("DELETE FROM book_sources WHERE book_id = ?", (book_id,))
+        conn.execute("DELETE FROM reading_status WHERE book_id = ?", (book_id,))
+        conn.execute("DELETE FROM spice_findings WHERE book_id = ?", (book_id,))
+        conn.execute("DELETE FROM books WHERE id = ?", (book_id,))
+        conn.commit()
+        return jsonify({"id": book_id}), 200
+    except Exception as exc:
+        conn.rollback()
+        log.error("delete_book failed: %s", exc)
+        return jsonify({"error": "server error"}), 500
+    finally:
+        conn.close()
+
+
 @curator_bp.route("/api/curator/books/<int:book_id>/sources", methods=["POST"])
 @_require_key
 def add_source(book_id):
