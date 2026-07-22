@@ -208,6 +208,83 @@ def _extract_structured_rating(text: str, pattern: re.Pattern) -> str | None:
     return f"{level}/5 - {label}"
 
 
+# Common Sense Media publishes fixed category headers (confirmed against real
+# fetched pages 2026-07-22: /book-reviews/the-thirteenth-child, /beach-read,
+# /a-court-of-thorns-and-roses-book-1). Order varies per book — CSM ranks
+# categories by severity for that specific title, not a fixed template order —
+# so headers can't be assumed adjacent to each other; extraction locates ALL
+# header occurrences and slices between whichever one comes next positionally,
+# whatever it is. Each header also appears 2-3 times per page (a short "at a
+# glance" teaser near the top, the full detailed writeup further down,
+# sometimes a "customize filters" CTA that repeats the category name) — the
+# detailed writeup is reliably the longest of these, so picking max(len)
+# selects it without needing to guess which occurrence index it lands at.
+_CSM_SECTION_HEADERS = (
+    "Parents Need to Know", "Violence & Scariness", "Sex, Romance & Nudity", "Language",
+    "Drinking, Drugs & Smoking", "Products & Purchases", "Positive Messages",
+    "Positive Role Models", "Diverse Representations", "Educational Value",
+)
+# Fixed CTA CSM inserts right after every detailed category writeup ("Did you
+# know you can flag iffy content? Adjust limits for <Category> in your kid's
+# entertainment guide...") — confirmed identical wording after 4 different
+# categories on the same page (2026-07-22). Trimmed off a captured section if
+# present, since it's UI chrome, not part of the review.
+_CSM_CTA_MARKER = "Did you know you can flag iffy content?"
+
+
+def _csm_header_positions(text: str) -> list[tuple[int, str]]:
+    positions = []
+    for header in _CSM_SECTION_HEADERS:
+        positions.extend((m.start(), header) for m in re.finditer(re.escape(header), text))
+    positions.sort()
+    return positions
+
+
+def _extract_csm_section(text: str, header: str, positions: list[tuple[int, str]] | None = None) -> str | None:
+    """Returns the longest occurrence of `header`'s section — from the header
+    text up to wherever the next known CSM header occurs, whichever header
+    that is — trimmed of CSM's flag-iffy-content CTA if present. Returns None
+    if `header` doesn't appear on the page at all."""
+    if positions is None:
+        positions = _csm_header_positions(text)
+    candidates = []
+    for i, (pos, h) in enumerate(positions):
+        if h != header:
+            continue
+        end = positions[i + 1][0] if i + 1 < len(positions) else len(text)
+        section = text[pos:end]
+        cta_idx = section.find(_CSM_CTA_MARKER)
+        if cta_idx != -1:
+            section = section[:cta_idx]
+        candidates.append(section.strip())
+    if not candidates:
+        return None
+    return max(candidates, key=len) or None
+
+
+def _extract_commonsensemedia_excerpt(text: str) -> str | None:
+    """Common Sense Media writes prose organized under fixed category headers
+    (see _CSM_SECTION_HEADERS) rather than one continuous review — a
+    fixed-window keyword search can straddle multiple unrelated categories
+    (confirmed 2026-07-22: a 450-char window from "The Thirteenth Child" ran
+    Drinking/Sex/Language/Products/Positive-Role-Models/Positive-Messages/
+    Educational-Value together into one incoherent blob, cut off mid-word at
+    both ends). Extracts the "Sex, Romance & Nudity" section specifically by
+    its own header boundaries instead. Falls back to _extract_relevant_excerpt
+    only if that header isn't found at all on the page (expected to be rare)."""
+    section = _extract_csm_section(text, "Sex, Romance & Nudity")
+    return section or _extract_relevant_excerpt(text)
+
+
+def extract_csm_parents_summary(text: str) -> str | None:
+    """The "Parents Need to Know" section — CSM's own single-paragraph
+    quick-glance summary, often the most useful sentence for an at-a-glance
+    rating. Not currently wired into any stored field (spice_notes is still
+    derived from the top finding's excerpt in jobs.curator.ingest); exposed
+    here so it's available if that's wanted."""
+    return _extract_csm_section(text, "Parents Need to Know")
+
+
 def fetch_full_text(url: str) -> str | None:
     try:
         resp = requests.get(url, headers=_UA, timeout=10)
@@ -282,6 +359,8 @@ def gather_spice_findings(title: str, author: str | None) -> tuple[list[dict], l
             excerpt = _extract_structured_rating(text, _ROMANCE_IO_PATTERN) or _extract_relevant_excerpt(text)
         elif stype == "spicybooks":
             excerpt = _extract_structured_rating(text, _SPICYBOOKS_PATTERN) or _extract_relevant_excerpt(text)
+        elif stype == "commonsensemedia":
+            excerpt = _extract_commonsensemedia_excerpt(text)
         else:
             excerpt = _extract_relevant_excerpt(text)
         if not excerpt:
