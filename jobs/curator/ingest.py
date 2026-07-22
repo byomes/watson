@@ -19,18 +19,8 @@ from jobs.curator.research import OLLAMA_URL, call_ollama, parse_json, research_
 log = logging.getLogger(__name__)
 
 _UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
-_VISION_MODEL = "moondream"
+_VISION_MODEL = "qwen2.5vl"
 _MAX_IMAGE_DIM = 1024
-
-# Responses that mean "the model didn't actually answer" — reject these in
-# post-processing rather than trusting whatever text came back. This is where
-# the never-guess principle now lives (moved out of the prompt — see _ocr_cover).
-_OCR_NON_ANSWERS = {
-    "i don't know", "i do not know", "unclear", "unknown", "not visible",
-    "cannot tell", "can't tell", "not sure", "no title", "no author",
-    "i cannot see", "i can't see", "n/a", "none", "not shown", "not given",
-    "there is no title", "there is no author",
-}
 
 _DOMAIN_TYPES = (
     ("tiktok.com", "tiktok"),
@@ -101,53 +91,46 @@ def _prepare_cover_image(image_bytes: bytes) -> str:
     return base64.b64encode(buf.getvalue()).decode()
 
 
-def _ask_moondream(b64_image: str, question: str) -> str:
-    resp = requests.post(
-        OLLAMA_URL,
-        json={"model": _VISION_MODEL, "prompt": question, "images": [b64_image], "stream": False},
-        timeout=60,
-    )
-    resp.raise_for_status()
-    return (resp.json().get("response") or "").strip()
-
-
-def _clean_ocr_field(raw: str) -> str | None:
-    """Never-guess gate, moved out of the prompt and into post-processing:
-    reject empty, non-answering, or implausible responses rather than trusting
-    whatever text moondream returned."""
-    if not raw:
-        return None
-    text = raw.strip().strip(".,!\"'").strip()
-    if not text:
-        return None
-    lowered = text.lower()
-    if lowered in _OCR_NON_ANSWERS or any(phrase in lowered for phrase in _OCR_NON_ANSWERS):
-        return None
-    if len(text.split()) > 15:
-        return None
-    return text
-
-
 def _ocr_cover(image_bytes: bytes) -> dict:
-    """Read title/author off a cover photo via a local vision model (moondream).
+    """Read title/author off a cover photo via a local vision model (qwen2.5vl).
 
-    Two separate single-field questions, not one compound prompt — moondream
-    reliably collapses to an empty, degenerate response (measured: eval_count=1,
-    immediate stop) on multi-field/colon-template prompts, even against
-    trivial, perfectly legible text. Asking one plain question at a time works.
+    Single compound prompt — unlike moondream (1B, collapsed to an empty,
+    degenerate response on this exact colon-template/multi-field format),
+    qwen2.5vl (8.3B) handles it correctly: confirmed in testing to return
+    "Title: <real title> | Author: <real author>" verbatim and accurately.
     """
+    prompt = (
+        "Look at this book cover. Respond on one line exactly as: "
+        "Title: <title> | Author: <author>\n"
+        "If you cannot clearly read a title, respond exactly: Title: UNKNOWN | Author: UNKNOWN"
+    )
     try:
         b64 = _prepare_cover_image(image_bytes)
-        title_raw = _ask_moondream(b64, "What is the title of this book?")
-        author_raw = _ask_moondream(b64, "Who is the author of this book?")
+        resp = requests.post(
+            OLLAMA_URL,
+            json={"model": _VISION_MODEL, "prompt": prompt, "images": [b64], "stream": False},
+            # qwen2.5vl (8.3B) measured a 137s cold-load when evicted by Ollama's
+            # 3-model cap (research.py's own qwen2.5:7b calls compete for that
+            # slot) — 60s cut a real request off mid-load in testing.
+            timeout=180,
+        )
+        resp.raise_for_status()
+        raw = (resp.json().get("response") or "").strip()
     except Exception as exc:
         log.error("cover OCR failed: %s", exc)
         return {"title": None, "author": None, "raw_text": f"OCR error: {exc}"}
 
-    raw_text = f"Title response: {title_raw!r} | Author response: {author_raw!r}"
-    title = _clean_ocr_field(title_raw)
-    author = _clean_ocr_field(author_raw)
-    return {"title": title, "author": author, "raw_text": raw_text}
+    match = re.search(r"Title:\s*(.+?)\s*\|\s*Author:\s*(.+)", raw, re.IGNORECASE)
+    if not match:
+        return {"title": None, "author": None, "raw_text": raw}
+
+    title = match.group(1).strip()
+    author = match.group(2).strip()
+    if title.upper() == "UNKNOWN":
+        title = None
+    if author.upper() == "UNKNOWN":
+        author = None
+    return {"title": title, "author": author, "raw_text": raw}
 
 
 def fetch_og_metadata(url: str) -> dict:
