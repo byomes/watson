@@ -58,7 +58,7 @@ def bootstrap_db() -> None:
                 cover_image_url         TEXT,
                 series_total            INTEGER,
                 description             TEXT,
-                kindle_unlimited        INTEGER NOT NULL DEFAULT 0,
+                kindle_unlimited        INTEGER,
                 kindle_unlimited_checked_at TEXT,
                 status                  TEXT NOT NULL DEFAULT 'pending',
                 added_by                INTEGER REFERENCES users(id),
