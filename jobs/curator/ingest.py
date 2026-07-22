@@ -11,7 +11,7 @@ from urllib.parse import urlparse
 
 import requests
 
-from jobs.curator import get_db, send_telegram
+from jobs.curator import get_db
 from jobs.curator.research import OLLAMA_URL, call_ollama, parse_json, research_book
 
 log = logging.getLogger(__name__)
@@ -289,36 +289,15 @@ def _derive_spice_notes(findings: list[dict]) -> str:
 
 
 def _notify(book_id: int, title: str, author: str, status: str, spice_rating, source_urls: list[str]) -> None:
-    from jobs.telegram.pending import store_pending_action
-
-    if status == "needs_review":
-        text = (
-            f"📚 Curator — needs review\n\n{title}"
-            + (f" by {author}" if author else "")
-            + "\n\nCouldn't confidently identify this book or its content rating. "
-            "Open the Curator app's Pending queue to fill in details."
-        )
-        send_telegram(text)
-        return
-
-    scale = ["Clean", "Kissing Only", "Closed Door", "Fade to Black", "Open Door", "Explicit"]
-    rating_label = scale[spice_rating] if spice_rating is not None and 0 <= spice_rating <= 5 else "unrated"
-    sources_text = "\n".join(source_urls) if source_urls else "(no source links)"
-    text = (
-        f"📚 Curator — found a book\n\n{title} by {author}\n"
-        f"Proposed rating: {spice_rating} ({rating_label})\n\n"
-        f"Sources:\n{sources_text}\n\nApprove / Edit / Reject?"
-    )
-    keyboard = {
-        "inline_keyboard": [[
-            {"text": "✅ Approve", "callback_data": f"cur_approve:{book_id}"},
-            {"text": "✏️ Edit", "callback_data": f"cur_edit:{book_id}"},
-            {"text": "🚫 Reject", "callback_data": f"cur_reject:{book_id}"},
-        ]]
-    }
-    message_id = send_telegram(text, reply_markup=keyboard)
-    if message_id:
-        store_pending_action("curator_edit", message_id, {"source_db": "curator", "book_id": book_id})
+    """Intentionally a no-op, removed 2026-07-22: both branches of this function used to
+    message Bill's Telegram — one with the judged spice rating (e.g. "Kissing
+    Only"), the other with just title/author for anything unconfident enough
+    to need review. Same privacy reasoning applies to both: Mel's searches
+    shouldn't be reported to Bill, rating attached or not. Approve/edit/
+    reject and needs-review triage still happen entirely in the Curator
+    app's Pending queue (/pending), just without a Telegram DM round-trip.
+    Params kept for call-site signature compatibility across all 3 callers.
+    """
 
 
 def ingest_submission(

@@ -458,11 +458,24 @@ def fetch_open_library_description(title: str, author: str | None) -> str | None
     Returns None if Open Library has no record — common for newer releases
     (confirmed for "The Thirteenth Child", a 2024 book: zero results) — in
     which case the caller falls back to the existing Goodreads-derived
-    description."""
+    description.
+
+    author=None must omit the `author` param entirely rather than send an
+    empty string — confirmed 2026-07-22: `author=` (empty) makes Open
+    Library's search API 500, which this function swallows and returns as a
+    plain "no record" None, silently dropping into the Goodreads-teaser
+    fallback even when Open Library actually has a full synopsis under the
+    title alone (confirmed for "The War of the Two Queens": empty-author
+    request 500s, real request omitting the param returns a 1,151-char
+    synopsis). See research_book()'s retry-after-author-backfill for the
+    other half of this fix."""
     try:
+        params: dict = {"title": title, "limit": 1}
+        if author:
+            params["author"] = author
         resp = requests.get(
             "https://openlibrary.org/search.json",
-            params={"title": title, "author": author or "", "limit": 1},
+            params=params,
             timeout=10,
         )
         resp.raise_for_status()
@@ -877,6 +890,17 @@ def research_book(title: str, author: str | None = None) -> dict:
 
     rating_result = judge_spice_rating(title, author, findings)
     extracted_author = extract_author_from_titles(result_titles)
+
+    # Retry the Open Library synopsis lookup now that author-backfill has run:
+    # the call above only had whatever author the original caller supplied
+    # (often None for a quick "Title" add), and a title-only Open Library
+    # search is more likely to miss or match the wrong edition than one with
+    # the author attached. A backfilled author found here beats whatever
+    # shorter Goodreads-teaser description already filled in above.
+    if author is None and extracted_author:
+        retried_description = fetch_open_library_description(title, extracted_author)
+        if retried_description:
+            description = retried_description
 
     return {
         "confident": bool(rating_result.get("confident")),
