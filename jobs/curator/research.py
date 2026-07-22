@@ -54,10 +54,11 @@ _MAX_DISPLAYED_FINDINGS = 4
 # first (see _extract_structured_rating), falling back to the keyword-window
 # approach only if that pattern isn't found.
 #
-# romance.io stays in this list so _categorize_source() can still recognize it
-# if a URL for it ever surfaces, but it's DORMANT as of 2026-07-21 — see
-# _ACTIVE_SEARCH_DOMAINS below and the _ROMANCE_IO_PATTERN comment. It is
-# deliberately excluded from the active search.
+# romance.io was DORMANT 2026-07-21 through 2026-07-22 (Cloudflare JS
+# challenge plain `requests` couldn't solve) — reactivated 2026-07-22 via the
+# local FlareSolverr container (see _FLARESOLVERR_DOMAINS / fetch_full_text
+# and _ROMANCE_IO_PATTERN comments for details). Included in the active
+# search again below.
 #
 # The Fae Shelf (thefaeshelf.com) added 2026-07-22 — confirmed reachable
 # (200, no blocking) via direct request the same night. Romantasy-specific
@@ -81,16 +82,17 @@ _EXACT_DOMAINS = [
     ("thefaeshelf.com", "The Fae Shelf", "faeshelf", 4),
 ]
 
-# Domains search_top_content_sites() actually queries. romance.io is left out —
-# it sits behind a site-wide Cloudflare JS challenge (confirmed 2026-07-21,
-# see _ROMANCE_IO_PATTERN below) so every fetch of it fails anyway, and testing
-# showed its SEO-heavy duplicate URLs (tracking-parameter variants, /similar
-# pages, unrelated same-author results) were crowding spicybooks.org out of a
-# combined query's result cap entirely, even for titles with a real, working
-# SpicyBooks page (confirmed with "Beach Read": a combined query returned 4
-# romance.io URLs, 3 of them near-duplicates for the same book, and zero
-# spicybooks.org hits).
-_ACTIVE_SEARCH_DOMAINS = tuple(d for d, *_ in _EXACT_DOMAINS if d != "romance.io")
+# Domains search_top_content_sites() actually queries. romance.io reactivated
+# 2026-07-22 now that FlareSolverr (see _FLARESOLVERR_DOMAINS, fetch_full_text)
+# solves the Cloudflare challenge that made it dormant since 2026-07-21. Its
+# SEO-heavy duplicate URLs (tracking-parameter variants, /similar pages,
+# unrelated same-author results) previously crowded spicybooks.org out of a
+# *combined* query's result cap — confirmed with "Beach Read": one combined
+# query returned 4 romance.io URLs (3 near-duplicates) and zero spicybooks.org
+# hits. That crowding risk doesn't apply here: search_top_content_sites()
+# already runs one separate site-restricted query per domain (see below),
+# so romance.io's result cap is isolated from every other domain's regardless.
+_ACTIVE_SEARCH_DOMAINS = tuple(d for d, *_ in _EXACT_DOMAINS)
 
 _SPICE_KEYWORDS = [
     "spice rating", "spice level", "sexual content", "sex scene", "content warning",
@@ -103,18 +105,21 @@ _SPICE_KEYWORDS = [
 # scale directly rather than prose — tried first for those sources, with
 # _extract_relevant_excerpt() as a fallback if the pattern isn't found.
 #
-# romance.io: DORMANT as of 2026-07-21 — the site sits behind a site-wide
-# Cloudflare JS challenge (`cf-mitigated: challenge` on every request, confirmed
-# 2026-07-21 including with full browser headers), which plain `requests`
-# cannot solve regardless of User-Agent — the same dead-source problem Book
-# Trigger Warnings had, just from a different blocking mechanism. Left in place
-# unused (not wired into the active search — see _ACTIVE_SEARCH_DOMAINS) so
-# it's easy to re-enable if/when a headless-browser fetch path exists (backlog:
-# FlareSolverr). This pattern is also UNVERIFIED against a real fetched page —
-# written from the described "Spice/Steam/Heat level: X/5 - Label" format only,
-# since no page was ever successfully fetched to confirm it.
+# romance.io: reactivated 2026-07-22 via FlareSolverr (see
+# _FLARESOLVERR_DOMAINS / fetch_full_text) — was DORMANT 2026-07-21 through
+# 2026-07-22 behind a site-wide Cloudflare JS challenge (`cf-mitigated:
+# challenge` on every request) that plain `requests` couldn't solve regardless
+# of User-Agent.
+#
+# Pattern corrected 2026-07-22 against real fetched pages (romance.io/books/
+# .../the-thirteenth-child-erin-a-craig via FlareSolverr) — the original
+# pattern was written from a described "Spice/Steam/Heat level: X/5 - Label"
+# format that turned out to be wrong on the live page: actual text reads
+# "Steam/Spice level: 1 of 5 Glimpses and kisses [?] · 14 ratings" — "of 5"
+# not "/5", no " - " separator before the label, and the two category names
+# appear slash-joined ("Steam/Spice") rather than as a single word.
 _ROMANCE_IO_PATTERN = re.compile(
-    r"(?:Spice|Steam|Heat)\s*level:?\s*(\d)/5\s*-\s*([^.\n]+)",
+    r"(?:Steam|Spice|Heat)(?:/(?:Steam|Spice|Heat))?\s*level:?\s*(\d)\s*of\s*5\s+([^\[·\n]+)",
     re.IGNORECASE,
 )
 # Confirmed against real fetched pages (spicybooks.org/books/beach-read,
@@ -173,6 +178,7 @@ _BOOK_PAGE_HINTS = {
     "commonsensemedia": "/book-reviews/",
     "spicybooks": "/books/",
     "faeshelf": "/book/",
+    "romance_io": "/books/",
 }
 
 
@@ -383,7 +389,47 @@ def _extract_faeshelf_excerpt(text: str) -> str | None:
     return rating or warnings
 
 
+_FLARESOLVERR_URL = "http://localhost:8191/v1"
+_FLARESOLVERR_TIMEOUT_MS = 60000
+
+# Domains that sit behind a Cloudflare JS challenge plain `requests` can't
+# solve — routed through the local FlareSolverr container (localhost:8191,
+# docker run --name=flaresolverr, see project_backlog id=18) instead of a
+# direct fetch. romance.io is the first and, as of 2026-07-22, only entry.
+# commonsensemedia.org/spicybooks.org/thefaeshelf.com are unaffected — they
+# stay on the plain requests.get() path below.
+_FLARESOLVERR_DOMAINS = {"romance.io"}
+
+
+def _fetch_via_flaresolverr(url: str) -> str | None:
+    """Solves a Cloudflare JS challenge via the local FlareSolverr container
+    and returns the resulting page's stripped text, or None on any failure
+    (container unreachable, non-ok status, missing solution). Confirmed
+    2026-07-22 against real romance.io pages."""
+    try:
+        resp = requests.post(
+            _FLARESOLVERR_URL,
+            json={"cmd": "request.get", "url": url, "maxTimeout": _FLARESOLVERR_TIMEOUT_MS},
+            timeout=(_FLARESOLVERR_TIMEOUT_MS / 1000) + 10,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        if data.get("status") != "ok":
+            log.warning("FlareSolverr returned non-ok status for %s: %s", url, data.get("message"))
+            return None
+        html = (data.get("solution") or {}).get("response")
+        if not html:
+            return None
+        return _strip_html(html)
+    except Exception as exc:
+        log.warning("FlareSolverr fetch failed for %s: %s", url, exc)
+        return None
+
+
 def fetch_full_text(url: str) -> str | None:
+    host = urlparse(url).netloc.lower()
+    if any(d in host for d in _FLARESOLVERR_DOMAINS):
+        return _fetch_via_flaresolverr(url)
     try:
         resp = requests.get(url, headers=_UA, timeout=10)
         if not resp.text:
