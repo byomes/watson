@@ -542,6 +542,20 @@ def judge_spice_rating(title: str, author: str | None, findings: list[dict]) -> 
         "words — do not convert it to a number yourself."
     )
 
+    # Confirmed 2026-07-22: without this, the model treated any non-graphic
+    # description as "too vague to rate" rather than recognizing it as Closed
+    # Door itself — e.g. "Divine Rivals" (CSM: "a little... wedding night in
+    # which sex is new to both of them... no graphic detail") deterministically
+    # returned confident=false at temperature=0, when a human would place this
+    # at 2 without hesitation. Adding this sentence flipped it to confident,
+    # rating=2, 3/3 runs, without changing the clearly-graphic ("a lot") cases
+    # or the multi-source disagreement cases.
+    closed_door_clarification = (
+        'A source describing sex or intimacy narratively without graphic/anatomical '
+        'detail is not automatically "too vague" — that is exactly what "Closed Door" '
+        "(2) describes."
+    )
+
     prompt = f"""Book: {who}
 
 Spice scale:
@@ -551,6 +565,8 @@ Spice scale:
 3 = Fade to Black (scene starts, cuts away)
 4 = Open Door (explicit content shown)
 5 = Explicit (heavy/frequent explicit content)
+
+{closed_door_clarification}
 
 Findings from trusted content-rating sources:
 {findings_text}
