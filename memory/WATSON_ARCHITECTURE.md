@@ -1279,3 +1279,31 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - 09b41d2 fix: email_intake.py mis-routes Bill's missed-report replies away from correction_handler
 - 6f3a39f docs: file map 2026-07-20
 - 6079df0 docs: architecture update 2026-07-20
+
+---
+
+## Recent Changes — 2026-07-22
+
+### ~/watson
+- 532b53d Fix curator base schema: kindle_unlimited nullable from creation
+- c97d08a fix: three-state Kindle Unlimited status - True/False/None, never a silent guess
+- 8aa8103 feat: gate Curator visibility on real findings, not a computed rating
+- fddfdd1 fix: clarify that non-graphic content maps to Closed Door, not "too vague"
+- 5dc661e fix: run judge_spice_rating() at temperature=0, add number-fabrication guard
+- a3433b2 fix: scale judge_spice_rating() prompt language to actual finding count
+- 05a1f78 fix: extract CSM spice excerpt by section header, not fixed keyword window
+- 5406fd9 feat: narrow Curator spice-research sources to CSM + SpicyBooks, wider excerpt window
+- b76cebf feat: add DELETE /api/curator/books/<id> route
+- dfac939 fix: email_intake dedup — stop re-triaging same unread message every poll
+- 8202365 feat: lead-magnet funnel backend — companion guide signup/tracking/tags
+- 2e592c9 feat: add --resend flag to givebutter notify for manual single-donor thank-you resend
+- ee732fa fix: donor thank-you templates - remove gift count/em dashes, TWJ mention, partnering/continued support language
+- dee4180 fix: Fireflies webhook was gating on a placeholder event string, never matching real events
+- 7d442c5 kb: sync 11 transcript(s) to kb/documents (same-day)
+- a26981b docs: file map 2026-07-21
+- f3375d3 docs: architecture update 2026-07-21
+
+### ~/wcky
+- 8e704b0 test: verify webhook after reconnect
+- 6eaf6ef feat: /guide/[slug] lead-magnet landing page for companion guide funnel
+- e019e10 publish: Miraculous and Providential: The Two Ways God Moves
