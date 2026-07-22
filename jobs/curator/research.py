@@ -6,8 +6,11 @@ gets a full-page fetch. Common Sense Media writes prose, so its excerpt comes
 from a keyword-window pull (_extract_relevant_excerpt). romance.io and
 SpicyBooks publish their own numeric spice-scale rating directly, so those
 try a structured-pattern match first (_extract_structured_rating) and only
-fall back to the keyword-window approach if that pattern isn't found. No LLM
-paraphrasing step touches the wording the detail page shows either way. The
+fall back to the keyword-window approach if that pattern isn't found. The Fae
+Shelf publishes both a structured chili-scale rating AND its own prose
+Content Warnings section per book, so it gets both (_extract_faeshelf_excerpt)
+rather than picking one pattern over the other. No LLM paraphrasing step
+touches the wording the detail page shows either way. The
 0-5 spice_rating number is still a judgment call, made by an Ollama pass that
 weighs the extracted findings, and only fires when >=_MIN_FINDINGS real
 findings were gathered and the model reports confidence — otherwise
@@ -55,10 +58,27 @@ _MAX_DISPLAYED_FINDINGS = 4
 # if a URL for it ever surfaces, but it's DORMANT as of 2026-07-21 — see
 # _ACTIVE_SEARCH_DOMAINS below and the _ROMANCE_IO_PATTERN comment. It is
 # deliberately excluded from the active search.
+#
+# The Fae Shelf (thefaeshelf.com) added 2026-07-22 — confirmed reachable
+# (200, no blocking) via direct request the same night. Romantasy-specific
+# book database with its own 0-5 chili-scale spice rating plus a per-book
+# "Content Warnings" prose section — see _extract_faeshelf_excerpt for the
+# confirmed page structure and real extracted examples.
+#
+# Also evaluated 2026-07-22 and NOT added:
+#   - Story Snoops — domain does not resolve at all (DNS failure).
+#   - Kids-in-Mind — 403 on every attempt.
+#   - MoodReads — both plausible domain guesses failed (no working URL found).
+#   - OwlCrate — returned 429 (rate-limited). This is NOT the same signal as
+#     the three above (a genuine block/dead-domain) — 429 means the server is
+#     alive and just throttling. Left out for now, but worth retesting with
+#     slower request pacing rather than writing it off as confirmed-dead like
+#     the others.
 _EXACT_DOMAINS = [
     ("commonsensemedia.org", "Common Sense Media", "commonsensemedia", 1),
     ("romance.io", "romance.io", "romance_io", 2),
     ("spicybooks.org", "SpicyBooks", "spicybooks", 3),
+    ("thefaeshelf.com", "The Fae Shelf", "faeshelf", 4),
 ]
 
 # Domains search_top_content_sites() actually queries. romance.io is left out —
@@ -104,7 +124,7 @@ _ROMANCE_IO_PATTERN = re.compile(
 # out of 5 on the SpicyBooks spice scale. This means it's &quot;<Label>&quot;"
 # — entity-escaped quotes survive _strip_html() as the literal string
 # "&quot;", not real quote characters, since _strip_html() doesn't decode that
-# entity (only &nbsp;/&amp;/&#39; are decoded).
+# entity (apostrophe variants and &nbsp;/&amp; are decoded, but not &quot;).
 _SPICYBOOKS_PATTERN = re.compile(
     r'(?:has a spice level of|is rated)\s+(\d)(?:/5|\s+out of 5)[^"&]*?'
     r"(?:rate as|this means it.s)\s*&quot;([^&\".]+)",
@@ -135,8 +155,9 @@ def parse_json(raw: str) -> dict | None:
 # ── Trusted-source discovery + extraction ───────────────────────────────────
 
 def _categorize_source(url: str) -> tuple[str, str, int] | None:
-    """Returns (source_name, source_type, rank) if url matches one of the three
-    trusted domains, else None. Lower rank = higher priority."""
+    """Returns (source_name, source_type, rank) if url matches one of the
+    trusted domains in _EXACT_DOMAINS, else None. Lower rank = higher
+    priority."""
     host = urlparse(url).netloc.lower()
     for domain, name, stype, rank in _EXACT_DOMAINS:
         if domain in host:
@@ -151,6 +172,7 @@ def _categorize_source(url: str) -> tuple[str, str, int] | None:
 _BOOK_PAGE_HINTS = {
     "commonsensemedia": "/book-reviews/",
     "spicybooks": "/books/",
+    "faeshelf": "/book/",
 }
 
 
@@ -163,7 +185,7 @@ def _strip_html(html: str) -> str:
     text = re.sub(r"(?is)<(script|style).*?>.*?(</\1>)", " ", html)
     text = re.sub(r"(?s)<[^>]+>", " ", text)
     text = text.replace("&nbsp;", " ").replace("&amp;", "&")
-    text = re.sub(r"&#39;|&rsquo;|&#8217;", "'", text)
+    text = re.sub(r"&#39;|&#x27;|&rsquo;|&#8217;", "'", text)
     text = re.sub(r"\s+", " ", text).strip()
     return text
 
@@ -284,6 +306,83 @@ def extract_csm_parents_summary(text: str) -> str | None:
     return _extract_csm_section(text, "Parents Need to Know")
 
 
+# The Fae Shelf's /book/<slug> pages (confirmed 2026-07-22 against 5 real
+# pages: A Court of Thorns and Roses, Fourth Wing, The War of Two Queens,
+# Sorcery of Thorns, Spinning Silver, Cinder) print the spice rating as N
+# repeated 🌶️ spans plus a text label — no literal "N/5" digit anywhere in
+# the page body (the only "/5" on the page is Goodreads' own star rating,
+# e.g. "4.2/5 stars" — a different number entirely, not to be confused with
+# spice). The rating+label is immediately followed by the page-count marker
+# ("Warm 419 p · May 2015"), which anchors the regex below and rules out any
+# accidental match elsewhere on the page. Confirmed ratings/labels seen live:
+# 1/Mild, 2/Warm, 3/Spicy, 4/Very Spicy. 0/No Spice and 5/Scorching were not
+# seen on a live page (the guide's own "0/5 No Spice" example list — Sorcery
+# of Thorns, Spinning Silver, Cinder — actually shows 1/Mild on each book's
+# live page now; the guide's static examples and the live per-book database
+# have drifted out of sync on the site's own end). Counting chili spans
+# directly, rather than mapping the label through a lookup table, means a
+# 0-chili book still resolves correctly to "0/5 - No Spice" without ever
+# needing one confirmed live.
+_FAESHELF_SPICE_LABELS = ("No Spice", "Mild", "Warm", "Spicy", "Very Spicy", "Scorching")
+_FAESHELF_SPICE_PATTERN = re.compile(
+    r"((?:🌶️\s*)*)("
+    + "|".join(re.escape(label) for label in sorted(_FAESHELF_SPICE_LABELS, key=len, reverse=True))
+    + r")\s+\d+\s*p\s*·"
+)
+
+# The book page's own "Content Warnings" section — confirmed 2026-07-22 to
+# appear exactly once per page, immediately followed by "Spoiler Discussion"
+# (also exactly once) — a much simpler shape than CSM's multi-occurrence
+# headers, so no positional disambiguation like _csm_header_positions() is
+# needed here. Unlike CSM, this section is NOT sub-headed by category — it
+# blends sexual-content, violence, and thematic warnings into one paragraph
+# (confirmed live, e.g. The War of Two Queens: "Graphic violence and
+# warfare... Explicit sexual content... Blood drinking and vampiric
+# violence..." all in the same paragraph) — so extraction returns the whole
+# section rather than trying to isolate a sex-specific subsection that
+# doesn't exist as its own heading on this source.
+_FAESHELF_CONTENT_WARNINGS_HEADER = "Content Warnings"
+_FAESHELF_NEXT_SECTION_HEADER = "Spoiler Discussion"
+
+
+def _extract_faeshelf_rating(text: str) -> str | None:
+    """Pull The Fae Shelf's chili-rating + label directly out of the page
+    (see module comment above for the confirmed page structure). Returns
+    "N/5 - Label", or None if the pattern isn't found."""
+    m = _FAESHELF_SPICE_PATTERN.search(text)
+    if not m:
+        return None
+    rating = m.group(1).count("🌶️")
+    label = m.group(2)
+    return f"{rating}/5 - {label}"
+
+
+def _extract_faeshelf_content_warnings(text: str) -> str | None:
+    """The book page's own "Content Warnings" prose section, verbatim.
+    Returns None if the header isn't found at all on the page."""
+    start = text.find(_FAESHELF_CONTENT_WARNINGS_HEADER)
+    if start == -1:
+        return None
+    end = text.find(_FAESHELF_NEXT_SECTION_HEADER, start)
+    section = text[start:end if end != -1 else len(text)]
+    return section.strip() or None
+
+
+def _extract_faeshelf_excerpt(text: str) -> str | None:
+    """Combines The Fae Shelf's structured chili-rating with its Content
+    Warnings prose when both are present, joined by an em dash — gives the
+    same at-a-glance number SpicyBooks/romance.io provide, plus the
+    descriptive content CSM provides, from a single source. Returns just
+    whichever piece was found if only one is present, or None if neither is
+    (caller falls back to _extract_relevant_excerpt, same as the other
+    structured sources)."""
+    rating = _extract_faeshelf_rating(text)
+    warnings = _extract_faeshelf_content_warnings(text)
+    if rating and warnings:
+        return f"{rating} — {warnings}"
+    return rating or warnings
+
+
 def fetch_full_text(url: str) -> str | None:
     try:
         resp = requests.get(url, headers=_UA, timeout=10)
@@ -297,9 +396,10 @@ def fetch_full_text(url: str) -> str | None:
 
 def search_top_content_sites(title: str, author: str | None) -> list[dict]:
     """One site-restricted Serper query per active trusted domain (currently
-    commonsensemedia.org, spicybooks.org — see _ACTIVE_SEARCH_DOMAINS), not one
-    combined OR query. A combined query lets a domain with many SEO/duplicate
-    URLs per book crowd another domain out of the shared result cap entirely —
+    commonsensemedia.org, spicybooks.org, thefaeshelf.com — see
+    _ACTIVE_SEARCH_DOMAINS), not one combined OR query. A combined query lets
+    a domain with many SEO/duplicate URLs per book crowd another domain out
+    of the shared result cap entirely —
     confirmed 2026-07-21 with "Beach Read": one combined query returned 4
     romance.io URLs (3 near-duplicates of the same book) and zero
     spicybooks.org hits, even though spicybooks.org has a real page for it. A
@@ -373,6 +473,8 @@ def gather_spice_findings(title: str, author: str | None) -> tuple[list[dict], l
             excerpt = _extract_structured_rating(text, _SPICYBOOKS_PATTERN) or _extract_relevant_excerpt(text)
         elif stype == "commonsensemedia":
             excerpt = _extract_commonsensemedia_excerpt(text)
+        elif stype == "faeshelf":
+            excerpt = _extract_faeshelf_excerpt(text) or _extract_relevant_excerpt(text)
         else:
             excerpt = _extract_relevant_excerpt(text)
         if not excerpt:
