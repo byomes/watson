@@ -19,6 +19,7 @@ needs_review with no rating.
 import json
 import logging
 import re
+import time
 from urllib.parse import urlparse
 
 import requests
@@ -29,6 +30,17 @@ log = logging.getLogger(__name__)
 
 OLLAMA_URL = "http://localhost:11434/api/generate"
 MODEL = "qwen2.5:7b"  # accuracy-sensitive background job — see LLM Stack in WATSON_ARCHITECTURE.md
+
+
+def _log_stage(job_id, stage_name: str, duration: float, stage_durations: dict | None = None) -> None:
+    """One log line per pipeline stage — job_id, stage name, wall-clock duration. If
+    stage_durations is given, accumulates into it (a stage can fire more than once per
+    job, e.g. one fetch_full_text call per trusted source) so research_book() can log a
+    single per-job summary line at the end. Baseline instrumentation only — Commit 1,
+    curator-spec.md — no pipeline behavior changes."""
+    log.info("curator_timing job_id=%s stage=%s duration=%.2fs", job_id, stage_name, duration)
+    if stage_durations is not None:
+        stage_durations[stage_name] = stage_durations.get(stage_name, 0.0) + duration
 
 _UA = {
     "User-Agent": (
@@ -475,14 +487,22 @@ def search_for_author(title: str) -> list[dict]:
     return serper_search(f"{title} goodreads", max_results=5)
 
 
-def gather_spice_findings(title: str, author: str | None) -> tuple[list[dict], list[str]]:
+def gather_spice_findings(
+    title: str, author: str | None, job_id=None, stage_durations: dict | None = None,
+) -> tuple[list[dict], list[str]]:
     """Returns (findings, all_result_titles).
     findings: ranked, deduped-by-category list of
     {"source_name","source_type","rank","excerpt","url"} — only entries where a
     real rating (structured or prose-extracted) was actually found, capped at
     _MAX_DISPLAYED_FINDINGS.
-    all_result_titles: every search-result title seen, for author extraction."""
+    all_result_titles: every search-result title seen, for author extraction.
+
+    job_id/stage_durations: baseline timing instrumentation only (Commit 1,
+    curator-spec.md) — logs how long site_search and each per-source
+    fetch_full_text() call take. No behavior change."""
+    _t = time.perf_counter()
     all_results = search_top_content_sites(title, author)
+    _log_stage(job_id, "site_search", time.perf_counter() - _t, stage_durations)
 
     best_per_category: dict[str, tuple[str, str, int]] = {}
     for r in all_results:
@@ -510,7 +530,9 @@ def gather_spice_findings(title: str, author: str | None) -> tuple[list[dict], l
 
     findings = []
     for stype, (name, url, rank) in best_per_category.items():
+        _t = time.perf_counter()
         text = fetch_full_text(url)
+        _log_stage(job_id, f"fetch_{stype}", time.perf_counter() - _t, stage_durations)
         if not text:
             continue
         if stype == "romance_io":
@@ -966,7 +988,7 @@ Return JSON exactly in this shape:
 
 # ── Orchestration ────────────────────────────────────────────────────────────
 
-def research_book(title: str, author: str | None = None) -> dict:
+def research_book(title: str, author: str | None = None, job_id=None) -> dict:
     """Full research pass. Returns:
     {
       "confident": bool,
@@ -983,18 +1005,38 @@ def research_book(title: str, author: str | None = None) -> dict:
       "series_name": str|None,
       "sources": [{"type": str, "url": str}],
     }
+
+    job_id: baseline timing instrumentation only (Commit 1, curator-spec.md) — every
+    stage below logs its own duration tagged with job_id, plus one
+    curator_timing_summary line at the end with the total and a per-stage
+    breakdown. No behavior change; this exists to get a real measured baseline
+    before Commits 2+ restructure anything.
     """
-    findings, result_titles = gather_spice_findings(title, author)
+    _t_total = time.perf_counter()
+    stage_durations: dict[str, float] = {}
+
+    findings, result_titles = gather_spice_findings(
+        title, author, job_id=job_id, stage_durations=stage_durations
+    )
     if author is None:
         # Author-backfill signal (Goodreads-style "Title by Author" titles) was
         # lost when the trusted-source search narrowed to CSM/SpicyBooks only
         # (2026-07-21) — those sites' own titles never name the author. This
         # dedicated, separate query restores it without touching that search.
-        result_titles = result_titles + [
+        _t = time.perf_counter()
+        author_search_titles = [
             r.get("title", "") for r in search_for_author(title) if r.get("title")
         ]
+        _log_stage(job_id, "search_for_author", time.perf_counter() - _t, stage_durations)
+        result_titles = result_titles + author_search_titles
+
+    _t = time.perf_counter()
     amazon_url = find_amazon_listing(title, author)
+    _log_stage(job_id, "find_amazon_listing", time.perf_counter() - _t, stage_durations)
+
+    _t = time.perf_counter()
     goodreads_url = find_goodreads_book_page(title, author)
+    _log_stage(job_id, "find_goodreads_book_page", time.perf_counter() - _t, stage_durations)
 
     sources = [
         {"type": f["source_type"], "url": f["url"]} for f in findings
@@ -1009,7 +1051,9 @@ def research_book(title: str, author: str | None = None) -> dict:
     # synopsis) - the per-source loop below only fills this in as a fallback
     # if Open Library had no record for this title (see
     # fetch_open_library_description's docstring).
+    _t = time.perf_counter()
     description = fetch_open_library_description(title, author)
+    _log_stage(job_id, "open_library_description", time.perf_counter() - _t, stage_durations)
     series_position = None
     series_total = None
     series_name = None
@@ -1022,7 +1066,9 @@ def research_book(title: str, author: str | None = None) -> dict:
     for source_type, url in (("amazon", amazon_url), ("goodreads", goodreads_url)):
         if not url:
             continue
+        _t = time.perf_counter()
         details = fetch_page_details(url)
+        _log_stage(job_id, f"fetch_page_details_{source_type}", time.perf_counter() - _t, stage_durations)
         if source_type == "amazon":
             page_count = page_count or details["page_count"]
             if details["kindle_unlimited"] is not None:
@@ -1036,7 +1082,10 @@ def research_book(title: str, author: str | None = None) -> dict:
     if amazon_url:
         sources.append({"type": "amazon", "url": amazon_url})
 
+    _t = time.perf_counter()
     rating_result = judge_spice_rating(title, author, findings)
+    _log_stage(job_id, "judge_spice_rating", time.perf_counter() - _t, stage_durations)
+
     extracted_author = extract_author_from_titles(result_titles)
 
     # Retry the Open Library synopsis lookup now that author-backfill has run:
@@ -1046,9 +1095,18 @@ def research_book(title: str, author: str | None = None) -> dict:
     # the author attached. A backfilled author found here beats whatever
     # shorter Goodreads-teaser description already filled in above.
     if author is None and extracted_author:
+        _t = time.perf_counter()
         retried_description = fetch_open_library_description(title, extracted_author)
+        _log_stage(job_id, "open_library_description_retry", time.perf_counter() - _t, stage_durations)
         if retried_description:
             description = retried_description
+
+    total_duration = time.perf_counter() - _t_total
+    stage_summary = " ".join(f"{name}={dur:.2f}s" for name, dur in stage_durations.items())
+    log.info(
+        "curator_timing_summary job_id=%s total=%.2fs %s",
+        job_id, total_duration, stage_summary,
+    )
 
     return {
         "confident": bool(rating_result.get("confident")),

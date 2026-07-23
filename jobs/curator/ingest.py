@@ -336,8 +336,13 @@ def ingest_submission(
     image_bytes: bytes | None = None,
     image_mimetype: str | None = None,
     notify_telegram: bool = True,
+    job_id=None,
 ) -> dict:
     """Entry point. Exactly one of (title given), link, or image_bytes drives identification.
+
+    job_id: baseline timing instrumentation only (Commit 1, curator-spec.md) — threaded
+    through to research_book() so its per-stage timing logs can be tied back to the
+    ingest_jobs row that triggered them. No behavior change.
 
     notify_telegram=False suppresses the per-book Approve/Edit/Reject message — used for
     batch items, where the batch-completion SMS is the "done" signal instead (avoids
@@ -379,7 +384,7 @@ def ingest_submission(
     title = title_case(title)
     author = author or "Unknown"
 
-    research = research_book(title, author if author != "Unknown" else None)
+    research = research_book(title, author if author != "Unknown" else None, job_id=job_id)
     series = series or research.get("series_name")
     # Backfill author from search results the same way series_name already does —
     # only when the user didn't supply one, and only if 2+ independent sources agree

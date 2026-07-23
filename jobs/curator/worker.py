@@ -163,6 +163,7 @@ def _process_single(job: dict) -> None:
                 image_bytes=job["image_blob"],
                 image_mimetype=job["image_mimetype"],
                 notify_telegram=not is_batch_item,
+                job_id=job["id"],
             )
             conn.execute(
                 "UPDATE ingest_jobs SET status='done', book_id=?, completed_at=datetime('now') "
