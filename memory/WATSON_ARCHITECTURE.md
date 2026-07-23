@@ -1308,3 +1308,26 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - 8e704b0 test: verify webhook after reconnect
 - 6eaf6ef feat: /guide/[slug] lead-magnet landing page for companion guide funnel
 - e019e10 publish: Miraculous and Providential: The Two Ways God Moves
+
+---
+
+## Recent Changes — 2026-07-23
+
+### ~/watson
+- 8e50e7f fix: worker.py get_job_status() collapsed NULL kindle_unlimited to False
+- f784fdc feat: title-level dedup cache for Curator submissions
+- 1dd4cd3 feat: move romance.io/FlareSolverr fetch into Curator Stage B
+- 5f1895f feat: split Curator ingest into Stage A (fast) / Stage B (background)
+- fd7ca56 feat: parallelize Curator Stage A network I/O (Wave 1 + Wave 2)
+- c475952 feat: Curator timing instrumentation (baseline before Stage A/B split)
+- 30ea928 fix: switch cover-photo OCR from moondream to qwen2.5vl — moondream misspelled author names and collapsed on compound prompts; qwen2.5vl handles both single-call format and accuracy correctly
+- 70766ba fix: moondream OCR — split compound prompt into two simple questions, fix EXIF rotation, downscale before encoding
+- 6615726 feat: live token-gated /docs route serving current architecture + file map as plain text
+- ed324a3 feat: route romance.io (Curator) through FlareSolverr
+- 43c707d feat: run FlareSolverr container for Cloudflare JS challenge bypass
+- f57d13a fix: correct thesis_tracker docstring cron schedule to match live crontab (Saturday, not daily)
+- 54db2f5 feat: install Playwright + jobs/browser/browser_service.py shared context manager
+- 9e3d603 feat: add The Fae Shelf as a Curator trusted spice-content source
+- 9e9eae8 fix: remove remaining Curator Telegram privacy leak, fix Open Library empty-author 500
+- 006d562 docs: file map 2026-07-22
+- 8731f48 docs: architecture update 2026-07-22
