@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-07-22*
+*Generated: 2026-07-23*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -155,6 +155,11 @@ jobs/
   bodyrec/
     __init__.py
     api.py
+  browser/
+    __init__.py
+    browser_service.py
+    fetch.py
+    intercept.py
   build_kb.py
   cleanup.py
   cleanup_library.ps1
@@ -1004,6 +1009,7 @@ memory/
     _index.md
     benchmarks.md
     congregation.md
+    curator-spec.md
     dev_loop.md
     godfidence/
       files/
