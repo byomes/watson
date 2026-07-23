@@ -87,7 +87,13 @@ def get_job_status(job_id: int) -> dict | None:
             book = conn.execute("SELECT * FROM books WHERE id = ?", (job["book_id"],)).fetchone()
             if book:
                 book_dict = dict(book)
-                book_dict["kindle_unlimited"] = bool(book_dict["kindle_unlimited"])
+                # Three-state (bug #47, watson.db bug_tracker): NULL = couldn't verify
+                # (e.g. Amazon's bot-block page) must stay None, not collapse into False
+                # ("confirmed not on KU") via a bare bool() coercion. Mirrors api.py's
+                # _book_row_to_dict(), the one other place this same row gets serialized.
+                book_dict["kindle_unlimited"] = (
+                    None if book_dict["kindle_unlimited"] is None else bool(book_dict["kindle_unlimited"])
+                )
                 findings = conn.execute(
                     "SELECT * FROM spice_findings WHERE book_id = ? ORDER BY rank ASC",
                     (job["book_id"],),
