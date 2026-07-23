@@ -146,14 +146,21 @@ def _process_job(job: dict) -> None:
 
 
 def _process_single(job: dict) -> None:
-    """Stage A/B split (curator-spec.md Commit 3). Stage A (ingest_submission) runs
-    first and, on success, the job is marked 'partial' with book_id already set — the
-    book row is fully visible to Mel at this point (same gating rule as always).
-    Stage B (enrich_submission_stage_b) then fires immediately, in this same thread,
-    with no separate queue entry — see its docstring — and the job is marked 'done'
-    once that returns, whether or not it actually found anything. A Stage A failure
-    marks the job 'failed' and skips Stage B entirely (no book was created to enrich);
-    a Stage B failure is logged but never flips a job that reached 'partial' to
+    """Stage A/B split (curator-spec.md Commit 3), plus the dedup-cache short-circuit
+    (Commit 6). Three outcomes for Stage A (ingest_submission):
+
+    - Dedup hit ("duplicate": True in the result, Commit 6): no research ran at all —
+      straight to 'done', book_id set, Stage B skipped entirely (nothing to enrich;
+      the existing book was already fully enriched on its own original submission).
+    - Normal success: job marked 'partial' with book_id already set — the book row is
+      fully visible to Mel at this point (same gating rule as always). Stage B
+      (enrich_submission_stage_b) then fires immediately, in this same thread, with no
+      separate queue entry — see its docstring — and the job is marked 'done' once
+      that returns, whether or not it actually found anything.
+    - Failure: job marked 'failed', Stage B skipped entirely (no book was created to
+      enrich).
+
+    A Stage B failure is logged but never flips a job that reached 'partial' to
     'failed' — Stage A's result already stands as the final one."""
     from jobs.curator.ingest import enrich_submission_stage_b, ingest_submission
 
@@ -161,6 +168,7 @@ def _process_single(job: dict) -> None:
     payload = json.loads(job["input_raw"] or "{}")
 
     stage_a_result = None
+    is_duplicate = False
     conn = get_db()
     try:
         try:
@@ -175,10 +183,18 @@ def _process_single(job: dict) -> None:
                 notify_telegram=not is_batch_item,
                 job_id=job["id"],
             )
-            conn.execute(
-                "UPDATE ingest_jobs SET status='partial', book_id=? WHERE id=?",
-                (stage_a_result.get("book_id"), job["id"]),
-            )
+            is_duplicate = bool(stage_a_result.get("duplicate"))
+            if is_duplicate:
+                conn.execute(
+                    "UPDATE ingest_jobs SET status='done', book_id=?, completed_at=datetime('now') "
+                    "WHERE id=?",
+                    (stage_a_result.get("book_id"), job["id"]),
+                )
+            else:
+                conn.execute(
+                    "UPDATE ingest_jobs SET status='partial', book_id=? WHERE id=?",
+                    (stage_a_result.get("book_id"), job["id"]),
+                )
             conn.commit()
         except Exception as exc:
             log.error("ingest job %s (Stage A) failed: %s", job["id"], exc)
@@ -191,7 +207,7 @@ def _process_single(job: dict) -> None:
     finally:
         conn.close()
 
-    if stage_a_result is not None:
+    if stage_a_result is not None and not is_duplicate:
         try:
             enrich_submission_stage_b(
                 stage_a_result.get("book_id"),

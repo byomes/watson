@@ -245,6 +245,72 @@ Return JSON exactly in this shape:
     }
 
 
+_DEDUP_STALENESS_DAYS = 90
+
+
+def _normalize_for_dedup(text: str | None) -> str:
+    return re.sub(r"\s+", " ", (text or "").strip().lower())
+
+
+def _find_recent_duplicate(title: str, author: str) -> dict | None:
+    """Title-level dedup cache (Commit 6, curator-spec.md). A normalized
+    (lowercased, whitespace-collapsed) title+author match against an
+    existing, non-rejected book created within the last
+    _DEDUP_STALENESS_DAYS wins outright — the caller (ingest_submission())
+    skips the whole research pipeline for a repeat submission entirely
+    (<1s instead of a full Stage A pass). A match older than the staleness
+    window is treated as a miss and re-researched normally, so a genuinely
+    stale entry doesn't get served forever — same reasoning as the existing
+    weekly KU-refresh job (jobs/curator/refresh_ku.py): data needs periodic
+    reconfirmation, not permanent trust.
+
+    Compared in Python rather than via SQL string functions (only TRIM/LOWER
+    are built into SQLite, not general whitespace-collapsing) — the books
+    table is a personal household library, not large enough for this to
+    matter, and it keeps the normalization logic in one place, guaranteed
+    identical on both sides of the comparison."""
+    norm_title = _normalize_for_dedup(title)
+    norm_author = _normalize_for_dedup(author)
+    if not norm_title:
+        return None
+
+    conn = get_db()
+    try:
+        rows = conn.execute(
+            "SELECT * FROM books WHERE status != 'rejected' "
+            "AND created_at >= datetime('now', ?)",
+            (f"-{_DEDUP_STALENESS_DAYS} days",),
+        ).fetchall()
+    finally:
+        conn.close()
+
+    for row in rows:
+        if (
+            _normalize_for_dedup(row["title"]) == norm_title
+            and _normalize_for_dedup(row["author"]) == norm_author
+        ):
+            return dict(row)
+    return None
+
+
+def _attach_reading_status_if_missing(book_id: int, user_id) -> None:
+    """Best-effort: a duplicate submission still adds the book to the
+    submitting user's list, but never clobbers a shelf/rating/notes they
+    may have already set on it — DO NOTHING on conflict, not an upsert."""
+    if not user_id:
+        return
+    conn = get_db()
+    try:
+        conn.execute(
+            "INSERT INTO reading_status (book_id, user_id, shelf) VALUES (?, ?, 'want_to_read') "
+            "ON CONFLICT(book_id, user_id) DO NOTHING",
+            (book_id, user_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def _create_book(
     *, title: str, author: str, status: str, added_by, series=None, spice_rating=None,
     spice_notes="", page_count=None, kindle_unlimited=None,
@@ -350,6 +416,12 @@ def ingest_submission(
     to fill in spice_rating (and, from Commit 4, a romance.io finding) without this
     function ever blocking on either.
 
+    Before any of that: a title-level dedup cache (Commit 6) checks for a normalized
+    title+author match against a recent, non-rejected book and, on a hit, returns it
+    directly (with "duplicate": True in the result) — the caller (worker.py) skips
+    straight to 'done' without ever touching Stage A/B for that job. See
+    _find_recent_duplicate()'s docstring for the staleness window.
+
     job_id: timing instrumentation (Commit 1, curator-spec.md) — threaded through to
     research_book_fast() so its per-stage timing logs can be tied back to the
     ingest_jobs row that triggered them.
@@ -397,6 +469,18 @@ def ingest_submission(
 
     title = title_case(title)
     author = author or "Unknown"
+
+    # Title-level dedup cache (Commit 6, curator-spec.md) — before Stage A starts,
+    # not after: the whole point is skipping the research pipeline entirely for a
+    # repeat submission, not just skipping part of it.
+    duplicate = _find_recent_duplicate(title, author)
+    if duplicate is not None:
+        _attach_reading_status_if_missing(duplicate["id"], submitted_by)
+        return {
+            "status": duplicate["status"], "book_id": duplicate["id"],
+            "title": duplicate["title"], "author": duplicate["author"],
+            "findings": [], "duplicate": True,
+        }
 
     research = research_book_fast(title, author if author != "Unknown" else None, job_id=job_id)
     series = series or research.get("series_name")
