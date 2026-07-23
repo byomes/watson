@@ -1465,6 +1465,10 @@ function renderMore() {
         <span class="mtile-label">BodyRec</span>
         <span class="mtile-chev">›</span>
       </button>
+      <button class="mtile" id="mtile-links" onclick="moreToggle('links')">
+        <span class="mtile-label">Links</span>
+        <span class="mtile-chev">›</span>
+      </button>
     </div>
     <div id="more-expand-area">
       <div class="msec-body" id="msec-body-skills">
@@ -1500,6 +1504,9 @@ function renderMore() {
       </div>
       <div class="msec-body" id="msec-body-dev">
         <div class="msec-inner" id="msec-inner-dev"></div>
+      </div>
+      <div class="msec-body" id="msec-body-links">
+        <div class="msec-inner" id="msec-inner-links"></div>
       </div>
     </div>`);
   moreLoadVacationStatus();
@@ -1578,6 +1585,7 @@ function moreToggle(sec) {
     if (sec === 'thesis')   moreLoadThesis();
     if (sec === 'dev')      devLoad();
     if (sec === 'leadmagnet') moreLoadLeadMagnet();
+    if (sec === 'links')    moreLoadLinks();
   }
 }
 
@@ -3275,6 +3283,143 @@ async function peopleSave(id) {
       alert('Saved, but carrier could not be saved — no phone on file for this contact.');
     }
   } catch { alert('Failed to save.'); }
+}
+
+// ── Links ────────────────────────────────────────────────────────────────────
+
+let _moreAllLinks = [];
+
+async function moreLoadLinks() {
+  const el = document.getElementById('msec-inner-links');
+  if (!el) return;
+  el.innerHTML = '<div class="loading">Loading&hellip;</div>';
+  try {
+    const links = await api('/api/links');
+    _moreAllLinks = Array.isArray(links) ? links : [];
+    _linksRender();
+  } catch (e) {
+    if (String(e.message).startsWith('401')) {
+      el.innerHTML = '<div class="empty">Log into <a href="/admin/login" style="color:var(--gold)">/admin</a> to manage links.</div>';
+    } else {
+      el.innerHTML = '<div class="empty">Could not load links.</div>';
+    }
+  }
+}
+
+function _linksRender() {
+  const el = document.getElementById('msec-inner-links');
+  if (!el) return;
+  el.innerHTML = `
+    <button class="mbtn mbtn-sm" onclick="linksToggleForm()" style="margin-bottom:8px">+ New Link</button>
+    <div id="more-link-form" style="display:none">
+      <div class="mform">
+        <input id="mlnk-slug" placeholder="slug (e.g. office)" type="text">
+        <input id="mlnk-dest" placeholder="Destination URL" type="url">
+        <input id="mlnk-notes" placeholder="Notes (optional)" type="text">
+        <div class="mfrow">
+          <button class="mbtn mbtn-p" onclick="linksCreate()">Save</button>
+          <button class="mbtn" onclick="linksToggleForm()">Cancel</button>
+        </div>
+      </div>
+    </div>
+    <div id="mlnk-list"></div>`;
+  _linksRenderList();
+}
+
+function linksToggleForm() {
+  const f = document.getElementById('more-link-form');
+  if (!f) return;
+  const opening = f.style.display === 'none';
+  f.style.display = opening ? 'block' : 'none';
+  if (opening) {
+    document.getElementById('mlnk-slug').value = '';
+    document.getElementById('mlnk-dest').value = '';
+    document.getElementById('mlnk-notes').value = '';
+  }
+}
+
+function _linksRenderList() {
+  const el = document.getElementById('mlnk-list');
+  if (!el) return;
+  if (!_moreAllLinks.length) {
+    el.innerHTML = '<div class="empty">No links yet.</div>';
+    return;
+  }
+  el.innerHTML = _moreAllLinks.map(l => `
+    <div class="mpn-card" id="mlnk-row-${esc(l.slug)}">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+        <div style="min-width:0">
+          <div style="font-size:13px;font-weight:500">/go/${esc(l.slug)}</div>
+          <div style="font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(l.destination)}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px">${l.clicks} click${l.clicks === 1 ? '' : 's'}${l.notes ? ' &middot; ' + esc(l.notes) : ''}</div>
+        </div>
+        <div style="display:flex;gap:6px;flex-shrink:0">
+          <button class="mbtn mbtn-sm" onclick="linksEdit('${esc(l.slug)}')">Edit</button>
+          <button class="mbtn mbtn-sm mbtn-d" onclick="linksDelete('${esc(l.slug)}')">Delete</button>
+        </div>
+      </div>
+      <div id="mlnk-edit-${esc(l.slug)}" style="display:none"></div>
+    </div>`).join('');
+}
+
+function linksEdit(slug) {
+  const expEl = document.getElementById(`mlnk-edit-${slug}`);
+  if (!expEl) return;
+  const opening = expEl.style.display === 'none';
+  document.querySelectorAll('#mlnk-list [id^="mlnk-edit-"]').forEach(e => { if (e !== expEl) e.style.display = 'none'; });
+  if (!opening) { expEl.style.display = 'none'; return; }
+  const l = _moreAllLinks.find(x => x.slug === slug);
+  if (!l) return;
+  expEl.innerHTML = `
+    <div class="mform" style="margin-top:8px">
+      <input id="mlnk-edit-dest-${slug}" value="${esc(l.destination)}" type="url">
+      <input id="mlnk-edit-notes-${slug}" value="${esc(l.notes || '')}" type="text" placeholder="Notes (optional)">
+      <div class="mfrow">
+        <button class="mbtn mbtn-p" onclick="linksSave('${slug}')">Save</button>
+        <button class="mbtn" onclick="linksEdit('${slug}')">Cancel</button>
+      </div>
+    </div>`;
+  expEl.style.display = 'block';
+}
+
+async function linksCreate() {
+  const slug = (document.getElementById('mlnk-slug').value || '').trim().toLowerCase();
+  const destination = (document.getElementById('mlnk-dest').value || '').trim();
+  const notes = (document.getElementById('mlnk-notes').value || '').trim();
+  if (!slug || !destination) { alert('Slug and destination are required.'); return; }
+  try {
+    await api('/api/links', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ slug, destination, notes }),
+    });
+    linksToggleForm();
+    moreLoadLinks();
+  } catch (e) {
+    alert(String(e.message).startsWith('409') ? 'That slug already exists.' : 'Failed to create link.');
+  }
+}
+
+async function linksSave(slug) {
+  const destination = (document.getElementById(`mlnk-edit-dest-${slug}`).value || '').trim();
+  const notes = (document.getElementById(`mlnk-edit-notes-${slug}`).value || '').trim();
+  if (!destination) { alert('Destination is required.'); return; }
+  try {
+    await api(`/api/links/${encodeURIComponent(slug)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ destination, notes }),
+    });
+    moreLoadLinks();
+  } catch { alert('Failed to save link.'); }
+}
+
+async function linksDelete(slug) {
+  if (!confirm(`Delete /go/${slug}? This cannot be undone.`)) return;
+  try {
+    await api(`/api/links/${encodeURIComponent(slug)}`, { method: 'DELETE' });
+    moreLoadLinks();
+  } catch { alert('Failed to delete link.'); }
 }
 
 function moreToggleTheme(isLight) {

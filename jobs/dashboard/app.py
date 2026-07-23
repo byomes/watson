@@ -340,6 +340,9 @@ app.register_blueprint(curator_bp)
 from jobs.curator.worker import start_worker as _curator_start_worker
 _curator_start_worker()
 
+from jobs.links.api import links_bp
+app.register_blueprint(links_bp)
+
 _EMAIL_SIGNATURE = "---\nWatson\nAI-powered digital assistant\nOffice of Dr. Bill Yomes\nwilliamckyomes.com/start"
 
 # ── Admin template filters ────────────────────────────────────────────────────
