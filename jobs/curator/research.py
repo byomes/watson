@@ -1245,6 +1245,53 @@ def research_book_fast(title: str, author: str | None = None, job_id=None) -> di
     }
 
 
+def _find_romance_io_finding(
+    title: str, author: str | None, job_id=None, stage_durations: dict | None = None,
+) -> dict | None:
+    """Stage B-only romance.io discovery + fetch (Commit 4, curator-spec.md) —
+    romance.io/FlareSolverr removed from the synchronous Stage A path
+    entirely, unconditionally. No time budget here, so this does its own
+    fresh site:romance.io Serper search rather than reusing whatever Stage
+    A's _discover_trusted_sources() already found — simpler, fully decoupled
+    from Stage A's internal state, and Serper is cheap regardless. No
+    timeout tightening either: the plain Serper call uses the default
+    timeout, and the FlareSolverr fetch (via _fetch_finding() ->
+    fetch_full_text() -> _fetch_via_flaresolverr()) keeps its own
+    long-standing _FLARESOLVERR_TIMEOUT_MS ceiling, exactly as before this
+    refactor — only its position in the pipeline changed, not the call
+    itself or the extraction regex (_ROMANCE_IO_PATTERN, unchanged).
+
+    Returns a finding dict (same shape _fetch_finding() always returned) or
+    None if no romance.io page was found or fetchable — same graceful-skip
+    behavior as every other source, just running in the background now
+    instead of blocking Stage A."""
+    who = f"{title} {author}" if author else title
+
+    _t = time.perf_counter()
+    results = serper_search(f"{who} site:romance.io", max_results=5)
+    _log_stage(job_id, "site_search_romance_io_stage_b", time.perf_counter() - _t, stage_durations)
+
+    best: tuple[str, str, int] | None = None
+    for r in results:
+        url = r.get("url", "")
+        if not url:
+            continue
+        cat = _categorize_source(url)
+        if not cat or cat[1] != "romance_io":
+            continue
+        name, stype, rank = cat
+        # Same book-page preference as _discover_trusted_sources() — a bare
+        # romance.io homepage/category URL shouldn't beat a real book page.
+        if best is None or (not _looks_like_book_page(stype, best[1]) and _looks_like_book_page(stype, url)):
+            best = (name, url, rank)
+
+    if best is None:
+        return None
+
+    name, url, rank = best
+    return _fetch_finding("romance_io", name, url, rank, job_id, stage_durations)
+
+
 def run_stage_b_enrichment(
     title: str, author: str | None, findings: list[dict], job_id=None,
 ) -> dict:
@@ -1253,22 +1300,39 @@ def run_stage_b_enrichment(
     jobs/curator/worker.py), with no time budget — it's what upgrades the
     already-visible 'partial' book row to 'done' in place.
 
-    Currently just judge_spice_rating() on Stage A's findings, moved here
-    verbatim (same logic, same confidence gating, same informational-only
-    status per the 2026-07-22 gating decision — only its position changed).
-    romance.io fetching joins this function in Commit 4, ahead of the
-    judgment call so its finding can be weighed too.
+    Fetches romance.io (Commit 4, see _find_romance_io_finding()) and, if
+    found, weighs it into the same findings judge_spice_rating() sees — same
+    as pre-split behavior, where all 4 trusted sources were always available
+    before judging. Then runs judge_spice_rating() (moved here in Commit 3;
+    same logic, same confidence gating, same informational-only status per
+    the 2026-07-22 gating decision — only its position changed).
 
-    Returns {"confident": bool, "reason": str, "spice_rating": int|None}.
-    Never raises — judge_spice_rating() already has its own internal
-    try/except and returns a not-confident dict on failure rather than
-    propagating; the caller (worker.py) additionally wraps this whole call so
-    a Stage B miss is logged, never surfaced to Mel as an error (the Stage A
-    result already stands on its own)."""
+    Returns {"confident": bool, "reason": str, "spice_rating": int|None,
+    "romance_io_finding": dict|None} — the caller (jobs/curator/ingest.py's
+    enrich_submission_stage_b()) persists romance_io_finding into
+    spice_findings and recomputes spice_notes if it now outranks whatever
+    Stage A's findings gave it.
+
+    Never raises — judge_spice_rating() and _find_romance_io_finding() (via
+    _fetch_finding()) already have their own internal try/except and degrade
+    to "not found"/"not confident" rather than propagating; the caller
+    (worker.py) additionally wraps this whole call so a Stage B miss is
+    logged, never surfaced to Mel as an error (the Stage A result already
+    stands on its own)."""
     stage_durations: dict[str, float] = {}
 
+    romance_io_finding = _find_romance_io_finding(
+        title, author, job_id=job_id, stage_durations=stage_durations
+    )
+
+    all_findings = list(findings)
+    if romance_io_finding:
+        all_findings.append(romance_io_finding)
+        all_findings.sort(key=lambda f: f["rank"])
+        all_findings = all_findings[:_MAX_DISPLAYED_FINDINGS]
+
     _t = time.perf_counter()
-    rating_result = judge_spice_rating(title, author, findings)
+    rating_result = judge_spice_rating(title, author, all_findings)
     _log_stage(job_id, "judge_spice_rating", time.perf_counter() - _t, stage_durations)
 
     stage_summary = " ".join(f"{name}={dur:.2f}s" for name, dur in stage_durations.items())
@@ -1277,5 +1341,6 @@ def run_stage_b_enrichment(
     return {
         "confident": bool(rating_result.get("confident")),
         "reason": rating_result.get("reason", ""),
+        "romance_io_finding": romance_io_finding,
         "spice_rating": rating_result.get("spice_rating"),
     }

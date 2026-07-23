@@ -470,28 +470,46 @@ def ingest_submission(
 def enrich_submission_stage_b(
     book_id: int, title: str, author: str, findings: list[dict], job_id=None,
 ) -> None:
-    """Stage B finalize (curator-spec.md Commit 3, extended by Commits 4-5). Called by
-    jobs/curator/worker.py immediately after ingest_submission() returns and the
-    ingest_jobs row is marked 'partial' — runs run_stage_b_enrichment() (currently just
-    judge_spice_rating(); Commit 4 adds a romance.io fetch ahead of it) and updates the
-    already-persisted book row in place with whatever it finds.
+    """Stage B finalize (curator-spec.md Commits 3-4). Called by jobs/curator/worker.py
+    immediately after ingest_submission() returns and the ingest_jobs row is marked
+    'partial' — runs run_stage_b_enrichment() (romance.io fetch + judge_spice_rating,
+    Commit 4) and updates the already-persisted book row in place with whatever it
+    finds.
 
-    Never raises — a Stage B miss (Ollama down, timeout, anything) is logged and
-    swallowed here; the caller (worker.py) still marks the job 'done' afterward with
-    whatever Stage A already produced standing as the final result. Mel never sees an
-    error for a background enrichment miss, per curator-spec.md Commit 3."""
+    If romance.io turned up a finding, it's persisted into spice_findings alongside
+    Stage A's (same table, same shape — attributed, verbatim excerpt, unchanged) and
+    spice_notes is recomputed from the combined, re-ranked set: romance.io (rank 2) can
+    outrank whatever Stage A already used (e.g. SpicyBooks/rank 3 or Fae Shelf/rank 4,
+    if CSM/rank 1 wasn't found), and pre-split behavior always reflected the true
+    top-ranked finding across all 4 sources since they were all fetched before
+    spice_notes was ever computed — this keeps that guarantee intact across the split.
+
+    Never raises — a Stage B miss (Ollama down, FlareSolverr down, timeout, anything)
+    is logged and swallowed here; the caller (worker.py) still marks the job 'done'
+    afterward with whatever Stage A already produced standing as the final result. Mel
+    never sees an error for a background enrichment miss, per curator-spec.md Commit
+    3."""
     try:
         enrichment = run_stage_b_enrichment(title, author, findings, job_id=job_id)
     except Exception as exc:
         log.error("Stage B enrichment failed for book_id=%s: %s", book_id, exc)
         return
 
+    romance_io_finding = enrichment.get("romance_io_finding")
     conn = get_db()
     try:
-        conn.execute(
-            "UPDATE books SET spice_rating = ? WHERE id = ?",
-            (enrichment.get("spice_rating"), book_id),
-        )
+        if romance_io_finding:
+            _add_spice_findings(book_id, [romance_io_finding])
+            all_findings = sorted(findings + [romance_io_finding], key=lambda f: f["rank"])
+            conn.execute(
+                "UPDATE books SET spice_rating = ?, spice_notes = ? WHERE id = ?",
+                (enrichment.get("spice_rating"), _derive_spice_notes(all_findings), book_id),
+            )
+        else:
+            conn.execute(
+                "UPDATE books SET spice_rating = ? WHERE id = ?",
+                (enrichment.get("spice_rating"), book_id),
+            )
         conn.commit()
     except Exception as exc:
         log.error("Stage B book update failed for book_id=%s: %s", book_id, exc)
