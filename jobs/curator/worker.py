@@ -146,15 +146,25 @@ def _process_job(job: dict) -> None:
 
 
 def _process_single(job: dict) -> None:
-    from jobs.curator.ingest import ingest_submission
+    """Stage A/B split (curator-spec.md Commit 3). Stage A (ingest_submission) runs
+    first and, on success, the job is marked 'partial' with book_id already set — the
+    book row is fully visible to Mel at this point (same gating rule as always).
+    Stage B (enrich_submission_stage_b) then fires immediately, in this same thread,
+    with no separate queue entry — see its docstring — and the job is marked 'done'
+    once that returns, whether or not it actually found anything. A Stage A failure
+    marks the job 'failed' and skips Stage B entirely (no book was created to enrich);
+    a Stage B failure is logged but never flips a job that reached 'partial' to
+    'failed' — Stage A's result already stands as the final one."""
+    from jobs.curator.ingest import enrich_submission_stage_b, ingest_submission
 
     is_batch_item = job["batch_id"] is not None
     payload = json.loads(job["input_raw"] or "{}")
 
+    stage_a_result = None
     conn = get_db()
     try:
         try:
-            result = ingest_submission(
+            stage_a_result = ingest_submission(
                 submitted_by=job["submitted_by"],
                 title=payload.get("title"),
                 author=payload.get("author"),
@@ -166,13 +176,12 @@ def _process_single(job: dict) -> None:
                 job_id=job["id"],
             )
             conn.execute(
-                "UPDATE ingest_jobs SET status='done', book_id=?, completed_at=datetime('now') "
-                "WHERE id=?",
-                (result.get("book_id"), job["id"]),
+                "UPDATE ingest_jobs SET status='partial', book_id=? WHERE id=?",
+                (stage_a_result.get("book_id"), job["id"]),
             )
             conn.commit()
         except Exception as exc:
-            log.error("ingest job %s failed: %s", job["id"], exc)
+            log.error("ingest job %s (Stage A) failed: %s", job["id"], exc)
             conn.execute(
                 "UPDATE ingest_jobs SET status='failed', error_message=?, "
                 "completed_at=datetime('now') WHERE id=?",
@@ -181,6 +190,29 @@ def _process_single(job: dict) -> None:
             conn.commit()
     finally:
         conn.close()
+
+    if stage_a_result is not None:
+        try:
+            enrich_submission_stage_b(
+                stage_a_result.get("book_id"),
+                stage_a_result.get("title"),
+                stage_a_result.get("author"),
+                stage_a_result.get("findings") or [],
+                job_id=job["id"],
+            )
+        except Exception as exc:
+            log.error("Stage B enrichment for job %s (book_id=%s) failed: %s",
+                       job["id"], stage_a_result.get("book_id"), exc)
+
+        conn = get_db()
+        try:
+            conn.execute(
+                "UPDATE ingest_jobs SET status='done', completed_at=datetime('now') WHERE id=?",
+                (job["id"],),
+            )
+            conn.commit()
+        finally:
+            conn.close()
 
     if job["batch_id"]:
         _maybe_complete_batch(job["batch_id"])

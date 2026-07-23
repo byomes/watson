@@ -36,9 +36,8 @@ MODEL = "qwen2.5:7b"  # accuracy-sensitive background job — see LLM Stack in W
 def _log_stage(job_id, stage_name: str, duration: float, stage_durations: dict | None = None) -> None:
     """One log line per pipeline stage — job_id, stage name, wall-clock duration. If
     stage_durations is given, accumulates into it (a stage can fire more than once per
-    job, e.g. one fetch_full_text call per trusted source) so research_book() can log a
-    single per-job summary line at the end. Baseline instrumentation only — Commit 1,
-    curator-spec.md — no pipeline behavior changes."""
+    job, e.g. one fetch_full_text call per trusted source) so the caller (research_book_fast()
+    or run_stage_b_enrichment()) can log a single per-job summary line at the end."""
     log.info("curator_timing job_id=%s stage=%s duration=%.2fs", job_id, stage_name, duration)
     if stage_durations is not None:
         stage_durations[stage_name] = stage_durations.get(stage_name, 0.0) + duration
@@ -680,7 +679,7 @@ def fetch_open_library_description(title: str, author: str | None, timeout: int 
     fallback even when Open Library actually has a full synopsis under the
     title alone (confirmed for "The War of the Two Queens": empty-author
     request 500s, real request omitting the param returns a 1,151-char
-    synopsis). See research_book()'s retry-after-author-backfill for the
+    synopsis). See research_book_fast()'s retry-after-author-backfill for the
     other half of this fix."""
     try:
         params: dict = {"title": title, "limit": 1}
@@ -1031,12 +1030,24 @@ Return JSON exactly in this shape:
 
 # ── Orchestration ────────────────────────────────────────────────────────────
 
-def research_book(title: str, author: str | None = None, job_id=None) -> dict:
-    """Full research pass. Returns:
+def research_book_fast(title: str, author: str | None = None, job_id=None) -> dict:
+    """Stage A (curator-spec.md Commit 3): the fast, parallel research pass —
+    Commit 2's Wave 1 + Wave 2, plus author-extraction and the Open Library
+    description retry (both cheap: pure regex, and a short-timeout network
+    call respectively). Returns as soon as these finish, target ≤15s.
+
+    Deliberately excludes:
+    - romance.io (Commit 4 fetches it separately, in the background, after
+      this function has already returned).
+    - judge_spice_rating() — moved to run_stage_b_enrichment() below. This is
+      the one piece of "Commit 5" that has to happen here too: a real Stage
+      A/Stage B split is meaningless if the slowest call (measured 28-52s in
+      the Commit 1 baseline) still blocks Stage A's return. Its logic,
+      confidence gating, and informational-only status are all unchanged —
+      only its position moved, exactly as Commit 5 specifies.
+
+    Returns:
     {
-      "confident": bool,
-      "reason": str,               # populated when not confident
-      "spice_rating": int|None,
       "findings": [{"source_name","source_type","rank","excerpt","url"}],
       "author": str|None,          # extracted from search results, only if 2+ agree
       "page_count": int|None,
@@ -1048,25 +1059,22 @@ def research_book(title: str, author: str | None = None, job_id=None) -> dict:
       "series_name": str|None,
       "sources": [{"type": str, "url": str}],
     }
+    No "confident"/"reason"/"spice_rating" keys — those come from
+    run_stage_b_enrichment() afterward and get merged into the already-
+    persisted 'partial' book row in place (see jobs/curator/ingest.py).
 
-    job_id: baseline timing instrumentation (Commit 1, curator-spec.md) — every
-    stage below logs its own duration tagged with job_id, plus one
-    curator_timing_summary line at the end with the total and a per-stage
-    breakdown.
+    job_id: timing instrumentation (Commit 1, curator-spec.md) — every stage
+    logs its own duration tagged with job_id, plus one curator_timing_summary
+    line at the end with the total and a per-stage breakdown.
 
-    Commit 2 (curator-spec.md): Wave 1 (every independent Serper query —
-    trusted-source site search, author-backfill, Amazon listing, Goodreads
-    page) and Wave 2 (trusted-source page fetches minus romance.io,
-    Amazon/Goodreads page-detail fetches, Open Library description) each now
-    run concurrently via ThreadPoolExecutor on the tightened
-    _STAGE_A_TIMEOUT, instead of sequentially at the old 10s timeout.
-    romance.io/FlareSolverr is excluded from both waves entirely for now —
-    Commit 4 adds it back as a Stage B-only fetch. judge_spice_rating() stays
-    exactly where it was (Commit 5 moves it to Stage B). Same extraction/
-    judgment logic and same field-precedence rules throughout (Open Library
-    description still wins over Amazon/Goodreads og:description, Amazon still
-    authoritative for page_count/kindle_unlimited) — only concurrency and
-    timeouts changed.
+    Wave 1 (every independent Serper query — trusted-source site search,
+    author-backfill, Amazon listing, Goodreads page) and Wave 2 (trusted-
+    source page fetches minus romance.io, Amazon/Goodreads page-detail
+    fetches, Open Library description) each run concurrently via
+    ThreadPoolExecutor on the tightened _STAGE_A_TIMEOUT (Commit 2). Same
+    extraction logic and same field-precedence rules throughout (Open
+    Library description still wins over Amazon/Goodreads og:description,
+    Amazon still authoritative for page_count/kindle_unlimited).
     """
     _t_total = time.perf_counter()
     stage_durations: dict[str, float] = {}
@@ -1201,10 +1209,6 @@ def research_book(title: str, author: str | None = None, job_id=None) -> dict:
     if amazon_url:
         sources.append({"type": "amazon", "url": amazon_url})
 
-    _t = time.perf_counter()
-    rating_result = judge_spice_rating(title, author, findings)
-    _log_stage(job_id, "judge_spice_rating", time.perf_counter() - _t, stage_durations)
-
     extracted_author = extract_author_from_titles(result_titles)
 
     # Retry the Open Library synopsis lookup now that author-backfill has run:
@@ -1223,14 +1227,11 @@ def research_book(title: str, author: str | None = None, job_id=None) -> dict:
     total_duration = time.perf_counter() - _t_total
     stage_summary = " ".join(f"{name}={dur:.2f}s" for name, dur in stage_durations.items())
     log.info(
-        "curator_timing_summary job_id=%s total=%.2fs %s",
+        "curator_timing_summary_stage_a job_id=%s total=%.2fs %s",
         job_id, total_duration, stage_summary,
     )
 
     return {
-        "confident": bool(rating_result.get("confident")),
-        "reason": rating_result.get("reason", ""),
-        "spice_rating": rating_result.get("spice_rating"),
         "findings": findings,
         "author": extracted_author,
         "page_count": page_count,
@@ -1241,4 +1242,40 @@ def research_book(title: str, author: str | None = None, job_id=None) -> dict:
         "series_total": series_total,
         "series_name": series_name,
         "sources": sources,
+    }
+
+
+def run_stage_b_enrichment(
+    title: str, author: str | None, findings: list[dict], job_id=None,
+) -> dict:
+    """Stage B (curator-spec.md Commits 3-5): background enrichment that runs
+    immediately after Stage A returns, in the same worker thread (see
+    jobs/curator/worker.py), with no time budget — it's what upgrades the
+    already-visible 'partial' book row to 'done' in place.
+
+    Currently just judge_spice_rating() on Stage A's findings, moved here
+    verbatim (same logic, same confidence gating, same informational-only
+    status per the 2026-07-22 gating decision — only its position changed).
+    romance.io fetching joins this function in Commit 4, ahead of the
+    judgment call so its finding can be weighed too.
+
+    Returns {"confident": bool, "reason": str, "spice_rating": int|None}.
+    Never raises — judge_spice_rating() already has its own internal
+    try/except and returns a not-confident dict on failure rather than
+    propagating; the caller (worker.py) additionally wraps this whole call so
+    a Stage B miss is logged, never surfaced to Mel as an error (the Stage A
+    result already stands on its own)."""
+    stage_durations: dict[str, float] = {}
+
+    _t = time.perf_counter()
+    rating_result = judge_spice_rating(title, author, findings)
+    _log_stage(job_id, "judge_spice_rating", time.perf_counter() - _t, stage_durations)
+
+    stage_summary = " ".join(f"{name}={dur:.2f}s" for name, dur in stage_durations.items())
+    log.info("curator_timing_summary_stage_b job_id=%s %s", job_id, stage_summary)
+
+    return {
+        "confident": bool(rating_result.get("confident")),
+        "reason": rating_result.get("reason", ""),
+        "spice_rating": rating_result.get("spice_rating"),
     }

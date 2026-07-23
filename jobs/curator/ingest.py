@@ -14,7 +14,9 @@ import requests
 from PIL import Image, ImageOps
 
 from jobs.curator import get_db
-from jobs.curator.research import OLLAMA_URL, call_ollama, parse_json, research_book
+from jobs.curator.research import (
+    OLLAMA_URL, call_ollama, parse_json, research_book_fast, run_stage_b_enrichment,
+)
 
 log = logging.getLogger(__name__)
 
@@ -338,11 +340,19 @@ def ingest_submission(
     notify_telegram: bool = True,
     job_id=None,
 ) -> dict:
-    """Entry point. Exactly one of (title given), link, or image_bytes drives identification.
+    """Stage A entry point (curator-spec.md Commit 3). Exactly one of (title given),
+    link, or image_bytes drives identification. Runs research_book_fast() — Wave 1 +
+    Wave 2 only, no romance.io, no Ollama judgment — and persists the book row as soon
+    as that finishes (same gating rule as always: any finding -> "pending", none ->
+    "needs_review"), with spice_rating left NULL for now. The caller (jobs/curator/
+    worker.py) marks the ingest_jobs row 'partial' at that point (visible to Mel
+    immediately) and then calls enrich_submission_stage_b() below, in the background,
+    to fill in spice_rating (and, from Commit 4, a romance.io finding) without this
+    function ever blocking on either.
 
-    job_id: baseline timing instrumentation only (Commit 1, curator-spec.md) — threaded
-    through to research_book() so its per-stage timing logs can be tied back to the
-    ingest_jobs row that triggered them. No behavior change.
+    job_id: timing instrumentation (Commit 1, curator-spec.md) — threaded through to
+    research_book_fast() so its per-stage timing logs can be tied back to the
+    ingest_jobs row that triggered them.
 
     notify_telegram=False suppresses the per-book Approve/Edit/Reject message — used for
     batch items, where the batch-completion SMS is the "done" signal instead (avoids
@@ -379,12 +389,16 @@ def ingest_submission(
         _add_source(book_id, source_type, source_url, raw_text)
         if notify_telegram:
             _notify(book_id, "Unknown", author or "", "needs_review", None, [])
-        return {"status": "needs_review", "book_id": book_id, "reason": "could not identify a book title"}
+        return {
+            "status": "needs_review", "book_id": book_id,
+            "reason": "could not identify a book title",
+            "title": "Unknown", "author": author or "Unknown", "findings": [],
+        }
 
     title = title_case(title)
     author = author or "Unknown"
 
-    research = research_book(title, author if author != "Unknown" else None, job_id=job_id)
+    research = research_book_fast(title, author if author != "Unknown" else None, job_id=job_id)
     series = series or research.get("series_name")
     # Backfill author from search results the same way series_name already does —
     # only when the user didn't supply one, and only if 2+ independent sources agree
@@ -397,10 +411,17 @@ def ingest_submission(
     # Gate on whether any real spice-content source was found at all, not on
     # judge_spice_rating()'s computed confidence/rating (2026-07-22: the goal
     # is getting books in front of Mel with real excerpts for her to read and
-    # judge herself, not a computed number she has to trust blind.
-    # judge_spice_rating() is still called inside research_book() and its
-    # output still gets stored below, but no longer gates what she sees — a
-    # book with 1+ real findings goes straight to "pending"; only zero
+    # judge herself, not a computed number she has to trust blind. This gate
+    # runs against Stage A's findings only (CSM/SpicyBooks/Fae Shelf) — as of
+    # Commit 3 it is NOT re-evaluated after Stage B's romance.io fetch (Commit
+    # 4), since re-gating would mean waiting on romance.io before deciding
+    # visibility, which defeats the point of moving it off the synchronous
+    # path. A book that only romance.io would have qualified is needs_review
+    # now instead of pending — an accepted, deliberate consequence of
+    # "spice content accuracy first, delivered fast" (curator-spec.md), not
+    # an oversight. judge_spice_rating() (and, from Commit 4, romance.io)
+    # still runs for both outcomes via enrich_submission_stage_b() below — a
+    # book with 1+ Stage A findings goes straight to "pending"; only zero
     # findings at all falls back to needs_review.
     if not findings:
         book_id = _create_book(
@@ -419,11 +440,12 @@ def ingest_submission(
         return {
             "status": "needs_review", "book_id": book_id,
             "reason": "no spice-content sources found",
+            "title": title, "author": author, "findings": [],
         }
 
     book_id = _create_book(
         title=title, author=author, series=series, status="pending", added_by=submitted_by,
-        spice_rating=research.get("spice_rating"), spice_notes=_derive_spice_notes(findings),
+        spice_notes=_derive_spice_notes(findings),  # spice_rating intentionally omitted — Stage B fills it in
         page_count=research.get("page_count"), kindle_unlimited=research.get("kindle_unlimited"),
         cover_image_url=research.get("cover_image_url"), description=research.get("description"),
         series_number=research.get("series_position"), series_total=research.get("series_total"),
@@ -437,6 +459,41 @@ def ingest_submission(
     _add_spice_findings(book_id, findings)
 
     if notify_telegram:
-        _notify(book_id, title, author, "pending", research.get("spice_rating"), source_urls)
+        _notify(book_id, title, author, "pending", None, source_urls)
 
-    return {"status": "pending", "book_id": book_id, "spice_rating": research.get("spice_rating")}
+    return {
+        "status": "pending", "book_id": book_id,
+        "title": title, "author": author, "findings": findings,
+    }
+
+
+def enrich_submission_stage_b(
+    book_id: int, title: str, author: str, findings: list[dict], job_id=None,
+) -> None:
+    """Stage B finalize (curator-spec.md Commit 3, extended by Commits 4-5). Called by
+    jobs/curator/worker.py immediately after ingest_submission() returns and the
+    ingest_jobs row is marked 'partial' — runs run_stage_b_enrichment() (currently just
+    judge_spice_rating(); Commit 4 adds a romance.io fetch ahead of it) and updates the
+    already-persisted book row in place with whatever it finds.
+
+    Never raises — a Stage B miss (Ollama down, timeout, anything) is logged and
+    swallowed here; the caller (worker.py) still marks the job 'done' afterward with
+    whatever Stage A already produced standing as the final result. Mel never sees an
+    error for a background enrichment miss, per curator-spec.md Commit 3."""
+    try:
+        enrichment = run_stage_b_enrichment(title, author, findings, job_id=job_id)
+    except Exception as exc:
+        log.error("Stage B enrichment failed for book_id=%s: %s", book_id, exc)
+        return
+
+    conn = get_db()
+    try:
+        conn.execute(
+            "UPDATE books SET spice_rating = ? WHERE id = ?",
+            (enrichment.get("spice_rating"), book_id),
+        )
+        conn.commit()
+    except Exception as exc:
+        log.error("Stage B book update failed for book_id=%s: %s", book_id, exc)
+    finally:
+        conn.close()
