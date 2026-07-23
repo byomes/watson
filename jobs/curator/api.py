@@ -175,36 +175,60 @@ def list_books():
     status            = request.args.get("status")
     search            = request.args.get("search", "").strip()
     show_all          = request.args.get("show_all") in ("1", "true", "True")
+    user_id           = request.args.get("user", type=int)
+    read_filter       = request.args.get("read")  # "true"/"false" — per-user, requires `user`
 
     if spice_max is None and not show_all:
         spice_max = DEFAULT_SPICE_MAX
 
+    if read_filter is not None and not user_id:
+        return jsonify({"error": "read filter requires a user param"}), 400
+
     clauses, params = [], []
 
     if spice_max is not None:
-        clauses.append("(spice_rating IS NULL OR spice_rating <= ?)")
+        clauses.append("(b.spice_rating IS NULL OR b.spice_rating <= ?)")
         params.append(spice_max)
     if kindle_unlimited in ("1", "true", "True"):
-        clauses.append("kindle_unlimited = 1")
+        clauses.append("b.kindle_unlimited = 1")
     if status:
         if status not in _VALID_STATUSES:
             return jsonify({"error": f"status must be one of {_VALID_STATUSES}"}), 400
-        clauses.append("status = ?")
+        clauses.append("b.status = ?")
         params.append(status)
     else:
-        clauses.append("status != 'rejected'")
+        clauses.append("b.status != 'rejected'")
     if search:
-        clauses.append("(title LIKE ? OR author LIKE ? OR series LIKE ?)")
+        clauses.append("(b.title LIKE ? OR b.author LIKE ? OR b.series LIKE ?)")
         like = f"%{search}%"
         params.extend([like, like, like])
+    # No reading_status row (or one not on the 'read' shelf) counts as unread —
+    # never guessed, just the absence of an explicit "read" mark for this user.
+    if read_filter in ("1", "true", "True"):
+        clauses.append("rs.shelf = 'read'")
+    elif read_filter in ("0", "false", "False"):
+        clauses.append("(rs.shelf IS NULL OR rs.shelf != 'read')")
 
     where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
 
     conn = get_db()
     try:
-        rows = conn.execute(
-            f"SELECT * FROM books {where} ORDER BY created_at DESC", params
-        ).fetchall()
+        # LEFT JOIN reading_status for the requesting user only when a user is given —
+        # keeps the no-user call shape (and query plan) identical to before this change
+        # for every existing caller that doesn't pass one.
+        if user_id:
+            rows = conn.execute(
+                f"SELECT b.*, rs.shelf AS rs_shelf, rs.rating AS rs_rating, "
+                f"rs.date_started AS rs_date_started, rs.date_finished AS rs_date_finished, "
+                f"rs.notes AS rs_notes "
+                f"FROM books b LEFT JOIN reading_status rs ON rs.book_id = b.id AND rs.user_id = ? "
+                f"{where} ORDER BY b.created_at DESC",
+                [user_id] + params,
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                f"SELECT b.* FROM books b {where} ORDER BY b.created_at DESC", params
+            ).fetchall()
         book_ids = [r["id"] for r in rows]
         batch_info = _batch_info_for_books(conn, book_ids)
         findings_by_book = _findings_for_books(conn, book_ids)
@@ -212,6 +236,18 @@ def list_books():
         for r in rows:
             d = _book_row_to_dict(r, batch_info.get(r["id"]))
             d["findings"] = findings_by_book.get(r["id"], [])
+            if user_id:
+                d["reading_status"] = (
+                    {
+                        "shelf": r["rs_shelf"],
+                        "rating": r["rs_rating"],
+                        "date_started": r["rs_date_started"],
+                        "date_finished": r["rs_date_finished"],
+                        "notes": r["rs_notes"],
+                    }
+                    if r["rs_shelf"] is not None
+                    else None
+                )
             result.append(d)
         return jsonify(result), 200
     finally:
