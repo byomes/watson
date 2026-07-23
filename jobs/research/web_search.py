@@ -12,7 +12,7 @@ SERPER_URL = "https://google.serper.dev/search"
 log = logging.getLogger(__name__)
 
 
-def search(query: str, max_results: int = 5) -> list[dict]:
+def search(query: str, max_results: int = 5, timeout: int = 10) -> list[dict]:
     api_key = os.getenv("SERPER_API_KEY")
     if not api_key:
         log.error("SERPER_API_KEY not set")
@@ -23,7 +23,7 @@ def search(query: str, max_results: int = 5) -> list[dict]:
             SERPER_URL,
             headers={"X-API-KEY": api_key, "Content-Type": "application/json"},
             json={"q": query, "num": max_results},
-            timeout=10,
+            timeout=timeout,
         )
         resp.raise_for_status()
         data = resp.json()

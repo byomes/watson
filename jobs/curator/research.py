@@ -20,6 +20,7 @@ import json
 import logging
 import re
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from urllib.parse import urlparse
 
 import requests
@@ -53,6 +54,15 @@ _UA = {
 
 _MIN_FINDINGS = 1
 _MAX_DISPLAYED_FINDINGS = 4
+
+# Tightened per-source timeout for Stage A's parallel waves (Commit 2,
+# curator-spec.md). Serper queries and trusted-source/Amazon/Goodreads/Open
+# Library fetches are all normally well under this (baseline measured
+# 2026-07-22: 0.06-5.14s per call) — a source that doesn't respond in time is
+# skipped gracefully rather than holding up the whole job. romance.io/
+# FlareSolverr is excluded from Stage A entirely (Commit 4) and keeps its own
+# separate, much longer timeout — never tightened by this constant.
+_STAGE_A_TIMEOUT = 5
 
 # Trusted sources for spice-content research, highest priority first. Narrowed
 # 2026-07-21 to exactly these three after live-refetch testing showed Plugged
@@ -184,8 +194,8 @@ def _categorize_source(url: str) -> tuple[str, str, int] | None:
 
 # Path substring that marks a URL as a specific book page (vs. a domain root,
 # tropes/category listing, author page, etc.) for each active source_type —
-# used by gather_spice_findings() to prefer the real book page when a search
-# returns multiple URLs for the same domain.
+# used by _discover_trusted_sources() to prefer the real book page when a
+# search returns multiple URLs for the same domain.
 _BOOK_PAGE_HINTS = {
     "commonsensemedia": "/book-reviews/",
     "spicybooks": "/books/",
@@ -438,12 +448,16 @@ def _fetch_via_flaresolverr(url: str) -> str | None:
         return None
 
 
-def fetch_full_text(url: str) -> str | None:
+def fetch_full_text(url: str, timeout: int = 10) -> str | None:
+    """timeout only applies to the plain-request branch — FlareSolverr-routed
+    domains (romance.io) always use their own, much longer
+    _FLARESOLVERR_TIMEOUT_MS regardless of what's passed here (Commit 2,
+    curator-spec.md — that path isn't part of Stage A's tightened budget)."""
     host = urlparse(url).netloc.lower()
     if any(d in host for d in _FLARESOLVERR_DOMAINS):
         return _fetch_via_flaresolverr(url)
     try:
-        resp = requests.get(url, headers=_UA, timeout=10)
+        resp = requests.get(url, headers=_UA, timeout=timeout)
         if not resp.text:
             return None
         return _strip_html(resp.text)
@@ -452,7 +466,9 @@ def fetch_full_text(url: str) -> str | None:
         return None
 
 
-def search_top_content_sites(title: str, author: str | None) -> list[dict]:
+def search_top_content_sites(
+    title: str, author: str | None, job_id=None, stage_durations: dict | None = None,
+) -> list[dict]:
     """One site-restricted Serper query per active trusted domain (currently
     commonsensemedia.org, spicybooks.org, thefaeshelf.com — see
     _ACTIVE_SEARCH_DOMAINS), not one combined OR query. A combined query lets
@@ -461,16 +477,40 @@ def search_top_content_sites(title: str, author: str | None) -> list[dict]:
     confirmed 2026-07-21 with "Beach Read": one combined query returned 4
     romance.io URLs (3 near-duplicates of the same book) and zero
     spicybooks.org hits, even though spicybooks.org has a real page for it. A
-    separate query per domain guarantees each one gets its own results."""
+    separate query per domain guarantees each one gets its own results.
+
+    Commit 2 (curator-spec.md): the per-domain queries now run concurrently
+    (one thread per domain) on the tightened _STAGE_A_TIMEOUT instead of
+    sequentially at the old 10s timeout — a slow/unresponsive domain no
+    longer delays the others. Same query text, same domains, same
+    dedup-by-URL merge; only the execution model changed. A domain whose
+    query fails or times out just contributes zero results (graceful skip,
+    same as search()'s existing internal try/except today)."""
     who = f"{title} {author}" if author else title
+
+    def _query_domain(domain: str) -> list[dict]:
+        _t = time.perf_counter()
+        try:
+            return serper_search(f"{who} site:{domain}", max_results=5, timeout=_STAGE_A_TIMEOUT)
+        finally:
+            _log_stage(job_id, f"site_search_{domain}", time.perf_counter() - _t, stage_durations)
+
     results: list[dict] = []
     seen_urls = set()
-    for domain in _ACTIVE_SEARCH_DOMAINS:
-        for r in serper_search(f"{who} site:{domain}", max_results=5):
-            url = r.get("url", "")
-            if url and url not in seen_urls:
-                seen_urls.add(url)
-                results.append(r)
+    with ThreadPoolExecutor(max_workers=len(_ACTIVE_SEARCH_DOMAINS)) as pool:
+        futures = {pool.submit(_query_domain, d): d for d in _ACTIVE_SEARCH_DOMAINS}
+        for future in as_completed(futures):
+            domain = futures[future]
+            try:
+                domain_results = future.result()
+            except Exception as exc:
+                log.warning("search_top_content_sites: %s query failed: %s", domain, exc)
+                domain_results = []
+            for r in domain_results:
+                url = r.get("url", "")
+                if url and url not in seen_urls:
+                    seen_urls.add(url)
+                    results.append(r)
     return results
 
 
@@ -484,25 +524,25 @@ def search_for_author(title: str) -> list[dict]:
     with them, author-backfill signal) when the trusted-source search was
     narrowed to CSM/SpicyBooks only. Kept fully independent so it can never
     affect those results."""
-    return serper_search(f"{title} goodreads", max_results=5)
+    return serper_search(f"{title} goodreads", max_results=5, timeout=_STAGE_A_TIMEOUT)
 
 
-def gather_spice_findings(
+def _discover_trusted_sources(
     title: str, author: str | None, job_id=None, stage_durations: dict | None = None,
-) -> tuple[list[dict], list[str]]:
-    """Returns (findings, all_result_titles).
-    findings: ranked, deduped-by-category list of
-    {"source_name","source_type","rank","excerpt","url"} — only entries where a
-    real rating (structured or prose-extracted) was actually found, capped at
-    _MAX_DISPLAYED_FINDINGS.
-    all_result_titles: every search-result title seen, for author extraction.
+) -> tuple[dict[str, tuple[str, str, int]], list[str]]:
+    """Site-search + categorize half of what used to be one atomic
+    gather_spice_findings() call (split in Commit 2, curator-spec.md, so
+    research_book() can run this as one Wave 1 task alongside its other
+    Serper queries, then fetch/extract per source — see _fetch_finding() —
+    only once every Wave 1 URL is known, as Wave 2).
 
-    job_id/stage_durations: baseline timing instrumentation only (Commit 1,
-    curator-spec.md) — logs how long site_search and each per-source
-    fetch_full_text() call take. No behavior change."""
-    _t = time.perf_counter()
-    all_results = search_top_content_sites(title, author)
-    _log_stage(job_id, "site_search", time.perf_counter() - _t, stage_durations)
+    Returns (best_per_category, all_result_titles): best_per_category maps
+    source_type -> (source_name, url, rank), one entry per trusted domain
+    that turned up a book-page-shaped result; all_result_titles is every
+    search-result title seen, for author extraction. Same categorization
+    logic as before, unchanged — including romance.io, whose URL (if found)
+    is discovered here but deliberately not fetched until Stage B (Commit 4)."""
+    all_results = search_top_content_sites(title, author, job_id=job_id, stage_durations=stage_durations)
 
     best_per_category: dict[str, tuple[str, str, int]] = {}
     for r in all_results:
@@ -528,35 +568,38 @@ def gather_spice_findings(
         ):
             best_per_category[stype] = (name, url, rank)
 
-    findings = []
-    for stype, (name, url, rank) in best_per_category.items():
-        _t = time.perf_counter()
-        text = fetch_full_text(url)
-        _log_stage(job_id, f"fetch_{stype}", time.perf_counter() - _t, stage_durations)
-        if not text:
-            continue
-        if stype == "romance_io":
-            excerpt = _extract_structured_rating(text, _ROMANCE_IO_PATTERN) or _extract_relevant_excerpt(text)
-        elif stype == "spicybooks":
-            excerpt = _extract_structured_rating(text, _SPICYBOOKS_PATTERN) or _extract_relevant_excerpt(text)
-        elif stype == "commonsensemedia":
-            excerpt = _extract_commonsensemedia_excerpt(text)
-        elif stype == "faeshelf":
-            excerpt = _extract_faeshelf_excerpt(text) or _extract_relevant_excerpt(text)
-        else:
-            excerpt = _extract_relevant_excerpt(text)
-        if not excerpt:
-            continue
-        findings.append({
-            "source_name": name, "source_type": stype, "rank": rank,
-            "excerpt": excerpt, "url": url,
-        })
-
-    findings.sort(key=lambda f: f["rank"])
-    findings = findings[:_MAX_DISPLAYED_FINDINGS]
-
     all_titles = [r.get("title", "") for r in all_results if r.get("title")]
-    return findings, all_titles
+    return best_per_category, all_titles
+
+
+def _fetch_finding(
+    stype: str, name: str, url: str, rank: int, job_id=None, stage_durations: dict | None = None,
+) -> dict | None:
+    """Fetch + extract half of what used to be one atomic gather_spice_findings()
+    call (split in Commit 2, curator-spec.md). Returns None on a failed/timed-out
+    fetch or no extractable excerpt — graceful skip, exactly like today; the
+    caller just won't have a finding for this source. Same per-source
+    extraction dispatch as before, unchanged — including the romance_io
+    branch, kept here so Stage B (Commit 4) can call this same function for
+    romance.io without duplicating the extraction logic."""
+    _t = time.perf_counter()
+    text = fetch_full_text(url, timeout=_STAGE_A_TIMEOUT)
+    _log_stage(job_id, f"fetch_{stype}", time.perf_counter() - _t, stage_durations)
+    if not text:
+        return None
+    if stype == "romance_io":
+        excerpt = _extract_structured_rating(text, _ROMANCE_IO_PATTERN) or _extract_relevant_excerpt(text)
+    elif stype == "spicybooks":
+        excerpt = _extract_structured_rating(text, _SPICYBOOKS_PATTERN) or _extract_relevant_excerpt(text)
+    elif stype == "commonsensemedia":
+        excerpt = _extract_commonsensemedia_excerpt(text)
+    elif stype == "faeshelf":
+        excerpt = _extract_faeshelf_excerpt(text) or _extract_relevant_excerpt(text)
+    else:
+        excerpt = _extract_relevant_excerpt(text)
+    if not excerpt:
+        return None
+    return {"source_name": name, "source_type": stype, "rank": rank, "excerpt": excerpt, "url": url}
 
 
 def extract_author_from_titles(titles: list[str]) -> str | None:
@@ -579,7 +622,7 @@ def extract_author_from_titles(titles: list[str]) -> str | None:
 
 def find_amazon_listing(title: str, author: str | None) -> str | None:
     who = f"{title} {author}" if author else title
-    for r in serper_search(f"{who} amazon kindle", max_results=5):
+    for r in serper_search(f"{who} amazon kindle", max_results=5, timeout=_STAGE_A_TIMEOUT):
         url = r.get("url", "")
         if "amazon.com" in url:
             return url
@@ -591,7 +634,7 @@ def find_goodreads_book_page(title: str, author: str | None) -> str | None:
     info) — distinct from search_spice_content's results, which are often review or
     Q&A subpages that carry only generic site-branding og: tags."""
     who = f"{title} {author}" if author else title
-    for r in serper_search(f"{who} goodreads", max_results=5):
+    for r in serper_search(f"{who} goodreads", max_results=5, timeout=_STAGE_A_TIMEOUT):
         url = r.get("url", "")
         if re.search(r"goodreads\.com/(en/)?book/show/\d+", url) and "/reviews" not in url:
             return url
@@ -617,7 +660,7 @@ def _strip_injected_links(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
-def fetch_open_library_description(title: str, author: str | None) -> str | None:
+def fetch_open_library_description(title: str, author: str | None, timeout: int = 10) -> str | None:
     """Open Library's public API (openlibrary.org, no key required, no
     bot-blocking risk — it's a real documented API, not a scrape) tried first
     for the plot synopsis. Goodreads' og:description meta tag is frequently
@@ -646,7 +689,7 @@ def fetch_open_library_description(title: str, author: str | None) -> str | None
         resp = requests.get(
             "https://openlibrary.org/search.json",
             params=params,
-            timeout=10,
+            timeout=timeout,
         )
         resp.raise_for_status()
         docs = resp.json().get("docs", [])
@@ -656,7 +699,7 @@ def fetch_open_library_description(title: str, author: str | None) -> str | None
         if not work_key:
             return None
 
-        work_resp = requests.get(f"https://openlibrary.org{work_key}.json", timeout=10)
+        work_resp = requests.get(f"https://openlibrary.org{work_key}.json", timeout=timeout)
         work_resp.raise_for_status()
         desc = work_resp.json().get("description")
         if isinstance(desc, dict):
@@ -684,7 +727,7 @@ def _is_amazon_block_page(html: str) -> bool:
     return _AMAZON_BLOCK_MARKER in html or len(html) < _AMAZON_BLOCK_MIN_LENGTH
 
 
-def fetch_page_details(url: str) -> dict:
+def fetch_page_details(url: str, timeout: int = 10) -> dict:
     """Best-effort scrape of an Amazon/Goodreads listing for page count, KU badge,
     cover image, description (near-verbatim editorial og:description, not
     Watson-written), and series position/total. Generic og:* tag scraping — works
@@ -698,7 +741,7 @@ def fetch_page_details(url: str) -> dict:
         "series_position": None, "series_total": None, "series_name": None,
     }
     try:
-        resp = requests.get(url, headers=_UA, timeout=10)
+        resp = requests.get(url, headers=_UA, timeout=timeout)
         html = resp.text
         out["fetched"] = True
 
@@ -1006,79 +1049,155 @@ def research_book(title: str, author: str | None = None, job_id=None) -> dict:
       "sources": [{"type": str, "url": str}],
     }
 
-    job_id: baseline timing instrumentation only (Commit 1, curator-spec.md) — every
+    job_id: baseline timing instrumentation (Commit 1, curator-spec.md) — every
     stage below logs its own duration tagged with job_id, plus one
     curator_timing_summary line at the end with the total and a per-stage
-    breakdown. No behavior change; this exists to get a real measured baseline
-    before Commits 2+ restructure anything.
+    breakdown.
+
+    Commit 2 (curator-spec.md): Wave 1 (every independent Serper query —
+    trusted-source site search, author-backfill, Amazon listing, Goodreads
+    page) and Wave 2 (trusted-source page fetches minus romance.io,
+    Amazon/Goodreads page-detail fetches, Open Library description) each now
+    run concurrently via ThreadPoolExecutor on the tightened
+    _STAGE_A_TIMEOUT, instead of sequentially at the old 10s timeout.
+    romance.io/FlareSolverr is excluded from both waves entirely for now —
+    Commit 4 adds it back as a Stage B-only fetch. judge_spice_rating() stays
+    exactly where it was (Commit 5 moves it to Stage B). Same extraction/
+    judgment logic and same field-precedence rules throughout (Open Library
+    description still wins over Amazon/Goodreads og:description, Amazon still
+    authoritative for page_count/kindle_unlimited) — only concurrency and
+    timeouts changed.
     """
     _t_total = time.perf_counter()
     stage_durations: dict[str, float] = {}
 
-    findings, result_titles = gather_spice_findings(
-        title, author, job_id=job_id, stage_durations=stage_durations
-    )
-    if author is None:
-        # Author-backfill signal (Goodreads-style "Title by Author" titles) was
-        # lost when the trusted-source search narrowed to CSM/SpicyBooks only
-        # (2026-07-21) — those sites' own titles never name the author. This
-        # dedicated, separate query restores it without touching that search.
-        _t = time.perf_counter()
-        author_search_titles = [
-            r.get("title", "") for r in search_for_author(title) if r.get("title")
-        ]
-        _log_stage(job_id, "search_for_author", time.perf_counter() - _t, stage_durations)
-        result_titles = result_titles + author_search_titles
+    # ── Wave 1: every independent Serper query, concurrent ──────────────────
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        sources_future = pool.submit(
+            _discover_trusted_sources, title, author, job_id, stage_durations
+        )
 
-    _t = time.perf_counter()
-    amazon_url = find_amazon_listing(title, author)
-    _log_stage(job_id, "find_amazon_listing", time.perf_counter() - _t, stage_durations)
+        author_future = None
+        if author is None:
+            # Author-backfill signal (Goodreads-style "Title by Author" titles) was
+            # lost when the trusted-source search narrowed to CSM/SpicyBooks only
+            # (2026-07-21) — those sites' own titles never name the author. This
+            # dedicated, separate query restores it without touching that search.
+            def _search_for_author():
+                _t = time.perf_counter()
+                try:
+                    return search_for_author(title)
+                finally:
+                    _log_stage(job_id, "search_for_author", time.perf_counter() - _t, stage_durations)
+            author_future = pool.submit(_search_for_author)
 
-    _t = time.perf_counter()
-    goodreads_url = find_goodreads_book_page(title, author)
-    _log_stage(job_id, "find_goodreads_book_page", time.perf_counter() - _t, stage_durations)
+        def _find_amazon():
+            _t = time.perf_counter()
+            try:
+                return find_amazon_listing(title, author)
+            finally:
+                _log_stage(job_id, "find_amazon_listing", time.perf_counter() - _t, stage_durations)
+        amazon_url_future = pool.submit(_find_amazon)
 
-    sources = [
-        {"type": f["source_type"], "url": f["url"]} for f in findings
-    ]
-    if goodreads_url and not any(s["url"] == goodreads_url for s in sources):
-        sources.append({"type": "goodreads", "url": goodreads_url})
+        def _find_goodreads():
+            _t = time.perf_counter()
+            try:
+                return find_goodreads_book_page(title, author)
+            finally:
+                _log_stage(job_id, "find_goodreads_book_page", time.perf_counter() - _t, stage_durations)
+        goodreads_url_future = pool.submit(_find_goodreads)
 
+        best_per_category, result_titles = sources_future.result()
+        if author_future is not None:
+            result_titles = result_titles + [
+                r.get("title", "") for r in author_future.result() if r.get("title")
+            ]
+        amazon_url = amazon_url_future.result()
+        goodreads_url = goodreads_url_future.result()
+
+    # romance.io excluded from Stage A entirely (Commit 4 adds it back as a
+    # Stage B-only fetch) — its URL, if discovered above, simply isn't fetched here.
+    fetch_targets = {stype: v for stype, v in best_per_category.items() if stype != "romance_io"}
+
+    # ── Wave 2: page fetches, concurrent — needs Wave 1's URLs first ────────
+    findings: list[dict] = []
     page_count = None
     kindle_unlimited = None  # unknown until an Amazon fetch actually succeeds
     cover_image_url = None
-    # Open Library tried first (real API, no bot-blocking, often has a full
-    # synopsis) - the per-source loop below only fills this in as a fallback
-    # if Open Library had no record for this title (see
-    # fetch_open_library_description's docstring).
-    _t = time.perf_counter()
-    description = fetch_open_library_description(title, author)
-    _log_stage(job_id, "open_library_description", time.perf_counter() - _t, stage_durations)
+    description = None
     series_position = None
     series_total = None
     series_name = None
 
-    # Amazon first (page count / KU authoritative there), Goodreads as a fallback for
-    # whatever Amazon's og: tags didn't have — same sources already being fetched, no
-    # new source category. In practice Amazon frequently bot-blocks plain requests
-    # (confirmed 2026-07-20 — serves a "Continue shopping" interstitial, not the real
-    # listing), so Goodreads ends up carrying most of this via the `or` fallback below.
-    for source_type, url in (("amazon", amazon_url), ("goodreads", goodreads_url)):
-        if not url:
-            continue
-        _t = time.perf_counter()
-        details = fetch_page_details(url)
-        _log_stage(job_id, f"fetch_page_details_{source_type}", time.perf_counter() - _t, stage_durations)
-        if source_type == "amazon":
-            page_count = page_count or details["page_count"]
-            if details["kindle_unlimited"] is not None:
-                kindle_unlimited = details["kindle_unlimited"]
-        cover_image_url = cover_image_url or details["cover_image_url"]
-        description = description or details["description"]
-        series_position = series_position or details["series_position"]
-        series_total = series_total or details["series_total"]
-        series_name = series_name or details.get("series_name")
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        finding_futures = {
+            pool.submit(_fetch_finding, stype, name, url, rank, job_id, stage_durations): stype
+            for stype, (name, url, rank) in fetch_targets.items()
+        }
 
+        # Open Library tried first (real API, no bot-blocking, often has a full
+        # synopsis) - the page-detail results below only fill this in as a
+        # fallback if Open Library had no record for this title (see
+        # fetch_open_library_description's docstring).
+        def _open_library():
+            _t = time.perf_counter()
+            try:
+                return fetch_open_library_description(title, author, timeout=_STAGE_A_TIMEOUT)
+            finally:
+                _log_stage(job_id, "open_library_description", time.perf_counter() - _t, stage_durations)
+        description_future = pool.submit(_open_library)
+
+        # Amazon first (page count / KU authoritative there), Goodreads as a fallback for
+        # whatever Amazon's og: tags didn't have — same sources already being fetched, no
+        # new source category. In practice Amazon frequently bot-blocks plain requests
+        # (confirmed 2026-07-20 — serves a "Continue shopping" interstitial, not the real
+        # listing), so Goodreads ends up carrying most of this via the `or` fallback below.
+        page_detail_futures = {}
+        for source_type, url in (("amazon", amazon_url), ("goodreads", goodreads_url)):
+            if not url:
+                continue
+            def _fetch_details(u=url, st=source_type):
+                _t = time.perf_counter()
+                try:
+                    return fetch_page_details(u, timeout=_STAGE_A_TIMEOUT)
+                finally:
+                    _log_stage(job_id, f"fetch_page_details_{st}", time.perf_counter() - _t, stage_durations)
+            page_detail_futures[source_type] = pool.submit(_fetch_details)
+
+        for future in as_completed(finding_futures):
+            stype = finding_futures[future]
+            try:
+                finding = future.result()
+            except Exception as exc:
+                log.warning("Wave 2 fetch for %s failed: %s", stype, exc)
+                finding = None
+            if finding:
+                findings.append(finding)
+
+        description = description_future.result()
+
+        for source_type, future in page_detail_futures.items():
+            try:
+                details = future.result()
+            except Exception as exc:
+                log.warning("fetch_page_details(%s) failed: %s", source_type, exc)
+                continue
+            if source_type == "amazon":
+                page_count = page_count or details["page_count"]
+                if details["kindle_unlimited"] is not None:
+                    kindle_unlimited = details["kindle_unlimited"]
+            cover_image_url = cover_image_url or details["cover_image_url"]
+            description = description or details["description"]
+            series_position = series_position or details["series_position"]
+            series_total = series_total or details["series_total"]
+            series_name = series_name or details.get("series_name")
+
+    findings.sort(key=lambda f: f["rank"])
+    findings = findings[:_MAX_DISPLAYED_FINDINGS]
+
+    sources = [{"type": f["source_type"], "url": f["url"]} for f in findings]
+    if goodreads_url and not any(s["url"] == goodreads_url for s in sources):
+        sources.append({"type": "goodreads", "url": goodreads_url})
     if amazon_url:
         sources.append({"type": "amazon", "url": amazon_url})
 
@@ -1096,7 +1215,7 @@ def research_book(title: str, author: str | None = None, job_id=None) -> dict:
     # shorter Goodreads-teaser description already filled in above.
     if author is None and extracted_author:
         _t = time.perf_counter()
-        retried_description = fetch_open_library_description(title, extracted_author)
+        retried_description = fetch_open_library_description(title, extracted_author, timeout=_STAGE_A_TIMEOUT)
         _log_stage(job_id, "open_library_description_retry", time.perf_counter() - _t, stage_durations)
         if retried_description:
             description = retried_description
