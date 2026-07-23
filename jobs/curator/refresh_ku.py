@@ -10,19 +10,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from jobs.curator import get_db
-from jobs.curator.research import fetch_page_details, find_amazon_listing
+from jobs.curator import amazon_url_for, get_db
+from jobs.curator.research import fetch_amazon_ku_status, find_amazon_listing
 
 log = logging.getLogger(__name__)
-
-
-def _amazon_url_for(conn, book_id: int) -> str | None:
-    row = conn.execute(
-        "SELECT url FROM book_sources WHERE book_id = ? AND type = 'amazon' "
-        "ORDER BY created_at DESC LIMIT 1",
-        (book_id,),
-    ).fetchone()
-    return row["url"] if row else None
 
 
 def run() -> dict:
@@ -34,7 +25,7 @@ def run() -> dict:
         ).fetchall()
 
         for book in books:
-            url = _amazon_url_for(conn, book["id"])
+            url = amazon_url_for(conn, book["id"])
             if not url:
                 url = find_amazon_listing(book["title"], book["author"])
                 if url:
@@ -48,7 +39,13 @@ def run() -> dict:
                 log.warning("refresh_ku: no Amazon URL for book %s (%s)", book["id"], book["title"])
                 continue
 
-            details = fetch_page_details(url)
+            # fetch_amazon_ku_status() (2026-07-23): routes through FlareSolverr and
+            # checks Amazon's own "Kindle Unlimited Eligible" search filter for this
+            # ASIN, rather than fetch_page_details()'s direct requests.get — that got
+            # bot-blocked ~75% of the time, and even when it got through, its bare
+            # "kindle unlimited" text search was a false positive on every real page
+            # tested (the phrase is in Amazon's site nav regardless of enrollment).
+            details = fetch_amazon_ku_status(url, book["title"], book["author"])
             if not details["fetched"]:
                 skipped += 1
                 continue
@@ -58,12 +55,12 @@ def run() -> dict:
                 "UPDATE books SET kindle_unlimited_checked_at = datetime('now') WHERE id = ?",
                 (book["id"],),
             )
-            # Explicit `is False`, not `not details[...]` — fetch_page_details()
-            # now returns None (not False) when it hit Amazon's bot-block page
-            # rather than a real listing (confirmed 2026-07-22). `not None` is
-            # True in Python, so the old falsy check would have incorrectly
-            # flipped a book off KU every time this job merely got blocked,
-            # instead of only when it confirmed the badge is genuinely gone.
+            # Explicit `is False`, not `not details[...]` — fetch_amazon_ku_status()
+            # returns None (not False) when it couldn't verify at all, same
+            # three-state contract fetch_page_details() had. `not None` is True in
+            # Python, so the old falsy check would have incorrectly flipped a book
+            # off KU every time this job merely couldn't verify, instead of only
+            # when it confirmed the book is genuinely no longer KU-eligible.
             if details["kindle_unlimited"] is False:
                 conn.execute("UPDATE books SET kindle_unlimited = 0 WHERE id = ?", (book["id"],))
                 flipped += 1

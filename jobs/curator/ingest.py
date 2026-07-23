@@ -8,14 +8,16 @@ import io
 import json
 import logging
 import re
+import time
 from urllib.parse import urlparse
 
 import requests
 from PIL import Image, ImageOps
 
-from jobs.curator import get_db
+from jobs.curator import amazon_url_for, get_db
 from jobs.curator.research import (
-    OLLAMA_URL, call_ollama, parse_json, research_book_fast, run_stage_b_enrichment,
+    OLLAMA_URL, call_ollama, fetch_amazon_ku_status, parse_json, research_book_fast,
+    run_stage_b_enrichment,
 )
 
 log = logging.getLogger(__name__)
@@ -321,13 +323,18 @@ def _create_book(
     # kindle_unlimited is three-state (True/False/None=unknown) — coerce True/False to
     # 1/0 but let None pass through as NULL rather than collapsing it to False.
     ku_db_value = None if kindle_unlimited is None else int(bool(kindle_unlimited))
+    # checked_at only stamped here if a caller actually supplied a determined value —
+    # Stage A (jobs/curator/ingest.py's ingest_submission()) never does anymore (KU
+    # moved to Stage B's fetch_amazon_ku_status()), so this is NULL at creation time
+    # until Stage B's own UPDATE sets both together once it actually checks.
+    checked_at_sql = "datetime('now')" if kindle_unlimited is not None else "NULL"
     conn = get_db()
     try:
         cur = conn.execute(
             "INSERT INTO books (title, author, series, series_number, series_total, "
             "spice_rating, spice_notes, page_count, kindle_unlimited, "
-            "kindle_unlimited_checked_at, cover_image_url, description, status, added_by) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?, ?, ?, ?)",
+            f"kindle_unlimited_checked_at, cover_image_url, description, status, added_by) "
+            f"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, {checked_at_sql}, ?, ?, ?, ?)",
             (title, author, series, series_number, series_total, spice_rating,
              spice_notes, page_count, ku_db_value,
              cover_image_url, description, status, added_by),
@@ -554,11 +561,13 @@ def ingest_submission(
 def enrich_submission_stage_b(
     book_id: int, title: str, author: str, findings: list[dict], job_id=None,
 ) -> None:
-    """Stage B finalize (curator-spec.md Commits 3-4). Called by jobs/curator/worker.py
-    immediately after ingest_submission() returns and the ingest_jobs row is marked
-    'partial' — runs run_stage_b_enrichment() (romance.io fetch + judge_spice_rating,
-    Commit 4) and updates the already-persisted book row in place with whatever it
-    finds.
+    """Stage B finalize (curator-spec.md Commits 3-4, KU check added 2026-07-23).
+    Called by jobs/curator/worker.py immediately after ingest_submission() returns
+    and the ingest_jobs row is marked 'partial' — runs run_stage_b_enrichment()
+    (romance.io fetch + judge_spice_rating, Commit 4) and fetch_amazon_ku_status()
+    (Kindle Unlimited, via FlareSolverr — see its docstring for why this moved off
+    Stage A's direct requests.get), then updates the already-persisted book row in
+    place with whatever both find.
 
     If romance.io turned up a finding, it's persisted into spice_findings alongside
     Stage A's (same table, same shape — attributed, verbatim excerpt, unchanged) and
@@ -567,6 +576,10 @@ def enrich_submission_stage_b(
     if CSM/rank 1 wasn't found), and pre-split behavior always reflected the true
     top-ranked finding across all 4 sources since they were all fetched before
     spice_notes was ever computed — this keeps that guarantee intact across the split.
+
+    The KU check is independent of run_stage_b_enrichment() — a spice enrichment
+    failure shouldn't skip Kindle Unlimited or vice versa, so each is wrapped in its
+    own try/except rather than one failure aborting the whole function early.
 
     Never raises — a Stage B miss (Ollama down, FlareSolverr down, timeout, anything)
     is logged and swallowed here; the caller (worker.py) still marks the job 'done'
@@ -577,22 +590,41 @@ def enrich_submission_stage_b(
         enrichment = run_stage_b_enrichment(title, author, findings, job_id=job_id)
     except Exception as exc:
         log.error("Stage B enrichment failed for book_id=%s: %s", book_id, exc)
-        return
+        enrichment = {}
 
     romance_io_finding = enrichment.get("romance_io_finding")
     conn = get_db()
     try:
+        amazon_url = amazon_url_for(conn, book_id)
+        ku_result = None
+        if amazon_url:
+            _t = time.perf_counter()
+            try:
+                ku_result = fetch_amazon_ku_status(amazon_url, title, author)
+            except Exception as exc:
+                log.error("Stage B KU check failed for book_id=%s: %s", book_id, exc)
+            log.info(
+                "curator_timing job_id=%s stage=fetch_amazon_ku_status_stage_b duration=%.2fs",
+                job_id, time.perf_counter() - _t,
+            )
+
+        ku_fields = ""
+        ku_params: list = []
+        if ku_result and ku_result["fetched"]:
+            ku_fields = ", kindle_unlimited = ?, kindle_unlimited_checked_at = datetime('now')"
+            ku_params = [None if ku_result["kindle_unlimited"] is None else int(ku_result["kindle_unlimited"])]
+
         if romance_io_finding:
             _add_spice_findings(book_id, [romance_io_finding])
             all_findings = sorted(findings + [romance_io_finding], key=lambda f: f["rank"])
             conn.execute(
-                "UPDATE books SET spice_rating = ?, spice_notes = ? WHERE id = ?",
-                (enrichment.get("spice_rating"), _derive_spice_notes(all_findings), book_id),
+                f"UPDATE books SET spice_rating = ?, spice_notes = ?{ku_fields} WHERE id = ?",
+                [enrichment.get("spice_rating"), _derive_spice_notes(all_findings), *ku_params, book_id],
             )
         else:
             conn.execute(
-                "UPDATE books SET spice_rating = ? WHERE id = ?",
-                (enrichment.get("spice_rating"), book_id),
+                f"UPDATE books SET spice_rating = ?{ku_fields} WHERE id = ?",
+                [enrichment.get("spice_rating"), *ku_params, book_id],
             )
         conn.commit()
     except Exception as exc:

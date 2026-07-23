@@ -21,7 +21,7 @@ import logging
 import re
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 
 import requests
 
@@ -422,11 +422,11 @@ _FLARESOLVERR_TIMEOUT_MS = 60000
 _FLARESOLVERR_DOMAINS = {"romance.io"}
 
 
-def _fetch_via_flaresolverr(url: str) -> str | None:
-    """Solves a Cloudflare JS challenge via the local FlareSolverr container
-    and returns the resulting page's stripped text, or None on any failure
-    (container unreachable, non-ok status, missing solution). Confirmed
-    2026-07-22 against real romance.io pages."""
+def _flaresolverr_fetch_html(url: str) -> str | None:
+    """Raw HTML via the local FlareSolverr container (solves a Cloudflare JS
+    challenge the same way for romance.io as for Amazon's bot-block — see
+    fetch_amazon_ku_status()). Returns None on any failure (container
+    unreachable, non-ok status, missing solution)."""
     try:
         resp = requests.post(
             _FLARESOLVERR_URL,
@@ -438,13 +438,18 @@ def _fetch_via_flaresolverr(url: str) -> str | None:
         if data.get("status") != "ok":
             log.warning("FlareSolverr returned non-ok status for %s: %s", url, data.get("message"))
             return None
-        html = (data.get("solution") or {}).get("response")
-        if not html:
-            return None
-        return _strip_html(html)
+        return (data.get("solution") or {}).get("response")
     except Exception as exc:
         log.warning("FlareSolverr fetch failed for %s: %s", url, exc)
         return None
+
+
+def _fetch_via_flaresolverr(url: str) -> str | None:
+    """Stripped-text wrapper around _flaresolverr_fetch_html(), used by
+    fetch_full_text() for domains behind Cloudflare (romance.io). Confirmed
+    2026-07-22 against real romance.io pages."""
+    html = _flaresolverr_fetch_html(url)
+    return _strip_html(html) if html else None
 
 
 def fetch_full_text(url: str, timeout: int = 10) -> str | None:
@@ -724,6 +729,62 @@ _AMAZON_BLOCK_MIN_LENGTH = 10000  # real Amazon product pages run 200KB+
 
 def _is_amazon_block_page(html: str) -> bool:
     return _AMAZON_BLOCK_MARKER in html or len(html) < _AMAZON_BLOCK_MIN_LENGTH
+
+
+# Kindle Unlimited check (Stage B, moved off Stage A's direct requests.get — see
+# fetch_amazon_ku_status()). A bare "kindle unlimited" text search against the
+# product page (fetch_page_details()'s approach, still used there for page_count/
+# cover/description/series only) was validated 2026-07-23 against an
+# independently-verified 8-book ground truth (Amazon's own KU-eligible filtered
+# search, cross-checked via genuine data-asin result rows) and found to return
+# True on every single page tested regardless of actual enrollment — the phrase
+# always appears in Amazon's site nav and "customers also bought" carousel. The
+# product-page buybox icon (a-icon-kindle-unlimited near the Kindle format's
+# price) was tried next and scored 7/8 — better, but missed a confirmed-enrolled
+# book whose buybox simply didn't render the badge on 3 separate fetches (session/
+# region/cache variance, not a fluke — reproduced 3x). Searching with Amazon's own
+# "Kindle Unlimited Eligible" filter and checking whether this exact ASIN appears
+# as a genuine search-result row scored 8/8, including a second independent
+# re-check on the two hardest cases, so that's the mechanism here instead of a
+# product-page fetch.
+_KU_ELIGIBLE_FILTER = "rh=n%3A133140011%2Cp_n_feature_nineteen_browse-bin%3A9045887011"
+
+
+def _extract_asin(amazon_url: str) -> str | None:
+    m = re.search(r"/dp/([A-Z0-9]{10})", amazon_url)
+    return m.group(1) if m else None
+
+
+def fetch_amazon_ku_status(amazon_url: str, title: str, author: str | None) -> dict:
+    """Stage B-only Kindle Unlimited check, routed through the same local
+    FlareSolverr container romance.io already uses (_flaresolverr_fetch_html) —
+    Amazon bot-blocks a direct requests.get ~75% of the time regardless of
+    User-Agent (confirmed 2026-07-20 through 2026-07-23), same block
+    FlareSolverr already solves for romance.io's Cloudflare challenge.
+
+    Searches Amazon's Kindle Store with the "Kindle Unlimited Eligible" filter
+    applied for this exact title+author, then checks whether this book's own
+    ASIN (parsed from the already-discovered amazon_url) shows up as a genuine
+    search-result row — see the comment above _KU_ELIGIBLE_FILTER for why this
+    replaced a product-page text/badge search.
+
+    Returns {"kindle_unlimited": bool|None, "fetched": bool}. fetched=False
+    means FlareSolverr itself failed, returned a block page, or amazon_url
+    didn't contain a parseable ASIN — couldn't verify either way, never
+    guessed. A successful, non-blocked search fetch always yields a
+    definitive present/absent answer for this specific ASIN, so
+    fetched=True never pairs with kindle_unlimited=None here."""
+    asin = _extract_asin(amazon_url)
+    if not asin:
+        return {"kindle_unlimited": None, "fetched": False}
+
+    query = quote(f"{title} {author}" if author else title)
+    search_url = f"https://www.amazon.com/s?k={query}&i=digital-text&{_KU_ELIGIBLE_FILTER}"
+    html = _flaresolverr_fetch_html(search_url)
+    if not html or _is_amazon_block_page(html):
+        return {"kindle_unlimited": None, "fetched": False}
+
+    return {"kindle_unlimited": f'data-asin="{asin}"' in html, "fetched": True}
 
 
 def fetch_page_details(url: str, timeout: int = 10) -> dict:
@@ -1045,13 +1106,18 @@ def research_book_fast(title: str, author: str | None = None, job_id=None) -> di
       the Commit 1 baseline) still blocks Stage A's return. Its logic,
       confidence gating, and informational-only status are all unchanged —
       only its position moved, exactly as Commit 5 specifies.
+    - kindle_unlimited (2026-07-23) — moved to fetch_amazon_ku_status(), called
+      from jobs/curator/ingest.py's enrich_submission_stage_b() alongside
+      romance.io/judge_spice_rating. Amazon bot-blocks fetch_page_details()'s
+      direct requests.get ~75% of the time; Stage B routes the check through
+      FlareSolverr instead, same as romance.io's Cloudflare challenge.
 
     Returns:
     {
       "findings": [{"source_name","source_type","rank","excerpt","url"}],
       "author": str|None,          # extracted from search results, only if 2+ agree
       "page_count": int|None,
-      "kindle_unlimited": bool|None,  # None = couldn't verify (e.g. Amazon blocked)
+      "kindle_unlimited": None,  # always None here now — see fetch_amazon_ku_status() (Stage B)
       "cover_image_url": str|None,
       "description": str|None,
       "series_position": int|None,
@@ -1074,7 +1140,7 @@ def research_book_fast(title: str, author: str | None = None, job_id=None) -> di
     ThreadPoolExecutor on the tightened _STAGE_A_TIMEOUT (Commit 2). Same
     extraction logic and same field-precedence rules throughout (Open
     Library description still wins over Amazon/Goodreads og:description,
-    Amazon still authoritative for page_count/kindle_unlimited).
+    Amazon still authoritative for page_count).
     """
     _t_total = time.perf_counter()
     stage_durations: dict[str, float] = {}
@@ -1130,7 +1196,7 @@ def research_book_fast(title: str, author: str | None = None, job_id=None) -> di
     # ── Wave 2: page fetches, concurrent — needs Wave 1's URLs first ────────
     findings: list[dict] = []
     page_count = None
-    kindle_unlimited = None  # unknown until an Amazon fetch actually succeeds
+    kindle_unlimited = None  # always None from Stage A now — see fetch_amazon_ku_status() (Stage B)
     cover_image_url = None
     description = None
     series_position = None
@@ -1191,9 +1257,13 @@ def research_book_fast(title: str, author: str | None = None, job_id=None) -> di
                 log.warning("fetch_page_details(%s) failed: %s", source_type, exc)
                 continue
             if source_type == "amazon":
+                # kindle_unlimited intentionally not read from here anymore — moved to
+                # Stage B (fetch_amazon_ku_status(), see jobs/curator/ingest.py's
+                # enrich_submission_stage_b()), which routes through FlareSolverr instead
+                # of this function's direct requests.get (Amazon bot-blocks that ~75% of
+                # the time). page_count/cover/description/series still come from here,
+                # unchanged.
                 page_count = page_count or details["page_count"]
-                if details["kindle_unlimited"] is not None:
-                    kindle_unlimited = details["kindle_unlimited"]
             cover_image_url = cover_image_url or details["cover_image_url"]
             description = description or details["description"]
             series_position = series_position or details["series_position"]

@@ -35,6 +35,19 @@ def get_db() -> sqlite3.Connection:
     return conn
 
 
+def amazon_url_for(conn: sqlite3.Connection, book_id: int) -> str | None:
+    """Most recent Amazon book_source URL for a book, or None if it never had
+    one (no listing found, or the book predates this lookup). Shared by
+    jobs/curator/ingest.py's Stage B KU check and jobs/curator/refresh_ku.py's
+    weekly refresh — both need the same URL, neither re-discovers it."""
+    row = conn.execute(
+        "SELECT url FROM book_sources WHERE book_id = ? AND type = 'amazon' "
+        "ORDER BY created_at DESC LIMIT 1",
+        (book_id,),
+    ).fetchone()
+    return row["url"] if row else None
+
+
 def bootstrap_db() -> None:
     DB.parent.mkdir(parents=True, exist_ok=True)
     with get_db() as conn:
