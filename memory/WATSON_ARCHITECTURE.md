@@ -1331,3 +1331,18 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - 9e9eae8 fix: remove remaining Curator Telegram privacy leak, fix Open Library empty-author 500
 - 006d562 docs: file map 2026-07-22
 - 8731f48 docs: architecture update 2026-07-22
+
+---
+
+## Recent Changes — 2026-07-24
+
+### ~/watson
+- 4f04576 feat: branded link redirector (jobs/links)
+- 25faedf feat: move Amazon KU check to Stage B via FlareSolverr, fix detection logic
+- 40570d7 feat: Read/Unread filter on Curator's GET /api/curator/books
+- 0aad82a docs: file map 2026-07-23
+- 87c1724 docs: architecture update 2026-07-23
+
+### ~/wcky
+- 8052ead feat: /go/<slug> branded link redirector
+- 429f097 publish: The Stones We Leave Behind
