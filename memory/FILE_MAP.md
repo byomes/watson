@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-07-23*
+*Generated: 2026-07-24*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -115,6 +115,7 @@ data/
   watson.db
   watson.db.bak-20260714-103753
   watson.db.bak-20260714-133329
+  watson.db.bak-20260723-101149
 deploy/
   .gitkeep
   connect_cards_cron.txt
@@ -213,6 +214,7 @@ jobs/
   dashboard/
     app.py
     migrate_admin.py
+    migrate_links.py
     migrate_sessions.py
     publishing_routes.py
     static/
@@ -255,6 +257,7 @@ jobs/
     command_executor.py
     dependency_manager.py
     dependency_scanner.py
+    docs_sync.py
     error_analyzer.py
     file_map.py
     fix style.py
@@ -287,9 +290,11 @@ jobs/
   email_intake.py
   email_job/
     __init__.py
+    brevo_send.py
     draft_email.py
     email_queue.py
     gmail.py
+    test_brevo_send.py
   email_reply/
     __init__.py
     drafter.py
@@ -338,6 +343,9 @@ jobs/
     __init__.py
     api.py
     send_confirmation.py
+  links/
+    __init__.py
+    api.py
   marketing/
     __init__.py
     seo_tools.py
@@ -1103,6 +1111,7 @@ content/
     2026-07-16-consecrated-people-cross-rivers.md
     2026-07-18-provision-and-purpose-are-not-the-same-thing.md
     2026-07-21-miraculous-and-providential-the-two-ways-god-moves.md
+    2026-07-23-the-stones-we-leave-behind.md
     the-flashlight-of-your-focus.md
     where-your-treasure-is.md
 next-env.d.ts
@@ -1251,6 +1260,9 @@ src/
       twitter-image.tsx
     favicon.ico
     globals.css
+    go/
+      [slug]/
+        route.ts
     guide/
       [slug]/
         GuideSignupForm.tsx
