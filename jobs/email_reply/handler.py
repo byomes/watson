@@ -7,11 +7,7 @@ Called by bot.py handlers to resolve "send", "change:", and "cancel" replies.
 """
 
 import logging
-import os
-import smtplib
 from datetime import datetime
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 from pathlib import Path
 
 import requests
@@ -19,6 +15,7 @@ from dotenv import load_dotenv
 
 from config.settings import DB_PATH, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 from core.vacation import vacation_gate
+from jobs.email_job.brevo_send import send_email
 
 load_dotenv(Path.home() / "watson" / ".env")
 
@@ -163,29 +160,21 @@ def _get_in_reply_to(gmail_message_id: str) -> str | None:
 
 
 def _send_smtp_reply(to: str, subject: str, body: str, in_reply_to: str | None = None) -> None:
-    smtp_user = os.getenv("WATSON_GMAIL_ADDRESS", "")
-    smtp_pass = os.getenv("WATSON_GMAIL_APP_PASSWORD", "")
-    from_addr = os.getenv("WATSON_FROM_ADDRESS") or smtp_user
-
+    """Send via Brevo, preserving Gmail-thread In-Reply-To/References headers
+    (same values, same conditional, as the pre-migration smtplib version)."""
     subject = subject if subject.lower().startswith("re:") else f"Re: {subject}"
+    html_body = f"<html><body>{body.replace(chr(10), '<br>')}</body></html>"
 
-    msg = MIMEMultipart("alternative")
-    msg["To"]      = to
-    msg["From"]    = f"Watson <{from_addr}>"
-    msg["Subject"] = subject
+    email_headers = None
     if in_reply_to:
-        msg["In-Reply-To"] = in_reply_to
-        msg["References"]  = in_reply_to
+        email_headers = {"In-Reply-To": in_reply_to, "References": in_reply_to}
 
-    html_body = body.replace("\n", "<br>")
-    msg.attach(MIMEText(body, "plain"))
-    msg.attach(MIMEText(f"<html><body>{html_body}</body></html>", "html"))
-
-    with smtplib.SMTP("smtp.gmail.com", 587) as smtp:
-        smtp.ehlo()
-        smtp.starttls()
-        smtp.login(smtp_user, smtp_pass)
-        smtp.sendmail(from_addr, [to], msg.as_string())
+    result = send_email(
+        to_email=to, to_name="", subject=subject, text_body=body,
+        html_body=html_body, headers=email_headers,
+    )
+    if not result["success"]:
+        raise RuntimeError(f"Brevo send failed: {result['error']}")
 
 
 # ── Resolution functions (called from bot.py) ─────────────────────────────────

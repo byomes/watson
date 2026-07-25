@@ -1,13 +1,12 @@
 """jobs/arc/send_invite_email.py — Send the Writing Room invite email to an ARC reader."""
 import logging
 import os
-import smtplib
 import sys
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 from pathlib import Path
 
 from dotenv import load_dotenv
+
+from jobs.email_job.brevo_send import send_email
 
 load_dotenv(os.path.expanduser("~/watson/.env"))
 
@@ -15,14 +14,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 log = logging.getLogger(__name__)
 
-SMTP_HOST = "smtp.gmail.com"
-SMTP_PORT = 587
-SMTP_USER = os.getenv("WATSON_GMAIL_ADDRESS", "")
-SMTP_PASS = os.getenv("WATSON_GMAIL_APP_PASSWORD", "")
-
 _TEMPLATE = Path(__file__).parent / "templates" / "arc_invite_email.html"
 _LOGIN_URL = "https://williamckyomes.com/room"
-_FROM      = "FMS Team <watson@faithmakessense.com>"
+_FROM_EMAIL = "watson@faithmakessense.com"
+_FROM_NAME  = "FMS Team"
 _SUBJECT   = "You've Earned Access to the Writing Room."
 
 
@@ -46,24 +41,14 @@ def send_arc_invite_email(to_email: str, first_name: str) -> None:
         "Watson · AI-powered digital assistant · Office of Dr. Bill Yomes"
     )
 
-    host     = SMTP_HOST
-    port     = SMTP_PORT
-    user     = SMTP_USER
-    password = SMTP_PASS
-
-    msg = MIMEMultipart("alternative")
-    msg["To"]      = to_email
-    msg["From"]    = _FROM
-    msg["Subject"] = _SUBJECT
-    msg.attach(MIMEText(plain, "plain"))
-    msg.attach(MIMEText(html, "html"))
-
     try:
-        with smtplib.SMTP(host, port) as smtp:
-            smtp.ehlo()
-            smtp.starttls()
-            smtp.login(user, password)
-            smtp.sendmail(user, [to_email], msg.as_string())
+        result = send_email(
+            to_email=to_email, to_name=first_name, subject=_SUBJECT,
+            text_body=plain, html_body=html, include_signature=False,
+            from_email=_FROM_EMAIL, from_name=_FROM_NAME,
+        )
+        if not result["success"]:
+            raise RuntimeError(result["error"])
         log.info("ARC invite email sent to %s.", to_email)
     except Exception as exc:
         log.error("Failed to send ARC invite email to %s: %s", to_email, exc)

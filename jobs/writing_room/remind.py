@@ -9,7 +9,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from jobs.writing_room import bootstrap_db, get_db, send_email, send_telegram
+from jobs.writing_room import bootstrap_db, get_db, send_telegram
+from jobs.email_job.brevo_send import send_email
 
 log = logging.getLogger(__name__)
 
@@ -49,10 +50,9 @@ def _send_call_reminder(call: dict, tier: str) -> None:
 
         col = "reminder_24h_sent" if tier == "24h" else "reminder_1h_sent"
         for email in emails:
-            try:
-                send_email(email, subject, body)
-            except Exception as exc:
-                log.error("Reminder email failed for %s: %s", email, exc)
+            result = send_email(to_email=email, to_name="", subject=subject, text_body=body, include_signature=False)
+            if not result["success"]:
+                log.error("Reminder email failed for %s: %s", email, result["error"])
 
         conn.execute(f"UPDATE writing_room_calls SET {col} = 1 WHERE id = ?", (call["id"],))
         conn.commit()

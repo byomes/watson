@@ -22,15 +22,14 @@ Usage:
 import argparse
 import os
 import re
-import smtplib
 import sqlite3
 import sys
 import uuid
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 from pathlib import Path
 
 from dotenv import load_dotenv
+
+from jobs.email_job.brevo_send import send_email
 
 load_dotenv(os.path.expanduser("~/watson/.env"))
 
@@ -38,12 +37,8 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 DB_PATH = REPO_ROOT / "data" / "watson.db"
 LOG_DIR = REPO_ROOT / "logs"
 
-SMTP_HOST = "smtp.gmail.com"
-SMTP_PORT = 587
-SMTP_USER = os.getenv("WATSON_GMAIL_ADDRESS", "")
-SMTP_PASS = os.getenv("WATSON_GMAIL_APP_PASSWORD", "")
-
-_FROM = "FMS Team <watson@faithmakessense.com>"
+_FROM_EMAIL = "watson@faithmakessense.com"
+_FROM_NAME = "FMS Team"
 _SUBJECT = "Your access to The Wrong Jesus manuscript"
 _LOGIN_URL = "williamckyomes.com/arc/login"
 _PIXEL_BASE = "https://watson.tail0243ff.ts.net/api/arc/pixel"
@@ -126,17 +121,17 @@ def _build_email(first_name: str, email: str, password: str, tracking_token: str
 
 
 def _send_email(to_email: str, plain: str, html: str) -> None:
-    msg = MIMEMultipart("alternative")
-    msg["To"] = to_email
-    msg["From"] = _FROM
-    msg["Subject"] = _SUBJECT
-    msg.attach(MIMEText(plain, "plain"))
-    msg.attach(MIMEText(html, "html"))
-    with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as smtp:
-        smtp.ehlo()
-        smtp.starttls()
-        smtp.login(SMTP_USER, SMTP_PASS)
-        smtp.sendmail(SMTP_USER, [to_email], msg.as_string())
+    result = send_email(
+        to_email=to_email,
+        to_name="",
+        subject=_SUBJECT,
+        text_body=plain,
+        html_body=html,
+        from_email=_FROM_EMAIL,
+        from_name=_FROM_NAME,
+    )
+    if not result["success"]:
+        raise RuntimeError(f"Brevo send failed: {result['error']}")
 
 
 def main():

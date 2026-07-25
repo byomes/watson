@@ -36,7 +36,7 @@ from core.scorer import _BOOST
 from jobs.ask import ask
 from jobs.facebook.facebook_post import add_to_queue, init_db as init_fb_db
 from jobs.email_job.email_queue import add_to_email_queue, init_email_db
-from jobs.email_job.gmail import send_as_watson
+from jobs.email_job.brevo_send import send_email as _brevo_send_email
 from jobs.people.api import people_create, people_list, people_get, congregation_search
 import jobs.gcal.pending as pending_module
 from jobs.gcal import reasoner
@@ -192,21 +192,22 @@ def _gb_get_kit_subscriber_id(email: str) -> int | None:
 
 
 def _gb_send_kit_email(to_email: str, subject: str, html_body: str) -> None:
-    import smtplib
-    from email.mime.multipart import MIMEMultipart
-    from email.mime.text import MIMEText
+    text_body = re.sub(r"<br\s*/?>", "\n", html_body)
+    text_body = re.sub(r"</p>", "\n\n", text_body)
+    text_body = re.sub(r"<[^>]+>", "", text_body).strip()
 
-    msg = MIMEMultipart("alternative")
-    msg["From"] = "FMS Team <watson@faithmakessense.com>"
-    msg["To"] = to_email
-    msg["Subject"] = subject
-    msg.attach(MIMEText(html_body, "html"))
-
-    with smtplib.SMTP("smtp.gmail.com", 587) as smtp:
-        smtp.starttls()
-        smtp.login(_GMAIL_USER, _GMAIL_APP_PASSWORD)
-        smtp.sendmail("watson@faithmakessense.com", to_email, msg.as_string())
-    print(f"Gmail SMTP: sent to {to_email} — subject: {subject}")
+    result = _brevo_send_email(
+        to_email=to_email,
+        to_name="",
+        subject=subject,
+        text_body=text_body,
+        html_body=html_body,
+        from_email="watson@faithmakessense.com",
+        from_name="FMS Team",
+    )
+    if not result["success"]:
+        raise RuntimeError(f"Brevo send failed: {result['error']}")
+    print(f"Brevo: sent to {to_email} — subject: {subject}")
 
 
 def _gb_create_kit_draft(to_email: str, subject: str, html_body: str) -> None:
@@ -1917,9 +1918,12 @@ async def _forward_to_contact(
             await update.message.reply_text(f"Failed: {result['error']}")
     else:
         try:
-            await asyncio.to_thread(
-                send_as_watson, contact["email"], "Message from Dr. Bill", content
+            _result = await asyncio.to_thread(
+                _brevo_send_email, to_email=contact["email"], to_name=contact["name"],
+                subject="Message from Dr. Bill", text_body=content,
             )
+            if not _result["success"]:
+                raise RuntimeError(_result["error"])
             reply = f"Sent to {contact['name']} via email."
             await update.message.reply_text(reply)
             _log_telegram_exchange(f"[forward:email:{name}]", reply)
@@ -2057,12 +2061,15 @@ async def _route_tg_pending_reply(
             sources_str = "\n".join(f"• {s}" for s in sources)
             body = f"{synopsis}\n\nSources:\n{sources_str}"
             try:
-                await asyncio.to_thread(
-                    send_as_watson,
-                    "pastorbill@catalyst302.com",
-                    f"KB Search: {query}",
-                    body,
+                _result = await asyncio.to_thread(
+                    _brevo_send_email,
+                    to_email="pastorbill@catalyst302.com",
+                    to_name="Bill Yomes",
+                    subject=f"KB Search: {query}",
+                    text_body=body,
                 )
+                if not _result["success"]:
+                    raise RuntimeError(_result["error"])
                 await update.message.reply_text("✅ Sent to your inbox.")
                 mark_done(pending_id)
             except Exception as exc:
@@ -2254,11 +2261,14 @@ async def _execute_pending(update: Update, context: ContextTypes.DEFAULT_TYPE, p
         await update.message.reply_text(f"✅ Booked — {title} on {display}")
 
         try:
-            send_as_watson(
-                "pastorbill@catalyst302.com",
-                f"Watson booked: {title}",
-                f"Watson has booked the following on your calendar:\n\n{title}\n{display}",
+            _result = _brevo_send_email(
+                to_email="pastorbill@catalyst302.com",
+                to_name="Bill Yomes",
+                subject=f"Watson booked: {title}",
+                text_body=f"Watson has booked the following on your calendar:\n\n{title}\n{display}",
             )
+            if not _result["success"]:
+                log.warning("Booking notification email failed: %s", _result["error"])
         except Exception as email_exc:
             log.warning("Booking notification email failed: %s", email_exc)
 
@@ -2765,12 +2775,14 @@ async def handle_draft(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     to, subject, body = parts[0], parts[1], parts[2]
     try:
-        send_as_watson(to, subject, body)
+        result = _brevo_send_email(to_email=to, to_name="", subject=subject, text_body=body)
+        if not result["success"]:
+            raise RuntimeError(result["error"])
         await update.message.reply_text(
             f"✉️ Sent to {to}\nSubject: {subject}"
         )
     except Exception as exc:
-        log.error("send_as_watson failed: %s", exc)
+        log.error("brevo send_email failed: %s", exc)
         await update.message.reply_text(f"Failed to send email: {exc}")
 
 

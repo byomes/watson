@@ -22,9 +22,7 @@ import imaplib
 import logging
 import os
 import re
-import smtplib
 import sqlite3
-from email.mime.text import MIMEText
 
 import requests
 from bs4 import BeautifulSoup
@@ -32,6 +30,7 @@ from dotenv import load_dotenv
 
 from jobs.connect_cards.utils import format_date_for_subject, most_recent_sunday, parse_date_from_subject
 from core.vacation import vacation_gate
+from jobs.email_job.brevo_send import send_email
 
 load_dotenv(os.path.expanduser("~/watson/.env"))
 
@@ -73,7 +72,7 @@ def _send_telegram(text: str) -> None:
 
 
 def _send_confirmation_email(service_date: str, correction_names: list[str]) -> None:
-    if not DONNA_EMAIL or not GMAIL_ADDR or not GMAIL_PASS:
+    if not DONNA_EMAIL:
         return
     try:
         date_label = format_date_for_subject(datetime.date.fromisoformat(service_date))
@@ -85,15 +84,12 @@ def _send_confirmation_email(service_date: str, correction_names: list[str]) -> 
             f"You're all set!\n\n"
             f"Watson"
         )
-        msg = MIMEText(body, "plain")
-        msg["From"] = "Watson <watson@williamckyomes.com>"
-        msg["To"] = DONNA_EMAIL
-        msg["Subject"] = "Attendance Update Received"
-        with smtplib.SMTP("smtp.gmail.com", 587) as smtp:
-            smtp.ehlo()
-            smtp.starttls()
-            smtp.login(GMAIL_ADDR, GMAIL_PASS)
-            smtp.sendmail(GMAIL_ADDR, [DONNA_EMAIL], msg.as_string())
+        result = send_email(
+            to_email=DONNA_EMAIL, to_name="", subject="Attendance Update Received",
+            text_body=body, include_signature=False,
+        )
+        if not result["success"]:
+            raise RuntimeError(result["error"])
         log.info("Confirmation email sent to %s", DONNA_EMAIL)
     except Exception as exc:
         log.warning("Confirmation email to Donna failed: %s", exc)

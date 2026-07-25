@@ -1,15 +1,14 @@
-"""jobs/email/send.py — Email skill: extract recipient/subject/body from natural language and send via SMTP."""
+"""jobs/email/send.py — Email skill: extract recipient/subject/body from natural language and send via Brevo."""
 import json
 import logging
 import os
-import smtplib
 import sqlite3
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 from pathlib import Path
 
 import requests
 from dotenv import load_dotenv
+
+from jobs.email_job.brevo_send import send_email
 
 load_dotenv()
 
@@ -54,10 +53,6 @@ def _lookup_email(name: str) -> str | None:
 
 
 def _send_smtp(to_email: str, subject: str, body: str, to_name: str = "") -> None:
-    smtp_host = os.getenv("WATSON_SMTP_HOST")
-    smtp_user = os.getenv("WATSON_SMTP_USER")
-    smtp_pass = os.getenv("WATSON_GMAIL_APP_PASSWORD")
-
     plain = f"{body}\n\n---\nWatson\nAI-powered digital assistant\nOffice of Dr. Bill Yomes\nwilliamckyomes.com/start"
 
     first_name = to_name.split()[0] if to_name else to_email
@@ -74,18 +69,12 @@ def _send_smtp(to_email: str, subject: str, body: str, to_name: str = "") -> Non
         f"</p>"
     )
 
-    msg = MIMEMultipart("alternative")
-    msg["From"] = "Watson <watson.wcky@gmail.com>"
-    msg["To"] = to_email
-    msg["Subject"] = subject
-    msg.attach(MIMEText(plain, "plain"))
-    msg.attach(MIMEText(html, "html"))
-
-    with smtplib.SMTP(smtp_host, 587) as smtp:
-        smtp.ehlo()
-        smtp.starttls()
-        smtp.login(smtp_user, smtp_pass)
-        smtp.sendmail(smtp_user, [to_email], msg.as_string())
+    result = send_email(
+        to_email=to_email, to_name=to_name, subject=subject,
+        text_body=plain, html_body=html, include_signature=False,
+    )
+    if not result["success"]:
+        raise RuntimeError(f"Brevo send failed: {result['error']}")
 
 
 def run(message: str = None) -> str:

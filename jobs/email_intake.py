@@ -570,7 +570,7 @@ def _handle_bill_email(sender, subject, body, received_at, msg_id):
         if len(tg_msg) <= TELEGRAM_CHAR_LIMIT:
             _tg(tg_msg)
         else:
-            from jobs.email_job.gmail import send_as_watson
+            from jobs.email_job.brevo_send import send_email
             email_body = (
                 f"Dr. Bill,\n\n"
                 f"Watson received your email: \"{subject}\"\n\n"
@@ -579,7 +579,10 @@ def _handle_bill_email(sender, subject, body, received_at, msg_id):
                 f"{clarification_question}\n\n"
                 f"Watson | Administrative Assistant to Dr. Bill Yomes"
             )
-            send_as_watson(to=sender, subject=f"Re: {subject}", body=email_body)
+            send_email(
+                to_email=sender, to_name="", subject=f"Re: {subject}",
+                text_body=email_body, include_signature=False,
+            )
             _tg(f"📧 Watson emailed you a clarification question about: {subject}")
     else:
         action = result.get("action_taken") or "Logged and noted."
@@ -591,11 +594,13 @@ def _handle_bill_email(sender, subject, body, received_at, msg_id):
         if len(tg_msg) <= TELEGRAM_CHAR_LIMIT:
             _tg(tg_msg)
         else:
-            from jobs.email_job.gmail import send_as_watson
-            send_as_watson(
-                to=sender,
+            from jobs.email_job.brevo_send import send_email
+            send_email(
+                to_email=sender,
+                to_name="",
                 subject=f"Watson digest: {subject}",
-                body=f"Dr. Bill,\n\n{summary}\n\n✅ {action}\n\nWatson",
+                text_body=f"Dr. Bill,\n\n{summary}\n\n✅ {action}\n\nWatson",
+                include_signature=False,
             )
             _tg(f"📧 Watson emailed you a digest of: {subject}")
 

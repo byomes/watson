@@ -7,7 +7,7 @@ from pathlib import Path
 import requests
 
 from config.settings import DB_PATH, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
-from jobs.email_job.gmail import send_as_watson
+from jobs.email_job.brevo_send import send_email
 
 log = logging.getLogger(__name__)
 
@@ -97,11 +97,14 @@ def _call_claude_api(directive):
 
 def _send_spec(subject, spec_text):
     body = spec_text + "\n\nReply with CONFIRM to proceed."
-    send_as_watson(
-        to=SPEC_EMAIL,
+    result = send_email(
+        to_email=SPEC_EMAIL,
+        to_name="Bill Yomes",
         subject=f"Watson Spec: {subject}",
-        body_plain=body,
+        text_body=body,
     )
+    if not result["success"]:
+        raise RuntimeError(f"Brevo send failed: {result['error']}")
 
 
 def _store_job(directive, spec):

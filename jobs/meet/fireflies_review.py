@@ -28,17 +28,15 @@ import json
 import logging
 import os
 import re
-import smtplib
 import sqlite3
 from datetime import datetime, timezone
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 
 import requests
 from dotenv import load_dotenv
 from rapidfuzz import fuzz
 
 from config.settings import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+from jobs.email_job.brevo_send import send_email
 from core.vacation import vacation_gate
 
 load_dotenv(os.path.expanduser("~/watson/.env"))
@@ -54,18 +52,6 @@ WATSON_DB_PATH = os.path.expanduser("~/watson/data/watson.db")
 WATSON_API_URL = os.getenv("WATSON_API_URL", "https://watson.tail0243ff.ts.net")
 BILL_PREVIEW_EMAIL = "pastorbill@catalyst302.com"
 
-# SMTP creds — same source as jobs/email_job/gmail.py's send_as_watson(), but
-# sent via a direct MIMEMultipart build (matching jobs/connect_cards/
-# state_of_church.py's send_report()) instead of calling send_as_watson()
-# itself: send_as_watson() does a "\n" -> "<br>" replace on its body and
-# wraps the result in a SECOND <html><body> shell, which would double-wrap
-# and mangle a fully pre-rendered HTML template. Used by app.py's
-# /api/meet/review/<id>/preview and /send routes.
-SMTP_HOST = "smtp.gmail.com"
-SMTP_PORT = 587
-SMTP_USER = os.getenv("WATSON_GMAIL_ADDRESS", "")
-SMTP_PASS = os.getenv("WATSON_GMAIL_APP_PASSWORD", "")
-FROM_ADDR = os.getenv("WATSON_FROM_ADDRESS") or SMTP_USER
 
 # Matches the qwen2.5:7b call pattern used in jobs/pastoral_notes/handler.py
 # and jobs/email_job/draft_email.py — qwen2.5:14b was retired from the
@@ -496,19 +482,12 @@ def draft_review_email(transcript_data: dict) -> dict:
 def send_html_email(to: str, subject: str, html: str, plain: str) -> None:
     """Send a fully pre-rendered HTML email. Called from app.py's
     /api/meet/review/<id>/preview and /send routes."""
-    if not SMTP_USER or not SMTP_PASS:
-        raise RuntimeError("WATSON_GMAIL_ADDRESS and WATSON_GMAIL_APP_PASSWORD must be set.")
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = subject
-    msg["From"]    = f"Watson <{FROM_ADDR}>"
-    msg["To"]      = to
-    msg.attach(MIMEText(plain, "plain", "utf-8"))
-    msg.attach(MIMEText(html, "html", "utf-8"))
-    with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as smtp:
-        smtp.ehlo()
-        smtp.starttls()
-        smtp.login(SMTP_USER, SMTP_PASS)
-        smtp.sendmail(FROM_ADDR, [to], msg.as_string())
+    result = send_email(
+        to_email=to, to_name="", subject=subject,
+        text_body=plain, html_body=html, include_signature=False,
+    )
+    if not result["success"]:
+        raise RuntimeError(f"Brevo send failed: {result['error']}")
 
 
 def _send_telegram(text: str) -> dict | None:

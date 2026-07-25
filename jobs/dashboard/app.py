@@ -2526,8 +2526,15 @@ def skill_kb_email():
     sources_str = "\n".join(f"• {s}" for s in sources)
     body = f"{synopsis}\n\nSources:\n{sources_str}"
     try:
-        from jobs.email_job.gmail import send_as_watson
-        send_as_watson("pastorbill@catalyst302.com", f"KB Search: {query}", body)
+        from jobs.email_job.brevo_send import send_email
+        result = send_email(
+            to_email="pastorbill@catalyst302.com",
+            to_name="Bill Yomes",
+            subject=f"KB Search: {query}",
+            text_body=body,
+        )
+        if not result["success"]:
+            raise RuntimeError(result["error"])
         return jsonify({"ok": True})
     except Exception as exc:
         log.error("KB email error: %s", exc)
@@ -3221,24 +3228,15 @@ def chat_stream():
             lines.append(f"Email: {contact['email']}")
         body = "\n".join(lines)
 
-        import smtplib
-        from email.mime.text import MIMEText
-        smtp_host = os.getenv("WATSON_SMTP_HOST", "smtp.gmail.com")
-        smtp_port = int(os.getenv("WATSON_SMTP_PORT", 587))
-        smtp_user = os.getenv("WATSON_GMAIL_ADDRESS")
-        smtp_pass = os.getenv("WATSON_GMAIL_APP_PASSWORD")
-        from_addr = os.getenv("WATSON_FROM_ADDRESS", smtp_user)
-
-        msg = MIMEText(_build_email_body(body))
-        msg["Subject"] = f"Contact info: {contact['name']}"
-        msg["From"] = f"Watson <{from_addr}>"
-        msg["To"] = recipient["email"]
-
+        from jobs.email_job.brevo_send import send_email as _brevo_send_email
         try:
-            with smtplib.SMTP(smtp_host, smtp_port) as server:
-                server.starttls()
-                server.login(smtp_user, smtp_pass)
-                server.sendmail(from_addr, [recipient["email"]], msg.as_string())
+            _result = _brevo_send_email(
+                to_email=recipient["email"], to_name=recipient["name"],
+                subject=f"Contact info: {contact['name']}",
+                text_body=_build_email_body(body), include_signature=False,
+            )
+            if not _result["success"]:
+                raise RuntimeError(_result["error"])
             return _sse_response(_stream_simple(f"Sent {contact['name']}'s contact info to {recipient['name']} at {recipient['email']}."))
         except Exception as exc:
             return _sse_response(_stream_simple(f"Failed to send email: {exc}"))
@@ -3320,22 +3318,14 @@ def chat_stream():
         _names = ", ".join(_c["name"] for _c in _last)
         _subject = f"Contact info: {_names}"
 
-        import smtplib
-        from email.mime.text import MIMEText
-        _smtp_host = os.getenv("WATSON_SMTP_HOST", "smtp.gmail.com")
-        _smtp_port = int(os.getenv("WATSON_SMTP_PORT", 587))
-        _smtp_user = os.getenv("WATSON_GMAIL_ADDRESS")
-        _smtp_pass = os.getenv("WATSON_GMAIL_APP_PASSWORD")
-        _from_addr = os.getenv("WATSON_FROM_ADDRESS", _smtp_user)
-        _emsg = MIMEText(_build_email_body(_body))
-        _emsg["Subject"] = _subject
-        _emsg["From"] = f"Watson <{_from_addr}>"
-        _emsg["To"] = _to_email
+        from jobs.email_job.brevo_send import send_email as _brevo_send_email
         try:
-            with smtplib.SMTP(_smtp_host, _smtp_port) as _srv:
-                _srv.starttls()
-                _srv.login(_smtp_user, _smtp_pass)
-                _srv.sendmail(_from_addr, [_to_email], _emsg.as_string())
+            _result = _brevo_send_email(
+                to_email=_to_email, to_name=_to_label, subject=_subject,
+                text_body=_build_email_body(_body), include_signature=False,
+            )
+            if not _result["success"]:
+                raise RuntimeError(_result["error"])
             return _sse_response(_stream_simple(
                 f"Sent {_names}'s contact info to {_to_label} at {_to_email}."
             ))
@@ -4131,8 +4121,7 @@ def book_appointment():
 
 @app.route("/api/cancel-appointment")
 def cancel_appointment():
-    import smtplib
-    from email.mime.text import MIMEText
+    from jobs.email_job.brevo_send import send_email
 
     confirmation_id = request.args.get("id", "").strip()
     if not confirmation_id:
@@ -4168,9 +4157,6 @@ def cancel_appointment():
     # Send cancellation email to guest
     guest_name = row["guest_name"] or ""
     first_name = guest_name.split()[0] if guest_name else "there"
-    smtp_user = os.getenv("WATSON_GMAIL_ADDRESS")
-    smtp_pass = os.getenv("WATSON_GMAIL_APP_PASSWORD")
-    from_addr = os.getenv("WATSON_FROM_ADDRESS", smtp_user)
     email_body = (
         f"Hi {first_name},\n\n"
         "Your appointment with Dr. Bill Yomes has been cancelled.\n\n"
@@ -4181,17 +4167,13 @@ def cancel_appointment():
         "Office of Dr. Bill Yomes\n"
         "williamckyomes.com/start"
     )
-    msg = MIMEText(email_body)
-    msg["Subject"] = "Your Appointment Has Been Cancelled"
-    msg["From"] = f"Watson <{from_addr}>"
-    msg["To"] = row["guest_email"]
-    try:
-        with smtplib.SMTP("smtp.gmail.com", 587) as server:
-            server.starttls()
-            server.login(smtp_user, smtp_pass)
-            server.sendmail(from_addr, [row["guest_email"]], msg.as_string())
-    except Exception as exc:
-        log.error("cancel_appointment: failed to send email to %s: %s", row["guest_email"], exc)
+    result = send_email(
+        to_email=row["guest_email"], to_name=guest_name,
+        subject="Your Appointment Has Been Cancelled",
+        text_body=email_body, include_signature=False,
+    )
+    if not result["success"]:
+        log.error("cancel_appointment: failed to send email to %s: %s", row["guest_email"], result["error"])
 
     # Send Telegram notification
     appt_type = row["appointment_type"] or "appointment"
@@ -4720,8 +4702,7 @@ def reports_telegram():
 
 @app.route("/api/reports/email", methods=["POST"])
 def reports_email():
-    import smtplib
-    from email.mime.text import MIMEText
+    from jobs.email_job.brevo_send import send_email
     data    = request.get_json(force=True) or {}
     rtype   = data.get("type", "report")
     weeks   = data.get("weeks", "")
@@ -4729,22 +4710,17 @@ def reports_email():
     if not content:
         return jsonify({"error": "content required"}), 400
     try:
-        smtp_host = os.getenv("WATSON_SMTP_HOST", "smtp.gmail.com")
-        smtp_port = int(os.getenv("WATSON_SMTP_PORT", 587))
-        smtp_user = os.getenv("WATSON_GMAIL_ADDRESS")
-        smtp_pass = os.getenv("WATSON_GMAIL_APP_PASSWORD")
-        from_addr = os.getenv("WATSON_FROM_ADDRESS", smtp_user)
-        to_addr   = "bill.yomes@gmail.com"
-        label     = rtype.replace("_", " ").title()
-        subject   = f"Watson Report: {label}" + (f" ({weeks}w)" if weeks else "")
-        msg = MIMEText(content)
-        msg["Subject"] = subject
-        msg["From"]    = f"Watson <{from_addr}>"
-        msg["To"]      = to_addr
-        with smtplib.SMTP(smtp_host, smtp_port) as server:
-            server.starttls()
-            server.login(smtp_user, smtp_pass)
-            server.sendmail(from_addr, [to_addr], msg.as_string())
+        to_addr = "bill.yomes@gmail.com"
+        label   = rtype.replace("_", " ").title()
+        subject = f"Watson Report: {label}" + (f" ({weeks}w)" if weeks else "")
+        result = send_email(
+            to_email=to_addr,
+            to_name="Bill Yomes",
+            subject=subject,
+            text_body=content,
+        )
+        if not result["success"]:
+            raise RuntimeError(result["error"])
         return jsonify({"ok": True})
     except Exception as exc:
         log.error("reports/email failed: %s", exc)

@@ -383,8 +383,13 @@ def _send_uncertain_reel_email(user_id, link, raw_text, confident_titles, uncert
     lines.append("Could you take a look and search for those manually in Curator?")
     body = "\n".join(lines)
 
-    from jobs.writing_room import send_email
+    from jobs.email_job.brevo_send import send_email
     try:
-        send_email(contact["email"], "Curator — a few books I couldn't identify", body)
+        result = send_email(
+            to_email=contact["email"], to_name=contact.get("name") or "",
+            subject="Curator — a few books I couldn't identify", text_body=body,
+        )
+        if not result["success"]:
+            raise RuntimeError(result["error"])
     except Exception as exc:
         log.error("Uncertain-reel email failed: %s", exc)

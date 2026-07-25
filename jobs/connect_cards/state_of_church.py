@@ -15,30 +15,22 @@ Usage:
 import argparse
 import logging
 import os
-import smtplib
 import sqlite3
 import statistics
 import sys
 from collections import defaultdict
 from datetime import date, timedelta
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 
 import requests
 from dotenv import load_dotenv
 
 from jobs.connect_cards.utils import _display_name
+from jobs.email_job.brevo_send import send_email
 
 load_dotenv(os.path.expanduser("~/watson/.env"))
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger(__name__)
-
-SMTP_HOST    = "smtp.gmail.com"
-SMTP_PORT    = 587
-SMTP_USER    = os.getenv("WATSON_GMAIL_ADDRESS", "")
-SMTP_PASS    = os.getenv("WATSON_GMAIL_APP_PASSWORD", "")
-FROM_ADDR    = os.getenv("WATSON_FROM_ADDRESS") or SMTP_USER
 
 TO_ADDR      = "pastorbill@catalyst302.com"
 CONG_DB      = os.path.expanduser("~/watson/data/congregation.db")
@@ -944,19 +936,12 @@ def build_report() -> tuple[str, str, str]:
 # ── Send ───────────────────────────────────────────────────────────────────────
 
 def send_report(subject: str, html: str, plain: str) -> None:
-    if not SMTP_USER or not SMTP_PASS:
-        raise RuntimeError("WATSON_GMAIL_ADDRESS and WATSON_GMAIL_APP_PASSWORD must be set.")
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = subject
-    msg["From"]    = f"Watson <{FROM_ADDR}>"
-    msg["To"]      = TO_ADDR
-    msg.attach(MIMEText(plain, "plain", "utf-8"))
-    msg.attach(MIMEText(html, "html", "utf-8"))
-    with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as smtp:
-        smtp.ehlo()
-        smtp.starttls()
-        smtp.login(SMTP_USER, SMTP_PASS)
-        smtp.sendmail(SMTP_USER, [TO_ADDR], msg.as_string())
+    result = send_email(
+        to_email=TO_ADDR, to_name="", subject=subject,
+        text_body=plain, html_body=html, include_signature=False,
+    )
+    if not result["success"]:
+        raise RuntimeError(f"Brevo send failed: {result['error']}")
     log.info("Sent: %r → %s", subject, TO_ADDR)
 
 

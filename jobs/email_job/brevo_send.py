@@ -1,8 +1,5 @@
-"""jobs/email_job/brevo_send.py — Shared Brevo transactional email sender.
-
-Groundwork only: no existing Gmail SMTP job calls this yet. Add callers in a
-later pass once williamckyomes.com DNS/SPF/DKIM is confirmed in Brevo.
-"""
+"""jobs/email_job/brevo_send.py — Shared Brevo transactional email sender."""
+import base64
 import time
 from pathlib import Path
 
@@ -13,7 +10,7 @@ import os
 load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
 BREVO_API_URL = "https://api.brevo.com/v3/smtp/email"
-DEFAULT_FROM_EMAIL = "watson@send.williamckyomes.com"
+DEFAULT_FROM_EMAIL = "watson@williamckyomes.com"
 DEFAULT_FROM_NAME = "Watson"
 _TIMEOUT = 15
 _MAX_RETRIES = 1
@@ -23,8 +20,13 @@ SIGNATURE_HTML = '<p style="margin-top:24px;">--<br>Watson<br>Digital Assistant 
 
 
 def send_email(to_email, to_name, subject, text_body, html_body=None, tags=None,
-                from_email=None, from_name=None, include_signature=True):
+                from_email=None, from_name=None, include_signature=True, attachments=None,
+                headers=None):
     """Send one transactional email via Brevo's API.
+
+    attachments: optional list of {"name": str, "content": bytes} dicts.
+    headers: optional dict of custom email headers (e.g. In-Reply-To, References),
+    merged with (not replacing) any headers this function sets internally.
 
     Returns {"success": bool, "message_id": str|None, "error": str|None}.
     Never raises on Brevo API errors or network failures — callers decide how
@@ -52,8 +54,15 @@ def send_email(to_email, to_name, subject, text_body, html_body=None, tags=None,
         payload["htmlContent"] = html_body
     if tags:
         payload["tags"] = tags
+    if attachments:
+        payload["attachment"] = [
+            {"name": a["name"], "content": base64.b64encode(a["content"]).decode("ascii")}
+            for a in attachments
+        ]
+    if headers:
+        payload["headers"] = {**payload.get("headers", {}), **headers}
 
-    headers = {
+    _http_headers = {
         "accept": "application/json",
         "api-key": api_key,
         "content-type": "application/json",
@@ -63,7 +72,7 @@ def send_email(to_email, to_name, subject, text_body, html_body=None, tags=None,
     last_error = None
     for attempt in range(attempts):
         try:
-            resp = requests.post(BREVO_API_URL, json=payload, headers=headers, timeout=_TIMEOUT)
+            resp = requests.post(BREVO_API_URL, json=payload, headers=_http_headers, timeout=_TIMEOUT)
         except requests.exceptions.Timeout:
             last_error = "Brevo API request timed out"
             if attempt < attempts - 1:

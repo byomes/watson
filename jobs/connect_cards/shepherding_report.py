@@ -16,16 +16,15 @@ Usage:
 """
 
 import os
-import smtplib
+import re
 from collections import defaultdict
 from datetime import date, timedelta
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 
 from dotenv import load_dotenv
 
 from jobs.connect_cards.reports import _CSS, _wrap, _conn
 from jobs.connect_cards.utils import _display_name
+from jobs.email_job.brevo_send import send_email
 
 load_dotenv(os.path.expanduser("~/watson/.env"))
 
@@ -43,11 +42,6 @@ def _ensure_schema():
 _ensure_schema()
 
 DB_PATH    = os.path.expanduser("~/watson/data/congregation.db")
-SMTP_HOST  = "smtp.gmail.com"
-SMTP_PORT  = 587
-SMTP_USER  = os.getenv("WATSON_GMAIL_ADDRESS", "")
-SMTP_PASS  = os.getenv("WATSON_GMAIL_APP_PASSWORD", "")
-FROM_ADDR  = os.getenv("WATSON_FROM_ADDRESS") or SMTP_USER
 BILL_EMAIL = os.getenv("BILL_EMAIL", "bill.yomes@gmail.com")
 
 _STEP_NAMES = {
@@ -477,24 +471,18 @@ def telegram_shepherding_summary() -> str:
 
 def send_shepherding_report() -> None:
     """Generate and email the shepherding report to Bill."""
-    if not SMTP_USER or not SMTP_PASS:
-        raise RuntimeError("WATSON_GMAIL_ADDRESS and WATSON_GMAIL_APP_PASSWORD must be set.")
     if not BILL_EMAIL:
         raise RuntimeError("BILL_EMAIL must be set.")
 
     subject, html = generate_shepherding_report()
+    text_fallback = re.sub(r"<[^>]+>", "", html)
 
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = subject
-    msg["From"]    = f"Watson <{FROM_ADDR}>"
-    msg["To"]      = BILL_EMAIL
-    msg.attach(MIMEText(html, "html"))
-
-    with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as smtp:
-        smtp.ehlo()
-        smtp.starttls()
-        smtp.login(SMTP_USER, SMTP_PASS)
-        smtp.sendmail(FROM_ADDR, [BILL_EMAIL], msg.as_string())
+    result = send_email(
+        to_email=BILL_EMAIL, to_name="", subject=subject,
+        text_body=text_fallback, html_body=html, include_signature=False,
+    )
+    if not result["success"]:
+        raise RuntimeError(f"Brevo send failed: {result['error']}")
 
     print(f"Sent: {subject!r} → {BILL_EMAIL}")
 

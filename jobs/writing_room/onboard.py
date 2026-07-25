@@ -10,8 +10,9 @@ import requests
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from jobs.writing_room import (
-    bootstrap_db, generate_username, get_db, send_email, send_telegram,
+    bootstrap_db, generate_username, get_db, send_telegram,
 )
+from jobs.email_job.brevo_send import send_email
 
 log = logging.getLogger(__name__)
 
@@ -153,7 +154,9 @@ One step left — verify your email and set your password:
 This link expires in 72 hours.
 
 — Watson, on behalf of Dr. Bill Yomes"""
-    send_email(email, subject, body)
+    result = send_email(to_email=email, to_name=first_name, subject=subject, text_body=body, include_signature=False)
+    if not result["success"]:
+        raise RuntimeError(f"Brevo send failed: {result['error']}")
 
 
 def kit_tag_on_activation(email: str, first_name: str) -> None:

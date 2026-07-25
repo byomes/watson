@@ -15,14 +15,13 @@ Cron (Monday 6:00am):
 
 import logging
 import os
-import smtplib
 import sqlite3
-from email.mime.text import MIMEText
 
 import requests
 from dotenv import load_dotenv
 
 from jobs.connect_cards.utils import _display_name, format_date_for_subject, most_recent_sunday
+from jobs.email_job.brevo_send import send_email
 from core.vacation import vacation_gate
 
 load_dotenv(os.path.expanduser("~/watson/.env"))
@@ -33,11 +32,6 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 log = logging.getLogger(__name__)
-
-SMTP_HOST  = "smtp.gmail.com"
-SMTP_PORT  = 587
-SMTP_USER  = os.getenv("WATSON_GMAIL_ADDRESS", "")
-SMTP_PASS  = os.getenv("WATSON_GMAIL_APP_PASSWORD", "")
 
 REPORT_EMAIL = os.getenv("REPORT_EMAIL", "bill.yomes@gmail.com")
 DONNA_EMAIL  = os.getenv("DONNA_EMAIL", "")
@@ -65,24 +59,14 @@ def _send_telegram(text: str) -> None:
 
 
 def _send_email(subject: str, body: str) -> None:
-    if not SMTP_USER or not SMTP_PASS:
-        raise RuntimeError("WATSON_GMAIL_ADDRESS and WATSON_GMAIL_APP_PASSWORD must be set.")
-
     recipients = [r for r in [REPORT_EMAIL, DONNA_EMAIL, KACI_EMAIL] if r]
     if not recipients:
         raise RuntimeError("No recipients configured — set REPORT_EMAIL, DONNA_EMAIL, and KACI_EMAIL.")
 
-    msg = MIMEText(body, "plain")
-    msg["Subject"]  = subject
-    msg["From"]     = f"Watson <{SMTP_USER}>"
-    msg["To"]       = ", ".join(recipients)
-    msg["Reply-To"] = SMTP_USER
-
-    with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as smtp:
-        smtp.ehlo()
-        smtp.starttls()
-        smtp.login(SMTP_USER, SMTP_PASS)
-        smtp.sendmail(SMTP_USER, recipients, msg.as_string())
+    for recipient in recipients:
+        result = send_email(to_email=recipient, to_name="", subject=subject, text_body=body)
+        if not result["success"]:
+            raise RuntimeError(f"Brevo send to {recipient} failed: {result['error']}")
 
     log.info("Sent %r to %s", subject, recipients)
 
@@ -167,7 +151,6 @@ def run() -> None:
         "---",
         "Reply to this email with the names of anyone who was actually present "
         "and Watson will update the records.",
-        "Watson / AI-powered digital assistant / Office of Dr. Bill Yomes",
     ]
 
     body = "\n".join(body_parts)

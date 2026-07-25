@@ -8,24 +8,15 @@ shared cross-module import, so this follows that same established shape.
 """
 import logging
 import os
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 
 from dotenv import load_dotenv
+
+from jobs.email_job.brevo_send import send_email
 
 load_dotenv(os.path.expanduser("~/watson/.env"))
 
 log = logging.getLogger(__name__)
 
-SMTP_HOST = "smtp.gmail.com"
-SMTP_PORT = 587
-SMTP_USER = os.getenv("WATSON_GMAIL_ADDRESS", "")
-SMTP_PASS = os.getenv("WATSON_GMAIL_APP_PASSWORD", "")
-
-# wcky/book-funnel context, not an FMS ministry communication — matches the
-# williamckyomes.com alias used elsewhere for wcky-side sends.
-_FROM = "Watson <watson@williamckyomes.com>"
 _DOWNLOAD_BASE = "https://williamckyomes.com/guides"
 
 
@@ -49,19 +40,13 @@ def send_guide_confirmation(to_email: str, name: str, title: str, pdf_filename: 
         f"padding:40px;'>{html}</body></html>"
     )
 
-    msg = MIMEMultipart("alternative")
-    msg["To"]      = to_email
-    msg["From"]    = _FROM
-    msg["Subject"] = f"Your Free Companion Guide — {title}"
-    msg.attach(MIMEText(plain, "plain"))
-    msg.attach(MIMEText(html, "html"))
-
     try:
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as smtp:
-            smtp.ehlo()
-            smtp.starttls()
-            smtp.login(SMTP_USER, SMTP_PASS)
-            smtp.sendmail(SMTP_USER, [to_email], msg.as_string())
+        result = send_email(
+            to_email=to_email, to_name=first_name, subject=f"Your Free Companion Guide — {title}",
+            text_body=plain, html_body=html, include_signature=False,
+        )
+        if not result["success"]:
+            raise RuntimeError(result["error"])
         log.info("Lead magnet confirmation email sent to %s (%s).", to_email, title)
     except Exception as exc:
         log.error("Failed to send lead magnet confirmation email to %s: %s", to_email, exc)

@@ -8,13 +8,12 @@ Two templates, two contexts:
 """
 import logging
 import os
-import smtplib
 import sys
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 from pathlib import Path
 
 from dotenv import load_dotenv
+
+from jobs.email_job.brevo_send import send_email
 
 load_dotenv(os.path.expanduser("~/watson/.env"))
 
@@ -22,35 +21,26 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 log = logging.getLogger(__name__)
 
-SMTP_HOST = "smtp.gmail.com"
-SMTP_PORT = 587
-SMTP_USER = os.getenv("WATSON_GMAIL_ADDRESS", "")
-SMTP_PASS = os.getenv("WATSON_GMAIL_APP_PASSWORD", "")
-
-_FROM          = "FMS Team <watson@faithmakessense.com>"
+_FROM_EMAIL    = "watson@faithmakessense.com"
+_FROM_NAME     = "FMS Team"
 _SUBJECT       = "Your ARC Team Login — Track Your Commitments"
 _RESET_SUBJECT = "Your ARC Login — New Password"
 _LOGIN_URL     = "https://williamckyomes.com/arc/login"
 
 
 def _send_email(to_email: str, subject: str, plain: str) -> None:
-    """Shared SMTP-sending boilerplate for both ARC email templates."""
+    """Shared Brevo-sending boilerplate for both ARC email templates."""
     html = plain.replace("\n", "<br>")
     html = f"<html><body style='font-family:Georgia,serif;font-size:16px;line-height:1.7;color:#1a1a1a;max-width:600px;margin:0 auto;padding:40px;'>{html}</body></html>"
 
-    msg = MIMEMultipart("alternative")
-    msg["To"]      = to_email
-    msg["From"]    = _FROM
-    msg["Subject"] = subject
-    msg.attach(MIMEText(plain, "plain"))
-    msg.attach(MIMEText(html, "html"))
-
     try:
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as smtp:
-            smtp.ehlo()
-            smtp.starttls()
-            smtp.login(SMTP_USER, SMTP_PASS)
-            smtp.sendmail(SMTP_USER, [to_email], msg.as_string())
+        result = send_email(
+            to_email=to_email, to_name="", subject=subject, text_body=plain,
+            html_body=html, include_signature=False,
+            from_email=_FROM_EMAIL, from_name=_FROM_NAME,
+        )
+        if not result["success"]:
+            raise RuntimeError(result["error"])
         log.info("ARC email (%r) sent to %s.", subject, to_email)
     except Exception as exc:
         log.error("Failed to send ARC email (%r) to %s: %s", subject, to_email, exc)

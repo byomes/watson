@@ -9,7 +9,8 @@ import bcrypt
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from jobs.writing_room import bootstrap_db, get_db, send_email
+from jobs.writing_room import bootstrap_db, get_db
+from jobs.email_job.brevo_send import send_email
 
 log = logging.getLogger(__name__)
 
@@ -92,7 +93,9 @@ def _send_reset_email(email: str, first_name: str, token: str) -> None:
         f"If you didn't request this, ignore this email.\n\n"
         f"— Watson"
     )
-    send_email(email, subject, body)
+    result = send_email(to_email=email, to_name="", subject=subject, text_body=body, include_signature=False)
+    if not result["success"]:
+        raise RuntimeError(f"Brevo send failed: {result['error']}")
 
 
 if __name__ == "__main__":

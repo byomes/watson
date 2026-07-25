@@ -12,22 +12,16 @@ Usage:
 """
 
 import os
-import smtplib
+import re
 import sqlite3
 import sys
 from datetime import date, timedelta
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 
 from dotenv import load_dotenv
 
-load_dotenv(os.path.expanduser("~/watson/.env"))
+from jobs.email_job.brevo_send import send_email
 
-SMTP_HOST  = "smtp.gmail.com"
-SMTP_PORT  = 587
-SMTP_USER  = os.getenv("WATSON_GMAIL_ADDRESS", "")
-SMTP_PASS  = os.getenv("WATSON_GMAIL_APP_PASSWORD", "")
-FROM_ADDR  = os.getenv("WATSON_FROM_ADDRESS") or SMTP_USER
+load_dotenv(os.path.expanduser("~/watson/.env"))
 
 BILL_EMAIL  = os.getenv("BILL_EMAIL", "")
 DONNA_EMAIL = os.getenv("DONNA_EMAIL", "")
@@ -100,20 +94,15 @@ def _build_html(tasks: list, date_from: str, date_to: str) -> str:
 
 
 def _send(recipients: list[str], subject: str, html: str) -> None:
-    if not SMTP_USER or not SMTP_PASS:
-        raise RuntimeError("WATSON_GMAIL_ADDRESS and WATSON_GMAIL_APP_PASSWORD must be set.")
+    text_fallback = re.sub(r"<[^>]+>", "", html)
 
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = subject
-    msg["From"]    = f"Watson <{FROM_ADDR}>"
-    msg["To"]      = ", ".join(recipients)
-    msg.attach(MIMEText(html, "html"))
-
-    with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as smtp:
-        smtp.ehlo()
-        smtp.starttls()
-        smtp.login(SMTP_USER, SMTP_PASS)
-        smtp.sendmail(FROM_ADDR, recipients, msg.as_string())
+    for recipient in recipients:
+        result = send_email(
+            to_email=recipient, to_name="", subject=subject,
+            text_body=text_fallback, html_body=html, include_signature=False,
+        )
+        if not result["success"]:
+            raise RuntimeError(f"Brevo send to {recipient} failed: {result['error']}")
 
     print(f"Sent: {subject!r} → {', '.join(recipients)}")
 

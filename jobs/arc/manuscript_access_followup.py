@@ -17,25 +17,18 @@ Usage:
 """
 import argparse
 import os
-import smtplib
 import sqlite3
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 from pathlib import Path
 
 from dotenv import load_dotenv
+
+from jobs.email_job.brevo_send import send_email
 
 load_dotenv(os.path.expanduser("~/watson/.env"))
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 DB_PATH = REPO_ROOT / "data" / "watson.db"
 
-SMTP_HOST = "smtp.gmail.com"
-SMTP_PORT = 587
-SMTP_USER = os.getenv("WATSON_GMAIL_ADDRESS", "")
-SMTP_PASS = os.getenv("WATSON_GMAIL_APP_PASSWORD", "")
-
-_FROM = "Watson <watson@williamckyomes.com>"
 _BILL_EMAIL = os.getenv("BILL_EMAIL", "bill.yomes@gmail.com")
 _LOGIN_URL = "williamckyomes.com/arc/login"
 _CAMPAIGN = "manuscript_access_round1"
@@ -74,16 +67,9 @@ def _build_draft_body(first_name: str, email: str, password: str) -> str:
 
 
 def _send_draft_to_bill(subject: str, body: str) -> None:
-    msg = MIMEMultipart("alternative")
-    msg["To"] = _BILL_EMAIL
-    msg["From"] = _FROM
-    msg["Subject"] = subject
-    msg.attach(MIMEText(body, "plain"))
-    with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as smtp:
-        smtp.ehlo()
-        smtp.starttls()
-        smtp.login(SMTP_USER, SMTP_PASS)
-        smtp.sendmail(SMTP_USER, [_BILL_EMAIL], msg.as_string())
+    result = send_email(to_email=_BILL_EMAIL, to_name="Bill Yomes", subject=subject, text_body=body)
+    if not result["success"]:
+        raise RuntimeError(f"Brevo send failed: {result['error']}")
 
 
 def main():

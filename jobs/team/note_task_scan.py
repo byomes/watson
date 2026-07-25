@@ -12,18 +12,16 @@ Cron (Tue/Wed/Thu 7am):
 import json
 import logging
 import os
-import smtplib
 import sqlite3
 import uuid
 from datetime import datetime
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 from pathlib import Path
 
 import requests
 from dotenv import load_dotenv
 
 from core.vacation import vacation_gate
+from jobs.email_job.brevo_send import send_email
 
 load_dotenv(Path.home() / "watson" / ".env")
 
@@ -235,10 +233,6 @@ def _is_duplicate(conn, member_id, task_title):
 # ── Email ─────────────────────────────────────────────────────────────────────
 
 def _send_proposal_email(donna_email, donna_name, proposals_by_member, date_str):
-    smtp_user = os.getenv("WATSON_GMAIL_ADDRESS", "")
-    smtp_pass = os.getenv("WATSON_GMAIL_APP_PASSWORD", "")
-    from_addr = os.getenv("WATSON_FROM_ADDRESS") or smtp_user
-
     subject = f"Watson — Proposed tasks from leadership notes ({date_str})"
 
     sections = []
@@ -261,21 +255,15 @@ def _send_proposal_email(donna_email, donna_name, proposals_by_member, date_str)
         "Acting on behalf of Dr. Bill Yomes\n"
         "Watson · AI-powered digital assistant"
     )
-    body_html = body.replace("\n", "<br>")
+    body_html = f"<html><body>{body.replace(chr(10), '<br>')}</body></html>"
 
-    msg = MIMEMultipart("alternative")
-    msg["To"]      = donna_email
-    msg["CC"]      = BILL_CC
-    msg["Subject"] = subject
-    msg["From"]    = f"Watson <{from_addr}>"
-    msg.attach(MIMEText(body, "plain"))
-    msg.attach(MIMEText(f"<html><body>{body_html}</body></html>", "html"))
-
-    with smtplib.SMTP("smtp.gmail.com", 587) as smtp:
-        smtp.ehlo()
-        smtp.starttls()
-        smtp.login(smtp_user, smtp_pass)
-        smtp.sendmail(from_addr, [donna_email, BILL_CC], msg.as_string())
+    for recipient in (donna_email, BILL_CC):
+        result = send_email(
+            to_email=recipient, to_name=donna_name if recipient == donna_email else "",
+            subject=subject, text_body=body, html_body=body_html, include_signature=False,
+        )
+        if not result["success"]:
+            raise RuntimeError(f"Brevo send to {recipient} failed: {result['error']}")
 
     log.info("Proposal email sent to %s (CC: %s)", donna_email, BILL_CC)
 

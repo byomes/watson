@@ -24,26 +24,19 @@ Usage:
 import argparse
 import json
 import os
-import smtplib
+import re
 import sqlite3
 import urllib.request
 
 import requests
 from datetime import date, timedelta
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 
 from dotenv import load_dotenv
 
 from jobs.connect_cards.reports import bill_report, donna_report, kaci_report
+from jobs.email_job.brevo_send import send_email
 
 load_dotenv(os.path.expanduser("~/watson/.env"))
-
-SMTP_HOST  = "smtp.gmail.com"
-SMTP_PORT  = 587
-SMTP_USER  = os.getenv("WATSON_GMAIL_ADDRESS", "")
-SMTP_PASS  = os.getenv("WATSON_GMAIL_APP_PASSWORD", "")
-FROM_ADDR  = os.getenv("WATSON_FROM_ADDRESS") or SMTP_USER
 
 BILL_EMAIL    = os.getenv("BILL_EMAIL", "")
 DONNA_EMAIL   = os.getenv("DONNA_EMAIL", "")
@@ -70,9 +63,6 @@ def _previous_monday_5am(sunday: str) -> str:
 
 
 def _send(to: str, subject: str, html: str, preview: bool = False) -> None:
-    if not SMTP_USER or not SMTP_PASS:
-        raise RuntimeError("WATSON_GMAIL_ADDRESS and WATSON_GMAIL_APP_PASSWORD must be set.")
-
     if preview:
         to      = PREVIEW_EMAIL
         subject = f"[PREVIEW] {subject}"
@@ -82,40 +72,28 @@ def _send(to: str, subject: str, html: str, preview: bool = False) -> None:
             raise RuntimeError("Recipient address is empty — check env vars.")
         cc = REPORT_CC
 
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = subject
-    msg["From"]    = f"Watson <{FROM_ADDR}>"
-    msg["To"]      = to
-    if cc:
-        msg["Cc"] = cc
-    msg.attach(MIMEText(html, "html"))
+    text_fallback = re.sub(r"<[^>]+>", "", html)
 
     recipients = [to] + ([cc] if cc else [])
-    with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as smtp:
-        smtp.ehlo()
-        smtp.starttls()
-        smtp.login(SMTP_USER, SMTP_PASS)
-        smtp.sendmail(FROM_ADDR, recipients, msg.as_string())
+    for recipient in recipients:
+        result = send_email(
+            to_email=recipient, to_name="", subject=subject,
+            text_body=text_fallback, html_body=html, include_signature=False,
+        )
+        if not result["success"]:
+            raise RuntimeError(f"Brevo send to {recipient} failed: {result['error']}")
 
     cc_note = f", CC {cc}" if cc else ""
     print(f"Sent: {subject!r} → {to}{cc_note}")
 
 
 def _send_plain(to: str, subject: str, body: str) -> None:
-    """Send a plain-text email via Watson SMTP."""
-    if not SMTP_USER or not SMTP_PASS:
-        raise RuntimeError("WATSON_GMAIL_ADDRESS and WATSON_GMAIL_APP_PASSWORD must be set.")
+    """Send a plain-text email via Brevo."""
     if not to:
         raise RuntimeError("Recipient address is empty — check env vars.")
-    msg = MIMEText(body, "plain", "utf-8")
-    msg["Subject"] = subject
-    msg["From"]    = f"Watson <{FROM_ADDR}>"
-    msg["To"]      = to
-    with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as smtp:
-        smtp.ehlo()
-        smtp.starttls()
-        smtp.login(SMTP_USER, SMTP_PASS)
-        smtp.sendmail(FROM_ADDR, [to], msg.as_string())
+    result = send_email(to_email=to, to_name="", subject=subject, text_body=body)
+    if not result["success"]:
+        raise RuntimeError(f"Brevo send failed: {result['error']}")
     print(f"Sent: {subject!r} → {to}")
 
 
