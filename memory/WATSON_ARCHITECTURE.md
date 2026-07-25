@@ -1346,3 +1346,11 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 ### ~/wcky
 - 8052ead feat: /go/<slug> branded link redirector
 - 429f097 publish: The Stones We Leave Behind
+
+---
+
+## Recent Changes — 2026-07-25
+
+### ~/watson
+- 794e1f8 docs: file map 2026-07-24
+- d766845 docs: architecture update 2026-07-24
