@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-07-24*
+*Generated: 2026-07-25*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
