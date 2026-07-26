@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-07-25*
+*Generated: 2026-07-26*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -11,6 +11,13 @@
 .env.example
 .env.local
 .gitignore
+.pytest_cache/
+  .gitignore
+  CACHEDIR.TAG
+  README.md
+  v/
+    cache/
+      nodeids
 .vercel/
   README.txt
   project.json
@@ -54,6 +61,12 @@ cron_additions.txt
 cron_backup_20260721_1510.txt
 data/
   .gitkeep
+  campaigns/
+    WCKY-Book-Launch-Framework.md
+    twj/
+      TWJ-Brevo-Automation-Handoff.md
+      TWJ-Launch-Full-Copy-Weeks-1-8-CORRECTED.md
+      TWJ-Launch-Outline-Weeks-1-8.md
   congregation.db
   congregation.db.bak-20260712-200522
   congregation.db.bak-20260714-091212
@@ -162,6 +175,16 @@ jobs/
     fetch.py
     intercept.py
   build_kb.py
+  campaigns/
+    __init__.py
+    book_launch_parser.py
+    brevo_dispatcher.py
+    campaign_routes.py
+    dispatch.py
+    kit_import.py
+    schema.py
+    test_dispatch.py
+    weekly_digest.py
   cleanup.py
   cleanup_library.ps1
   code_agent/
@@ -246,6 +269,8 @@ jobs/
   dev/
     __init__.py
     auto_fixer.py
+    backlog.py
+    bugs_backlog_sync.py
     build_memory_store.py
     build_pipeline.py
     claude_api_final_review.py
@@ -976,7 +1001,9 @@ library/
 main.py
 memory/
   .gitkeep
+  BUGS.md
   CRON.md
+  DEV_PROJECTS.md
   FILE_MAP.md
   SMOKE_TEST.md
   WATSON_ARCHITECTURE.md
@@ -1112,6 +1139,7 @@ content/
     2026-07-18-provision-and-purpose-are-not-the-same-thing.md
     2026-07-21-miraculous-and-providential-the-two-ways-god-moves.md
     2026-07-23-the-stones-we-leave-behind.md
+    2026-07-25-covenant-is-not-a-private-matter.md
     the-flashlight-of-your-focus.md
     where-your-treasure-is.md
 next-env.d.ts
