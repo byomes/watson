@@ -269,6 +269,8 @@ note for why that change isn't sufficient on its own to bring it back.
 | `jobs/dev/file_map.py` | Daily 2am | Auto-update FILE_MAP.md |
 | `jobs/dev/update_arch.py` | Daily 2am | Auto-update WATSON_ARCHITECTURE.md |
 | `jobs/kb/sync_and_index.py` | Daily 2am | Git pull (ff-only) + same-day transcript sync (`kb/transcripts/` → `kb/documents/`) + incremental Chroma index + Telegram summary |
+| `jobs/campaigns/weekly_digest.py` | Sun 6pm | Book-launch campaign digest — Telegram summary of queued sends per active campaign, with Open Editor / Approve All buttons; also runnable on-demand (`--campaign-id` CLI flag) |
+| `jobs/campaigns/brevo_dispatcher.py` | Every 15 min | Book-launch campaign Brevo dispatcher — sends approved+due `book_launch_sends` rows (Facebook rows are instead queued into the existing `facebook_queue`/`facebook_post.py` pipeline at approval time, not handled here) |
 
 ### Other Jobs (Available)
 
@@ -369,6 +371,32 @@ Private community hub for Writing Room Partners (invitation-only, earned via ARC
 **Watson job file:** `jobs/bodyrec/api.py` — Flask blueprint, routes registered on dashboard app
 **Tables:** `body_entries`, `body_settings`
 **Supabase:** Fully retired for this project — all data and API needs route through Watson (`watson.db`), no Supabase dependency remains.
+
+---
+
+## Book Launch Campaign System (`jobs/campaigns/`)
+
+Reusable, campaign-agnostic marketing automation for book launches — built out
+against The Wrong Jesus (`campaign_id='twj-2026'`) as the first real campaign,
+but nothing TWJ-specific is hardcoded in the job files themselves.
+
+**Tables (`watson.db`):**
+- `book_launch_campaigns` — one row per campaign (`campaign_id`, `book_title`, `launch_date`, `start_date`, `framework_weeks`, `status`)
+- `book_launch_sends` — one row per scheduled post/email (`week_number`, `send_date`, `platform` [facebook|brevo], `segment` [public|general|donor|arc], `subject`, `body_text`, `image_template_type`, `status` [scheduled|previewed|approved|edited|sent|skipped], `previewed_at`)
+- `book_launch_contacts` — Kit-exported 'general' segment snapshot per campaign (`segment`, `source` [kit_export|donors_db|arc_readers])
+
+**Job files:**
+- `jobs/campaigns/schema.py` — `CREATE TABLE` statements + `create_tables()` (idempotent, includes the `previewed_at` column migration)
+- `jobs/campaigns/book_launch_parser.py` — deterministic (non-LLM) markdown parser for a campaign's source docs (schedule + full-copy files)
+- `jobs/campaigns/kit_import.py` — one-time Kit (ConvertKit) subscriber pull → `book_launch_contacts` (`segment='general'`, `source='kit_export'`); `--dry-run` defaults true
+- `jobs/campaigns/dispatch.py` — shared dispatch logic: `resolve_recipients()` (general = Kit snapshot; donor = live query against `donors.db` excluding `segment='lapsed-donor'`; arc = live query against `arc_readers` filtered to `status='active'` and a slugified `book_title` match against `book_slug`), `dispatch_facebook_row()` (feeds the existing `facebook_queue` table — never posts directly, never touches `facebook_post.py`), `send_brevo_row()` (sends via `brevo_send.py`, one recipient at a time, ~200ms delay, per-recipient try/except, Telegram success/failure summary), `approve_week()` (the one shared entry point called by both the dashboard and the Telegram callback)
+- `jobs/campaigns/campaign_routes.py` — Flask Blueprint, registered on the dashboard app. `GET /campaigns/<campaign_id>/week/<week_number>` (edit/approve page) plus save/approve API routes under `/api/campaigns/...` — all three gated by `_admin_required()` (the same session check as `/admin/*` and the meet-review pages), since these routes can trigger real sends to donor/general/ARC lists. `_admin_required` is imported lazily inside each route (not at module level) to avoid a circular import with `app.py`.
+- `jobs/campaigns/weekly_digest.py` — Telegram digest of what's queued per active campaign (rolling 7-day window OR already-due-and-never-previewed items); on-demand via `--campaign-id` CLI flag
+- `jobs/campaigns/brevo_dispatcher.py` — periodic sweep for approved+due Brevo rows across all campaigns, using the same `send_brevo_row()` as the synchronous Approve-All path (one Brevo-sending code path, not two)
+
+**Telegram:** `handle_campaign_callback` in `bot.py`, pattern `^camp_approve:`, registered ahead of no colliding wildcard (there isn't one yet, but see the `fb_img_`-before-`fb_` precedent this follows).
+
+**Known gap:** Facebook rows never get synced back to `status='sent'` in `book_launch_sends` once `facebook_post.py` actually posts them — that job has zero awareness of this table by design (Step 3 of the build explicitly doesn't modify it). They stay at `status='approved'` after being queued. A future phase could add a small read-back reconciliation job if that visibility gap matters.
 
 ---
 

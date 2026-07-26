@@ -575,6 +575,26 @@ async def handle_facebook_image_callback(update, context):
         # regenerate_image sends a fresh photo+buttons message itself
 
 
+async def handle_campaign_callback(update, context):
+    query = update.callback_query
+    await query.answer()
+    data = query.data  # "camp_approve:{campaign_id}:{week_number}"
+    _, campaign_id, week_str = data.split(":", 2)
+    week_number = int(week_str)
+
+    from jobs.campaigns.dispatch import approve_week
+
+    result = await asyncio.to_thread(approve_week, campaign_id, week_number)
+    summary = (
+        f"✅ Approved {result['approved']} item(s) for {campaign_id} Week {week_number} — "
+        f"Facebook queued: {result['facebook_queued']}, Brevo sent now: {result['brevo_sent_now']}"
+    )
+    await query.edit_message_text(
+        text=f"{query.message.text}\n\n{summary}",
+        reply_markup=None,
+    )
+
+
 # Worst-case stack inside this window (bug #29, all measured on this
 # CPU-only host): skill router's own 8s timeout, then classify()'s 55s
 # timeout, then a real shot at the general-chat fallback (measured up to
@@ -4010,6 +4030,9 @@ def main():
     app.add_handler(CallbackQueryHandler(handle_meeting_pattern_callback, pattern=r"^mtp_(approve|reject):"))
     app.add_handler(CallbackQueryHandler(handle_facebook_image_callback, pattern=r"^fb_img_(?:approve|regen|discard):"))
     app.add_handler(CallbackQueryHandler(handle_facebook_callback, pattern=r"^fb_"))
+    # Specific prefix, registered ahead of any future broader "^camp" wildcard
+    # (see fb_img_ vs fb_ above — a wildcard registered first would swallow this).
+    app.add_handler(CallbackQueryHandler(handle_campaign_callback, pattern=r"^camp_approve:"))
     app.add_handler(CallbackQueryHandler(handle_email_triage_callback, pattern=r"^et_"))
     app.add_handler(CallbackQueryHandler(handle_carrier_callback, pattern=r"^carrier_"))
     app.add_handler(CallbackQueryHandler(handle_email_callback, pattern=r"^email_"))

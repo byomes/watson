@@ -343,6 +343,11 @@ _curator_start_worker()
 from jobs.links.api import links_bp
 app.register_blueprint(links_bp)
 
+from jobs.campaigns.campaign_routes import campaigns_bp
+from jobs.campaigns.schema import create_tables as _campaigns_create_tables
+_campaigns_create_tables()
+app.register_blueprint(campaigns_bp)
+
 _EMAIL_SIGNATURE = "---\nWatson\nAI-powered digital assistant\nOffice of Dr. Bill Yomes\nwilliamckyomes.com/start"
 
 # ── Admin template filters ────────────────────────────────────────────────────

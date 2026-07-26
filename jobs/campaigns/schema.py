@@ -58,6 +58,15 @@ def create_tables(conn=None) -> None:
     try:
         for stmt in ALL_TABLES:
             conn.execute(stmt)
+
+        # previewed_at: added in Phase 2 for the weekly digest job. A separate
+        # timestamp column rather than repurposing status='previewed' (already
+        # a valid CHECK value) — a row can be both 'edited' and previewed, and
+        # overloading status would lose whichever happened first.
+        cols = {row[1] for row in conn.execute("PRAGMA table_info(book_launch_sends)").fetchall()}
+        if "previewed_at" not in cols:
+            conn.execute("ALTER TABLE book_launch_sends ADD COLUMN previewed_at TEXT")
+
         conn.commit()
     finally:
         if owns_conn:
