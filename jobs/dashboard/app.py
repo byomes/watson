@@ -2413,6 +2413,43 @@ def project_backlog_create():
     return jsonify(dict(row)), 201
 
 
+@app.route("/api/project-backlog/<int:item_id>", methods=["PATCH"])
+def project_backlog_update(item_id):
+    data = request.get_json(force=True) or {}
+    db = _db()
+    row = db.execute("SELECT * FROM project_backlog WHERE id = ?", (item_id,)).fetchone()
+    if not row:
+        return jsonify({"error": "not found"}), 404
+
+    fields, params = [], []
+    if "title" in data:
+        title = (data.get("title") or "").strip()
+        if not title:
+            return jsonify({"error": "title cannot be empty"}), 400
+        fields.append("title = ?")
+        params.append(title)
+    if "summary" in data:
+        fields.append("summary = ?")
+        params.append((data.get("summary") or "").strip())
+    if "detail" in data:
+        fields.append("detail = ?")
+        params.append((data.get("detail") or "").strip() or None)
+    if "status" in data:
+        status = (data.get("status") or "").strip()
+        if status not in ("planned", "done"):
+            return jsonify({"error": "status must be 'planned' or 'done'"}), 400
+        fields.append("status = ?")
+        params.append(status)
+
+    if fields:
+        params.append(item_id)
+        db.execute(f"UPDATE project_backlog SET {', '.join(fields)} WHERE id = ?", params)
+        db.commit()
+
+    row = db.execute("SELECT * FROM project_backlog WHERE id = ?", (item_id,)).fetchone()
+    return jsonify(dict(row))
+
+
 # ── Upload API ────────────────────────────────────────────────────────────────
 
 _TEXT_EXTS = {".txt", ".md", ".csv", ".json", ".py", ".html", ".xml"}

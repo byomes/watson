@@ -2037,16 +2037,23 @@ async function moreLoadEvents() {
   }
 }
 
-// ── Dev (dev_projects / bug_tracker) ────────────────────────────────────────
+// ── Dev (project_backlog / bug_tracker) ─────────────────────────────────────
 // Two sub-tabs sharing one "Dev" More-menu tile, same pattern as Publishing's
-// Writing Room / ARC tabs. Resolved/delivered/failed/stopped rows are never
-// deleted by this UI — they just drop out of the default filtered view and
-// stay reachable forever via "Show completed".
+// Writing Room / ARC tabs. Done/resolved rows are never deleted by this UI —
+// they just drop out of the default filtered view and stay reachable forever
+// via "Show Done" / "Show Completed".
+//
+// This used to also render dev_projects (Dev Loop auto-repair runs) here as
+// a "Dev Loop Projects" section. Removed 2026-07-25 — that feature (Telegram
+// devloop: trigger, qwen2.5-coder:7b, Monday cleanup cron) is still fully
+// wired, it just has no dashboard entry point (removed 2026-07-01) and no
+// real usage since a single failed test session on 2026-06-27. This is a
+// display change only: jobs/dev_loop/*, the dev_projects table, and its cron
+// are untouched; GET /api/dev-loop/projects still exists server-side, this
+// tab just no longer calls it.
 
 let _devTab              = 'dev';
-let _devProjects         = [];
-let _devBugs             = [];
-let _devShowCompletedDev  = false;
+let _devBugs              = [];
 let _devShowCompletedBugs = false;
 let _devExpandedId        = null;
 
@@ -2065,7 +2072,6 @@ function devLoad() {
 function devSetTab(tab, isInitial) {
   _devTab = tab;
   _devExpandedId = null;
-  _devExpandedProjectId = null;
   _devExpandedBacklogId = null;
   if (!isInitial) {
     document.querySelectorAll('#msec-inner-dev .mtab').forEach(b => b.classList.remove('active'));
@@ -2073,7 +2079,7 @@ function devSetTab(tab, isInitial) {
     const btn = document.querySelectorAll('#msec-inner-dev .mtab')[idx];
     if (btn) btn.classList.add('active');
   }
-  if (tab === 'dev')  devLoadProjects();
+  if (tab === 'dev')  devLoadBacklog();
   if (tab === 'bugs') devLoadBugs();
 }
 
@@ -2093,92 +2099,46 @@ function _devBugBadge(status) {
   return _devBadge('background:rgba(201,168,76,.12);color:var(--gold);border:1px solid rgba(201,168,76,.3)', 'Open');
 }
 
-function _devProjectBadge(status) {
-  const map = {
-    running:   ['background:rgba(201,168,76,.12);color:var(--gold);border:1px solid rgba(201,168,76,.3)',   'Running'],
-    paused:    ['background:rgba(76,126,201,.12);color:var(--blue);border:1px solid rgba(76,126,201,.3)',   'Paused'],
-    delivered: ['background:rgba(76,175,125,.12);color:var(--green);border:1px solid rgba(76,175,125,.3)',  'Delivered'],
-    failed:    ['background:rgba(201,80,76,.12);color:var(--red);border:1px solid rgba(201,80,76,.3)',      'Failed'],
-    stopped:   ['background:rgba(102,102,102,.10);color:var(--muted);border:1px solid var(--border)',       'Stopped'],
-  };
-  const [style, label] = map[status] || ['background:rgba(102,102,102,.10);color:var(--muted);border:1px solid var(--border)', status || 'Unknown'];
-  return _devBadge(style, label);
-}
-
 function _devBacklogBadge(status) {
   if (status === 'planned') return _devBadge('background:rgba(201,168,76,.12);color:var(--gold);border:1px solid rgba(201,168,76,.3)', 'Planned');
   return _devBadge('background:rgba(76,175,125,.12);color:var(--green);border:1px solid rgba(76,175,125,.3)', status || 'Unknown');
 }
 
-// ── Dev sub-tab (dev_projects + project_backlog) ────────────────────────────
-// Two independent card sections stacked in one sub-tab: live Dev Loop runs
-// (dev_projects — has a slug/staging_path/real code-gen state machine) and
-// the planning backlog (project_backlog — lightweight, no runtime state).
-// Kept as separate tables/sections rather than merged rows since their
-// fields and lifecycles don't line up.
+// ── Dev sub-tab (project_backlog) ───────────────────────────────────────────
 
-let _devBacklog             = [];
+let _devBacklog              = [];
 let _devShowCompletedBacklog = false;
-let _devExpandedProjectId    = null;
 let _devExpandedBacklogId    = null;
 
-async function devLoadProjects() {
+async function devLoadBacklog() {
   const el = document.getElementById('dev-tab-body');
   if (!el) return;
   el.innerHTML = '<div class="loading">Loading&hellip;</div>';
   try {
-    [_devProjects, _devBacklog] = await Promise.all([
-      api('/api/dev-loop/projects'),
-      api('/api/project-backlog'),
-    ]);
-    _devRenderProjects();
+    _devBacklog = await api('/api/project-backlog');
+    _devRenderBacklog();
   } catch {
-    el.innerHTML = '<div class="empty">Could not load Dev Loop data.</div>';
+    el.innerHTML = '<div class="empty">Could not load backlog.</div>';
   }
-}
-
-function devToggleShowCompletedProjects() {
-  _devShowCompletedDev = !_devShowCompletedDev;
-  _devExpandedProjectId = null;
-  _devRenderProjects();
 }
 
 function devToggleShowCompletedBacklog() {
   _devShowCompletedBacklog = !_devShowCompletedBacklog;
   _devExpandedBacklogId = null;
-  _devRenderProjects();
+  _devRenderBacklog();
 }
 
-function _devRenderProjects() {
+function _devRenderBacklog() {
   const el = document.getElementById('dev-tab-body');
   if (!el) return;
 
-  const OPEN = ['running', 'paused'];
-  const projSource = (_devShowCompletedDev ? _devProjects : _devProjects.filter(p => OPEN.includes(p.status)))
-    .slice()
-    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
   const backlogSource = (_devShowCompletedBacklog ? _devBacklog : _devBacklog.filter(b => b.status === 'planned'))
     .slice()
     .sort((a, b) => new Date(b.added_date) - new Date(a.added_date));
 
-  const projToggleBtn = `<button class="mbtn mbtn-sm" onclick="devToggleShowCompletedProjects()">${_devShowCompletedDev ? 'Show Active Only' : 'Show Completed'}</button>`;
-  let html = `<div class="mlabel" style="display:flex;align-items:center;justify-content:space-between">Dev Loop Projects (${projSource.length})${projToggleBtn}</div>`;
-  html += projSource.length
-    ? projSource.map(p => `
-        <div class="mpn-card" id="mdev-card-${p.id}">
-          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;cursor:pointer;-webkit-tap-highlight-color:transparent" onclick="devExpandProject(${p.id})">
-            <div style="flex:1;min-width:0">
-              <div style="font-size:13px;font-weight:600">${esc(p.title)}</div>
-              <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);margin-top:2px">${esc(p.created_at)}</div>
-            </div>
-            <span style="flex-shrink:0">${_devProjectBadge(p.status)}</span>
-          </div>
-          <div id="mdev-exp-${p.id}" style="display:none"></div>
-        </div>`).join('')
-    : `<div class="empty">${_devShowCompletedDev ? 'No completed projects.' : 'No active Dev Loop projects.'}</div>`;
-
-  const backlogToggleBtn = `<button class="mbtn mbtn-sm" onclick="devToggleShowCompletedBacklog()">${_devShowCompletedBacklog ? 'Show Planned Only' : 'Show Completed'}</button>`;
-  html += `<div class="mlabel" style="display:flex;align-items:center;justify-content:space-between">Backlog (${backlogSource.length})${backlogToggleBtn}</div>`;
+  const toggleBtn = `<button class="mbtn mbtn-sm" onclick="devToggleShowCompletedBacklog()">${_devShowCompletedBacklog ? 'Show Planned Only' : 'Show Done'}</button>`;
+  let html = `<div class="mlabel" style="display:flex;align-items:center;justify-content:space-between">Backlog (${backlogSource.length})<div style="display:flex;gap:8px">${toggleBtn}<button class="mbtn mbtn-sm mbtn-p" onclick="devShowBacklogAddForm()">+ Add</button></div></div>`;
+  html += `<div id="dev-backlog-add-form" style="display:none"></div>`;
   html += backlogSource.length
     ? backlogSource.map(b => `
         <div class="mpn-card" id="mbl-card-${b.id}">
@@ -2191,36 +2151,54 @@ function _devRenderProjects() {
           </div>
           <div id="mbl-exp-${b.id}" style="display:none"></div>
         </div>`).join('')
-    : `<div class="empty">${_devShowCompletedBacklog ? 'No completed backlog items.' : 'No planned backlog items.'}</div>`;
+    : `<div class="empty">${_devShowCompletedBacklog ? 'No done backlog items.' : 'No planned backlog items.'}</div>`;
 
   el.innerHTML = html;
 }
 
-function devExpandProject(id) {
-  const expEl = document.getElementById(`mdev-exp-${id}`);
-  if (!expEl) return;
-  if (_devExpandedProjectId === id) {
-    expEl.style.display = 'none';
-    _devExpandedProjectId = null;
+function devShowBacklogAddForm() {
+  const el = document.getElementById('dev-backlog-add-form');
+  if (!el) return;
+  if (el.style.display !== 'none') {
+    el.style.display = 'none';
+    el.innerHTML = '';
     return;
   }
-  if (_devExpandedProjectId !== null) {
-    const prev = document.getElementById(`mdev-exp-${_devExpandedProjectId}`);
-    if (prev) prev.style.display = 'none';
-  }
-  _devExpandedProjectId = id;
-  const p = _devProjects.find(x => x.id === id);
-  if (!p) return;
-  expEl.innerHTML = `
-    <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);font-size:12px;color:var(--text)">
-      <div style="margin-bottom:4px"><span style="color:var(--muted)">Slug:</span> ${esc(p.slug)}</div>
-      <div style="margin-bottom:4px"><span style="color:var(--muted)">Status:</span> ${esc(p.status)}</div>
-      <div style="margin-bottom:4px"><span style="color:var(--muted)">Staging path:</span> ${esc(p.staging_path || '—')}</div>
-      <div style="margin-bottom:4px"><span style="color:var(--muted)">Created:</span> ${esc(p.created_at)}</div>
-      <div style="margin-bottom:4px"><span style="color:var(--muted)">Updated:</span> ${esc(p.updated_at)}</div>
-      <div><span style="color:var(--muted)">Delivered:</span> ${esc(p.delivered_at || '—')}</div>
+  el.style.display = 'block';
+  el.innerHTML = `
+    <div class="mform">
+      <input id="dbl-add-title" type="text" placeholder="Title *">
+      <textarea id="dbl-add-summary" rows="2" placeholder="Summary"></textarea>
+      <textarea id="dbl-add-detail" rows="3" placeholder="Detail (optional)"></textarea>
+      <div id="dbl-add-err" style="display:none;font-size:12px;color:var(--red);margin-bottom:8px"></div>
+      <div class="mfrow">
+        <button class="mbtn mbtn-p" onclick="devSaveBacklogAdd()">Save</button>
+        <button class="mbtn" onclick="devShowBacklogAddForm()">Cancel</button>
+      </div>
     </div>`;
-  expEl.style.display = 'block';
+  document.getElementById('dbl-add-title')?.focus();
+}
+
+async function devSaveBacklogAdd() {
+  const title = (document.getElementById('dbl-add-title')?.value || '').trim();
+  const errEl = document.getElementById('dbl-add-err');
+  if (!title) {
+    if (errEl) { errEl.textContent = 'Title is required.'; errEl.style.display = 'block'; }
+    return;
+  }
+  const summary = (document.getElementById('dbl-add-summary')?.value || '').trim();
+  const detail  = (document.getElementById('dbl-add-detail')?.value  || '').trim();
+  try {
+    await api('/api/project-backlog', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, summary, detail }),
+    });
+    devShowBacklogAddForm();
+    devLoadBacklog();
+  } catch {
+    if (errEl) { errEl.textContent = 'Failed to save. Try again.'; errEl.style.display = 'block'; }
+  }
 }
 
 function devExpandBacklog(id) {
@@ -2240,12 +2218,69 @@ function devExpandBacklog(id) {
   if (!b) return;
   expEl.innerHTML = `
     <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);font-size:12px;color:var(--text)">
-      <div style="margin-bottom:8px">${esc(b.summary)}</div>
-      ${b.detail ? `<div style="margin-bottom:8px;color:var(--muted)">${esc(b.detail)}</div>` : ''}
+      <div class="mform">
+        <input id="mbl-edit-title-${id}" type="text" value="${esc(b.title)}" placeholder="Title *">
+        <textarea id="mbl-edit-summary-${id}" rows="2" placeholder="Summary">${esc(b.summary || '')}</textarea>
+        <textarea id="mbl-edit-detail-${id}" rows="3" placeholder="Detail">${esc(b.detail || '')}</textarea>
+      </div>
       <div style="margin-bottom:4px"><span style="color:var(--muted)">Status:</span> ${esc(b.status)}</div>
-      <div><span style="color:var(--muted)">Added:</span> ${esc(b.added_date)}</div>
+      <div style="margin-bottom:10px"><span style="color:var(--muted)">Added:</span> ${esc(b.added_date)}</div>
+      <div id="mbl-edit-err-${id}" style="display:none;font-size:12px;color:var(--red);margin-bottom:8px"></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="mbtn mbtn-sm mbtn-p" onclick="devSaveBacklogEdit(${id})">Save</button>
+        ${b.status === 'planned'
+          ? `<button class="mbtn mbtn-sm" onclick="devMarkBacklogDone(${id})">Mark Done</button>`
+          : `<button class="mbtn mbtn-sm" onclick="devReopenBacklog(${id})">Reopen</button>`}
+      </div>
     </div>`;
   expEl.style.display = 'block';
+}
+
+async function devSaveBacklogEdit(id) {
+  const title = (document.getElementById(`mbl-edit-title-${id}`)?.value || '').trim();
+  const errEl = document.getElementById(`mbl-edit-err-${id}`);
+  if (!title) {
+    if (errEl) { errEl.textContent = 'Title is required.'; errEl.style.display = 'block'; }
+    return;
+  }
+  const summary = (document.getElementById(`mbl-edit-summary-${id}`)?.value || '').trim();
+  const detail  = (document.getElementById(`mbl-edit-detail-${id}`)?.value  || '').trim();
+  try {
+    await api(`/api/project-backlog/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, summary, detail }),
+    });
+    devLoadBacklog();
+  } catch {
+    if (errEl) { errEl.textContent = 'Failed to save. Try again.'; errEl.style.display = 'block'; }
+  }
+}
+
+async function devMarkBacklogDone(id) {
+  try {
+    await api(`/api/project-backlog/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'done' }),
+    });
+    devLoadBacklog();
+  } catch {
+    alert('Failed to mark done.');
+  }
+}
+
+async function devReopenBacklog(id) {
+  try {
+    await api(`/api/project-backlog/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'planned' }),
+    });
+    devLoadBacklog();
+  } catch {
+    alert('Failed to reopen.');
+  }
 }
 
 // ── Bugs sub-tab (bug_tracker) ──────────────────────────────────────────────
