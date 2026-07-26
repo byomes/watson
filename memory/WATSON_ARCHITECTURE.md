@@ -1383,3 +1383,25 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 ### ~/watson
 - 794e1f8 docs: file map 2026-07-24
 - d766845 docs: architecture update 2026-07-24
+
+---
+
+## Recent Changes — 2026-07-26
+
+### ~/watson
+- 4bbca53 session wrap: Brevo email migration, book-launch campaign system, framework doc, self-tracking (bugs/backlog) system, dashboard backlog UI, plus campaign source docs and crontab backup
+- 1dfa5a9 feat: dashboard Backlog Add/Edit/Mark Done UI (PATCH /api/project-backlog/<id>); remove dormant Dev Loop Projects section from dashboard display (underlying dev_projects table, jobs/dev_loop/, Telegram devloop: trigger, and cleanup cron all unchanged)
+- 30ac18b feat: project_backlog write path (backlog: directive + POST route) and nightly bugs/backlog markdown export
+- 5108895 docs: bugs/backlog export 2026-07-25
+- 92513dc docs: note ARC close date is not dynamically linked to campaign system
+- 9e15fad docs: canonical WCKY Book Launch Framework v2 - Brevo-based, reflects automation system built for TWJ launch
+- 0032ec6 fix: dispatch.py now independently verifies campaign is real+active before any facebook_queue write or Brevo send, regardless of caller-supplied dry_run — closes the gap that caused a live Facebook test-post incident on 2026-07-25. Adds test_dispatch.py covering this specifically.
+- a66bff5 feat: Phase 2 book-launch campaign system — weekly approve flow, Brevo/Facebook dispatch, auth-gated dashboard
+- bec1b04 feat: book-launch marketing campaign system — schema, deterministic parser, one-time Kit contact import (Phase 1, TWJ campaign)
+- a565586 feat: migrate 27 email send sites from Gmail SMTP to Brevo
+- 5a83226 feat: Brevo email helper with auto-signature, verified sender watson@williamckyomes.com
+- a1de0b8 docs: file map 2026-07-25
+- d779c6d docs: architecture update 2026-07-25
+
+### ~/wcky
+- 110903d publish: Covenant Is Not a Private Matter
