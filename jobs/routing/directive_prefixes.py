@@ -22,6 +22,7 @@ DIRECTIVE_PREFIXES: dict = {
     "bible:":     {"telegram": True, "dashboard": True},
     "debug:":     {"telegram": True, "dashboard": True},
     "bug:":       {"telegram": True, "dashboard": True},
+    "backlog:":   {"telegram": True, "dashboard": False},  # dashboard reachable via /api/terminal only, not this registry — see app.py terminal()
     "gutenberg:": {"telegram": True, "dashboard": True},
     "classics:":  {"telegram": True, "dashboard": True},
     "polish:":    {"telegram": True, "dashboard": True},

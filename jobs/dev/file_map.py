@@ -7,6 +7,8 @@ import subprocess
 from datetime import date
 from pathlib import Path
 
+from jobs.dev import docs_sync
+
 REPOS = [
     ("~/watson",       "~/watson/"),
     ("~/wcky",         "~/wcky/"),
@@ -124,6 +126,8 @@ def main() -> None:
     content = "\n".join(sections)
     OUTPUT.write_text(content)
     print(f"FILE_MAP.md written ({len(content)} chars, {today})")
+
+    docs_sync.push_file("FILE_MAP.md", content)
 
     git_commit_push()
     print("Committed and pushed FILE_MAP.md")

@@ -7,6 +7,8 @@ import subprocess
 from datetime import date
 from pathlib import Path
 
+from jobs.dev import docs_sync
+
 REPOS = [
     ("~/watson",       "watson"),
     ("~/wcky",         "wcky"),
@@ -71,8 +73,11 @@ def main() -> None:
         return
 
     current = ARCH_FILE.read_text()
-    ARCH_FILE.write_text(current + section)
+    updated = current + section
+    ARCH_FILE.write_text(updated)
     print(f"Appended Recent Changes section to WATSON_ARCHITECTURE.md ({today})")
+
+    docs_sync.push_file("WATSON_ARCHITECTURE.md", updated)
 
     git_commit_push(today)
     print("Committed and pushed WATSON_ARCHITECTURE.md")

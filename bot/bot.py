@@ -730,6 +730,15 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         )
                     await update.message.reply_text(f"Logged: {_darg}")
                     _log_telegram_exchange(text_clean, f"Logged: {_darg}")
+            elif _dpfx == "backlog:":
+                if not _darg:
+                    await update.message.reply_text("Format: backlog: <title> | <summary>")
+                else:
+                    from jobs.dev.backlog import create_backlog_item as _create_backlog_item_d, parse_directive_text as _parse_backlog_d
+                    _bl_title, _bl_summary = _parse_backlog_d(_darg)
+                    _create_backlog_item_d(_bl_title, _bl_summary)
+                    await update.message.reply_text(f"Logged to backlog: {_bl_title}")
+                    _log_telegram_exchange(text_clean, f"Logged to backlog: {_bl_title}")
             elif _dpfx == "gutenberg:":
                 await _handle_gutenberg_search(update, context, _darg)
             elif _dpfx == "classics:":

@@ -606,6 +606,15 @@ def terminal():
         _db().commit()
         return _pfx_out(f"Logged: {_bug_title}")
 
+    if cmd_lower.startswith("backlog:"):
+        _bl_arg = cmd[8:].strip()
+        if not _bl_arg:
+            return _pfx_out("Format: backlog: <title> | <summary>")
+        from jobs.dev.backlog import create_backlog_item as _create_backlog_item, parse_directive_text as _parse_backlog
+        _bl_title, _bl_summary = _parse_backlog(_bl_arg)
+        _create_backlog_item(_bl_title, _bl_summary)
+        return _pfx_out(f"Logged to backlog: {_bl_title}")
+
     if cmd_lower.startswith("polish:"):
         try:
             from jobs.skills.polish import run as _polish_run
@@ -2387,6 +2396,21 @@ def project_backlog_list():
         ORDER BY (status = 'planned') DESC, added_date DESC, id DESC
     """).fetchall()
     return jsonify([dict(r) for r in rows])
+
+
+@app.route("/api/project-backlog", methods=["POST"])
+def project_backlog_create():
+    data = request.get_json(force=True) or {}
+    title = (data.get("title") or "").strip()
+    if not title:
+        return jsonify({"error": "title is required"}), 400
+    summary = (data.get("summary") or "").strip()
+    detail = (data.get("detail") or "").strip() or None
+
+    from jobs.dev.backlog import create_backlog_item
+    new_id = create_backlog_item(title, summary, detail)
+    row = _db().execute("SELECT * FROM project_backlog WHERE id = ?", (new_id,)).fetchone()
+    return jsonify(dict(row)), 201
 
 
 # ── Upload API ────────────────────────────────────────────────────────────────
