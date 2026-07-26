@@ -1,0 +1,75 @@
+# Watson jobs
+0 10 * * * PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python /home/billyomes/watson/jobs/scheduler.py >> /home/billyomes/watson/logs/scheduler.log 2>&1
+0 6 * * * PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python /home/billyomes/watson/core/pipeline.py >> /home/billyomes/watson/logs/pipeline.log 2>&1
+*/15 * * * * PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python /home/billyomes/watson/jobs/facebook/facebook_post.py >> /home/billyomes/watson/logs/facebook_post.log 2>&1
+
+# Connect cards
+*/30 * * * * PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python /home/billyomes/watson/jobs/connect_cards/intake.py >> /home/billyomes/watson/logs/intake.log 2>&1
+0 5 * * 1 PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python /home/billyomes/watson/jobs/connect_cards/email_reports.py --bill --prayer --kaci >> /home/billyomes/watson/logs/email_reports.log 2>&1
+0 5 * * 2 PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python /home/billyomes/watson/jobs/connect_cards/email_reports.py --donna >> /home/billyomes/watson/logs/email_reports.log 2>&1
+*/30 * * * * PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python /home/billyomes/watson/jobs/connect_cards/attendance_intake.py >> /home/billyomes/watson/logs/attendance_intake.log 2>&1
+*/30 * * * * PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python /home/billyomes/watson/jobs/connect_cards/correction_handler.py >> /home/billyomes/watson/logs/correction_handler.log 2>&1
+45 5 * * 1 PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python /home/billyomes/watson/jobs/connect_cards/campus_classifier.py >> /home/billyomes/watson/logs/campus_classifier.log 2>&1
+0 6 * * 1 PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python /home/billyomes/watson/jobs/connect_cards/missed_report.py >> /home/billyomes/watson/logs/missed_report.log 2>&1
+0 6 * * 3 PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python3 -m jobs.connect_cards.shepherding_report >> /home/billyomes/watson/logs/shepherding_report.log 2>&1
+
+# Email
+* * * * * PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python /home/billyomes/watson/jobs/email_intake.py >> /home/billyomes/watson/logs/email_intake.log 2>&1
+*/15 * * * * set -a && . /home/billyomes/watson/.env && set +a && PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python /home/billyomes/watson/jobs/email_reply/reader.py >> /home/billyomes/watson/logs/email_reply.log 2>&1
+0 7 * * 4 PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python /home/billyomes/watson/jobs/email_job/draft_email.py >> /home/billyomes/watson/logs/email_draft.log 2>&1
+
+# Pastoral
+*/15 * * * * PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python /home/billyomes/watson/jobs/pastoral_notes/prompt.py >> /home/billyomes/watson/logs/pastoral_notes.log 2>&1
+*/15 * * * * PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python /home/billyomes/watson/jobs/pastoral_notes/reminder.py >> /home/billyomes/watson/logs/pastoral_notes.log 2>&1
+
+# Reminders
+0 10 * * 1,2,3,4,6 PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python /home/billyomes/watson/jobs/reminders/daily_summary.py >> /home/billyomes/watson/logs/reminders.log 2>&1
+30 13 * * 1,2,3,4,6 PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python /home/billyomes/watson/jobs/reminders/daily_summary.py >> /home/billyomes/watson/logs/reminders.log 2>&1
+0 17 * * 1,2,3,4,6 PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python /home/billyomes/watson/jobs/reminders/daily_summary.py >> /home/billyomes/watson/logs/reminders.log 2>&1
+*/5 * * * * PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python /home/billyomes/watson/jobs/reminders/check_timed.py >> /home/billyomes/watson/logs/reminders.log 2>&1
+
+# Google Calendar
+0 7 * * * PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python /home/billyomes/watson/jobs/gcal/token_health.py >> /home/billyomes/watson/logs/token_health.log 2>&1
+0 7 * * * PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python /home/billyomes/watson/jobs/gcal/meet_token_health.py >> /home/billyomes/watson/logs/meet_token_health.log 2>&1
+*/5 * * * * PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python -m jobs.gcal.pre_meeting_brief >> /home/billyomes/watson/logs/pre_meeting_brief.log 2>&1
+
+# Givebutter
+0 6 * * * PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python -m jobs.givebutter.sync >> /home/billyomes/watson/logs/givebutter_sync.log 2>&1
+15 6 * * * PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python -m jobs.givebutter.notify >> /home/billyomes/watson/logs/givebutter_notify.log 2>&1
+
+# Skillbuilder
+0 7 * * 1 PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python3 -m jobs.skillbuilder.audit >> /home/billyomes/watson/logs/audit.log 2>&1
+
+# Writing Room
+*/5 * * * * PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python /home/billyomes/watson/jobs/writing_room/monitor.py >> /home/billyomes/watson/logs/writing_room_monitor.log 2>&1
+*/15 * * * * PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python /home/billyomes/watson/jobs/writing_room/remind.py >> /home/billyomes/watson/logs/writing_room_remind.log 2>&1
+
+# Dev — nightly maintenance
+0 2 * * * PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python /home/billyomes/watson/jobs/dev/file_map.py >> /home/billyomes/watson/logs/file_map.log 2>&1
+0 2 * * * PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python /home/billyomes/watson/jobs/dev/update_arch.py >> /home/billyomes/watson/logs/update_arch.log 2>&1
+0 2 * * * PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python /home/billyomes/watson/jobs/kb/sync_and_index.py >> /home/billyomes/watson/logs/sync_and_index.log 2>&1
+0 17 * * 0  PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python /home/billyomes/watson/jobs/connect_cards/conflict_report.py >> /home/billyomes/watson/logs/conflict_report.log 2>&1
+*/5 * * * * PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python /home/billyomes/watson/jobs/team/pre_meeting.py >> /home/billyomes/watson/logs/team_pre_meeting.log 2>&1
+0 10 * * 1-4 PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python /home/billyomes/watson/jobs/team/reminders.py --overdue >> /home/billyomes/watson/logs/team_reminders.log 2>&1
+0 10 * * 1-4 PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python /home/billyomes/watson/jobs/team/reminders.py --unanswered >> /home/billyomes/watson/logs/team_reminders.log 2>&1
+0 7 * * 2,3,4 PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python3 /home/billyomes/watson/jobs/team/note_task_scan.py >> /home/billyomes/watson/logs/note_task_scan.log 2>&1
+0 16 * * 4 PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python -m jobs.connect_cards.state_of_church >> /home/billyomes/watson/logs/state_of_church.log 2>&1
+0 3 * * * PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python /home/billyomes/watson/jobs/backup.py >> /home/billyomes/watson/logs/backup.log 2>&1
+0 4 * * 1 PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python /home/billyomes/watson/jobs/dev_loop/cleanup.py >> /home/billyomes/watson/logs/devloop_cleanup.log 2>&1
+*/5 * * * * set -a && . /home/billyomes/watson/.env && set +a && PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python -m jobs.arc.commitment_validator >> /home/billyomes/watson/logs/arc_validator.log 2>&1
+
+# Team reports
+0 13 * * 4 PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python3 /home/billyomes/watson/jobs/team/weekly_completed_report.py >> /home/billyomes/watson/logs/weekly_completed_report.log 2>&1
+30 6 * * * PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python -m jobs.gcal.scan_meeting_patterns >> /home/billyomes/watson/logs/scan_meeting_patterns.log 2>&1
+
+
+# Thesis Tracker — daily automated pull
+10 8 * * 6 PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python /home/billyomes/watson/jobs/thesis_tracker/scrape.py >> /home/billyomes/watson/logs/thesis_scrape.log 2>&1
+
+# Research — weekly benchmark check
+0 6 * * 4 PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python /home/billyomes/watson/jobs/research/benchmark_check.py >> /home/billyomes/watson/logs/benchmark_check.log 2>&1
+
+# Intent classifier — keep gemma3:4b warm to avoid cold-start timeouts (bug_tracker #20)
+*/4 * * * * PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python /home/billyomes/watson/jobs/intent/keep_warm.py >> /home/billyomes/watson/logs/keep_warm.log 2>&1
+*/5 * * * * PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python /home/billyomes/watson/jobs/dev/ollama_monitor.py >> /home/billyomes/watson/logs/ollama_monitor.log 2>&1
+0 5 * * 0 PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python /home/billyomes/watson/jobs/curator/refresh_ku.py >> /home/billyomes/watson/logs/curator_refresh_ku.log 2>&1
