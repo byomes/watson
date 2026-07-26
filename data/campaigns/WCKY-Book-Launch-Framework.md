@@ -192,7 +192,7 @@ New donors who join during the launch window (up to 30 days post-launch) also re
 5. **Run Phase 1B** to actually create the campaign row and insert all parsed sends, plus the one-time Kit export for the general segment (donor and ARC segments query live tables automatically — no export needed for those).
 6. **Prepare image assets** for the 8 reusable Facebook templates (cover+tagline, quote, personal/behind-scenes, problem/tension, date/countdown, benefit/CTA, testimonial, gratitude) — same asset checklist as any prior launch, just swap in the new book's cover and any book-specific graphics.
 7. **Each week**, a Telegram digest arrives automatically (Sunday 6pm cron) previewing the coming week's sends, with links to a dashboard editor (admin-authenticated) and a one-tap Approve. **Nothing sends without this explicit approval — this is intentional, not a bug to remove.**
-8. **ARC portal access auto-expires** on the new campaign's launch_date — no manual shutdown step needed.
+8. **Manually set ARC portal access dates in the wcky repo.** Update `ARC_MANUSCRIPT_UNLOCK`/`ARC_MANUSCRIPT_CLOSE` in `~/wcky/src/lib/launch-dates.ts` to match the new launch — this is a hardcoded constant, not wired to Watson's `book_launch_campaigns.launch_date`, so it does not update automatically just because a new campaign row is created.
 
 ---
 
@@ -202,6 +202,7 @@ New donors who join during the launch window (up to 30 days post-launch) also re
 - **Route CTAs through a launch page you control**, not directly to Amazon/Givebutter in copy — see Link Strategy above.
 - **Kit has no true "general list" object** — if using Kit again for a future export, the account-wide subscriber total (not any single tag or form) is the correct "general" figure, since Kit doesn't distinguish a master list from its narrower tags/forms.
 - **Donor segment = `donors.db` excluding lapsed donors** (this codebase's existing definition of "active"). ARC segment = `arc_readers` filtered to active status AND matched to the specific book by slug — this second filter matters once more than one campaign's ARC readers exist in the same table.
+- **ARC manuscript close date is a hardcoded constant, not dynamic.** The ~/wcky repo's ARC_MANUSCRIPT_CLOSE (in src/lib/launch-dates.ts) does NOT automatically read from Watson's book_launch_campaigns.launch_date — they're two separate systems that happen to agree for this launch because someone set them to match manually. For the next book launch, remember to update ARC_MANUSCRIPT_UNLOCK/ARC_MANUSCRIPT_CLOSE in the wcky repo by hand — this doesn't happen automatically just because a new campaign row is created in Watson.
 
 ---
 
