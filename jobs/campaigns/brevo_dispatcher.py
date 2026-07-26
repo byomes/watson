@@ -23,7 +23,11 @@ def run() -> int:
         ).fetchall()
 
         for row in due:
-            send_brevo_row(conn, dict(row))
+            # Rows only reach 'approved' via a real, intentional approval
+            # (dashboard or Telegram, both pass dry_run=False explicitly) —
+            # dry_run=False here too, for the same reason. send_brevo_row()
+            # independently re-verifies the campaign is real+active regardless.
+            send_brevo_row(conn, dict(row), dry_run=False)
 
         return len(due)
     finally:

@@ -584,7 +584,10 @@ async def handle_campaign_callback(update, context):
 
     from jobs.campaigns.dispatch import approve_week
 
-    result = await asyncio.to_thread(approve_week, campaign_id, week_number)
+    # This is the real, intentional-approval path (Bill tapped the Telegram
+    # button) — dry_run=False is explicit and must stay explicit; don't make
+    # it conditional or drop it back to the bare default here.
+    result = await asyncio.to_thread(approve_week, campaign_id, week_number, dry_run=False)
     summary = (
         f"✅ Approved {result['approved']} item(s) for {campaign_id} Week {week_number} — "
         f"Facebook queued: {result['facebook_queued']}, Brevo sent now: {result['brevo_sent_now']}"

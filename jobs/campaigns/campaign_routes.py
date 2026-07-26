@@ -179,7 +179,10 @@ def campaign_week_approve(campaign_id, week_number):
         return jsonify({"error": "not authenticated"}), 401
 
     try:
-        result = approve_week(campaign_id, week_number)
+        # This is the real, intentional-approval path (Bill clicked the
+        # button) — dry_run=False is explicit and must stay explicit; don't
+        # make it conditional or drop it back to the bare default here.
+        result = approve_week(campaign_id, week_number, dry_run=False)
         return jsonify({"success": True, **result})
     except Exception as exc:
         log.error("campaign_week_approve failed for %s/%s: %s", campaign_id, week_number, exc)
