@@ -1,10 +1,11 @@
 # Watson Project Backlog
 _Auto-generated nightly from project_backlog. Source of truth is the database — do not hand-edit this file, changes will be overwritten._
-Last generated: 2026-07-25 22:08
+Last generated: 2026-07-26 02:00
 
-## Planned (18)
+## Planned (19)
 | ID | Title | Summary | Added |
 |---|---|---|---|
+| 22 | Dashboard-wide auth gap | Root / and nearly every API route (tasks, events, bugs, backlog) have zero auth — only /admin/*, meeting reviews, and campaign sends are gated. Decide whether the whole dashboard should sit behind a session gate given it's reachable via Tailscale Funnel, or whether this is acceptable given Funnel URLs aren't publicly discoverable. | 2026-07-26 |
 | 19 | Self-hosted Gutendex catalog has no refresh mechanism, drifting stale | The local self-hosted Gutendex instance (gutendex.service, 127.0.0.1:8010) that jobs/research/gutenberg.py search() uses was built once via finish_catalog_load.py on 2026-07-11 and has no periodic sync job. Confirmed 2026-07-22: local catalog has 78,897 books vs. 78,964 on the live public gutendex.com (fetched via FlareSolverr to confirm) — a 67-book gap that only grows over time as new Project Gutenberg titles are added. | 2026-07-22 |
 | 17 | Watson self-improvement system — architecture approved, build deferred | A system for Watson to propose and apply improvements to itself. The architecture has already been approved by Bill, but the build has been deliberately deferred — no further build detail is documented yet. | 2026-07-12 |
 | 16 | Adelphos Academy Watson integration (8 planned jobs) | Eight planned Watson jobs for Adelphos Academy (Moodle 5.0, REST API confirmed enabled): lesson builder, quiz generator, course spec system, weekly monitoring digest, student stuck alert, course announcement emails, and student welcome message. Build not yet started. | 2026-07-12 |
