@@ -21,6 +21,7 @@ import sqlite3
 from datetime import datetime
 
 import requests
+from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 
 from config.settings import DB_PATH, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
@@ -150,6 +151,44 @@ def _imap_connect():
     return mail
 
 
+def _extract_body_text(msg) -> str:
+    """Return the text/plain part; fall back to stripping text/html to text
+    if no plain part exists.
+
+    Precautionary — same fallback pattern as jobs/connect_cards/
+    attendance_intake.py's _get_plain_text(). No sender currently reaching
+    this inbox is known to send HTML-only mail with no text/plain part (the
+    one identified case, the wcky Connect Card Bcc, is skipped in run()
+    before body extraction matters), but without this fallback an HTML-only
+    email silently degrades to an empty body with no error, which is worse
+    than the defensive cost of handling it here too.
+    """
+    if msg.is_multipart():
+        for part in msg.walk():
+            if part.get_content_type() == "text/plain":
+                payload = part.get_payload(decode=True)
+                if payload:
+                    charset = part.get_content_charset() or "utf-8"
+                    return payload.decode(charset, errors="replace")
+        for part in msg.walk():
+            if part.get_content_type() == "text/html":
+                payload = part.get_payload(decode=True)
+                if payload:
+                    charset = part.get_content_charset() or "utf-8"
+                    html = payload.decode(charset, errors="replace")
+                    return BeautifulSoup(html, "html.parser").get_text(separator="\n")
+        return ""
+    else:
+        payload = msg.get_payload(decode=True)
+        if not payload:
+            return ""
+        charset = msg.get_content_charset() or "utf-8"
+        text = payload.decode(charset, errors="replace")
+        if msg.get_content_type() == "text/html":
+            return BeautifulSoup(text, "html.parser").get_text(separator="\n")
+        return text
+
+
 def get_unread():
     mail = _imap_connect()
     _, data = mail.search(None, "UNSEEN")
@@ -168,14 +207,7 @@ def get_unread():
                 subject += part
         sender = msg.get("From", "")
         date   = msg.get("Date", "")
-        body   = ""
-        if msg.is_multipart():
-            for part in msg.walk():
-                if part.get_content_type() == "text/plain":
-                    body = part.get_payload(decode=True).decode("utf-8", errors="replace")
-                    break
-        else:
-            body = msg.get_payload(decode=True).decode("utf-8", errors="replace")
+        body   = _extract_body_text(msg)
         results.append({
             "id":      uid.decode(),
             "subject": subject,
