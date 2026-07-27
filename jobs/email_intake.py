@@ -1010,6 +1010,17 @@ def run():
             mark_as_read(msg_id)
             continue
 
+        # Watson's own Bcc copy of a wcky /tools/connect-card submission
+        # (jobs/campaigns unrelated — this is the self-hosted Connect Card
+        # form, not Subsplash). Bill is already a direct To: recipient of
+        # the same email, so this Bcc is Watson's own durable record, not
+        # something that needs an Ollama-triage decision prompt — skip and
+        # mark read, same as the snappages.com (Subsplash) guard above.
+        if addr == "watson@williamckyomes.com" and subject.startswith("Connect Card — "):
+            log.info("Skipping Connect Card Bcc copy: %s", subject)
+            mark_as_read(msg_id)
+            continue
+
         # Missed-report reply — owned by correction_handler.py's direct-match
         # pipeline, not email_intake's Ollama-digest path. Leave unread.
         if _is_missed_report_reply(subject, addr):
