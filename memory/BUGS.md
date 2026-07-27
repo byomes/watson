@@ -1,6 +1,6 @@
 # Watson Bug Tracker
 _Auto-generated nightly from bug_tracker. Source of truth is the database — do not hand-edit this file, changes will be overwritten._
-Last generated: 2026-07-27 02:00
+Last generated: 2026-07-27 09:16
 
 ## Open (11)
 | ID | Title | Repo | Discovered |
@@ -20,6 +20,7 @@ Last generated: 2026-07-27 02:00
 ## Recently Resolved (last 30 days)
 | ID | Title | Repo | Resolved | Commit |
 |---|---|---|---|---|
+| 48 | All Brevo outbound email failing: missing_parameter, name is missing in to | watson | 2026-07-27 13:03:28 | 68a3dd9 |
 | 47 | Curator: get_job_status() collapses unverified KU (NULL) into False | watson | 2026-07-23 03:28:44 | 8e50e7f |
 | 13 | gutendex.com fully blocked by Cloudflare JS challenge (cf-mitigated: challenge) — gutenberg: search/download non-functional on both Telegram and Dashboard until resolved; confirmed browser-like User-Agent does NOT bypass it (needs JS challenge solving, a bypass library, or an alternate Gutenberg metadata source — decision deferred, see commit 21ff4c3 for the diagnostic) | watson | 2026-07-22 15:30:00 | e505d95 |
 | 11 | Gutendex API (gutendex.com) now returns 403 via Cloudflare bot challenge to plain requests calls — jobs/research/gutenberg.py search()/download_and_ingest() both broken until a browser-like User-Agent or Cloudflare bypass is added; affects Telegram and Dashboard equally, dashboard routing itself verified working with mocked data | watson | 2026-07-22 15:30:00 | e505d95 |
