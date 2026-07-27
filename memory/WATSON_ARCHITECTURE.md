@@ -1405,3 +1405,11 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 
 ### ~/wcky
 - 110903d publish: Covenant Is Not a Private Matter
+
+---
+
+## Recent Changes — 2026-07-27
+
+### ~/watson
+- 17a728a docs: file map 2026-07-26
+- 6404b86 docs: bugs/backlog export 2026-07-26
