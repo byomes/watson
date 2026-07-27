@@ -41,8 +41,9 @@ Engagement tiers (this month's distinct-Sunday attendance count, any campus,
 active members only): 3+ = Highly engaged, 2 = Partially engaged, 1 = Not
 engaged, 0 = Disengaged.
 
-Cron (1st of month, 6am — after monthly_engagement_report.py's 5am slot):
-  0 6 1 * * PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python \
+Cron (1st of month, 3am — runs independently of monthly_engagement_report.py's
+5am slot; this job recomputes everything itself and does not reuse its totals):
+  0 3 1 * * PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python \
     /home/billyomes/watson/jobs/connect_cards/monthly_state_report.py \
     >> /home/billyomes/watson/logs/monthly_state_report.log 2>&1
 
