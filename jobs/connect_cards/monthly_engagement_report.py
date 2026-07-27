@@ -278,12 +278,12 @@ def build_report(year: int, month: int) -> tuple[str, str]:
 
 # ── Send ─────────────────────────────────────────────────────────────────────────
 
-def send_report(year: int, month: int, preview: bool = False) -> None:
+def send_report(year: int, month: int, preview: bool = False, to_override: str | None = None) -> None:
     subject, html = build_report(year, month)
-    to = PREVIEW_EMAIL if preview else KACI_EMAIL
+    to = to_override or (PREVIEW_EMAIL if preview else KACI_EMAIL)
     if not to:
         raise RuntimeError("Recipient address is empty — check KACI_EMAIL in .env.")
-    if preview:
+    if preview and not to_override:
         subject = f"[PREVIEW] {subject}"
 
     text_fallback = re.sub(r"<[^>]+>", "", html)
@@ -302,6 +302,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Send the monthly connect card engagement report.")
     parser.add_argument("--month",    default=None, help="Report month as YYYY-MM; defaults to the prior calendar month (America/New_York)")
     parser.add_argument("--preview",  action="store_true", help=f"Send to {PREVIEW_EMAIL} instead of Kaci")
+    parser.add_argument("--to",       default=None, help="Override recipient email (takes precedence over --preview and the Kaci default)")
     parser.add_argument("--dry-run",  action="store_true", help="Print subject/HTML without sending")
     args = parser.parse_args()
 
@@ -316,4 +317,4 @@ if __name__ == "__main__":
         print(f"Subject: {subj}\n")
         print(html_body)
     else:
-        send_report(report_year, report_month, preview=args.preview)
+        send_report(report_year, report_month, preview=args.preview, to_override=args.to)
