@@ -19,6 +19,17 @@ SIGNATURE_TEXT = "\n\n--\nWatson\nDigital Assistant to Dr. Bill Yomes\nwilliamck
 SIGNATURE_HTML = '<p style="margin-top:24px;">--<br>Watson<br>Digital Assistant to Dr. Bill Yomes<br><a href="https://williamckyomes.com/start">williamckyomes.com/start</a></p>'
 
 
+def _fallback_name(email):
+    """Derive a display name from an email's local-part when no name is given.
+
+    Brevo's API rejects an empty-string "name" in "to" the same as a missing
+    key ("name is missing in to") — several call sites pass to_name="" for
+    internal recipients with no tracked name, so this guard is required.
+    """
+    local = email.split("@", 1)[0]
+    return local.replace(".", " ").replace("_", " ").replace("-", " ").title()
+
+
 def send_email(to_email, to_name, subject, text_body, html_body=None, tags=None,
                 from_email=None, from_name=None, include_signature=True, attachments=None,
                 headers=None):
@@ -46,7 +57,7 @@ def send_email(to_email, to_name, subject, text_body, html_body=None, tags=None,
             "email": from_email or DEFAULT_FROM_EMAIL,
             "name": from_name or DEFAULT_FROM_NAME,
         },
-        "to": [{"email": to_email, "name": to_name}],
+        "to": [{"email": to_email, "name": to_name or _fallback_name(to_email)}],
         "subject": subject,
         "textContent": text_body,
     }
