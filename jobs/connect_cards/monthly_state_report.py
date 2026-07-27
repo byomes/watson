@@ -1,6 +1,11 @@
 """
 Monthly State of the Church report — person-focused engagement view, emailed
-to Bill only.
+to Bill, Bill Crook, and Jim Bouchat. Bill's address comes from BILL_EMAIL in
+.env; Bill Crook's and Jim Bouchat's are looked up by name from
+congregation.db members on every send (never hardcoded) so the list stays
+correct if their contact info changes. A name with no member record, or a
+member record with no email on file, logs a warning and is skipped rather
+than failing the whole send.
 
 v2: reorganized around people, not transaction counts (supersedes the
 card/attendance-count framing from commit 51ced82). Every section answers
@@ -425,20 +430,57 @@ def build_report(year: int, month: int) -> tuple[str, str]:
 
 # ── Send ─────────────────────────────────────────────────────────────────────────
 
+_EXTRA_RECIPIENT_NAMES = ("Bill Crook", "Jim Bouchat")
+
+
+def _lookup_member_email(conn, name: str) -> str | None:
+    row = conn.execute(
+        "SELECT email FROM members WHERE name = ? COLLATE NOCASE",
+        (name,),
+    ).fetchone()
+    if row is None:
+        log.warning("Recipient lookup: no member found named %r — skipping.", name)
+        return None
+    email = (row[0] or "").strip()
+    if not email:
+        log.warning("Recipient lookup: %r found but has no email on file — skipping.", name)
+        return None
+    return email
+
+
+def _resolve_recipients(conn) -> list[str]:
+    recipients = []
+    if BILL_EMAIL:
+        recipients.append(BILL_EMAIL)
+    else:
+        log.warning("BILL_EMAIL not set in .env — skipping Bill.")
+    for name in _EXTRA_RECIPIENT_NAMES:
+        email = _lookup_member_email(conn, name)
+        if email:
+            recipients.append(email)
+    return recipients
+
+
 def send_report(year: int, month: int, to_override: str | None = None) -> None:
     subject, html = build_report(year, month)
-    to = to_override or BILL_EMAIL
-    if not to:
-        raise RuntimeError("Recipient address is empty — check BILL_EMAIL in .env.")
+
+    if to_override:
+        recipients = [to_override]
+    else:
+        with _conn() as conn:
+            recipients = _resolve_recipients(conn)
+        if not recipients:
+            raise RuntimeError("No recipients resolved — check BILL_EMAIL and congregation.db member records.")
 
     text_fallback = re.sub(r"<[^>]+>", "", html)
-    result = send_email(
-        to_email=to, to_name="", subject=subject,
-        text_body=text_fallback, html_body=html, include_signature=False,
-    )
-    if not result["success"]:
-        raise RuntimeError(f"Brevo send to {to} failed: {result['error']}")
-    log.info("Sent %r to %s", subject, to)
+    for to in recipients:
+        result = send_email(
+            to_email=to, to_name="", subject=subject,
+            text_body=text_fallback, html_body=html, include_signature=False,
+        )
+        if not result["success"]:
+            raise RuntimeError(f"Brevo send to {to} failed: {result['error']}")
+        log.info("Sent %r to %s", subject, to)
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────
