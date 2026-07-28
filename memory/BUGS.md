@@ -1,6 +1,6 @@
 # Watson Bug Tracker
 _Auto-generated nightly from bug_tracker. Source of truth is the database — do not hand-edit this file, changes will be overwritten._
-Last generated: 2026-07-27 09:16
+Last generated: 2026-07-28 02:00
 
 ## Open (11)
 | ID | Title | Repo | Discovered |
@@ -20,6 +20,8 @@ Last generated: 2026-07-27 09:16
 ## Recently Resolved (last 30 days)
 | ID | Title | Repo | Resolved | Commit |
 |---|---|---|---|---|
+| 50 | email_intake.py silently dropped HTML-only email bodies (no text/plain fallback) | watson | 2026-07-27 15:49:16 | cb1399e |
+| 49 | Connect Card Bcc copy would fire spurious Ollama-triage Telegram prompt to Bill | watson | 2026-07-27 15:49:16 | 5b9290c |
 | 48 | All Brevo outbound email failing: missing_parameter, name is missing in to | watson | 2026-07-27 13:03:28 | 68a3dd9 |
 | 47 | Curator: get_job_status() collapses unverified KU (NULL) into False | watson | 2026-07-23 03:28:44 | 8e50e7f |
 | 13 | gutendex.com fully blocked by Cloudflare JS challenge (cf-mitigated: challenge) — gutenberg: search/download non-functional on both Telegram and Dashboard until resolved; confirmed browser-like User-Agent does NOT bypass it (needs JS challenge solving, a bypass library, or an alternate Gutenberg metadata source — decision deferred, see commit 21ff4c3 for the diagnostic) | watson | 2026-07-22 15:30:00 | e505d95 |
