@@ -1470,7 +1470,7 @@ function renderMore() {
         <span class="mtile-chev">›</span>
       </button>
       <button class="mtile" id="mtile-email-activity" onclick="moreToggle('email-activity')">
-        <span class="mtile-label">Email Activity<span class="mtile-badge" id="mtile-badge-email-activity" style="display:none"></span></span>
+        <span class="mtile-label">Email Activity</span>
         <span class="mtile-chev">›</span>
       </button>
     </div>
@@ -1517,7 +1517,6 @@ function renderMore() {
       </div>
     </div>`);
   moreLoadVacationStatus();
-  moreCheckEmailActivityBadge();
 }
 
 // ── Vacation Mode ────────────────────────────────────────────────────────────
@@ -3574,23 +3573,6 @@ function _eaRenderTable() {
           <td>${esc(r.reason)}</td>
         </tr>`).join('')}
     </table></div>`;
-}
-
-async function moreCheckEmailActivityBadge() {
-  const badge = document.getElementById('mtile-badge-email-activity');
-  if (!badge) return;
-  try {
-    const events = await api('/api/email-activity?days=1');
-    const count = (Array.isArray(events) ? events : []).filter(e => _EA_FAILURE_EVENTS.includes(e.event)).length;
-    if (count > 0) {
-      badge.textContent = String(count);
-      badge.style.display = 'inline-block';
-    } else {
-      badge.style.display = 'none';
-    }
-  } catch {
-    badge.style.display = 'none';
-  }
 }
 
 function moreToggleTheme(isLight) {
