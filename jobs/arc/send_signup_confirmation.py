@@ -21,8 +21,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 log = logging.getLogger(__name__)
 
-_FROM_EMAIL    = "watson@faithmakessense.com"
-_FROM_NAME     = "FMS Team"
+# STOPGAP 2026-07-27: forced to williamckyomes.com sender until
+# faithmakessense.com domain auth is fixed in Brevo — revert once confirmed
+_FROM_EMAIL    = "watson@williamckyomes.com"
+_FROM_NAME     = "Watson"
 _SUBJECT       = "Your ARC Team Login — Track Your Commitments"
 _RESET_SUBJECT = "Your ARC Login — New Password"
 _LOGIN_URL     = "https://williamckyomes.com/arc/login"

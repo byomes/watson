@@ -16,8 +16,10 @@ log = logging.getLogger(__name__)
 
 _TEMPLATE = Path(__file__).parent / "templates" / "arc_invite_email.html"
 _LOGIN_URL = "https://williamckyomes.com/room"
-_FROM_EMAIL = "watson@faithmakessense.com"
-_FROM_NAME  = "FMS Team"
+# STOPGAP 2026-07-27: forced to williamckyomes.com sender until
+# faithmakessense.com domain auth is fixed in Brevo — revert once confirmed
+_FROM_EMAIL = "watson@williamckyomes.com"
+_FROM_NAME  = "Watson"
 _SUBJECT   = "You've Earned Access to the Writing Room."
 
 

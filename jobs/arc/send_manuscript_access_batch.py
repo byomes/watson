@@ -37,8 +37,10 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 DB_PATH = REPO_ROOT / "data" / "watson.db"
 LOG_DIR = REPO_ROOT / "logs"
 
-_FROM_EMAIL = "watson@faithmakessense.com"
-_FROM_NAME = "FMS Team"
+# STOPGAP 2026-07-27: forced to williamckyomes.com sender until
+# faithmakessense.com domain auth is fixed in Brevo — revert once confirmed
+_FROM_EMAIL = "watson@williamckyomes.com"
+_FROM_NAME = "Watson"
 _SUBJECT = "Your access to The Wrong Jesus manuscript"
 _LOGIN_URL = "williamckyomes.com/arc/login"
 _PIXEL_BASE = "https://watson.tail0243ff.ts.net/api/arc/pixel"
