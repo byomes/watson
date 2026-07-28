@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-07-27*
+*Generated: 2026-07-28*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -44,6 +44,7 @@ briefing/
 config/
   credentials.json
   settings.py
+  sheets_service_account.json
   sources.yaml
   token.json
 core/
@@ -214,6 +215,8 @@ jobs/
     intake.py
     migrate_prayer_leadership.py
     missed_report.py
+    monthly_engagement_report.py
+    monthly_state_report.py
     pastoral_reports.py
     report_menu.py
     reports.py
@@ -312,6 +315,9 @@ jobs/
     pdf.py
     powerpoint.py
     word.py
+  email_activity/
+    __init__.py
+    api.py
   email_intake.py
   email_job/
     __init__.py
@@ -355,6 +361,9 @@ jobs/
     notify.py
     sync.py
     templates.py
+  gsheets/
+    __init__.py
+    headcount_sync.py
   ingest_drafts.py.retired
   intent/
     __init__.py
@@ -1187,6 +1196,8 @@ src/
           route.ts
         login/
           route.ts
+      connect-card/
+        route.ts
       ingest/
         route.ts
       lead-magnet/
@@ -1248,6 +1259,7 @@ src/
       ArcSignupForm.tsx
       dashboard/
         ArcDashboard.tsx
+        ArcFeedbackBox.tsx
         CommitmentsPreview.tsx
         ManuscriptReader.tsx
         page.tsx
@@ -1372,6 +1384,11 @@ src/
       opengraph-image.tsx
       page.tsx
       twitter-image.tsx
+    tools/
+      connect-card/
+        ConnectCardForm.tsx
+        layout.tsx
+        page.tsx
     twitter-image.tsx
     twj/
       TWJPressKitClient.tsx
