@@ -1,5 +1,5 @@
 # Watson Architecture
-*Single source of truth. Last updated: July 20, 2026.*
+*Single source of truth. Last updated: July 27, 2026.*
 *Claude Code must read this file before any build.*
 
 ---
@@ -422,7 +422,7 @@ but nothing TWJ-specific is hardcoded in the job files themselves.
 - **URL (Tailscale):** `http://100.117.237.96:5200`
 - **URL (public):** `https://watson.tail0243ff.ts.net`
 - **Nav tabs:** Home, Notes, Tasks (in Team), Reminders, Reading, More
-- **More menu sections (current):** Theme toggle, Briefing, Skills (command launcher), Reading List, Ministry, Events, Members, Publishing (Writing Room / ARC), Logins
+- **More menu sections (current):** Theme toggle, Briefing, Skills (command launcher), Reading List, Ministry, Events, Members, Publishing (Writing Room / ARC), Logins, Email Activity (added 2026-07-27 — see Watson Identity & Email)
 - **More menu history:** "Reports" deleted 2026-06-27 (dead code removed, not merged elsewhere — `385b7fc`). "Church Events" renamed to "Events" (same feature, same `church_events` table/`/api/events`). Dev Loop section and Team Admin link removed from nav 2026-07-01, TWJ/ARC consolidation (`b5af9b1`) — UI-only cleanup, backend cron jobs/tables and `/admin` + `/api/dev-loop/*` routes untouched, just no dashboard entry point anymore.
 - **Saved as iPhone PWA** — remove and re-add to Home Screen after safe area CSS changes
 - **Dashboard interfaces:** `/` (Bill), `/admin` (Donna), `/team` (shared team view)
@@ -576,10 +576,17 @@ failure mode reappears.
 
 ## Watson Identity & Email
 
-- **Gmail:** `watson.wcky@gmail.com`
-- **SMTP alias:** `watson@williamckyomes.com` (sends via Gmail SMTP)
-- **From line:** `Watson <watson@williamckyomes.com>` or `FMS Team <watson@faithmakessense.com>`
-- **Signature:** Watson / AI-powered digital assistant / Office of Dr. Bill Yomes
+- **Gmail:** `watson.wcky@gmail.com` (IMAP intake only — see Integrations)
+- **Outbound sender:** `watson@williamckyomes.com` via Brevo (`jobs/email_job/brevo_send.py`) — all 27 migrated call sites, no exceptions. `watson@faithmakessense.com` (display name `FMS Team`) was tried for 4 ARC/Writing Room sites and reverted 2026-07-27: Brevo rejects it as an unauthenticated sender domain, which silently broke ARC resend-welcome for two days before being caught. This is now a **permanent decision, not a stopgap** — do not reintroduce `faithmakessense.com` as a sender without first authenticating that domain in Brevo. See `project_backlog` id=27 for the tracked revert-if-ever-fixed item.
+- **Central signature** (`brevo_send.py` `SIGNATURE_TEXT`/`SIGNATURE_HTML`, auto-appended when `include_signature=True`, the default):
+  ```
+  --
+  Watson
+  Digital Assistant to Dr. Bill Yomes
+  williamckyomes.com/start
+  ```
+  As of 2026-07-27, 7 sites that previously hand-wrote their own sign-off and passed `include_signature=False` (`writing_room/onboard.py`, `remind.py`, `reset.py`, `connect_cards/correction_handler.py`, `dashboard/app.py` ×3, `email_intake.py` ×2, `email_send/send.py`) were consolidated onto this central signature. **12 sites remain intentionally opted out** — each renders a complete `<html>...</html>` document as `html_body`, and `send_email()`'s signature append is a raw string concatenation (`html_body + SIGNATURE_HTML`) that would land the signature *after* the closing `</html>` tag if forced through, on top of already hand-writing the identical sign-off inside their own footer: `arc/send_invite_email.py`, `arc/send_signup_confirmation.py`, `writing_room/send_arc_welcome_email.py`, `connect_cards/email_reports.py` + `monthly_engagement_report.py` + `monthly_state_report.py` + `shepherding_report.py` (all four via `reports.py`'s shared `_wrap()`), `connect_cards/state_of_church.py`, `lead_magnet/send_confirmation.py`, `meet/templates/elder_review.py` (used by `fireflies_review.py`), `team/note_task_scan.py`, `team/weekly_completed_report.py`.
+- **Email Activity tile** (`jobs/email_activity/api.py`, More tab): read-only viewer over Brevo's `GET /v3/smtp/statistics/events` — built after the sender/signature bugs above went undetected for days with no visibility short of journalctl. Admin-session gated, same pattern as `jobs/links/api.py`. Does not touch the send path.
 
 ---
 
@@ -1411,5 +1418,11 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 ## Recent Changes — 2026-07-27
 
 ### ~/watson
+- 38a8596 fix: weekly_completed_report.py footer matches majority sign-off convention
+- 3e18392 docs: clarify williamckyomes.com sender is permanent, not a stopgap
+- 1861b1d fix: remove failure-count badge from Email Activity tile
+- c703242 feat: Email Activity tile — Brevo send log viewer (More tab)
+- 0f14f7f refactor: consolidate email sign-off to central Brevo signature (7 sites)
+- c0936ac fix: stopgap - force williamckyomes.com Brevo sender across ARC/Writing Room emails
 - 17a728a docs: file map 2026-07-26
 - 6404b86 docs: bugs/backlog export 2026-07-26
