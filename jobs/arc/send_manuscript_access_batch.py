@@ -37,8 +37,9 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 DB_PATH = REPO_ROOT / "data" / "watson.db"
 LOG_DIR = REPO_ROOT / "logs"
 
-# STOPGAP 2026-07-27: forced to williamckyomes.com sender until
-# faithmakessense.com domain auth is fixed in Brevo — revert once confirmed
+# Sender intentionally watson@williamckyomes.com — Watson's identity is
+# under Dr. Bill's personal domain by design (2026-07-27). Not a stopgap;
+# do not revert to faithmakessense.com.
 _FROM_EMAIL = "watson@williamckyomes.com"
 _FROM_NAME = "Watson"
 _SUBJECT = "Your access to The Wrong Jesus manuscript"

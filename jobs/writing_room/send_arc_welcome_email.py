@@ -10,8 +10,9 @@ from jobs.email_job.brevo_send import send_email
 log = logging.getLogger(__name__)
 
 _TEMPLATE = Path(__file__).parent / "templates" / "arc_welcome_email.html"
-# STOPGAP 2026-07-27: forced to williamckyomes.com sender until
-# faithmakessense.com domain auth is fixed in Brevo — revert once confirmed
+# Sender intentionally watson@williamckyomes.com — Watson's identity is
+# under Dr. Bill's personal domain by design (2026-07-27). Not a stopgap;
+# do not revert to faithmakessense.com.
 _FROM_EMAIL = "watson@williamckyomes.com"
 _FROM_NAME  = "Watson"
 _SUBJECT  = "Welcome to the Writing Room — Here's How to Participate."
