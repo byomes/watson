@@ -608,12 +608,11 @@ def _handle_bill_email(sender, subject, body, received_at, msg_id):
                 f"Watson received your email: \"{subject}\"\n\n"
                 f"Summary: {summary}\n\n"
                 f"Before I proceed, I need clarification:\n\n"
-                f"{clarification_question}\n\n"
-                f"Watson | Administrative Assistant to Dr. Bill Yomes"
+                f"{clarification_question}"
             )
             send_email(
                 to_email=sender, to_name="", subject=f"Re: {subject}",
-                text_body=email_body, include_signature=False,
+                text_body=email_body,
             )
             _tg(f"📧 Watson emailed you a clarification question about: {subject}")
     else:
@@ -631,8 +630,7 @@ def _handle_bill_email(sender, subject, body, received_at, msg_id):
                 to_email=sender,
                 to_name="",
                 subject=f"Watson digest: {subject}",
-                text_body=f"Dr. Bill,\n\n{summary}\n\n✅ {action}\n\nWatson",
-                include_signature=False,
+                text_body=f"Dr. Bill,\n\n{summary}\n\n✅ {action}",
             )
             _tg(f"📧 Watson emailed you a digest of: {subject}")
 

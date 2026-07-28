@@ -81,12 +81,11 @@ def _send_confirmation_email(service_date: str, correction_names: list[str]) -> 
             f"Hi Donna,\n\n"
             f"I've received your attendance updates for {date_label} and added the following names to the record:\n\n"
             f"{names_list}\n\n"
-            f"You're all set!\n\n"
-            f"Watson"
+            f"You're all set!"
         )
         result = send_email(
             to_email=DONNA_EMAIL, to_name="", subject="Attendance Update Received",
-            text_body=body, include_signature=False,
+            text_body=body,
         )
         if not result["success"]:
             raise RuntimeError(result["error"])

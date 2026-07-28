@@ -348,7 +348,8 @@ from jobs.campaigns.schema import create_tables as _campaigns_create_tables
 _campaigns_create_tables()
 app.register_blueprint(campaigns_bp)
 
-_EMAIL_SIGNATURE = "---\nWatson\nAI-powered digital assistant\nOffice of Dr. Bill Yomes\nwilliamckyomes.com/start"
+from jobs.email_activity.api import email_activity_bp
+app.register_blueprint(email_activity_bp)
 
 # ── Admin template filters ────────────────────────────────────────────────────
 
@@ -387,7 +388,7 @@ def _date_color(d):
 
 
 def _build_email_body(content: str) -> str:
-    return f"Dr. Bill asked me to send this to you:\n\n{content}\n\n{_EMAIL_SIGNATURE}"
+    return f"Dr. Bill asked me to send this to you:\n\n{content}"
 
 
 def _send_telegram(text: str) -> None:
@@ -3299,7 +3300,7 @@ def chat_stream():
             _result = _brevo_send_email(
                 to_email=recipient["email"], to_name=recipient["name"],
                 subject=f"Contact info: {contact['name']}",
-                text_body=_build_email_body(body), include_signature=False,
+                text_body=_build_email_body(body),
             )
             if not _result["success"]:
                 raise RuntimeError(_result["error"])
@@ -3388,7 +3389,7 @@ def chat_stream():
         try:
             _result = _brevo_send_email(
                 to_email=_to_email, to_name=_to_label, subject=_subject,
-                text_body=_build_email_body(_body), include_signature=False,
+                text_body=_build_email_body(_body),
             )
             if not _result["success"]:
                 raise RuntimeError(_result["error"])
@@ -4227,16 +4228,12 @@ def cancel_appointment():
         f"Hi {first_name},\n\n"
         "Your appointment with Dr. Bill Yomes has been cancelled.\n\n"
         "To book a new appointment, visit:\n"
-        "williamckyomes.com/meet\n\n"
-        "Watson\n"
-        "AI-powered digital assistant\n"
-        "Office of Dr. Bill Yomes\n"
-        "williamckyomes.com/start"
+        "williamckyomes.com/meet"
     )
     result = send_email(
         to_email=row["guest_email"], to_name=guest_name,
         subject="Your Appointment Has Been Cancelled",
-        text_body=email_body, include_signature=False,
+        text_body=email_body,
     )
     if not result["success"]:
         log.error("cancel_appointment: failed to send email to %s: %s", row["guest_email"], result["error"])

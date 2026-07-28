@@ -90,10 +90,9 @@ def _send_reset_email(email: str, first_name: str, token: str) -> None:
         f"Hi {first_name},\n\n"
         f"Click here to reset your password:\n{link}\n\n"
         f"This link expires in {_TOKEN_TTL_H} hour.\n\n"
-        f"If you didn't request this, ignore this email.\n\n"
-        f"— Watson"
+        f"If you didn't request this, ignore this email."
     )
-    result = send_email(to_email=email, to_name="", subject=subject, text_body=body, include_signature=False)
+    result = send_email(to_email=email, to_name="", subject=subject, text_body=body)
     if not result["success"]:
         raise RuntimeError(f"Brevo send failed: {result['error']}")
 

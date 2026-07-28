@@ -44,13 +44,12 @@ def _send_call_reminder(call: dict, tier: str) -> None:
             f"  {call['title']}\n"
             f"  {day_date} at {time_str}\n"
             f"  Join here: {call['meeting_url'] or '(link coming)'}\n\n"
-            f"See you there.\n\n"
-            f"— Watson"
+            f"See you there."
         )
 
         col = "reminder_24h_sent" if tier == "24h" else "reminder_1h_sent"
         for email in emails:
-            result = send_email(to_email=email, to_name="", subject=subject, text_body=body, include_signature=False)
+            result = send_email(to_email=email, to_name="", subject=subject, text_body=body)
             if not result["success"]:
                 log.error("Reminder email failed for %s: %s", email, result["error"])
 

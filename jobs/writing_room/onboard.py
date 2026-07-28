@@ -151,10 +151,8 @@ One step left — verify your email and set your password:
 
 {verify_url}
 
-This link expires in 72 hours.
-
-— Watson, on behalf of Dr. Bill Yomes"""
-    result = send_email(to_email=email, to_name=first_name, subject=subject, text_body=body, include_signature=False)
+This link expires in 72 hours."""
+    result = send_email(to_email=email, to_name=first_name, subject=subject, text_body=body)
     if not result["success"]:
         raise RuntimeError(f"Brevo send failed: {result['error']}")
 

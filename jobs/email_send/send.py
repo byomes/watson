@@ -53,25 +53,18 @@ def _lookup_email(name: str) -> str | None:
 
 
 def _send_smtp(to_email: str, subject: str, body: str, to_name: str = "") -> None:
-    plain = f"{body}\n\n---\nWatson\nAI-powered digital assistant\nOffice of Dr. Bill Yomes\nwilliamckyomes.com/start"
+    plain = body
 
     first_name = to_name.split()[0] if to_name else to_email
     html = (
         f"<p>{first_name},</p>"
         f"<p>Dr. Bill Yomes asked me to reach out to you.</p>"
         f"<p>{body}</p>"
-        f"<hr>"
-        f'<p style="color:#666;font-size:12px;">'
-        f"Watson<br>"
-        f"AI-powered digital assistant<br>"
-        f"Office of Dr. Bill Yomes<br>"
-        f'<a href="https://williamckyomes.com/start">williamckyomes.com/start</a>'
-        f"</p>"
     )
 
     result = send_email(
         to_email=to_email, to_name=to_name, subject=subject,
-        text_body=plain, html_body=html, include_signature=False,
+        text_body=plain, html_body=html,
     )
     if not result["success"]:
         raise RuntimeError(f"Brevo send failed: {result['error']}")
