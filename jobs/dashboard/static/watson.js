@@ -1469,6 +1469,10 @@ function renderMore() {
         <span class="mtile-label">Links</span>
         <span class="mtile-chev">›</span>
       </button>
+      <button class="mtile" id="mtile-email-activity" onclick="moreToggle('email-activity')">
+        <span class="mtile-label">Email Activity<span class="mtile-badge" id="mtile-badge-email-activity" style="display:none"></span></span>
+        <span class="mtile-chev">›</span>
+      </button>
     </div>
     <div id="more-expand-area">
       <div class="msec-body" id="msec-body-skills">
@@ -1508,8 +1512,12 @@ function renderMore() {
       <div class="msec-body" id="msec-body-links">
         <div class="msec-inner" id="msec-inner-links"></div>
       </div>
+      <div class="msec-body" id="msec-body-email-activity">
+        <div class="msec-inner" id="msec-inner-email-activity"></div>
+      </div>
     </div>`);
   moreLoadVacationStatus();
+  moreCheckEmailActivityBadge();
 }
 
 // ── Vacation Mode ────────────────────────────────────────────────────────────
@@ -1586,6 +1594,7 @@ function moreToggle(sec) {
     if (sec === 'dev')      devLoad();
     if (sec === 'leadmagnet') moreLoadLeadMagnet();
     if (sec === 'links')    moreLoadLinks();
+    if (sec === 'email-activity') moreLoadEmailActivity();
   }
 }
 
@@ -3455,6 +3464,133 @@ async function linksDelete(slug) {
     await api(`/api/links/${encodeURIComponent(slug)}`, { method: 'DELETE' });
     moreLoadLinks();
   } catch { alert('Failed to delete link.'); }
+}
+
+// ── Email Activity ──────────────────────────────────────────────────────────
+
+const _EA_FAILURE_EVENTS = ['bounces', 'hardBounces', 'softBounces', 'blocked', 'invalid', 'error', 'deferred'];
+
+let _eaAllEvents = [];
+let _eaDays      = 7;
+let _eaEvent     = '__failures__'; // '__failures__' = client-side failures-only default, '' = all, else exact Brevo event value
+let _eaEmail     = '';
+let _eaSearchTimer = null;
+
+async function moreLoadEmailActivity() {
+  const el = document.getElementById('msec-inner-email-activity');
+  if (!el) return;
+  el.innerHTML = '<div class="loading">Loading&hellip;</div>';
+  _eaRenderShell();
+  await _eaFetch();
+}
+
+function _eaRenderShell() {
+  const el = document.getElementById('msec-inner-email-activity');
+  if (!el) return;
+  const selStyle = 'padding:7px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:12px;outline:none';
+  el.innerHTML = `
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+      <select id="mea-days" style="${selStyle}" onchange="_eaOnDaysChange(this.value)">
+        <option value="1"${_eaDays===1?' selected':''}>24h</option>
+        <option value="7"${_eaDays===7?' selected':''}>7d</option>
+        <option value="30"${_eaDays===30?' selected':''}>30d</option>
+      </select>
+      <select id="mea-event" style="${selStyle}" onchange="_eaOnEventChange(this.value)">
+        <option value="__failures__"${_eaEvent==='__failures__'?' selected':''}>Failures only</option>
+        <option value=""${_eaEvent===''?' selected':''}>All events</option>
+        <option value="bounces"${_eaEvent==='bounces'?' selected':''}>Bounces</option>
+        <option value="hardBounces"${_eaEvent==='hardBounces'?' selected':''}>Hard bounces</option>
+        <option value="softBounces"${_eaEvent==='softBounces'?' selected':''}>Soft bounces</option>
+        <option value="blocked"${_eaEvent==='blocked'?' selected':''}>Blocked</option>
+        <option value="invalid"${_eaEvent==='invalid'?' selected':''}>Invalid</option>
+        <option value="deferred"${_eaEvent==='deferred'?' selected':''}>Deferred</option>
+        <option value="error"${_eaEvent==='error'?' selected':''}>Error</option>
+        <option value="delivered"${_eaEvent==='delivered'?' selected':''}>Delivered</option>
+        <option value="opened"${_eaEvent==='opened'?' selected':''}>Opened</option>
+        <option value="clicks"${_eaEvent==='clicks'?' selected':''}>Clicks</option>
+        <option value="spam"${_eaEvent==='spam'?' selected':''}>Spam</option>
+        <option value="unsubscribed"${_eaEvent==='unsubscribed'?' selected':''}>Unsubscribed</option>
+      </select>
+      <input id="mea-search" type="text" placeholder="Search recipient email&hellip;" value="${esc(_eaEmail)}"
+        style="flex:1;min-width:140px;padding:7px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:12px;outline:none"
+        oninput="_eaOnSearchInput(this.value)">
+    </div>
+    <div id="mea-table-wrap"><div class="loading">Loading&hellip;</div></div>`;
+}
+
+function _eaOnDaysChange(v) {
+  _eaDays = parseInt(v, 10) || 7;
+  _eaFetch();
+}
+
+function _eaOnEventChange(v) {
+  _eaEvent = v;
+  _eaFetch();
+}
+
+function _eaOnSearchInput(v) {
+  _eaEmail = v.trim();
+  clearTimeout(_eaSearchTimer);
+  _eaSearchTimer = setTimeout(_eaFetch, 400);
+}
+
+async function _eaFetch() {
+  const wrap = document.getElementById('mea-table-wrap');
+  if (wrap) wrap.innerHTML = '<div class="loading">Loading&hellip;</div>';
+  try {
+    const params = new URLSearchParams({ days: String(_eaDays) });
+    if (_eaEvent && _eaEvent !== '__failures__') params.set('event', _eaEvent);
+    if (_eaEmail) params.set('email', _eaEmail);
+    const events = await api(`/api/email-activity?${params.toString()}`);
+    _eaAllEvents = Array.isArray(events) ? events : [];
+    _eaRenderTable();
+  } catch (e) {
+    if (!wrap) return;
+    wrap.innerHTML = String(e.message).startsWith('401')
+      ? '<div class="empty">Log into <a href="/admin/login" style="color:var(--gold)">/admin</a> to view email activity.</div>'
+      : '<div class="empty">Could not load email activity.</div>';
+  }
+}
+
+function _eaRenderTable() {
+  const wrap = document.getElementById('mea-table-wrap');
+  if (!wrap) return;
+  const rows = _eaEvent === '__failures__'
+    ? _eaAllEvents.filter(e => _EA_FAILURE_EVENTS.includes(e.event))
+    : _eaAllEvents;
+  if (!rows.length) {
+    wrap.innerHTML = '<div class="empty">No matching email activity.</div>';
+    return;
+  }
+  wrap.innerHTML = `
+    <div class="mshep-wrap"><table class="mshep-table">
+      <tr><th>Time</th><th>Recipient</th><th>Subject/Tag</th><th>Event</th><th>Reason</th></tr>
+      ${rows.map(r => `
+        <tr>
+          <td style="white-space:nowrap">${esc(fmtGenerated(r.date))}</td>
+          <td>${esc(r.email)}</td>
+          <td>${esc(r.subject)}</td>
+          <td>${_EA_FAILURE_EVENTS.includes(r.event) ? `<span style="color:var(--red)">${esc(r.event)}</span>` : esc(r.event)}</td>
+          <td>${esc(r.reason)}</td>
+        </tr>`).join('')}
+    </table></div>`;
+}
+
+async function moreCheckEmailActivityBadge() {
+  const badge = document.getElementById('mtile-badge-email-activity');
+  if (!badge) return;
+  try {
+    const events = await api('/api/email-activity?days=1');
+    const count = (Array.isArray(events) ? events : []).filter(e => _EA_FAILURE_EVENTS.includes(e.event)).length;
+    if (count > 0) {
+      badge.textContent = String(count);
+      badge.style.display = 'inline-block';
+    } else {
+      badge.style.display = 'none';
+    }
+  } catch {
+    badge.style.display = 'none';
+  }
 }
 
 function moreToggleTheme(isLight) {
