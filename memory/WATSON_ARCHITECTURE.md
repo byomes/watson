@@ -1426,3 +1426,45 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - c0936ac fix: stopgap - force williamckyomes.com Brevo sender across ARC/Writing Room emails
 - 17a728a docs: file map 2026-07-26
 - 6404b86 docs: bugs/backlog export 2026-07-26
+
+---
+
+## Recent Changes — 2026-07-28
+
+### ~/watson
+- ea8a616 feat: ARC feedback box backend — 600-char cap + Brevo notify to Bill
+- 370aa3e docs: architecture update — Brevo sender/signature consolidation, Email Activity tile
+- 38a8596 fix: weekly_completed_report.py footer matches majority sign-off convention
+- 3e18392 docs: clarify williamckyomes.com sender is permanent, not a stopgap
+- 1861b1d fix: remove failure-count badge from Email Activity tile
+- c703242 feat: Email Activity tile — Brevo send log viewer (More tab)
+- 0f14f7f refactor: consolidate email sign-off to central Brevo signature (7 sites)
+- c0936ac fix: stopgap - force williamckyomes.com Brevo sender across ARC/Writing Room emails
+- fb71e28 Send monthly_state_report.py to Bill, Bill Crook, and Jim Bouchat
+- 3478211 Fix stale cron docstring in monthly_state_report.py
+- c912ea2 Merge remote-tracking branch 'origin/main' into main
+- 57f38a9 Rewrite monthly_state_report.py as person-focused engagement report (v2)
+- 51ced82 Add monthly quantitative State of the Church report
+- 257ce34 Add --to override flag to monthly_engagement_report.py
+- c4b7077 Add monthly connect card engagement report for Kaci
+- 584d3ef transcript: add 2026-07-27-Joshua-Ch7-QA
+- a4fde3e transcript: add 2026-07-27-Joshua---Ch7---Disobedient-in-Inheritence
+- 5b9290c fix: skip Watson's own Connect Card Bcc copy in email_intake triage (issue a)
+- cb1399e fix: email_intake.py silently drops HTML-only email bodies (issue b)
+- 132502f docs: bugs/backlog export 2026-07-27
+- 68a3dd9 fix: Brevo rejects empty-string to_name as missing name parameter
+- d919e06 docs: file map 2026-07-27
+- b74d221 docs: bugs/backlog export 2026-07-27
+- ae713d0 docs: architecture update 2026-07-27
+
+### ~/wcky
+- 400ff4c feat: ARC dashboard feedback box — reader quotes for launch marketing
+- 85b5fe0 feat: redirect to Subsplash access page after connect-card submit
+- 33c3746 fix: mobile zoom-on-focus on /tools/connect-card form fields
+- 5b03c7a fix: phone autofill country-code handling on /tools/connect-card
+- fd51dfb Revert "style: add Catalyst logo to connect-card heading, sized to cap-height"
+- d1bb9b5 style: add Catalyst logo to connect-card heading, sized to cap-height
+- 7f7037f style: double horizontal page margin on /tools/connect-card
+- caa283e style: visual-parity pass on /tools/connect-card matching original Subsplash form
+- e114a56 fix: match Connect Card email body to existing inbox format
+- 8f9fdec feat: self-hosted Connect Card at /tools/connect-card

@@ -40,6 +40,7 @@ udo journalctl -u watson-bot.service -n 50
 client_secret_*.json
 config/credentials.json
 config/token.json
+config/sheets_service_account.json
 *.csv
 import_connect_cards.py
 *.deb

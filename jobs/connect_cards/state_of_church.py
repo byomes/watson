@@ -94,6 +94,17 @@ def _attendance_by_campus(conn: sqlite3.Connection, service_date: str) -> list[d
     return [dict(r) for r in rows]
 
 
+def _wilmington_headcount(conn: sqlite3.Connection, service_date: str) -> int | None:
+    """Actual Sunday headcount from the manual count sheet (jobs/gsheets/headcount_sync.py).
+    None if that Sunday hasn't been synced yet — caller omits the gap line rather than
+    treating it as zero."""
+    row = conn.execute(
+        "SELECT headcount FROM wilmington_headcounts WHERE date = ?",
+        (service_date,),
+    ).fetchone()
+    return row["headcount"] if row else None
+
+
 def _first_time_visitors(conn: sqlite3.Connection, service_date: str) -> list[str]:
     rows = conn.execute(
         """
@@ -341,6 +352,7 @@ def _build_html(
     last_sunday: date,
     this_att: list[dict],
     last_att: list[dict],
+    headcount: int | None,
     visitors: list[str],
     prayers: list[dict],
     followups: list[dict],
@@ -408,6 +420,23 @@ def _build_html(
         att_block = (
             f'<p style="margin:12px 0 0;font-size:14px;color:#555;">No attendance recorded for '
             f'{this_sunday.strftime("%b %d")}. Last week ({last_label}): {last_total}</p>'
+        )
+
+    # ── Wilmington headcount gap ───────────────────────────────────────────────
+    wil_cards = next((r["count"] for r in this_att if r["campus"] == "Wilmington"), 0)
+    if headcount is not None:
+        gap = headcount - wil_cards
+        gap_pct = (gap / headcount * 100) if headcount else 0.0
+        headcount_block = (
+            f'<p style="margin:12px 0 0;font-size:14px;color:#333;">'
+            f'Actual headcount: <strong>{headcount}</strong> &nbsp;vs&nbsp; '
+            f'connect-card attendance: <strong>{wil_cards}</strong> '
+            f'&nbsp;—&nbsp; gap: <strong>{gap}</strong> ({gap_pct:.0f}%)</p>'
+        )
+    else:
+        headcount_block = (
+            '<p style="margin:12px 0 0;font-size:14px;color:#888;font-style:italic;">'
+            "No headcount recorded yet for this week.</p>"
         )
 
     # ── First-time visitors ────────────────────────────────────────────────────
@@ -596,6 +625,7 @@ def _build_html(
       <!-- Attendance -->
       {_html_section_header(f"Attendance")}
       {att_block}
+      {headcount_block}
 
       <!-- Trends -->
       {_html_section_header("Trends")}
@@ -641,6 +671,7 @@ def _build_plain(
     last_sunday: date,
     this_att: list[dict],
     last_att: list[dict],
+    headcount: int | None,
     visitors: list[str],
     prayers: list[dict],
     followups: list[dict],
@@ -680,6 +711,14 @@ def _build_plain(
     else:
         lines.append(f"  No attendance recorded for {this_sunday.strftime('%b %d')}.")
         lines.append(f"  Last week ({last_label}): {last_total}")
+
+    wil_cards = next((r["count"] for r in this_att if r["campus"] == "Wilmington"), 0)
+    if headcount is not None:
+        gap = headcount - wil_cards
+        gap_pct = (gap / headcount * 100) if headcount else 0.0
+        lines.append(f"  Actual headcount: {headcount}  vs  connect-card attendance: {wil_cards}  —  gap: {gap} ({gap_pct:.0f}%)")
+    else:
+        lines.append("  No headcount recorded yet for this week.")
 
     # Trends section
     campus_trends = trends_data.get("campus_trends", {})
@@ -786,6 +825,7 @@ def build_report() -> tuple[str, str, str]:
     try:
         this_att        = _attendance_by_campus(cong, this_sunday.isoformat())
         last_att        = _attendance_by_campus(cong, last_sunday.isoformat())
+        headcount       = _wilmington_headcount(cong, this_sunday.isoformat())
         visitors        = _first_time_visitors(cong, this_sunday.isoformat())
         followups       = _open_follow_ups(cong)
         prayers         = _prayer_requests(cong)
@@ -918,6 +958,7 @@ def build_report() -> tuple[str, str, str]:
         last_sunday=last_sunday,
         this_att=this_att,
         last_att=last_att,
+        headcount=headcount,
         visitors=visitors,
         prayers=prayers,
         followups=followups,

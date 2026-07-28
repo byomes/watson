@@ -258,6 +258,66 @@ def _six_month_highly_engaged_trend(conn, year: int, month: int, active_members:
     return result
 
 
+# ── Wilmington headcount gap ──────────────────────────────────────────────────────
+
+def _month_headcount_gap(conn, year: int, month: int) -> dict | None:
+    """Actual Wilmington headcount total vs. card-derived total, for the subset
+    of Sundays that have a synced headcount row this month (jobs/gsheets/
+    headcount_sync.py). None if no Sundays synced yet — caller omits the month
+    rather than treating it as zero (same principle as the weekly report)."""
+    start, end = _month_bounds(year, month)
+    hc_rows = conn.execute(
+        "SELECT date, headcount FROM wilmington_headcounts WHERE date BETWEEN ? AND ?",
+        (start, end),
+    ).fetchall()
+    if not hc_rows:
+        return None
+    dates = [r[0] for r in hc_rows]
+    actual_total = sum(r[1] for r in hc_rows)
+    placeholders = ",".join("?" * len(dates))
+    card_total = conn.execute(
+        f"SELECT COUNT(*) FROM attendance WHERE campus = 'Wilmington' AND service_date IN ({placeholders})",
+        dates,
+    ).fetchone()[0]
+    gap = actual_total - card_total
+    gap_pct = (gap / actual_total * 100) if actual_total else 0.0
+    return {"weeks": len(dates), "actual": actual_total, "cards": card_total, "gap": gap, "gap_pct": gap_pct}
+
+
+def _six_month_headcount_gap_trend(conn, year: int, month: int) -> list[tuple[str, float]]:
+    candidates = []
+    y, m = year, month
+    for _ in range(6):
+        candidates.append((y, m))
+        y, m = _prev_month(y, m)
+    candidates.reverse()
+
+    result = []
+    for y, m in candidates:
+        gap_info = _month_headcount_gap(conn, y, m)
+        if gap_info is None:
+            continue
+        result.append((f"{_month_label(y, m)[:3]} {y}", gap_info["gap_pct"]))
+    return result
+
+
+def _gap_trend_direction(trend: list[tuple[str, float]]) -> str:
+    """Improving = gap % shrinking (connect cards capturing more of actual
+    attendance), Worsening = gap % growing, Flat = neither."""
+    if len(trend) < 2:
+        return "Flat"
+    recent = trend[-1][1]
+    earlier = [pct for _, pct in trend[:-1]]
+    earlier_avg = sum(earlier) / len(earlier)
+    if earlier_avg == 0:
+        return "Flat"
+    if recent < earlier_avg * 0.97:
+        return "Improving"
+    if recent > earlier_avg * 1.03:
+        return "Worsening"
+    return "Flat"
+
+
 # ── New people funnel ────────────────────────────────────────────────────────────
 
 def _first_time_visitor_count(conn, year: int, month: int) -> int:
@@ -333,6 +393,10 @@ def build_report(year: int, month: int) -> tuple[str, str]:
         movement = _tier_movement(conn, year, month, active_members, earliest)
         six_month = _six_month_highly_engaged_trend(conn, year, month, active_members, earliest)
 
+        headcount_gap = _month_headcount_gap(conn, year, month)
+        six_month_gap = _six_month_headcount_gap_trend(conn, year, month)
+        gap_direction = _gap_trend_direction(six_month_gap)
+
         new_visitors = _first_time_visitor_count(conn, year, month)
         return_rate = _return_rate(conn, year, month)
 
@@ -358,6 +422,28 @@ def build_report(year: int, month: int) -> tuple[str, str]:
         ) + "</div>"
     non_active_line = ", ".join(f"{status}: {count}" for status, count in non_active)
     body += f"<p style='color:#888;font-size:.9em'>Non-active (excluded above): {non_active_line}</p>"
+
+    body += "<h2>Wilmington Headcount Gap</h2>"
+    if headcount_gap is not None:
+        body += (
+            f"<p>Actual Wilmington headcount this month: <strong>{headcount_gap['actual']}</strong> "
+            f"across {headcount_gap['weeks']} synced Sunday(s), vs. <strong>{headcount_gap['cards']}</strong> "
+            f"connect-card-derived attendance for those same Sundays — gap: "
+            f"<strong>{headcount_gap['gap']}</strong> ({headcount_gap['gap_pct']:.0f}%).</p>"
+            "<p style='color:#888;font-size:.85em'>This is an aggregate coverage check, not a "
+            "person-level correction — the headcount has no names attached, so it can show "
+            "<em>that</em> Wilmington attendance is undercounted and by how much, but not "
+            "<em>which</em> specific members are the ones missing from connect-card attendance.</p>"
+        )
+        if len(six_month_gap) >= 2:
+            body += (
+                f"<p>Gap trend (last {len(six_month_gap)} synced month(s)): <strong>{gap_direction}</strong></p>"
+                "<table><thead><tr><th>Month</th><th>Gap %</th></tr></thead><tbody>"
+                + "".join(f"<tr><td>{label}</td><td>{pct:.0f}%</td></tr>" for label, pct in six_month_gap)
+                + "</tbody></table>"
+            )
+    else:
+        body += "<p class='empty'>No headcount data synced yet this month.</p>"
 
     body += (
         "<h2>Engagement Tiers</h2>"
