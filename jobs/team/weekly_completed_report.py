@@ -87,7 +87,7 @@ def _build_html(tasks: list, date_from: str, date_to: str) -> str:
 
     footer = (
         '  <p style="margin-top:24px;font-size:11px;color:#bbb">'
-        'Watson · Catalyst Community Church</p>\n'
+        'Watson · AI-powered digital assistant · Office of Dr. Bill Yomes</p>\n'
         '</body>\n</html>'
     )
     return header + body + footer
