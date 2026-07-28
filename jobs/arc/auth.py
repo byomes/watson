@@ -8,6 +8,7 @@ import logging
 import os
 import secrets
 import sys
+import threading
 from datetime import datetime, timedelta
 from functools import wraps
 from pathlib import Path
@@ -18,6 +19,7 @@ from flask import Blueprint, jsonify, request
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from jobs.arc.api import _COMMITMENT_TEXTS
+from jobs.email_job.brevo_send import send_email
 from jobs.writing_room import get_db
 
 log = logging.getLogger(__name__)
@@ -26,6 +28,7 @@ arc_auth_bp = Blueprint("arc_auth", __name__)
 
 _API_KEY = lambda: os.getenv("WRITING_ROOM_API_KEY", "")
 _SESSION_DAYS = 30
+BILL_EMAIL = os.getenv("BILL_EMAIL", "")
 
 
 def _require_key(f):
@@ -218,6 +221,10 @@ def arc_feedback(reader):
         return jsonify({"error": "target_type and target_slug are required"}), 400
     reaction = (data.get("reaction") or "").strip() or None
     comment  = (data.get("comment") or "").strip() or None
+
+    if comment and len(comment) > 600:
+        return jsonify({"error": "Feedback must be 600 characters or fewer."}), 400
+
     conn = get_db()
     try:
         conn.execute(
@@ -229,4 +236,31 @@ def arc_feedback(reader):
         conn.commit()
     finally:
         conn.close()
+
+    if comment and BILL_EMAIL:
+        threading.Thread(
+            target=_notify_bill_of_feedback,
+            args=(reader, target_type, target_slug, comment),
+            daemon=True,
+        ).start()
+
     return jsonify({"ok": True}), 200
+
+
+def _notify_bill_of_feedback(reader, target_type, target_slug, comment) -> None:
+    name = f"{reader['first_name']} {reader['last_name']}".strip()
+    subject = f"New ARC feedback from {name or reader['email']}"
+    text = (
+        f"{name} ({reader['email']}) left ARC feedback.\n\n"
+        f"Type: {target_type} / {target_slug}\n\n"
+        f"\"{comment}\""
+    )
+    try:
+        result = send_email(
+            to_email=BILL_EMAIL, to_name="Bill",
+            subject=subject, text_body=text,
+        )
+        if not result["success"]:
+            log.error("Failed to email Bill ARC feedback: %s", result["error"])
+    except Exception:
+        log.exception("Error sending ARC feedback notification email")
