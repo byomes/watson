@@ -1468,3 +1468,23 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - caa283e style: visual-parity pass on /tools/connect-card matching original Subsplash form
 - e114a56 fix: match Connect Card email body to existing inbox format
 - 8f9fdec feat: self-hosted Connect Card at /tools/connect-card
+
+---
+
+## Recent Changes — 2026-07-29
+
+### ~/watson
+- b3f14d8 feat: wire book_launch_sends.image_path into facebook_queue dispatch
+- 2fe0731 feat: add ARC TWJ update email script
+- 97c1027 chore: remove test file used to verify /api/kb/sync-now route (bug #51 follow-up)
+- f0ce28f kb: sync 1 transcript(s) to kb/documents (same-day)
+- 0a973b8 fix: generate.py transfers transcripts to Beelink via scp instead of git push
+- aac666b chore: remove test file used to verify sync_and_index.py pipeline (bug #51 follow-up)
+- 4e1716b kb: sync 1 transcript(s) to kb/documents (same-day)
+- 1f75e55 docs: bugs/backlog export 2026-07-28
+- d790901 docs: file map 2026-07-28
+- fead7df docs: architecture update 2026-07-28
+
+### ~/wcky
+- 643b061 Encourage multiple comments in ARC feedback prompt
+- 57737f8 publish: Joshua's Second Pile
