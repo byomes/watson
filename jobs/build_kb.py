@@ -20,7 +20,7 @@ def chunk_text(text, size=CHUNK_SIZE, overlap=CHUNK_OVERLAP):
         i += size - overlap
     return chunks
 
-def ingest_dir(files_dir, collection_name):
+def ingest_dir(files_dir, collection_name, source_type="transcript"):
     """Chunk and ingest all .txt/.md files in files_dir into the named ChromaDB collection.
 
     Returns the number of new chunks added.
@@ -47,7 +47,7 @@ def ingest_dir(files_dir, collection_name):
             chunk_id = f'{title}::chunk{i}'
             if chunk_id in existing:
                 continue
-            collection.add(ids=[chunk_id], documents=[chunk], metadatas=[{'title': title, 'chunk': i}])
+            collection.add(ids=[chunk_id], documents=[chunk], metadatas=[{'title': title, 'chunk': i, 'source_type': source_type}])
             added += 1
     log.info('Added %d new chunks. Total in DB: %d', added, collection.count())
     return added

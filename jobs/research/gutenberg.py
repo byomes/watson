@@ -184,7 +184,7 @@ def download_and_ingest(book_id: int) -> dict:
     file_path = DOCS_DIR / f"{book_id}-{_slugify(book['title'])}.txt"
     file_path.write_text(cleaned, encoding="utf-8")
 
-    chunks_added = ingest_dir(DOCS_DIR, COLLECTION_NAME)
+    chunks_added = ingest_dir(DOCS_DIR, COLLECTION_NAME, source_type="classic")
 
     with get_connection() as conn:
         conn.execute(

@@ -194,7 +194,7 @@ def run_sync(source: str = "cron") -> dict:
             return {"ok": False, "moved": len(moved), "indexed": 0, "error": push_msg}
 
         try:
-            added_chunks = ingest_dir(DOCUMENTS_DIR, COLLECTION_NAME)
+            added_chunks = ingest_dir(DOCUMENTS_DIR, COLLECTION_NAME, source_type="transcript")
         except Exception as exc:
             log.exception("KB indexing failed")
             _send_telegram(
