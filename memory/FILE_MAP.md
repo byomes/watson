@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-07-28*
+*Generated: 2026-07-29*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -62,6 +62,7 @@ cron_additions.txt
 cron_backup_20260721_1510.txt
 data/
   .gitkeep
+  .kb_sync.lock
   campaigns/
     WCKY-Book-Launch-Framework.md
     twj/
@@ -161,6 +162,7 @@ jobs/
     send_invite_email.py
     send_manuscript_access_batch.py
     send_signup_confirmation.py
+    send_twj_update.py
     templates/
       arc_invite_email.html
   ask.py
@@ -371,6 +373,7 @@ jobs/
     keep_warm.py
   kb/
     __init__.py
+    api.py
     archive_transcripts.py
     sync_and_index.py
   lead_magnet/
@@ -1071,6 +1074,7 @@ memory/
       watson.md
     writing_room.md
   relational.md
+  secrets_audit_draft.md
   skills.json
   skip_keywords.txt
   style_audit_pages.md
@@ -1149,6 +1153,7 @@ content/
     2026-07-21-miraculous-and-providential-the-two-ways-god-moves.md
     2026-07-23-the-stones-we-leave-behind.md
     2026-07-25-covenant-is-not-a-private-matter.md
+    2026-07-28-joshua-s-second-pile.md
     the-flashlight-of-your-focus.md
     where-your-treasure-is.md
 next-env.d.ts
