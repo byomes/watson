@@ -67,6 +67,14 @@ def create_tables(conn=None) -> None:
         if "previewed_at" not in cols:
             conn.execute("ALTER TABLE book_launch_sends ADD COLUMN previewed_at TEXT")
 
+        # image_path: local path to a generated/approved image for this row
+        # (Facebook only — Brevo rows leave it NULL). dispatch_facebook_row()
+        # reads it and passes it through to facebook_queue.image_path, which
+        # facebook_post.py already honors (posts via /photos when set, /feed
+        # when not) — this column is what was missing to connect the two.
+        if "image_path" not in cols:
+            conn.execute("ALTER TABLE book_launch_sends ADD COLUMN image_path TEXT")
+
         conn.commit()
     finally:
         if owns_conn:

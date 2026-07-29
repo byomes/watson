@@ -172,10 +172,14 @@ def dispatch_facebook_row(conn, row, dry_run: bool = False) -> dict:
     link_m = _LINK_RE.search(row["body_text"] or "")
     url = link_m.group(0) if link_m else None
     scheduled_time = f"{row['send_date']} 00:00:00"
+    # .get() rather than row["image_path"]: callers (and the test isolation
+    # fixtures) may pass a row dict from before this column existed — treat a
+    # missing key the same as an explicit NULL rather than raising.
+    image_path = row.get("image_path")
 
     would_insert = {
         "title": title, "summary": None, "url": url, "draft_text": row["body_text"],
-        "status": "approved", "scheduled_time": scheduled_time, "image_path": None,
+        "status": "approved", "scheduled_time": scheduled_time, "image_path": image_path,
     }
 
     if real_dry_run:
@@ -185,8 +189,8 @@ def dispatch_facebook_row(conn, row, dry_run: bool = False) -> dict:
     conn.execute(
         """INSERT INTO facebook_queue
            (title, summary, url, draft_text, status, scheduled_time, image_path)
-           VALUES (?, NULL, ?, ?, 'approved', ?, NULL)""",
-        (title, url, row["body_text"], scheduled_time),
+           VALUES (?, NULL, ?, ?, 'approved', ?, ?)""",
+        (title, url, row["body_text"], scheduled_time, image_path),
     )
     conn.commit()
     return {"dry_run": False, "inserted": would_insert}
