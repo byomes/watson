@@ -741,6 +741,43 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     _create_backlog_item_d(_bl_title, _bl_summary)
                     await update.message.reply_text(f"Logged to backlog: {_bl_title}")
                     _log_telegram_exchange(text_clean, f"Logged to backlog: {_bl_title}")
+            elif _dpfx == "debug:":
+                if not _darg:
+                    await update.message.reply_text("Format: debug: <problem description>")
+                else:
+                    await update.message.reply_text(f"Starting debug loop for: {_darg}")
+                    _debug_text_clean = text_clean
+
+                    # Detached on purpose, same reasoning as fireflies: below —
+                    # claude_debug.run() can take several minutes (up to
+                    # MAX_ITERATIONS Claude Code rounds) and _send_telegram()
+                    # itself already posts the final result, so awaiting it
+                    # inline would just trip the 15s wrapper for no benefit.
+                    async def _run_debug_directive():
+                        from jobs.dev.claude_debug import run as _debug_run_d
+                        try:
+                            result = await asyncio.to_thread(_debug_run_d, _debug_text_clean)
+                        except Exception as exc:
+                            log.error("debug: directive failed: %s", exc)
+                            result = f"Debug loop failed: {exc}"
+                        _log_telegram_exchange(_debug_text_clean, result)
+
+                    _debug_task = asyncio.create_task(_run_debug_directive())
+                    _background_tasks.add(_debug_task)
+                    _debug_task.add_done_callback(_background_tasks.discard)
+            elif _dpfx == "run:":
+                from jobs.skillbuilder import router as _router_d
+                _run_parts_d = _darg.split(None, 1)
+                _slug_d = _run_parts_d[0] if _run_parts_d else ""
+                _skill_msg_d = _run_parts_d[1] if len(_run_parts_d) > 1 else ""
+                _skills_d = _router_d._load_skills("telegram")
+                _skill_d = next((s for s in _skills_d if s["slug"] == _slug_d), None)
+                if _skill_d:
+                    _dr = str(await asyncio.to_thread(_router_d._run_skill, _skill_d, message=_skill_msg_d))
+                else:
+                    _dr = f"Skill not found: {_slug_d}"
+                await update.message.reply_text(_dr)
+                _log_telegram_exchange(text_clean, _dr)
             elif _dpfx == "gutenberg:":
                 await _handle_gutenberg_search(update, context, _darg)
             elif _dpfx == "classics:":

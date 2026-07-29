@@ -819,7 +819,8 @@
       "module": "jobs.research.gutenberg",
       "function": "search",
       "interfaces": [
-        "telegram"
+        "telegram",
+        "dashboard"
       ],
       "status": "ready"
     },
@@ -834,7 +835,8 @@
       "module": "jobs.skills.kb_search",
       "function": "search_kb",
       "interfaces": [
-        "telegram"
+        "telegram",
+        "dashboard"
       ],
       "status": "ready"
     },

@@ -351,6 +351,9 @@ app.register_blueprint(campaigns_bp)
 from jobs.email_activity.api import email_activity_bp
 app.register_blueprint(email_activity_bp)
 
+from jobs.kb.api import kb_bp
+app.register_blueprint(kb_bp)
+
 # ── Admin template filters ────────────────────────────────────────────────────
 
 _AV_COLORS = ['#4c7ec9','#4caf7d','#c9a84c','#c9504c','#9b59b6','#1abc9c','#e67e22','#2980b9']
@@ -622,6 +625,31 @@ def terminal():
             return _pfx_out(_polish_run(cmd[7:].strip()) or "No results.")
         except Exception as _exc:
             return jsonify({"output": f"polish error: {_exc}", "success": False})
+
+    if cmd_lower.startswith("gutenberg:"):
+        _gb_cmd_q = cmd[10:].strip()
+        if not _gb_cmd_q:
+            return _pfx_out("What would you like to search for on Project Gutenberg?")
+        try:
+            from jobs.research.gutenberg import search as _gutenberg_search_t
+            _gb_hits = _gutenberg_search_t(_gb_cmd_q)
+            if not _gb_hits:
+                return _pfx_out(f"No Project Gutenberg matches for: {_gb_cmd_q}")
+            _gb_lines = [f'Project Gutenberg results for "{_gb_cmd_q}":\n']
+            for _gb_i, _gb_hit in enumerate(_gb_hits, start=1):
+                _gb_year = _gb_hit["year"] or "n/a"
+                _gb_lines.append(
+                    f"{_gb_i}. {_gb_hit['title']} — {_gb_hit['authors']} ({_gb_year}) — {_gb_hit['download_count']} downloads"
+                )
+            # The "reply with a number" download+ingest follow-up is a stateful
+            # pending-confirmation flow that only chat_stream() supports (see
+            # the "Gutenberg selection gate" below) — /api/terminal is
+            # one-shot, so it points the user at chat for that step instead of
+            # faking a selection flow the terminal can't actually carry.
+            _gb_lines.append("\nTo download and ingest a pick, use gutenberg: from the chat panel instead of the terminal.")
+            return _pfx_out("\n".join(_gb_lines))
+        except Exception as _exc:
+            return jsonify({"output": f"gutenberg error: {_exc}", "success": False})
 
     if cmd_lower.startswith("classics:"):
         try:
