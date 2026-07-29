@@ -2787,10 +2787,30 @@ def chat_stream():
             try:
                 result = _kb_prefix_search(q)
                 yield _sse(_kb_prefix_fmt(result))
+                from jobs.telegram.pending import store_skill_confirmation as _store_kb_expand_pending
+                _store_kb_expand_pending("kb_expand", {"source": "dashboard", "query": q})
             except Exception as exc:
                 yield _sse(f"KB search failed: {exc}")
             yield "data: [DONE]\n\n"
         return _sse_response(_kb_prefix_stream())
+    if msg_lower == "expanded search":
+        from jobs.telegram.pending import get_pending_confirmation as _get_kb_exp_conf, mark_pending_status as _mark_kb_exp_status
+        _kb_exp_conf = _get_kb_exp_conf()
+        if _kb_exp_conf and _kb_exp_conf["type"] == "kb_expand" and _kb_exp_conf["payload"].get("source") == "dashboard":
+            _kb_exp_q = _kb_exp_conf["payload"].get("query", "")
+            _mark_kb_exp_status(_kb_exp_conf["id"], "confirmed")
+            from jobs.skills.kb_search import search_kb as _kb_exp_search, format_result as _kb_exp_fmt
+            def _kb_expand_stream(q=_kb_exp_q):
+                yield _emit_status("→ Searching your notes — expanded...")
+                try:
+                    result = _kb_exp_search(q, "sermons", True)
+                    yield _sse(_kb_exp_fmt(result))
+                    from jobs.telegram.pending import store_skill_confirmation as _store_kb_expand_pending2
+                    _store_kb_expand_pending2("kb_expand", {"source": "dashboard", "query": q})
+                except Exception as exc:
+                    yield _sse(f"Expanded search failed: {exc}")
+                yield "data: [DONE]\n\n"
+            return _sse_response(_kb_expand_stream())
     if msg_lower.startswith("bible:"):
         from jobs.bible import run as _bible_run
         _q = message[6:].strip()

@@ -1572,6 +1572,7 @@ async def _handle_kb(update: Update, context: ContextTypes.DEFAULT_TYPE, text: s
             "synopsis": result["synopsis"],
             "sources": result["sources"],
             "query": result["query"],
+            "collection": "sermons",
         })
     except Exception as exc:
         log.error("KB search failed: %s", exc)
@@ -1623,6 +1624,7 @@ async def _handle_classics(update: Update, context: ContextTypes.DEFAULT_TYPE, q
             "synopsis": result["synopsis"],
             "sources": result["sources"],
             "query": result["query"],
+            "collection": "gutenberg",
         })
     except Exception as exc:
         log.error("Classics KB search failed: %s", exc)
@@ -2107,6 +2109,30 @@ async def _route_tg_pending_reply(
             except Exception as exc:
                 log.error("KB email send failed: %s", exc)
                 await update.message.reply_text(f"Email failed: {exc}")
+            return True
+        if text_lower == "expanded search":
+            collection = payload.get("collection", "sermons")
+            if collection != "sermons":
+                await update.message.reply_text("Expanded search only applies to the sermon knowledge base.")
+                return True
+            query = payload.get("query", "")
+            await update.message.reply_text("Searching knowledge base — expanded...")
+            try:
+                from jobs.skills.kb_search import search_kb, format_result
+                result = await asyncio.to_thread(search_kb, query, "sermons", True)
+                reply = format_result(result)
+                sent = await update.message.reply_text(reply)
+                mark_done(pending_id)
+                from jobs.telegram.pending import store_pending_action
+                store_pending_action("kb_email", sent.message_id, {
+                    "synopsis": result["synopsis"],
+                    "sources": result["sources"],
+                    "query": result["query"],
+                    "collection": "sermons",
+                })
+            except Exception as exc:
+                log.error("Expanded KB search failed: %s", exc)
+                await update.message.reply_text(f"Expanded search failed: {exc}")
             return True
         return False
 
