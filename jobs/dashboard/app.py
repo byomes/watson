@@ -19,6 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from flask import Flask, Response, abort, g, jsonify, redirect, render_template, request, send_file, session, stream_with_context, url_for
 from flask_cors import CORS
 from jobs.people.api import congregation_list, people_create, people_delete, people_get, people_list, people_update
+from jobs.routing.directive_prefixes import DIRECTIVE_PREFIXES
 from config.settings import WATSON_SYSTEM
 from core.vacation import is_vacation_mode, set_vacation_mode, vacation_gate
 
@@ -2566,6 +2567,15 @@ def commands_list_api():
         return jsonify(commands)
     except Exception:
         return jsonify([])
+
+
+@app.route("/api/directives")
+def directives_list_api():
+    """Canonical colon-prefix directives available on the dashboard, straight
+    from jobs/routing/directive_prefixes.py — backs the chat directive
+    dropdown so it can't drift from the registry (2026-07-29)."""
+    prefixes = [p for p, cfg in DIRECTIVE_PREFIXES.items() if cfg["dashboard"]]
+    return jsonify(prefixes)
 
 
 @app.route("/api/skills/<slug>/approve", methods=["POST"])

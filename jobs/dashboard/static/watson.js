@@ -3590,6 +3590,7 @@ async function renderChat() {
   if (msgs) msgs.scrollTop = msgs.scrollHeight;
   const ta = document.getElementById('chat-textarea');
   if (ta) ta.focus();
+  loadDirectivePrefixes(); // fire-and-forget, dedupes via sel.dataset.loaded
   try {
     const res = await fetch('/api/memory/recent');
     const summaries = await res.json();
@@ -3639,7 +3640,27 @@ function renderWithImages(text) {
   return out;
 }
 
-const _DIRECTIVE_PREFIXES = ['kb:', 'cdb:', 'wdb:', 'web:', 'task:', 'note:', 'remind:', 'sms:', 'polish:', 'bible:'];
+// Populated from /api/directives (jobs/routing/directive_prefixes.py) on
+// first chat open — see loadDirectivePrefixes(). Never hardcode this list;
+// it drifted from the registry twice before (2026-07-29).
+let _DIRECTIVE_PREFIXES = [];
+
+async function loadDirectivePrefixes() {
+  const sel = document.getElementById('chat-directive-sel');
+  if (!sel || sel.dataset.loaded) return;
+  try {
+    const prefixes = await api('/api/directives');
+    if (!Array.isArray(prefixes)) return;
+    _DIRECTIVE_PREFIXES = prefixes;
+    for (const p of prefixes) {
+      const opt = document.createElement('option');
+      opt.value = p;
+      opt.textContent = p;
+      sel.appendChild(opt);
+    }
+    sel.dataset.loaded = '1';
+  } catch {}
+}
 
 function applyDirective(prefix) {
   const ta  = document.getElementById('chat-textarea');
