@@ -2,8 +2,9 @@
 """
 sync_and_index.py — Same-day sermon transcript sync and KB indexing.
 
-Closes the 30-day gap between a transcript landing in kb/transcripts/
-(pushed from FMSPC via jobs/generate.py) and it becoming searchable:
+Closes the gap between a transcript landing in kb/transcripts/ (scp'd from
+FMSPC via jobs/generate.py) and it becoming searchable / getting a live
+GitHub raw URL:
 
   1. git pull the Watson repo (fast-forward only) to receive anything
      pushed since the last run.
@@ -18,6 +19,19 @@ Pull safety: fetch + `pull --ff-only` only. Never merges, rebases, or
 resets. Any failure (diverged history, conflicting local changes, network)
 aborts the run with a Telegram alert and leaves the working tree untouched.
 
+The actual logic lives in run_sync(), called from two places:
+  - main() — the nightly 2am cron, unconditional backstop.
+  - jobs/kb/api.py's POST /api/kb/sync-now — triggered by generate.py
+    immediately after a successful scp, so the raw URL (fed into claude.ai
+    weekly for blog drafting) goes live within seconds instead of waiting
+    for the next 2am run. Same code path either way, not a reimplementation.
+
+Both callers can run at any time relative to each other (e.g. a transcript
+lands right at 2am), and both do real git commits/pushes against the same
+working tree — run_sync() is serialized via a file lock (_with_lock) so
+they can never race each other. That race is exactly the bug class this
+whole file exists to eliminate (bug #51 / backlog #24, #29).
+
 Supersedes jobs/kb/archive_transcripts.py's reason for existing — see the
 retirement note at the top of that file.
 
@@ -25,6 +39,7 @@ Usage:
   python jobs/kb/sync_and_index.py
 """
 
+import fcntl
 import logging
 import shutil
 import subprocess
@@ -46,6 +61,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 TRANSCRIPTS_DIR = REPO_ROOT / "kb" / "transcripts"
 DOCUMENTS_DIR = REPO_ROOT / "kb" / "documents"
 COLLECTION_NAME = "sermons"
+LOCK_PATH = REPO_ROOT / "data" / ".kb_sync.lock"
 
 
 def _send_telegram(text: str, priority: str = "normal") -> None:
@@ -119,55 +135,94 @@ def commit_and_push(moved_count: int) -> tuple:
     return True, ""
 
 
+def _with_lock(fn):
+    """Serialize sync runs across processes (cron subprocess vs. Flask
+    request thread) via an OS file lock — fcntl.flock blocks until any
+    other holder releases it, so a cron run and an immediate-trigger run
+    landing close together simply queue instead of racing on git's
+    index.lock.
+    """
+    LOCK_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with open(LOCK_PATH, "w") as fh:
+        fcntl.flock(fh, fcntl.LOCK_EX)
+        try:
+            return fn()
+        finally:
+            fcntl.flock(fh, fcntl.LOCK_UN)
+
+
+def run_sync(source: str = "cron") -> dict:
+    """Core sync logic, callable from the nightly cron (main()) or the
+    immediate post-transfer trigger (jobs/kb/api.py's /api/kb/sync-now).
+
+    Routine success-path Telegram summaries ("nothing new" / "N synced and
+    indexed") only fire for source="cron" — an immediate trigger's caller
+    (generate.py) already tells Bill the outcome from the FMSPC side, so a
+    second routine notice here would just be noise. Failure alerts fire
+    unconditionally regardless of source, since those matter regardless of
+    who triggered the run.
+
+    Returns {"ok": bool, "moved": int, "indexed": int, "error": str|None}.
+    """
+    def _run():
+        pull_ok, pull_msg = pull_repo()
+        if not pull_ok:
+            log.error(pull_msg)
+            _send_telegram(
+                f"🔴 KB sync: git pull failed, needs manual resolution.\n\n{pull_msg[:500]}",
+                priority="system_failure",
+            )
+            return {"ok": False, "moved": 0, "indexed": 0, "error": pull_msg}
+        log.info("Pull ok: %s", pull_msg or "already up to date")
+
+        moved = move_new_transcripts()
+        if not moved:
+            log.info("No new transcripts to sync")
+            if source == "cron":
+                _send_telegram("📂 KB sync: nothing new.")
+            return {"ok": True, "moved": 0, "indexed": 0, "error": None}
+
+        log.info("Moved %d file(s) to kb/documents/", len(moved))
+
+        push_ok, push_msg = commit_and_push(len(moved))
+        if not push_ok:
+            log.error(push_msg)
+            _send_telegram(
+                f"🔴 KB sync: moved {len(moved)} transcript(s) locally but git commit/push failed.\n\n{push_msg[:500]}",
+                priority="system_failure",
+            )
+            return {"ok": False, "moved": len(moved), "indexed": 0, "error": push_msg}
+
+        try:
+            added_chunks = ingest_dir(DOCUMENTS_DIR, COLLECTION_NAME)
+        except Exception as exc:
+            log.exception("KB indexing failed")
+            _send_telegram(
+                f"⚠️ KB sync: {len(moved)} transcript(s) moved and pushed, but indexing failed: {exc}",
+                priority="system_failure",
+            )
+            return {"ok": False, "moved": len(moved), "indexed": 0, "error": str(exc)}
+
+        log.info("Indexed %d new chunk(s)", added_chunks)
+        if source == "cron":
+            _send_telegram(
+                f"📂 KB sync: {len(moved)} new transcript(s) synced and indexed "
+                f"({added_chunks} new chunks in '{COLLECTION_NAME}')."
+            )
+        return {"ok": True, "moved": len(moved), "indexed": added_chunks, "error": None}
+
+    return _with_lock(_run)
+
+
 def main():
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(message)s",
         datefmt="%H:%M:%S",
     )
-
-    pull_ok, pull_msg = pull_repo()
-    if not pull_ok:
-        log.error(pull_msg)
-        _send_telegram(
-            f"🔴 KB sync: git pull failed, needs manual resolution.\n\n{pull_msg[:500]}",
-            priority="system_failure",
-        )
+    result = run_sync(source="cron")
+    if not result["ok"]:
         sys.exit(1)
-    log.info("Pull ok: %s", pull_msg or "already up to date")
-
-    moved = move_new_transcripts()
-    if not moved:
-        log.info("No new transcripts to sync")
-        _send_telegram("📂 KB sync: nothing new.")
-        sys.exit(0)
-
-    log.info("Moved %d file(s) to kb/documents/", len(moved))
-
-    push_ok, push_msg = commit_and_push(len(moved))
-    if not push_ok:
-        log.error(push_msg)
-        _send_telegram(
-            f"🔴 KB sync: moved {len(moved)} transcript(s) locally but git commit/push failed.\n\n{push_msg[:500]}",
-            priority="system_failure",
-        )
-        sys.exit(1)
-
-    try:
-        added_chunks = ingest_dir(DOCUMENTS_DIR, COLLECTION_NAME)
-    except Exception as exc:
-        log.exception("KB indexing failed")
-        _send_telegram(
-            f"⚠️ KB sync: {len(moved)} transcript(s) moved and pushed, but indexing failed: {exc}",
-            priority="system_failure",
-        )
-        sys.exit(1)
-
-    log.info("Indexed %d new chunk(s)", added_chunks)
-    _send_telegram(
-        f"📂 KB sync: {len(moved)} new transcript(s) synced and indexed "
-        f"({added_chunks} new chunks in '{COLLECTION_NAME}')."
-    )
 
 
 if __name__ == "__main__":
