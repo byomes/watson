@@ -12,11 +12,12 @@ OLLAMA_URL = "http://localhost:11434/api/generate"
 OLLAMA_MODEL = "qwen2.5-coder:7b"
 TOP_K = 5
 
-def search(question, k=TOP_K):
+def search(question, k=TOP_K, expanded=False):
     client = chromadb.PersistentClient(path=str(CHROMA_DIR))
     ef = embedding_functions.SentenceTransformerEmbeddingFunction(model_name="all-MiniLM-L6-v2")
     collection = client.get_collection(name="sermons", embedding_function=ef)
-    results = collection.query(query_texts=[question], n_results=k)
+    where = None if expanded else {"source_type": "transcript"}
+    results = collection.query(query_texts=[question], n_results=k, where=where)
     chunks = []
     for doc, meta in zip(results["documents"][0], results["metadatas"][0]):
         chunks.append({"title": meta["title"], "text": doc})
@@ -34,10 +35,10 @@ def synthesize(question, chunks, memory_context=""):
     resp.raise_for_status()
     return resp.json()["response"].strip()
 
-def ask(question):
+def ask(question, expanded=False):
     from jobs.memory_manager import build_context, append_working_memory, detect_topic, append_project_memory
     log.info("Searching knowledge base for: %s", question)
-    chunks = search(question)
+    chunks = search(question, expanded=expanded)
     if not chunks:
         return "No relevant sermons found for that question."
     log.info("Found %d relevant chunks, synthesizing...", len(chunks))
@@ -46,6 +47,8 @@ def ask(question):
     sources = list(dict.fromkeys(c["title"] for c in chunks))
     source_list = "\n".join("- " + s for s in sources)
     result = answer + "\n\nSources:\n" + source_list
+    if not expanded:
+        result += "\n\nSearched sermon & Q&A transcripts only. Reply \"expanded search\" to also include bible study notes."
     append_working_memory(question, answer)
     topic = detect_topic(question)
     if topic:

@@ -36,7 +36,7 @@ def _trim_excerpt(text: str, query: str, window: int = EXCERPT_WINDOW) -> str:
     end = min(len(text), start + window)
     return text[start:end]
 
-def search_kb(query: str, collection_name: str = COLLECTION_NAME) -> dict:
+def search_kb(query: str, collection_name: str = COLLECTION_NAME, expanded: bool = False) -> dict:
     ef = embedding_functions.SentenceTransformerEmbeddingFunction(
         model_name="all-MiniLM-L6-v2",
         device="cpu",
@@ -44,7 +44,10 @@ def search_kb(query: str, collection_name: str = COLLECTION_NAME) -> dict:
     )
     client = chromadb.PersistentClient(path=CHROMA_PATH)
     collection = client.get_collection(collection_name, embedding_function=ef)
-    results = collection.query(query_texts=[query], n_results=3)
+    # source_type tiering only applies to the sermons collection (bible-study-note,
+    # handout, transcript) -- gutenberg/classics chunks have no source_type field.
+    where = {"source_type": "transcript"} if (collection_name == COLLECTION_NAME and not expanded) else None
+    results = collection.query(query_texts=[query], n_results=3, where=where)
 
     chunks = [_trim_excerpt(c, query) for c in results["documents"][0]]
     sources = list(dict.fromkeys([
@@ -60,8 +63,12 @@ def search_kb(query: str, collection_name: str = COLLECTION_NAME) -> dict:
     response.raise_for_status()
     synopsis = response.json().get("response", "").strip()
 
-    return {"synopsis": synopsis, "sources": sources, "query": query}
+    return {"synopsis": synopsis, "sources": sources, "query": query,
+            "collection": collection_name, "expanded": expanded}
 
 def format_result(result: dict) -> str:
     sources_list = "\n".join(f"• {s}" for s in result["sources"])
-    return f"{result['synopsis']}\n\nSources:\n{sources_list}\n\nReply \"email that to me\" to send this to your inbox."
+    out = f"{result['synopsis']}\n\nSources:\n{sources_list}\n\nReply \"email that to me\" to send this to your inbox."
+    if result.get("collection", COLLECTION_NAME) == COLLECTION_NAME and not result.get("expanded", False):
+        out += "\n\nSearched sermon & Q&A transcripts only. Reply \"expanded search\" to also include bible study notes."
+    return out
