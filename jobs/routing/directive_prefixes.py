@@ -28,6 +28,7 @@ DIRECTIVE_PREFIXES: dict = {
     "polish:":    {"telegram": True, "dashboard": True},
     "run:":       {"telegram": True, "dashboard": True},
     "kb:":        {"telegram": True, "dashboard": True},
+    "xkb:":       {"telegram": True, "dashboard": True},
     "devloop:":   {"telegram": True, "dashboard": True, "aliases": ["build:"]},
     # Telegram-only — verified 2026-07-17, not just unported:
     "task:":      {"telegram": True, "dashboard": False},   # dashboard has its own natural-language task-add path

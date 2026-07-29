@@ -630,6 +630,14 @@ def terminal():
         except Exception as _exc:
             return jsonify({"output": f"classics error: {_exc}", "success": False})
 
+    if cmd_lower.startswith("xkb:"):
+        try:
+            from jobs.skills.kb_search import search_kb as _search_kb, format_result as _fmt_kb
+            _kq = cmd[4:].strip()
+            return _pfx_out(_fmt_kb(_search_kb(_kq, "sermons", True)))
+        except Exception as _exc:
+            return jsonify({"output": f"KB error: {_exc}", "success": False})
+
     if cmd_lower.startswith("search the kb:") or cmd_lower.startswith("kb:"):
         try:
             from jobs.skills.kb_search import search_kb as _search_kb, format_result as _fmt_kb
@@ -2567,7 +2575,8 @@ def skill_kb():
     data = request.get_json(force=True) or {}
     text = (data.get("text") or "").strip()
     query = text
-    for prefix in ("search the kb:", "kb:"):
+    expanded = query.lower().startswith("xkb:")
+    for prefix in ("search the kb:", "xkb:", "kb:"):
         if query.lower().startswith(prefix):
             query = query[len(prefix):].strip()
             break
@@ -2575,7 +2584,7 @@ def skill_kb():
         return jsonify({"error": "No query provided"}), 400
     try:
         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-            result = executor.submit(search_kb, query).result()
+            result = executor.submit(search_kb, query, "sermons", expanded).result()
         return jsonify({"result": format_result(result), "query": result["query"]})
     except Exception as exc:
         log.error("KB search error: %s", exc)
@@ -2778,6 +2787,18 @@ def chat_stream():
         from jobs.research.web_search import run as _web_run
         _q = message[4:].strip()
         return _sse_response(_stream_simple(_web_run(_q) or "No results."))
+    if msg_lower.startswith("xkb:"):
+        from jobs.skills.kb_search import search_kb as _xkb_search, format_result as _xkb_fmt
+        _xkb_q = message[len("xkb:"):].strip()
+        def _xkb_stream(q=_xkb_q):
+            yield _emit_status("→ Searching your notes — expanded...")
+            try:
+                result = _xkb_search(q, "sermons", True)
+                yield _sse(_xkb_fmt(result))
+            except Exception as exc:
+                yield _sse(f"Expanded search failed: {exc}")
+            yield "data: [DONE]\n\n"
+        return _sse_response(_xkb_stream())
     if msg_lower.startswith("kb:") or msg_lower.startswith("search the kb:"):
         from jobs.skills.kb_search import search_kb as _kb_prefix_search, format_result as _kb_prefix_fmt
         _pfx_len = len("search the kb:") if msg_lower.startswith("search the kb:") else len("kb:")

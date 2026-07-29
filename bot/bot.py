@@ -661,6 +661,8 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     await update.message.reply_text(_dr or "No results.")
             elif _dpfx == "kb:":
                 await _handle_kb(update, context, text_clean)
+            elif _dpfx == "xkb:":
+                await _handle_kb(update, context, text_clean, expanded=True)
             elif _dpfx == "web:":
                 from jobs.research.web_search import run as _ws_run_d
                 _dr = await asyncio.to_thread(_ws_run_d, _darg)
@@ -815,10 +817,10 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text_clean = text_clean[len(prefix):].strip()
             break
 
-    # KB query — kb: or search the kb: → ChromaDB search
-    for _kb_prefix in ("search the kb:", "kb:"):
+    # KB query — kb:, xkb:, or search the kb: → ChromaDB search
+    for _kb_prefix in ("search the kb:", "xkb:", "kb:"):
         if text_lower.startswith(_kb_prefix):
-            await _handle_kb(update, context, text_clean)
+            await _handle_kb(update, context, text_clean, expanded=(_kb_prefix == "xkb:"))
             log.info("DEBUG pre-check: kb: query (early)")
             return
 
@@ -1550,20 +1552,20 @@ async def _handle_kb_export(update: Update, context: ContextTypes.DEFAULT_TYPE, 
         zip_path.unlink(missing_ok=True)
 
 
-async def _handle_kb(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str) -> None:
+async def _handle_kb(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str, expanded: bool = False) -> None:
     lower = text.lower()
     query = text
-    for prefix in ("search the kb:", "kb:"):
+    for prefix in ("search the kb:", "xkb:", "kb:"):
         if lower.startswith(prefix):
             query = text[len(prefix):].strip()
             break
     if not query:
         await update.message.reply_text("What would you like to search in the knowledge base?")
         return
-    await update.message.reply_text("Searching knowledge base...")
+    await update.message.reply_text("Searching knowledge base — expanded..." if expanded else "Searching knowledge base...")
     try:
         from jobs.skills.kb_search import search_kb, format_result
-        result = await asyncio.to_thread(search_kb, query)
+        result = await asyncio.to_thread(search_kb, query, "sermons", expanded)
         reply = format_result(result)
         sent = await update.message.reply_text(reply)
         _log_telegram_exchange(text, reply)
