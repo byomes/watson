@@ -42,7 +42,7 @@ import jobs.gcal.pending as pending_module
 from jobs.gcal import reasoner
 from jobs.intent.classifier import classify as _classify_intent
 from jobs.memory.prompt_builder import build_prompt
-from jobs.routing.directive_prefixes import telegram_prefixes as _telegram_prefixes, canonicalize as _canonicalize_prefix
+from jobs.routing.directive_prefixes import telegram_prefixes as _telegram_prefixes, canonicalize as _canonicalize_prefix, telegram_help_text as _telegram_help_text
 from jobs.givebutter.templates import first_gift_email, repeat_gift_email
 
 log = logging.getLogger(__name__)
@@ -420,6 +420,8 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not _is_authorized(update):
         return
+    import html as _html
+    directive_help = _html.escape(_telegram_help_text())
     text = (
         "Watson commands:\n"
         "/menu — show interactive menu\n"
@@ -431,6 +433,8 @@ async def handle_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/emailcancel &lt;id&gt; — remove an article from the email queue\n"
         "/saved — show your saved for later list\n"
         "/help — show this message\n\n"
+        "Directive commands (colon-prefixed, generated from the routing registry):\n"
+        f"{directive_help}\n\n"
         "Send <b>#blog</b> followed by markdown to queue a blog draft.\n"
         "Drafts publish automatically Tue/Thu/Sat at 10am.\n\n"
         "Watson add book: Title by Author — link\n"
