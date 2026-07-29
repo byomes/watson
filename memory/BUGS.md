@@ -1,6 +1,6 @@
 # Watson Bug Tracker
 _Auto-generated nightly from bug_tracker. Source of truth is the database — do not hand-edit this file, changes will be overwritten._
-Last generated: 2026-07-28 02:00
+Last generated: 2026-07-29 02:00
 
 ## Open (11)
 | ID | Title | Repo | Discovered |
@@ -20,6 +20,7 @@ Last generated: 2026-07-28 02:00
 ## Recently Resolved (last 30 days)
 | ID | Title | Repo | Resolved | Commit |
 |---|---|---|---|---|
+| 51 | Two 2026-07-27 sermon transcripts landed in kb/documents/ directly and were never indexed | watson | 2026-07-28 15:10:08 | 0a973b8 |
 | 50 | email_intake.py silently dropped HTML-only email bodies (no text/plain fallback) | watson | 2026-07-27 15:49:16 | cb1399e |
 | 49 | Connect Card Bcc copy would fire spurious Ollama-triage Telegram prompt to Bill | watson | 2026-07-27 15:49:16 | 5b9290c |
 | 48 | All Brevo outbound email failing: missing_parameter, name is missing in to | watson | 2026-07-27 13:03:28 | 68a3dd9 |
