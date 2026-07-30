@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-07-29*
+*Generated: 2026-07-30*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -376,6 +376,7 @@ jobs/
     api.py
     archive_transcripts.py
     sync_and_index.py
+    tag_source_types.py
   lead_magnet/
     __init__.py
     api.py
@@ -466,6 +467,7 @@ jobs/
   routing/
     __init__.py
     directive_prefixes.py
+    generate_commands.py
   scheduler.py
   security/
     __init__.py
