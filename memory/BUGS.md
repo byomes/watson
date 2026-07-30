@@ -1,10 +1,11 @@
 # Watson Bug Tracker
 _Auto-generated nightly from bug_tracker. Source of truth is the database — do not hand-edit this file, changes will be overwritten._
-Last generated: 2026-07-29 02:00
+Last generated: 2026-07-30 02:00
 
-## Open (11)
+## Open (12)
 | ID | Title | Repo | Discovered |
 |---|---|---|---|
+| 52 | jobs.skills.kb_search has no run() function but chat_stream imports it | watson | 2026-07-29 08:05:49 |
 | 46 | jobs.browser: goto_safe failed for https://this-domain-does-not-exist-watson-test-12345.invalid/ | watson | 2026-07-22 14:27:51 |
 | 45 | jobs.browser: goto_safe failed for https://this-domain-does-not-exist-watson-test-12345.invalid/ | watson | 2026-07-22 14:26:42 |
 | 44 | jobs.browser: goto_safe failed for https://this-domain-does-not-exist-watson-test-12345.invalid/ | watson | 2026-07-22 14:25:18 |
@@ -20,6 +21,7 @@ Last generated: 2026-07-29 02:00
 ## Recently Resolved (last 30 days)
 | ID | Title | Repo | Resolved | Commit |
 |---|---|---|---|---|
+| 53 | Dashboard Commands panel missing xkb:/debug:/bug:/run: entries | watson | 2026-07-29 08:58:46 | ad78f46 |
 | 51 | Two 2026-07-27 sermon transcripts landed in kb/documents/ directly and were never indexed | watson | 2026-07-28 15:10:08 | 0a973b8 |
 | 50 | email_intake.py silently dropped HTML-only email bodies (no text/plain fallback) | watson | 2026-07-27 15:49:16 | cb1399e |
 | 49 | Connect Card Bcc copy would fire spurious Ollama-triage Telegram prompt to Bill | watson | 2026-07-27 15:49:16 | 5b9290c |
