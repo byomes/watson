@@ -1488,3 +1488,21 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 ### ~/wcky
 - 643b061 Encourage multiple comments in ARC feedback prompt
 - 57737f8 publish: Joshua's Second Pile
+
+---
+
+## Recent Changes — 2026-07-30
+
+### ~/watson
+- 44c3024 fix: generate dashboard directive dropdown from directive_prefixes.py
+- ad78f46 kb: generate commands.json and Telegram /help from the directive registry
+- fb86d54 kb: extend directive registry with menu metadata + fix dispatch gaps found auditing it
+- 9b97e06 kb: add xkb: directive for immediate expanded search
+- 5103453 kb: wire "expanded search" as a follow-up on Telegram and dashboard
+- 326adec kb: default search to transcripts only, add expanded search escape hatch
+- ff2facc kb: tag source_type on ingest + backfill existing sermons chunks
+- 7e442c1 kb: refactor sync_and_index into run_sync() with cross-process file lock
+- a62b005 kb: remove duplicate Joshua Ch1 transcript
+- df0ebc8 docs: file map 2026-07-29
+- 21c4041 docs: bugs/backlog export 2026-07-29
+- 76875ce docs: architecture update 2026-07-29
