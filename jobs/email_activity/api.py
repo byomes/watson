@@ -24,6 +24,7 @@ _TIMEOUT = 15
 _MAX_DAYS = 90
 _DEFAULT_DAYS = 7
 _LIMIT = 500
+EXCLUDED_EMAILS = {"bill.yomes@gmail.com", "pastorbill@catalyst302.com"}
 
 email_activity_bp = Blueprint("email_activity", __name__)
 
@@ -96,4 +97,5 @@ def email_activity():
 
     data = resp.json()
     events = data.get("events") or []
+    events = [e for e in events if (e.get("email") or "").strip().lower() not in EXCLUDED_EMAILS]
     return jsonify([_flatten_event(e) for e in events]), 200
