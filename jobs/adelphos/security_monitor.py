@@ -5,9 +5,14 @@ broader course-development jobs because Adelphos is under active
 fraudulent-signup abuse (2026-07-31). Live as of 2026-08-01 against the
 scoped watson_users Moodle service.
 
-Delete is a two-tap confirm flow handled in bot.py / actions.py: the first
-tap only asks for confirmation, the second tap fires core_user_delete_users
-(true deletion, not suspend — per Bill's 2026-08-01 decision).
+The watermark ("have we alerted on this user id before?") is derived from
+MAX(moodle_user_id) in adelphos_new_accounts — there's no separate watermark
+table. On a genuinely empty table (first run, or after a table reset), that
+derives to 0, which would otherwise make every pre-existing Moodle account
+look like a brand-new signup and fire one alert per account (this happened
+during 2026-08-01 testing — 38 spurious alerts on real accounts). To avoid
+repeating that, a first run seeds one 'pre_existing' row per current account
+with no Telegram alert, then real new-signup detection starts on the next run.
 
 Cron (every 5 min — tight interval given active, ongoing abuse):
   */5 * * * * PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python \
@@ -15,6 +20,7 @@ Cron (every 5 min — tight interval given active, ongoing abuse):
     >> /home/billyomes/watson/logs/adelphos_security_monitor.log 2>&1
 """
 import logging
+from datetime import datetime, timezone
 
 import requests
 
@@ -61,9 +67,7 @@ def run() -> None:
     create_tables()
 
     with get_connection() as conn:
-        last_seen_id = conn.execute(
-            "SELECT COALESCE(MAX(moodle_user_id), 0) FROM adelphos_new_accounts"
-        ).fetchone()[0]
+        row_count = conn.execute("SELECT COUNT(*) FROM adelphos_new_accounts").fetchone()[0]
 
         try:
             users = _fetch_all_users()
@@ -73,6 +77,32 @@ def run() -> None:
         except Exception as exc:
             log.error("Failed to fetch Moodle users: %s", exc)
             return
+
+        if row_count == 0:
+            now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+            for u in users:
+                conn.execute(
+                    """INSERT OR IGNORE INTO adelphos_new_accounts
+                       (moodle_user_id, fullname, email, username, signup_timestamp,
+                        source_ip, status, resolved_at)
+                       VALUES (?, ?, ?, ?, ?, ?, 'pre_existing', ?)""",
+                    (
+                        u.get("id", 0),
+                        u.get("fullname") or f"{u.get('firstname', '')} {u.get('lastname', '')}".strip(),
+                        u.get("email", ""),
+                        u.get("username", ""),
+                        u.get("timecreated"),
+                        u.get("lastip") or "",
+                        now,
+                    ),
+                )
+            conn.commit()
+            log.info("First run — seeded %d pre-existing account(s) without alerting.", len(users))
+            return
+
+        last_seen_id = conn.execute(
+            "SELECT COALESCE(MAX(moodle_user_id), 0) FROM adelphos_new_accounts"
+        ).fetchone()[0]
 
         new_users = sorted(
             (u for u in users if u.get("id", 0) > last_seen_id),
