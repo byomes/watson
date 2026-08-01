@@ -3416,6 +3416,96 @@ async def handle_curator_callback(update: Update, context: ContextTypes.DEFAULT_
         )
 
 
+def _adelphos_alert_text(account: dict) -> str:
+    """Rebuilds the original signup-alert text from a stored row — used to
+    restore the message when a pending delete is cancelled. Must stay in
+    sync with the template in jobs/adelphos/security_monitor.py.
+    """
+    text = (
+        f"🚨 New Adelphos Academy signup\n\n"
+        f"Name: {account.get('fullname')}\n"
+        f"Email: {account.get('email')}\n"
+        f"Username: {account.get('username')}\n"
+        f"Signed up: {account.get('signup_timestamp')}\n"
+    )
+    if account.get("source_ip"):
+        text += f"IP: {account['source_ip']}\n"
+    return text
+
+
+def _adelphos_alert_keyboard(moodle_id: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([[
+        InlineKeyboardButton("🗑 Delete", callback_data=f"adelphos_delete_{moodle_id}"),
+        InlineKeyboardButton("✅ Allow to stay", callback_data=f"adelphos_allow_{moodle_id}"),
+    ]])
+
+
+async def handle_adelphos_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle adelphos_delete_/adelphos_confirmdelete_/adelphos_canceldelete_/
+    adelphos_allow_ button taps from security_monitor.py.
+
+    Delete is a two-tap flow: the first tap (adelphos_delete_) only asks for
+    confirmation — it does not touch Moodle. The second tap
+    (adelphos_confirmdelete_) fires the actual core_user_delete_users call.
+    adelphos_canceldelete_ reverts to the original Delete/Allow message.
+    """
+    query = update.callback_query
+    await query.answer()
+    if not _is_authorized(update):
+        return
+
+    from jobs.adelphos.actions import (
+        cancel_delete,
+        mark_delete_pending,
+        resolve_allow,
+        resolve_delete,
+    )
+
+    if query.data.startswith("adelphos_confirmdelete_"):
+        moodle_id = int(query.data[len("adelphos_confirmdelete_"):])
+        try:
+            account = await asyncio.to_thread(resolve_delete, moodle_id)
+        except Exception as exc:
+            log.error("adelphos delete failed (moodle_user_id=%d): %s", moodle_id, exc)
+            await query.edit_message_text(f"{query.message.text}\n\n❌ Delete failed: {exc}", reply_markup=None)
+            return
+        if not account:
+            await query.edit_message_text("Account not found.", reply_markup=None)
+            return
+        await query.edit_message_text(f"{query.message.text}\n\n🗑 Deleted ✅", reply_markup=None)
+
+    elif query.data.startswith("adelphos_canceldelete_"):
+        moodle_id = int(query.data[len("adelphos_canceldelete_"):])
+        account = await asyncio.to_thread(cancel_delete, moodle_id)
+        if not account:
+            await query.edit_message_text("Account not found.", reply_markup=None)
+            return
+        await query.edit_message_text(
+            _adelphos_alert_text(account), reply_markup=_adelphos_alert_keyboard(moodle_id)
+        )
+
+    elif query.data.startswith("adelphos_delete_"):
+        moodle_id = int(query.data[len("adelphos_delete_"):])
+        account = await asyncio.to_thread(mark_delete_pending, moodle_id)
+        if not account:
+            await query.edit_message_text("Account not found.", reply_markup=None)
+            return
+        fullname = account.get("fullname") or account.get("username") or str(moodle_id)
+        keyboard = InlineKeyboardMarkup([[
+            InlineKeyboardButton("⚠️ Confirm", callback_data=f"adelphos_confirmdelete_{moodle_id}"),
+            InlineKeyboardButton("↩️ Cancel", callback_data=f"adelphos_canceldelete_{moodle_id}"),
+        ]])
+        await query.edit_message_text(f"Confirm delete for {fullname}?", reply_markup=keyboard)
+
+    elif query.data.startswith("adelphos_allow_"):
+        moodle_id = int(query.data[len("adelphos_allow_"):])
+        account = await asyncio.to_thread(resolve_allow, moodle_id)
+        if not account:
+            await query.edit_message_text("Account not found.", reply_markup=None)
+            return
+        await query.edit_message_text(f"{query.message.text}\n\n✅ Allowed to stay", reply_markup=None)
+
+
 async def handle_ask(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not _is_authorized(update):
         return
@@ -4099,6 +4189,7 @@ def main():
     app.add_handler(CallbackQueryHandler(handle_devloop_callback,         pattern=r"^devloop_"))
     app.add_handler(CallbackQueryHandler(handle_git_sync_callback,        pattern=r"^gs_"))
     app.add_handler(CallbackQueryHandler(handle_merge_conflict_callback,  pattern=r"^(merge_old_|merge_new_|skip_|different_)\d+$"))
+    app.add_handler(CallbackQueryHandler(handle_adelphos_callback, pattern=r"^adelphos_(delete|confirmdelete|canceldelete|allow)_\d+$"))
     app.add_handler(CallbackQueryHandler(handle_benchmark_callback, pattern=r"^bench_(update|ignore):\d+$"))
     app.add_handler(CallbackQueryHandler(handle_member_conflict_callback, pattern=r"^mc_"))
     app.add_handler(CallbackQueryHandler(handle_batch_update_callback, pattern=r"^bu_"))

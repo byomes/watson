@@ -57,3 +57,25 @@ fires only on failure. Remove after 2026-07-18 (two-week trial run).
 ```
 
 (Daily, 8am — remove 2026-07-18)
+
+---
+
+# Adelphos Academy — New Account Security Monitor — Cron Entry
+
+Priority 1 build (2026-07-31) in response to active fraudulent signups on
+www.adelphosonline.com. Add this to crontab (`crontab -e`) to poll for new
+Moodle account signups every 5 minutes and alert Bill via Telegram with
+Suspend/Allow buttons.
+
+**Blocked as of 2026-07-31:** `core_user_get_users` and `core_user_update_users`
+are not yet enabled on the Moodle external service tied to
+`ADELPHOS_MOODLE_TOKEN` — the job will log a `MoodleAPIError` and exit
+without alerting until those functions are added in Moodle admin (Site
+administration > Server > Web services > External services). Safe to install
+the cron entry now; it'll start working the moment the Moodle side is fixed.
+
+```
+*/5 * * * * PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python /home/billyomes/watson/jobs/adelphos/security_monitor.py >> /home/billyomes/watson/logs/adelphos_security_monitor.log 2>&1
+```
+
+(Every 5 minutes)
