@@ -1,6 +1,6 @@
 # Watson Project Backlog
 _Auto-generated nightly from project_backlog. Source of truth is the database — do not hand-edit this file, changes will be overwritten._
-Last generated: 2026-07-30 02:00
+Last generated: 2026-08-01 02:00
 
 ## Planned (25)
 | ID | Title | Summary | Added |
