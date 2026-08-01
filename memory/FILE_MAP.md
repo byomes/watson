@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-07-30*
+*Generated: 2026-08-01*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -151,6 +151,12 @@ jobs/
   acquired/
     chump.py
     send.py
+  adelphos/
+    __init__.py
+    actions.py
+    client.py
+    schema.py
+    security_monitor.py
   arc/
     __init__.py
     api.py
