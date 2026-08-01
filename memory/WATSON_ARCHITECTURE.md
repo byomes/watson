@@ -1,5 +1,5 @@
 # Watson Architecture
-*Single source of truth. Last updated: July 27, 2026.*
+*Single source of truth. Last updated: August 1, 2026.*
 *Claude Code must read this file before any build.*
 
 ---
@@ -122,7 +122,7 @@ Watson acts on Dr. Bill's behalf under his supervision. Always identified openly
 | `watson.tail0243ff.ts.net` | — | Watson dashboard (public via Funnel) |
 | `watson-admin.vercel.app` | `byomes/watson-admin` | Book/reader management admin |
 | `faithmakessense.com` | `byomes/fms` (planned) | FMS ministry site — rebuild pending |
-| `adelphosacademy.com` | — | Moodle 5.0 theology school |
+| `www.adelphosonline.com` | — | Moodle 5.0 theology school (`adelphosacademy.com` is a stale/wrong domain — do not build against it) |
 | `bodyrec.vercel.app` | `byomes/bodyrec` | Body composition tracker (bill/mel profiles), backed by Watson API |
 
 ---
@@ -670,11 +670,23 @@ Wired into both `bot.py` and `jobs/dev_loop/loop.py`.
 
 ## Adelphos Academy
 
-- **URL:** `adelphosacademy.com`
+- **URL:** `www.adelphosonline.com` (`adelphosacademy.com` is stale/wrong — returns HTTP 465, do not use)
 - **Platform:** Moodle 5.0
-- **Moodle REST API:** Confirmed enabled
-- **Planned Watson jobs:** Lesson builder, quiz generator, course spec system, weekly monitoring digest, student stuck alert, course announcement emails, student welcome message
-- **Status:** In build queue — not yet started
+- **Moodle REST API:** `jobs/adelphos/client.py`, token in `.env` as `ADELPHOS_MOODLE_TOKEN`, scoped to a
+  dedicated `watson_users` Moodle service/role (not the site-admin account)
+- **New Account Security Monitor (Priority 1) — SHIPPED 2026-08-01:** Built ahead of the course-dev
+  jobs below in response to active fraudulent-signup abuse starting 2026-07-31.
+  `jobs/adelphos/security_monitor.py` polls `core_user_get_users` every 5 minutes (cron installed
+  2026-08-01) and alerts Bill via Telegram with Delete/Allow buttons. Delete is a two-tap confirm flow
+  (`jobs/adelphos/actions.py` + `bot/bot.py`'s `handle_adelphos_callback`) that fires
+  `core_user_delete_users` — **true deletion, not suspend**, per Bill's explicit decision. Allow just
+  resolves the alert with no Moodle call. A first-run watermark-seeding fix avoids re-alerting on
+  every pre-existing account when the `adelphos_new_accounts` table is empty. Full live end-to-end
+  test passed 2026-08-01 (real throwaway account created, alerted, deleted via two real Telegram taps,
+  confirmed gone from Moodle).
+- **Remaining course-development jobs (Priority 2, deferred, not started):** Lesson builder, quiz
+  generator, course spec system, weekly monitoring digest, student stuck alert, course announcement
+  emails, student welcome message.
 
 ---
 
@@ -797,7 +809,7 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 13. Book development job — `jobs/book/research_brief.py`
 14. Transcription backlog — 10 years of sermon audio on FMSPC
 15. Weekly email end-to-end test
-16. Adelphos Academy Watson integration (8 planned jobs)
+16. Adelphos Academy course-development jobs (7 remaining, Priority 2) — Security Monitor shipped 2026-08-01, see "Adelphos Academy" section
 17. Watson self-improvement system — architecture approved, build deferred
 
 ---
