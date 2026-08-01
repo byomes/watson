@@ -1506,3 +1506,10 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - df0ebc8 docs: file map 2026-07-29
 - 21c4041 docs: bugs/backlog export 2026-07-29
 - 76875ce docs: architecture update 2026-07-29
+
+---
+
+## Recent Changes — 2026-08-01
+
+### ~/watson
+- 50903b9 fix: exclude Bill's own addresses from Email Activity tile
