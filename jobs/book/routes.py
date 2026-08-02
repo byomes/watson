@@ -17,8 +17,9 @@ import threading
 
 from flask import Blueprint, jsonify, request, send_file
 
+from config.settings import GOOGLE_FONTS_API_KEY
 from core.database import get_connection
-from jobs.book import cover_comps
+from jobs.book import cover_comps, font_finder
 
 log = logging.getLogger(__name__)
 
@@ -139,6 +140,29 @@ def cover_concept_preview(concept_id):
     if path is None:
         return jsonify({"success": False, "error": "concept not found"}), 404
     return jsonify({"success": True, "preview_image_path": path})
+
+
+@book_bp.route("/api/cover-comps/font-suggestions", methods=["POST"])
+def cover_font_suggestions_create():
+    data = request.get_json(force=True) or {}
+    series_id = data.get("series_id")
+
+    if not series_id:
+        return jsonify({"error": "series_id is required"}), 400
+    if not GOOGLE_FONTS_API_KEY:
+        return jsonify({"error": "GOOGLE_FONTS_API_KEY is not set in ~/watson/.env"}), 400
+
+    # Same backgrounded idiom as /api/cover-comps — a Google Fonts fetch plus
+    # an Ollama call plus per-pairing PIL rendering can run for a while;
+    # results arrive on Telegram as each one clears validation.
+    def _run():
+        try:
+            font_finder.suggest_fonts(int(series_id))
+        except Exception as exc:
+            log.error("font_finder.suggest_fonts failed for series_id=%s: %s", series_id, exc)
+
+    threading.Thread(target=_run, daemon=True).start()
+    return jsonify({"success": True, "status": "generating"}), 202
 
 
 @book_bp.route("/api/cover-concepts/<int:concept_id>/preview-image")

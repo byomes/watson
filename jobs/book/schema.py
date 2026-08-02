@@ -54,7 +54,21 @@ CREATE TABLE IF NOT EXISTS cover_concepts (
 );
 """
 
-ALL_TABLES = [CREATE_SERIES, CREATE_FONT_LIBRARY, CREATE_SYMBOLS_USED, CREATE_CONCEPTS]
+CREATE_FONT_SUGGESTIONS = """
+CREATE TABLE IF NOT EXISTS cover_font_suggestions (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    series_id           INTEGER NOT NULL REFERENCES cover_series(id),
+    run_timestamp       TEXT NOT NULL DEFAULT (datetime('now')),
+    display_family      TEXT NOT NULL,
+    body_family         TEXT NOT NULL,
+    rationale           TEXT,
+    preview_image_path  TEXT,
+    status              TEXT NOT NULL DEFAULT 'proposed'
+                        CHECK (status IN ('proposed','approved','rejected'))
+);
+"""
+
+ALL_TABLES = [CREATE_SERIES, CREATE_FONT_LIBRARY, CREATE_SYMBOLS_USED, CREATE_CONCEPTS, CREATE_FONT_SUGGESTIONS]
 
 # Small fixed library, seeded once — serif display, restrained weight, no
 # script/decorative faces, per the build spec's house-style rule.
