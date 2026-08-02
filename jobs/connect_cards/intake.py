@@ -1,9 +1,18 @@
 """
 Connect card Gmail intake parser.
 
-Polls Watson's Gmail inbox (IMAP) for connect card submission emails from
-no-reply@snappages.com, parses each one, inserts into congregation.db,
-marks email as read.
+Polls Watson's Gmail INBOX (IMAP) directly -- not a Gmail label -- for
+connect card submission emails matching one of KNOWN_FORMATS below, parses
+each one, inserts into congregation.db, marks email as read.
+
+Previously scoped to the "connect-cards" Gmail label (a filter rule
+configured outside this repo, matching only the original Subsplash/Snappages
+sender+subject). When the church replaced that form with the self-hosted
+wcky /tools/connect-card form on 2026-07-27 (commit 8f9fdec), the Gmail
+filter never matched the new sender/subject, so nothing was ever labeled and
+this job silently stopped seeing new submissions -- discovered 2026-08-02.
+Switched to searching INBOX directly so a label/filter change can never
+silently break intake again.
 
 Configuration:
   WATSON_GMAIL_ADDRESS      Gmail login address
@@ -14,8 +23,8 @@ Usage:
   python3 -m jobs.connect_cards.intake --dry-run
 
 Cron (every 30 minutes):
-  */30 * * * * cd /home/billyomes/watson && PYTHONPATH=/home/billyomes/watson \\
-    python3 -m jobs.connect_cards.intake >> /home/billyomes/watson/logs/connect_cards.log 2>&1
+  */30 * * * * PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python \\
+    /home/billyomes/watson/jobs/connect_cards/intake.py >> /home/billyomes/watson/logs/intake.log 2>&1
 """
 
 import argparse
@@ -49,9 +58,28 @@ GMAIL_PASS = os.getenv("WATSON_GMAIL_APP_PASSWORD", "")
 
 DB_PATH = os.path.expanduser("~/watson/data/congregation.db")
 
-EXPECTED_SENDER     = "no-reply@snappages.com"
-EXPECTED_SUBJECT    = "Catalyst Connect Card - Submission"
-EXPECTED_FIRST_LINE = "http://snappages.com"
+EXPECTED_FIRST_LINE = "http://snappages.com"  # unused (dead), left as-is -- not part of this fix
+
+# Two known connect-card submission email formats. The original Subsplash
+# (via Snappages) form and the self-hosted wcky /tools/connect-card form
+# that replaced it 2026-07-27 (commit 8f9fdec) are both accepted -- a
+# straggler using an old QR code/link can still arrive via the first path.
+# IMAP SUBJECT search can't carry the non-ASCII em dash in the new format's
+# subject ("Connect Card — {Campus} — {Name}"), so imap_subject below is an
+# ASCII-safe substring for the server-side search; subject_match() does the
+# exact check once the message is fetched.
+KNOWN_FORMATS = [
+    {
+        "sender":        "no-reply@snappages.com",
+        "imap_subject":  "Catalyst Connect Card - Submission",
+        "subject_match": lambda s: s == "Catalyst Connect Card - Submission",
+    },
+    {
+        "sender":        "watson@williamckyomes.com",
+        "imap_subject":  "Connect Card",
+        "subject_match": lambda s: s.startswith("Connect Card — "),
+    },
+]
 
 CAMPUS_MAP = {
     "Wilmington Campus": "Wilmington",
@@ -341,9 +369,6 @@ def _resolve_member(
 
 def _process_email(msg, dry_run: bool, conn: sqlite3.Connection) -> bool:
     from_addr = email.utils.parseaddr(msg.get("From", ""))[1].lower()
-    if from_addr != EXPECTED_SENDER:
-        log.info("Skipped (sender mismatch): %r", from_addr)
-        return False
 
     raw_subject = msg.get("Subject", "")
     parts = email.header.decode_header(raw_subject)
@@ -351,8 +376,13 @@ def _process_email(msg, dry_run: bool, conn: sqlite3.Connection) -> bool:
         p.decode(c or "utf-8") if isinstance(p, bytes) else p
         for p, c in parts
     )
-    if subject != EXPECTED_SUBJECT:
-        log.info("Skipped (subject mismatch): %r", subject)
+
+    known = any(
+        from_addr == f["sender"] and f["subject_match"](subject)
+        for f in KNOWN_FORMATS
+    )
+    if not known:
+        log.info("Skipped (sender/subject mismatch): from=%r subject=%r", from_addr, subject)
         return False
 
     html = _get_html_part(msg)
@@ -508,6 +538,15 @@ def backfill_new_columns() -> None:
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
+def _build_search_query() -> str:
+    """OR together an IMAP (FROM ... SUBJECT ...) clause per KNOWN_FORMATS entry."""
+    clauses = [f'(FROM "{f["sender"]}" SUBJECT "{f["imap_subject"]}")' for f in KNOWN_FORMATS]
+    query = clauses[0]
+    for clause in clauses[1:]:
+        query = f"(OR {query} {clause})"
+    return query
+
+
 def run(dry_run: bool = False) -> None:
     _migrate_columns()
     if not GMAIL_ADDR or not GMAIL_PASS:
@@ -522,11 +561,8 @@ def run(dry_run: bool = False) -> None:
         return
 
     try:
-        mail.select('"connect-cards"')
-        status, data = mail.search(
-            None,
-            f'(FROM "{EXPECTED_SENDER}" SUBJECT "{EXPECTED_SUBJECT}")',
-        )
+        mail.select('"INBOX"')
+        status, data = mail.search(None, _build_search_query())
         if status != "OK":
             log.error("IMAP search failed: %s", status)
             return
