@@ -506,7 +506,8 @@ html, body {
 .mbtn-d { border-color: var(--red); color: var(--red); background: none; }
 .mbtn-sm { display: inline-block; width: auto; padding: 5px 10px; font-size: 11px; margin-bottom: 0; }
 .mform { background: var(--bg); border: 1px solid var(--border); border-radius: var(--r-card); padding: 12px; margin-bottom: 10px; }
-.mform input, .mform textarea { display: block; width: 100%; margin-bottom: 8px; padding: 8px 10px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-btn); color: var(--text); font-family: inherit; font-size: 13px; outline: none; }
+.mform input:not([type="checkbox"]), .mform textarea { display: block; width: 100%; margin-bottom: 8px; padding: 8px 10px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-btn); color: var(--text); font-family: inherit; font-size: 13px; outline: none; }
+.mform input[type="checkbox"] { flex: 0 0 auto; width: auto; margin: 0; }
 .mform input:focus, .mform textarea:focus { border-color: var(--gold); }
 .mfrow { display: flex; gap: 8px; }
 .mfrow .mbtn { margin-bottom: 0; }

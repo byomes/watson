@@ -4638,9 +4638,9 @@ async function coverCompsShowNewSeriesForm(lockedName) {
       <input id="cc-ns-palette" type="text" placeholder="Palette hex values, comma-separated (4-6, e.g. #1a1a1a, #f4ede0) *">
       <label style="font-size:12px;color:var(--muted);margin-top:6px;display:block">Font pairings (select at least one)</label>
       ${fonts.map(f => `
-        <label style="display:flex;align-items:center;gap:6px;font-size:13px;margin:4px 0">
-          <input type="checkbox" class="cc-ns-font" value="${f.id}">
-          ${esc(f.display_face)} / ${esc(f.body_face)}
+        <label style="display:flex;align-items:flex-start;gap:6px;font-size:13px;margin:4px 0">
+          <input type="checkbox" class="cc-ns-font" value="${f.id}" style="margin-top:2px">
+          <span style="flex:1;min-width:0;text-align:left">${esc(f.display_face)} / ${esc(f.body_face)}</span>
         </label>`).join('')}
       <div id="cc-ns-err" style="display:none;font-size:12px;color:var(--red);margin:6px 0"></div>
       <div class="mfrow">
