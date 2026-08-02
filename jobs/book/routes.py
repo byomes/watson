@@ -144,25 +144,67 @@ def cover_concept_preview(concept_id):
 
 @book_bp.route("/api/cover-comps/font-suggestions", methods=["POST"])
 def cover_font_suggestions_create():
+    """Stage 1 (narrow, ~47s+, Fonts API + Ollama) + stage 2 (render,
+    fast) chained together — the first full run for a bucket. Later
+    title/subtitle edits should call /rerender instead, which reuses
+    this run's cached candidate list and skips stage 1 entirely."""
     data = request.get_json(force=True) or {}
     series_id = data.get("series_id")
+    title = (data.get("title") or "").strip()
+    subtitle = (data.get("subtitle") or "").strip()
 
     if not series_id:
         return jsonify({"error": "series_id is required"}), 400
+    if not title:
+        return jsonify({"error": "title is required"}), 400
     if not GOOGLE_FONTS_API_KEY:
         return jsonify({"error": "GOOGLE_FONTS_API_KEY is not set in ~/watson/.env"}), 400
 
-    # Same backgrounded idiom as /api/cover-comps — a Google Fonts fetch plus
-    # an Ollama call plus per-pairing PIL rendering can run for a while;
-    # results arrive on Telegram as each one clears validation.
     def _run():
         try:
-            font_finder.suggest_fonts(int(series_id))
+            batch_id = font_finder.narrow_fonts(int(series_id))
+            font_finder.render_batch(batch_id, title, subtitle)
         except Exception as exc:
-            log.error("font_finder.suggest_fonts failed for series_id=%s: %s", series_id, exc)
+            log.error("font_finder narrow+render failed for series_id=%s: %s", series_id, exc)
 
     threading.Thread(target=_run, daemon=True).start()
     return jsonify({"success": True, "status": "generating"}), 202
+
+
+@book_bp.route("/api/cover-comps/font-suggestions/rerender", methods=["POST"])
+def cover_font_suggestions_rerender():
+    """Stage 2 only — no Fonts API call, no Ollama call. Re-renders the
+    most recent batch for this bucket against a new title/subtitle."""
+    data = request.get_json(force=True) or {}
+    series_id = data.get("series_id")
+    title = (data.get("title") or "").strip()
+    subtitle = (data.get("subtitle") or "").strip()
+
+    if not series_id:
+        return jsonify({"error": "series_id is required"}), 400
+    if not title:
+        return jsonify({"error": "title is required"}), 400
+
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT id FROM cover_font_suggestion_batches WHERE series_id=? ORDER BY id DESC LIMIT 1",
+            (series_id,),
+        ).fetchone()
+    finally:
+        conn.close()
+    if not row:
+        return jsonify({"error": "no font-suggestion batch found for this bucket yet — run Suggest Fonts first"}), 404
+    batch_id = row["id"]
+
+    def _run():
+        try:
+            font_finder.render_batch(batch_id, title, subtitle)
+        except Exception as exc:
+            log.error("font_finder.render_batch failed for batch_id=%s: %s", batch_id, exc)
+
+    threading.Thread(target=_run, daemon=True).start()
+    return jsonify({"success": True, "status": "rendering"}), 202
 
 
 @book_bp.route("/api/cover-concepts/<int:concept_id>/preview-image")

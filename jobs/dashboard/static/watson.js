@@ -4693,12 +4693,18 @@ function coverCompsShowGenForm() {
   const el = document.getElementById('cc-gen-form');
   el.innerHTML = `
     <div class="mform">
-      <div class="mfrow" style="margin-bottom:8px;align-items:center">
-        <button class="mbtn mbtn-sm" onclick="coverCompsSuggestFonts()">Suggest Fonts</button>
-        <span id="cc-fonts-status" style="font-size:12px;color:var(--muted)"></span>
+      <div style="border:1px solid var(--border);border-radius:var(--r-card);padding:10px;margin-bottom:12px">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Font preview text</div>
+        <input id="cc-fonts-title" type="text" placeholder="Preview Title *" oninput="coverCompsFontsValidate()">
+        <input id="cc-fonts-subtitle" type="text" placeholder="Preview Subtitle (optional)">
+        <div class="mfrow" style="margin-top:6px;align-items:center">
+          <button class="mbtn mbtn-sm" id="cc-fonts-suggest-btn" onclick="coverCompsSuggestFonts()" disabled>Suggest Fonts</button>
+          <button class="mbtn mbtn-sm" id="cc-fonts-rerender-btn" onclick="coverCompsRerenderFonts()" style="display:none" disabled>Re-render</button>
+        </div>
+        <div id="cc-fonts-status" style="font-size:12px;color:var(--muted);margin-top:6px"></div>
       </div>
-      <input id="cc-gen-title" type="text" placeholder="Title / working title *">
-      <input id="cc-gen-subtitle" type="text" placeholder="Subtitle (optional)">
+      <input id="cc-gen-title" type="text" placeholder="Title / working title *" onblur="coverCompsSyncFontsPreview()">
+      <input id="cc-gen-subtitle" type="text" placeholder="Subtitle (optional)" onblur="coverCompsSyncFontsPreview()">
       <textarea id="cc-gen-theme" rows="2" placeholder="Core argument or theme (1-2 sentences) *"></textarea>
       <textarea id="cc-gen-concepts" rows="2" placeholder="Key concepts/images already in the source material (optional)"></textarea>
       <div id="cc-gen-err" style="display:none;font-size:12px;color:var(--red);margin:6px 0"></div>
@@ -4710,16 +4716,63 @@ function coverCompsShowGenForm() {
   el.style.display = 'block';
 }
 
+// Preview Title/Subtitle default from the book title/subtitle above, once,
+// without clobbering anything Bill's already typed directly into them —
+// preview text is scoped to this review session only, never persisted.
+function coverCompsSyncFontsPreview() {
+  const fontsTitle = document.getElementById('cc-fonts-title');
+  const fontsSub = document.getElementById('cc-fonts-subtitle');
+  if (fontsTitle && !fontsTitle.value.trim()) {
+    fontsTitle.value = document.getElementById('cc-gen-title').value;
+  }
+  if (fontsSub && !fontsSub.value.trim()) {
+    fontsSub.value = document.getElementById('cc-gen-subtitle').value;
+  }
+  coverCompsFontsValidate();
+}
+
+function coverCompsFontsValidate() {
+  const title = (document.getElementById('cc-fonts-title')?.value || '').trim();
+  const suggestBtn = document.getElementById('cc-fonts-suggest-btn');
+  const rerenderBtn = document.getElementById('cc-fonts-rerender-btn');
+  if (suggestBtn) suggestBtn.disabled = !title;
+  if (rerenderBtn && rerenderBtn.style.display !== 'none') rerenderBtn.disabled = !title;
+}
+
 async function coverCompsSuggestFonts() {
+  const title = (document.getElementById('cc-fonts-title').value || '').trim();
+  const subtitle = (document.getElementById('cc-fonts-subtitle').value || '').trim();
   const statusEl = document.getElementById('cc-fonts-status');
-  statusEl.textContent = 'Requesting suggestions…';
+  if (!title) return;
+  statusEl.textContent = 'Requesting suggestions… (narrowing can take a minute or two)';
   try {
     await api('/api/cover-comps/font-suggestions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ series_id: _coverSelectedSeriesId }),
+      body: JSON.stringify({ series_id: _coverSelectedSeriesId, title, subtitle }),
     });
     statusEl.textContent = 'Generating — pairings will arrive on Telegram for review shortly.';
+    const rerenderBtn = document.getElementById('cc-fonts-rerender-btn');
+    rerenderBtn.style.display = '';
+    rerenderBtn.disabled = !title;
+  } catch (e) {
+    statusEl.textContent = 'Failed: ' + e.message;
+  }
+}
+
+async function coverCompsRerenderFonts() {
+  const title = (document.getElementById('cc-fonts-title').value || '').trim();
+  const subtitle = (document.getElementById('cc-fonts-subtitle').value || '').trim();
+  const statusEl = document.getElementById('cc-fonts-status');
+  if (!title) return;
+  statusEl.textContent = 'Re-rendering previews…';
+  try {
+    await api('/api/cover-comps/font-suggestions/rerender', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ series_id: _coverSelectedSeriesId, title, subtitle }),
+    });
+    statusEl.textContent = 'Re-rendered — updated previews sent to Telegram.';
   } catch (e) {
     statusEl.textContent = 'Failed: ' + e.message;
   }
