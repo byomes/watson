@@ -4559,16 +4559,56 @@ async function coverCompsLoad() {
   }
   el.innerHTML = `
     <div class="mform">
-      <label style="font-size:12px;color:var(--muted)">Series</label>
-      <select id="cc-series-select" onchange="coverCompsSelectSeries(this.value)">
-        <option value="">Select a series&hellip;</option>
-        ${_coverSeries.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('')}
-        <option value="__new__">+ New Series</option>
-      </select>
+      <label style="font-size:12px;color:var(--muted)">Is this part of a series?</label>
+      <div class="mfrow">
+        <button class="mbtn mbtn-p" id="cc-mode-no" onclick="coverCompsSetMode(false)">No (Standalone)</button>
+        <button class="mbtn" id="cc-mode-yes" onclick="coverCompsSetMode(true)">Yes, part of a series</button>
+      </div>
+    </div>
+    <div id="cc-series-picker" style="display:none">
+      <div class="mform">
+        <label style="font-size:12px;color:var(--muted)">Series</label>
+        <select id="cc-series-select" onchange="coverCompsSelectSeries(this.value)">
+          <option value="">Select a series&hellip;</option>
+          ${_coverSeries.filter(s => s.name !== 'Standalone').map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('')}
+          <option value="__new__">+ New Series</option>
+        </select>
+      </div>
     </div>
     <div id="cc-new-series-form" style="display:none"></div>
     <div id="cc-gen-form" style="display:none"></div>
     <div id="cc-concepts-list"></div>`;
+  // No (Standalone) is the default path — most of Bill's catalog is
+  // standalone titles, not formal series.
+  coverCompsSetMode(false);
+}
+
+function coverCompsSetMode(isSeries) {
+  document.getElementById('cc-mode-no').classList.toggle('mbtn-p', !isSeries);
+  document.getElementById('cc-mode-yes').classList.toggle('mbtn-p', isSeries);
+  document.getElementById('cc-new-series-form').style.display = 'none';
+  document.getElementById('cc-gen-form').style.display = 'none';
+  document.getElementById('cc-concepts-list').innerHTML = '';
+  _coverSelectedSeriesId = null;
+
+  const picker = document.getElementById('cc-series-picker');
+  if (isSeries) {
+    picker.style.display = 'block';
+    document.getElementById('cc-series-select').value = '';
+    return;
+  }
+  picker.style.display = 'none';
+  const standalone = _coverSeries.find(s => s.name === 'Standalone');
+  if (standalone) {
+    _coverSelectedSeriesId = standalone.id;
+    coverCompsShowGenForm();
+    coverCompsLoadConcepts(_coverSelectedSeriesId);
+  } else {
+    // First-ever standalone book — Standalone doesn't exist as a
+    // cover_series row yet. Palette/fonts are still entered manually,
+    // same as any series; the only difference is the name is fixed.
+    coverCompsShowNewSeriesForm('Standalone');
+  }
 }
 
 function coverCompsSelectSeries(val) {
@@ -4585,13 +4625,16 @@ function coverCompsSelectSeries(val) {
   }
 }
 
-async function coverCompsShowNewSeriesForm() {
+async function coverCompsShowNewSeriesForm(lockedName) {
   const el = document.getElementById('cc-new-series-form');
   let fonts = [];
   try { fonts = await api('/api/cover-font-library'); } catch {}
+  el.dataset.lockedName = lockedName || '';
   el.innerHTML = `
     <div class="mform">
-      <input id="cc-ns-name" type="text" placeholder="Series name *">
+      ${lockedName
+        ? `<div style="font-size:13px;font-weight:500;margin-bottom:6px">New bucket: ${esc(lockedName)}</div>`
+        : `<input id="cc-ns-name" type="text" placeholder="Series name *">`}
       <input id="cc-ns-palette" type="text" placeholder="Palette hex values, comma-separated (4-6, e.g. #1a1a1a, #f4ede0) *">
       <label style="font-size:12px;color:var(--muted);margin-top:6px;display:block">Font pairings (select at least one)</label>
       ${fonts.map(f => `
@@ -4601,15 +4644,17 @@ async function coverCompsShowNewSeriesForm() {
         </label>`).join('')}
       <div id="cc-ns-err" style="display:none;font-size:12px;color:var(--red);margin:6px 0"></div>
       <div class="mfrow">
-        <button class="mbtn mbtn-p" onclick="coverCompsSaveSeries()">Save Series</button>
-        <button class="mbtn" onclick="document.getElementById('cc-new-series-form').style.display='none'">Cancel</button>
+        <button class="mbtn mbtn-p" onclick="coverCompsSaveSeries()">Save${lockedName ? '' : ' Series'}</button>
+        ${lockedName ? '' : `<button class="mbtn" onclick="document.getElementById('cc-new-series-form').style.display='none'">Cancel</button>`}
       </div>
     </div>`;
   el.style.display = 'block';
 }
 
 async function coverCompsSaveSeries() {
-  const name = (document.getElementById('cc-ns-name').value || '').trim();
+  const el = document.getElementById('cc-new-series-form');
+  const lockedName = el.dataset.lockedName || '';
+  const name = lockedName || (document.getElementById('cc-ns-name').value || '').trim();
   const paletteRaw = (document.getElementById('cc-ns-palette').value || '').trim();
   const palette = paletteRaw.split(',').map(s => s.trim()).filter(Boolean);
   const fontIds = Array.from(document.querySelectorAll('.cc-ns-font:checked')).map(el => parseInt(el.value, 10));
@@ -4622,12 +4667,22 @@ async function coverCompsSaveSeries() {
     return;
   }
   try {
-    await api('/api/cover-series', {
+    const series = await api('/api/cover-series', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, house_palette: palette, font_library_ids: fontIds }),
     });
-    coverCompsLoad();
+    if (lockedName) {
+      // Standalone just created — go straight to the generation form
+      // instead of re-rendering the whole panel and re-asking the mode question.
+      _coverSeries.push(series);
+      _coverSelectedSeriesId = series.id;
+      el.style.display = 'none';
+      coverCompsShowGenForm();
+      coverCompsLoadConcepts(_coverSelectedSeriesId);
+    } else {
+      coverCompsLoad();
+    }
   } catch (e) {
     errEl.textContent = 'Save failed: ' + e.message;
     errEl.style.display = 'block';
@@ -4638,6 +4693,10 @@ function coverCompsShowGenForm() {
   const el = document.getElementById('cc-gen-form');
   el.innerHTML = `
     <div class="mform">
+      <div class="mfrow" style="margin-bottom:8px;align-items:center">
+        <button class="mbtn mbtn-sm" onclick="coverCompsSuggestFonts()">Suggest Fonts</button>
+        <span id="cc-fonts-status" style="font-size:12px;color:var(--muted)"></span>
+      </div>
       <input id="cc-gen-title" type="text" placeholder="Title / working title *">
       <input id="cc-gen-subtitle" type="text" placeholder="Subtitle (optional)">
       <textarea id="cc-gen-theme" rows="2" placeholder="Core argument or theme (1-2 sentences) *"></textarea>
@@ -4649,6 +4708,21 @@ function coverCompsShowGenForm() {
       </div>
     </div>`;
   el.style.display = 'block';
+}
+
+async function coverCompsSuggestFonts() {
+  const statusEl = document.getElementById('cc-fonts-status');
+  statusEl.textContent = 'Requesting suggestions…';
+  try {
+    await api('/api/cover-comps/font-suggestions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ series_id: _coverSelectedSeriesId }),
+    });
+    statusEl.textContent = 'Generating — pairings will arrive on Telegram for review shortly.';
+  } catch (e) {
+    statusEl.textContent = 'Failed: ' + e.message;
+  }
 }
 
 async function coverCompsGenerate() {

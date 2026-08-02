@@ -611,6 +611,35 @@ async def handle_cover_comp_callback(update, context):
         # regenerate_slot sends a fresh review message itself
 
 
+async def handle_font_suggestion_callback(update, context):
+    """Handle fsg_approve_/fsg_reject_ button taps from
+    jobs.book.font_finder — photo review messages, one per candidate
+    font pairing. Unlike cover concepts, rejects aren't persisted for
+    dedup purposes, so there's no Regenerate button here."""
+    query = update.callback_query
+    await query.answer()
+    if not _is_authorized(update):
+        return
+
+    from jobs.book.font_finder import approve_font_suggestion, reject_font_suggestion
+
+    action, suggestion_id_str = query.data.split(":", 1)
+    suggestion_id = int(suggestion_id_str)
+
+    if action == "fsg_approve":
+        suggestion = await asyncio.to_thread(approve_font_suggestion, suggestion_id)
+        if not suggestion:
+            await query.edit_message_caption(caption="Suggestion not found.", reply_markup=None)
+            return
+        await query.edit_message_caption(caption=f"{query.message.caption}\n\n✅ Approved", reply_markup=None)
+    elif action == "fsg_reject":
+        suggestion = await asyncio.to_thread(reject_font_suggestion, suggestion_id)
+        if not suggestion:
+            await query.edit_message_caption(caption="Suggestion not found.", reply_markup=None)
+            return
+        await query.edit_message_caption(caption=f"{query.message.caption}\n\n❌ Rejected", reply_markup=None)
+
+
 async def handle_campaign_callback(update, context):
     query = update.callback_query
     await query.answer()
@@ -4233,6 +4262,7 @@ def main():
     app.add_handler(CallbackQueryHandler(handle_curator_callback, pattern=r"^cur_(?:approve|edit|reject):"))
     app.add_handler(CallbackQueryHandler(handle_meeting_pattern_callback, pattern=r"^mtp_(approve|reject):"))
     app.add_handler(CallbackQueryHandler(handle_cover_comp_callback, pattern=r"^cvr_(?:approve|regen|reject):"))
+    app.add_handler(CallbackQueryHandler(handle_font_suggestion_callback, pattern=r"^fsg_(?:approve|reject):"))
     app.add_handler(CallbackQueryHandler(handle_facebook_image_callback, pattern=r"^fb_img_(?:approve|regen|discard):"))
     app.add_handler(CallbackQueryHandler(handle_facebook_callback, pattern=r"^fb_"))
     # Specific prefix, registered ahead of any future broader "^camp" wildcard
