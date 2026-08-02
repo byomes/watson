@@ -47,8 +47,8 @@ def cover_series_create():
         return jsonify({"error": "name is required"}), 400
     if not isinstance(palette, list) or not (4 <= len(palette) <= 6):
         return jsonify({"error": "house_palette must be a list of 4-6 hex values"}), 400
-    if not isinstance(font_ids, list) or not font_ids:
-        return jsonify({"error": "font_library_ids must be a non-empty list"}), 400
+    if not isinstance(font_ids, list):
+        return jsonify({"error": "font_library_ids must be a list"}), 400
 
     conn = get_connection()
     try:
@@ -205,6 +205,85 @@ def cover_font_suggestions_rerender():
 
     threading.Thread(target=_run, daemon=True).start()
     return jsonify({"success": True, "status": "rendering"}), 202
+
+
+@book_bp.route("/api/cover-comps/font-suggestions", methods=["GET"])
+def cover_font_suggestions_list():
+    """Backs the dashboard's inline preview gallery — returns the most
+    recent batch's candidates for a series so the frontend can poll
+    this while narrow_fonts/render_batch run in their background
+    thread, same data Telegram already got via _send_for_review."""
+    series_id = request.args.get("series_id")
+    if not series_id:
+        return jsonify({"error": "series_id is required"}), 400
+
+    conn = get_connection()
+    try:
+        batch = conn.execute(
+            "SELECT id FROM cover_font_suggestion_batches WHERE series_id=? ORDER BY id DESC LIMIT 1",
+            (series_id,),
+        ).fetchone()
+        if not batch:
+            return jsonify({"batch_id": None, "suggestions": []})
+        rows = conn.execute(
+            "SELECT id, display_family, body_family, rationale, status, preview_image_path "
+            "FROM cover_font_suggestions WHERE batch_id=? ORDER BY id",
+            (batch["id"],),
+        ).fetchall()
+    finally:
+        conn.close()
+
+    suggestions = [
+        {
+            "id": r["id"],
+            "display_family": r["display_family"],
+            "body_family": r["body_family"],
+            "rationale": r["rationale"],
+            "status": r["status"],
+            "has_preview": bool(r["preview_image_path"]),
+        }
+        for r in rows
+    ]
+    return jsonify({"batch_id": batch["id"], "suggestions": suggestions})
+
+
+@book_bp.route("/api/cover-font-suggestions/<int:suggestion_id>/preview-image")
+def cover_font_suggestion_preview_image(suggestion_id):
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT preview_image_path FROM cover_font_suggestions WHERE id=?", (suggestion_id,)
+        ).fetchone()
+    finally:
+        conn.close()
+    if not row or not row["preview_image_path"]:
+        return jsonify({"error": "no preview generated"}), 404
+    filepath = os.path.abspath(row["preview_image_path"])
+    if not filepath.startswith(os.path.abspath(font_finder.PREVIEW_DIR)) or not os.path.exists(filepath):
+        return jsonify({"error": "not found"}), 404
+    return send_file(filepath)
+
+
+@book_bp.route("/api/cover-font-suggestions/<int:suggestion_id>/approve", methods=["POST"])
+def cover_font_suggestion_approve(suggestion_id):
+    """Dashboard equivalent of bot.py's fsg_approve callback — both call
+    the same font_finder.approve_font_suggestion, so approving from
+    either surface links the pairing into the series' font_library_ids
+    the same way."""
+    row = font_finder.approve_font_suggestion(suggestion_id)
+    if not row:
+        return jsonify({"error": "suggestion not found"}), 404
+    return jsonify({"success": True})
+
+
+@book_bp.route("/api/cover-font-suggestions/<int:suggestion_id>/reject", methods=["POST"])
+def cover_font_suggestion_reject(suggestion_id):
+    """Dashboard equivalent of bot.py's fsg_reject callback — both call
+    the same font_finder.reject_font_suggestion."""
+    row = font_finder.reject_font_suggestion(suggestion_id)
+    if not row:
+        return jsonify({"error": "suggestion not found"}), 404
+    return jsonify({"success": True})
 
 
 @book_bp.route("/api/cover-concepts/<int:concept_id>/preview-image")

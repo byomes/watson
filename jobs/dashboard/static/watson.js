@@ -4584,6 +4584,7 @@ async function coverCompsLoad() {
 }
 
 function coverCompsSetMode(isSeries) {
+  coverCompsStopFontsPoll();
   document.getElementById('cc-mode-no').classList.toggle('mbtn-p', !isSeries);
   document.getElementById('cc-mode-yes').classList.toggle('mbtn-p', isSeries);
   document.getElementById('cc-new-series-form').style.display = 'none';
@@ -4612,6 +4613,7 @@ function coverCompsSetMode(isSeries) {
 }
 
 function coverCompsSelectSeries(val) {
+  coverCompsStopFontsPoll();
   _coverSelectedSeriesId = null;
   document.getElementById('cc-new-series-form').style.display = 'none';
   document.getElementById('cc-gen-form').style.display = 'none';
@@ -4636,7 +4638,7 @@ async function coverCompsShowNewSeriesForm(lockedName) {
         ? `<div style="font-size:13px;font-weight:500;margin-bottom:6px">New bucket: ${esc(lockedName)}</div>`
         : `<input id="cc-ns-name" type="text" placeholder="Series name *">`}
       <input id="cc-ns-palette" type="text" placeholder="Palette hex values, comma-separated (4-6, e.g. #1a1a1a, #f4ede0) *">
-      <label style="font-size:12px;color:var(--muted);margin-top:6px;display:block">Font pairings (select at least one)</label>
+      <label style="font-size:12px;color:var(--muted);margin-top:6px;display:block">Font pairings (optional — skip and use Suggest Fonts after saving if you don't have one yet)</label>
       ${fonts.map(f => `
         <label style="display:flex;align-items:flex-start;gap:6px;font-size:13px;margin:4px 0">
           <input type="checkbox" class="cc-ns-font" value="${f.id}" style="margin-top:2px">
@@ -4661,8 +4663,8 @@ async function coverCompsSaveSeries() {
   const errEl = document.getElementById('cc-ns-err');
   errEl.style.display = 'none';
 
-  if (!name || palette.length < 4 || palette.length > 6 || !fontIds.length) {
-    errEl.textContent = 'Name, 4-6 palette hex values, and at least one font pairing are required.';
+  if (!name || palette.length < 4 || palette.length > 6) {
+    errEl.textContent = 'Name and 4-6 palette hex values are required. Font pairings are optional — use Suggest Fonts after saving if you don\'t have one yet.';
     errEl.style.display = 'block';
     return;
   }
@@ -4702,6 +4704,7 @@ function coverCompsShowGenForm() {
           <button class="mbtn mbtn-sm" id="cc-fonts-rerender-btn" onclick="coverCompsRerenderFonts()" style="display:none" disabled>Re-render</button>
         </div>
         <div id="cc-fonts-status" style="font-size:12px;color:var(--muted);margin-top:6px"></div>
+        <div id="cc-fonts-gallery"></div>
       </div>
       <input id="cc-gen-title" type="text" placeholder="Title / working title *" onblur="coverCompsSyncFontsPreview()">
       <input id="cc-gen-subtitle" type="text" placeholder="Subtitle (optional)" onblur="coverCompsSyncFontsPreview()">
@@ -4714,6 +4717,7 @@ function coverCompsShowGenForm() {
       </div>
     </div>`;
   el.style.display = 'block';
+  coverCompsRefreshFontGallery();
 }
 
 // Preview Title/Subtitle default from the book title/subtitle above, once,
@@ -4739,6 +4743,80 @@ function coverCompsFontsValidate() {
   if (rerenderBtn && rerenderBtn.style.display !== 'none') rerenderBtn.disabled = !title;
 }
 
+// Inline preview gallery — polls while narrow_fonts/render_batch run in
+// their background thread, same underlying data Telegram already gets
+// via _send_for_review. Approve/Reject here hit the same font_finder
+// functions bot.py's fsg_approve/fsg_reject callbacks use, so either
+// surface links the pairing into the series' font_library_ids the same way.
+let _ccFontsPollTimer = null;
+let _ccFontsPollTries = 0;
+const _CC_FONTS_POLL_MAX_TRIES = 150; // ~150 * 4s = 10 min, above the 400s narrow-stage timeout
+
+function coverCompsStopFontsPoll() {
+  if (_ccFontsPollTimer) { clearInterval(_ccFontsPollTimer); _ccFontsPollTimer = null; }
+  _ccFontsPollTries = 0;
+}
+
+function coverCompsStartFontsPoll() {
+  coverCompsStopFontsPoll();
+  coverCompsRefreshFontGallery();
+  _ccFontsPollTimer = setInterval(() => {
+    _ccFontsPollTries++;
+    if (_ccFontsPollTries > _CC_FONTS_POLL_MAX_TRIES) {
+      coverCompsStopFontsPoll();
+      const statusEl = document.getElementById('cc-fonts-status');
+      if (statusEl) statusEl.textContent = 'Still rendering after 10 minutes — check Telegram, or try again.';
+      return;
+    }
+    coverCompsRefreshFontGallery();
+  }, 4000);
+}
+
+async function coverCompsRefreshFontGallery() {
+  const gallery = document.getElementById('cc-fonts-gallery');
+  if (!gallery || !_coverSelectedSeriesId) return;
+  let data;
+  try {
+    data = await api(`/api/cover-comps/font-suggestions?series_id=${_coverSelectedSeriesId}`);
+  } catch {
+    return;
+  }
+  const suggestions = data.suggestions || [];
+  const rerenderBtn = document.getElementById('cc-fonts-rerender-btn');
+  if (suggestions.length && rerenderBtn && rerenderBtn.style.display === 'none') {
+    rerenderBtn.style.display = '';
+    coverCompsFontsValidate();
+  }
+
+  gallery.innerHTML = suggestions.map(s => `
+    <div style="border:1px solid var(--border);border-radius:var(--r-card);padding:8px;margin-top:8px">
+      ${s.has_preview
+        ? `<img src="/api/cover-font-suggestions/${s.id}/preview-image?t=${Date.now()}" style="max-width:100%;border-radius:4px;display:block">`
+        : `<div style="font-size:12px;color:var(--muted);padding:24px 0;text-align:center">Rendering&hellip;</div>`}
+      <div style="font-size:12px;font-weight:500;margin-top:6px">${esc(s.display_family)} / ${esc(s.body_family)}</div>
+      ${s.rationale ? `<div style="font-size:11px;color:var(--muted)">${esc(s.rationale)}</div>` : ''}
+      ${s.status === 'proposed'
+        ? `<div class="mfrow" style="margin-top:6px">
+             <button class="mbtn mbtn-sm mbtn-p" onclick="coverCompsFontAction(${s.id},'approve')">Approve</button>
+             <button class="mbtn mbtn-sm" onclick="coverCompsFontAction(${s.id},'reject')">Reject</button>
+           </div>`
+        : `<div style="font-size:11px;margin-top:4px;color:${s.status === 'approved' ? 'var(--gold)' : 'var(--red)'}">${s.status === 'approved' ? 'Approved' : 'Rejected'}</div>`}
+    </div>`).join('');
+
+  if (suggestions.length && suggestions.every(s => s.has_preview)) {
+    coverCompsStopFontsPoll();
+  }
+}
+
+async function coverCompsFontAction(suggestionId, action) {
+  try {
+    await api(`/api/cover-font-suggestions/${suggestionId}/${action}`, { method: 'POST' });
+    coverCompsRefreshFontGallery();
+  } catch (e) {
+    alert('Failed: ' + e.message);
+  }
+}
+
 async function coverCompsSuggestFonts() {
   const title = (document.getElementById('cc-fonts-title').value || '').trim();
   const subtitle = (document.getElementById('cc-fonts-subtitle').value || '').trim();
@@ -4751,10 +4829,8 @@ async function coverCompsSuggestFonts() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ series_id: _coverSelectedSeriesId, title, subtitle }),
     });
-    statusEl.textContent = 'Generating — pairings will arrive on Telegram for review shortly.';
-    const rerenderBtn = document.getElementById('cc-fonts-rerender-btn');
-    rerenderBtn.style.display = '';
-    rerenderBtn.disabled = !title;
+    statusEl.textContent = 'Generating — previews will appear below as they render (also sent to Telegram).';
+    coverCompsStartFontsPoll();
   } catch (e) {
     statusEl.textContent = 'Failed: ' + e.message;
   }
@@ -4772,7 +4848,8 @@ async function coverCompsRerenderFonts() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ series_id: _coverSelectedSeriesId, title, subtitle }),
     });
-    statusEl.textContent = 'Re-rendered — updated previews sent to Telegram.';
+    statusEl.textContent = 'Re-rendering below (also sent to Telegram).';
+    coverCompsStartFontsPoll();
   } catch (e) {
     statusEl.textContent = 'Failed: ' + e.message;
   }
