@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-08-01*
+*Generated: 2026-08-02*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -63,6 +63,15 @@ cron_backup_20260721_1510.txt
 data/
   .gitkeep
   .kb_sync.lock
+  adelphos/
+    shells/
+      raw/
+        bi110.mbz
+        sh004.mbz
+      test/
+        sh004_label_injection_test.mbz
+        sh004_multisection_test.mbz
+        sh004_multisection_test_v2.mbz
   campaigns/
     WCKY-Book-Launch-Framework.md
     twj/
@@ -178,6 +187,12 @@ jobs/
   bodyrec/
     __init__.py
     api.py
+  book/
+    __init__.py
+    cover_comps.py
+    font_finder.py
+    routes.py
+    schema.py
   browser/
     __init__.py
     browser_service.py
