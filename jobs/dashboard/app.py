@@ -355,6 +355,11 @@ app.register_blueprint(email_activity_bp)
 from jobs.kb.api import kb_bp
 app.register_blueprint(kb_bp)
 
+from jobs.book.routes import book_bp
+from jobs.book.schema import create_tables as _book_create_tables
+_book_create_tables()
+app.register_blueprint(book_bp)
+
 # ── Admin template filters ────────────────────────────────────────────────────
 
 _AV_COLORS = ['#4c7ec9','#4caf7d','#c9a84c','#c9504c','#9b59b6','#1abc9c','#e67e22','#2980b9']
@@ -2564,6 +2569,12 @@ def commands_list_api():
         commands = json.loads(COMMANDS_FILE.read_text(encoding="utf-8"))
         if not isinstance(commands, list):
             return jsonify([])
+        # TEMPORARY diagnostic logging for the missing-commands investigation
+        # (2026-07-29) — remove once root cause is confirmed from live traffic.
+        try:
+            _log_commands_debug(commands)
+        except Exception:
+            pass
         return jsonify(commands)
     except Exception:
         return jsonify([])
@@ -2576,6 +2587,23 @@ def directives_list_api():
     dropdown so it can't drift from the registry (2026-07-29)."""
     prefixes = [p for p, cfg in DIRECTIVE_PREFIXES.items() if cfg["dashboard"]]
     return jsonify(prefixes)
+
+
+def _log_commands_debug(commands):
+    names = {c.get("name") for c in commands if isinstance(c, dict)}
+    watch = ["Debug loop", "Log a bug", "Run a skill by slug", "Expanded KB search"]
+    log_path = Path(__file__).parents[2] / "logs" / "commands_debug.log"
+    entry = {
+        "ts": datetime.now().isoformat(),
+        "remote_addr": request.remote_addr,
+        "x_forwarded_for": request.headers.get("X-Forwarded-For"),
+        "user_agent": request.headers.get("User-Agent"),
+        "all_headers": dict(request.headers),
+        "count": len(commands),
+        "present": {w: (w in names) for w in watch},
+    }
+    with open(log_path, "a", encoding="utf-8") as f:
+        f.write(json.dumps(entry) + "\n")
 
 
 @app.route("/api/skills/<slug>/approve", methods=["POST"])

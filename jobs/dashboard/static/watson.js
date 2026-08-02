@@ -1473,6 +1473,10 @@ function renderMore() {
         <span class="mtile-label">Email Activity</span>
         <span class="mtile-chev">›</span>
       </button>
+      <button class="mtile" id="mtile-covercomps" onclick="moreToggle('covercomps')">
+        <span class="mtile-label">Cover Comps</span>
+        <span class="mtile-chev">›</span>
+      </button>
     </div>
     <div id="more-expand-area">
       <div class="msec-body" id="msec-body-skills">
@@ -1514,6 +1518,9 @@ function renderMore() {
       </div>
       <div class="msec-body" id="msec-body-email-activity">
         <div class="msec-inner" id="msec-inner-email-activity"></div>
+      </div>
+      <div class="msec-body" id="msec-body-covercomps">
+        <div class="msec-inner" id="msec-inner-covercomps"></div>
       </div>
     </div>`);
   moreLoadVacationStatus();
@@ -1594,6 +1601,7 @@ function moreToggle(sec) {
     if (sec === 'leadmagnet') moreLoadLeadMagnet();
     if (sec === 'links')    moreLoadLinks();
     if (sec === 'email-activity') moreLoadEmailActivity();
+    if (sec === 'covercomps') coverCompsLoad();
   }
 }
 
@@ -4532,4 +4540,184 @@ async function pubArcDelete(id) {
     await api(`/api/dashboard/arc/readers/${id}/delete`, { method: 'POST' });
     await pubLoadArc();
   } catch (e) { alert('Failed to delete: ' + e.message); }
+}
+
+// ── Cover Comps ──────────────────────────────────────────────────────────
+
+let _coverSeries = [];
+let _coverSelectedSeriesId = null;
+
+async function coverCompsLoad() {
+  const el = document.getElementById('msec-inner-covercomps');
+  if (!el) return;
+  el.innerHTML = '<div class="loading">Loading&hellip;</div>';
+  try {
+    _coverSeries = await api('/api/cover-series');
+  } catch {
+    el.innerHTML = '<div class="empty">Could not load cover series.</div>';
+    return;
+  }
+  el.innerHTML = `
+    <div class="mform">
+      <label style="font-size:12px;color:var(--muted)">Series</label>
+      <select id="cc-series-select" onchange="coverCompsSelectSeries(this.value)">
+        <option value="">Select a series&hellip;</option>
+        ${_coverSeries.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('')}
+        <option value="__new__">+ New Series</option>
+      </select>
+    </div>
+    <div id="cc-new-series-form" style="display:none"></div>
+    <div id="cc-gen-form" style="display:none"></div>
+    <div id="cc-concepts-list"></div>`;
+}
+
+function coverCompsSelectSeries(val) {
+  _coverSelectedSeriesId = null;
+  document.getElementById('cc-new-series-form').style.display = 'none';
+  document.getElementById('cc-gen-form').style.display = 'none';
+  document.getElementById('cc-concepts-list').innerHTML = '';
+  if (val === '__new__') {
+    coverCompsShowNewSeriesForm();
+  } else if (val) {
+    _coverSelectedSeriesId = parseInt(val, 10);
+    coverCompsShowGenForm();
+    coverCompsLoadConcepts(_coverSelectedSeriesId);
+  }
+}
+
+async function coverCompsShowNewSeriesForm() {
+  const el = document.getElementById('cc-new-series-form');
+  let fonts = [];
+  try { fonts = await api('/api/cover-font-library'); } catch {}
+  el.innerHTML = `
+    <div class="mform">
+      <input id="cc-ns-name" type="text" placeholder="Series name *">
+      <input id="cc-ns-palette" type="text" placeholder="Palette hex values, comma-separated (4-6, e.g. #1a1a1a, #f4ede0) *">
+      <label style="font-size:12px;color:var(--muted);margin-top:6px;display:block">Font pairings (select at least one)</label>
+      ${fonts.map(f => `
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;margin:4px 0">
+          <input type="checkbox" class="cc-ns-font" value="${f.id}">
+          ${esc(f.display_face)} / ${esc(f.body_face)}
+        </label>`).join('')}
+      <div id="cc-ns-err" style="display:none;font-size:12px;color:var(--red);margin:6px 0"></div>
+      <div class="mfrow">
+        <button class="mbtn mbtn-p" onclick="coverCompsSaveSeries()">Save Series</button>
+        <button class="mbtn" onclick="document.getElementById('cc-new-series-form').style.display='none'">Cancel</button>
+      </div>
+    </div>`;
+  el.style.display = 'block';
+}
+
+async function coverCompsSaveSeries() {
+  const name = (document.getElementById('cc-ns-name').value || '').trim();
+  const paletteRaw = (document.getElementById('cc-ns-palette').value || '').trim();
+  const palette = paletteRaw.split(',').map(s => s.trim()).filter(Boolean);
+  const fontIds = Array.from(document.querySelectorAll('.cc-ns-font:checked')).map(el => parseInt(el.value, 10));
+  const errEl = document.getElementById('cc-ns-err');
+  errEl.style.display = 'none';
+
+  if (!name || palette.length < 4 || palette.length > 6 || !fontIds.length) {
+    errEl.textContent = 'Name, 4-6 palette hex values, and at least one font pairing are required.';
+    errEl.style.display = 'block';
+    return;
+  }
+  try {
+    await api('/api/cover-series', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, house_palette: palette, font_library_ids: fontIds }),
+    });
+    coverCompsLoad();
+  } catch (e) {
+    errEl.textContent = 'Save failed: ' + e.message;
+    errEl.style.display = 'block';
+  }
+}
+
+function coverCompsShowGenForm() {
+  const el = document.getElementById('cc-gen-form');
+  el.innerHTML = `
+    <div class="mform">
+      <input id="cc-gen-title" type="text" placeholder="Title / working title *">
+      <input id="cc-gen-subtitle" type="text" placeholder="Subtitle (optional)">
+      <textarea id="cc-gen-theme" rows="2" placeholder="Core argument or theme (1-2 sentences) *"></textarea>
+      <textarea id="cc-gen-concepts" rows="2" placeholder="Key concepts/images already in the source material (optional)"></textarea>
+      <div id="cc-gen-err" style="display:none;font-size:12px;color:var(--red);margin:6px 0"></div>
+      <div id="cc-gen-status" style="display:none;font-size:12px;color:var(--muted);margin:6px 0"></div>
+      <div class="mfrow">
+        <button class="mbtn mbtn-p" onclick="coverCompsGenerate()">Generate Concepts</button>
+      </div>
+    </div>`;
+  el.style.display = 'block';
+}
+
+async function coverCompsGenerate() {
+  const title = (document.getElementById('cc-gen-title').value || '').trim();
+  const subtitle = (document.getElementById('cc-gen-subtitle').value || '').trim();
+  const theme = (document.getElementById('cc-gen-theme').value || '').trim();
+  const keyConcepts = (document.getElementById('cc-gen-concepts').value || '').trim();
+  const errEl = document.getElementById('cc-gen-err');
+  const statusEl = document.getElementById('cc-gen-status');
+  errEl.style.display = 'none';
+
+  if (!title || !theme) {
+    errEl.textContent = 'Title and theme are required.';
+    errEl.style.display = 'block';
+    return;
+  }
+  try {
+    await api('/api/cover-comps', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ series_id: _coverSelectedSeriesId, title, subtitle, theme, key_concepts: keyConcepts }),
+    });
+    statusEl.textContent = 'Generating — concepts will arrive on Telegram for review shortly.';
+    statusEl.style.display = 'block';
+    setTimeout(() => coverCompsLoadConcepts(_coverSelectedSeriesId), 15000);
+  } catch (e) {
+    errEl.textContent = 'Failed to start generation: ' + e.message;
+    errEl.style.display = 'block';
+  }
+}
+
+async function coverCompsLoadConcepts(seriesId) {
+  const el = document.getElementById('cc-concepts-list');
+  if (!el) return;
+  el.innerHTML = '<div class="loading">Loading&hellip;</div>';
+  try {
+    const concepts = await api(`/api/cover-concepts?series_id=${seriesId}`);
+    if (!concepts.length) {
+      el.innerHTML = '<div class="empty">No concepts yet for this series.</div>';
+      return;
+    }
+    el.innerHTML = concepts.map(c => `
+      <div class="mpn-card" id="cc-concept-${c.id}">
+        <div style="display:flex;justify-content:space-between;align-items:baseline">
+          <div style="font-size:13px;font-weight:500">${esc(c.book_title)}</div>
+          <div style="font-size:11px;color:var(--muted);text-transform:uppercase">${esc(c.status)}</div>
+        </div>
+        <div style="font-size:12px;margin:4px 0"><b>Symbol:</b> ${esc(c.symbol_concept)}</div>
+        <div style="font-size:12px;color:var(--muted)"><b>Fonts:</b> ${esc(c.font_pairing)}</div>
+        ${c.layout_note ? `<div style="font-size:12px;color:var(--muted)"><b>Layout:</b> ${esc(c.layout_note)}</div>` : ''}
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">${esc(c.generation_prompt)}</div>
+        ${c.preview_image_path
+          ? `<img src="/api/cover-concepts/${c.id}/preview-image" style="max-width:160px;border-radius:6px;margin-top:6px;display:block">`
+          : `<button class="mbtn mbtn-sm" onclick="coverCompsGeneratePreview(${c.id})" style="margin-top:6px">Generate Preview</button>`}
+      </div>`).join('');
+  } catch {
+    el.innerHTML = '<div class="empty">Could not load concepts.</div>';
+  }
+}
+
+async function coverCompsGeneratePreview(conceptId) {
+  const card = document.getElementById(`cc-concept-${conceptId}`);
+  const btn = card ? card.querySelector('button') : null;
+  if (btn) { btn.disabled = true; btn.textContent = 'Generating…'; }
+  try {
+    await api(`/api/cover-concepts/${conceptId}/preview`, { method: 'POST' });
+    coverCompsLoadConcepts(_coverSelectedSeriesId);
+  } catch (e) {
+    if (btn) { btn.disabled = false; btn.textContent = 'Generate Preview'; }
+    alert('Preview generation failed: ' + e.message);
+  }
 }

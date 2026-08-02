@@ -579,6 +579,38 @@ async def handle_facebook_image_callback(update, context):
         # regenerate_image sends a fresh photo+buttons message itself
 
 
+async def handle_cover_comp_callback(update, context):
+    """Handle cvr_approve_/cvr_regen_/cvr_reject_ button taps from
+    jobs.book.cover_comps — text-only review messages, one per proposed
+    cover concept."""
+    query = update.callback_query
+    await query.answer()
+    if not _is_authorized(update):
+        return
+
+    from jobs.book.cover_comps import approve_concept, regenerate_slot, reject_concept
+
+    action, concept_id_str = query.data.split(":", 1)
+    concept_id = int(concept_id_str)
+
+    if action == "cvr_approve":
+        concept = await asyncio.to_thread(approve_concept, concept_id)
+        if not concept:
+            await query.edit_message_text("Concept not found.", reply_markup=None)
+            return
+        await query.edit_message_text(f"{query.message.text}\n\n✅ Approved", reply_markup=None)
+    elif action == "cvr_reject":
+        concept = await asyncio.to_thread(reject_concept, concept_id)
+        if not concept:
+            await query.edit_message_text("Concept not found.", reply_markup=None)
+            return
+        await query.edit_message_text(f"{query.message.text}\n\n❌ Rejected", reply_markup=None)
+    elif action == "cvr_regen":
+        await query.edit_message_text(f"{query.message.text}\n\n\U0001F504 Regenerating...", reply_markup=None)
+        await asyncio.to_thread(regenerate_slot, concept_id)
+        # regenerate_slot sends a fresh review message itself
+
+
 async def handle_campaign_callback(update, context):
     query = update.callback_query
     await query.answer()
@@ -4200,6 +4232,7 @@ def main():
     app.add_handler(CallbackQueryHandler(handle_room_callback, pattern=r"^room_(?:approve|deny):"))
     app.add_handler(CallbackQueryHandler(handle_curator_callback, pattern=r"^cur_(?:approve|edit|reject):"))
     app.add_handler(CallbackQueryHandler(handle_meeting_pattern_callback, pattern=r"^mtp_(approve|reject):"))
+    app.add_handler(CallbackQueryHandler(handle_cover_comp_callback, pattern=r"^cvr_(?:approve|regen|reject):"))
     app.add_handler(CallbackQueryHandler(handle_facebook_image_callback, pattern=r"^fb_img_(?:approve|regen|discard):"))
     app.add_handler(CallbackQueryHandler(handle_facebook_callback, pattern=r"^fb_"))
     # Specific prefix, registered ahead of any future broader "^camp" wildcard
