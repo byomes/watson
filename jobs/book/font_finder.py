@@ -44,7 +44,7 @@ _FONT_SYSTEM_PROMPT = (
 )
 
 
-def _call_ollama(system: str, prompt: str, timeout: int = 120) -> str:
+def _call_ollama(system: str, prompt: str, timeout: int = 400) -> str:
     resp = requests.post(
         OLLAMA_URL,
         json={"model": MODEL, "system": system, "prompt": prompt, "stream": False},
@@ -252,7 +252,12 @@ def _render_preview(suggestion_id: int, title: str, subtitle: str, display_meta:
 
 def narrow_fonts(series_id: int) -> int:
     """Stage 1 — Fonts API fetch + qwen2.5:7b selection + validator. The
-    expensive/slow part (Ollama call alone runs ~47s). Caches the
+    expensive/slow part (Ollama call alone measured at 219.7s on this box's
+    CPU-only inference for the full 12-packet catalog prompt on 2026-08-02,
+    not the ~47s originally assumed here — _call_ollama's 400s timeout
+    leaves ~180s/82% margin over that measurement since a timeout here
+    fails silently in the background thread, nothing surfaces to Bill).
+    Caches the
     resolved candidate list (family names + full Google Fonts metadata,
     so render_batch never needs to hit the Fonts API again) in a
     cover_font_suggestion_batches row. Returns the batch id."""
@@ -329,7 +334,7 @@ def render_batch(batch_id: int, title: str, subtitle: str) -> list:
     every candidate in the batch against the given title/subtitle and
     (re)sends each to Telegram for review. This is what fires on every
     title/subtitle edit, so it should feel close to instant compared to
-    stage 1's ~47s+ narrowing pass (font files are cached locally after
+    stage 1's several-minute narrowing pass (font files are cached locally after
     their first download)."""
     conn = get_connection()
     try:

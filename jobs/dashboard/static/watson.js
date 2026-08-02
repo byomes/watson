@@ -4744,7 +4744,7 @@ async function coverCompsSuggestFonts() {
   const subtitle = (document.getElementById('cc-fonts-subtitle').value || '').trim();
   const statusEl = document.getElementById('cc-fonts-status');
   if (!title) return;
-  statusEl.textContent = 'Requesting suggestions… (narrowing can take a minute or two)';
+  statusEl.textContent = 'Requesting suggestions… (narrowing can take 3-5 minutes)';
   try {
     await api('/api/cover-comps/font-suggestions', {
       method: 'POST',

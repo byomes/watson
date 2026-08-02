@@ -144,7 +144,7 @@ def cover_concept_preview(concept_id):
 
 @book_bp.route("/api/cover-comps/font-suggestions", methods=["POST"])
 def cover_font_suggestions_create():
-    """Stage 1 (narrow, ~47s+, Fonts API + Ollama) + stage 2 (render,
+    """Stage 1 (narrow, ~3.5-4 min on this box, Fonts API + Ollama) + stage 2 (render,
     fast) chained together — the first full run for a bucket. Later
     title/subtitle edits should call /rerender instead, which reuses
     this run's cached candidate list and skips stage 1 entirely."""
