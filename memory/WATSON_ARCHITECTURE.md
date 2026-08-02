@@ -1525,3 +1525,22 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 
 ### ~/watson
 - 50903b9 fix: exclude Bill's own addresses from Email Activity tile
+
+---
+
+## Recent Changes — 2026-08-02
+
+### ~/watson
+- a1e7c4d Wire narrow/render split and preview title fields into dashboard
+- 5c23304 Split font suggestion narrow/render, fix preview text overflow
+- ee0df4c Wire Standalone-first flow and Suggest Fonts into dashboard/bot
+- 36b95b9 Add Suggest Fonts job to Cover Comp Idea Generator (font_finder.py)
+- 997597f Wire Cover Comp Idea Generator into dashboard and Telegram bot
+- 5498536 Add Cover Comp Idea Generator job (jobs/book/)
+- bd7484e docs: mark Adelphos Security Monitor shipped, fix stale domain
+- 1fe1f6e docs: bugs/backlog export 2026-08-01
+- 24dfb69 fix: seed watermark on first Adelphos monitor run instead of alerting
+- f7806b3 feat: Adelphos Academy New Account Security Monitor (Priority 1)
+- 8be3543 docs: file map 2026-08-01
+- 38aebec docs: bugs/backlog export 2026-08-01
+- 8171539 docs: architecture update 2026-08-01
