@@ -54,10 +54,20 @@ CREATE TABLE IF NOT EXISTS cover_concepts (
 );
 """
 
+CREATE_FONT_SUGGESTION_BATCHES = """
+CREATE TABLE IF NOT EXISTS cover_font_suggestion_batches (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    series_id       INTEGER NOT NULL REFERENCES cover_series(id),
+    candidates_json TEXT NOT NULL,
+    created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+"""
+
 CREATE_FONT_SUGGESTIONS = """
 CREATE TABLE IF NOT EXISTS cover_font_suggestions (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
     series_id           INTEGER NOT NULL REFERENCES cover_series(id),
+    batch_id            INTEGER REFERENCES cover_font_suggestion_batches(id),
     run_timestamp       TEXT NOT NULL DEFAULT (datetime('now')),
     display_family      TEXT NOT NULL,
     body_family         TEXT NOT NULL,
@@ -68,7 +78,10 @@ CREATE TABLE IF NOT EXISTS cover_font_suggestions (
 );
 """
 
-ALL_TABLES = [CREATE_SERIES, CREATE_FONT_LIBRARY, CREATE_SYMBOLS_USED, CREATE_CONCEPTS, CREATE_FONT_SUGGESTIONS]
+ALL_TABLES = [
+    CREATE_SERIES, CREATE_FONT_LIBRARY, CREATE_SYMBOLS_USED, CREATE_CONCEPTS,
+    CREATE_FONT_SUGGESTION_BATCHES, CREATE_FONT_SUGGESTIONS,
+]
 
 # Small fixed library, seeded once — serif display, restrained weight, no
 # script/decorative faces, per the build spec's house-style rule.
@@ -86,6 +99,11 @@ def create_tables(conn=None) -> None:
     try:
         for stmt in ALL_TABLES:
             conn.execute(stmt)
+        # cover_font_suggestions predates the narrow/render split (Addendum 2)
+        # and was already live in production without batch_id — add it if missing.
+        cols = {row[1] for row in conn.execute("PRAGMA table_info(cover_font_suggestions)").fetchall()}
+        if "batch_id" not in cols:
+            conn.execute("ALTER TABLE cover_font_suggestions ADD COLUMN batch_id INTEGER REFERENCES cover_font_suggestion_batches(id)")
         existing = conn.execute("SELECT COUNT(*) FROM cover_font_library").fetchone()[0]
         if existing == 0:
             conn.executemany(

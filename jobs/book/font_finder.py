@@ -119,6 +119,16 @@ def _validate_suggestions(packets, catalog_by_name: dict) -> list:
 
 # ── PIL preview rendering ─────────────────────────────────────────────────
 
+CANVAS_W, CANVAS_H = 1000, 600
+PADDING = 60
+TITLE_REGION_H = 220
+SUB_REGION_H = 140
+LABEL_REGION_H = 60
+TITLE_MAX_SIZE, TITLE_MIN_SIZE = 64, 26
+SUB_MAX_SIZE, SUB_MIN_SIZE = 26, 15
+LABEL_MAX_SIZE, LABEL_MIN_SIZE = 16, 11
+
+
 def _download_font(font_meta: dict) -> str:
     os.makedirs(FONT_CACHE_DIR, exist_ok=True)
     safe_name = re.sub(r"[^A-Za-z0-9]+", "_", font_meta["family"])
@@ -132,48 +142,129 @@ def _download_font(font_meta: dict) -> str:
     return out_path
 
 
-def _render_preview(suggestion_id: int, sample_title: str, display_meta: dict, body_meta: dict) -> str:
+def _truncate_to_width(draw, text: str, font, max_width: int) -> str:
+    """Character-level fallback for a single word wider than max_width
+    even alone — binary-searches the longest prefix (plus an ellipsis)
+    that still fits, rather than letting it run off the canvas edge."""
+    if (draw.textbbox((0, 0), text, font=font)[2]) <= max_width:
+        return text
+    lo, hi, best = 0, len(text), "…"
+    while lo <= hi:
+        mid = (lo + hi) // 2
+        candidate = text[:mid].rstrip() + "…"
+        if (draw.textbbox((0, 0), candidate, font=font)[2]) <= max_width:
+            best = candidate
+            lo = mid + 1
+        else:
+            hi = mid - 1
+    return best
+
+
+def fit_text(draw, text: str, font_path: str, max_width: int, max_height: int, start_size: int, min_size: int):
+    """Measure -> shrink -> wrap, in that order. Tries start_size on one
+    line first; if it doesn't fit, shrinks in steps down to min_size; if
+    it still doesn't fit at the floor size, wraps onto additional lines
+    (greedy word wrap) instead of shrinking past legibility. Returns
+    (lines, font, line_height) truncated to whatever fits in max_height,
+    ellipsizing the last visible line if content had to be cut."""
+    size = start_size
+    while size >= min_size:
+        font = ImageFont.truetype(font_path, size)
+        bbox = draw.textbbox((0, 0), text, font=font)
+        if (bbox[2] - bbox[0]) <= max_width and (bbox[3] - bbox[1]) <= max_height:
+            return [text], font, bbox[3] - bbox[1]
+        size -= 2
+
+    font = ImageFont.truetype(font_path, min_size)
+    words = text.split()
+    lines, current = [], ""
+    for word in words:
+        trial = f"{current} {word}".strip()
+        bbox = draw.textbbox((0, 0), trial, font=font)
+        if (bbox[2] - bbox[0]) <= max_width:
+            current = trial
+        elif not current:
+            # a single word wider than max_width even alone (no spaces to
+            # break on) — truncate the word itself rather than letting it
+            # run off the canvas edge unbroken
+            lines.append(_truncate_to_width(draw, word, font, max_width))
+        else:
+            lines.append(current)
+            word_bbox = draw.textbbox((0, 0), word, font=font)
+            if (word_bbox[2] - word_bbox[0]) <= max_width:
+                current = word
+            else:
+                lines.append(_truncate_to_width(draw, word, font, max_width))
+                current = ""
+    if current:
+        lines.append(current)
+    if not lines:
+        lines = [text]
+
+    line_bbox = draw.textbbox((0, 0), "Ag", font=font)
+    line_height = int((line_bbox[3] - line_bbox[1]) * 1.15)
+    max_lines = max(1, max_height // line_height)
+    if len(lines) > max_lines:
+        lines = lines[:max_lines]
+        lines[-1] = lines[-1].rstrip() + "…"
+    return lines, font, line_height
+
+
+def _draw_block(draw, lines, font, line_height, x, y, fill):
+    for line in lines:
+        draw.text((x, y), line, font=font, fill=fill)
+        y += line_height + 6
+    return y
+
+
+def _render_preview(suggestion_id: int, title: str, subtitle: str, display_meta: dict, body_meta: dict) -> str:
     os.makedirs(PREVIEW_DIR, exist_ok=True)
     display_path = _download_font(display_meta)
     body_path = _download_font(body_meta)
 
-    img = Image.new("RGB", (900, 500), "#ffffff")
+    img = Image.new("RGB", (CANVAS_W, CANVAS_H), "#ffffff")
     draw = ImageDraw.Draw(img)
-    title_font = ImageFont.truetype(display_path, 56)
-    sub_font = ImageFont.truetype(body_path, 24)
-    label_font = ImageFont.truetype(body_path, 18)
+    max_w = CANVAS_W - 2 * PADDING
 
-    draw.text((50, 160), sample_title, font=title_font, fill="#1a1a1a")
-    draw.text((50, 260), "A sample subtitle line for preview purposes", font=sub_font, fill="#444444")
-    draw.text(
-        (50, 440),
-        f'{display_meta["family"]} / {body_meta["family"]}',
-        font=label_font,
-        fill="#888888",
+    title_lines, title_font, title_line_h = fit_text(
+        draw, title, display_path, max_w, TITLE_REGION_H, TITLE_MAX_SIZE, TITLE_MIN_SIZE
     )
+    _draw_block(draw, title_lines, title_font, title_line_h, PADDING, 80, "#1a1a1a")
+
+    if subtitle:
+        sub_lines, sub_font, sub_line_h = fit_text(
+            draw, subtitle, body_path, max_w, SUB_REGION_H, SUB_MAX_SIZE, SUB_MIN_SIZE
+        )
+        _draw_block(draw, sub_lines, sub_font, sub_line_h, PADDING, 80 + TITLE_REGION_H + 20, "#444444")
+
+    label_text = f'{display_meta["family"]} / {body_meta["family"]}'
+    label_lines, label_font, label_line_h = fit_text(
+        draw, label_text, body_path, max_w, LABEL_REGION_H, LABEL_MAX_SIZE, LABEL_MIN_SIZE
+    )
+    _draw_block(draw, label_lines, label_font, label_line_h, PADDING, CANVAS_H - LABEL_REGION_H, "#888888")
 
     out_path = os.path.join(PREVIEW_DIR, f"suggestion_{suggestion_id}.jpg")
     img.save(out_path, "JPEG", quality=90)
     return out_path
 
 
-# ── Generation flow ───────────────────────────────────────────────────────
+# ── Generation flow: narrow (slow, once) + render (fast, repeatable) ─────
 
-def suggest_fonts(series_id: int) -> list:
-    """Fetch the Google Fonts catalog, propose 8+ validated pairings for
-    the given bucket, render a preview for each, send to Telegram for
-    Approve/Reject. Returns the list of inserted suggestion ids."""
+def narrow_fonts(series_id: int) -> int:
+    """Stage 1 — Fonts API fetch + qwen2.5:7b selection + validator. The
+    expensive/slow part (Ollama call alone runs ~47s). Caches the
+    resolved candidate list (family names + full Google Fonts metadata,
+    so render_batch never needs to hit the Fonts API again) in a
+    cover_font_suggestion_batches row. Returns the batch id."""
     create_tables()
     if not GOOGLE_FONTS_API_KEY:
-        log.error("GOOGLE_FONTS_API_KEY not set in ~/watson/.env — cannot fetch Google Fonts catalog.")
-        return []
+        raise RuntimeError("GOOGLE_FONTS_API_KEY not set in ~/watson/.env — cannot fetch Google Fonts catalog.")
 
     conn = get_connection()
     try:
         series = conn.execute("SELECT * FROM cover_series WHERE id=?", (series_id,)).fetchone()
         if not series:
             raise ValueError(f"cover_series id={series_id} not found")
-        series = dict(series)
 
         catalog = _fetch_font_catalog(GOOGLE_FONTS_API_KEY)
         shortlist = catalog[:_SHORTLIST_SIZE]
@@ -192,19 +283,70 @@ def suggest_fonts(series_id: int) -> list:
                 len(valid), _MIN_RESULT, series_id,
             )
 
-        inserted_ids = []
-        for v in valid:
-            cur = conn.execute(
-                "INSERT INTO cover_font_suggestions (series_id, display_family, body_family, rationale) "
-                "VALUES (?, ?, ?, ?)",
-                (series_id, v["display_family"], v["body_family"], v["rationale"]),
-            )
-            conn.commit()
-            suggestion_id = cur.lastrowid
+        candidates = [
+            {
+                "display_family": v["display_family"],
+                "body_family": v["body_family"],
+                "rationale": v["rationale"],
+                "display_meta": catalog_by_name[v["display_family"]],
+                "body_meta": catalog_by_name[v["body_family"]],
+            }
+            for v in valid
+        ]
+
+        cur = conn.execute(
+            "INSERT INTO cover_font_suggestion_batches (series_id, candidates_json) VALUES (?, ?)",
+            (series_id, json.dumps(candidates)),
+        )
+        conn.commit()
+        return cur.lastrowid
+    finally:
+        conn.close()
+
+
+def _get_or_create_suggestion_row(conn, batch_id: int, series_id: int, candidate: dict) -> dict:
+    """First render of a batch creates the cover_font_suggestions row;
+    every later re-render (same batch, new title/subtitle) reuses the
+    same row/id so Telegram's Approve/Reject buttons keep referencing
+    the one canonical suggestion, not a duplicate."""
+    row = conn.execute(
+        "SELECT * FROM cover_font_suggestions WHERE batch_id=? AND display_family=? AND body_family=?",
+        (batch_id, candidate["display_family"], candidate["body_family"]),
+    ).fetchone()
+    if row:
+        return dict(row)
+    cur = conn.execute(
+        "INSERT INTO cover_font_suggestions (series_id, batch_id, display_family, body_family, rationale) "
+        "VALUES (?, ?, ?, ?, ?)",
+        (series_id, batch_id, candidate["display_family"], candidate["body_family"], candidate["rationale"]),
+    )
+    conn.commit()
+    return dict(conn.execute("SELECT * FROM cover_font_suggestions WHERE id=?", (cur.lastrowid,)).fetchone())
+
+
+def render_batch(batch_id: int, title: str, subtitle: str) -> list:
+    """Stage 2 — PIL-only, no Fonts API call, no Ollama call. Renders
+    every candidate in the batch against the given title/subtitle and
+    (re)sends each to Telegram for review. This is what fires on every
+    title/subtitle edit, so it should feel close to instant compared to
+    stage 1's ~47s+ narrowing pass (font files are cached locally after
+    their first download)."""
+    conn = get_connection()
+    try:
+        batch = conn.execute("SELECT * FROM cover_font_suggestion_batches WHERE id=?", (batch_id,)).fetchone()
+        if not batch:
+            raise ValueError(f"cover_font_suggestion_batch id={batch_id} not found")
+        series_id = batch["series_id"]
+        candidates = json.loads(batch["candidates_json"])
+
+        suggestion_ids = []
+        for candidate in candidates:
+            row = _get_or_create_suggestion_row(conn, batch_id, series_id, candidate)
+            suggestion_id = row["id"]
 
             try:
                 preview_path = _render_preview(
-                    suggestion_id, series["name"], catalog_by_name[v["display_family"]], catalog_by_name[v["body_family"]]
+                    suggestion_id, title, subtitle, candidate["display_meta"], candidate["body_meta"]
                 )
                 conn.execute(
                     "UPDATE cover_font_suggestions SET preview_image_path=? WHERE id=?", (preview_path, suggestion_id)
@@ -212,12 +354,13 @@ def suggest_fonts(series_id: int) -> list:
                 conn.commit()
             except Exception as exc:
                 log.error("Font preview render failed for suggestion %s: %s", suggestion_id, exc)
+                continue
 
-            inserted_ids.append(suggestion_id)
+            suggestion_ids.append(suggestion_id)
             row = conn.execute("SELECT * FROM cover_font_suggestions WHERE id=?", (suggestion_id,)).fetchone()
             _send_for_review(dict(row))
 
-        return inserted_ids
+        return suggestion_ids
     finally:
         conn.close()
 
