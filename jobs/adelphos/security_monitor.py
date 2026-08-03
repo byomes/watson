@@ -123,15 +123,17 @@ def run() -> None:
             signup_ts = u.get("timecreated")
             source_ip = u.get("lastip") or ""
 
+            email_display = email or "(not visible — Moodle privacy setting)"
+            ip_display = source_ip or "(not visible — Moodle privacy setting)"
+
             text = (
                 f"🚨 New Adelphos Academy signup\n\n"
                 f"Name: {fullname}\n"
-                f"Email: {email}\n"
+                f"Email: {email_display}\n"
                 f"Username: {username}\n"
+                f"IP: {ip_display}\n"
                 f"Signed up: {signup_ts}\n"
             )
-            if source_ip:
-                text += f"IP: {source_ip}\n"
 
             keyboard = [[
                 {"text": "🗑 Delete", "callback_data": f"adelphos_delete_{moodle_id}"},
