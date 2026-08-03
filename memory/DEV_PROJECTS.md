@@ -1,10 +1,11 @@
 # Watson Project Backlog
 _Auto-generated nightly from project_backlog. Source of truth is the database — do not hand-edit this file, changes will be overwritten._
-Last generated: 2026-08-02 02:00
+Last generated: 2026-08-03 02:00
 
-## Planned (25)
+## Planned (26)
 | ID | Title | Summary | Added |
 |---|---|---|---|
+| 31 | Cover Comp Generator parked | Killed as an active feature 2026-08-03 — creative output quality (qwen2.5:7b concepts + Pollinations raster previews) wasn't usable. Dashboard entry point removed, all backend code/data left intact for potential future salvage (font discovery tool specifically may be worth keeping independently). See jobs/book/ for the full implementation. | 2026-08-03 |
 | 28 | close #27 | Decision made 2026-07-27: keeping all Watson sends on watson@williamckyomes.com permanently, not reverting to faithmakessense.com. Watson is Dr. Bill's assistant, branding stays under his domain by design. | 2026-07-28 |
 | 27 | Revert FMS email sender to watson@faithmakessense.com once domain is authenticated in Brevo | 2026-07-27 stopgap forced all outgoing Brevo mail from watson@faithmakessense.com to watson@williamckyomes.com because Brevo was rejecting the faithmakessense.com sender as unauthenticated (caused Kenny Cheeseman's ARC resend-welcome to fail). Revert the 4 sites once faithmakessense.com domain auth is confirmed working in Brevo — grep for "STOPGAP 2026-07-27" to find all 4: jobs/arc/send_invite_email.py, jobs/arc/send_manuscript_access_batch.py, jobs/arc/send_signup_confirmation.py, jobs/writing_room/send_arc_welcome_email.py. | 2026-07-28 |
 | 26 | Fix swallowed-failure design in resend_welcome() | resend_welcome() in jobs/arc/api.py fires the Brevo send in a fire-and-forget background thread and returns {"ok": True} before the send completes — so any failure (like the Jul 25-27 to_name="" bug) gets logged but never surfaced to the dashboard, which always reports success regardless of actual outcome. Either drop the background thread and return the real result, or keep it async but surface failures (Telegram alert or pollable status). Worth checking whether other Brevo-migrated fire-and-forget call sites have the same blind spot. | 2026-07-28 |
