@@ -39,7 +39,7 @@ _PACKETS_PER_RUN = (3, 5)
 
 # ── Ollama call ───────────────────────────────────────────────────────────
 
-def _call_ollama(system: str, prompt: str, timeout: int = 120) -> str:
+def _call_ollama(system: str, prompt: str, timeout: int = 400) -> str:
     resp = requests.post(
         OLLAMA_URL,
         json={"model": MODEL, "system": system, "prompt": prompt, "stream": False},
@@ -255,7 +255,13 @@ def _generate_one_packet(base_prompt: str, palette, font_library, used_symbols) 
 
 def generate(series_id: int, title: str, subtitle: str, theme: str, key_concepts: str) -> list:
     """Main entry point: dashboard form -> 3-5 validated concepts, sent to
-    Telegram for review. Returns the list of inserted concept ids."""
+    Telegram for review. Returns the list of inserted concept ids. The
+    initial 5-packet Ollama call alone measured 157.85s on this box's
+    CPU-only inference (qwen2.5:7b, 2026-08-02) — _call_ollama's 400s
+    timeout leaves ~240s margin, same reasoning as font_finder.py's
+    narrow_fonts(); a timeout here fails silently in the background
+    thread (see routes.py's cover_comps_create), so don't shave this
+    back down to a thin buffer."""
     create_tables()
     conn = get_connection()
     try:
