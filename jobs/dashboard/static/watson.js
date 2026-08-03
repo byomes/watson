@@ -1473,10 +1473,6 @@ function renderMore() {
         <span class="mtile-label">Email Activity</span>
         <span class="mtile-chev">›</span>
       </button>
-      <button class="mtile" id="mtile-covercomps" onclick="moreToggle('covercomps')">
-        <span class="mtile-label">Cover Comps</span>
-        <span class="mtile-chev">›</span>
-      </button>
     </div>
     <div id="more-expand-area">
       <div class="msec-body" id="msec-body-skills">
