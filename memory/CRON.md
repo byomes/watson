@@ -79,3 +79,27 @@ the cron entry now; it'll start working the moment the Moodle side is fixed.
 ```
 
 (Every 5 minutes)
+
+---
+
+# 2am Doc/KB Job Stagger — Cron Change (2026-08-03)
+
+`jobs/dev/file_map.py`, `jobs/dev/bugs_backlog_sync.py`, `jobs/dev/update_arch.py`,
+and `jobs/kb/sync_and_index.py` were all previously cron'd at the identical `0 2 * * *`
+slot, each independently running its own `git commit` + `git push origin main` against
+the same working tree with no shared lock between them (`sync_and_index.py`'s file lock
+only serializes against its own immediate-trigger sibling, not these three). This already
+caused a real failure once: 2026-07-23's `sync_and_index.log` shows a `git pull --ff-only`
+abort ("Your local changes to memory/FILE_MAP.md would be overwritten") from exactly this
+collision. Staggered by a few minutes each instead of extending the lock to be repo-wide —
+`sync_and_index.py` runs first on a clean tree since it's the one with real content
+(transcripts) at stake, the doc jobs follow serially after it.
+
+```
+0 2 * * *  jobs/kb/sync_and_index.py
+5 2 * * *  jobs/dev/file_map.py
+10 2 * * * jobs/dev/bugs_backlog_sync.py
+15 2 * * * jobs/dev/update_arch.py
+```
+
+(Daily, staggered 5 minutes apart starting 2am)
