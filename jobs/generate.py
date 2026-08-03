@@ -59,10 +59,15 @@ KB_STAGING_DIR = REPO_ROOT / "kb" / "transcripts"
 KB_LOCAL_DIR = Path(os.getenv("KB_LOCAL_DIR", str(KB_STAGING_DIR)))
 
 # GitHub raw URL base — live immediately if the sync-now trigger succeeds,
-# otherwise live after the next 2am backstop; update if repo name changes
+# otherwise live after the next 2am backstop; update if repo name changes.
+# Must point at kb/documents, not kb/transcripts: sync_and_index.py moves
+# every synced file into kb/documents/, so that's where it's actually
+# committed and where the raw URL resolves. Was wrongly pointed at
+# kb/transcripts (a 404 after every sync) until caught during the 2026-08-03
+# sync-now auth incident verification.
 GITHUB_RAW_BASE = os.getenv(
     "GITHUB_RAW_BASE",
-    "https://raw.githubusercontent.com/byomes/watson/main/kb/transcripts"
+    "https://raw.githubusercontent.com/byomes/watson/main/kb/documents"
 )
 
 # Beelink transfer target — direct scp over Tailscale SSH, replacing the old
