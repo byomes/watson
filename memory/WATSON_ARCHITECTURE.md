@@ -1544,3 +1544,19 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - 8be3543 docs: file map 2026-08-01
 - 38aebec docs: bugs/backlog export 2026-08-01
 - 8171539 docs: architecture update 2026-08-01
+
+---
+
+## Recent Changes — 2026-08-03
+
+### ~/watson
+- 5b2e9ca chore: remove Cover Comps tile from dashboard More menu
+- c1d5bcc fix: bump cover_comps Ollama read timeout from 120s to 400s
+- cb4617c fix: correction_handler.py mis-parsed Gmail's collapsed quote-preview card as reply content
+- fb2679f fix: connect_cards/intake.py never matched the new self-hosted Connect Card form
+- 749af43 feat: remove font-pairing gate, add inline preview/approve dashboard UI
+- b81f7dd fix: font-pairing checkboxes disconnected from labels in New Series form
+- 30161e4 fix: bump Suggest Fonts Ollama timeout from 120s to 400s
+- a997fab docs: bugs/backlog export 2026-08-02
+- 31550e6 docs: file map 2026-08-02
+- da9411a docs: architecture update 2026-08-02
