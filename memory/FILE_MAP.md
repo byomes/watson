@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-08-02*
+*Generated: 2026-08-03*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -85,6 +85,11 @@ data/
   congregation.db.bak-20260715-124007
   congregation.db.bak-20260716-101416
   congregation.db.bak-20260716-111858
+  cover_images/
+    cover_1.jpg
+    cover_10.jpg
+    cover_6.jpg
+    cover_8.jpg
   curator.db
   curator.db.bak-20260721-212433
   curator.db.bak-20260721-223148
@@ -102,6 +107,39 @@ data/
     fb_14.jpg
     fb_15.jpg
     fb_16.jpg
+  font_cache/
+    Archivo.ttf
+    Archivo_Black.ttf
+    Arimo.ttf
+    Barlow.ttf
+    Bebas_Neue.ttf
+    DM_Sans.ttf
+    Figtree.ttf
+    Fira_Sans.ttf
+    IBM_Plex_Sans.ttf
+    Inter.ttf
+    Kanit.ttf
+    Lato.ttf
+    Lora.ttf
+    Merriweather.ttf
+    Mulish.ttf
+    Noto_Sans_JP.ttf
+    Noto_Serif.ttf
+    Nunito.ttf
+    Nunito_Sans.ttf
+    Open_Sans.ttf
+    Playfair_Display.ttf
+    Plus_Jakarta_Sans.ttf
+    Prompt.ttf
+    Raleway.ttf
+    Roboto_Condensed.ttf
+    Rubik.ttf
+    Saira.ttf
+    Smooch_Sans.ttf
+    Source_Sans_3.ttf
+    Space_Grotesk.ttf
+    Ubuntu.ttf
+    Work_Sans.ttf
   generated_images/
     img_a_lighthouse_at_sunset_1783180276.jpg
   imports/
@@ -245,6 +283,9 @@ jobs/
     reports.py
     shepherding_report.py
     state_of_church.py
+    test_correction_handler.py
+    test_data/
+      donna_565_reply_raw.txt
     utils.py
   contacts/
     __init__.py
