@@ -102,8 +102,10 @@ def pull_repo() -> tuple:
 
 
 def move_new_transcripts() -> list:
-    if not TRANSCRIPTS_DIR.exists():
-        return []
+    # Self-heal: a missing TRANSCRIPTS_DIR must not silently look like "nothing
+    # to sync" (that's exactly how the directory going missing on 2026-08-03
+    # went unnoticed for weeks) — recreate it, same pattern as DOCUMENTS_DIR.
+    TRANSCRIPTS_DIR.mkdir(parents=True, exist_ok=True)
     DOCUMENTS_DIR.mkdir(parents=True, exist_ok=True)
 
     moved = []
