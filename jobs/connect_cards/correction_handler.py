@@ -30,7 +30,7 @@ from dotenv import load_dotenv
 
 from jobs.connect_cards.utils import format_date_for_subject, most_recent_sunday, parse_date_from_subject
 from core.vacation import vacation_gate
-from jobs.email_job.brevo_send import send_email
+from jobs.email_job.brevo_send import send_email, DEFAULT_FROM_NAME
 
 load_dotenv(os.path.expanduser("~/watson/.env"))
 
@@ -131,22 +131,71 @@ def _get_plain_text(msg) -> str:
     return ""
 
 
-def _strip_quoted_text(body: str) -> str:
+# Gmail (observed: mobile app) sometimes renders an unquoted "collapsed quote
+# preview" card above the real '>'-quoted block: a line with the original
+# sender's display name, then a relative timestamp like "Mon, Jul 20, 6:00 AM
+# (8 days ago)" -- sometimes with a narrow no-break space (U+202F) between
+# the clock time and AM/PM instead of a normal space -- then a compact
+# "to <recipients>" line (no colon), then a snippet of the original body.
+# None of it carries '>' or an "on ... wrote:" marker, so _strip_quoted_text
+# didn't catch it before this fix: discovered 2026-07-28 when it produced 5
+# garbage member records ("Watson", the timestamp line, the "to ..." line,
+# the report's own subject, and its first body line) alongside 20 real
+# correction names in the same reply.
+_RELATIVE_TIMESTAMP_RE = re.compile(
+    r"^\w{3},\s+\w{3}\s+\d{1,2},?\s+\d{1,2}:\d{2}\s*(?:AM|PM)?\s*\(\d+\s+\w+\s+ago\)\s*$",
+    re.IGNORECASE,
+)
+
+
+def _normalize_ws(s: str) -> str:
+    """Collapse Unicode space variants (e.g. U+202F narrow no-break space,
+    used by Gmail between a time and AM/PM) to a plain space before matching
+    _RELATIVE_TIMESTAMP_RE -- Python's \\s already matches U+202F by default,
+    this just makes that intentional rather than incidental."""
+    return s.replace(" ", " ")
+
+
+def _strip_quoted_text(body: str, original_sender_name: str = DEFAULT_FROM_NAME) -> str:
     lines = body.splitlines()
-    clean = []
+    clean: list[str] = []
+    skip_until_blank = False
     for line in lines:
         stripped = line.strip()
+        if skip_until_blank:
+            if stripped == "":
+                skip_until_blank = False
+            continue
         if stripped.startswith(">"):
             continue
         if stripped.lower().startswith("on ") and "wrote:" in stripped.lower():
             break
+        if (
+            clean
+            and clean[-1] == original_sender_name
+            and _RELATIVE_TIMESTAMP_RE.match(_normalize_ws(stripped))
+        ):
+            # Collapsed quote-preview card detected: the line just appended
+            # was the sender-name line, not real reply content -- drop it
+            # and skip everything through the next blank line (recipient
+            # summary line + quoted-body snippet).
+            clean.pop()
+            skip_until_blank = True
+            continue
         clean.append(stripped)
     return "\n".join(clean)
 
 
+# Backstop only -- _strip_quoted_text() above is the real fix. A bare
+# "Watson" or "Sunday, July 19, 2026" line can't be told apart from
+# legitimate short text by pattern alone; only recognizing the card's
+# structure (sender-name line immediately followed by a relative timestamp)
+# catches those. This backstop still helps for the "to ..." and
+# "Missed Attendance Report" lines if some future Gmail variant renders the
+# card without a clean sender-name line ahead of it.
 _SKIP_PATTERNS = re.compile(
-    r"(^from:|^sent:|^to:|^subject:|^date:|^--$|@|http[s]?://|unsubscribe|"
-    r"confidential|disclaimer|this email|this message)",
+    r"(^from:|^sent:|^to[:\s]|^subject:|^date:|^--$|@|http[s]?://|unsubscribe|"
+    r"confidential|disclaimer|this email|this message|missed attendance report)",
     re.IGNORECASE,
 )
 
@@ -163,6 +212,8 @@ def _valid_name(s: str) -> bool:
     if _SKIP_PATTERNS.search(s):
         return False
     if _CAMPUS_HEADER_RE.match(s):
+        return False
+    if _RELATIVE_TIMESTAMP_RE.match(_normalize_ws(s)):
         return False
     if s.isupper() and len(s) > 20:
         return False
