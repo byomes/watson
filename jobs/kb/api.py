@@ -30,7 +30,20 @@ _API_KEY = lambda: os.getenv("WRITING_ROOM_API_KEY", "")
 
 @kb_bp.route("/api/kb/sync-now", methods=["POST"])
 def sync_now():
-    if request.headers.get("X-Watson-Key") != _API_KEY() or not _API_KEY():
+    expected = _API_KEY()
+    received = request.headers.get("X-Watson-Key")
+
+    if not expected:
+        log.warning("KB sync-now rejected: WRITING_ROOM_API_KEY not configured on this server")
+        return jsonify({"error": "unauthorized"}), 401
+    if not received:
+        log.warning("KB sync-now rejected: no X-Watson-Key header sent")
+        return jsonify({"error": "unauthorized"}), 401
+    if received != expected:
+        log.warning(
+            "KB sync-now rejected: X-Watson-Key did not match (received %d chars, expected %d chars)",
+            len(received), len(expected),
+        )
         return jsonify({"error": "unauthorized"}), 401
 
     try:
