@@ -69,6 +69,12 @@ def create_tables(conn=None) -> None:
         if "cli_session_id" not in cols:
             conn.execute("ALTER TABLE claude_code_jobs ADD COLUMN cli_session_id TEXT")
 
+        # last_progress_step: highest .devdispatch/progress.json "step" the
+        # poller has already notified Telegram about, so it only sends a
+        # message when the step actually advances. See jobs/devdispatch/poller.py.
+        if "last_progress_step" not in cols:
+            conn.execute("ALTER TABLE claude_code_jobs ADD COLUMN last_progress_step INTEGER NOT NULL DEFAULT 0")
+
         conn.commit()
     finally:
         if owns_conn:

@@ -203,6 +203,18 @@ def _tool_content(payload: dict) -> dict:
 
 # ── Constants / small helpers ────────────────────────────────────────────
 
+_PROGRESS_PROTOCOL = '''
+
+PROGRESS REPORTING (required): as you work, write your current phase to .devdispatch/progress.json in the repo root (create the .devdispatch/ directory if it doesn't exist), overwriting the file each time, in this exact JSON shape:
+  {"step": N, "total": 5, "label": "<phase>", "detail": "<one short sentence>"}
+Write it after completing each of these five phases in order — not all tasks weight each phase equally (a pure diagnostic may barely touch Coding), but pass through all five in order so progress is visible from outside this session:
+  1. Reading   — pulled relevant docs/architecture, read the existing code this task touches
+  2. Speccing  — confirmed scope, decided what will actually change
+  3. Coding    — implemented the change
+  4. Testing   — ran py_compile / build / tests as applicable
+  5. Reporting — committing, pushing, opening a PR (or writing the diagnostic deliverable)
+'''
+
 _MAX_BUDGET_USD = "5"
 _LAUNCH_TIMEOUT_S = 20  # bound on `claude --bg` itself registering + returning; NOT the build
 _BACKGROUNDED_RE = re.compile(r"backgrounded\s*[·\-]\s*([0-9a-fA-F]+)")
@@ -367,7 +379,7 @@ def _dispatch_claude_code_job(spec, repo, branch_name=None) -> dict:
         _CLAUDE_BIN, "--bg", "-w", branch_name,
         "--permission-mode", "bypassPermissions",
         "--max-budget-usd", _MAX_BUDGET_USD,
-        spec,
+        spec + _PROGRESS_PROTOCOL,
     ]
     try:
         proc = subprocess.Popen(
