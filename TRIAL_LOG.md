@@ -160,3 +160,42 @@ this machine — the model consistently narrates a tool call as chat text
 instead of triggering OpenCode's actual function-calling path, a failure
 silent enough that `opencode run` still exits 0. Not retrying further;
 proceeding to Step 3 (Claude Code implementing the same spec directly).
+
+## Step 3 — Trial task, attempt #2 (Claude Code, direct)
+
+Same exact spec, implemented directly (no OpenCode/Ollama in the loop),
+writing to `jobs/dev/stale_backlog_report_clauded.py` +
+`jobs/dev/test_stale_backlog_report_clauded.py` (temporary comparison
+filenames per the trial spec).
+
+**Wall clock: 54 seconds** — write both files, `py_compile` both, run the
+5-test pytest suite (all passed), diagnose and fix a `DB_PATH` resolution
+question (see below), create a minimal fixture DB, and confirm the script
+runs end-to-end against it.
+
+Implementation notes:
+- `get_stale_backlog_rows(conn)` is factored out from `main()` specifically
+  so the test can inject an in-memory SQLite connection without
+  monkeypatching `core.database.get_connection()` / `config.settings.DB_PATH`
+  — matches the dependency-injection style implicit in how
+  `test_correction_handler.py` tests pure functions directly rather than
+  mocking the DB layer.
+- Query: `added_date < date('now', '-60 days')`, ordered oldest-first
+  (`ORDER BY added_date ASC`) — the spec didn't mandate an order, but
+  "most overdue first" is the more useful default for a report a human
+  will read.
+- Test suite (5 cases, all passing): normal stale/fresh split, exact
+  60-day boundary excluded, 61-day boundary included, empty-result case,
+  and multi-row ordering.
+- End-to-end validation: running the script directly against
+  `PYTHONPATH=<worktree>` resolves `config.settings.BASE_DIR` to the
+  worktree's own root (by design — `BASE_DIR = Path(__file__).resolve().parent.parent`
+  in `config/settings.py`), so it correctly targeted this worktree's own
+  `data/watson.db` (gitignored, checked out here as an empty 0-byte
+  placeholder) rather than the real production DB — appropriate isolation,
+  not a bug. Created a minimal fixture `project_backlog` table (matching
+  the real schema exactly) in that gitignored file with two rows (one
+  90 days old, one 5 days old) and confirmed the script correctly printed
+  only the 90-day-old row. This satisfies comparison criterion (a) — runs
+  without error against a real-shaped fixture DB — without touching
+  production data.

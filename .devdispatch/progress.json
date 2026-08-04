@@ -1,1 +1,1 @@
-{"step": 3, "total": 5, "label": "Coding", "detail": "OpenCode installed and smoke-tested; starting Step 2 trial task (OpenCode attempt)."}
+{"step": 4, "total": 5, "label": "Testing", "detail": "Claude Code implementation passes 5/5 tests and runs cleanly against a fixture DB; OpenCode attempt produced no files."}
