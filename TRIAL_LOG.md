@@ -218,3 +218,12 @@ or merge from. Claude Code's implementation is kept outright as the real
 (`git mv`), with internal docstring/import references updated to match
 (no other content changes). There is no losing/duplicate file to delete,
 since OpenCode's attempts left nothing on disk.
+
+## Step 5 — Final report
+
+Written to `TRIAL_REPORT_opencode_vs_claude.md` at repo root — install
+experience, timing table, quality notes, and recommendation. Summary:
+OpenCode + qwen2.5-coder:7b failed to deliver any output across 2
+attempts (~12 min total) due to a tool-calling delivery failure, not
+primarily a content-quality failure; Claude Code completed the identical
+spec correctly in 54 seconds.

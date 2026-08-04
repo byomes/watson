@@ -1,1 +1,1 @@
-{"step": 4, "total": 5, "label": "Testing", "detail": "Claude Code implementation passes 5/5 tests and runs cleanly against a fixture DB; OpenCode attempt produced no files."}
+{"step": 5, "total": 5, "label": "Reporting", "detail": "Writing TRIAL_REPORT_opencode_vs_claude.md and committing final checkpoints."}
