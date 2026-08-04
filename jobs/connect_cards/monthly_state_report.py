@@ -405,11 +405,14 @@ def build_report(year: int, month: int) -> tuple[str, str]:
 
     subject = f"Watson — Monthly State of the Church | {month_label}"
 
+    attended_count = sum(1 for c in cur_counts.values() if c >= 1)
+
     body = (
         "<div style='text-align:center;margin:20px 0 28px'>"
-        f"<div style='font-size:3em;font-weight:bold;color:#222'>{active_count}</div>"
+        f"<div style='font-size:3em;font-weight:bold;color:#222'>{attended_count} "
+        f"<span style='font-size:.5em;font-weight:normal;color:#888'>of {active_count}</span></div>"
         "<div style='font-size:.95em;color:#666;text-transform:uppercase;letter-spacing:.05em'>"
-        f"Active Members — {month_label}</div>"
+        f"Active Members Attended — {month_label}</div>"
         "</div>"
     )
 
