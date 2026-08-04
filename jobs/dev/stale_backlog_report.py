@@ -1,11 +1,11 @@
-"""jobs/dev/stale_backlog_report_clauded.py — Print project_backlog rows
-older than 60 days.
+"""jobs/dev/stale_backlog_report.py — Print project_backlog rows older
+than 60 days.
 
 Deterministic, non-LLM: queries project_backlog for rows where added_date
 is more than 60 days old and prints title + added date to stdout, most
 overdue first.
 
-Run: PYTHONPATH=/home/billyomes/watson venv/bin/python jobs/dev/stale_backlog_report_clauded.py
+Run: PYTHONPATH=/home/billyomes/watson venv/bin/python jobs/dev/stale_backlog_report.py
 """
 from core.database import get_connection
 

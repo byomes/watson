@@ -1,16 +1,16 @@
 """
-Unit tests for stale_backlog_report_clauded.py's >60-day filtering logic.
+Unit tests for stale_backlog_report.py's >60-day filtering logic.
 
 Uses an in-memory SQLite database with a fixture project_backlog table —
 never touches the real watson.db.
 
 Run:
   PYTHONPATH=/home/billyomes/watson venv/bin/python -m pytest \
-    jobs/dev/test_stale_backlog_report_clauded.py -v
+    jobs/dev/test_stale_backlog_report.py -v
 """
 import sqlite3
 
-from jobs.dev.stale_backlog_report_clauded import get_stale_backlog_rows
+from jobs.dev.stale_backlog_report import get_stale_backlog_rows
 
 
 def _make_conn():

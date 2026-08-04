@@ -199,3 +199,22 @@ Implementation notes:
   only the 90-day-old row. This satisfies comparison criterion (a) — runs
   without error against a real-shaped fixture DB — without touching
   production data.
+
+## Step 4 — Compare and decide
+
+| Criterion | OpenCode + qwen2.5-coder:7b | Claude Code |
+|---|---|---|
+| (a) Runs without error against fixture DB | N/A — no file ever produced | Pass |
+| (b) Test passes | N/A — no test file ever produced | Pass (5/5) |
+| (c) Matches Watson conventions unedited | N/A | Pass |
+| (d) Time taken | ~12 min total across 2 attempts, 0 output | 54 sec, complete |
+
+Decision: **no merge decision to make** — OpenCode never got past
+narrating a tool call as text across two independent attempts (default
+and `--auto`), so there is no OpenCode-authored code to compare against
+or merge from. Claude Code's implementation is kept outright as the real
+`jobs/dev/stale_backlog_report.py` / `jobs/dev/test_stale_backlog_report.py`
+— the temporary `_clauded` filenames were renamed to their final names
+(`git mv`), with internal docstring/import references updated to match
+(no other content changes). There is no losing/duplicate file to delete,
+since OpenCode's attempts left nothing on disk.
