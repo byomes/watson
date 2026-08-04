@@ -1,10 +1,11 @@
 # Watson Bug Tracker
 _Auto-generated nightly from bug_tracker. Source of truth is the database — do not hand-edit this file, changes will be overwritten._
-Last generated: 2026-08-03 02:00
+Last generated: 2026-08-04 02:10
 
-## Open (12)
+## Open (13)
 | ID | Title | Repo | Discovered |
 |---|---|---|---|
+| 55 | watson-codeagent.service is live but broken and undocumented | watson | 2026-08-04 02:27:18 |
 | 52 | jobs.skills.kb_search has no run() function but chat_stream imports it | watson | 2026-07-29 08:05:49 |
 | 46 | jobs.browser: goto_safe failed for https://this-domain-does-not-exist-watson-test-12345.invalid/ | watson | 2026-07-22 14:27:51 |
 | 45 | jobs.browser: goto_safe failed for https://this-domain-does-not-exist-watson-test-12345.invalid/ | watson | 2026-07-22 14:26:42 |
