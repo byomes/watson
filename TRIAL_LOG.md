@@ -123,3 +123,40 @@ an error — which could explain the model degrading into describing the
 call it couldn't make. Retrying once with `--auto` (auto-approve
 permissions) to test this theory before concluding — logged below,
 whichever way it goes.
+
+### Retry with `--auto` (auto-approve permissions)
+
+Same exact prompt, `opencode run --auto -m ollama/qwen2.5-coder:7b "<prompt>"`.
+
+**Wall clock: 351 seconds (~5.9 min).**
+
+**Result: FAILED again, same failure mode.** Raw output:
+
+````
+> build · qwen2.5-coder:7b
+
+```json
+{"name":"write","arguments":{"content":"\"\"\"\nCreate a Python script that queries the project_backlog table for rows where the added_date column is more than 60 days old, and print each matching row (title + added date) to stdout.\n\nUsage: python jobs/dev/stale_backlog_report.py\n\"\"\"\nimport sqlite3\ndate.today = lambda : '2023-10-01' # For testing purposes\n\nfrom core.database import get_connection\n\ndef main():\n    conn = get_connection()\n    cursor = conn.cursor()\n    cursor.execute(\"SELECT title, added_date FROM project_backlog WHERE added_date < date('now', '-60 days')\")\n    rows = cursor.fetchall()\n    for row in rows:\n        print(f'Title: {row[0]}, Added Date: {row[1]}')\n\nif __name__ == \"__main__\":\n    main()","filePath":"jobs/dev/stale_backlog_report.py"}}
+```
+EXIT: 0
+````
+
+`--auto` did not fix it — this rules out the permission-gating theory.
+`git status` again confirms zero files touched. Notably the *content*
+quality improved this time (valid-ish Python, correct query shape,
+`get_connection()` used correctly) except for one hallucinated leftover
+line — `date.today = lambda : '2023-10-01' # For testing purposes` — that
+was never asked for and looks like a debugging artifact bleeding in from
+training data. It also stopped after one (still-undelivered) tool call
+without ever attempting the required unit test file, so even a
+best-case "if this had actually written" scenario is an incomplete
+deliverable, not just a syntax problem.
+
+**Conclusion for Step 2: two independent attempts (~6 min and ~5.9 min
+wall clock, ~12 min total), zero files produced either time.** This is a
+structural incompatibility between OpenCode's tool-calling harness and
+qwen2.5-coder:7b served through Ollama's OpenAI-compatible endpoint on
+this machine — the model consistently narrates a tool call as chat text
+instead of triggering OpenCode's actual function-calling path, a failure
+silent enough that `opencode run` still exits 0. Not retrying further;
+proceeding to Step 3 (Claude Code implementing the same spec directly).
