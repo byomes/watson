@@ -10,8 +10,35 @@ tools/list, tools/call — over a single POST endpoint (no streaming/SSE
 needed since both tools return synchronously). See
 MCP-Claude-Code-Dispatcher-Spec.md for the full spec.
 
-Auth: X-Watson-Key header against MCP_DISPATCH_API_KEY (.env) — same
-shared-secret pattern as Writing Room / bodyrec.
+Auth: two independent paths, either satisfies it —
+  1. X-Watson-Key header against MCP_DISPATCH_API_KEY (.env) — same
+     shared-secret pattern as Writing Room / bodyrec.
+  2. Authorization: Bearer <token> — a token issued by the OAuth 2.1
+     authorization-code shim below.
+
+OAuth shim (added 2026-08-04): Claude.ai's custom-connector UI only offers
+an interactive OAuth flow (authorization_code + mandatory S256 PKCE) —
+confirmed it does NOT support client_credentials, so a machine-to-machine
+token endpoint alone is unreachable from that UI. This is a minimal,
+single-user shim (Bill only) around that requirement, not real multi-user
+OAuth: /oauth/authorize auto-approves (no login/consent screen — there's
+only one user) but still strictly validates client_id and redirect_uri as
+exact matches before issuing anything, and requires PKCE. Endpoints:
+  GET  /mcp/devdispatch/.well-known/oauth-protected-resource  (RFC 9728)
+  GET  /mcp/devdispatch/.well-known/oauth-authorization-server (RFC 8414)
+  GET  /mcp/devdispatch/oauth/authorize   — issues a short-lived code
+  POST /mcp/devdispatch/oauth/token       — authorization_code grant only
+No dynamic client registration (RFC 7591) — Bill pastes a fixed
+MCP_OAUTH_CLIENT_ID/SECRET into the connector's Advanced settings instead,
+which the MCP spec explicitly allows as the alternative to DCR. Access
+tokens are opaque (checked against devdispatch_oauth_tokens), not signed
+JWTs, and live 90 days — no refresh-token grant is implemented, so this is
+a deliberate simplicity tradeoff against the OAuth 2.1 "SHOULD issue
+short-lived tokens" guidance, justified by this being single-user with no
+one else to leak a token to. NOT independently verified against Claude.ai's
+actual client end-to-end (would require Bill's browser session) — the
+individual pieces (PKCE math, redirect/client_id strict-match rejection,
+code single-use, bearer-token acceptance) were tested directly.
 
 Invocation notes (confirmed empirically against CLI 2.1.221 — `--bg` rejects
 `-p`/`--print` and `--output-format`, so there is no JSON-mode return value;
@@ -33,16 +60,20 @@ text — not used here. The `failed` job state has not been directly observed
 (only `working`/`done`); any other state value is recorded verbatim in
 `summary` rather than assumed.
 """
+import base64
+import hashlib
 import json
 import logging
 import os
 import re
+import secrets
 import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import urlencode
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, redirect, request
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
@@ -60,6 +91,20 @@ create_tables()
 
 _API_KEY = lambda: os.getenv("MCP_DISPATCH_API_KEY", "")
 _PROTOCOL_VERSION = "2025-06-18"
+
+# Public Tailscale Funnel URL (see WATSON_ARCHITECTURE.md) — hardcoded
+# rather than derived from request.host_url, since RFC 8707 requires a
+# stable canonical resource URI and only the Funnel URL is reachable from
+# Claude.ai's servers in the first place.
+_BASE_URL = "https://watson.tail0243ff.ts.net"
+_RESOURCE_URL = f"{_BASE_URL}/mcp/devdispatch"
+
+# The only redirect_uri this shim will ever issue a code against — Claude.ai's
+# actual OAuth callback, confirmed 2026-08-04 (not guessed).
+_REGISTERED_REDIRECT_URI = "https://claude.ai/api/mcp/auth_callback"
+
+_AUTH_CODE_TTL_S = 120
+_ACCESS_TOKEN_TTL_S = 60 * 60 * 24 * 90  # 90 days — see module docstring
 
 _TOOLS = [
     {
@@ -107,9 +152,40 @@ _TOOLS = [
 ]
 
 
-def _require_key() -> bool:
+def _cleanup_oauth_state() -> None:
+    conn = get_connection()
+    try:
+        conn.execute("DELETE FROM devdispatch_oauth_codes WHERE expires_at <= datetime('now')")
+        conn.execute("DELETE FROM devdispatch_oauth_tokens WHERE expires_at <= datetime('now')")
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _valid_bearer_token(token: str) -> bool:
+    if not token:
+        return False
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT 1 FROM devdispatch_oauth_tokens WHERE access_token = ? AND expires_at > datetime('now')",
+            (token,),
+        ).fetchone()
+        return row is not None
+    finally:
+        conn.close()
+
+
+def _is_authorized() -> bool:
+    """True if either auth path succeeds: the original X-Watson-Key shared
+    secret, or a bearer token issued by the OAuth shim."""
     key = _API_KEY()
-    return bool(key) and request.headers.get("X-Watson-Key") == key
+    if key and request.headers.get("X-Watson-Key") == key:
+        return True
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        return _valid_bearer_token(auth_header[len("Bearer "):].strip())
+    return False
 
 
 def _rpc_result(req_id, result):
@@ -460,10 +536,154 @@ _TOOL_IMPLS = {
 
 # ── MCP JSON-RPC endpoint ──────────────────────────────────────────────────
 
+@devdispatch_bp.route("/mcp/devdispatch/.well-known/oauth-protected-resource", methods=["GET"])
+def oauth_protected_resource_metadata():
+    return jsonify({
+        "resource": _RESOURCE_URL,
+        "authorization_servers": [_RESOURCE_URL],
+    })
+
+
+@devdispatch_bp.route("/mcp/devdispatch/.well-known/oauth-authorization-server", methods=["GET"])
+def oauth_authorization_server_metadata():
+    return jsonify({
+        "issuer": _RESOURCE_URL,
+        "authorization_endpoint": f"{_RESOURCE_URL}/oauth/authorize",
+        "token_endpoint": f"{_RESOURCE_URL}/oauth/token",
+        "response_types_supported": ["code"],
+        "grant_types_supported": ["authorization_code"],
+        "code_challenge_methods_supported": ["S256"],
+        "token_endpoint_auth_methods_supported": ["client_secret_post", "client_secret_basic"],
+    })
+
+
+def _authorize_redirect(redirect_uri: str, params: dict):
+    sep = "&" if "?" in redirect_uri else "?"
+    return redirect(f"{redirect_uri}{sep}{urlencode(params)}")
+
+
+@devdispatch_bp.route("/mcp/devdispatch/oauth/authorize", methods=["GET"])
+def oauth_authorize():
+    client_id = request.args.get("client_id", "")
+    redirect_uri = request.args.get("redirect_uri", "")
+    response_type = request.args.get("response_type", "")
+    code_challenge = request.args.get("code_challenge", "")
+    code_challenge_method = request.args.get("code_challenge_method", "")
+    state = request.args.get("state", "")
+    resource = request.args.get("resource", "")
+
+    # client_id and redirect_uri must be exact matches against the one
+    # registered client — reject outright (no redirect) on mismatch, since
+    # redirecting to an unvalidated redirect_uri is an open-redirect risk.
+    expected_client_id = os.getenv("MCP_OAUTH_CLIENT_ID", "")
+    if not expected_client_id or client_id != expected_client_id:
+        return jsonify({"error": "unauthorized_client", "error_description": "unknown client_id"}), 400
+    if redirect_uri != _REGISTERED_REDIRECT_URI:
+        return jsonify({"error": "invalid_request", "error_description": "redirect_uri does not match the registered value"}), 400
+
+    # Past this point redirect_uri is trusted, so errors go back to the
+    # client via redirect, per standard OAuth error handling.
+    if response_type != "code":
+        return _authorize_redirect(redirect_uri, {"error": "unsupported_response_type", "state": state})
+    if not code_challenge or code_challenge_method != "S256":
+        return _authorize_redirect(redirect_uri, {
+            "error": "invalid_request",
+            "error_description": "PKCE code_challenge with code_challenge_method=S256 is required",
+            "state": state,
+        })
+
+    _cleanup_oauth_state()
+    code = secrets.token_urlsafe(32)
+    conn = get_connection()
+    try:
+        conn.execute(
+            "INSERT INTO devdispatch_oauth_codes "
+            "(code, client_id, redirect_uri, code_challenge, resource, expires_at) "
+            "VALUES (?, ?, ?, ?, ?, datetime('now', ?))",
+            (code, client_id, redirect_uri, code_challenge, resource or None, f"+{_AUTH_CODE_TTL_S} seconds"),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    # Single-user shim — auto-approves immediately, no login/consent screen.
+    return _authorize_redirect(redirect_uri, {"code": code, **({"state": state} if state else {})})
+
+
+def _extract_client_credentials(data: dict):
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Basic "):
+        try:
+            decoded = base64.b64decode(auth_header[len("Basic "):]).decode()
+            client_id, _, client_secret = decoded.partition(":")
+            return client_id, client_secret
+        except Exception:
+            return "", ""
+    return data.get("client_id", ""), data.get("client_secret", "")
+
+
+@devdispatch_bp.route("/mcp/devdispatch/oauth/token", methods=["POST"])
+def oauth_token():
+    data = request.form.to_dict() or (request.get_json(silent=True) or {})
+
+    if data.get("grant_type") != "authorization_code":
+        return jsonify({"error": "unsupported_grant_type"}), 400
+
+    code = data.get("code", "")
+    redirect_uri = data.get("redirect_uri", "")
+    code_verifier = data.get("code_verifier", "")
+    client_id, client_secret = _extract_client_credentials(data)
+
+    expected_id = os.getenv("MCP_OAUTH_CLIENT_ID", "")
+    expected_secret = os.getenv("MCP_OAUTH_CLIENT_SECRET", "")
+    if not expected_id or not expected_secret or client_id != expected_id or client_secret != expected_secret:
+        return jsonify({"error": "invalid_client"}), 401
+
+    _cleanup_oauth_state()
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT * FROM devdispatch_oauth_codes WHERE code = ? AND used = 0 AND expires_at > datetime('now')",
+            (code,),
+        ).fetchone()
+        if not row:
+            return jsonify({"error": "invalid_grant", "error_description": "unknown, expired, or already-used code"}), 400
+        if row["client_id"] != client_id or row["redirect_uri"] != redirect_uri:
+            return jsonify({"error": "invalid_grant", "error_description": "client_id/redirect_uri mismatch"}), 400
+
+        expected_challenge = base64.urlsafe_b64encode(
+            hashlib.sha256(code_verifier.encode()).digest()
+        ).rstrip(b"=").decode()
+        if not code_verifier or expected_challenge != row["code_challenge"]:
+            return jsonify({"error": "invalid_grant", "error_description": "PKCE verification failed"}), 400
+
+        conn.execute("UPDATE devdispatch_oauth_codes SET used = 1 WHERE code = ?", (code,))
+
+        access_token = secrets.token_urlsafe(32)
+        conn.execute(
+            "INSERT INTO devdispatch_oauth_tokens (access_token, client_id, expires_at) "
+            "VALUES (?, ?, datetime('now', ?))",
+            (access_token, client_id, f"+{_ACCESS_TOKEN_TTL_S} seconds"),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    return jsonify({
+        "access_token": access_token,
+        "token_type": "Bearer",
+        "expires_in": _ACCESS_TOKEN_TTL_S,
+    })
+
+
 @devdispatch_bp.route("/mcp/devdispatch", methods=["POST"])
 def mcp_endpoint():
-    if not _require_key():
-        return jsonify({"error": "unauthorized"}), 401
+    if not _is_authorized():
+        resp = jsonify({"error": "unauthorized"})
+        resp.headers["WWW-Authenticate"] = (
+            f'Bearer resource_metadata="{_RESOURCE_URL}/.well-known/oauth-protected-resource"'
+        )
+        return resp, 401
 
     body = request.get_json(force=True, silent=True) or {}
     req_id = body.get("id")

@@ -378,8 +378,32 @@ Claude Code on the Beelink. Spec: `~/watson/MCP-Claude-Code-Dispatcher-Spec.md`.
   state string has not been directly observed, so any state besides
   `working`/`done` is recorded verbatim rather than assumed. **PR-only
   completion** — no auto-restart, no auto-deploy, ever; Bill merges/pulls/
-  restarts manually, same as every other Watson build. Not yet registered
-  as a Claude.ai custom connector.
+  restarts manually, same as every other Watson build.
+- **OAuth 2.1 shim (added 2026-08-04):** Claude.ai's custom-connector UI
+  only supports an interactive OAuth flow (authorization_code + mandatory
+  S256 PKCE) — confirmed it does **not** support `client_credentials`, so
+  the endpoint needed a real (if minimal) authorization-code shim to be
+  reachable from that UI at all, not just a token-exchange endpoint.
+  Single-user (Bill only): `GET .../oauth/authorize` auto-approves with no
+  login/consent screen, but still strictly rejects any `client_id`/
+  `redirect_uri` that isn't an exact match (no redirect on mismatch — open-
+  redirect risk otherwise) and requires PKCE. No dynamic client
+  registration — Bill pastes a fixed `MCP_OAUTH_CLIENT_ID`/
+  `MCP_OAUTH_CLIENT_SECRET` into the connector's Advanced settings instead
+  (the MCP spec's documented alternative to DCR). Access tokens are opaque
+  90-day tokens in `devdispatch_oauth_tokens`, not signed JWTs, no refresh
+  grant — a deliberate simplicity tradeoff justified by single-user/no one
+  to leak a token to. Endpoints: `GET .../.well-known/oauth-protected-resource`,
+  `GET .../.well-known/oauth-authorization-server`, `GET .../oauth/authorize`,
+  `POST .../oauth/token`. The existing `X-Watson-Key` header path on
+  `/mcp/devdispatch` still works unchanged; a valid `Authorization: Bearer`
+  token now works too, and a `401` now carries a `WWW-Authenticate` header
+  pointing at the protected-resource metadata (required for MCP client
+  discovery). All of the above tested directly (PKCE math, strict-match
+  rejection, single-use code enforcement, both auth paths on the main
+  endpoint) — **not** verified against Claude.ai's actual client
+  end-to-end, since that requires Bill's browser session with the real
+  connector UI.
 - **Superseded prior art:** `jobs/code_agent/` (email+CONFIRM spec pipeline)
   and `jobs/dev/code_agent.py` were audited and discarded, not extended —
   both dead (zero successful runs since 2026-06-05, entry points unreachable).

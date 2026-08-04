@@ -1,5 +1,7 @@
 """jobs/devdispatch/schema.py — Schema for the MCP Claude Code dispatcher's
-job-tracking table (claude_code_jobs). See MCP-Claude-Code-Dispatcher-Spec.md.
+job-tracking table (claude_code_jobs) and its OAuth 2.1 authorization-code
+shim (devdispatch_oauth_codes / devdispatch_oauth_tokens). See
+MCP-Claude-Code-Dispatcher-Spec.md.
 """
 from core.database import get_connection
 
@@ -21,6 +23,35 @@ CREATE TABLE IF NOT EXISTS claude_code_jobs (
 );
 """
 
+# Short-lived, single-use authorization codes issued by GET .../oauth/authorize
+# and redeemed by POST .../oauth/token. code_challenge is always S256 (the
+# only method the authorize endpoint accepts), so the method itself isn't
+# stored.
+CREATE_OAUTH_CODES = """
+CREATE TABLE IF NOT EXISTS devdispatch_oauth_codes (
+    code            TEXT PRIMARY KEY,
+    client_id       TEXT NOT NULL,
+    redirect_uri    TEXT NOT NULL,
+    code_challenge  TEXT NOT NULL,
+    resource        TEXT,
+    used            INTEGER NOT NULL DEFAULT 0,
+    created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+    expires_at      TEXT NOT NULL
+);
+"""
+
+# Opaque bearer tokens issued by the token endpoint. Checked directly against
+# this table on every /mcp/devdispatch request — no JWT signing, no refresh
+# tokens; single-user shim, kept deliberately simple.
+CREATE_OAUTH_TOKENS = """
+CREATE TABLE IF NOT EXISTS devdispatch_oauth_tokens (
+    access_token   TEXT PRIMARY KEY,
+    client_id      TEXT NOT NULL,
+    created_at     TEXT NOT NULL DEFAULT (datetime('now')),
+    expires_at     TEXT NOT NULL
+);
+"""
+
 
 def create_tables(conn=None) -> None:
     """Idempotent — CREATE TABLE IF NOT EXISTS."""
@@ -28,6 +59,8 @@ def create_tables(conn=None) -> None:
     conn = conn or get_connection()
     try:
         conn.execute(CREATE_JOBS)
+        conn.execute(CREATE_OAUTH_CODES)
+        conn.execute(CREATE_OAUTH_TOKENS)
 
         # cli_session_id: the short id `claude --bg` prints at launch (e.g.
         # "f5593e57"), needed to cross-reference `claude agents --json` —
