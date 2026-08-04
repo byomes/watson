@@ -1697,3 +1697,30 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - a997fab docs: bugs/backlog export 2026-08-02
 - 31550e6 docs: file map 2026-08-02
 - da9411a docs: architecture update 2026-08-02
+
+---
+
+## Recent Changes — 2026-08-04
+
+### ~/watson
+- 901877f docs: bugs/backlog export 2026-08-04
+- 62bb231 docs: file map 2026-08-04
+- 5b9b7fa docs: close out MCP Claude Code dispatcher build — live and complete
+- 0f14631 fix: root-level /authorize and /token proxies (Claude.ai connector bug workaround)
+- 529f8b9 fix: method-agnostic auth gate on /mcp/devdispatch (GET/HEAD were bare 405)
+- 3d503e8 fix: mirror OAuth discovery metadata at domain root for devdispatch
+- 0bad30c feat: OAuth 2.1 authorization_code + PKCE shim for /mcp/devdispatch
+- 1e59da2 feat: MCP Claude Code dispatcher (/mcp/devdispatch) — dispatch + check tools
+- 4510a92 fix: GITHUB_RAW_BASE pointed at kb/transcripts, should be kb/documents
+- 5f0828d fix: log rejection reason on /api/kb/sync-now 401 (missing config vs no header vs mismatch)
+- fbfb5df kb: sync 2 transcript(s) to kb/documents (same-day)
+- cd29741 fix: stagger 2am doc/KB cron jobs to stop git commit/push collisions
+- e2a3daf feat: ship KB immediate-sync trigger + harden pipeline against missing kb/transcripts/
+- 4f00384 chore: remove test file used to verify sync_and_index.py self-heal fix (bug #51 follow-up)
+- ed561b0 kb: sync 1 transcript(s) to kb/documents (same-day)
+- 4aca671 adelphos: show placeholder text for missing email/IP in signup alerts
+
+### ~/wcky
+- de9da00 Add guide cover image to download page
+- 9d68b2d Add auto-download page for Study Like a Pastor guide
+- bddca70 Add Study Like a Pastor PDF guide asset
