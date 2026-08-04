@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-08-03*
+*Generated: 2026-08-04*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -22,6 +22,7 @@
   README.txt
   project.json
 CLAUDE.md
+MCP-Claude-Code-Dispatcher-Spec.md
 README.md
 bot/
   __init__.py
@@ -193,6 +194,9 @@ docs/
   briefing.html
 import_connect_cards.py
 import_contacts.py
+incoming/
+  lead_magnets/
+    Study-Like-A-Pastor-WilliamCKYomes.pdf
 jobs/
   __init__.py
   acquired/
@@ -373,6 +377,10 @@ jobs/
     deliver.py
     loop.py
     trigger.py
+  devdispatch/
+    __init__.py
+    api.py
+    schema.py
   documents/
     __init__.py
     excel.py
@@ -1218,6 +1226,8 @@ content/
     2026-07-23-the-stones-we-leave-behind.md
     2026-07-25-covenant-is-not-a-private-matter.md
     2026-07-28-joshua-s-second-pile.md
+    2026-07-30-hand-it-down-or-lose-it.md
+    2026-08-01-one-generation-from-extinction.md
     the-flashlight-of-your-focus.md
     where-your-treasure-is.md
 next-env.d.ts
@@ -1227,6 +1237,7 @@ package.json
 postcss.config.js
 public/
   guides/
+    study-like-a-pastor.pdf
     wrong-jesus-companion-guide.pdf
   images/
     Bill-CR.png
@@ -1361,6 +1372,10 @@ src/
       twitter-image.tsx
     dashboard/
       page.tsx
+    download/
+      study-like-a-pastor/
+        DownloadStart.tsx
+        page.tsx
     draft/
       page.tsx
     dreamstone/
