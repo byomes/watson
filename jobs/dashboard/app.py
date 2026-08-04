@@ -360,6 +360,9 @@ from jobs.book.schema import create_tables as _book_create_tables
 _book_create_tables()
 app.register_blueprint(book_bp)
 
+from jobs.devdispatch.api import devdispatch_bp
+app.register_blueprint(devdispatch_bp)
+
 # ── Admin template filters ────────────────────────────────────────────────────
 
 _AV_COLORS = ['#4c7ec9','#4caf7d','#c9a84c','#c9504c','#9b59b6','#1abc9c','#e67e22','#2980b9']

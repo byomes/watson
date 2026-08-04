@@ -147,6 +147,7 @@ Watson acts on Dr. Bill's behalf under his supervision. Always identified openly
 - `twj_readers`, `twj_feedback` — legacy TWJ reader accounts/feedback, migrated from Upstash KV; dashboard UI tab retired, data and routes intact
 - `login_challenges` — login vault challenge/response pairs (dashboard-only)
 - `dev_projects` — Dev Loop project tracking
+- `claude_code_jobs` — MCP Claude Code dispatcher job tracking (in progress)
 - `memory_sessions` — persistent chat memory, injected into Ollama system prompt
 - `routing_corrections` — intent correction log; memory note prepended after 5+ in 30 days
 - `team_tasks`, `shared_notes`, `team_members` — leadership team management
@@ -330,6 +331,63 @@ Dashboard trigger available: "Run Conflict Check" in More tab.
 - Cleanup: `jobs/dev_loop/cleanup.py` — Monday 4am, purges projects older than 7 days
 - Stuck-running handling (`jobs/dev_loop/cleanup.py`): `auto_fail_stuck_running()` runs before the 7-day purge — checks `ps -eo args` for a live `loop.py --slug <slug>` process, and any `dev_projects` row still `'running'` past 2h with no matching process is auto-marked `'failed'` and reported via Telegram. Complements the pre-existing `flag_stuck_running()`, which is read-only and alerts at a 24h threshold without changing status.
 - Projects staged to `~/watson/dev/<slug>/` — never auto-committed to main
+
+---
+
+## MCP Claude Code Dispatcher (in progress, 2026-08-04)
+
+Lets Claude.ai dispatch a headless Claude Code build job directly from a
+voice/chat conversation instead of Bill copy/pasting between Claude.ai and
+Claude Code on the Beelink. Spec: `~/watson/MCP-Claude-Code-Dispatcher-Spec.md`.
+
+- **Endpoint:** `POST /mcp/devdispatch` — Flask blueprint (`jobs/devdispatch/api.py`)
+  on `watson-dashboard.service`, reachable via the existing Tailscale Funnel.
+  Minimal MCP JSON-RPC surface (`initialize`, `tools/list`, `tools/call`) so it
+  can register as a Claude.ai custom connector — not a REST API in the
+  Writing Room/bodyrec shape, since a custom connector needs actual MCP
+  protocol, not just a shared-secret JSON endpoint.
+- **Auth:** `X-Watson-Key` header against `MCP_DISPATCH_API_KEY` (`.env`) —
+  same shared-secret pattern as Writing Room/bodyrec.
+- **Tools:** `dispatch_claude_code_job` (spec, repo, optional branch_name —
+  repo must be one of `watson/wcky/watson-admin/watson-ui/fms/bodyrec`;
+  branch_name may never be `main`/`master`) and `check_claude_code_job`
+  (job_id).
+- **Table:** `claude_code_jobs` (`watson.db`) — `id, spec_text, repo, branch,
+  status [queued|running|done|failed|expired], pr_url, log_path, summary,
+  created_at, updated_at`.
+- **Status as of 2026-08-04: fully wired and tested end-to-end.**
+  `dispatch_claude_code_job` launches `claude --bg -w <branch_name>
+  --permission-mode bypassPermissions --max-budget-usd 5 "<spec_text>"`
+  (positional spec, not `-p`/`--output-format` — `--bg` rejects both) from
+  `~/<repo>`, scrapes the session id from the CLI's `backgrounded · <id>`
+  line, and records it on the job row. `check_claude_code_job`
+  cross-references `claude agents --json --all` by that id; once the
+  session reports `state: done`, it commits any uncommitted worktree
+  changes (a dispatched session sometimes commits its own work
+  unprompted — checked via `git rev-list main..HEAD`, not just `git
+  status`, so an already-committed job isn't misread as a no-op), pushes
+  `worktree-<branch_name>` (the actual branch Claude Code creates — note
+  the prefix), opens the PR via `GITHUB_TOKEN`, sends a Telegram summary,
+  and tears the session down with `claude rm`. One real end-to-end test
+  (repo=watson, trivial one-file change) produced PR #1, which was
+  reviewed and closed as a test artifact (not merged) — remote branch
+  confirmed deleted, no dangling state. Known gaps: `check_claude_code_job`
+  has no separate poller, so a job that's never checked sits at `running`
+  indefinitely; log-tail is unavailable (`claude logs` returns a raw
+  ANSI/TUI transcript, not parseable text); the `failed` `claude agents`
+  state string has not been directly observed, so any state besides
+  `working`/`done` is recorded verbatim rather than assumed. **PR-only
+  completion** — no auto-restart, no auto-deploy, ever; Bill merges/pulls/
+  restarts manually, same as every other Watson build. Not yet registered
+  as a Claude.ai custom connector.
+- **Superseded prior art:** `jobs/code_agent/` (email+CONFIRM spec pipeline)
+  and `jobs/dev/code_agent.py` were audited and discarded, not extended —
+  both dead (zero successful runs since 2026-06-05, entry points unreachable).
+  `watson-codeagent.service` (the systemd unit running `jobs/code_agent/confirm.py`)
+  is still live and enabled but has been failing every 60s on a Gmail
+  403/insufficient-scope error since inception; disabling it needs a sudo
+  grant beyond the current restart-only scope (see Development Conventions),
+  so it's flagged in `bug_tracker` (#55) rather than acted on directly.
 
 ---
 
@@ -713,6 +771,7 @@ WATSON_API_URL=https://watson.tail0243ff.ts.net
 
 - **Design:** Claude.ai (this interface)
 - **Build:** Claude Code on Beelink (`--dangerously-skip-permissions`)
+- **`claude --bg --help` gotcha:** `--bg` is not suppressed by `--help` — combining them still launches a real background session (confirmed 2026-08-04 during the MCP dispatcher build). Never combine `--bg` with `--help` when just checking CLI docs; check flags via plain `claude --help`/`claude agents --help` instead.
 - **Deploy:** Claude Code commits + pushes → Vercel auto-deploys / Bill manually pulls Watson
 - **Claude Code never SSHes.** Bill always pulls and restarts services manually.
 - **Sudo access:** Claude Code has exactly one passwordless sudo permission — restarting
