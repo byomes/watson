@@ -67,6 +67,7 @@ import logging
 import os
 import re
 import secrets
+import shutil
 import subprocess
 import sys
 from datetime import datetime
@@ -207,13 +208,41 @@ _LAUNCH_TIMEOUT_S = 20  # bound on `claude --bg` itself registering + returning;
 _BACKGROUNDED_RE = re.compile(r"backgrounded\s*[·\-]\s*([0-9a-fA-F]+)")
 _TOKEN_URL_RE = re.compile(r"https://[^@\s]+@")
 
+# watson-dashboard.service runs under systemd's default PATH, which does not
+# include nvm's shim/version directory — `shutil.which("claude")` (and a bare
+# "claude" argv entry) resolves fine in an interactive shell but fails with
+# FileNotFoundError under the service. Resolve once at import time to an
+# absolute path instead of relying on PATH resolution at call time: an
+# explicit CLAUDE_BIN env override wins if set, then shutil.which() (covers
+# the case where PATH is ever fixed at the service level instead), then the
+# nvm path confirmed via `which claude` in an interactive shell 2026-08-04.
+_CLAUDE_BIN = (
+    os.getenv("CLAUDE_BIN")
+    or shutil.which("claude")
+    or "/home/billyomes/.nvm/versions/node/v24.16.0/bin/claude"
+)
+
 
 def _repo_path(repo: str) -> Path:
     return Path.home() / repo
 
 
+# `-w <branch_name>` cannot create a nested directory for a worktree when
+# branch_name contains "/" (e.g. the default auto-generated
+# "devdispatch/<timestamp>" format) — confirmed empirically 2026-08-04 via
+# `claude agents --json --all` and `ls -la ~/watson/.claude/worktrees/` on
+# the live Beelink: the CLI silently substitutes "+" for "/" in the on-disk
+# worktree directory name (e.g. "devdispatch/20260804-115219" becomes
+# ".claude/worktrees/devdispatch+20260804-115219"). This does NOT affect the
+# git branch name itself (see _git_branch_for) — only the worktree directory
+# path. Caused 2 of 3 real dispatched jobs to be misreported as "failed"
+# (worktree missing at completion) despite completing successfully.
+def _worktree_dirname(branch_name: str) -> str:
+    return branch_name.replace("/", "+")
+
+
 def _worktree_path(repo: str, branch_name: str) -> Path:
-    return _repo_path(repo) / ".claude" / "worktrees" / branch_name
+    return _repo_path(repo) / ".claude" / "worktrees" / _worktree_dirname(branch_name)
 
 
 def _git_branch_for(branch_name: str) -> str:
@@ -335,7 +364,7 @@ def _dispatch_claude_code_job(spec, repo, branch_name=None) -> dict:
     # so this short, bounded communicate() is not the same as waiting on
     # the build — it only waits on the launcher acknowledging the job.
     cmd = [
-        "claude", "--bg", "-w", branch_name,
+        _CLAUDE_BIN, "--bg", "-w", branch_name,
         "--permission-mode", "bypassPermissions",
         "--max-budget-usd", _MAX_BUDGET_USD,
         spec,
@@ -374,7 +403,7 @@ def _dispatch_claude_code_job(spec, repo, branch_name=None) -> dict:
 
 def _list_agents():
     result = subprocess.run(
-        ["claude", "agents", "--json", "--all"], capture_output=True, text=True, timeout=30
+        [_CLAUDE_BIN, "agents", "--json", "--all"], capture_output=True, text=True, timeout=30
     )
     if result.returncode != 0:
         raise RuntimeError(_redact((result.stderr or "").strip())[:300])
@@ -442,7 +471,7 @@ def _finalize_completed_job(row) -> dict:
         summary = "Completed — no commits produced (branch is even with main)."
         _update_job(job_id, status="done", summary=summary)
         try:
-            subprocess.run(["claude", "rm", cli_id], capture_output=True, text=True, timeout=30)
+            subprocess.run([_CLAUDE_BIN, "rm", cli_id], capture_output=True, text=True, timeout=30)
         except Exception as exc:
             log.warning("devdispatch: claude rm %s failed (no-op job): %s", cli_id, exc)
         _telegram(f"ℹ️ devdispatch job {job_id} done — no changes produced.")
