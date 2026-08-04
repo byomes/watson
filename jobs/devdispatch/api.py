@@ -687,14 +687,27 @@ def oauth_token():
     })
 
 
-@devdispatch_bp.route("/mcp/devdispatch", methods=["POST"])
+@devdispatch_bp.route("/mcp/devdispatch", methods=["GET", "HEAD", "POST"])
 def mcp_endpoint():
+    # The auth gate applies to every method, not just POST — added
+    # 2026-08-04: Claude.ai's connector probes the bare URL with a GET
+    # before attempting OAuth, and a plain 405 (from Flask's default
+    # method-not-allowed handling) carries no WWW-Authenticate hint, so it
+    # read as a dead endpoint. GET/HEAD now get the same 401 + discovery
+    # header as POST when unauthenticated. OPTIONS is deliberately not
+    # listed here — it's still handled by Flask's automatic CORS-preflight
+    # response, unauthenticated, exactly as before.
     if not _is_authorized():
         resp = jsonify({"error": "unauthorized"})
         resp.headers["WWW-Authenticate"] = (
             f'Bearer resource_metadata="{_RESOURCE_URL}/.well-known/oauth-protected-resource"'
         )
         return resp, 401
+
+    if request.method in ("GET", "HEAD"):
+        # Reachability probe only — real MCP JSON-RPC traffic is POST-only.
+        # Werkzeug strips the body for HEAD automatically.
+        return jsonify({"ok": True, "service": "watson-devdispatch"})
 
     body = request.get_json(force=True, silent=True) or {}
     req_id = body.get("id")
