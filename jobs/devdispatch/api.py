@@ -212,8 +212,22 @@ def _repo_path(repo: str) -> Path:
     return Path.home() / repo
 
 
+# `-w <branch_name>` cannot create a nested directory for a worktree when
+# branch_name contains "/" (e.g. the default auto-generated
+# "devdispatch/<timestamp>" format) — confirmed empirically 2026-08-04 via
+# `claude agents --json --all` and `ls -la ~/watson/.claude/worktrees/` on
+# the live Beelink: the CLI silently substitutes "+" for "/" in the on-disk
+# worktree directory name (e.g. "devdispatch/20260804-115219" becomes
+# ".claude/worktrees/devdispatch+20260804-115219"). This does NOT affect the
+# git branch name itself (see _git_branch_for) — only the worktree directory
+# path. Caused 2 of 3 real dispatched jobs to be misreported as "failed"
+# (worktree missing at completion) despite completing successfully.
+def _worktree_dirname(branch_name: str) -> str:
+    return branch_name.replace("/", "+")
+
+
 def _worktree_path(repo: str, branch_name: str) -> Path:
-    return _repo_path(repo) / ".claude" / "worktrees" / branch_name
+    return _repo_path(repo) / ".claude" / "worktrees" / _worktree_dirname(branch_name)
 
 
 def _git_branch_for(branch_name: str) -> str:
