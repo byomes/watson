@@ -246,7 +246,7 @@ def _worktree_path(repo: str, branch_name: str) -> Path:
 
 
 def _git_branch_for(branch_name: str) -> str:
-    return f"worktree-{branch_name}"
+    return f"worktree-{_worktree_dirname(branch_name)}"
 
 
 def _redact(text: str) -> str:
