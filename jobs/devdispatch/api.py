@@ -687,6 +687,31 @@ def oauth_token():
     })
 
 
+# ── Root-level /authorize and /token proxies ─────────────────────────────
+#
+# Workaround for a confirmed Claude.ai connector bug (anthropics/claude-ai-mcp
+# #82, #283, #644): it ignores authorization_endpoint/token_endpoint in the
+# AS metadata entirely and hardcodes {origin}/authorize and {origin}/token
+# at the bare domain root, regardless of what the issuer's path actually is.
+# Confirmed nothing else in app.py claims "/", "/authorize", or "/token"
+# before adding these. Not a bug in our metadata — it's already correct.
+
+@devdispatch_bp.route("/authorize", methods=["GET"])
+def root_authorize_proxy():
+    qs = request.query_string.decode()
+    target = "/mcp/devdispatch/oauth/authorize"
+    if qs:
+        target = f"{target}?{qs}"
+    return redirect(target)
+
+
+@devdispatch_bp.route("/token", methods=["POST"])
+def root_token_proxy():
+    # Same request/response cycle, not a real network hop — oauth_token()
+    # reads from the same `request` object already bound to this call.
+    return oauth_token()
+
+
 @devdispatch_bp.route("/mcp/devdispatch", methods=["GET", "HEAD", "POST"])
 def mcp_endpoint():
     # The auth gate applies to every method, not just POST — added
