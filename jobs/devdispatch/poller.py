@@ -23,11 +23,12 @@ Cron (every 2 minutes):
     >> /home/billyomes/watson/logs/devdispatch_poller.log 2>&1
 """
 import fcntl
+import json
 import logging
 from pathlib import Path
 
 from core.database import get_connection
-from jobs.devdispatch.api import _check_claude_code_job
+from jobs.devdispatch.api import _check_claude_code_job, _telegram, _worktree_path
 
 logging.basicConfig(
     level=logging.INFO,
@@ -51,6 +52,53 @@ def _pending_job_ids() -> list[int]:
         conn.close()
 
 
+def _check_progress(job_id: int) -> None:
+    """Read .devdispatch/progress.json out of the job's worktree (see
+    api.py's _PROGRESS_PROTOCOL) and, if the reported step has advanced past
+    last_progress_step, send a Telegram update and record the new step.
+    Silently does nothing if the worktree/file don't exist yet or the file
+    is mid-write (partial/malformed JSON) — this is a best-effort progress
+    signal, not the terminal-state finalize path."""
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT repo, branch, last_progress_step FROM claude_code_jobs WHERE id = ?",
+            (job_id,),
+        ).fetchone()
+    finally:
+        conn.close()
+    if row is None:
+        return
+
+    worktree = _worktree_path(row["repo"], row["branch"])
+    progress_path = worktree / ".devdispatch" / "progress.json"
+    if not worktree.is_dir() or not progress_path.is_file():
+        return
+
+    try:
+        data = json.loads(progress_path.read_text())
+    except (OSError, ValueError):
+        return
+
+    step = data.get("step")
+    if not isinstance(step, int) or step <= row["last_progress_step"]:
+        return
+
+    label = data.get("label", "")
+    detail = data.get("detail", "")
+    _telegram(f"🔧 devdispatch job {job_id} — {step}/5 {label}: {detail}")
+
+    conn = get_connection()
+    try:
+        conn.execute(
+            "UPDATE claude_code_jobs SET last_progress_step = ? WHERE id = ?",
+            (step, job_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def poll() -> None:
     job_ids = _pending_job_ids()
     if not job_ids:
@@ -62,13 +110,17 @@ def poll() -> None:
             result = _check_claude_code_job(job_id)
         except Exception as exc:
             log.error("job %d: check failed: %s", job_id, exc)
-            continue
-
-        status = result.get("status")
-        if status in ("done", "failed"):
-            log.info("job %d: transitioned to %s (%s)", job_id, status, result.get("summary"))
         else:
-            log.info("job %d: still %s", job_id, status)
+            status = result.get("status")
+            if status in ("done", "failed"):
+                log.info("job %d: transitioned to %s (%s)", job_id, status, result.get("summary"))
+            else:
+                log.info("job %d: still %s", job_id, status)
+
+        try:
+            _check_progress(job_id)
+        except Exception as exc:
+            log.error("job %d: progress check failed: %s", job_id, exc)
 
 
 def main() -> None:
