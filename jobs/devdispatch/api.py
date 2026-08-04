@@ -537,7 +537,16 @@ _TOOL_IMPLS = {
 # ── MCP JSON-RPC endpoint ──────────────────────────────────────────────────
 
 @devdispatch_bp.route("/mcp/devdispatch/.well-known/oauth-protected-resource", methods=["GET"])
+@devdispatch_bp.route("/.well-known/oauth-protected-resource", methods=["GET"])
 def oauth_protected_resource_metadata():
+    # Mirrored at the domain root too (added 2026-08-04) — Claude.ai's
+    # connector requested /authorize at bare root instead of the real
+    # /mcp/devdispatch/oauth/authorize path, consistent with its client
+    # treating the plain origin as the issuer and looking for discovery
+    # metadata there first; the /mcp/devdispatch/.well-known/... path alone
+    # 404s for that lookup. Content is identical either way — the endpoint
+    # values below are unchanged, still the full /mcp/devdispatch/oauth/...
+    # absolute URLs.
     return jsonify({
         "resource": _RESOURCE_URL,
         "authorization_servers": [_RESOURCE_URL],
@@ -545,7 +554,9 @@ def oauth_protected_resource_metadata():
 
 
 @devdispatch_bp.route("/mcp/devdispatch/.well-known/oauth-authorization-server", methods=["GET"])
+@devdispatch_bp.route("/.well-known/oauth-authorization-server", methods=["GET"])
 def oauth_authorization_server_metadata():
+    # Mirrored at the domain root too — see oauth_protected_resource_metadata.
     return jsonify({
         "issuer": _RESOURCE_URL,
         "authorization_endpoint": f"{_RESOURCE_URL}/oauth/authorize",
