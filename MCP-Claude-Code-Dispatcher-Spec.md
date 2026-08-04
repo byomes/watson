@@ -73,17 +73,17 @@ review. Dispatcher stops at "PR opened, Telegram sent."
 - [x] Audited jobs/code_agent/ — discarded, not extended
 - [x] Confirmed CLI invocation pattern against `claude --help` (2.1.221) —
       --bg / --permission-mode bypassPermissions / -w / --output-format json
-- [ ] claude_code_jobs table + migration
-- [ ] /mcp/devdispatch blueprint, registered on dashboard app
-- [ ] MCP_DISPATCH_API_KEY added to .env, documented in WATSON_ARCHITECTURE.md
-- [ ] dispatch_claude_code_job using claude --bg + -w worktree isolation
-- [ ] check_claude_code_job cross-referencing claude agents --json
-- [ ] Branch-only enforcement (hard block on main)
-- [ ] GitHub PR creation via GITHUB_TOKEN
-- [ ] Telegram notification on completion/failure
-- [ ] bug_tracker entry for watson-codeagent.service (separate from this build)
-- [ ] Register connector in Claude.ai project once live
-- [ ] Update FILE_MAP.md / WATSON_ARCHITECTURE.md (or let nightly docs job
+- [x] claude_code_jobs table + migration
+- [x] /mcp/devdispatch blueprint, registered on dashboard app
+- [x] MCP_DISPATCH_API_KEY added to .env, documented in WATSON_ARCHITECTURE.md
+- [x] dispatch_claude_code_job using claude --bg + -w worktree isolation
+- [x] check_claude_code_job cross-referencing claude agents --json
+- [x] Branch-only enforcement (hard block on main)
+- [x] GitHub PR creation via GITHUB_TOKEN
+- [x] Telegram notification on completion/failure
+- [x] bug_tracker entry for watson-codeagent.service (separate from this build)
+- [x] Register connector in Claude.ai project once live
+- [x] Update FILE_MAP.md / WATSON_ARCHITECTURE.md (or let nightly docs job
       pick it up)
 
 Once the file is created, proceed through the checklist in order. Diffs
@@ -91,3 +91,12 @@ shown before any commit, per standing convention. Stop and report back
 after the table + blueprint skeleton are in place, before wiring the actual
 claude --bg invocation, so I can sanity-check the exact command before it
 starts spawning real sessions.
+
+**2026-08-04 — done.** Connector successfully authorized and connected
+from Claude.ai. Required an OAuth 2.1 authorization_code + PKCE shim
+(client_credentials confirmed unsupported by Claude.ai's connector) plus
+root-level `/authorize` and `/token` proxy routes to work around a
+confirmed Claude.ai connector bug (anthropics/claude-ai-mcp #82, #283,
+#644) — neither was anticipated in this original spec. See
+WATSON_ARCHITECTURE.md's MCP Claude Code Dispatcher section for the full
+current state, including known gaps.

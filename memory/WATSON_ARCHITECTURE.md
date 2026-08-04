@@ -334,84 +334,135 @@ Dashboard trigger available: "Run Conflict Check" in More tab.
 
 ---
 
-## MCP Claude Code Dispatcher (in progress, 2026-08-04)
+## MCP Claude Code Dispatcher
 
-Lets Claude.ai dispatch a headless Claude Code build job directly from a
-voice/chat conversation instead of Bill copy/pasting between Claude.ai and
-Claude Code on the Beelink. Spec: `~/watson/MCP-Claude-Code-Dispatcher-Spec.md`.
+Lets Claude.ai dispatch a real Claude Code CLI build job directly from a
+voice/chat conversation via two MCP tools (`dispatch_claude_code_job`,
+`check_claude_code_job`) — no manual copy/paste between Claude.ai and the
+Beelink terminal. Spec: `~/watson/MCP-Claude-Code-Dispatcher-Spec.md`.
 
-- **Endpoint:** `POST /mcp/devdispatch` — Flask blueprint (`jobs/devdispatch/api.py`)
-  on `watson-dashboard.service`, reachable via the existing Tailscale Funnel.
-  Minimal MCP JSON-RPC surface (`initialize`, `tools/list`, `tools/call`) so it
-  can register as a Claude.ai custom connector — not a REST API in the
-  Writing Room/bodyrec shape, since a custom connector needs actual MCP
-  protocol, not just a shared-secret JSON endpoint.
-- **Auth:** `X-Watson-Key` header against `MCP_DISPATCH_API_KEY` (`.env`) —
-  same shared-secret pattern as Writing Room/bodyrec.
+**Status: fully wired, tested end-to-end, and live** — the Claude.ai
+connector successfully authorized and connected as of 2026-08-04.
+
+- **Endpoint:** `POST/GET/HEAD /mcp/devdispatch` — Flask blueprint
+  (`jobs/devdispatch/api.py`) on `watson-dashboard.service`, reachable via
+  the existing Tailscale Funnel. Minimal MCP JSON-RPC surface
+  (`initialize`, `tools/list`, `tools/call`) so it registers as a Claude.ai
+  custom connector — not a REST API in the Writing Room/bodyrec shape,
+  since a custom connector needs actual MCP protocol. GET/HEAD are
+  reachability-probe-only (return a minimal `{"ok": true}` once
+  authenticated); real JSON-RPC traffic is POST-only. The auth gate (see
+  below) applies to all three methods identically — OPTIONS is the one
+  exception, handled unauthenticated by Flask's automatic CORS-preflight
+  response.
+- **Auth:** two independent paths, either satisfies it — `X-Watson-Key`
+  header against `MCP_DISPATCH_API_KEY` (same shared-secret pattern as
+  Writing Room/bodyrec), or `Authorization: Bearer <token>` issued by the
+  OAuth shim below. An unauthenticated request on any method gets `401`
+  with a `WWW-Authenticate` header pointing at the protected-resource
+  metadata, required for MCP client discovery.
 - **Tools:** `dispatch_claude_code_job` (spec, repo, optional branch_name —
   repo must be one of `watson/wcky/watson-admin/watson-ui/fms/bodyrec`;
   branch_name may never be `main`/`master`) and `check_claude_code_job`
   (job_id).
 - **Table:** `claude_code_jobs` (`watson.db`) — `id, spec_text, repo, branch,
   status [queued|running|done|failed|expired], pr_url, log_path, summary,
-  created_at, updated_at`.
-- **Status as of 2026-08-04: fully wired and tested end-to-end.**
-  `dispatch_claude_code_job` launches `claude --bg -w <branch_name>
-  --permission-mode bypassPermissions --max-budget-usd 5 "<spec_text>"`
-  (positional spec, not `-p`/`--output-format` — `--bg` rejects both) from
-  `~/<repo>`, scrapes the session id from the CLI's `backgrounded · <id>`
-  line, and records it on the job row. `check_claude_code_job`
-  cross-references `claude agents --json --all` by that id; once the
-  session reports `state: done`, it commits any uncommitted worktree
-  changes (a dispatched session sometimes commits its own work
-  unprompted — checked via `git rev-list main..HEAD`, not just `git
-  status`, so an already-committed job isn't misread as a no-op), pushes
-  `worktree-<branch_name>` (the actual branch Claude Code creates — note
-  the prefix), opens the PR via `GITHUB_TOKEN`, sends a Telegram summary,
-  and tears the session down with `claude rm`. One real end-to-end test
-  (repo=watson, trivial one-file change) produced PR #1, which was
-  reviewed and closed as a test artifact (not merged) — remote branch
-  confirmed deleted, no dangling state. Known gaps: `check_claude_code_job`
-  has no separate poller, so a job that's never checked sits at `running`
-  indefinitely; log-tail is unavailable (`claude logs` returns a raw
-  ANSI/TUI transcript, not parseable text); the `failed` `claude agents`
-  state string has not been directly observed, so any state besides
-  `working`/`done` is recorded verbatim rather than assumed. **PR-only
-  completion** — no auto-restart, no auto-deploy, ever; Bill merges/pulls/
-  restarts manually, same as every other Watson build.
-- **OAuth 2.1 shim (added 2026-08-04):** Claude.ai's custom-connector UI
-  only supports an interactive OAuth flow (authorization_code + mandatory
-  S256 PKCE) — confirmed it does **not** support `client_credentials`, so
-  the endpoint needed a real (if minimal) authorization-code shim to be
-  reachable from that UI at all, not just a token-exchange endpoint.
-  Single-user (Bill only): `GET .../oauth/authorize` auto-approves with no
-  login/consent screen, but still strictly rejects any `client_id`/
-  `redirect_uri` that isn't an exact match (no redirect on mismatch — open-
-  redirect risk otherwise) and requires PKCE. No dynamic client
-  registration — Bill pastes a fixed `MCP_OAUTH_CLIENT_ID`/
-  `MCP_OAUTH_CLIENT_SECRET` into the connector's Advanced settings instead
-  (the MCP spec's documented alternative to DCR). Access tokens are opaque
-  90-day tokens in `devdispatch_oauth_tokens`, not signed JWTs, no refresh
-  grant — a deliberate simplicity tradeoff justified by single-user/no one
-  to leak a token to. Endpoints: `GET .../.well-known/oauth-protected-resource`,
-  `GET .../.well-known/oauth-authorization-server`, `GET .../oauth/authorize`,
-  `POST .../oauth/token`. The existing `X-Watson-Key` header path on
-  `/mcp/devdispatch` still works unchanged; a valid `Authorization: Bearer`
-  token now works too, and a `401` now carries a `WWW-Authenticate` header
-  pointing at the protected-resource metadata (required for MCP client
-  discovery). All of the above tested directly (PKCE math, strict-match
-  rejection, single-use code enforcement, both auth paths on the main
-  endpoint) — **not** verified against Claude.ai's actual client
-  end-to-end, since that requires Bill's browser session with the real
-  connector UI.
-- **Superseded prior art:** `jobs/code_agent/` (email+CONFIRM spec pipeline)
-  and `jobs/dev/code_agent.py` were audited and discarded, not extended —
-  both dead (zero successful runs since 2026-06-05, entry points unreachable).
-  `watson-codeagent.service` (the systemd unit running `jobs/code_agent/confirm.py`)
-  is still live and enabled but has been failing every 60s on a Gmail
-  403/insufficient-scope error since inception; disabling it needs a sudo
-  grant beyond the current restart-only scope (see Development Conventions),
-  so it's flagged in `bug_tracker` (#55) rather than acted on directly.
+  cli_session_id, created_at, updated_at`.
+
+### CLI invocation (the real shape, not the originally-guessed one)
+
+`claude --bg` rejects `-p`/`--print` and `--output-format` outright (they're
+mutually exclusive with `--bg`), so there's no JSON-mode return value — the
+session id is scraped from the CLI's `backgrounded · <id>` stdout line.
+Actual launch, from `~/<repo>`:
+
+```
+claude --bg -w <branch_name> --permission-mode bypassPermissions --max-budget-usd 5 "<spec_text>"
+```
+
+`-w <name>` creates the worktree at a predictable path,
+`<repo_root>/.claude/worktrees/<name>`, but the git branch Claude Code
+actually creates is `worktree-<name>` (prefixed) — not `<name>` verbatim.
+Claude Code does **not** reliably auto-commit: under `bypassPermissions`
+with no instruction against it, a dispatched session sometimes commits its
+own work unprompted, and sometimes doesn't. Because of that,
+`check_claude_code_job` never trusts `git status` alone to decide whether
+anything happened once a session reports `state: done` — it checks `git
+rev-list --count main..HEAD` first (commits ahead of main), commits any
+still-uncommitted worktree changes itself if that's zero-but-status-is-
+dirty, then re-checks ahead-count before deciding "no changes produced."
+Once there's something to ship: pushes `worktree-<branch_name>`, opens the
+PR via `GITHUB_TOKEN`, sends a Telegram summary, and tears the background
+session down with `claude rm` (which itself refuses to run until the
+worktree is clean — commit/push always happens first).
+
+**PR-only completion, confirmed decision** — no auto-restart, no
+auto-deploy, ever. Bill merges/pulls/restarts manually, same as every other
+Watson build.
+
+### OAuth 2.1 layer
+
+Claude.ai's custom-connector UI only supports an interactive
+`authorization_code` + mandatory S256 PKCE flow — confirmed it does **not**
+support `client_credentials`, so a bare token-exchange endpoint would have
+been unreachable from that UI. Single-user (Bill only): `GET
+.../oauth/authorize` auto-approves with no login/consent screen, but still
+strictly rejects any `client_id`/`redirect_uri` that isn't an exact match
+(no redirect on mismatch — open-redirect risk otherwise) and requires PKCE.
+No dynamic client registration — Bill pasted a fixed
+`MCP_OAUTH_CLIENT_ID`/`MCP_OAUTH_CLIENT_SECRET` into the connector's
+Advanced settings instead (the MCP spec's documented alternative to DCR).
+Access tokens are opaque 90-day tokens in `devdispatch_oauth_tokens`, not
+signed JWTs, no refresh grant — a deliberate simplicity tradeoff justified
+by single-user/no one to leak a token to.
+
+Real endpoints: `GET /mcp/devdispatch/.well-known/oauth-protected-resource`,
+`GET /mcp/devdispatch/.well-known/oauth-authorization-server`,
+`GET /mcp/devdispatch/oauth/authorize`, `POST /mcp/devdispatch/oauth/token`.
+
+**Root-level `GET /authorize` and `POST /token` also exist** — thin
+redirect/proxy shims only, no duplicated logic (`/authorize` 302s to the
+real `/mcp/devdispatch/oauth/authorize` with every query param forwarded
+unchanged; `/token` calls the real `oauth_token()` handler directly and
+returns its response verbatim). These work around a **confirmed Claude.ai
+connector bug** (anthropics/claude-ai-mcp issues **#82, #283, #644**): the
+client ignores `authorization_endpoint`/`token_endpoint` in the AS metadata
+entirely and hardcodes `{origin}/authorize` and `{origin}/token` at the
+bare domain root, regardless of what the metadata actually declares — not
+a bug in Watson's metadata, which was already correct. The
+`.well-known/oauth-*` discovery documents are similarly mirrored at the
+domain root (same content, same real endpoint values) for the same reason
+— Claude.ai's client appears to treat the plain origin as the issuer for
+discovery purposes too.
+
+Connector successfully authorized end-to-end against the real Claude.ai
+client as of 2026-08-04, using this full root-proxy + OAuth stack.
+
+### Known gaps
+
+- `check_claude_code_job` has no separate poller — a job that's never
+  checked sits at `running` indefinitely with its background session
+  idling until someone asks.
+- No structured log-tail: `claude logs <id>` returns a raw ANSI/TUI
+  terminal transcript, not parseable text, so it isn't used —
+  `check_claude_code_job` reports running/done/failed with no output
+  preview.
+- The `failed` `claude agents` state string has never actually been
+  observed (only `working`/`done`) — handling is best-effort, surfaced as
+  `unrecognized claude agents state: <value>` rather than assumed.
+- `claude --bg --help` gotcha — see Development Conventions below; bit
+  this build once already.
+
+### Superseded prior art
+
+`jobs/code_agent/` (email+CONFIRM spec pipeline) and `jobs/dev/code_agent.py`
+were audited and discarded, not extended — both dead (zero successful runs
+since 2026-06-05, entry points unreachable). `watson-codeagent.service`
+(the systemd unit running `jobs/code_agent/confirm.py`) is still live and
+enabled but has been failing every 60s on a Gmail 403/insufficient-scope
+error since inception; disabling it needs a sudo grant beyond the current
+restart-only scope (see Development Conventions), so it's flagged in
+`bug_tracker` (#55) rather than acted on directly.
 
 ---
 
@@ -787,6 +838,9 @@ WRITING_ROOM_ADMIN_PASS=
 WRITING_ROOM_SESSION_SECRET=
 WRITING_ROOM_EMAIL_FROM=Watson <watson@williamckyomes.com>
 WATSON_API_URL=https://watson.tail0243ff.ts.net
+MCP_DISPATCH_API_KEY=
+MCP_OAUTH_CLIENT_ID=
+MCP_OAUTH_CLIENT_SECRET=
 ```
 
 ---
