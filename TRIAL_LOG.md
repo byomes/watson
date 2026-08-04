@@ -71,3 +71,55 @@ This run commits after every step to guarantee a trace even on failure.
   already surfaces a tool-calling reliability concern and a significant
   latency concern.** Proceeding to Step 2 (the real trial task) to see
   whether this generalizes.
+
+## Step 2 — Trial task, attempt #1 (OpenCode + qwen2.5-coder:7b)
+
+Prompt given to `opencode run -m ollama/qwen2.5-coder:7b "<prompt>"` (cwd =
+this worktree): the exact task spec — create `jobs/dev/stale_backlog_report.py`
+per `jobs/dev/file_map.py` / `jobs/dev/bugs_backlog_sync.py` conventions,
+using `core.database.get_connection()`, querying `project_backlog` for
+`added_date` >60 days old, plus a pytest unit test at
+`jobs/dev/test_stale_backlog_report.py` against a temp/in-memory SQLite DB
+(not the real watson.db), following `jobs/connect_cards/test_correction_handler.py`
+conventions.
+
+**Wall clock: 368 seconds (~6.1 min).**
+
+**Result: FAILED — no files created.** Full raw output (12 lines total):
+
+````
+> build · qwen2.5-coder:7b
+
+```json
+{
+  "name": "write",
+  "arguments": {
+    "content": "import datetime\nfrom core.database import get_connection\n\n\"\"\nThis script queries the project_backlog table in watson.db for rows where the added_date column is more than 60 days old and prints each matching row (title + added date) to stdout.\n\nRun: python jobs/dev/stale_backlog_report.py\n\"\"\",\n"filePath": "jobs/dev/stale_backlog_report.py"
+  }
+}
+```
+EXIT: 0
+````
+
+Two distinct failures in one output:
+1. **The model never made a real tool call.** OpenCode's `build` agent has
+   a genuine `write` tool, but the model printed a JSON object that merely
+   *describes* a call to a tool named `"write"` as plain assistant text,
+   rather than emitting the actual structured tool-call OpenCode's harness
+   expects. `git status` confirms zero files were created or modified.
+2. **The content it would have written is invalid Python anyway** — `""`
+   as a bare statement, an unterminated/malformed docstring, and a stray
+   `"filePath": ...` key bleeding out of `arguments` into what should have
+   been file content. Even had the tool call gone through, this file would
+   not have parsed.
+3. Confirmed exit code 0 — OpenCode itself did not report an error; this
+   was a silent quality failure, not a crash. This is the specific failure
+   mode a shallow "did it exit 0" check would miss.
+
+`opencode run --help` was checked for a plausible mitigating flag: OpenCode
+gates tool use behind a permission system, and non-interactive runs may
+silently starve on an unapproved `write` permission rather than surfacing
+an error — which could explain the model degrading into describing the
+call it couldn't make. Retrying once with `--auto` (auto-approve
+permissions) to test this theory before concluding — logged below,
+whichever way it goes.
