@@ -1,10 +1,11 @@
 # Watson Bug Tracker
 _Auto-generated nightly from bug_tracker. Source of truth is the database — do not hand-edit this file, changes will be overwritten._
-Last generated: 2026-08-04 02:10
+Last generated: 2026-08-05 02:10
 
-## Open (13)
+## Open (14)
 | ID | Title | Repo | Discovered |
 |---|---|---|---|
+| 58 | missed_report.py cron path missing slash, silently failed weekly | watson | 2026-08-04 13:14:38 |
 | 55 | watson-codeagent.service is live but broken and undocumented | watson | 2026-08-04 02:27:18 |
 | 52 | jobs.skills.kb_search has no run() function but chat_stream imports it | watson | 2026-07-29 08:05:49 |
 | 46 | jobs.browser: goto_safe failed for https://this-domain-does-not-exist-watson-test-12345.invalid/ | watson | 2026-07-22 14:27:51 |
@@ -22,6 +23,8 @@ Last generated: 2026-08-04 02:10
 ## Recently Resolved (last 30 days)
 | ID | Title | Repo | Resolved | Commit |
 |---|---|---|---|---|
+| 56 | headcount_sync.py never wired into crontab — Wilmington headcount data missing since 7/27 | watson | 2026-08-04 13:53:32 | 3b1abf94b4e2f87f0675f90be19dc965285e2688 |
+| 57 | devdispatch _worktree_path() mismatches CLI worktree dirname sanitization | watson | 2026-08-04 12:36:50 | c3db18f |
 | 54 | Suggest Fonts narrow stage timed out silently on every real run | watson | 2026-08-02 18:01:26 | 30161e4 |
 | 53 | Dashboard Commands panel missing xkb:/debug:/bug:/run: entries | watson | 2026-07-29 08:58:46 | ad78f46 |
 | 51 | Two 2026-07-27 sermon transcripts landed in kb/documents/ directly and were never indexed | watson | 2026-07-28 15:10:08 | 0a973b8 |
