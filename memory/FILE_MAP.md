@@ -1,11 +1,13 @@
 # Watson File Map
-*Generated: 2026-08-04*
+*Generated: 2026-08-05*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
 
 ```
 ~/watson/
+.devdispatch/
+  progress.json
 .env
 .env.backup-20260713-112740
 .env.example
@@ -62,6 +64,7 @@ cron/
 cron_additions.txt
 cron_backup_20260721_1510.txt
 data/
+  .devdispatch_poller.lock
   .gitkeep
   .kb_sync.lock
   adelphos/
@@ -189,6 +192,8 @@ deploy/
   watson-dashboard.service
 dev/
   vtg_probe.py
+diagnostics/
+  wilmington-headcount-gap-2026-08-04.md
 docs/
   .gitkeep
   briefing.html
@@ -380,6 +385,7 @@ jobs/
   devdispatch/
     __init__.py
     api.py
+    poller.py
     schema.py
   documents/
     __init__.py
