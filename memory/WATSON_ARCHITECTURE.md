@@ -1724,3 +1724,27 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - de9da00 Add guide cover image to download page
 - 9d68b2d Add auto-download page for Study Like a Pastor guide
 - bddca70 Add Study Like a Pastor PDF guide asset
+
+---
+
+## Recent Changes — 2026-08-05
+
+### ~/watson
+- e072cea docs: bugs/backlog export 2026-08-05
+- fae8859 docs: file map 2026-08-05
+- e95360e Merge pull request #7 from byomes/worktree-monthly-report-attendance-headline
+- ce9f8ab devdispatch: Fix a misleading headline metric in jobs/connect_cards/monthly_state_rep
+- 5a5cf7b fix(connect_cards): headline shows actual attendance, not roster size
+- 3077427 Merge pull request #6 from byomes/worktree-devdispatch-progress-reporting
+- acd2c0d feat(devdispatch): live progress reporting via Telegram
+- f10b49c Merge pull request #5 from byomes/worktree-devdispatch+20260804-115619
+- 0d2ed9f Merge pull request #4 from byomes/worktree-devdispatch+20260804-115550
+- fdfdcca Merge pull request #3 from byomes/worktree-devdispatch-git-branch-fix
+- 4841f13 Merge branch 'main' of https://github.com/byomes/watson into worktree-devdispatch+20260804-115619
+- 06bd949 fix: derive devdispatch git branch name from _worktree_dirname()
+- 8929086 fix: resolve claude binary to absolute path for systemd service
+- 6abdf26 Merge pull request #2 from byomes/worktree-devdispatch-worktree-path-fix
+- c3db18f fix: sanitize / to + in devdispatch worktree path resolution
+- e73d1da docs: diagnose Wilmington headcount gap — cron never wired, not a sync bug
+- 653691f feat: add scheduled poller for devdispatch jobs
+- 27b7465 docs: architecture update 2026-08-04
