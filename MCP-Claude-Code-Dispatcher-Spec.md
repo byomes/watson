@@ -14,7 +14,7 @@ sudo scope.
 ## 1. Decisions locked in
 
 - PR-only completion. No auto-restart, no auto-deploy. Bill merges/pulls/
-  restarts manually.
+  restarts manually. **Superseded in part 2026-08-06 — see note below.**
 - Build fresh. Do not extend jobs/code_agent/ or jobs/dev/code_agent.py.
 - Use the CLI's own native mechanisms instead of hand-rolled equivalents:
   - `claude --bg --permission-mode bypassPermissions -w <branch-name>
@@ -30,6 +30,19 @@ sudo scope.
     where useful.
   - --max-budget-usd as a sane per-job cap — pick a default, flag it for
     Bill to adjust.
+
+**2026-08-06 — chat-based merge approval added.** New `merge_claude_code_job`
+tool (`jobs/devdispatch/api.py`), a deliberate, approved change to the
+"Bill merges manually" line above — not an oversight. This moves the
+approval *gate* from GitHub's UI into chat; it does not remove it. Bill
+still has to make an explicit, per-job decision to merge — the tool only
+ever fires on an explicit per-job approval in that conversation turn, never
+proactively, automatically on job completion, or as a batch — and it still
+runs the same checks Bill would eyeball on GitHub before clicking Merge
+(PR open, no conflicts, no failing checks) before it will act. `pr_url`/
+merge state is tracked via a new nullable `merged_at` column on
+`claude_code_jobs`; `dispatch_claude_code_job`'s own completion path is
+unchanged — it still only opens the PR and stops.
 
 ## 2. New MCP endpoint
 
