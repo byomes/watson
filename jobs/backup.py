@@ -2,7 +2,12 @@
 """
 Watson nightly backup to OneDrive via rclone.
 Backs up: data/ (the four core DBs snapshotted via sqlite3 .backup, not
-copied live), .env, config/, data/chroma/ (live vector index), kb/documents/
+copied live), .env, config/, data/chroma/ (live vector index), kb/documents/,
+a crontab snapshot
+
+Deliberately does NOT back up ~/.ssh or ~/.config/rclone/rclone.conf — those
+are local-only (jobs/backup_local.py) since rclone.conf holds the credential
+to OneDrive itself.
 """
 import subprocess
 import os
@@ -68,12 +73,39 @@ def _backup_dbs(tmp_dir, errors):
         else:
             log(f"OK: {db_name}")
 
+def _backup_crontab(tmp_dir, errors):
+    """Best-effort — a missing crontab shouldn't block the rest of the backup."""
+    result = subprocess.run(
+        ["crontab", "-l"],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        log(f"WARNING: crontab -l failed, skipping crontab snapshot: {result.stderr.strip()}")
+        return
+
+    dst = f"{tmp_dir}/crontab.txt"
+    with open(dst, "w") as f:
+        f.write(result.stdout)
+
+    log("Backing up crontab...")
+    upload = subprocess.run(
+        ["rclone", "copyto", dst, f"{REMOTE}/crontab.txt"],
+        capture_output=True, text=True,
+    )
+    if upload.returncode != 0:
+        log(f"ERROR uploading crontab: {upload.stderr}")
+        errors.append("crontab")
+    else:
+        log("OK: crontab")
+
+
 def run_backup():
     log("=== Watson backup started ===")
     errors = []
 
     with tempfile.TemporaryDirectory(prefix="watson-backup-") as tmp_dir:
         _backup_dbs(tmp_dir, errors)
+        _backup_crontab(tmp_dir, errors)
 
     for local, remote in TARGETS:
         src = f"{WATSON_DIR}/{local}"
