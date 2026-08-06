@@ -1,5 +1,5 @@
 # Watson Architecture
-*Single source of truth. Last updated: August 1, 2026.*
+*Single source of truth. Last updated: August 5, 2026.*
 *Claude Code must read this file before any build.*
 
 ---
@@ -31,6 +31,9 @@ Watson acts on Dr. Bill's behalf under his supervision. Always identified openly
 - **Tailscale Funnel:** `https://watson.tail0243ff.ts.net` → publicly reachable → proxies to `http://localhost:5200`
 - **Dashboard:** Flask app, port 5200, `watson-dashboard.service`
 - **Ollama:** Bound to `0.0.0.0`. Models: `llama3.2:3b` (primary chat/intent), `qwen2.5-coder:7b` (Dev Loop, KB, structured reasoning), `qwen2.5:7b` (accuracy-sensitive background jobs — pastoral notes, email drafts, task/goal extraction, State of Church synthesis, skill/capability audits), `phi3:mini` (background tasks), `gemma3:1b` (fast/lightweight)
+- **External storage:**
+  - `/mnt/external` — USB SSD, holds `OLLAMA_MODELS`. Existing, untouched by the backup build below.
+  - `/mnt/backup-hdd` — USB 2TB HDD, added 2026-08-05. Same power bar as the Beelink itself, so it is a **local/fast recovery tier, not an offsite/disaster-recovery leg** — a power event takes out both together. `jobs/backup_local.py` (restic, 2:30am) backs up to a repo at `/mnt/backup-hdd/restic-repo`. OneDrive (`jobs/backup.py`, 3am) remains the actual offsite disaster leg, unchanged in scope/purpose — the two legs run independently, both full scope, neither chained off the other. One-time mount/restic-init steps are manual (`docs/BACKUP_SETUP.md`), not automated by Claude Code.
 
 ### FMSPC — Windows Desktop (GPU Tasks Only)
 
@@ -219,7 +222,7 @@ note for why that change isn't sufficient on its own to bring it back.
 | Bible API | Scripture lookup | `api.scripture.api.bible` — NIV, CSB, NASB |
 | Serper.dev | Web search | Used in KB and research jobs |
 | Scribbl | Meet transcripts | Chrome extension → auto-emails transcript to `watson.wcky@gmail.com` post-call |
-| OneDrive | Nightly backup | rclone `Watson-Backup` remote, 3am cron — backs up data/, config/, kb/chroma/, kb/documents/, .env |
+| OneDrive | Nightly backup (offsite disaster leg) | rclone `Watson-Backup` remote, 3am cron — backs up data/ (the four core DBs snapshotted via `sqlite3 .backup`, not copied live), config/, `data/chroma/` (the live vector index — corrected 2026-08-05 from the orphaned `kb/chroma/`, remote path `chroma-live`), kb/documents/, .env |
 | FlareSolverr | Cloudflare JS challenge bypass | `localhost:8191`, persistent Docker container (`docker run -d --name=flaresolverr --restart unless-stopped`, not systemd). Used by `jobs/curator/research.py` for romance.io only (`_FLARESOLVERR_DOMAINS`) — resolves project_backlog id=18. `jobs/research/gutenberg.py` does NOT route through it — its `search()` already works via a self-hosted local Gutendex instance (`gutendex.service`, `127.0.0.1:8010`, since 2026-07-15) and `download_and_ingest()` downloads text directly from gutenberg.org; neither hits the Cloudflare-blocked public gutendex.com. That self-hosted catalog has its own staleness gap (no refresh job — see project_backlog, new item added 2026-07-22) unrelated to Cloudflare. |
 
 ---
@@ -265,7 +268,8 @@ note for why that change isn't sufficient on its own to bring it back.
 | `jobs/team/reminders.py --overdue` | Mon–Thu 10am | Overdue task reminders |
 | `jobs/team/reminders.py --unanswered` | Mon–Thu 10am | Unanswered comms reminders |
 | `jobs/team/note_task_scan.py` | Tue/Wed/Thu 7am | Extract tasks from shared notes → Donna approval email |
-| `jobs/backup.py` | Daily 3am | OneDrive backup via rclone |
+| `jobs/backup.py` | Daily 3am | OneDrive backup via rclone (offsite disaster leg) |
+| `jobs/backup_local.py` | Daily 2:30am | Local restic backup to `/mnt/backup-hdd` (fast/versioned recovery leg, independent of OneDrive — see Hardware) |
 | `jobs/dev_loop/cleanup.py` | Mon 4am | Purge Dev Loop projects older than 7 days |
 | `jobs/dev/file_map.py` | Daily 2am | Auto-update FILE_MAP.md |
 | `jobs/dev/bugs_backlog_sync.py` | Daily 2am | Regenerate BUGS.md / DEV_PROJECTS.md from bug_tracker / project_backlog, push to byomes/watson-docs |
