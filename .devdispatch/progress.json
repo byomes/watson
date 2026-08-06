@@ -1,1 +1,1 @@
-{"step": 5, "total": 5, "label": "Reporting", "detail": "Committed, pushed worktree-devdispatch+20260806-035545, opened PR #17."}
+{"step": 5, "total": 5, "label": "Reporting", "detail": "Committing fix for bug #17 (members CSV export unguarded exception)"}
