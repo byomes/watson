@@ -1,0 +1,11 @@
+qwen2.5vl:latest
+moondream:latest
+qwen3:4b
+gemma3:4b
+granite4:3b
+phi4-mini:latest
+qwen2.5:14b
+llama3.2:1b
+qwen2.5:7b
+llama3.2:3b
+qwen2.5-coder:7b
