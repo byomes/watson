@@ -33,7 +33,7 @@ Watson acts on Dr. Bill's behalf under his supervision. Always identified openly
 - **Ollama:** Bound to `0.0.0.0`. Models: `llama3.2:3b` (primary chat/intent), `qwen2.5-coder:7b` (Dev Loop, KB, structured reasoning), `qwen2.5:7b` (accuracy-sensitive background jobs — pastoral notes, email drafts, task/goal extraction, State of Church synthesis, skill/capability audits), `phi3:mini` (background tasks), `gemma3:1b` (fast/lightweight)
 - **External storage:**
   - `/mnt/external` — USB SSD, holds `OLLAMA_MODELS`. Existing, untouched by the backup build below.
-  - `/mnt/backup-hdd` — USB 2TB HDD, added 2026-08-05. Same power bar as the Beelink itself, so it is a **local/fast recovery tier, not an offsite/disaster-recovery leg** — a power event takes out both together. `jobs/backup_local.py` (restic, 2:30am) backs up to a repo at `/mnt/backup-hdd/restic-repo`. OneDrive (`jobs/backup.py`, 3am) remains the actual offsite disaster leg, unchanged in scope/purpose — the two legs run independently, both full scope, neither chained off the other. One-time mount/restic-init steps are manual (`docs/BACKUP_SETUP.md`), not automated by Claude Code.
+  - `/mnt/family-storage` — USB 2TB HDD (ext4, `sda1`), already mounted; added to Watson's use 2026-08-05. **Dual-purpose**: also serves as family NAS storage, not dedicated to Watson. Same power bar as the Beelink itself, so Watson's use of it is a **local/fast recovery tier, not an offsite/disaster-recovery leg** — a power event takes out both together. Watson's own data (backups for now, possibly other things later) is isolated under `/mnt/family-storage/watson/`, `chmod 700` and owned by `billyomes` only, so the family NAS side can't read or write into it regardless of how the share is configured. `jobs/backup_local.py` (restic, 2:30am) backs up to a repo at `/mnt/family-storage/watson/restic-repo`. OneDrive (`jobs/backup.py`, 3am) remains the actual offsite disaster leg, unchanged in scope/purpose — the two legs run independently, both full scope, neither chained off the other. One-time subfolder-creation/restic-init steps are manual (`docs/BACKUP_SETUP.md`), not automated by Claude Code.
 
 ### FMSPC — Windows Desktop (GPU Tasks Only)
 
@@ -269,7 +269,7 @@ note for why that change isn't sufficient on its own to bring it back.
 | `jobs/team/reminders.py --unanswered` | Mon–Thu 10am | Unanswered comms reminders |
 | `jobs/team/note_task_scan.py` | Tue/Wed/Thu 7am | Extract tasks from shared notes → Donna approval email |
 | `jobs/backup.py` | Daily 3am | OneDrive backup via rclone (offsite disaster leg) |
-| `jobs/backup_local.py` | Daily 2:30am | Local restic backup to `/mnt/backup-hdd` (fast/versioned recovery leg, independent of OneDrive — see Hardware) |
+| `jobs/backup_local.py` | Daily 2:30am | Local restic backup to `/mnt/family-storage/watson/` (fast/versioned recovery leg, independent of OneDrive — see Hardware) |
 | `jobs/dev_loop/cleanup.py` | Mon 4am | Purge Dev Loop projects older than 7 days |
 | `jobs/dev/file_map.py` | Daily 2am | Auto-update FILE_MAP.md |
 | `jobs/dev/bugs_backlog_sync.py` | Daily 2am | Regenerate BUGS.md / DEV_PROJECTS.md from bug_tracker / project_backlog, push to byomes/watson-docs |
