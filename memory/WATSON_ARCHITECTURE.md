@@ -341,9 +341,10 @@ Dashboard trigger available: "Run Conflict Check" in More tab.
 ## MCP Claude Code Dispatcher
 
 Lets Claude.ai dispatch a real Claude Code CLI build job directly from a
-voice/chat conversation via two MCP tools (`dispatch_claude_code_job`,
-`check_claude_code_job`) — no manual copy/paste between Claude.ai and the
-Beelink terminal. Spec: `~/watson/MCP-Claude-Code-Dispatcher-Spec.md`.
+voice/chat conversation via three MCP tools (`dispatch_claude_code_job`,
+`check_claude_code_job`, `merge_claude_code_job`) — no manual copy/paste
+between Claude.ai and the Beelink terminal. Spec:
+`~/watson/MCP-Claude-Code-Dispatcher-Spec.md`.
 
 **Status: fully wired, tested end-to-end, and live** — the Claude.ai
 connector successfully authorized and connected as of 2026-08-04.
@@ -367,11 +368,12 @@ connector successfully authorized and connected as of 2026-08-04.
   metadata, required for MCP client discovery.
 - **Tools:** `dispatch_claude_code_job` (spec, repo, optional branch_name —
   repo must be one of `watson/wcky/watson-admin/watson-ui/fms/bodyrec`;
-  branch_name may never be `main`/`master`) and `check_claude_code_job`
-  (job_id).
+  branch_name may never be `main`/`master`), `check_claude_code_job`
+  (job_id), and `merge_claude_code_job` (job_id — added 2026-08-06, see
+  below).
 - **Table:** `claude_code_jobs` (`watson.db`) — `id, spec_text, repo, branch,
   status [queued|running|done|failed|expired], pr_url, log_path, summary,
-  cli_session_id, created_at, updated_at`.
+  cli_session_id, last_progress_step, merged_at, created_at, updated_at`.
 
 ### CLI invocation (the real shape, not the originally-guessed one)
 
@@ -402,7 +404,24 @@ worktree is clean — commit/push always happens first).
 
 **PR-only completion, confirmed decision** — no auto-restart, no
 auto-deploy, ever. Bill merges/pulls/restarts manually, same as every other
-Watson build.
+Watson build. **Merge step superseded 2026-08-06** — see `merge_claude_code_job`
+below; the "pulls/restarts manually" half is unchanged.
+
+**`merge_claude_code_job` (added 2026-08-06):** lets Bill approve and merge
+a dispatched job's PR from the chat itself instead of opening GitHub — the
+human-review gate is unchanged, just expressed in chat rather than GitHub's
+UI. Only ever invoked on an explicit, per-job approval in that conversation
+turn — never automatically on job completion, proactively, or batched.
+Before merging (`pr.merge(merge_method="squash")` via PyGithub), it
+verifies: PR still `open` (reconciling `merged_at` instead of erroring if
+GitHub already shows it merged), `pr.mergeable` is `True` (not `None` —
+still computing — or `False` — conflict), and the head commit's combined
+status + check-runs have no failing/red entries (pending is fine). Merge
+state is tracked via a new nullable `merged_at` column on `claude_code_jobs`
+— `status` stays `done`, no change to the CHECK constraint. Calling it twice
+on an already-merged job is idempotent (`{"status": "already_merged", ...}`).
+`dispatch_claude_code_job`'s own completion path is untouched — it still
+only opens the PR and stops.
 
 ### OAuth 2.1 layer
 
