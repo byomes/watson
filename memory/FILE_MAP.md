@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-08-05*
+*Generated: 2026-08-06*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -184,11 +184,15 @@ data/
   watson.db.bak-20260723-101149
 deploy/
   .gitkeep
+  apt-packages.txt
   connect_cards_cron.txt
+  flaresolverr_run.sh
   gutendex.service
   index.html
+  ollama-models.txt
   people-server.service
   start_people_server.sh
+  watson-bot.service
   watson-dashboard.service
 dev/
   vtg_probe.py
@@ -196,6 +200,8 @@ diagnostics/
   wilmington-headcount-gap-2026-08-04.md
 docs/
   .gitkeep
+  BACKUP_SETUP.md
+  RECOVERY.md
   briefing.html
 import_connect_cards.py
 import_contacts.py
@@ -229,6 +235,7 @@ jobs/
       arc_invite_email.html
   ask.py
   backup.py
+  backup_local.py
   batch.py
   bible.py
   bodyrec/
@@ -1167,6 +1174,7 @@ prompts/
 requirements.txt
 run.sh
 scripts/
+  watson_recover.sh
   wcky_meet_reauth.py
 tests/
   model_qualify/
