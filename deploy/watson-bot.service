@@ -1,0 +1,17 @@
+[Unit]
+Description=Watson Telegram Bot
+After=network-online.target
+
+[Service]
+Type=simple
+User=billyomes
+WorkingDirectory=/home/billyomes/watson
+Environment=PYTHONPATH=/home/billyomes/watson
+ExecStart=/home/billyomes/watson/venv/bin/python /home/billyomes/watson/bot/bot.py
+Restart=always
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
