@@ -7,7 +7,13 @@ paths.
 
 Backs up (consistency-safe snapshots for the four DBs): data/watson.db,
 data/congregation.db, data/donors.db, data/curator.db, data/chroma/,
-config/, .env, memory/
+config/, .env, memory/, ~/.ssh, ~/.config/rclone/rclone.conf, a crontab
+snapshot
+
+~/.ssh and rclone.conf are intentionally local-only (not part of the
+OneDrive leg, jobs/backup.py) — rclone.conf holds the credential to
+OneDrive itself, so uploading it to OneDrive in plaintext would be
+circular and risky. The crontab snapshot goes to both legs.
 
 Retention: 14 daily, 8 weekly, 6 monthly (restic forget --prune).
 """
@@ -22,6 +28,7 @@ from config.settings import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 from core.vacation import vacation_gate
 
 WATSON_DIR = "/home/billyomes/watson"
+HOME_DIR = os.path.expanduser("~")
 BACKUP_MOUNT = "/mnt/family-storage"
 # This drive is dual-purpose: family NAS storage + Watson's local backups (and
 # possibly other Watson needs later). RESTIC_REPO deliberately lives inside a
@@ -39,6 +46,8 @@ DIR_SOURCES = [
     f"{WATSON_DIR}/config",
     f"{WATSON_DIR}/.env",
     f"{WATSON_DIR}/memory",
+    f"{HOME_DIR}/.ssh",
+    f"{HOME_DIR}/.config/rclone/rclone.conf",
 ]
 
 
@@ -78,6 +87,21 @@ def _snapshot_db(db_name, tmp_dir):
     return dst, result
 
 
+def _snapshot_crontab(tmp_dir):
+    """Best-effort — a missing crontab shouldn't block the rest of the backup."""
+    dst = f"{tmp_dir}/crontab.txt"
+    result = subprocess.run(
+        ["crontab", "-l"],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        log(f"WARNING: crontab -l failed, skipping crontab snapshot: {result.stderr.strip()}")
+        return None
+    with open(dst, "w") as f:
+        f.write(result.stdout)
+    return dst
+
+
 def run_backup():
     log("=== Watson local backup started ===")
 
@@ -106,6 +130,12 @@ def run_backup():
             else:
                 db_paths.append(dst)
                 log(f"OK: {db_name} snapshot")
+
+        log("Snapshotting crontab...")
+        crontab_path = _snapshot_crontab(tmp_dir)
+        if crontab_path:
+            db_paths.append(crontab_path)
+            log("OK: crontab snapshot")
 
         sources = db_paths + DIR_SOURCES
 
