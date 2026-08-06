@@ -150,6 +150,25 @@ _TOOLS = [
             "required": ["job_id"],
         },
     },
+    {
+        "name": "merge_claude_code_job",
+        "description": (
+            "Merge a previously dispatched Claude Code job's PR into main, after "
+            "verifying it is still open, has no merge conflicts, and has no "
+            "failing status checks. Only call this on an explicit per-job "
+            "approval from Bill in that conversation turn — never call it "
+            "proactively, automatically on job completion, or as a batch. This "
+            "replaces manually clicking Merge on GitHub; it does not replace "
+            "Bill's review."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "job_id": {"type": "integer", "description": "The job_id to merge (from dispatch_claude_code_job or check_claude_code_job)."},
+            },
+            "required": ["job_id"],
+        },
+    },
 ]
 
 
@@ -219,6 +238,9 @@ _MAX_BUDGET_USD = "5"
 _LAUNCH_TIMEOUT_S = 20  # bound on `claude --bg` itself registering + returning; NOT the build
 _BACKGROUNDED_RE = re.compile(r"backgrounded\s*[·\-]\s*([0-9a-fA-F]+)")
 _TOKEN_URL_RE = re.compile(r"https://[^@\s]+@")
+_PR_URL_RE = re.compile(r"^https://github\.com/([^/]+)/([^/]+)/pull/(\d+)$")
+_FAILING_STATUS_STATES = ("failure", "error")
+_FAILING_CHECK_CONCLUSIONS = ("failure", "timed_out", "cancelled", "action_required")
 
 # watson-dashboard.service runs under systemd's default PATH, which does not
 # include nvm's shim/version directory — `shutil.which("claude")` (and a bare
@@ -567,11 +589,94 @@ def _check_claude_code_job(job_id) -> dict:
     return _row_to_dict(_get_job_row(job_id))
 
 
+def _merge_claude_code_job(job_id) -> dict:
+    """Merge a dispatched job's PR into main. Only ever invoked as an
+    explicit, separate call on Bill's per-job approval — never from
+    _dispatch_claude_code_job's or _finalize_completed_job's own completion
+    path, which keep stopping at "PR opened, Telegram sent" exactly as
+    before."""
+    if job_id is None:
+        return {"error": "job_id is required"}
+
+    row = _get_job_row(job_id)
+    if not row:
+        return {"error": f"job {job_id} not found"}
+
+    pr_url = row["pr_url"]
+    if not pr_url:
+        return {"error": "no PR associated with this job"}
+
+    if row["merged_at"]:
+        return {"status": "already_merged", "pr_url": pr_url, "merged_at": row["merged_at"]}
+
+    match = _PR_URL_RE.match(pr_url)
+    if not match:
+        return {"error": f"could not parse owner/repo/PR number from pr_url: {pr_url}"}
+    owner, repo_name, pr_number = match.group(1), match.group(2), int(match.group(3))
+
+    token = os.getenv("GITHUB_TOKEN")
+    if not token:
+        return {"error": "GITHUB_TOKEN not set"}
+
+    try:
+        from github import Github
+        gh_repo = Github(token).get_repo(f"{owner}/{repo_name}")
+        pr = gh_repo.get_pull(pr_number)
+    except Exception as exc:
+        return {"error": f"could not fetch PR #{pr_number}: {exc}"}
+
+    # (a) PR must still be open — unless GitHub already shows it merged,
+    # in which case reconcile our local state instead of erroring.
+    if pr.state != "open":
+        if pr.merged:
+            merged_at = (pr.merged_at.isoformat() if pr.merged_at else datetime.utcnow().isoformat())
+            _update_job(job_id, merged_at=merged_at)
+            return {"status": "already_merged", "pr_url": pr_url, "merged_at": merged_at}
+        return {"error": f"PR #{pr_number} is not open (state={pr.state}) and was not merged"}
+
+    # (b) No merge conflicts. `mergeable` is None while GitHub is still
+    # computing it — that's not a conflict, just not ready yet.
+    if pr.mergeable is None:
+        return {"error": f"GitHub is still computing mergeability for PR #{pr_number} — retry in a few seconds"}
+    if pr.mergeable is False:
+        return {"error": f"PR #{pr_number} has a merge conflict with {gh_repo.default_branch}"}
+
+    # (c) No failing checks. Combines the legacy commit-status API and the
+    # newer checks API (GitHub Actions uses checks, not statuses) since
+    # either can carry a failing result. Pending/queued checks are fine —
+    # only a completed failing/erroring result blocks the merge.
+    try:
+        commit = gh_repo.get_commit(pr.head.sha)
+        failing = [s.context for s in commit.get_combined_status().statuses if s.state in _FAILING_STATUS_STATES]
+        failing += [
+            c.name for c in commit.get_check_runs()
+            if c.status == "completed" and c.conclusion in _FAILING_CHECK_CONCLUSIONS
+        ]
+    except Exception as exc:
+        return {"error": f"could not fetch status checks for PR #{pr_number}: {exc}"}
+
+    if failing:
+        return {"error": f"PR #{pr_number} has failing check(s): {', '.join(failing)}"}
+
+    try:
+        merge_result = pr.merge(merge_method="squash")
+    except Exception as exc:
+        return {"error": f"merge failed: {exc}"}
+    if not merge_result.merged:
+        return {"error": f"merge did not succeed: {merge_result.message}"}
+
+    merged_at = datetime.utcnow().isoformat()
+    _update_job(job_id, merged_at=merged_at)
+    _telegram(f"✅ devdispatch job {job_id} merged into main (PR #{pr_number}).")
+    return {"status": "merged", "pr_url": pr_url, "merged_at": merged_at}
+
+
 _TOOL_IMPLS = {
     "dispatch_claude_code_job": lambda args: _dispatch_claude_code_job(
         args.get("spec"), args.get("repo"), args.get("branch_name")
     ),
     "check_claude_code_job": lambda args: _check_claude_code_job(args.get("job_id")),
+    "merge_claude_code_job": lambda args: _merge_claude_code_job(args.get("job_id")),
 }
 
 

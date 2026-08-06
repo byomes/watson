@@ -75,6 +75,13 @@ def create_tables(conn=None) -> None:
         if "last_progress_step" not in cols:
             conn.execute("ALTER TABLE claude_code_jobs ADD COLUMN last_progress_step INTEGER NOT NULL DEFAULT 0")
 
+        # merged_at: set once merge_claude_code_job successfully merges the
+        # job's PR into main. NULL means not merged. Merge state is tracked
+        # via this column rather than a new `status` value, so the CHECK
+        # constraint on `status` is untouched — status stays 'done'.
+        if "merged_at" not in cols:
+            conn.execute("ALTER TABLE claude_code_jobs ADD COLUMN merged_at TEXT")
+
         conn.commit()
     finally:
         if owns_conn:
