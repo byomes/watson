@@ -1,8 +1,8 @@
 # Watson Bug Tracker
 _Auto-generated nightly from bug_tracker. Source of truth is the database — do not hand-edit this file, changes will be overwritten._
-Last generated: 2026-08-05 02:10
+Last generated: 2026-08-06 02:10
 
-## Open (14)
+## Open (13)
 | ID | Title | Repo | Discovered |
 |---|---|---|---|
 | 58 | missed_report.py cron path missing slash, silently failed weekly | watson | 2026-08-04 13:14:38 |
@@ -17,12 +17,13 @@ Last generated: 2026-08-05 02:10
 | 23 | qwen2.5:14b concurrent-load risk unresolved — do not route to Beelink jobs without testing classify() contention first | watson | 2026-07-17 20:02:00 |
 | 22 | Ollama OLLAMA_MAX_LOADED_MODELS=1 forces single-model residency, causing classifier/general-chat model thrash | watson | 2026-07-17 17:36:22 |
 | 21 | Ollama/gemma3:4b transient severe slowdown under rapid back-to-back requests (10-42s), self-resolving | watson | 2026-07-17 17:36:05 |
-| 17 | Export CSV button downloads HTML instead of CSV | watson | 2026-07-15 17:22:34 |
 | 10 | chat_stream() missing polish this:/kb:/shepherding: directive intercepts (present in /api/terminal, absent in /api/chat/stream — falls through to Ollama chat) | watson | 2026-07-11 16:12:30 |
 
 ## Recently Resolved (last 30 days)
 | ID | Title | Repo | Resolved | Commit |
 |---|---|---|---|---|
+| 59 | devdispatch _open_pr collides with dispatched session's own PR, misreporting real work as failed | watson | 2026-08-06 04:29:27 | 4793ce6 |
+| 17 | Export CSV button downloads HTML instead of CSV | watson | 2026-08-06 04:29:27 | f50910d |
 | 56 | headcount_sync.py never wired into crontab — Wilmington headcount data missing since 7/27 | watson | 2026-08-04 13:53:32 | 3b1abf94b4e2f87f0675f90be19dc965285e2688 |
 | 57 | devdispatch _worktree_path() mismatches CLI worktree dirname sanitization | watson | 2026-08-04 12:36:50 | c3db18f |
 | 54 | Suggest Fonts narrow stage timed out silently on every real run | watson | 2026-08-02 18:01:26 | 30161e4 |
