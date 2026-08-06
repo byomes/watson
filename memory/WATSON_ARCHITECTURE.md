@@ -490,6 +490,23 @@ client as of 2026-08-04, using this full root-proxy + OAuth stack.
   If this endpoint ever grows a real persistent connection (e.g. an SSE
   transport), add the notification send and the `listChanged: true` flag
   together, never one without the other.
+- **Fixed 2026-08-06 — duplicate-PR 422 misreported real work as failed**
+  (bug_tracker #59). A dispatched Claude Code session commonly opens its own
+  PR on completion (its normal end-of-task convention, independent of
+  Watson's own flow); `_finalize_completed_job()` then also calls
+  `_open_pr()` once `claude agents` reports `state: done`, colliding with
+  the session's own PR and getting a 422 from GitHub, previously treated as
+  a hard failure. This hit 9 consecutive jobs in a row (ids 16–24, spanning
+  2026-08-06 02:00–04:20) before being root-caused — real, valid PRs (the
+  dispatched session's own) sat open and untracked while their jobs showed
+  `failed`. **Fix:** `_open_pr()` now catches `GithubException` specifically
+  and, on a 422 "already exists" error, looks the existing PR up via
+  `get_pulls()` and returns it as success. No poller/finalize-side locking
+  issue was involved — confirmed via `logs/devdispatch_poller.log` showing
+  exactly one finalize attempt per job, ruling out a poller-vs-poller race.
+  A **job that reports `failed` should not be assumed to have produced no
+  usable work** — check GitHub for an open PR on the job's branch before
+  discarding it, especially for any job predating this fix.
 
 ### Superseded prior art
 
