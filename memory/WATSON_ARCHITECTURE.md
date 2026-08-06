@@ -1803,3 +1803,35 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - e73d1da docs: diagnose Wilmington headcount gap — cron never wired, not a sync bug
 - 653691f feat: add scheduled poller for devdispatch jobs
 - 27b7465 docs: architecture update 2026-08-04
+
+---
+
+## Recent Changes — 2026-08-06
+
+### ~/watson
+- 70ed0ae docs: bugs/backlog export 2026-08-06
+- 14c1cf2 docs: file map 2026-08-06
+- 7139bb5 docs: document devdispatch duplicate-PR-422 root cause and fix (bug #59)
+- f50910d fix: guard members CSV export against unhandled exceptions (bug #17) (#18)
+- 4793ce6 fix: treat existing-PR 422 as success in devdispatch _open_pr
+- 7bc2f03 Merge pull request #17 from byomes/worktree-devdispatch+20260806-035545
+- b9c7a44 devdispatch: final progress marker
+- aede8c7 devdispatch: document why listChanged capability is not declared
+- 129ec51 Merge pull request #15 from byomes/worktree-devdispatch+20260806-031322
+- d0a6dde Merge main, resolve progress.json conflict
+- 7ade0f4 chore: final devdispatch progress marker
+- 8328caa docs: record merge_claude_code_job as a deliberate spec change
+- 4dfaf09 devdispatch: add merge_claude_code_job tool + merged_at column
+- 217fac5 Merge pull request #13 from byomes/worktree-devdispatch+20260806-024935
+- 1c6bb53 chore: final devdispatch progress marker
+- 7217602 feat: add Watson Recovery orchestration script and runbook
+- f6e23bc feat: back up SSH keys, rclone config, and crontab for recovery
+- 313a5ec feat: add missing deploy manifests for Watson Recovery
+- d92c686 Merge pull request #12 from byomes/worktree-devdispatch+20260806-022512
+- cacfdda chore: final devdispatch progress marker
+- 53144d3 fix: correct local backup path to /mnt/family-storage/watson subfolder
+- eefa591 Merge pull request #11 from byomes/worktree-devdispatch+20260806-020200
+- 495920d chore: final devdispatch progress marker
+- a75b5b8 backup: fix OneDrive job to snapshot DBs and target the live Chroma index
+- 2eece8a backup: add local restic backup to external 2TB HDD
+- 42745e3 docs: architecture update 2026-08-05
