@@ -1305,21 +1305,25 @@ _CSV_DIFF_FIELDS = ["name", "email", "phone", "member_status", "campus_preferenc
 
 @app.route("/api/members/export")
 def members_export_api():
-    c = _cong_conn()
-    rows = c.execute(
-        "SELECT id, name, email, phone, member_status, campus_preference, partnership_status "
-        "FROM members ORDER BY name COLLATE NOCASE"
-    ).fetchall()
-    c.close()
-    buf = io.StringIO()
-    writer = csv.writer(buf)
-    writer.writerow(_CSV_EXPORT_COLUMNS)
-    for r in rows:
-        writer.writerow([r[col] if r[col] is not None else "" for col in _CSV_EXPORT_COLUMNS])
-    filename = f"members-export-{datetime.now().strftime('%Y-%m-%d')}.csv"
-    resp = Response(buf.getvalue(), mimetype="text/csv")
-    resp.headers["Content-Disposition"] = f"attachment; filename={filename}"
-    return resp
+    try:
+        c = _cong_conn()
+        rows = c.execute(
+            "SELECT id, name, email, phone, member_status, campus_preference, partnership_status "
+            "FROM members ORDER BY name COLLATE NOCASE"
+        ).fetchall()
+        c.close()
+        buf = io.StringIO()
+        writer = csv.writer(buf)
+        writer.writerow(_CSV_EXPORT_COLUMNS)
+        for r in rows:
+            writer.writerow([r[col] if r[col] is not None else "" for col in _CSV_EXPORT_COLUMNS])
+        filename = f"members-export-{datetime.now().strftime('%Y-%m-%d')}.csv"
+        resp = Response(buf.getvalue(), mimetype="text/csv")
+        resp.headers["Content-Disposition"] = f"attachment; filename={filename}"
+        resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        return resp
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
 
 
 def _parse_members_import_csv(file_storage):
