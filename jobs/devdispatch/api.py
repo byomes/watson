@@ -885,6 +885,17 @@ def mcp_endpoint():
     method = body.get("method")
 
     if method == "initialize":
+        # capabilities.tools.listChanged is deliberately omitted, not an
+        # oversight: this endpoint is stateless HTTP POST/response only (see
+        # module docstring — no SSE/streaming, no persistent per-client
+        # session), so there is no channel to push an unsolicited
+        # notifications/tools/list_changed over. Declaring listChanged: true
+        # here would advertise a capability the server cannot fulfill. If
+        # this endpoint ever grows a persistent connection (SSE transport),
+        # add the notification send *and* this flag together — never one
+        # without the other. See WATSON_ARCHITECTURE.md, MCP Claude Code
+        # Dispatcher > Known gaps, for the resulting manual-reconnect
+        # requirement.
         return _rpc_result(req_id, {
             "protocolVersion": _PROTOCOL_VERSION,
             "capabilities": {"tools": {}},

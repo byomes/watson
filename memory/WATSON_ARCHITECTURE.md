@@ -475,6 +475,21 @@ client as of 2026-08-04, using this full root-proxy + OAuth stack.
   `unrecognized claude agents state: <value>` rather than assumed.
 - `claude --bg --help` gotcha — see Development Conventions below; bit
   this build once already.
+- **No `tools.listChanged` capability** — `initialize` deliberately does
+  *not* advertise `capabilities.tools.listChanged`, and there is no
+  `notifications/tools/list_changed` push. `/mcp/devdispatch` is stateless
+  HTTP POST/response per call (see endpoint description above) — no
+  SSE/streaming, no persistent per-client session — so the server has no
+  channel to push an unsolicited notification over. Declaring the
+  capability without real delivery would violate the MCP contract, so it's
+  left off rather than declared dishonestly. **Practical consequence:**
+  after any change to `_TOOLS` in `jobs/devdispatch/api.py` (tool
+  added/removed/schema changed) and deploy, the Claude.ai connector must be
+  manually disconnected and reconnected (connector settings) to pick up
+  the new tool list — it has no way to learn about the change otherwise.
+  If this endpoint ever grows a real persistent connection (e.g. an SSE
+  transport), add the notification send and the `listChanged: true` flag
+  together, never one without the other.
 
 ### Superseded prior art
 
