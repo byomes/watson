@@ -22,8 +22,12 @@ from config.settings import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 from core.vacation import vacation_gate
 
 WATSON_DIR = "/home/billyomes/watson"
-BACKUP_MOUNT = "/mnt/backup-hdd"
-RESTIC_REPO = f"{BACKUP_MOUNT}/restic-repo"
+BACKUP_MOUNT = "/mnt/family-storage"
+# This drive is dual-purpose: family NAS storage + Watson's local backups (and
+# possibly other Watson needs later). RESTIC_REPO deliberately lives inside a
+# chmod 700 `watson/` subfolder (owned by billyomes only) rather than at the
+# mount root, so nothing else on the family share can read or write it.
+RESTIC_REPO = f"{BACKUP_MOUNT}/watson/restic-repo"
 LOG = f"{WATSON_DIR}/logs/backup_local.log"
 
 RESTIC_PASSWORD = os.getenv("RESTIC_PASSWORD")
