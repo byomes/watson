@@ -328,12 +328,30 @@ def _open_pr(repo: str, git_branch: str, title: str, body: str):
     if not token:
         return None, "GITHUB_TOKEN not set"
     try:
-        from github import Github
+        from github import Github, GithubException
         gh_repo = Github(token).get_repo(f"byomes/{repo}")
-        pr = gh_repo.create_pull(
-            title=title, body=body, head=git_branch, base=gh_repo.default_branch
-        )
-        return pr.html_url, None
+        try:
+            pr = gh_repo.create_pull(
+                title=title, body=body, head=git_branch, base=gh_repo.default_branch
+            )
+            return pr.html_url, None
+        except GithubException as exc:
+            # A prior finalize attempt can have already opened a PR for this
+            # branch (e.g. this call is a retry after some later step failed)
+            # — GitHub replies 422 "A pull request already exists" rather
+            # than handing back the existing PR. That's not a real failure,
+            # just a create-vs-lookup mismatch, so treat it as success and
+            # look the existing PR up instead of surfacing an error with no
+            # usable link. Any other GithubException (permissions, bad
+            # base/head, etc.) still falls through to the generic handler
+            # below and is reported as a real failure.
+            msg = str(exc)
+            if exc.status == 422 and "A pull request already exists" in msg:
+                existing = gh_repo.get_pulls(state="all", head=f"byomes:{git_branch}")
+                match = next(iter(existing), None)
+                if match is not None:
+                    return match.html_url, None
+            return None, msg
     except Exception as exc:
         return None, str(exc)
 
