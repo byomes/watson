@@ -1,10 +1,11 @@
 # Watson Project Backlog
 _Auto-generated nightly from project_backlog. Source of truth is the database — do not hand-edit this file, changes will be overwritten._
-Last generated: 2026-08-06 02:10
+Last generated: 2026-08-07 02:10
 
-## Planned (26)
+## Planned (27)
 | ID | Title | Summary | Added |
 |---|---|---|---|
+| 33 | Dev Sandbox auto-cleanup / session timeout | Dev Sandbox (jobs/dev/sandbox_session.py) has no auto-timeout or cleanup job for v1 — explicit Stop only. | 2026-08-07 |
 | 32 | Claude.ai <-> Claude Code live bridge | MCP devdispatch only returns a final summary once a job completes -- no way to send follow-up commands into an in-progress/interactive Claude Code session or stream its output back in real time. | 2026-08-06 |
 | 31 | Cover Comp Generator parked | Killed as an active feature 2026-08-03 — creative output quality (qwen2.5:7b concepts + Pollinations raster previews) wasn't usable. Dashboard entry point removed, all backend code/data left intact for potential future salvage (font discovery tool specifically may be worth keeping independently). See jobs/book/ for the full implementation. | 2026-08-03 |
 | 28 | close #27 | Decision made 2026-07-27: keeping all Watson sends on watson@williamckyomes.com permanently, not reverting to faithmakessense.com. Watson is Dr. Bill's assistant, branding stays under his domain by design. | 2026-07-28 |
