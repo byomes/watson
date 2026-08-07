@@ -475,15 +475,71 @@ connector successfully authorized and connected as of 2026-08-04.
   metadata, required for MCP client discovery.
 - **Tools:** `dispatch_claude_code_job` (spec, repo, optional branch_name —
   repo must be one of `watson/wcky/watson-admin/watson-ui/fms/bodyrec`;
-  branch_name may never be `main`/`master`), `check_claude_code_job`
+  branch_name may never be `main`/`master`; **as of 2026-08-07 returns a live
+  `terminal_url` + `sandbox_session_id` and runs inside the Dev Sandbox — see
+  Dev Sandbox integration below**), `check_claude_code_job`
   (job_id), `merge_claude_code_job` (job_id — added 2026-08-06, see
   below), and `get_job_output` (job_id — added 2026-08-07, read-only
   diff/worktree/log inspection, see below).
 - **Table:** `claude_code_jobs` (`watson.db`) — `id, spec_text, repo, branch,
   status [queued|running|done|failed|expired], pr_url, log_path, summary,
-  cli_session_id, last_progress_step, merged_at, created_at, updated_at`.
+  cli_session_id, last_progress_step, merged_at, sandbox_session_id,
+  terminal_url, created_at, updated_at`. `sandbox_session_id`/`terminal_url`
+  added 2026-08-07 with the Dev Sandbox integration below (both NULL for
+  pre-integration jobs).
 
-### CLI invocation (the real shape, not the originally-guessed one)
+### Dev Sandbox integration (2026-08-07)
+
+`dispatch_claude_code_job` no longer launches a **headless** host `claude
+--bg` session. It now launches the Claude Code session **inside the existing
+Dev Sandbox** (Docker/tmux/ttyd — `jobs/dev/sandbox_session.py`, see the Dev
+Sandbox section above) and returns a **live, watchable ttyd terminal URL** so
+the caller (Claude.ai) can open, watch, and interact with the session
+immediately over Tailscale — instead of a fire-and-forget background job.
+
+- **Response now includes two new fields:** `terminal_url` (the ttyd URL,
+  `http://100.117.237.96:<port>/`, port in 7700–7749, bound to the Tailscale
+  IP only — never the LAN or the public Funnel) and `sandbox_session_id`
+  (the `dev_sandbox_sessions.id` this job maps to). Both are also persisted on
+  the `claude_code_jobs` row (`terminal_url`, `sandbox_session_id` columns).
+  The job goes to `status='running'` as soon as the container is up.
+- **How it wires up, reusing the sandbox as-is:** `start_session(repo)` does
+  the fresh `git clone --depth 1`, the 7700–7749 port allocation, the `docker
+  run --user 1000:1000` with the real `~/.claude` + `~/.claude.json` mounted,
+  and records the `dev_sandbox_sessions` row (returns a dict with `id`, `repo`,
+  `port`, `url`). The dispatcher then writes the full spec into the clone as
+  `DISPATCH_SPEC.md` (the clone dir is bind-mounted at the container's
+  `/workspace`, so this is a plain host-side file write — no `docker exec`),
+  and types a one-line "read `DISPATCH_SPEC.md` and carry it out" instruction
+  into the running session via `tmux send-keys`, waiting for Claude Code's `❯`
+  prompt to render first (`_tmux_pane_ready`). If the auto-type step fails the
+  terminal is still returned as live-and-usable with a `note` telling the
+  caller to paste the spec in manually — the URL is never withheld on a
+  feed-failure.
+- **Teardown is reused, not reinvented:** the container is an ordinary
+  `dev_sandbox_sessions` row, so the Dev Sandbox dashboard's existing Stop
+  button / `stop_session()` tears it down (`docker stop`, `--rm` removes the
+  container). No new cleanup path in the dispatcher.
+- **`check_claude_code_job` / `get_job_output` are intentionally UNCHANGED**
+  and still operate on a **host** worktree under
+  `~/<repo>/.claude/worktrees/`. Because sandbox-dispatched work now happens
+  in an isolated **container clone** instead, those two no longer finalize a
+  host worktree for these jobs — the live terminal is the primary channel, and
+  they remain as best-effort host-side fallbacks (they'll report the worktree
+  as absent for a sandbox job). The `_finalize_completed_job` commit/push/PR
+  logic and the `claude --bg` shape documented just below still exist in the
+  code as that fallback path; they are not the dispatch path anymore.
+- **Verified 2026-08-07:** `py_compile` clean on `api.py`/`schema.py`;
+  `start_session()` exercised live end-to-end (bodyrec clone → container up on
+  port 7701 → ttyd HTTP 200 → `stop_session()` clean teardown, no orphaned
+  container). Not tested via `dispatch_claude_code_job` itself (that would be
+  circular from inside a Claude Code session) — the underlying sandbox pieces
+  were tested directly instead. **Going live still requires the normal Watson
+  deploy:** merge the PR, `cd ~/watson && git pull`, then restart
+  `watson-dashboard.service` — the change ships on a branch, it is not applied
+  to the live `~/watson` checkout by this build.
+
+### CLI invocation (the headless fallback shape — no longer the dispatch path; see Dev Sandbox integration above)
 
 `claude --bg` rejects `-p`/`--print` and `--output-format` outright (they're
 mutually exclusive with `--bg`), so there's no JSON-mode return value — the
