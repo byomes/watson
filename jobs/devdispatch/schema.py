@@ -82,6 +82,19 @@ def create_tables(conn=None) -> None:
         if "merged_at" not in cols:
             conn.execute("ALTER TABLE claude_code_jobs ADD COLUMN merged_at TEXT")
 
+        # Dev Sandbox integration (2026-08-07): dispatch_claude_code_job now
+        # launches the Claude Code session inside the existing Dev Sandbox
+        # (Docker/tmux/ttyd, jobs/dev/sandbox_session.py) instead of a headless
+        # host `claude --bg`, so the job comes back with a live, watchable ttyd
+        # terminal. sandbox_session_id links this job to its row in
+        # dev_sandbox_sessions (reused for teardown via that system's existing
+        # Stop mechanism — no new cleanup here); terminal_url is the ttyd URL
+        # returned to the caller. Both NULL for pre-integration jobs.
+        if "sandbox_session_id" not in cols:
+            conn.execute("ALTER TABLE claude_code_jobs ADD COLUMN sandbox_session_id TEXT")
+        if "terminal_url" not in cols:
+            conn.execute("ALTER TABLE claude_code_jobs ADD COLUMN terminal_url TEXT")
+
         conn.commit()
     finally:
         if owns_conn:
