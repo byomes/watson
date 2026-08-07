@@ -1,1 +1,1 @@
-{"step": 5, "total": 5, "label": "Reporting", "detail": "Committed, pushed feat/audiobook-breath-suppression-retry, and opened PR #20 against main."}
+{"step": 5, "total": 5, "label": "Reporting", "detail": "Email sent successfully (Brevo success:true, message_id returned); throwaway script, nothing committed."}
