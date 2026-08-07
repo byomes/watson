@@ -48,3 +48,16 @@ briefing/templates/briefing.html
 briefing/templates/briefing.html
 docs/briefing.html
 *.db.bak-*
+
+# Secrets audit staging file — variable names/purposes only, never committed
+memory/secrets_audit_draft.md
+
+# Audiobook mastering pipeline — raw/processed audio and reports, not code
+jobs/audiobook/input/*
+jobs/audiobook/processed/*
+jobs/audiobook/samples/*
+jobs/audiobook/reports/*
+!jobs/audiobook/input/.gitkeep
+!jobs/audiobook/processed/.gitkeep
+!jobs/audiobook/samples/.gitkeep
+!jobs/audiobook/reports/.gitkeep
