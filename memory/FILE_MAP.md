@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-08-06*
+*Generated: 2026-08-07*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -186,6 +186,10 @@ deploy/
   .gitkeep
   apt-packages.txt
   connect_cards_cron.txt
+  dev-sandbox/
+    Dockerfile
+    entrypoint.sh
+    ttyd_index.html
   flaresolverr_run.sh
   gutendex.service
   index.html
@@ -234,6 +238,22 @@ jobs/
     templates/
       arc_invite_email.html
   ask.py
+  audiobook/
+    config.py
+    ffmpeg_utils.py
+    input/
+      .gitkeep
+    master_chapter.py
+    measurements.py
+    naming.py
+    processed/
+      .gitkeep
+    qc_report.py
+    qc_store.py
+    reports/
+      .gitkeep
+    samples/
+      .gitkeep
   backup.py
   backup_local.py
   batch.py
@@ -376,6 +396,7 @@ jobs/
     hello_dashboard.py
     ollama_monitor.py
     performance_profiler.py
+    sandbox_session.py
     secrets_audit.py
     skill_tester.py
     skill_validator.py
@@ -1185,6 +1206,7 @@ tests/
     results_remaining.json
     run.log
     test_set.json
+  ollama_parallel_test.py
 vercel.json
 watson.db
 ```
