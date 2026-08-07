@@ -1,1 +1,1 @@
-{"step": 5, "total": 5, "label": "Reporting", "detail": "Committing fix for bug #17 (members CSV export unguarded exception)"}
+{"step": 4, "total": 5, "label": "Testing", "detail": "py_compile clean; ran full pipeline end-to-end on synthetic chapters — breath detection, retry loop, ACX floor, profile learning all verified."}

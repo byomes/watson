@@ -7,11 +7,36 @@ import json
 import re
 import subprocess
 
+import numpy as np
+
 import config
 
 
 class FfmpegError(RuntimeError):
     pass
+
+
+def decode_pcm(path, sample_rate=None):
+    """Decode a file to mono float32 PCM in [-1, 1] and return
+    (samples, sample_rate). Used for Python-side *measurement* only (breath
+    detection, ACX quietest-window noise floor) — ffmpeg still performs every
+    actual audio transform. Decoding to raw f32le on stdout avoids any WAV
+    header parsing."""
+    sr = config.EXPORT_SAMPLE_RATE if sample_rate is None else sample_rate
+    proc = subprocess.run(
+        [
+            "ffmpeg", "-hide_banner", "-v", "quiet", "-i", str(path),
+            "-ac", "1", "-ar", str(sr), "-f", "f32le", "-",
+        ],
+        capture_output=True,
+    )
+    if proc.returncode != 0:
+        raise FfmpegError(
+            f"decode_pcm failed ({proc.returncode}) for {path}:\n"
+            f"{proc.stderr.decode('utf-8', 'replace')}"
+        )
+    samples = np.frombuffer(proc.stdout, dtype="<f4")
+    return samples, sr
 
 
 def run(args, log_lines=None):
@@ -95,14 +120,17 @@ def measure_astats(path, log_lines=None):
     }
 
 
-def loudnorm_measure(path, log_lines=None):
+def loudnorm_measure(path, target_i=None, target_tp=None, log_lines=None):
     """Pass 1 of two-pass loudnorm — measures the file, returns the JSON
-    stats block ffmpeg prints to stderr."""
+    stats block ffmpeg prints to stderr. Targets are overridable so the retry
+    loop can re-aim loudness/peak between attempts."""
+    target_i = config.TARGET_INTEGRATED_LOUDNESS if target_i is None else target_i
+    target_tp = config.TARGET_TRUE_PEAK if target_tp is None else target_tp
     _, err = run([
         "ffmpeg", "-nostats", "-i", str(path),
         "-af", (
-            f"loudnorm=I={config.TARGET_INTEGRATED_LOUDNESS}:"
-            f"TP={config.TARGET_TRUE_PEAK}:LRA={config.TARGET_LRA}:print_format=json"
+            f"loudnorm=I={target_i}:"
+            f"TP={target_tp}:LRA={config.TARGET_LRA}:print_format=json"
         ),
         "-f", "null", "-",
     ], log_lines=log_lines)
@@ -113,13 +141,16 @@ def loudnorm_measure(path, log_lines=None):
     return json.loads(match.group(0))
 
 
-def loudnorm_apply(input_path, output_path, measured, log_lines=None):
+def loudnorm_apply(input_path, output_path, measured, target_i=None,
+                   target_tp=None, log_lines=None):
     """Pass 2 of two-pass loudnorm — applies normalization using the
     measured stats from pass 1 (linear mode, per ffmpeg's own recommended
     two-pass recipe)."""
+    target_i = config.TARGET_INTEGRATED_LOUDNESS if target_i is None else target_i
+    target_tp = config.TARGET_TRUE_PEAK if target_tp is None else target_tp
     filt = (
-        f"loudnorm=I={config.TARGET_INTEGRATED_LOUDNESS}:"
-        f"TP={config.TARGET_TRUE_PEAK}:LRA={config.TARGET_LRA}:"
+        f"loudnorm=I={target_i}:"
+        f"TP={target_tp}:LRA={config.TARGET_LRA}:"
         f"measured_I={measured['input_i']}:"
         f"measured_TP={measured['input_tp']}:"
         f"measured_LRA={measured['input_lra']}:"

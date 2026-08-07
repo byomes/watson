@@ -23,16 +23,23 @@ def save_qc_data(data):
         json.dump(data, f, indent=2, sort_keys=True)
 
 
-def upsert_record(data, filename, section_number, section_title, m, specs, overall_pass):
+def upsert_record(data, filename, section_number, section_title, m, specs,
+                  overall_pass, retry_attempts=None, adjustments=None,
+                  narrator=None, breath_count=None, final_params=None):
     data[filename] = {
         "section_number": section_number,
         "section_title": section_title,
+        "narrator": narrator,
         "measurements": m,
         "specs": [
             {"name": n, "value": v, "requirement": r, "passed": p}
             for n, v, r, p in specs
         ],
         "overall_pass": overall_pass,
+        "retry_attempts": retry_attempts,
+        "adjustments": adjustments or [],
+        "breath_count": breath_count,
+        "final_params": final_params or {},
     }
     return data
 
@@ -104,7 +111,7 @@ def write_reports(data):
         "Section", "Title", "Filename", "Duration (s)", "RMS/LUFS (dB)",
         "True Peak (dBTP)", "Noise Floor (dB)", "Sample Rate", "Bitrate",
         "Channels", "Head Silence (s)", "Tail Silence (s)",
-        "Book Δ (dB)", "Overall",
+        "Retries", "Breaths", "Book Δ (dB)", "Overall",
     ]
     lines.append("| " + " | ".join(header) + " |")
     lines.append("|" + "|".join(["---"] * len(header)) + "|")
@@ -127,11 +134,44 @@ def write_reports(data):
             str(m["channels"]),
             f"{m['head_silence_s']:.2f}",
             f"{m['tail_silence_s']:.2f}",
+            str(rec.get("retry_attempts")) if rec.get("retry_attempts") is not None else "?",
+            str(rec.get("breath_count")) if rec.get("breath_count") is not None else "?",
             f"{dev.get('delta_db', 0):+.2f}" if dev else "0.00",
             overall,
         ]
         lines.append("| " + " | ".join(row) + " |")
         csv_rows.append(row)
+
+    # --- Per-chapter detail: retry count + exactly what was adjusted --------
+    lines.append("")
+    lines.append("## Per-chapter detail")
+    lines.append("")
+    for filename, rec in ordered:
+        m = rec["measurements"]
+        status = "PASS" if rec["overall_pass"] else "FAIL — manual review"
+        attempts = rec.get("retry_attempts")
+        lines.append(f"### {filename} — {status}")
+        lines.append(
+            f"- Final: RMS {m['integrated_loudness_db']:.2f} dB, "
+            f"true peak {m['true_peak_db']:.2f} dBTP, "
+            f"noise floor {m['noise_floor_db']} dB "
+            f"(ACX quietest-window method)"
+        )
+        lines.append(f"- Attempts: {attempts if attempts is not None else '?'}"
+                     f" / narrator: {rec.get('narrator') or '?'}"
+                     f" / breaths suppressed: {rec.get('breath_count')}")
+        adjustments = rec.get("adjustments") or []
+        if adjustments:
+            lines.append("- Adjustments made:")
+            for a in adjustments:
+                lines.append(f"  - {a}")
+        else:
+            lines.append("- Adjustments made: none (passed on first attempt)"
+                         if rec["overall_pass"] else "- Adjustments made: none")
+        if rec.get("final_params"):
+            fp = rec["final_params"]
+            lines.append(f"- Final params: {fp}")
+        lines.append("")
 
     config.QC_REPORT_MD.write_text("\n".join(lines) + "\n")
     with open(config.QC_REPORT_CSV, "w", newline="") as f:
