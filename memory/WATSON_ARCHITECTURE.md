@@ -1,5 +1,5 @@
 # Watson Architecture
-*Single source of truth. Last updated: August 5, 2026.*
+*Single source of truth. Last updated: August 6, 2026.*
 *Claude Code must read this file before any build.*
 
 ---
@@ -67,23 +67,56 @@ Watson acts on Dr. Bill's behalf under his supervision. Always identified openly
   classifier and a heavy background-job model can now stay resident
   simultaneously without thrashing.
 
-  **This does NOT fully resolve the original risk.** `OLLAMA_NUM_PARALLEL` is
-  still `1` — Ollama still serializes all generate requests one at a time,
-  system-wide, regardless of how many models are resident in memory. A
-  long-running call on a heavy model still blocks every other Ollama request
-  (including intent classification) for its full duration.
+  **This did NOT fully resolve the original risk — confirmed by real test,
+  not assumption, 2026-08-06.** `OLLAMA_NUM_PARALLEL` remained `1` (explicit
+  `Environment="OLLAMA_NUM_PARALLEL=1"` hardcoded in the base
+  `/etc/systemd/system/ollama.service` unit itself, not just an override
+  default) from 2026-07-17 until this test. Ollama serializes all generate
+  requests one at a time, system-wide, regardless of how many models are
+  resident — a long-running call on a heavy model still blocks every other
+  Ollama request (including intent classification) for its full duration.
+  This gap sat untested (not unfixed-and-forgotten, genuinely never
+  re-verified) from 2026-07-17 until this session, exactly the state this
+  note originally warned about.
 
-  Because of that gap, `qwen2.5:14b` remains off every Beelink job for now —
-  **not because the 2026-07-16 fix failed**, but because concurrent-load
-  behavior was never re-tested after the `MAX_LOADED_MODELS` change. (A
-  same-day attempt to reintroduce `qwen2.5:14b` into `state_of_church.py` and
-  `draft_email.py` was made and then reverted before being committed — see the
-  commit that added this note.) Before `qwen2.5:14b` is reconsidered for any
-  job, someone needs to actually test it under real concurrent load: fire a
-  real Telegram message through `classify()` while a long `qwen2.5:14b` call
-  is mid-run, and confirm `classify()`'s 10s timeout/fallback (bug #20,
-  `56d60dd`) behaves correctly under that real contention — not just in
-  isolation.
+  **2026-08-06 test — `OLLAMA_NUM_PARALLEL=2` attempted, made things worse,
+  reverted.** Test harness: `tests/ollama_parallel_test.py` (kept, not wired
+  to any job) — fires a background `qwen2.5:14b` generate call
+  (`num_predict: 700`, ~250–270s wall time on this CPU-only host), waits 5s
+  for it to be genuinely mid-generation, then calls the real
+  `jobs/intent/classifier.classify()` with a realistic message
+  ("remind me to call John tomorrow at 3pm") and times it. Three runs total:
+
+  | Config | `classify()` time | `classify()` result | Heavy call total | Memory (steady) |
+  |---|---|---|---|---|
+  | `NUM_PARALLEL=1` (baseline) | 47.06s | Correct (`reminder_create`) | 272.28s | ~17Gi used / 13Gi avail |
+  | `NUM_PARALLEL=2` (run 1) | 55.06s — hit hard timeout | **Wrong** (`general`) | 262.39s | ~17Gi used / 13Gi avail |
+  | `NUM_PARALLEL=2` (run 2) | 55.06s — hit hard timeout | **Wrong** (`general`) | 247.73s | ~17Gi used / 13Gi avail |
+
+  Both `NUM_PARALLEL=2` runs reproduced identically — not noise. **Root
+  cause: this host has no dedicated GPU** (Intel i5 12th gen, no discrete
+  GPU — see Hardware). Forcing two generate requests to run genuinely
+  concurrently doesn't add compute capacity here; both requests compete for
+  the same finite CPU cores simultaneously, so *both* get slower, whereas
+  strict serialization (`=1`) at least gives whichever request is running
+  full undivided CPU once its turn comes. The classifier lost enough
+  throughput under real parallelism to blow through its own 55s timeout
+  (`jobs/intent/classifier.py` — raised from an earlier value by bug #29,
+  not 10s as this note previously said; corrected here) and silently
+  fall back to the wrong intent — a worse outcome than baseline, not a
+  neutral one. **Memory pressure was never the constraint** — identical
+  ~17Gi/13Gi footprint in both configs, no swap movement either run; the
+  failure is CPU contention, not RAM.
+
+  **Decision: reverted to `NUM_PARALLEL=1`, confirmed live** (override file
+  now contains only `OLLAMA_MAX_LOADED_MODELS=3`; base unit's
+  `OLLAMA_NUM_PARALLEL=1` is what's actually in effect, verified via
+  `systemctl show ollama.service -p Environment`). This is a **closed
+  result, not an open gap** — raising `OLLAMA_NUM_PARALLEL` on this specific
+  host (CPU-only, no GPU) is not a viable fix for the classifier-blocking
+  risk and should not be re-attempted without new hardware (a GPU) changing
+  the underlying constraint. `qwen2.5:14b` stays off every Beelink job,
+  now for a confirmed reason rather than an untested one.
 
 ### PBLaptop — Windows Laptop
 
@@ -199,9 +232,12 @@ Beelink, which starved concurrent Ollama calls and caused intermittent
 multi-second-to-60+-second hangs (root-caused 2026-07-16). Replaced by
 `qwen2.5:7b` on the Beelink across all 12 call sites. See the FMSPC note under
 Hardware — FMSPC is excluded from the automated job loop entirely, permanently.
-Still off every Beelink job as of 2026-07-17 despite that day's
-`OLLAMA_MAX_LOADED_MODELS` bump — see the 2026-07-17 update under the FMSPC
-note for why that change isn't sufficient on its own to bring it back.
+Still off every Beelink job as of 2026-08-06 — the `OLLAMA_MAX_LOADED_MODELS`
+bump (2026-07-17) and a since-reverted `OLLAMA_NUM_PARALLEL=2` attempt
+(2026-08-06, made classifier contention worse, not better — CPU-only host,
+no GPU) were both real fixes to *other* problems, not to this one. See the
+2026-08-06 update under the FMSPC note for the full test results — this is
+now a confirmed-closed result, not an open gap pending a retest.
 
 ---
 
