@@ -10,6 +10,15 @@
 # present for every action this session takes.
 set -e
 
+# xterm.js's own default is 13px — too small on a phone screen even before
+# accounting for the viewport issue fixed by -I below. 22 was chosen as a
+# comfortable mobile-reading size (desktop terminals typically run
+# 14-16px); tune by changing just this one line, no other code involved.
+TTYD_FONT_SIZE=22
+
 tmux new-session -d -s main "claude"
 
-exec ttyd -p 7681 -W tmux attach -t main
+exec ttyd -p 7681 -W \
+    -t fontSize=${TTYD_FONT_SIZE} \
+    -I /usr/local/share/dev-sandbox/ttyd_index.html \
+    tmux attach -t main

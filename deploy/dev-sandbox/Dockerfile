@@ -40,6 +40,11 @@ RUN npm install -g @anthropic-ai/claude-code
 COPY entrypoint.sh /usr/local/bin/dev-sandbox-entrypoint.sh
 RUN chmod +x /usr/local/bin/dev-sandbox-entrypoint.sh
 
+# Custom ttyd index page (adds a viewport meta tag ttyd doesn't ship —
+# see the file's own header comment for why, and entrypoint.sh for how
+# it's served).
+COPY ttyd_index.html /usr/local/share/dev-sandbox/ttyd_index.html
+
 USER node
 WORKDIR /workspace
 
