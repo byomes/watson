@@ -374,6 +374,77 @@ Dashboard trigger available: "Run Conflict Check" in More tab.
 
 ---
 
+## Dev Sandbox
+
+Interactive, sandboxed Claude Code sessions launchable from the dashboard —
+**not a Dev Loop variant, a separate system.** Dev Loop above is
+unattended/Ollama-driven. Dev Sandbox is a real, human-attended terminal:
+Bill types into it and answers Claude Code's own prompts himself, isolated
+in a throwaway container and a fresh clone instead of running directly
+against `~/watson`/`~/wcky`. Built and end-to-end tested live 2026-08-06.
+
+- **Job:** `jobs/dev/sandbox_session.py` — `start_session(repo)` /
+  `stop_session(id)` / `list_running()`, plus the Flask blueprint
+  (`dev_sandbox_bp`, registered in `jobs/dashboard/app.py`)
+- **Image:** `deploy/dev-sandbox/` (`watson-dev-sandbox:latest`) — minimal
+  `node:22-bookworm-slim` + git/tmux/ttyd + `@anthropic-ai/claude-code`
+  (npm). No app-server, no model-routing layer — Claude Code talks to its
+  own auth/model access directly, same as at a host terminal.
+- **Auth — deliberately different from the OpenHands sandbox test earlier
+  the same night** (built, tested, then fully unwired and reverted — see
+  git log "revert OpenHands Claude Code credential mount", same date).
+  That container ran as a fixed image-baked UID that didn't match the
+  host, so the only way to get it to read `~/.claude` was to extract a
+  scoped copy of the OAuth token into a separate, world-readable file —
+  flagged as a ToS/security risk and fully reverted, nothing kept "just in
+  case." Dev Sandbox has no such excuse: the image is ours end to end and
+  every container runs `--user 1000:1000`, matching the Beelink host user,
+  so the **real** `~/.claude` directory *and* `~/.claude.json` (both
+  required — confirmed live; Claude Code ignores a valid
+  `.credentials.json` without the account-state file at the home-dir root
+  too, and shows its first-run login wizard instead) mount read-write with
+  their actual host permissions intact. No extraction, no copy, ever. Also
+  not headless: no `--dangerously-skip-permissions`, Bill is present for
+  every action a session takes.
+- **Workspace:** fresh `git clone --depth 1` (via `GITHUB_TOKEN`, then
+  `origin` rewritten to a plain URL so the token never sits in `git remote
+  -v` output inside the session) into `~/dev-sandbox/<session-id>/` —
+  never a direct mount of `~/watson` or `~/wcky`. Repo allow-list:
+  `watson`, `wcky`, `watson-admin`, `watson-ui`, `bodyrec` — `fms` excluded
+  because that GitHub repo doesn't exist yet (see FMS Site section).
+- **Networking:** ttyd on a container-internal fixed port (7681), mapped to
+  a host port from `7700–7749`, bound explicitly to the Tailscale IP
+  (`100.117.237.96`) — never `0.0.0.0`. Confirmed live: reachable via the
+  Tailscale IP, hard connection failure via the LAN IP
+  (`192.168.1.204`). Never proxied through the public Funnel (that's
+  scoped to `:5200` only).
+- **Table:** `dev_sandbox_sessions` (`watson.db`) — `id, repo,
+  container_id, container_name, port, status [running|stopped],
+  created_at, stopped_at`
+- **Routes** (dashboard, `_admin_required()`-gated): `GET
+  /api/dev-sandbox/repos`, `GET /api/dev-sandbox/status`, `POST
+  /api/dev-sandbox/start`, `POST /api/dev-sandbox/stop`
+- **Dashboard:** More tab → Dev Sandbox tile, same 2-column grid/expand
+  pattern as BodyRec/Thesis Tracker/Email Activity. Repo picker → Start
+  Session → terminal **opens in a new tab, not an iframe** — ttyd's
+  headers carry no framing restriction (checked live, so an iframe isn't
+  technically blocked), but this wasn't verified as a real mobile-Safari
+  UX test (no physical device available this session) — new tab was
+  chosen as the zero-surprise default since ttyd's xterm.js terminal is
+  always used standalone upstream and needs full viewport control for
+  touch/virtual-keyboard handling, which a same-page iframe tends to
+  fight. Worth an actual phone test before ever reconsidering the iframe
+  path.
+- **Lifecycle:** explicit Stop only for v1, no auto-timeout/cleanup job —
+  tracked as `project_backlog` id=33, not silently left undocumented.
+- **Out of scope for v1 (by design, not oversight):** no headless/
+  unattended mode, no Telegram trigger, no auto-cleanup. Sessions should
+  branch and PR rather than push to main — guidance, not a technical gate,
+  since Bill is directly at the keyboard the same as host-level Claude
+  Code today.
+
+---
+
 ## MCP Claude Code Dispatcher
 
 Lets Claude.ai dispatch a real Claude Code CLI build job directly from a

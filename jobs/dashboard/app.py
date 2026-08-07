@@ -363,6 +363,10 @@ app.register_blueprint(book_bp)
 from jobs.devdispatch.api import devdispatch_bp
 app.register_blueprint(devdispatch_bp)
 
+from jobs.dev.sandbox_session import dev_sandbox_bp, ensure_table as _dev_sandbox_ensure_table
+_dev_sandbox_ensure_table()
+app.register_blueprint(dev_sandbox_bp)
+
 # ── Admin template filters ────────────────────────────────────────────────────
 
 _AV_COLORS = ['#4c7ec9','#4caf7d','#c9a84c','#c9504c','#9b59b6','#1abc9c','#e67e22','#2980b9']
