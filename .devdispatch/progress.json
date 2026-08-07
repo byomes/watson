@@ -1,1 +1,1 @@
-{"step": 5, "total": 5, "label": "Reporting", "detail": "Committing fix for bug #17 (members CSV export unguarded exception)"}
+{"step": 5, "total": 5, "label": "Reporting", "detail": "Committed, pushed feat/audiobook-breath-suppression-retry, and opened PR #20 against main."}
