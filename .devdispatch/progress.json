@@ -1,1 +1,1 @@
-{"step": 5, "total": 5, "label": "Reporting", "detail": "Committing fix for bug #17 (members CSV export unguarded exception)"}
+{"step": 5, "total": 5, "label": "Reporting", "detail": "Diagnostic doc committed and pushed; draft PR #19 opened."}
