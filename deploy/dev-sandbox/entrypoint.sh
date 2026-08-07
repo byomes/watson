@@ -11,10 +11,11 @@
 set -e
 
 # xterm.js's own default is 13px — too small on a phone screen even before
-# accounting for the viewport issue fixed by -I below. 22 was chosen as a
-# comfortable mobile-reading size (desktop terminals typically run
-# 14-16px); tune by changing just this one line, no other code involved.
-TTYD_FONT_SIZE=22
+# accounting for the viewport issue fixed by -I below. 22 was the first
+# attempt (2026-08-06) and read clearly on a real phone but ran too large;
+# 18 is the real-mobile-test-confirmed value as of the same day. Tune by
+# changing just this one line, no other code involved.
+TTYD_FONT_SIZE=18
 
 tmux new-session -d -s main "claude"
 
