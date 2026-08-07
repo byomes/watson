@@ -1942,3 +1942,19 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - a75b5b8 backup: fix OneDrive job to snapshot DBs and target the live Chroma index
 - 2eece8a backup: add local restic backup to external 2TB HDD
 - 42745e3 docs: architecture update 2026-08-05
+
+---
+
+## Recent Changes — 2026-08-07
+
+### ~/watson
+- 4e27282 docs: bugs/backlog export 2026-08-07
+- 5a6294f docs: file map 2026-08-07
+- deef31c feat: ACX audiobook mastering pipeline (jobs/audiobook/)
+- d3afb2d fix: Dev Sandbox nav header actually invisible — ttyd wipes static <body> HTML
+- c9b1cc1 feat: Dev Sandbox — dial font to 15px, add persistent Dashboard nav bar
+- c3171f6 fix: Dev Sandbox terminal font size — 22px too large, dial to 18px
+- 28f12a2 fix: Dev Sandbox terminal too small on mobile Safari
+- a486c35 feat: Dev Sandbox — interactive, sandboxed Claude Code sessions from dashboard
+- 1137ca1 docs: test and revert OLLAMA_NUM_PARALLEL=2 — CPU-only host makes it worse
+- f861c05 docs: architecture update 2026-08-06
