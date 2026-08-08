@@ -481,6 +481,42 @@ connector successfully authorized and connected as of 2026-08-04.
 - **Table:** `claude_code_jobs` (`watson.db`) — `id, spec_text, repo, branch,
   status [queued|running|done|failed|expired], pr_url, log_path, summary,
   cli_session_id, last_progress_step, merged_at, created_at, updated_at`.
+  (The live table also carries two now-unused columns, `sandbox_session_id`
+  and `terminal_url`, left in place from the reverted Dev Sandbox experiment
+  below — see the revert note. They're harmless/NULL and were kept rather than
+  dropped destructively on the live DB.)
+
+### Dev Sandbox integration + `get_job_output` — tried and reverted the same night (2026-08-08)
+
+On the night of 2026-08-07 two changes were built on top of the dispatcher and
+then **reverted the same night** — this note exists so a future session doesn't
+re-attempt the identical approach without knowing why it was rolled back:
+
+1. **Dev Sandbox integration** (PR #22, commit `96ec502`) — `dispatch_claude_code_job`
+   was rewired to launch the Claude Code session *inside* the Dev Sandbox
+   (Docker/tmux/ttyd) and return a live `terminal_url` + `sandbox_session_id`
+   instead of a headless background job.
+2. **`get_job_output`** (commit `ec235ab`) — a 4th read-only MCP tool for
+   diff/worktree/log inspection of a dispatched job.
+
+**Both reverted** via `git revert` of `96ec502` and `ec235ab` (2026-08-08).
+`dispatch_claude_code_job` is back to the headless `claude --bg` shape
+documented just below (no `terminal_url`/`sandbox_session_id` in its return),
+and the tool list is back to the three tools above.
+
+**Why reverted — real friction, not a whim:** the sandbox container had **no
+GitHub credentials inside it**, so a dispatched session running there couldn't
+push a branch or open a PR (the whole point of a dispatch job); and the
+sandbox image is deliberately **not headless** — it prompts for permission on
+each action (built for a human at the keyboard), so an unattended dispatched
+job just stalled waiting on prompts nobody was there to answer. Solve both of
+those (credentials in-container + a genuinely headless/auto-approve mode)
+before re-attempting this integration.
+
+**Not reverted / still live:** the manual **Dev Sandbox** feature itself
+(`jobs/dev/sandbox_session.py` + the dashboard More-tab "start a sandbox"
+button) is untouched and still works for human-attended use — only the
+`dispatch_claude_code_job` integration into it was rolled back.
 
 ### CLI invocation (the real shape, not the originally-guessed one)
 
