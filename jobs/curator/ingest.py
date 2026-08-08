@@ -205,6 +205,23 @@ identify one specific book."""
     return {"title": parsed["title"], "author": parsed.get("author"), "confident": True}
 
 
+def _normalize_for_verbatim(text: str) -> str:
+    """Fold only the cosmetic differences a model introduces when it *copies*
+    text — smart quotes/dashes/ellipses, case, and whitespace — so a genuinely
+    verbatim excerpt still matches its source even after the model round-tripped
+    the punctuation. Deliberately conservative: it never drops or reorders words,
+    so a paraphrase still fails the substring check this feeds."""
+    if not text:
+        return ""
+    t = text
+    for a, b in (
+        ("‘", "'"), ("’", "'"), ("“", '"'), ("”", '"'),
+        ("–", "-"), ("—", "-"), ("…", "..."),
+    ):
+        t = t.replace(a, b)
+    return re.sub(r"\s+", " ", t.strip().lower())
+
+
 def _extract_chatgpt_research(text: str) -> dict:
     """LLM pass over a shared ChatGPT conversation in which someone researched a
     single romance novel. Same never-guess contract as _extract_book_from_text(),
@@ -280,6 +297,26 @@ Rules:
         except (TypeError, ValueError):
             rank = i + 1
         findings.append({"excerpt": excerpt, "rank": rank})
+
+    # Verbatim guard — Bill's hard constraint: the excerpts Mel sees must be
+    # ChatGPT's own words, not the 7B extractor's paraphrase. Prompt-instructing
+    # the model to copy word-for-word is NOT sufficient (qwen2.5:7b paraphrases
+    # some of the time regardless), so mechanically drop any excerpt that isn't
+    # actually present — modulo cosmetic punctuation/whitespace/case only — in the
+    # source paste. If this empties the list, the caller falls back to
+    # needs_review with the raw text preserved as a source, never a fabricated
+    # finding. Checked against the full `text`, not the 6000-char prompt window.
+    norm_source = _normalize_for_verbatim(text)
+    verified = []
+    for f in findings:
+        if _normalize_for_verbatim(f["excerpt"]) in norm_source:
+            verified.append(f)
+        else:
+            log.warning(
+                "chatgpt import: dropped non-verbatim excerpt (paraphrased by extractor): %r",
+                f["excerpt"][:120],
+            )
+    findings = verified
 
     ku = parsed.get("kindle_unlimited")
     if ku not in (True, False):
