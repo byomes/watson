@@ -124,7 +124,7 @@ def run() -> None:
             source_ip = u.get("lastip") or ""
 
             email_display = email or "(not visible — Moodle privacy setting)"
-            ip_display = source_ip or "(not visible — Moodle privacy setting)"
+            ip_display = source_ip or "(not exposed by Moodle API)"
 
             text = (
                 f"🚨 New Adelphos Academy signup\n\n"
