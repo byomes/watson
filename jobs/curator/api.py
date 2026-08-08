@@ -60,6 +60,22 @@ def _require_import_key(f):
     return wrapper
 
 
+def _valid_user_id(user_id) -> int | None:
+    """Resolve a submitted_by value to a real Curator users.id, or None. Accepts an
+    int or a digit string (an iOS Shortcut may send either), so a valid submitter is
+    never rejected on a cosmetic type difference."""
+    try:
+        uid = int(user_id)
+    except (TypeError, ValueError):
+        return None
+    conn = get_db()
+    try:
+        row = conn.execute("SELECT id FROM users WHERE id = ?", (uid,)).fetchone()
+        return row["id"] if row else None
+    finally:
+        conn.close()
+
+
 def _book_row_to_dict(row, batch_info: dict | None = None) -> dict:
     return {
         "id": row["id"],
@@ -619,12 +635,19 @@ def ingest_chatgpt():
 
     data = request.get_json(force=True) or {}
     research_text = (data.get("research_text") or "").strip()
-    submitted_by = data.get("submitted_by")
 
     # Not a format check (there's no URL to validate anymore) — just a sanity
     # guard against an accidental empty / near-empty clipboard paste.
     if len(research_text) < 30:
         return jsonify({"error": "research_text is empty or too short"}), 400
+
+    # Identity must resolve to a real Curator user: attributing the book to the
+    # family member who researched it is the whole point of this path. A missing or
+    # typo'd submitted_by (e.g. a misconfigured Shortcut) fails loudly here rather
+    # than silently orphaning the book or attributing it to a nonexistent user.
+    submitted_by = _valid_user_id(data.get("submitted_by"))
+    if submitted_by is None:
+        return jsonify({"error": "submitted_by must be a valid user id"}), 400
 
     job_id = enqueue_job(
         input_type="chatgpt_text",
