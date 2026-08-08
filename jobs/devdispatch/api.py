@@ -70,7 +70,6 @@ import secrets
 import shutil
 import subprocess
 import sys
-import time
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlencode
@@ -112,13 +111,10 @@ _TOOLS = [
     {
         "name": "dispatch_claude_code_job",
         "description": (
-            "Dispatch a Claude Code build job against a Watson-ecosystem repo. "
-            "The session runs inside the Dev Sandbox (an isolated Docker "
-            "container with a live ttyd terminal), so the tool response includes "
-            "a terminal_url you can open to watch — and interact with — the "
-            "session live over Tailscale. Works on a fresh clone; branch/PR is "
-            "up to the session. Never restarts services or deploys — Bill "
-            "reviews, merges, pulls, and restarts manually."
+            "Dispatch a headless Claude Code build job against a Watson-ecosystem "
+            "repo. Runs on a feature branch only (never main); opens a PR when "
+            "done. Never restarts services or deploys — Bill reviews, merges, "
+            "pulls, and restarts manually."
         ),
         "inputSchema": {
             "type": "object",
@@ -264,10 +260,6 @@ Write it after completing each of these five phases in order — not all tasks w
 
 _MAX_BUDGET_USD = "5"
 _LAUNCH_TIMEOUT_S = 20  # bound on `claude --bg` itself registering + returning; NOT the build
-# How long to wait for Claude Code's interactive prompt to render inside the
-# freshly-started sandbox container before giving up on auto-typing the spec
-# (the terminal is still returned as usable regardless — see _dispatch).
-_SANDBOX_PROMPT_TIMEOUT_S = 45
 _BACKGROUNDED_RE = re.compile(r"backgrounded\s*[·\-]\s*([0-9a-fA-F]+)")
 _TOKEN_URL_RE = re.compile(r"https://[^@\s]+@")
 _PR_URL_RE = re.compile(r"^https://github\.com/([^/]+)/([^/]+)/pull/(\d+)$")
@@ -432,104 +424,15 @@ def _open_pr(repo: str, git_branch: str, title: str, body: str):
 
 # ── Tool implementations ──────────────────────────────────────────────────
 
-def _sandbox_container_name(sandbox_id: str) -> str:
-    """Look the container name up from the Dev Sandbox's own table rather than
-    reconstructing its `dev-sandbox-<id>` naming convention here — keeps the
-    convention owned solely by jobs/dev/sandbox_session.py."""
-    conn = get_connection()
-    try:
-        row = conn.execute(
-            "SELECT container_name FROM dev_sandbox_sessions WHERE id = ?",
-            (sandbox_id,),
-        ).fetchone()
-        return row["container_name"] if row else f"dev-sandbox-{sandbox_id}"
-    finally:
-        conn.close()
-
-
-def _tmux_pane_ready(container_name: str) -> bool:
-    """True once Claude Code's interactive input prompt (the `❯` box) is
-    rendered inside the container's tmux session — i.e. it's booted past the
-    splash/auth and is ready to receive a message. Detected via
-    `tmux capture-pane` rather than a fixed sleep, since first-run boot time
-    varies. The `❯` marker only appears at the real prompt, not on the
-    trust/onboarding dialogs, so this also avoids typing into those."""
-    try:
-        result = subprocess.run(
-            ["docker", "exec", container_name, "tmux", "capture-pane", "-t", "main", "-p"],
-            capture_output=True, text=True, timeout=15,
-        )
-    except Exception:
-        return False
-    return result.returncode == 0 and "❯" in (result.stdout or "")
-
-
-def _feed_spec_to_sandbox(container_name: str, instruction: str) -> tuple[bool, str]:
-    """Type the (single-line) instruction into the container's live Claude
-    Code session and submit it. Returns (ok, error). Waits for the prompt to
-    be ready first. Uses `send-keys -l` (literal) for the text so nothing in
-    it is interpreted as a tmux key name, then a separate Enter to submit —
-    the full multi-line spec is delivered via DISPATCH_SPEC.md on disk (see
-    caller), so this instruction is deliberately one line and safe to send
-    without newlines prematurely submitting it."""
-    deadline = time.monotonic() + _SANDBOX_PROMPT_TIMEOUT_S
-    while time.monotonic() < deadline:
-        if _tmux_pane_ready(container_name):
-            break
-        time.sleep(1.5)
-    else:
-        return False, "Claude Code prompt never became ready inside the sandbox container"
-
-    # A short settle so the prompt is fully interactive before the first key.
-    time.sleep(1.0)
-    try:
-        typed = subprocess.run(
-            ["docker", "exec", container_name, "tmux", "send-keys", "-t", "main", "-l", instruction],
-            capture_output=True, text=True, timeout=15,
-        )
-        if typed.returncode != 0:
-            return False, _redact((typed.stderr or typed.stdout or "").strip())[:300]
-        # Small gap before Enter — send-keys -l and the Enter as one rapid pair
-        # can occasionally race the TUI's input handling.
-        time.sleep(0.5)
-        submitted = subprocess.run(
-            ["docker", "exec", container_name, "tmux", "send-keys", "-t", "main", "Enter"],
-            capture_output=True, text=True, timeout=15,
-        )
-        if submitted.returncode != 0:
-            return False, _redact((submitted.stderr or submitted.stdout or "").strip())[:300]
-    except Exception as exc:
-        return False, str(exc)
-    return True, ""
-
-
 def _dispatch_claude_code_job(spec, repo, branch_name=None) -> dict:
-    """Launch the Claude Code session inside the existing Dev Sandbox
-    (Docker/tmux/ttyd — jobs/dev/sandbox_session.py) instead of a headless
-    host `claude --bg`, and return the live ttyd terminal URL so the caller
-    can watch and interact with the session immediately over Tailscale.
-
-    This reuses the sandbox infrastructure as-is: start_session() does the
-    fresh clone, the 7700-7749 port allocation, the `docker run` with the
-    real ~/.claude mounted, and records the dev_sandbox_sessions row. We then
-    drop the spec into the clone as DISPATCH_SPEC.md (the clone dir is
-    bind-mounted at the container's /workspace) and type a one-line "read and
-    do it" instruction into the running session via tmux send-keys. Teardown
-    is likewise reused — the container is an ordinary dev_sandbox_sessions row,
-    so the Dev Sandbox dashboard's existing Stop button / stop_session() tears
-    it down; nothing new is invented here.
-
-    Because the work now happens in an isolated container clone (not a host
-    worktree under ~/<repo>/.claude/worktrees/), the async check_claude_code_job
-    / get_job_output tools — whose code is intentionally unchanged — no longer
-    finalize a host worktree for these jobs; the live terminal is the primary
-    channel, and those two remain as best-effort host-side fallbacks. See
-    WATSON_ARCHITECTURE.md, MCP Claude Code Dispatcher > Dev Sandbox
-    integration, for the full writeup."""
     if not spec or not str(spec).strip():
         return {"error": "spec is required"}
     if repo not in ALLOWED_REPOS:
         return {"error": f"repo must be one of: {', '.join(ALLOWED_REPOS)}"}
+
+    repo_path = _repo_path(repo)
+    if not repo_path.is_dir():
+        return {"error": f"{repo} is not cloned on this machine ({repo_path} does not exist)"}
 
     branch_name = (branch_name or "").strip()
     if not branch_name:
@@ -549,81 +452,49 @@ def _dispatch_claude_code_job(spec, repo, branch_name=None) -> dict:
     finally:
         conn.close()
 
-    # Lazy import so a problem in the sandbox module can never break importing
-    # this MCP blueprint at dashboard start (it's on the live service).
+    # `--bg` rejects -p/--print and --output-format (confirmed against CLI
+    # 2.1.221), so the spec is passed positionally and there is no JSON
+    # return value — the session id is scraped from "backgrounded · <id>".
+    # `claude --bg` itself registers and returns almost immediately; the
+    # dispatched build continues detached regardless of what happens here,
+    # so this short, bounded communicate() is not the same as waiting on
+    # the build — it only waits on the launcher acknowledging the job.
+    cmd = [
+        _CLAUDE_BIN, "--bg", "-w", branch_name,
+        "--permission-mode", "bypassPermissions",
+        "--max-budget-usd", _MAX_BUDGET_USD,
+        spec + _PROGRESS_PROTOCOL,
+    ]
     try:
-        from jobs.dev.sandbox_session import SANDBOX_ROOT, start_session
+        proc = subprocess.Popen(
+            cmd, cwd=str(repo_path),
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+        )
+        stdout, stderr = proc.communicate(timeout=_LAUNCH_TIMEOUT_S)
     except Exception as exc:
-        _update_job(job_id, status="failed", summary=f"sandbox module import failed: {exc}")
-        return {"job_id": job_id, "status": "failed", "error": f"sandbox unavailable: {exc}"}
-
-    # 1. Spin up the sandbox: fresh clone + port (7700-7749) + docker run.
-    try:
-        sess = start_session(repo)
-    except ValueError as exc:
-        # e.g. a repo in ALLOWED_REPOS but not clonable by the sandbox (fms).
-        _update_job(job_id, status="failed", summary=f"sandbox start rejected: {exc}")
+        _update_job(job_id, status="failed", summary=f"launch failed: {exc}")
+        _telegram(f"❌ devdispatch job {job_id} failed to launch — {exc}")
         return {"job_id": job_id, "status": "failed", "error": str(exc)}
-    except Exception as exc:
-        _update_job(job_id, status="failed", summary=f"sandbox start failed: {_redact(str(exc))[:400]}")
-        return {"job_id": job_id, "status": "failed", "error": _redact(str(exc))[:400]}
 
-    sandbox_id = sess["id"]
-    terminal_url = sess["url"]
-    container_name = _sandbox_container_name(sandbox_id)
+    if proc.returncode != 0:
+        err = _redact((stderr or stdout or "").strip())[:500]
+        _update_job(job_id, status="failed", summary=f"launch failed (exit {proc.returncode}): {err}")
+        _telegram(f"❌ devdispatch job {job_id} failed to launch — {err}")
+        return {"job_id": job_id, "status": "failed", "error": err}
 
-    # 2. Drop the full spec into the clone (bind-mounted at /workspace inside
-    #    the container). Written host-side — no docker exec needed — since the
-    #    clone dir is a real host directory.
-    branch_hint = (
-        f"\n\n---\nWhen you have working changes, put them on a feature branch "
-        f"named `{branch_name}` (never commit to main/master) and open a PR."
-    )
-    spec_body = str(spec).strip() + branch_hint + _PROGRESS_PROTOCOL
-    try:
-        (Path(SANDBOX_ROOT) / sandbox_id / "DISPATCH_SPEC.md").write_text(
-            spec_body, encoding="utf-8"
-        )
-    except Exception as exc:
-        _update_job(
-            job_id, status="running", sandbox_session_id=sandbox_id, terminal_url=terminal_url,
-            summary=f"sandbox up but could not write DISPATCH_SPEC.md: {exc}",
-        )
-        # Terminal is live and usable even if the auto-instruction failed — the
-        # watcher can paste the spec in manually — so still hand back the URL.
-        return {
-            "job_id": job_id, "status": "running", "repo": repo, "branch": branch_name,
-            "terminal_url": terminal_url, "sandbox_session_id": sandbox_id,
-            "note": f"could not stage spec file: {exc} — open the terminal and enter the spec manually",
-        }
+    match = _BACKGROUNDED_RE.search(stdout or "")
+    if not match:
+        err = _redact((stdout or stderr or "").strip())[:500]
+        _update_job(job_id, status="failed", summary=f"could not parse session id from launch output: {err}")
+        _telegram(f"❌ devdispatch job {job_id} launched but session id unparseable — {err}")
+        return {"job_id": job_id, "status": "failed", "error": "could not parse session id from launch output"}
 
-    # 3. Type a one-line instruction into the running session and submit it.
-    instruction = (
-        "Read DISPATCH_SPEC.md in this repo and carry out the task it describes, "
-        "following the progress-reporting instructions at the end of that file."
-    )
-    fed_ok, feed_err = _feed_spec_to_sandbox(container_name, instruction)
+    cli_session_id = match.group(1)
+    _update_job(job_id, status="running", cli_session_id=cli_session_id)
+    log.info("devdispatch: job %d running (repo=%s, branch=%s, cli_session_id=%s)",
+              job_id, repo, branch_name, cli_session_id)
 
-    summary = f"Dev Sandbox terminal: {terminal_url}"
-    if not fed_ok:
-        summary += f" (auto-start of spec failed: {feed_err} — enter it manually in the terminal)"
-    _update_job(
-        job_id, status="running",
-        sandbox_session_id=sandbox_id, terminal_url=terminal_url, summary=summary,
-    )
-    log.info("devdispatch: job %d running in Dev Sandbox (repo=%s, sandbox=%s, url=%s, fed_ok=%s)",
-             job_id, repo, sandbox_id, terminal_url, fed_ok)
-
-    result = {
-        "job_id": job_id, "status": "running", "repo": repo, "branch": branch_name,
-        "terminal_url": terminal_url, "sandbox_session_id": sandbox_id,
-    }
-    if not fed_ok:
-        result["note"] = (
-            f"terminal is live but auto-starting the spec failed ({feed_err}); "
-            "open terminal_url and enter the spec manually"
-        )
-    return result
+    return {"job_id": job_id, "status": "running", "repo": repo, "branch": branch_name}
 
 
 def _list_agents():
