@@ -476,9 +476,8 @@ connector successfully authorized and connected as of 2026-08-04.
 - **Tools:** `dispatch_claude_code_job` (spec, repo, optional branch_name —
   repo must be one of `watson/wcky/watson-admin/watson-ui/fms/bodyrec`;
   branch_name may never be `main`/`master`), `check_claude_code_job`
-  (job_id), `merge_claude_code_job` (job_id — added 2026-08-06, see
-  below), and `get_job_output` (job_id — added 2026-08-07, read-only
-  diff/worktree/log inspection, see below).
+  (job_id), and `merge_claude_code_job` (job_id — added 2026-08-06, see
+  below).
 - **Table:** `claude_code_jobs` (`watson.db`) — `id, spec_text, repo, branch,
   status [queued|running|done|failed|expired], pr_url, log_path, summary,
   cli_session_id, last_progress_step, merged_at, created_at, updated_at`.
@@ -568,39 +567,6 @@ discovery purposes too.
 
 Connector successfully authorized end-to-end against the real Claude.ai
 client as of 2026-08-04, using this full root-proxy + OAuth stack.
-
-### `get_job_output` (added 2026-08-07)
-
-A fourth read-only MCP tool alongside dispatch/check/merge, in the same
-`jobs/devdispatch/api.py`. Solves the visibility gap where a job that fails
-before opening a PR (e.g. job 26 — real commits made, but Watson's own
-`_open_pr()` got a 422 because the dispatched session had already opened its
-own PR under a *different* branch name, so there was nothing on GitHub for
-Claude.ai to inspect) left Claude.ai with no way to see what was actually
-written. Parameter: `job_id` (integer). Behavior, by what exists on disk,
-independent of the job's `status` field and safe on a running job:
-
-1. **Branch has commits ahead of main** → returns `git diff main...HEAD`
-   (truncated at 600 lines with a `... [truncated, N more lines]` marker),
-   plus `git diff --stat` file summary and the `main..HEAD` commit list.
-2. **Worktree dirty but no commits** → returns `git status --short`, a
-   `git diff HEAD` of tracked changes (covers staged + unstaged), and the
-   content of untracked new files (capped: 25 files, 200 lines each, binary
-   skipped).
-3. **No worktree, or clean-and-even-with-main** → returns the raw session
-   log tail (`claude logs <id>`, ANSI-stripped and tail-capped at 4000 chars
-   — the actual content this time, not just a note that it's unparseable)
-   plus a clear message that there are no code changes to show.
-
-Strictly read-only — every git call is a read (`status`/`diff`/`log`/
-`rev-list`), files are only read, nothing is committed, pushed, staged, or
-deleted. All token-bearing URLs in output are run through `_redact()`.
-Verified live against job 26 (2026-08-07): surfaces the full committed
-audiobook-mastering diff. **Like `merge_claude_code_job`'s rollout, a
-Claude.ai connector disconnect/reconnect is required before this tool shows
-up in a session's tool list** — the endpoint advertises no
-`tools.listChanged` capability (see the caching note below), so the
-connector has no way to learn about the new tool otherwise.
 
 ### Known gaps
 
