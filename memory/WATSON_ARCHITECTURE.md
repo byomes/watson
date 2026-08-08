@@ -1015,6 +1015,18 @@ Wired into both `bot.py` and `jobs/dev_loop/loop.py`.
   every pre-existing account when the `adelphos_new_accounts` table is empty. Full live end-to-end
   test passed 2026-08-01 (real throwaway account created, alerted, deleted via two real Telegram taps,
   confirmed gone from Moodle).
+- **Email-visibility fix (2026-08-07):** Alerts were showing "(not visible)" for the email on every
+  signup. Root cause was Moodle-side, not Watson: the `watson_users` role was missing the
+  `moodle/site:viewuseridentity` permission, so `core_user_get_users` silently omitted `email` for
+  every user except the calling account itself. Bill granted the permission in the Moodle admin UI;
+  email now flows correctly (confirmed 38/38 users via direct API test). Two code-hardening fixes
+  shipped alongside (`jobs/adelphos/security_monitor.py`, commits `fe45314` + `043b103`):
+  (1) the IP fallback text is now "(not exposed by Moodle API)" — `lastip` is absent from the
+  `core_user_get_users` response structure regardless of permissions, so signup IP is genuinely
+  unavailable by design, **not** a fixable privacy setting; (2) the old `deleted=0` API criteria was
+  a silently-ignored no-op (Moodle 5.0 rejects `deleted` as an unsupported search key and returns the
+  full roster anyway), so the monitor now pulls the full roster via a placeholder criteria and filters
+  deleted / suspended / system accounts (guest id 1, admin id 2) client-side in Python.
 - **Remaining course-development jobs (Priority 2, deferred, not started):** Lesson builder, quiz
   generator, course spec system, weekly monitoring digest, student stuck alert, course announcement
   emails, student welcome message.
