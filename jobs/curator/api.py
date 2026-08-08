@@ -610,23 +610,25 @@ def ingest():
 @curator_bp.route("/api/curator/ingest/chatgpt", methods=["POST"])
 @_require_import_key
 def ingest_chatgpt():
-    """Enqueue a ChatGPT-research import: a shared conversation URL that a family
-    member researched a book in and posted here via an iOS Shortcut. Gated by
+    """Enqueue a ChatGPT-research import: the text of ChatGPT's response, copied
+    from the phone's clipboard and posted here via an iOS Shortcut. Gated by
     CURATOR_IMPORT_KEY (not WRITING_ROOM_API_KEY). Returns immediately with a
-    job_id — the worker fetches the link, extracts the research, and creates the
-    book. Same response shape as /api/curator/ingest."""
+    job_id — the worker extracts the research and creates the book. Same response
+    shape as /api/curator/ingest."""
     from jobs.curator.worker import enqueue_job
 
     data = request.get_json(force=True) or {}
-    share_url = (data.get("share_url") or "").strip()
+    research_text = (data.get("research_text") or "").strip()
     submitted_by = data.get("submitted_by")
 
-    if "chatgpt.com/share/" not in share_url:
-        return jsonify({"error": "share_url must be a chatgpt.com/share/ link"}), 400
+    # Not a format check (there's no URL to validate anymore) — just a sanity
+    # guard against an accidental empty / near-empty clipboard paste.
+    if len(research_text) < 30:
+        return jsonify({"error": "research_text is empty or too short"}), 400
 
     job_id = enqueue_job(
-        input_type="chatgpt_link",
-        input_raw=json.dumps({"share_url": share_url}),
+        input_type="chatgpt_text",
+        input_raw=json.dumps({"research_text": research_text}),
         submitted_by=submitted_by,
     )
 
