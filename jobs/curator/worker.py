@@ -382,12 +382,33 @@ def _process_chatgpt_text(job: dict) -> None:
             conn.commit()
         except Exception as exc:
             log.error("chatgpt_text job %s failed: %s", job["id"], exc)
-            conn.execute(
-                "UPDATE ingest_jobs SET status='failed', error_message=?, "
-                "completed_at=datetime('now') WHERE id=?",
-                (str(exc), job["id"]),
-            )
-            conn.commit()
+            # Never lose a family member's paste: even when extraction blows up
+            # (Ollama down, timeout, malformed response), land the raw text as a
+            # needs_review book so it stays visible and salvageable in the app
+            # rather than being swallowed into ingest_jobs.input_raw where only a
+            # log dive would find it. This mirrors the low-confidence path above,
+            # which already preserves the raw text. Fall back to a plain 'failed'
+            # only if even this salvage write fails.
+            try:
+                book_id = _create_book(
+                    title="Unknown", author="Unknown", status="needs_review",
+                    added_by=job["submitted_by"],
+                )
+                _add_source(book_id, "chatgpt", None, research_text)
+                conn.execute(
+                    "UPDATE ingest_jobs SET status='done', book_id=?, error_message=?, "
+                    "completed_at=datetime('now') WHERE id=?",
+                    (book_id, str(exc), job["id"]),
+                )
+                conn.commit()
+            except Exception as exc2:
+                log.error("chatgpt_text job %s salvage also failed: %s", job["id"], exc2)
+                conn.execute(
+                    "UPDATE ingest_jobs SET status='failed', error_message=?, "
+                    "completed_at=datetime('now') WHERE id=?",
+                    (str(exc), job["id"]),
+                )
+                conn.commit()
     finally:
         conn.close()
 
