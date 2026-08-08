@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-08-07*
+*Generated: 2026-08-08*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -239,6 +239,7 @@ jobs/
       arc_invite_email.html
   ask.py
   audiobook/
+    breath.py
     config.py
     ffmpeg_utils.py
     input/
@@ -254,6 +255,7 @@ jobs/
       .gitkeep
     samples/
       .gitkeep
+    voice_profile.py
   backup.py
   backup_local.py
   batch.py
@@ -1264,6 +1266,8 @@ content/
     2026-07-28-joshua-s-second-pile.md
     2026-07-30-hand-it-down-or-lose-it.md
     2026-08-01-one-generation-from-extinction.md
+    2026-08-04-received-not-taken.md
+    2026-08-06-the-sign-before-the-conquest.md
     the-flashlight-of-your-focus.md
     where-your-treasure-is.md
 next-env.d.ts
