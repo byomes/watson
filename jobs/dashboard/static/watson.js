@@ -1473,10 +1473,6 @@ function renderMore() {
         <span class="mtile-label">Email Activity</span>
         <span class="mtile-chev">›</span>
       </button>
-      <button class="mtile" id="mtile-dev-sandbox" onclick="moreToggle('dev-sandbox')">
-        <span class="mtile-label">Dev Sandbox</span>
-        <span class="mtile-chev">›</span>
-      </button>
     </div>
     <div id="more-expand-area">
       <div class="msec-body" id="msec-body-skills">
@@ -1518,9 +1514,6 @@ function renderMore() {
       </div>
       <div class="msec-body" id="msec-body-email-activity">
         <div class="msec-inner" id="msec-inner-email-activity"></div>
-      </div>
-      <div class="msec-body" id="msec-body-dev-sandbox">
-        <div class="msec-inner" id="msec-inner-dev-sandbox"></div>
       </div>
       <div class="msec-body" id="msec-body-covercomps">
         <div class="msec-inner" id="msec-inner-covercomps"></div>
@@ -1605,7 +1598,6 @@ function moreToggle(sec) {
     if (sec === 'links')    moreLoadLinks();
     if (sec === 'email-activity') moreLoadEmailActivity();
     if (sec === 'covercomps') coverCompsLoad();
-    if (sec === 'dev-sandbox') moreLoadDevSandbox();
   }
 }
 
@@ -3585,111 +3577,6 @@ function _eaRenderTable() {
           <td>${esc(r.reason)}</td>
         </tr>`).join('')}
     </table></div>`;
-}
-
-// ── Dev Sandbox ──────────────────────────────────────────────────────────────
-// Interactive, sandboxed Claude Code sessions — NOT Dev Loop (that's the
-// separate 'dev' tile above, Ollama-driven/unattended). Terminal opens in a
-// new tab rather than an iframe embed: ttyd's xterm.js terminal needs full
-// control of the viewport for touch/virtual-keyboard handling, which a
-// same-page iframe on mobile Safari actively fights (nested-scroll context,
-// safe-area/viewport quirks). ttyd is also always used as a standalone page
-// upstream, never as an embed, so opening in a new tab is the
-// zero-surprise choice, not just the fallback.
-
-let _dsxRepos = [];
-
-async function moreLoadDevSandbox() {
-  const el = document.getElementById('msec-inner-dev-sandbox');
-  if (!el) return;
-  el.innerHTML = '<div class="loading">Loading&hellip;</div>';
-  try {
-    const [repos, sessions] = await Promise.all([
-      api('/api/dev-sandbox/repos'),
-      api('/api/dev-sandbox/status'),
-    ]);
-    _dsxRepos = repos;
-    _dsxRenderShell(sessions);
-  } catch (e) {
-    el.innerHTML = String(e.message).startsWith('401')
-      ? '<div class="empty">Log into <a href="/admin/login" style="color:var(--gold)">/admin</a> to use Dev Sandbox.</div>'
-      : '<div class="empty">Could not load Dev Sandbox.</div>';
-  }
-}
-
-function _dsxRenderShell(sessions) {
-  const el = document.getElementById('msec-inner-dev-sandbox');
-  if (!el) return;
-  const selStyle = 'padding:7px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:12px;outline:none';
-  el.innerHTML = `
-    <div style="display:flex;gap:8px;margin-bottom:10px">
-      <select id="dsx-repo" style="${selStyle};flex:1">
-        ${_dsxRepos.map(r => `<option value="${esc(r)}">${esc(r)}</option>`).join('')}
-      </select>
-      <button class="mbtn mbtn-p mbtn-sm" id="dsx-start-btn" onclick="_dsxStart()">Start Session</button>
-    </div>
-    <span class="mth-pull-error" id="dsx-error"></span>
-    <div id="dsx-sessions"></div>`;
-  _dsxRenderSessions(sessions);
-}
-
-function _dsxRenderSessions(sessions) {
-  const wrap = document.getElementById('dsx-sessions');
-  if (!wrap) return;
-  if (!sessions.length) {
-    wrap.innerHTML = '<div class="empty">No sandbox sessions running.</div>';
-    return;
-  }
-  wrap.innerHTML = sessions.map(s => `
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 0;border-bottom:1px solid var(--border)">
-      <div>
-        <div style="font-size:13px;font-weight:600">${esc(s.repo)}</div>
-        <div style="font-size:11px;color:var(--muted)">started ${esc(s.created_at)}</div>
-      </div>
-      <div style="display:flex;gap:6px">
-        <button class="mbtn mbtn-p mbtn-sm" onclick="window.open('${esc(s.url)}', '_blank', 'noopener,noreferrer')">Open</button>
-        <button class="mbtn mbtn-d mbtn-sm" onclick="_dsxStop('${esc(s.id)}')">Stop</button>
-      </div>
-    </div>`).join('');
-}
-
-async function _dsxStart() {
-  const sel = document.getElementById('dsx-repo');
-  const btn = document.getElementById('dsx-start-btn');
-  const errEl = document.getElementById('dsx-error');
-  if (!sel || !sel.value) return;
-  errEl.textContent = '';
-  btn.disabled = true;
-  btn.textContent = 'Starting…';
-  try {
-    const result = await api('/api/dev-sandbox/start', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ repo: sel.value }),
-    });
-    window.open(result.url, '_blank', 'noopener,noreferrer');
-    const sessions = await api('/api/dev-sandbox/status');
-    _dsxRenderSessions(sessions);
-  } catch (e) {
-    errEl.textContent = 'Failed to start session.';
-  } finally {
-    btn.disabled = false;
-    btn.textContent = 'Start Session';
-  }
-}
-
-async function _dsxStop(id) {
-  try {
-    await api('/api/dev-sandbox/stop', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id }),
-    });
-    const sessions = await api('/api/dev-sandbox/status');
-    _dsxRenderSessions(sessions);
-  } catch (e) {
-    alert('Failed to stop session.');
-  }
 }
 
 function moreToggleTheme(isLight) {
