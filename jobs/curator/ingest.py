@@ -205,6 +205,96 @@ identify one specific book."""
     return {"title": parsed["title"], "author": parsed.get("author"), "confident": True}
 
 
+def _extract_chatgpt_research(text: str) -> dict:
+    """LLM pass over a shared ChatGPT conversation in which someone researched a
+    single romance novel. Same never-guess contract as _extract_book_from_text(),
+    but pulls the whole research payload the ChatGPT import path needs.
+
+    Returns:
+        {"confident": bool, "title": str|None, "author": str|None,
+         "series": str|None,
+         "spice_findings": [{"excerpt": str, "rank": int}],
+         "kindle_unlimited": True|False|None}
+
+    The spice_findings excerpts MUST be ChatGPT's own sentences about spice
+    content, copied verbatim out of the conversation — this pass extracts them,
+    it does not re-summarize them in Watson's words. confident=false whenever the
+    conversation doesn't clearly identify one specific book (treated by the
+    caller as today's needs_review path)."""
+    empty = {
+        "confident": False, "title": None, "author": None, "series": None,
+        "spice_findings": [], "kindle_unlimited": None,
+    }
+    if not text or not text.strip():
+        return empty
+
+    system = (
+        "You read a ChatGPT conversation in which someone researched a single "
+        "romance novel — its title, author, series, whether it is on Kindle "
+        "Unlimited, and especially its spice/sexual-content level. You extract "
+        "that into JSON. You NEVER guess: if the conversation does not clearly "
+        "identify one specific book, set confident=false. For every "
+        "spice_findings excerpt you MUST copy ChatGPT's own sentences about the "
+        "book's spice/sexual content VERBATIM from the conversation — never "
+        "paraphrase, summarize, or write your own description. Return only valid "
+        "JSON, no other text."
+    )
+    prompt = f"""ChatGPT conversation:
+{text[:6000]}
+
+Return JSON exactly in this shape:
+{{
+  "confident": true or false,
+  "title": "string or null",
+  "author": "string or null",
+  "series": "string or null",
+  "spice_findings": [{{"excerpt": "a verbatim sentence ChatGPT wrote about the spice/sexual content", "rank": 1}}],
+  "kindle_unlimited": true or false or null
+}}
+
+Rules:
+- confident=false if the conversation is ambiguous, names multiple books, or doesn't clearly identify one specific book.
+- Each spice_findings excerpt must be copied word-for-word from the conversation above — never reworded.
+- Rank findings 1, 2, 3... with rank 1 being the most directly about the spice level.
+- kindle_unlimited: true only if the conversation clearly says it IS on Kindle Unlimited, false if it clearly says it is NOT, null if unstated or unclear."""
+
+    try:
+        raw = call_ollama(system, prompt, timeout=120, options={"num_ctx": 8192})
+        parsed = parse_json(raw)
+    except Exception as exc:
+        log.error("_extract_chatgpt_research Ollama call failed: %s", exc)
+        parsed = None
+
+    if not parsed or not parsed.get("confident") or not parsed.get("title"):
+        return empty
+
+    findings = []
+    for i, f in enumerate(parsed.get("spice_findings") or []):
+        if not isinstance(f, dict):
+            continue
+        excerpt = (f.get("excerpt") or "").strip()
+        if not excerpt:
+            continue
+        try:
+            rank = int(f.get("rank"))
+        except (TypeError, ValueError):
+            rank = i + 1
+        findings.append({"excerpt": excerpt, "rank": rank})
+
+    ku = parsed.get("kindle_unlimited")
+    if ku not in (True, False):
+        ku = None
+
+    return {
+        "confident": True,
+        "title": parsed["title"],
+        "author": parsed.get("author"),
+        "series": parsed.get("series"),
+        "spice_findings": findings,
+        "kindle_unlimited": ku,
+    }
+
+
 def extract_multiple_books_from_text(raw_text: str) -> dict:
     """LLM pass for a 'book haul'/wrap-up post that may mention several books. Never
     guesses — a title only makes it into confident_titles if it's clearly and

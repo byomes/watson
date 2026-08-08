@@ -27,6 +27,11 @@ curator_bp = Blueprint("curator", __name__)
 # server-side proxy on this pattern).
 _API_KEY = lambda: os.getenv("WRITING_ROOM_API_KEY", "")
 
+# Separate, narrowly-scoped secret for the ChatGPT-research import route only —
+# deliberately NOT WRITING_ROOM_API_KEY, so the iOS Shortcut posting share links
+# carries a key scoped to just that one endpoint.
+_IMPORT_KEY = lambda: os.getenv("CURATOR_IMPORT_KEY", "")
+
 _EDIT_FIELDS = (
     "title", "author", "series", "series_number", "series_total", "page_count",
     "spice_rating", "spice_notes", "cover_image_url", "description",
@@ -34,13 +39,22 @@ _EDIT_FIELDS = (
 )
 _VALID_STATUSES = ("pending", "confirmed", "needs_review", "rejected")
 _VALID_SHELVES = ("want_to_read", "reading", "read")
-_VALID_SOURCE_TYPES = ("screenshot", "tiktok", "instagram", "youtube", "goodreads", "amazon", "other")
+_VALID_SOURCE_TYPES = ("screenshot", "tiktok", "instagram", "youtube", "goodreads", "amazon", "chatgpt", "other")
 
 
 def _require_key(f):
     @wraps(f)
     def wrapper(*args, **kwargs):
         if request.headers.get("X-Watson-Key") != _API_KEY() or not _API_KEY():
+            return jsonify({"error": "unauthorized"}), 401
+        return f(*args, **kwargs)
+    return wrapper
+
+
+def _require_import_key(f):
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        if request.headers.get("X-Watson-Key") != _IMPORT_KEY() or not _IMPORT_KEY():
             return jsonify({"error": "unauthorized"}), 401
         return f(*args, **kwargs)
     return wrapper
@@ -176,6 +190,7 @@ def list_books():
     search            = request.args.get("search", "").strip()
     show_all          = request.args.get("show_all") in ("1", "true", "True")
     user_id           = request.args.get("user", type=int)
+    added_by          = request.args.get("added_by", type=int)  # submitter filter, independent of `user`
     read_filter       = request.args.get("read")  # "true"/"false" — per-user, requires `user`
 
     if spice_max is None and not show_all:
@@ -202,6 +217,12 @@ def list_books():
         clauses.append("(b.title LIKE ? OR b.author LIKE ? OR b.series LIKE ?)")
         like = f"%{search}%"
         params.extend([like, like, like])
+    # Independent submitter filter — b.added_by is its own column on books, not
+    # the reading_status join that `user` drives, so the two can be combined or
+    # used separately.
+    if added_by:
+        clauses.append("b.added_by = ?")
+        params.append(added_by)
     # No reading_status row (or one not on the 'read' shelf) counts as unread —
     # never guessed, just the absence of an explicit "read" mark for this user.
     if read_filter in ("1", "true", "True"):
@@ -583,6 +604,37 @@ def ingest():
         "batch_id": None,
         "status": "researching",
         "message": "Got it — researching now, check Pending in a bit.",
+    }), 202
+
+
+@curator_bp.route("/api/curator/ingest/chatgpt", methods=["POST"])
+@_require_import_key
+def ingest_chatgpt():
+    """Enqueue a ChatGPT-research import: a shared conversation URL that a family
+    member researched a book in and posted here via an iOS Shortcut. Gated by
+    CURATOR_IMPORT_KEY (not WRITING_ROOM_API_KEY). Returns immediately with a
+    job_id — the worker fetches the link, extracts the research, and creates the
+    book. Same response shape as /api/curator/ingest."""
+    from jobs.curator.worker import enqueue_job
+
+    data = request.get_json(force=True) or {}
+    share_url = (data.get("share_url") or "").strip()
+    submitted_by = data.get("submitted_by")
+
+    if "chatgpt.com/share/" not in share_url:
+        return jsonify({"error": "share_url must be a chatgpt.com/share/ link"}), 400
+
+    job_id = enqueue_job(
+        input_type="chatgpt_link",
+        input_raw=json.dumps({"share_url": share_url}),
+        submitted_by=submitted_by,
+    )
+
+    return jsonify({
+        "job_id": job_id,
+        "batch_id": None,
+        "status": "researching",
+        "message": "Got it — pulling the research now, check Pending in a bit.",
     }), 202
 
 
