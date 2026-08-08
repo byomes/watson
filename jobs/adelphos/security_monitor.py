@@ -54,9 +54,30 @@ def _send(text: str, keyboard: list | None = None) -> int | None:
     return resp.json()["result"]["message_id"]
 
 
+_SYSTEM_USER_IDS = frozenset({1, 2})  # 1 = guest, 2 = primary site admin
+
+
 def _fetch_all_users() -> list[dict]:
-    data = client.call("core_user_get_users", criteria=[{"key": "deleted", "value": "0"}])
-    return data.get("users", [])
+    """Return the full user roster minus deleted, suspended, and system accounts.
+
+    core_user_get_users requires at least one search criterion but has no
+    "match everything" key on Moodle 5.0: recognised keys (email/username/auth/...)
+    filter the result, while an UNrecognised key is silently ignored — Moodle attaches
+    a per-key warning to the response and returns every non-deleted user. We send a
+    deliberately-unrecognised placeholder to pull that full roster (the warning is
+    response-only and never logged), then filter client-side here. 'deleted' was the
+    old criterion but is not a valid search key — Moodle never returns deleted users
+    anyway — and 'suspended' can't be filtered via the API but IS present on every
+    returned user, so both (plus the guest/admin system accounts) are dropped below.
+    """
+    data = client.call("core_user_get_users", criteria=[{"key": "listall", "value": "1"}])
+    return [
+        u
+        for u in data.get("users", [])
+        if not u.get("deleted")
+        and not u.get("suspended")
+        and u.get("id") not in _SYSTEM_USER_IDS
+    ]
 
 
 def run() -> None:
