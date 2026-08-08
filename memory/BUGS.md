@@ -1,6 +1,6 @@
 # Watson Bug Tracker
 _Auto-generated nightly from bug_tracker. Source of truth is the database — do not hand-edit this file, changes will be overwritten._
-Last generated: 2026-08-07 02:10
+Last generated: 2026-08-08 02:10
 
 ## Open (13)
 | ID | Title | Repo | Discovered |
@@ -59,6 +59,3 @@ Last generated: 2026-08-07 02:10
 | 14 | same_name_diff_email conflicts never populated new_member_id, breaking Telegram merge | watson | 2026-07-13 00:53:41 | a0417bf |
 | 4 | /draft page UI copy stale | wcky | 2026-07-12 21:08:49 | 77a069f |
 | 9 | Bare blocking requests.post() calls in async Telegram bot context | watson | 2026-07-09 10:18:11 | 1e52f34 |
-| 3 | KB search hang - oversized prompt on wrong model | watson | 2026-07-09 00:13:29 | 9ccb9ef |
-| 2 | KB search 500 - sentence_transformers/huggingface-hub mismatch | watson | 2026-07-09 00:13:29 | f00e78d |
-| 1 | Chat-stream timeout | watson | 2026-07-09 00:13:29 | 35c03ca |
