@@ -55,8 +55,14 @@ def _backup_dbs(tmp_dir, errors):
         src = f"{WATSON_DIR}/data/{db_name}"
         dst = f"{tmp_dir}/{db_name}"
         log(f"Snapshotting {db_name}...")
+        # DBs are in rollback-journal mode (journal_mode=delete), so a
+        # concurrent writer holds an exclusive lock that blocks .backup's
+        # read lock. Without a busy-timeout the sqlite3 CLI (busy_timeout=0)
+        # fails instantly with "database is locked" — which is exactly how
+        # watson.db (the busiest DB) failed on 2026-08-08. Give it 30s to
+        # wait out the brief sub-second writes instead. (bug_tracker #60)
         result = subprocess.run(
-            ["sqlite3", src, f".backup {dst}"],
+            ["sqlite3", src, "-cmd", ".timeout 30000", f".backup {dst}"],
             capture_output=True, text=True,
         )
         if result.returncode != 0:
