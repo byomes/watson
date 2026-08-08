@@ -2006,3 +2006,27 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - a486c35 feat: Dev Sandbox — interactive, sandboxed Claude Code sessions from dashboard
 - 1137ca1 docs: test and revert OLLAMA_NUM_PARALLEL=2 — CPU-only host makes it worse
 - f861c05 docs: architecture update 2026-08-06
+
+---
+
+## Recent Changes — 2026-08-08
+
+### ~/watson
+- 5adb686 docs: bugs/backlog export 2026-08-08
+- 9157d4f docs: file map 2026-08-08
+- 8b818c0 Merge pull request #23 from byomes/fix/remove-dev-sandbox-tile
+- a0b16f5 fix(dashboard): remove Dev Sandbox tile from More menu
+- 99d28de docs(adelphos): record email-visibility fix + IP/filtering hardening
+- 043b103 fix(adelphos): replace no-op deleted criteria with client-side filtering
+- fe45314 fix(adelphos): correct IP fallback text to "(not exposed by Moodle API)"
+- 9408355 docs: note Dev Sandbox dispatch integration + get_job_output reverted same night
+- 1118eef Revert "devdispatch: add read-only get_job_output MCP tool"
+- 07f3579 Revert "devdispatch: run dispatch_claude_code_job inside Dev Sandbox with live terminal_url (#22)"
+- 96ec502 devdispatch: run dispatch_claude_code_job inside Dev Sandbox with live terminal_url (#22)
+- 116c69b feat(audiobook): breath suppression + parameter-adjusting retry loop (#20)
+- ec235ab devdispatch: add read-only get_job_output MCP tool
+- d451c1f docs: architecture update 2026-08-07
+
+### ~/wcky
+- ab6f651 Merge pull request #3 from byomes/fix/blog-duplicate-category-labels
+- fb0411b fix(blog): de-duplicate category labels via shared getPostLabels helper
