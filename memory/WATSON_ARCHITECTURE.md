@@ -260,6 +260,7 @@ now a confirmed-closed result, not an open gap pending a retest.
 | Scribbl | Meet transcripts | Chrome extension → auto-emails transcript to `watson.wcky@gmail.com` post-call |
 | OneDrive | Nightly backup (offsite disaster leg) | rclone `Watson-Backup` remote, 3am cron — backs up data/ (the four core DBs snapshotted via `sqlite3 .backup`, not copied live), config/, `data/chroma/` (the live vector index — corrected 2026-08-05 from the orphaned `kb/chroma/`, remote path `chroma-live`), kb/documents/, .env |
 | FlareSolverr | Cloudflare JS challenge bypass | `localhost:8191`, persistent Docker container (`docker run -d --name=flaresolverr --restart unless-stopped`, not systemd). Used by `jobs/curator/research.py` for romance.io only (`_FLARESOLVERR_DOMAINS`) — resolves project_backlog id=18. `jobs/research/gutenberg.py` does NOT route through it — its `search()` already works via a self-hosted local Gutendex instance (`gutendex.service`, `127.0.0.1:8010`, since 2026-07-15) and `download_and_ingest()` downloads text directly from gutenberg.org; neither hits the Cloudflare-blocked public gutendex.com. That self-hosted catalog has its own staleness gap (no refresh job — see project_backlog, new item added 2026-07-22) unrelated to Cloudflare. |
+| iOS Shortcut → Curator | ChatGPT-research book import (Curator) | Added 2026-08-08. A family member researches a book in the ChatGPT app, copies ChatGPT's reply, and an iOS Shortcut POSTs the text to `POST /api/curator/ingest/chatgpt` — auth via `X-Watson-Key: CURATOR_IMPORT_KEY`, a **new key scoped to this one route only**, deliberately not `WRITING_ROOM_API_KEY`. Body `{research_text, submitted_by}` (only guard: `len < 30`). The worker's `chatgpt_text` branch extracts title/author/series/KU + **verbatim** spice findings via `qwen2.5:7b` and creates the book directly — no `research_book_fast()` / Stage B for this path (those still run for every other Curator ingest path). Share-**link** fetch was built first (`96f64a5`) then abandoned (`bd6a89a`): ChatGPT `/share/<uuid>` and `/s/t_...` links sit behind a login wall ("Log in to view this conversation") even after full JS render, so there's no publicly fetchable content — confirmed by a direct render test. That retired step left a reusable, out-of-process page renderer, `jobs/browser/render_page.py` (`225103b`) — subprocess-isolated per `jobs/browser/browser_service.py`'s guardrail, robots.txt enforced — in place for future use, no longer called by Curator. See project_curator memory for detail. |
 
 ---
 
@@ -2030,3 +2031,19 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 ### ~/wcky
 - ab6f651 Merge pull request #3 from byomes/fix/blog-duplicate-category-labels
 - fb0411b fix(blog): de-duplicate category labels via shared getPostLabels helper
+
+---
+
+## Recent Changes — 2026-08-09
+
+### ~/watson
+- fb02611 docs: bugs/backlog export 2026-08-09
+- 2593ef8 docs: file map 2026-08-09
+- e86b582 feat(curator): validate submitted_by against users on ChatGPT import route
+- 3245bef fix(curator): preserve raw ChatGPT paste as needs_review on extraction failure
+- ef676d7 feat(curator): verify ChatGPT import findings are verbatim before storing
+- bd6a89a feat: Curator — switch ChatGPT import to direct pasted text
+- 96f64a5 feat: Curator — ChatGPT-research import path
+- 225103b feat: add out-of-process page renderer for browser jobs
+- 8996f87 Fix intermittent watson.db backup failure — add busy-timeout to snapshot
+- f92afa4 docs: architecture update 2026-08-08
