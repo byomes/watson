@@ -87,6 +87,10 @@ def _book_row_to_dict(row, batch_info: dict | None = None) -> dict:
         "page_count": row["page_count"],
         "spice_rating": row["spice_rating"],
         "spice_notes": row["spice_notes"],
+        # "What we couldn't confirm" — honesty-gap notes, parsed from the JSON array
+        # stored on books.research_gaps. Its own field, kept separate from findings so
+        # a gap notice is never mistaken for a real attributed source quote. [] = none.
+        "research_gaps": json.loads(row["research_gaps"]) if row["research_gaps"] else [],
         "cover_image_url": row["cover_image_url"],
         "description": row["description"],
         # Three-state: True/False/None (couldn't verify) — don't coerce with

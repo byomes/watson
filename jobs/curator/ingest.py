@@ -444,7 +444,11 @@ def _create_book(
     *, title: str, author: str, status: str, added_by, series=None, spice_rating=None,
     spice_notes="", page_count=None, kindle_unlimited=None,
     cover_image_url=None, description=None, series_number=None, series_total=None,
+    research_gaps=None,
 ) -> int:
+    # research_gaps: list[str] of "what we couldn't confirm" notes, or None. Stored as
+    # a JSON array in its own books column (never a spice_findings row — that table is
+    # verbatim attributed quotes only). NULL when nothing went unverified.
     # series_number is Phase 1's existing column; research's "series_position" (from
     # Amazon/Goodreads) fills the same slot — no separate column for the same concept.
     # kindle_unlimited is three-state (True/False/None=unknown) — coerce True/False to
@@ -455,16 +459,18 @@ def _create_book(
     # moved to Stage B's fetch_amazon_ku_status()), so this is NULL at creation time
     # until Stage B's own UPDATE sets both together once it actually checks.
     checked_at_sql = "datetime('now')" if kindle_unlimited is not None else "NULL"
+    research_gaps_json = json.dumps(research_gaps) if research_gaps else None
     conn = get_db()
     try:
         cur = conn.execute(
             "INSERT INTO books (title, author, series, series_number, series_total, "
             "spice_rating, spice_notes, page_count, kindle_unlimited, "
-            f"kindle_unlimited_checked_at, cover_image_url, description, status, added_by) "
-            f"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, {checked_at_sql}, ?, ?, ?, ?)",
+            f"kindle_unlimited_checked_at, cover_image_url, description, status, added_by, "
+            f"research_gaps) "
+            f"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, {checked_at_sql}, ?, ?, ?, ?, ?)",
             (title, author, series, series_number, series_total, spice_rating,
              spice_notes, page_count, ku_db_value,
-             cover_image_url, description, status, added_by),
+             cover_image_url, description, status, added_by, research_gaps_json),
         )
         conn.commit()
         return cur.lastrowid

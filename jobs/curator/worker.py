@@ -94,6 +94,11 @@ def get_job_status(job_id: int) -> dict | None:
                 book_dict["kindle_unlimited"] = (
                     None if book_dict["kindle_unlimited"] is None else bool(book_dict["kindle_unlimited"])
                 )
+                # research_gaps stored as a JSON array string; parse to a list so this
+                # polling endpoint emits the same shape as api.py's _book_row_to_dict.
+                book_dict["research_gaps"] = (
+                    json.loads(book_dict["research_gaps"]) if book_dict.get("research_gaps") else []
+                )
                 findings = conn.execute(
                     "SELECT * FROM spice_findings WHERE book_id = ? ORDER BY rank ASC",
                     (job["book_id"],),

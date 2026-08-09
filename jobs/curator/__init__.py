@@ -152,6 +152,13 @@ def bootstrap_db() -> None:
             "ALTER TABLE books ADD COLUMN cover_image_url TEXT",
             "ALTER TABLE books ADD COLUMN series_total INTEGER",
             "ALTER TABLE books ADD COLUMN description TEXT",
+            # JSON array of honesty-gap notes ("what we couldn't confirm") recorded
+            # by research — things a source miss/timeout/absence left unverified (e.g.
+            # "No Common Sense Media entry found", "Kindle Unlimited not verified").
+            # Deliberately its OWN column, never a spice_findings row: that table holds
+            # only real attributed quotes, so a gap notice can never masquerade as a
+            # source finding. NULL = no gaps recorded.
+            "ALTER TABLE books ADD COLUMN research_gaps TEXT",
         ]:
             try:
                 conn.execute(alter_sql)
