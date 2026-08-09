@@ -1,6 +1,6 @@
 # Watson Bug Tracker
 _Auto-generated nightly from bug_tracker. Source of truth is the database — do not hand-edit this file, changes will be overwritten._
-Last generated: 2026-08-08 02:10
+Last generated: 2026-08-09 02:10
 
 ## Open (13)
 | ID | Title | Repo | Discovered |
@@ -22,6 +22,9 @@ Last generated: 2026-08-08 02:10
 ## Recently Resolved (last 30 days)
 | ID | Title | Repo | Resolved | Commit |
 |---|---|---|---|---|
+| 62 | Curator ChatGPT import: verbatim-excerpt guarantee relied only on the LLM prompt | watson | 2026-08-08 21:18:52 | ef676d7 |
+| 61 | Curator ChatGPT import: hard extraction failure silently lost the pasted research text | watson | 2026-08-08 21:18:52 | 3245bef |
+| 60 | OneDrive backup: watson.db snapshot fails intermittently with SQLite 'database is locked' | watson | 2026-08-08 12:00:06 | 8996f873dd1e342cb5b4faed7f5d5eadd65cc205 |
 | 59 | devdispatch _open_pr collides with dispatched session's own PR, misreporting real work as failed | watson | 2026-08-06 04:29:27 | 4793ce6 |
 | 17 | Export CSV button downloads HTML instead of CSV | watson | 2026-08-06 04:29:27 | f50910d |
 | 56 | headcount_sync.py never wired into crontab — Wilmington headcount data missing since 7/27 | watson | 2026-08-04 13:53:32 | 3b1abf94b4e2f87f0675f90be19dc965285e2688 |
@@ -58,4 +61,3 @@ Last generated: 2026-08-08 02:10
 | 15 | wcky /meet booking store call hit unreachable Tailscale IP | watson+wcky | 2026-07-13 14:39:48 | watson:e627581 / wcky:a0c49d5 |
 | 14 | same_name_diff_email conflicts never populated new_member_id, breaking Telegram merge | watson | 2026-07-13 00:53:41 | a0417bf |
 | 4 | /draft page UI copy stale | wcky | 2026-07-12 21:08:49 | 77a069f |
-| 9 | Bare blocking requests.post() calls in async Telegram bot context | watson | 2026-07-09 10:18:11 | 1e52f34 |

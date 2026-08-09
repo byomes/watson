@@ -1,10 +1,11 @@
 # Watson Project Backlog
 _Auto-generated nightly from project_backlog. Source of truth is the database — do not hand-edit this file, changes will be overwritten._
-Last generated: 2026-08-08 02:10
+Last generated: 2026-08-09 02:10
 
-## Planned (27)
+## Planned (28)
 | ID | Title | Summary | Added |
 |---|---|---|---|
+| 34 | Evaluate migrating watson.db to WAL journal mode | watson.db (and the other core DBs) run in rollback-journal mode (journal_mode=delete), where a writer takes an exclusive lock that blocks readers. Switching watson.db to WAL would let readers (backups, dashboard, reports) run without being blocked by concurrent writers. | 2026-08-08 |
 | 33 | Dev Sandbox auto-cleanup / session timeout | Dev Sandbox (jobs/dev/sandbox_session.py) has no auto-timeout or cleanup job for v1 — explicit Stop only. | 2026-08-07 |
 | 32 | Claude.ai <-> Claude Code live bridge | MCP devdispatch only returns a final summary once a job completes -- no way to send follow-up commands into an in-progress/interactive Claude Code session or stream its output back in real time. | 2026-08-06 |
 | 31 | Cover Comp Generator parked | Killed as an active feature 2026-08-03 — creative output quality (qwen2.5:7b concepts + Pollinations raster previews) wasn't usable. Dashboard entry point removed, all backend code/data left intact for potential future salvage (font discovery tool specifically may be worth keeping independently). See jobs/book/ for the full implementation. | 2026-08-03 |
