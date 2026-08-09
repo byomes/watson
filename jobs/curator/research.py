@@ -180,13 +180,32 @@ def parse_json(raw: str) -> dict | None:
 
 # ── Trusted-source discovery + extraction ───────────────────────────────────
 
+def _normalize_host(url: str) -> str:
+    """Lowercased hostname for trusted-domain matching. Prepends a scheme when
+    the URL has none — search results sometimes arrive as bare display URLs
+    like "thefaeshelf.com/book/x", which urlparse() would otherwise dump wholly
+    into .path, leaving .netloc empty and the source silently uncategorized —
+    then returns urlparse().hostname (already port/userinfo-stripped and
+    lowercased) with any leading "www." removed."""
+    parsed = urlparse(url if "://" in url else f"https://{url}")
+    host = (parsed.hostname or "").lower()
+    return host[4:] if host.startswith("www.") else host
+
+
+def _host_matches(domain: str, host: str) -> bool:
+    """True only when host is exactly domain or a subdomain of it — a real
+    suffix match, replacing the old `domain in host` substring test that also
+    matched lookalikes (thefaeshelf.com.evil.example) and stray in-path flukes."""
+    return host == domain or host.endswith("." + domain)
+
+
 def _categorize_source(url: str) -> tuple[str, str, int] | None:
     """Returns (source_name, source_type, rank) if url matches one of the
     trusted domains in _EXACT_DOMAINS, else None. Lower rank = higher
     priority."""
-    host = urlparse(url).netloc.lower()
+    host = _normalize_host(url)
     for domain, name, stype, rank in _EXACT_DOMAINS:
-        if domain in host:
+        if _host_matches(domain, host):
             return (name, stype, rank)
     return None
 
