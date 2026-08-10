@@ -2047,3 +2047,14 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - 225103b feat: add out-of-process page renderer for browser jobs
 - 8996f87 Fix intermittent watson.db backup failure — add busy-timeout to snapshot
 - f92afa4 docs: architecture update 2026-08-08
+
+---
+
+## Recent Changes — 2026-08-10
+
+### ~/watson
+- 7b8dc22 docs: bugs/backlog export 2026-08-10
+- 57a7766 docs: file map 2026-08-10
+- c7260a6 fix(curator): normalize host for trusted-source categorization
+- c2fde1f feat(curator): add research_gaps column + JSON serialization
+- 8b93ce0 docs: architecture update 2026-08-09
