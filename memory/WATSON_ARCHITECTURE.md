@@ -2058,3 +2058,12 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - c7260a6 fix(curator): normalize host for trusted-source categorization
 - c2fde1f feat(curator): add research_gaps column + JSON serialization
 - 8b93ce0 docs: architecture update 2026-08-09
+
+---
+
+## Recent Changes — 2026-08-11
+
+### ~/watson
+- 32e8524 docs: bugs/backlog export 2026-08-11
+- b127541 docs: file map 2026-08-11
+- 1ae6192 docs: architecture update 2026-08-10
