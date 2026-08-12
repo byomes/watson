@@ -2067,3 +2067,12 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - 32e8524 docs: bugs/backlog export 2026-08-11
 - b127541 docs: file map 2026-08-11
 - 1ae6192 docs: architecture update 2026-08-10
+
+---
+
+## Recent Changes — 2026-08-12
+
+### ~/watson
+- b3e2542 docs: bugs/backlog export 2026-08-12
+- 7c9247b docs: file map 2026-08-12
+- 0fb794c docs: architecture update 2026-08-11
