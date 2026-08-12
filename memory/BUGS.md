@@ -1,6 +1,6 @@
 # Watson Bug Tracker
 _Auto-generated nightly from bug_tracker. Source of truth is the database — do not hand-edit this file, changes will be overwritten._
-Last generated: 2026-08-11 02:10
+Last generated: 2026-08-12 02:10
 
 ## Open (13)
 | ID | Title | Repo | Discovered |
@@ -59,5 +59,3 @@ Last generated: 2026-08-11 02:10
 | 18 | jobs/ask.py hardcodes nonexistent model phi3:mini -- KB synthesis always fails | watson | 2026-07-16 00:40:06 | be7ab8c9971fcd4ad41baa2ec9c83e1e9ae33805 |
 | 16 | Home dashboard task list had no priority/due-date edit controls | watson | 2026-07-14 13:18:08 | 2427104 |
 | 15 | wcky /meet booking store call hit unreachable Tailscale IP | watson+wcky | 2026-07-13 14:39:48 | watson:e627581 / wcky:a0c49d5 |
-| 14 | same_name_diff_email conflicts never populated new_member_id, breaking Telegram merge | watson | 2026-07-13 00:53:41 | a0417bf |
-| 4 | /draft page UI copy stale | wcky | 2026-07-12 21:08:49 | 77a069f |
