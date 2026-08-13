@@ -17,7 +17,12 @@ from datetime import datetime
 import requests
 
 from config.settings import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+from core.retry import run_with_retry
 from core.vacation import vacation_gate
+
+# Retry budget shared by every retry-eligible subprocess op: ~10 min of real
+# elapsed time, exponential backoff 5s → 60s. See core/retry.py.
+RETRY_BUDGET_SECONDS = 600
 
 WATSON_DIR = "/home/billyomes/watson"
 REMOTE = "Watson-Backup:Watson-Backup"
@@ -55,23 +60,27 @@ def _backup_dbs(tmp_dir, errors):
         src = f"{WATSON_DIR}/data/{db_name}"
         dst = f"{tmp_dir}/{db_name}"
         log(f"Snapshotting {db_name}...")
-        # DBs are in rollback-journal mode (journal_mode=delete), so a
-        # concurrent writer holds an exclusive lock that blocks .backup's
-        # read lock. Without a busy-timeout the sqlite3 CLI (busy_timeout=0)
-        # fails instantly with "database is locked" — which is exactly how
-        # watson.db (the busiest DB) failed on 2026-08-08. Give it 30s to
-        # wait out the brief sub-second writes instead. (bug_tracker #60)
-        result = subprocess.run(
+        # Two complementary layers of lock resilience (bug_tracker #60): the
+        # passive `.timeout 30000` makes the sqlite3 CLI (default busy_timeout=0)
+        # wait up to 30s within one attempt for a concurrent writer's lock to
+        # clear, and run_with_retry re-invokes the whole command with backoff if
+        # a full 30s wait still ends in "database is locked", up to the ~10 min
+        # budget.
+        result = run_with_retry(
             ["sqlite3", src, "-cmd", ".timeout 30000", f".backup {dst}"],
-            capture_output=True, text=True,
+            budget_seconds=RETRY_BUDGET_SECONDS,
+            description=f"sqlite3 .backup {db_name}",
+            log=log,
         )
         if result.returncode != 0:
             log(f"ERROR snapshotting {db_name}: {result.stderr}")
             errors.append(db_name)
             continue
-        upload = subprocess.run(
+        upload = run_with_retry(
             ["rclone", "copyto", dst, f"{REMOTE}/data/{db_name}"],
-            capture_output=True, text=True,
+            budget_seconds=RETRY_BUDGET_SECONDS,
+            description=f"rclone copyto {db_name}",
+            log=log,
         )
         if upload.returncode != 0:
             log(f"ERROR uploading {db_name}: {upload.stderr}")
@@ -94,9 +103,11 @@ def _backup_crontab(tmp_dir, errors):
         f.write(result.stdout)
 
     log("Backing up crontab...")
-    upload = subprocess.run(
+    upload = run_with_retry(
         ["rclone", "copyto", dst, f"{REMOTE}/crontab.txt"],
-        capture_output=True, text=True,
+        budget_seconds=RETRY_BUDGET_SECONDS,
+        description="rclone copyto crontab.txt",
+        log=log,
     )
     if upload.returncode != 0:
         log(f"ERROR uploading crontab: {upload.stderr}")
@@ -123,7 +134,12 @@ def run_backup():
             # skip the live files here so we never upload a raw copy.
             for db_name in DB_NAMES:
                 args += ["--exclude", db_name]
-        result = subprocess.run(args, capture_output=True, text=True)
+        result = run_with_retry(
+            args,
+            budget_seconds=RETRY_BUDGET_SECONDS,
+            description=f"rclone copy {local}",
+            log=log,
+        )
         if result.returncode != 0:
             log(f"ERROR on {local}: {result.stderr}")
             errors.append(local)
@@ -131,9 +147,11 @@ def run_backup():
             log(f"OK: {local}")
 
     # Backup .env
-    result = subprocess.run(
+    result = run_with_retry(
         ["rclone", "copyto", f"{WATSON_DIR}/.env", f"{REMOTE}/.env"],
-        capture_output=True, text=True
+        budget_seconds=RETRY_BUDGET_SECONDS,
+        description="rclone copyto .env",
+        log=log,
     )
     if result.returncode != 0:
         log(f"ERROR on .env: {result.stderr}")

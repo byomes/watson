@@ -25,7 +25,12 @@ from datetime import datetime
 import requests
 
 from config.settings import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+from core.retry import run_with_retry
 from core.vacation import vacation_gate
+
+# Retry budget shared by every retry-eligible subprocess op: ~10 min of real
+# elapsed time, exponential backoff 5s → 60s. See core/retry.py.
+RETRY_BUDGET_SECONDS = 600
 
 WATSON_DIR = "/home/billyomes/watson"
 HOME_DIR = os.path.expanduser("~")
@@ -80,16 +85,19 @@ def _restic_env():
 def _snapshot_db(db_name, tmp_dir):
     src = f"{WATSON_DIR}/data/{db_name}"
     dst = f"{tmp_dir}/{db_name}"
-    # DBs are in rollback-journal mode (journal_mode=delete), so a concurrent
-    # writer holds an exclusive lock that blocks .backup's read lock. Without a
-    # busy-timeout the sqlite3 CLI (busy_timeout=0) fails instantly with
-    # "database is locked" — which is exactly how watson.db (the busiest DB)
-    # failed here on 2026-08-12 and 2026-08-13. Give it 30s to wait out the
-    # brief sub-second writes instead. Same fix as jobs/backup.py (bug_tracker
-    # #60); this leg was missed when that one was patched.
-    result = subprocess.run(
+    # Two complementary layers of lock resilience (see report / bug_tracker #60):
+    #   1. Passive: `.timeout 30000` makes the sqlite3 CLI (whose default
+    #      busy_timeout is 0) wait up to 30s *within a single attempt* for a
+    #      concurrent writer's lock to clear — cheap, no process churn for the
+    #      sub-second writes that cause almost all contention.
+    #   2. Active: run_with_retry re-invokes the whole command with backoff if a
+    #      full 30s passive wait still ends in "database is locked", up to the
+    #      ~10 min budget. Covers the rare case where a lock outlives one wait.
+    result = run_with_retry(
         ["sqlite3", src, "-cmd", ".timeout 30000", f".backup {dst}"],
-        capture_output=True, text=True,
+        budget_seconds=RETRY_BUDGET_SECONDS,
+        description=f"sqlite3 .backup {db_name}",
+        log=log,
     )
     return dst, result
 
@@ -147,9 +155,12 @@ def run_backup():
         sources = db_paths + DIR_SOURCES
 
         log("Running restic backup...")
-        result = subprocess.run(
+        result = run_with_retry(
             ["restic", "-r", RESTIC_REPO, "backup"] + sources,
-            capture_output=True, text=True, env=_restic_env(),
+            budget_seconds=RETRY_BUDGET_SECONDS,
+            description="restic backup",
+            log=log,
+            env=_restic_env(),
         )
         if result.returncode != 0:
             log(f"ERROR on restic backup: {result.stderr}")
@@ -159,14 +170,17 @@ def run_backup():
 
     if "restic-backup" not in errors:
         log("Running restic forget --prune...")
-        result = subprocess.run(
+        result = run_with_retry(
             [
                 "restic", "-r", RESTIC_REPO, "forget", "--prune",
                 "--keep-daily", "14",
                 "--keep-weekly", "8",
                 "--keep-monthly", "6",
             ],
-            capture_output=True, text=True, env=_restic_env(),
+            budget_seconds=RETRY_BUDGET_SECONDS,
+            description="restic forget --prune",
+            log=log,
+            env=_restic_env(),
         )
         if result.returncode != 0:
             log(f"ERROR on restic forget --prune: {result.stderr}")
