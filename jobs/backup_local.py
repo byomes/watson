@@ -80,8 +80,15 @@ def _restic_env():
 def _snapshot_db(db_name, tmp_dir):
     src = f"{WATSON_DIR}/data/{db_name}"
     dst = f"{tmp_dir}/{db_name}"
+    # DBs are in rollback-journal mode (journal_mode=delete), so a concurrent
+    # writer holds an exclusive lock that blocks .backup's read lock. Without a
+    # busy-timeout the sqlite3 CLI (busy_timeout=0) fails instantly with
+    # "database is locked" — which is exactly how watson.db (the busiest DB)
+    # failed here on 2026-08-12 and 2026-08-13. Give it 30s to wait out the
+    # brief sub-second writes instead. Same fix as jobs/backup.py (bug_tracker
+    # #60); this leg was missed when that one was patched.
     result = subprocess.run(
-        ["sqlite3", src, f".backup {dst}"],
+        ["sqlite3", src, "-cmd", ".timeout 30000", f".backup {dst}"],
         capture_output=True, text=True,
     )
     return dst, result
