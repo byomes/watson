@@ -1,6 +1,6 @@
 # Watson Bug Tracker
 _Auto-generated nightly from bug_tracker. Source of truth is the database — do not hand-edit this file, changes will be overwritten._
-Last generated: 2026-08-12 02:10
+Last generated: 2026-08-13 02:10
 
 ## Open (13)
 | ID | Title | Repo | Discovered |
@@ -58,4 +58,3 @@ Last generated: 2026-08-12 02:10
 | 19 | jobs/ask.py synthesize() 120s timeout fails on cold-start qwen2.5-coder:7b load | watson | 2026-07-16 01:04:11 | d124dc187bae87a954af14a0227117832c1da983 |
 | 18 | jobs/ask.py hardcodes nonexistent model phi3:mini -- KB synthesis always fails | watson | 2026-07-16 00:40:06 | be7ab8c9971fcd4ad41baa2ec9c83e1e9ae33805 |
 | 16 | Home dashboard task list had no priority/due-date edit controls | watson | 2026-07-14 13:18:08 | 2427104 |
-| 15 | wcky /meet booking store call hit unreachable Tailscale IP | watson+wcky | 2026-07-13 14:39:48 | watson:e627581 / wcky:a0c49d5 |
