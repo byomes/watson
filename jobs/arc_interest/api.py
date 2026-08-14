@@ -5,9 +5,10 @@ Mount on the Watson dashboard app:
     from jobs.arc_interest.api import arc_interest_bp
     app.register_blueprint(arc_interest_bp)
 
-Captures name + email only. Applies a Kit tag and stores a dedup row.
-Does NOT touch arc_readers, issue login credentials, or send any
-credential email — see jobs/arc/api.py for that (unrelated) flow.
+Captures name + email only. Applies the same Kit tag as full ARC signups
+(jobs.arc.api._ARC_TAG_ID) and stores a dedup row. Does NOT touch
+arc_readers, issue login credentials, or send any credential email — see
+jobs/arc/api.py for that (unrelated) flow.
 """
 import logging
 import os
@@ -20,6 +21,7 @@ from flask import Blueprint, jsonify, request
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from jobs.arc.api import _ARC_TAG_ID
 from jobs.writing_room import get_db, send_telegram
 
 log = logging.getLogger(__name__)
@@ -28,7 +30,10 @@ arc_interest_bp = Blueprint("arc_interest", __name__)
 
 _API_KEY = lambda: os.getenv("WRITING_ROOM_API_KEY", "")
 _KIT_SECRET = lambda: os.getenv("KIT_API_SECRET", "")
-_INTEREST_TAG_ID = lambda: os.getenv("KIT_ARC_INTEREST_TAG_ID", "")
+# _ARC_TAG_ID (imported above) is intentionally the same Kit tag as full
+# ARC signups — Bill's call: interest-only signups aren't meant to be
+# distinguishable from full readers within Kit. arc_interest_signups vs
+# arc_readers is where the real distinction lives.
 
 
 def _require_key(f):
@@ -57,7 +62,7 @@ def _ensure_table() -> None:
         conn.close()
 
 
-def _kit_tag_subscriber(tag_id: str, email: str, name: str) -> bool:
+def _kit_tag_subscriber(tag_id: int, email: str, name: str) -> bool:
     """Apply the given Kit tag to the subscriber via Kit v3. Returns True on success."""
     secret = _KIT_SECRET()
     if not secret:
@@ -108,34 +113,28 @@ def arc_interest_signup():
     finally:
         conn.close()
 
-    # Kit tagging is a "nice to have" — guarded against an unset tag id
-    # (skips cleanly, logs, and never raises) and never allowed to block
-    # the response above, which already recorded the dedup row.
-    tagged = False
-    tag_id = _INTEREST_TAG_ID()
-    if tag_id:
-        tagged = _kit_tag_subscriber(tag_id, email, name)
-        if tagged:
-            conn2 = get_db()
-            try:
-                conn2.execute(
-                    "UPDATE arc_interest_signups SET kit_tag_applied = 1 WHERE email = ?",
-                    (email,),
-                )
-                conn2.commit()
-            finally:
-                conn2.close()
-    else:
-        log.warning(
-            "KIT_ARC_INTEREST_TAG_ID not set — skipping Kit tag for %s", email
-        )
+    # Kit tagging is a "nice to have" — guarded against a missing
+    # KIT_API_SECRET (skips cleanly, logs, and never raises) and never
+    # allowed to block the response above, which already recorded the
+    # dedup row.
+    tagged = _kit_tag_subscriber(_ARC_TAG_ID, email, name)
+    if tagged:
+        conn2 = get_db()
+        try:
+            conn2.execute(
+                "UPDATE arc_interest_signups SET kit_tag_applied = 1 WHERE email = ?",
+                (email,),
+            )
+            conn2.commit()
+        finally:
+            conn2.close()
 
     try:
         send_telegram(
             f"\U0001F4DD New ARC Interest Signup\n\n"
             f"Name: {name}\n"
             f"Email: {email}\n"
-            f"Kit tag: {'✅ applied' if tagged else '⚠️ not applied — check KIT_ARC_INTEREST_TAG_ID/KIT_API_SECRET'}"
+            f"Kit tag: {'✅ applied' if tagged else '⚠️ not applied — check KIT_API_SECRET'}"
         )
     except Exception as exc:
         log.error("Telegram notify failed for ARC interest signup %s: %s", email, exc)
