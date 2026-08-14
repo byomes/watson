@@ -2085,3 +2085,16 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - 926b229 docs: bugs/backlog export 2026-08-13
 - 045a245 docs: file map 2026-08-13
 - a0ee4e6 docs: architecture update 2026-08-12
+
+---
+
+## Recent Changes — 2026-08-14
+
+### ~/watson
+- a07734e docs: bugs/backlog export 2026-08-14
+- 2b08924 docs: file map 2026-08-14
+- 4220b79 Merge pull request #25 from byomes/feat/backup-retry-with-backoff
+- 359cbd6 Merge pull request #24 from byomes/fix/backup-local-sqlite-busy-timeout
+- c58c1e9 Retry backup subprocess ops with backoff instead of failing on first try
+- 962c5ac Fix intermittent restic-backup watson.db failure — add busy-timeout to snapshot
+- 7909200 docs: architecture update 2026-08-13
