@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-08-13*
+*Generated: 2026-08-14*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -55,6 +55,7 @@ core/
   database.py
   fetcher.py
   pipeline.py
+  retry.py
   scorer.py
   summarizer.py
   vacation.py
