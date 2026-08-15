@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-08-14*
+*Generated: 2026-08-15*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -238,6 +238,9 @@ jobs/
     send_twj_update.py
     templates/
       arc_invite_email.html
+  arc_interest/
+    __init__.py
+    api.py
   ask.py
   audiobook/
     breath.py
@@ -1270,6 +1273,9 @@ content/
     2026-08-01-one-generation-from-extinction.md
     2026-08-04-received-not-taken.md
     2026-08-06-the-sign-before-the-conquest.md
+    2026-08-08-when-the-manna-stops.md
+    2026-08-11-are-you-with-me.md
+    2026-08-13-what-your-children-inherit.md
     the-flashlight-of-your-focus.md
     where-your-treasure-is.md
 next-env.d.ts
@@ -1315,6 +1321,8 @@ src/
         feedback/
           route.ts
         forgot-password/
+          route.ts
+        interest/
           route.ts
         login/
           route.ts
@@ -1378,6 +1386,7 @@ src/
           route.ts
     apple-touch-icon.png
     arc/
+      ArcInterestForm.tsx
       ArcSignupForm.tsx
       dashboard/
         ArcDashboard.tsx
