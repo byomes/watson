@@ -1,6 +1,6 @@
 # Watson Bug Tracker
 _Auto-generated nightly from bug_tracker. Source of truth is the database — do not hand-edit this file, changes will be overwritten._
-Last generated: 2026-08-14 02:10
+Last generated: 2026-08-15 02:10
 
 ## Open (13)
 | ID | Title | Repo | Discovered |
@@ -55,5 +55,3 @@ Last generated: 2026-08-14 02:10
 | 27 | Telegram wrap_up() passes string session_id, causes silent hallucinated writes to memory/relational.md while reporting false success | watson | 2026-07-17 22:45:37 | ebe4616 |
 | 25 | Dashboard chat Ollama fallback timeout (30s) too short for memory-context-injected prompts (~1183 tokens, ~30s prefill alone on CPU) | watson | 2026-07-17 20:28:53 | 291c27c |
 | 20 | Intent classifier cold-start exceeds 15s Telegram handler timeout | watson | 2026-07-17 17:52:11 | 56d60dd |
-| 19 | jobs/ask.py synthesize() 120s timeout fails on cold-start qwen2.5-coder:7b load | watson | 2026-07-16 01:04:11 | d124dc187bae87a954af14a0227117832c1da983 |
-| 18 | jobs/ask.py hardcodes nonexistent model phi3:mini -- KB synthesis always fails | watson | 2026-07-16 00:40:06 | be7ab8c9971fcd4ad41baa2ec9c83e1e9ae33805 |
