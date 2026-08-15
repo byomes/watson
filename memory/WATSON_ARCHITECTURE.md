@@ -2098,3 +2098,21 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - c58c1e9 Retry backup subprocess ops with backoff instead of failing on first try
 - 962c5ac Fix intermittent restic-backup watson.db failure — add busy-timeout to snapshot
 - 7909200 docs: architecture update 2026-08-13
+
+---
+
+## Recent Changes — 2026-08-15
+
+### ~/watson
+- c38dd97 docs: bugs/backlog export 2026-08-15
+- f518f34 docs: file map 2026-08-15
+- 5d12ef7 Merge pull request #26 from byomes/arc-interest-endpoint
+- b37d959 Reuse the existing ARC Kit tag instead of a separate interest-signup tag
+- bae5227 Add lightweight ARC interest-signup endpoint for wcky /arc/preview
+- de25c90 docs: architecture update 2026-08-14
+
+### ~/wcky
+- a743e39 Promote reviewed /arc/preview content to the live /arc page
+- 87d08db Merge pull request #4 from byomes/arc-preview-page
+- f29854f chore: trigger fresh Preview deploy (WATSON_API_URL now set for Preview)
+- ff57d9b Add unlinked /arc/preview staging page for book-agnostic ARC explainer
