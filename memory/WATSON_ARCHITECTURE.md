@@ -2116,3 +2116,19 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - 87d08db Merge pull request #4 from byomes/arc-preview-page
 - f29854f chore: trigger fresh Preview deploy (WATSON_API_URL now set for Preview)
 - ff57d9b Add unlinked /arc/preview staging page for book-agnostic ARC explainer
+
+---
+
+## Recent Changes — 2026-08-16
+
+### ~/watson
+- dffbb2c docs: bugs/backlog export 2026-08-16
+- 4c7596e docs: file map 2026-08-16
+- e3d8e0c docs: architecture update 2026-08-15
+
+### ~/wcky
+- ff7ccfc Fix Dreamstone Chronicles intro line on /books
+- 9ee167a Reorder Theology & Apologetics section: The Wrong Jesus first
+- aa93170 Merge pull request #6 from byomes/merge-books-page
+- 39289d8 Merge /theology and /dreamstone into a single /books page
+- 88bef26 publish: The Inheritance Was Already Given
