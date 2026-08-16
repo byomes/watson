@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-08-15*
+*Generated: 2026-08-16*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -1276,6 +1276,7 @@ content/
     2026-08-08-when-the-manna-stops.md
     2026-08-11-are-you-with-me.md
     2026-08-13-what-your-children-inherit.md
+    2026-08-15-the-inheritance-was-already-given.md
     the-flashlight-of-your-focus.md
     where-your-treasure-is.md
 next-env.d.ts
@@ -1386,7 +1387,6 @@ src/
           route.ts
     apple-touch-icon.png
     arc/
-      ArcInterestForm.tsx
       ArcSignupForm.tsx
       dashboard/
         ArcDashboard.tsx
@@ -1402,6 +1402,11 @@ src/
         page.tsx
       opengraph-image.tsx
       page.tsx
+      preview/
+        ArcInterestForm.tsx
+        opengraph-image.tsx
+        page.tsx
+        twitter-image.tsx
       twitter-image.tsx
     blog/
       [slug]/
@@ -1429,10 +1434,6 @@ src/
         page.tsx
     draft/
       page.tsx
-    dreamstone/
-      opengraph-image.tsx
-      page.tsx
-      twitter-image.tsx
     favicon.ico
     globals.css
     go/
@@ -1500,10 +1501,6 @@ src/
       page.tsx
       twitter-image.tsx
     start/
-      opengraph-image.tsx
-      page.tsx
-      twitter-image.tsx
-    theology/
       opengraph-image.tsx
       page.tsx
       twitter-image.tsx
