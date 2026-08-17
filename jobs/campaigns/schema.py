@@ -75,6 +75,21 @@ def create_tables(conn=None) -> None:
         if "image_path" not in cols:
             conn.execute("ALTER TABLE book_launch_sends ADD COLUMN image_path TEXT")
 
+        # recipient_mode / recipient_detail: Comms Desk email rows can target a
+        # live Brevo list or a hand-picked set of individual contacts, neither
+        # of which fits the existing `segment` CHECK (public/general/donor/arc).
+        # Rather than rebuild that constraint (SQLite can't ALTER a CHECK in
+        # place), these two nullable columns carry the real target and segment
+        # is left as a satisfying placeholder ('general') for such rows.
+        # recipient_mode: NULL/'segment' (use `segment` as before), 'brevo_list',
+        # or 'custom_emails'. recipient_detail: JSON — {"list_id", "list_name"}
+        # for brevo_list, {"emails": [{"email","name"}, ...]} for custom_emails.
+        # See jobs/campaigns/dispatch.py:resolve_recipients().
+        if "recipient_mode" not in cols:
+            conn.execute("ALTER TABLE book_launch_sends ADD COLUMN recipient_mode TEXT")
+        if "recipient_detail" not in cols:
+            conn.execute("ALTER TABLE book_launch_sends ADD COLUMN recipient_detail TEXT")
+
         conn.commit()
     finally:
         if owns_conn:

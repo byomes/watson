@@ -12,6 +12,7 @@ since this endpoint is reachable from the public internet via the Tailscale
 Funnel the same as every other Watson API blueprint.
 """
 import base64
+import json
 import logging
 import os
 import subprocess
@@ -26,6 +27,8 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from jobs.campaigns.brevo_contacts import list_contacts as brevo_list_contacts
+from jobs.campaigns.brevo_contacts import list_lists as brevo_list_lists
 from jobs.comms import GENERAL_COMMS_CAMPAIGN_ID, generate_password, get_db, send_telegram
 from jobs.comms.reset import confirm_reset, request_reset
 
@@ -136,7 +139,45 @@ def create_user():
         conn.close()
 
 
+# ── Brevo lists / contacts (email composer audience picker) ────────────────
+
+@comms_bp.route("/api/comms/brevo/lists", methods=["GET"])
+@_require_key
+def get_brevo_lists():
+    conn = get_db()
+    try:
+        if not _user(conn, request.args.get("as_user_id", type=int)):
+            return jsonify({"error": "forbidden"}), 403
+    finally:
+        conn.close()
+    try:
+        return jsonify(brevo_list_lists())
+    except Exception as exc:
+        log.warning("Brevo lists fetch failed: %s", exc)
+        return jsonify({"error": "brevo unavailable"}), 502
+
+
+@comms_bp.route("/api/comms/brevo/contacts", methods=["GET"])
+@_require_key
+def get_brevo_contacts():
+    """Full contact roster for the "choose specific people" picker — not
+    list-scoped, since Kaci may want someone outside any imported list."""
+    conn = get_db()
+    try:
+        if not _user(conn, request.args.get("as_user_id", type=int)):
+            return jsonify({"error": "forbidden"}), 403
+    finally:
+        conn.close()
+    try:
+        return jsonify(brevo_list_contacts())
+    except Exception as exc:
+        log.warning("Brevo contacts fetch failed: %s", exc)
+        return jsonify({"error": "brevo unavailable"}), 502
+
+
 # ── Sends (calendar / composer) ─────────────────────────────────────────────
+
+_RECIPIENT_MODES = ("segment", "brevo_list", "custom_emails")
 
 def _row_to_dict(row, hold=None):
     d = dict(row)
@@ -190,13 +231,28 @@ def create_send():
         if not caller_row:
             return jsonify({"error": "forbidden"}), 403
 
+        recipient_mode = data.get("recipient_mode", "segment")
+        if recipient_mode not in _RECIPIENT_MODES:
+            return jsonify({"error": "invalid recipient_mode"}), 400
+        if recipient_mode == "segment":
+            segment, recipient_detail = data["segment"], None
+        else:
+            # 'general' is a placeholder here, not a real target — the CHECK
+            # constraint on `segment` predates recipient_mode and only allows
+            # public/general/donor/arc; dispatch.py ignores `segment` entirely
+            # once recipient_mode is 'brevo_list' or 'custom_emails'.
+            segment = "general"
+            recipient_detail = json.dumps(data.get("recipient_detail") or {})
+
         cur = conn.execute(
             """INSERT INTO book_launch_sends
                (campaign_id, week_number, send_date, platform, segment, subject, body_text,
-                image_template_type, image_path, status, source, author_user_id)
-               VALUES (?, 0, ?, ?, ?, ?, ?, NULL, ?, 'scheduled', 'comms_desk', ?)""",
-            (GENERAL_COMMS_CAMPAIGN_ID, data["send_date"], data["platform"], data["segment"],
-             data.get("subject"), data["body_text"], data.get("image_path"), caller_row["id"]),
+                image_template_type, image_path, status, source, author_user_id,
+                recipient_mode, recipient_detail)
+               VALUES (?, 0, ?, ?, ?, ?, ?, NULL, ?, 'scheduled', 'comms_desk', ?, ?, ?)""",
+            (GENERAL_COMMS_CAMPAIGN_ID, data["send_date"], data["platform"], segment,
+             data.get("subject"), data["body_text"], data.get("image_path"), caller_row["id"],
+             recipient_mode, recipient_detail),
         )
         conn.commit()
         return jsonify({"id": cur.lastrowid})
@@ -224,7 +280,11 @@ def edit_send(send_id):
             return jsonify({"error": "cannot edit a send that is ready or sent"}), 400
 
         fields = {k: data[k] for k in
-                  ("send_date", "subject", "body_text", "segment", "image_path") if k in data}
+                  ("send_date", "subject", "body_text", "segment", "image_path", "recipient_mode")
+                  if k in data}
+        if "recipient_detail" in data:
+            detail = data["recipient_detail"]
+            fields["recipient_detail"] = json.dumps(detail) if detail is not None else None
         if not fields:
             return jsonify({"ok": True})
         set_clause = ", ".join(f"{k}=?" for k in fields)
