@@ -12,6 +12,7 @@ load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 BREVO_API_URL = "https://api.brevo.com/v3/smtp/email"
 DEFAULT_FROM_EMAIL = "watson@williamckyomes.com"
 DEFAULT_FROM_NAME = "Watson"
+
 _TIMEOUT = 15
 _MAX_RETRIES = 1
 
