@@ -938,6 +938,42 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
         log.info("DEBUG pre-check: room command")
         return
 
+    # Retreat search — "find more retreats" / "find retreats" / etc.
+    if text_lower.startswith("find") and "retreat" in text_lower:
+        await update.message.reply_text("Searching for retreats — this can take a few minutes, I'll let you know what I find.")
+
+        # Detached on purpose, same reasoning as debug:/fireflies: below — the
+        # real pipeline (page fetches + an Ollama extraction call per candidate)
+        # can run several minutes, and the 15s wrapper around handle_text would
+        # otherwise fire a false "stuck" message while it kept working.
+        async def _run_retreats_search():
+            from jobs.retreats.run import run as _retreats_run
+            try:
+                result = await asyncio.to_thread(_retreats_run, None, False)
+                if result.get("error"):
+                    msg = f"Retreat search hit an error: {result['error']}"
+                elif result["inserted"] == 0:
+                    msg = f"Retreat search: checked {result['checked']} page(s), nothing new to add."
+                else:
+                    msg = (
+                        f"Retreat search: found {result['inserted']} new candidate(s) "
+                        f"({result['good_fit']} good fit), {result['skipped_duplicates']} already known."
+                    )
+            except Exception as exc:
+                log.error("retreats search failed: %s", exc)
+                msg = f"Retreat search failed: {exc}"
+            try:
+                await update.message.reply_text(msg)
+            except Exception:
+                pass
+            _log_telegram_exchange(text_clean, msg)
+
+        _retreats_task = asyncio.create_task(_run_retreats_search())
+        _background_tasks.add(_retreats_task)
+        _retreats_task.add_done_callback(_background_tasks.discard)
+        log.info("DEBUG pre-check: retreats search")
+        return
+
     chat_id = update.effective_chat.id
 
     # Pastoral notes reply handling
