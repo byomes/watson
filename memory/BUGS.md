@@ -1,6 +1,6 @@
 # Watson Bug Tracker
 _Auto-generated nightly from bug_tracker. Source of truth is the database — do not hand-edit this file, changes will be overwritten._
-Last generated: 2026-08-16 02:10
+Last generated: 2026-08-17 02:10
 
 ## Open (13)
 | ID | Title | Repo | Discovered |
@@ -51,7 +51,3 @@ Last generated: 2026-08-16 02:10
 | 31 | calendar_busy intent had no confirmation gate before writing to Google Calendar | watson | 2026-07-18 13:08:10 | f962909 |
 | 30 | Telegram classifier misrouted plain greetings ("Good morning Watson") to calendar_query instead of general chat | watson | 2026-07-18 08:40:00 | cf6a710 |
 | 29 | Telegram classify()/handle_text timeouts (10s/15s) structurally too short for classifier prompt prefill (up to 38.4s) on CPU host | watson | 2026-07-18 07:35:00 | bfdf569 |
-| 28 | Telegram classify()/skill-router Ollama calls had no num_predict cap; skill router used qwen2.5-coder:7b for simple label routing | watson | 2026-07-18 02:06:38 | 3352336 |
-| 27 | Telegram wrap_up() passes string session_id, causes silent hallucinated writes to memory/relational.md while reporting false success | watson | 2026-07-17 22:45:37 | ebe4616 |
-| 25 | Dashboard chat Ollama fallback timeout (30s) too short for memory-context-injected prompts (~1183 tokens, ~30s prefill alone on CPU) | watson | 2026-07-17 20:28:53 | 291c27c |
-| 20 | Intent classifier cold-start exceeds 15s Telegram handler timeout | watson | 2026-07-17 17:52:11 | 56d60dd |
