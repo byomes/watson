@@ -314,6 +314,7 @@ now a confirmed-closed result, not an open gap pending a retest.
 | `jobs/kb/sync_and_index.py` | Daily 2am | Git pull (ff-only) + same-day transcript sync (`kb/transcripts/` → `kb/documents/`) + incremental Chroma index + Telegram summary |
 | `jobs/campaigns/weekly_digest.py` | Sun 6pm | Book-launch campaign digest — Telegram summary of queued sends per active campaign, with Open Editor / Approve All buttons; also runnable on-demand (`--campaign-id` CLI flag) |
 | `jobs/campaigns/brevo_dispatcher.py` | Every 15 min | Book-launch campaign Brevo dispatcher — sends approved+due `book_launch_sends` rows (Facebook rows are instead queued into the existing `facebook_queue`/`facebook_post.py` pipeline at approval time, not handled here) |
+| `jobs/campaigns/brevo_sync.py` | Hourly | Read-only local mirror of Brevo contacts/attributes/list membership → `watson.db` (`brevo_contacts`/`brevo_lists`/`brevo_list_membership`), so Comms Desk reads local data instead of hitting Brevo live; on-demand refresh also available via `POST /api/comms/brevo/refresh` |
 
 ### Other Jobs (Available)
 
