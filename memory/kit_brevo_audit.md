@@ -268,3 +268,187 @@ tag changes and the contact needs updating) is exactly the scenario this
 guards against: it would undo Phase 2's suppression work with no error,
 no log, and no signal that it happened. Contacts NOT in the suppressed set
 need no special handling — they had nothing to preserve.
+
+## Phase 3 — tag diff findings (2026-08-17)
+
+Built `jobs/migration/kit_tag_diff.py` (read-only, no `--live` — nothing
+to write) and ran it against live Kit data rather than inferring coverage
+from the codebase's write paths. Method: `GET /v3/tags` for every tag
+ever created in the account, then `GET /v3/tags/{id}/subscriptions?page=1`
+per tag to read `total_subscriptions` (cheap — one request per tag, no
+need to page through every subscriber email for a diff).
+
+**11 total tags in the account. 8 map cleanly to the approved mapping:**
+
+| Tag (id) | Applied to | Maps to |
+|---|---|---|
+| "I want to be an ARC team member." (19285341, `_ARC_TAG_ID`) | 22 | `ARC_READER` |
+| donor (20509474) | 4 | `DONOR` |
+| major-donor (20509475) | 1 | `DONOR_SEGMENT` |
+| first-time-donor (20509476) | 2 | `DONOR_SEGMENT` |
+| lapsed-donor (20509477) | 1 | `DONOR_SEGMENT` |
+| writing-room-partner (20825147) | 1 | `WRITING_ROOM_PARTNER` |
+| "The Wrong Jesus — Companion Guide" (21348267) | 0 | `LEAD_MAGNETS` (slug=wrong-jesus) |
+| companion-guide-reader (21348268) | 0 | `COMPANION_GUIDE_READER` |
+
+(`recurring-donor` doesn't appear — no donor currently in that segment,
+consistent with `_compute_segment()`'s logic; not a gap.)
+
+**3 UNMAPPED tags, all with real subscribers — flagged for Bill's
+decision, not silently dropped or auto-mapped:**
+
+| Tag (id) | Applied to | What it is |
+|---|---|---|
+| FMS (19057804) | 4 | Feeds `KIT_FMS_TAG_ID` → the `/api/kit/subscribe` route in `jobs/dashboard/app.py`, **confirmed dead code, Phase 1 decision: delete in Phase 4, do not migrate** |
+| WCKY (19057806) | 3 | Same route, `KIT_WCKY_TAG_ID` |
+| TWJ (20828390) | 5 | **This resolves the Phase 3 TWJ gap** — Watson's `.env` has no `KIT_TWJ_TAG_ID` (it's on wcky's separate Vercel credential), but tags are account-wide in Kit regardless of which API key created them, so this is the real ID, found empirically, not guessed. Confirmed by re-running `kit_export.py --twj-tag-id 20828390`: `TWJ_LAUNCH_SIGNUP` count came back 5, an exact match. |
+
+**Open decision for Bill — FMS/WCKY:** Phase 1 already decided the
+*route* generating these tags is dead code to delete, not migrate. That's
+a decision about future writes. It does NOT by itself answer whether the
+7 existing contacts' *historical* tag data should be preserved anywhere
+in Brevo (e.g. as a legacy signup-source signal) or simply left
+unmigrated along with the dead route. Not assumed either way — see the
+signup-source proposal below, which surfaces this as one of its options.
+
+**0 tags are unmapped-and-unused** — every tag in the account that isn't
+in the approved mapping has real subscribers on it, so there's no "noise"
+to just ignore.
+
+## Phase 3 — signup-source list proposal (2026-08-17)
+
+Proposal only, not built into `brevo_import.py` — stopped for Bill's
+review per his instruction, since he has a granularity decision to make.
+
+**Kit does NOT already tag by acquisition source** as a distinct concept
+from the touchpoint tags already in the approved mapping — checked (not
+assumed): grepped the codebase for `connect_card`/`newsletter`
+touchpoints that might feed Kit. `connect_cards/` is congregation
+attendance tracking, unrelated to Kit/Brevo entirely. No "general
+newsletter signup" or "connect form → Kit" touchpoint exists anywhere in
+the 14-item Phase 1 touchpoint table or in current code — so there is
+nothing today resembling a generic newsletter opt-in list to migrate.
+Signup-source tracking, if adopted, would be new tracking Watson doesn't
+have today, layered on top of the existing per-touchpoint tags/attributes
+— not a migration of something that already exists as a distinct signal
+(except for the FMS/WCKY case above, which already sort of is one).
+
+**Proposed lists** (same multi-value-via-Brevo-list approach as
+`LEAD_MAGNETS`, naming pattern `"Signup Source: {name}"` to match the
+existing `"Lead Magnet: {slug}"` convention):
+
+| Proposed list | Source touchpoint | Notes |
+|---|---|---|
+| Signup Source: ARC Reader | `jobs/arc/api.py` full ARC signup | |
+| Signup Source: ARC Waitlist | `jobs/arc_interest/api.py` | **New distinction that doesn't exist in Kit today** — ARC full and ARC waitlist currently share the exact same `_ARC_TAG_ID`/`ARC_READER` signal. Adding this list would let Brevo distinguish them for the first time; today they're indistinguishable at the data layer. This is the main granularity call Bill flagged wanting to make. |
+| Signup Source: Writing Room | `jobs/writing_room/onboard.py` | |
+| Signup Source: TWJ Launch Page | wcky's TWJ route (tag 20828390, resolved above) | |
+| Signup Source: Givebutter Donor | `jobs/givebutter/sync.py` | Lower-value add — `DONOR=true` attribute already carries this signal; a list would be redundant unless Bill specifically wants channel-attribution unified as lists everywhere for consistency |
+| *(none — lead magnets)* | `jobs/lead_magnet/api.py` | Already fully covered — the existing `"Lead Magnet: {slug}"` lists from the Phase 1 mapping already function as signup-source lists for this channel. No new list needed. |
+| Signup Source (legacy): FMS / WCKY | dead `/api/kit/subscribe` route | Only if Bill wants the 7 existing contacts' historical source preserved — see the open decision above. Not proposed as an ongoing list since the generating route is being deleted, only as a one-time historical tag if wanted. |
+
+Not built into `kit_export.py`/`brevo_import.py` yet — waiting on Bill's
+call on: (1) whether to introduce the new ARC-full-vs-waitlist
+distinction, (2) whether Givebutter donor source is worth a redundant
+list, (3) what to do with the FMS/WCKY historical data.
+
+## Phase 3 — final decisions (2026-08-17)
+
+Bill decided on all open items from the tag diff and signup-source
+proposal above. This is the mapping `kit_export.py`/`brevo_import.py`
+are built against — no more open questions before a real (eventually
+`--live`) Phase 3 import run.
+
+1. **TWJ tag confirmed: `20828390`.** Set as `kit_export.py`'s default
+   for `--twj-tag-id` (still overridable) — no longer a guess, no longer
+   skipped by default.
+2. **FMS/WCKY: preserve as history, don't discard.** One combined Brevo
+   list, `"Signup Source (legacy): FMS/WCKY"`, covering the union of both
+   tags' subscribers (7 contacts: 4 FMS + 3 WCKY, no dedup needed found
+   in this data but the union logic handles overlap if any exists).
+   Explicitly a **one-time historical carry-over**, not new ongoing
+   tracking — nothing in Watson's code will ever add anyone to this list
+   going forward, since the route that generated these tags is dead and
+   not being migrated.
+3. **ARC granularity: collapse to one list, `"Signup Source: ARC"`.**
+   Rejected the ARC-full-vs-waitlist split — Kit itself never
+   distinguished these (one tag, one value), so two lists would invent
+   resolution that isn't in the source data. Reader-vs-waitlist tracking,
+   if ever wanted, is a separate future feature, explicitly out of scope
+   for this migration.
+4. **Givebutter Donor signup-source list: skipped.** Confirmed redundant
+   with the existing `DONOR`/`DONOR_SEGMENT` attributes — not built.
+
+**Final signup-source list set (4 lists, naming pattern unchanged):**
+
+| List | Source |
+|---|---|
+| Signup Source: ARC | `_ARC_TAG_ID` (19285341) — same tag as `ARC_READER`, both full and waitlist signups |
+| Signup Source: Writing Room | `writing-room-partner` tag (20825147) — same tag as `WRITING_ROOM_PARTNER` |
+| Signup Source: TWJ Launch Page | tag 20828390 — same tag as `TWJ_LAUNCH_SIGNUP` |
+| Signup Source (legacy): FMS/WCKY | union of FMS (19057804) + WCKY (19057806) tags — no corresponding boolean attribute, list-membership only |
+
+Lead magnets need no separate signup-source list — unchanged from the
+proposal, the existing `"Lead Magnet: {slug}"` lists already cover that
+channel.
+
+**Note on the first three lists:** each duplicates a population that
+already has a boolean attribute (`ARC_READER`, `WRITING_ROOM_PARTNER`,
+`TWJ_LAUNCH_SIGNUP`) — same underlying Kit tag, two different Brevo
+representations (attribute for personalization/filtering logic, list for
+Brevo's native audience-picker UI in Comms Desk). This is by design per
+Bill's decision, not a bug to reconcile — both get written every import.
+
+**`kit_export.py` field addition this requires:** a `SIGNUP_SOURCES`
+field per contact (list of internal keys: `ARC`, `WRITING_ROOM`,
+`TWJ_LAUNCH_PAGE`, `LEGACY_FMS_WCKY`), parallel to the existing
+`LEAD_MAGNETS` field. `brevo_import.py` maps each key to its Brevo list
+name and sends via `listIds`, the same additive-not-replace mechanism
+already used for lead-magnet lists.
+
+## Phase 4 — migration closed (2026-08-17)
+
+Real Phase 3 import run (Bill, `--live`): **57 contacts imported**,
+suppression applied, `jobs/campaigns/brevo_sync.py`'s local mirror
+confirmed populated (57 contacts, 5 lists: the 4 signup-source lists +
+`"Signup Source: TWJ Launch Page"` created under folder id 1 with real
+Brevo list id `5`, confirmed via the mirror — no lead-magnet list was
+created since no contact currently claims one).
+
+**Dead code deleted (Phase 1 touchpoints #10, #12, #14 — confirmed dead,
+not migrated):**
+- `/api/kit/subscribe` route, `jobs/dashboard/app.py`
+- `_gb_get_kit_subscriber_id`, `bot/bot.py`
+- `KIT_API_KEY` constant, `config/settings.py`
+
+**Last architecture violation closed (touchpoint #13):** wcky's
+`/api/thewrongjesus/signup` no longer calls Kit v4 directly from Vercel.
+New Watson route `jobs/twj/api.py` (`POST /api/twj/signup`, same
+`X-Watson-Key` shared-secret pattern as ARC/lead-magnet) writes straight
+to Brevo — `TWJ_LAUNCH_SIGNUP=true` attribute + `"Signup Source: TWJ
+Launch Page"` list (id 5) — and wcky's `route.ts` now calls that Watson
+route instead of Kit, matching every other signup form on the site.
+Deliberately minimal: no local DB record, confirmation email, or
+Telegram notification (unlike ARC/lead-magnet) — not asked for in this
+phase, flagged as an easy follow-up if wanted.
+
+**What Phase 4 explicitly did NOT touch — Kit is not fully retired yet:**
+- `jobs/arc/api.py`, `jobs/arc_interest/api.py`, `jobs/lead_magnet/api.py`,
+  `jobs/writing_room/onboard.py`, `jobs/givebutter/sync.py` **still tag
+  new signups/donors via Kit on every run** (Phase 1 touchpoints #1–#5).
+  These were never in scope for any phase of this migration — Phase 1–3
+  covered historical data migration + the local mirror; Phase 4 covered
+  only confirmed-dead code and the one confirmed architecture violation
+  (#13). **Deactivating the Kit account/API key will break these live
+  write paths** until/unless they're separately rewired to Brevo — this
+  is a real, open gap, not an oversight to quietly discover later.
+- `jobs/email_job/draft_email.py` and the Givebutter "Edit" thank-you
+  Kit-broadcast path (`bot.py` `_gb_create_kit_draft`/`_gb_add_kit_reminder`)
+  remain deferred to Comms Desk, unchanged, per the original Phase 1
+  decision — explicitly out of scope for this cleanup too.
+
+**Status: this migration (Phases 1–4) is closed.** Kit's account/API key
+deactivation itself remains Bill's manual step, after confirming the TWJ
+route works in production for a few days — and should not happen until
+the live-write-path gap above is either accepted as a known break or
+separately resolved.
