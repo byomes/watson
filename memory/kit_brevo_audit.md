@@ -225,3 +225,46 @@ those sends should also go through `DEFAULT_FROM_EMAIL` (the only sender
 Watson has) and will be subject to the same accepted transactional/
 newsletter suppression overlap described above. Not built here — flagged
 so the constraint isn't rediscovered from scratch.
+
+## Phase 3 hard requirement (2026-08-17) — suppression-preserving upserts
+
+**`brevo_import.py` MUST NOT ever write a contact upsert that can silently
+clear the `smtpBlacklistSender`/`emailBlacklisted` fields Phase 2 set.**
+This is a hard requirement for the Phase 3 build, not a nice-to-have.
+
+**What was checked, via Brevo's docs first:** fetched
+`developers.brevo.com/reference/createcontact`,
+`/reference/updatecontact`, and `/docs/synchronise-contact-lists`
+directly. **None of the three documents whether an upsert (`POST
+/v3/contacts` with `updateEnabled: true`, or `PUT
+/v3/contacts/{identifier}`) merges or replaces fields the payload omits**
+— for `attributes`, `emailBlacklisted`, or `smtpBlacklistSender` alike.
+No exact wording addresses this either way.
+
+**What IS confirmed, from Brevo's own community forum** (staff reply from
+"adam" on
+`community.brevo.com/t/updating-a-multi-value-field-of-a-contact-via-api-results-in-loosing-the-existing-value/6701`):
+updating a contact's **multi-value (array) field** via the API **replaces**
+the array wholesale — the existing values are lost unless the request
+explicitly re-includes them ("you would need to add the existing
+conditions too"). No merge/append exists for array fields today.
+`smtpBlacklistSender` is the same array-of-strings shape as the
+multi-value field in that confirmed report, so the same replace behavior
+is the reasonable read even though Brevo's reference pages don't name
+`smtpBlacklistSender` specifically. Per the standing rule for this
+migration — **undocumented is treated as "will clear," not assumed
+safe** — this is the design basis below.
+
+**Design requirement this imposes on `brevo_import.py`:** before every
+upsert, check the contact's email against the most recent
+`kit_suppression_*.json` snapshot (the same file `brevo_suppression_import.py`
+consumes in Phase 2). If the email is in that suppressed set, the upsert
+payload MUST explicitly include
+`"smtpBlacklistSender": [DEFAULT_FROM_EMAIL], "emailBlacklisted": true`
+alongside whatever attributes/list-membership fields that contact's Kit
+tags produce — every single time, on every run, not just the first.
+Silently omitting those two fields on a Phase 3 re-run (e.g. after a Kit
+tag changes and the contact needs updating) is exactly the scenario this
+guards against: it would undo Phase 2's suppression work with no error,
+no log, and no signal that it happened. Contacts NOT in the suppressed set
+need no special handling — they had nothing to preserve.
