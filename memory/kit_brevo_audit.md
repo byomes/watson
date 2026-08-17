@@ -89,3 +89,139 @@ No hardcoded tag IDs found beyond `_ARC_TAG_ID = 19285341` (#1/#2). No literal `
 ---
 
 **Phase 1 approved 2026-08-17 — proceeding to Phase 2 (suppression list transfer, dry-run only).**
+
+## Phase 2 build — findings from Bill's pre-`--live` verification (2026-08-17)
+
+Before either script could be approved to run `--live`, two things needed
+checking against real docs, not assumption:
+
+**1. Kit's `state` enum, confirmed via Kit developer docs and help center:**
+exactly five values — `active`, `cancelled`, `bounced`, `complained`,
+`inactive`. `inactive` is engagement-based (no opens/clicks in ~90 days),
+not an opt-out. `kit_suppression_export.py`'s original bucketing (`state !=
+"active"`) wrongly swept `inactive` in as suppressed — **fixed**:
+`_SUPPRESSED_STATES = {"cancelled", "bounced", "complained"}` only,
+`inactive` and any unrecognized state tracked separately in stats for
+visibility, never treated as a suppression.
+
+**2. Brevo's `emailBlacklisted` — confirmed via Brevo's own API reference
+docs (`developers.brevo.com`) plus an official Brevo staff reply on their
+community forum, not assumption. Finding is more consequential than the
+original worry:**
+
+Brevo has two separate, unrelated blocking fields on a contact:
+- `emailBlacklisted` (boolean) — governs Brevo's native **Campaigns/
+  Automation** blocklist only. Does *not* block transactional sends.
+- `smtpBlacklistSender` (array of sender addresses) — a *separate* field
+  that blocks **transactional** sends, scoped per-sender. (Brevo staff,
+  community forum: "You can use the parameter 'smtpBlacklistSender' in the
+  Create Contact and Update Contact endpoints" to block transactional
+  email specifically.)
+
+So `emailBlacklisted` does **not** put ARC/Writing Room password resets at
+risk (resolves the original worry) — but it also means **it has no effect
+on anything Watson actually sends**, because `brevo_send.py` sends
+everything (password resets, welcome emails, *and* the book-launch
+campaign dispatcher's newsletter-style sends) through Brevo's
+**transactional** `/v3/smtp/email` API. Watson never uses Brevo's native
+Campaigns/Automation feature, which is the only thing `emailBlacklisted`
+governs. Applying it to former Kit subscribers would silently be a no-op
+against Watson's real send path — the suppression transfer wouldn't
+actually suppress anything.
+
+The alternative, `smtpBlacklistSender`, has the opposite problem: it blocks
+*all* transactional mail from a given sender, and Watson sends both
+newsletter-style and account-necessary mail (password resets, welcome
+emails) from the same sender through the same API — scoping it to Watson's
+sender would block account-necessary mail too, which is the exact failure
+mode Bill flagged.
+
+**Root cause: Brevo has no primitive that maps onto "suppress newsletter-
+style sends but keep account-necessary sends flowing," because that
+distinction exists only in Watson's own code (which handler calls
+`brevo_send.py`), not in anything Brevo can see at the API/sender level.**
+
+**Flagged back to Bill rather than picked unilaterally.** Options surfaced,
+none built: (a) enforce suppression in Watson's own dispatch code — check
+a contact's suppressed status before any *newsletter-type* send, leave
+Brevo's own blocklist fields untouched entirely; (b) a second, dedicated
+Brevo sender address used only for newsletter-style sends, then
+`smtpBlacklistSender` scoped to that sender only; (c) something else Bill
+decides. **`brevo_suppression_import.py`'s mechanism (`emailBlacklisted`)
+is unchanged pending that decision** — not committed as a resolved
+approach.
+
+## Phase 2 resolution (2026-08-17) — option (b) tried, then reverted same day
+
+Bill initially decided on **native Brevo mechanism, option (b)** — a second
+dedicated verified sender, `newsletter@williamckyomes.com`, scoped so
+`smtpBlacklistSender` couldn't also block account-necessary transactional
+mail. Built and documented (see prior revision of this section in git
+history), then **reverted the same day** before Phase 2 was committed —
+see below.
+
+### Final decision: suppression runs against `watson@williamckyomes.com` directly
+
+Bill reverted the second-sender approach. **`smtpBlacklistSender` is now
+scoped to `DEFAULT_FROM_EMAIL` (`watson@williamckyomes.com`) — Watson's
+existing, already-verified sender — not a dedicated newsletter address.**
+
+**This is a deliberate, accepted tradeoff, not an oversight:**
+`smtpBlacklistSender` blocks per-sender, and Watson sends *everything*
+(newsletter-style broadcasts and account-necessary transactional mail —
+password resets, welcome emails) from that one address. So a contact
+suppressed for opting out of / bouncing on the newsletter will also stop
+receiving transactional mail from Watson. **Accepted as low-risk** because
+the suppression population is built from bounced/complained Kit
+addresses, which are unlikely to also need transactional mail from Watson
+— but the risk is real and should not be quietly rediscovered later by
+whoever touches this next. If Watson ever needs transactional delivery to
+keep working independent of newsletter opt-out status, the fix is to
+revisit the dedicated-second-sender approach (option (b) above), not to
+assume this file's silence means it was never considered.
+
+**Request shape** (`POST /v3/contacts`, `updateEnabled: true`):
+```
+{"email": ..., "updateEnabled": true,
+ "smtpBlacklistSender": ["watson@williamckyomes.com"], "emailBlacklisted": true}
+```
+Both fields still set for the same reasons as before: `smtpBlacklistSender`
+is the field that actually affects Watson's real (transactional) send
+path; `emailBlacklisted` is a no-op against that path today but accurately
+records opt-out status and future-proofs for Brevo's native Campaigns
+feature if anything ever sends through it.
+
+**Known doc gap, unchanged from before:** neither Brevo reference page
+states whether a repeat write REPLACES or MERGES the existing
+`smtpBlacklistSender` array, and `GET /v3/contacts/{id}` doesn't expose
+the array back for a read-before-write check. Since
+`watson@williamckyomes.com` is Watson's *only* sender, a repeat run
+against an already-suppressed contact is expected to be idempotent in
+practice (same single-element list re-written) — but the REPLACES-vs-
+MERGES behavior itself is still unconfirmed by Brevo's docs. Worth
+confirming with Brevo support before ever adding a second sender to this
+list in the future.
+
+**Code changes (final state):**
+- `jobs/email_job/brevo_send.py` — `NEWSLETTER_FROM_EMAIL` constant
+  removed; not needed. Only `DEFAULT_FROM_EMAIL`
+  (`watson@williamckyomes.com`) remains.
+- `jobs/migration/brevo_suppression_import.py` — `apply_suppression()`
+  sends `smtpBlacklistSender: [DEFAULT_FROM_EMAIL]` + `emailBlacklisted:
+  true` together, importing `DEFAULT_FROM_EMAIL` from `brevo_send.py`.
+
+**`jobs/email_job/draft_email.py` — still out of scope, deferral
+unchanged** (per Phase 1 decisions above; unaffected by the sender
+revert).
+
+**`jobs/campaigns/brevo_dispatcher.py` / TWJ launch campaign — unaffected,
+no scope change.** It already sends from `DEFAULT_FROM_EMAIL`, which is
+now also the suppression-scoped sender, so no revisit is needed here (the
+prior "revisit after launch" note is moot now that there's only one
+sender).
+
+**Note for whoever wires up Comms Desk's general-comms broadcast sends:**
+those sends should also go through `DEFAULT_FROM_EMAIL` (the only sender
+Watson has) and will be subject to the same accepted transactional/
+newsletter suppression overlap described above. Not built here — flagged
+so the constraint isn't rediscovered from scratch.
