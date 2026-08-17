@@ -69,6 +69,11 @@ def bootstrap_db() -> None:
             conn.execute("ALTER TABLE book_launch_sends ADD COLUMN source TEXT DEFAULT 'campaign'")
         if "author_user_id" not in cols:
             conn.execute("ALTER TABLE book_launch_sends ADD COLUMN author_user_id INTEGER")
+        if "send_time" not in cols:
+            # Nullable 'HH:MM' (24h, local wall-clock time) — NULL preserves the
+            # original date-only behavior (fires as soon as send_date is due) for
+            # every pre-existing row and for any campaign that never sets it.
+            conn.execute("ALTER TABLE book_launch_sends ADD COLUMN send_time TEXT")
 
         # Evergreen campaign row Comms Desk writes under. book_launch_campaigns.
         # launch_date/framework_weeks are NOT NULL in jobs/campaigns/schema.py —

@@ -5,10 +5,16 @@ Cron: every 15 minutes (matches jobs/facebook/facebook_post.py's cadence —
 see WATSON_ARCHITECTURE.md Active Scheduled Jobs).
 
 Finds book_launch_sends rows with platform='brevo', status='approved',
-send_date <= today, and dispatches each via jobs/campaigns/dispatch.py's
+send_date/send_time due, and dispatches each via jobs/campaigns/dispatch.py's
 send_brevo_row() — the same function the dashboard/Telegram "Approve All"
 path uses for already-due rows, so there is exactly one Brevo-sending code
 path in this system, not two.
+
+send_time (added for Comms Desk's date+time picker) is nullable local
+'HH:MM' — NULL preserves the original date-only behavior (due as soon as
+send_date arrives) for every pre-existing/non-Comms-Desk row. Comparisons use
+localtime, not SQLite's default UTC 'now', so a Comms Desk-picked time fires
+against the same wall clock Kaci picked it on.
 """
 from core.database import get_connection
 from jobs.campaigns.dispatch import send_brevo_row
@@ -19,7 +25,10 @@ def run() -> int:
     try:
         due = conn.execute(
             "SELECT * FROM book_launch_sends "
-            "WHERE platform='brevo' AND status='approved' AND send_date <= date('now')"
+            "WHERE platform='brevo' AND status='approved' "
+            "AND (send_date < date('now','localtime') "
+            "     OR (send_date = date('now','localtime') "
+            "         AND (send_time IS NULL OR send_time <= time('now','localtime'))))"
         ).fetchall()
 
         for row in due:

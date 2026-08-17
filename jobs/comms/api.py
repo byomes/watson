@@ -278,11 +278,11 @@ def _create_one_send(conn, caller_row, item: dict) -> tuple[int, str | None]:
 
     cur = conn.execute(
         """INSERT INTO book_launch_sends
-           (campaign_id, week_number, send_date, platform, segment, subject, body_text,
+           (campaign_id, week_number, send_date, send_time, platform, segment, subject, body_text,
             image_template_type, image_path, status, source, author_user_id,
             recipient_mode, recipient_detail, needs_image)
-           VALUES (?, 0, ?, ?, ?, ?, ?, NULL, ?, 'scheduled', 'comms_desk', ?, ?, ?, ?)""",
-        (GENERAL_COMMS_CAMPAIGN_ID, item["send_date"], platform, segment,
+           VALUES (?, 0, ?, ?, ?, ?, ?, ?, NULL, ?, 'scheduled', 'comms_desk', ?, ?, ?, ?)""",
+        (GENERAL_COMMS_CAMPAIGN_ID, item["send_date"], item.get("send_time"), platform, segment,
          item.get("subject"), item["body_text"], image_path, caller_row["id"],
          recipient_mode, recipient_detail, needs_image),
     )
@@ -367,7 +367,7 @@ def edit_send(send_id):
             return jsonify({"error": "cannot edit a send that is ready or sent"}), 400
 
         fields = {k: data[k] for k in
-                  ("send_date", "subject", "body_text", "segment", "image_path",
+                  ("send_date", "send_time", "subject", "body_text", "segment", "image_path",
                    "recipient_mode", "needs_image")
                   if k in data}
         if "recipient_detail" in data:
@@ -403,8 +403,10 @@ def mark_ready(send_id):
 
         send_now = bool(data.get("send_now"))
         if send_now:
+            # Clear any previously-chosen send_time too — "send now" means now,
+            # not whatever time-of-day was picked for a since-abandoned schedule.
             conn.execute(
-                "UPDATE book_launch_sends SET send_date=date('now') WHERE id=?", (send_id,)
+                "UPDATE book_launch_sends SET send_date=date('now'), send_time=NULL WHERE id=?", (send_id,)
             )
             held_until = (datetime.utcnow() + timedelta(minutes=_HOLD_MINUTES)).isoformat()
             cur = conn.execute(

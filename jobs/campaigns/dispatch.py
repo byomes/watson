@@ -193,7 +193,11 @@ def dispatch_facebook_row(conn, row, dry_run: bool = False) -> dict:
     title = f"{row['campaign_id']} Wk{row['week_number']} Post{ordinal}"
     link_m = _LINK_RE.search(row["body_text"] or "")
     url = link_m.group(0) if link_m else None
-    scheduled_time = f"{row['send_date']} 00:00:00"
+    # .get(): pre-existing book-launch campaign rows (and this function's own
+    # test fixtures) predate the send_time column — NULL/missing means "any
+    # time that day", same as before this column existed.
+    send_time = row.get("send_time")
+    scheduled_time = f"{row['send_date']} {send_time}:00" if send_time else f"{row['send_date']} 00:00:00"
     # .get() rather than row["image_path"]: callers (and the test isolation
     # fixtures) may pass a row dict from before this column existed — treat a
     # missing key the same as an explicit NULL rather than raising.
