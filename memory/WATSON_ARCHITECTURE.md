@@ -2132,3 +2132,21 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - aa93170 Merge pull request #6 from byomes/merge-books-page
 - 39289d8 Merge /theology and /dreamstone into a single /books page
 - 88bef26 publish: The Inheritance Was Already Given
+
+---
+
+## Recent Changes — 2026-08-17
+
+### ~/watson
+- d0aa90b docs: bugs/backlog export 2026-08-17
+- 41bb144 docs: file map 2026-08-17
+- e5edb10 Add Comms Desk backend: auth, sends, holds, password reset
+- 5d0ce92 Add jobs/retreats — pastor-retreat discovery pipeline (Phase 03)
+- e3f035c docs: architecture update 2026-08-16
+
+### ~/wcky
+- eeaf7f3 Revert "Join the comms-desk microfrontends group, routing /comms/:path* to it"
+- ff3a691 Join the comms-desk microfrontends group, routing /comms/:path* to it
+- 1562bb9 Merge remote-tracking branch 'origin/main'
+- e286853 Add /retreats page (Phase 02)
+- 0e9560d Add retreats storage and API (Phase 01)
