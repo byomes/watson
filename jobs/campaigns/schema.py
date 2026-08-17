@@ -90,6 +90,14 @@ def create_tables(conn=None) -> None:
         if "recipient_detail" not in cols:
             conn.execute("ALTER TABLE book_launch_sends ADD COLUMN recipient_detail TEXT")
 
+        # needs_image: Facebook-only flag (0/1). Set when a row is created with
+        # image_intent='needs_manual' (Comms Desk composer or Claude.ai batch
+        # import) — a human still needs to attach a real photo. Comms Desk
+        # badges these on the calendar until AddImageModal clears the flag via
+        # the existing edit_send() PUT route.
+        if "needs_image" not in cols:
+            conn.execute("ALTER TABLE book_launch_sends ADD COLUMN needs_image INTEGER DEFAULT 0")
+
         conn.commit()
     finally:
         if owns_conn:

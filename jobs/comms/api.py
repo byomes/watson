@@ -31,6 +31,7 @@ from jobs.campaigns.brevo_contacts import list_contacts as brevo_list_contacts
 from jobs.campaigns.brevo_contacts import list_lists as brevo_list_lists
 from jobs.comms import GENERAL_COMMS_CAMPAIGN_ID, generate_password, get_db, send_telegram
 from jobs.comms.reset import confirm_reset, request_reset
+from jobs.design import svg_generator
 
 log = logging.getLogger(__name__)
 
@@ -220,6 +221,74 @@ def list_sends():
         conn.close()
 
 
+def _create_one_send(conn, caller_row, item: dict) -> tuple[int, str | None]:
+    """Validates + inserts one book_launch_sends row. Shared by the single-item
+    create_send() route and the batch import route below, so a Claude.ai batch
+    and Kaci's own composer go through identical image_intent handling.
+
+    `item.image_intent` (default 'none'):
+      - 'none' — manual image_path (or none) supplied by the caller, as before.
+      - 'ai_quote' — Facebook only; renders a branded quote card via
+        svg_generator.create_quote_card(quote_text, quote_attribution) and
+        attaches it as image_path. needs_image stays 0.
+      - 'needs_manual' — Facebook only; image_path stays NULL, needs_image=1
+        so Comms Desk can badge it until someone attaches a real photo.
+
+    Returns (row_id, rel_path) — rel_path is the comms-assets-relative path of
+    a newly generated quote card (for the caller to batch into one commit), or
+    None if no asset was generated. Raises ValueError on any bad input — the
+    caller decides whether that's a 400 or a per-item batch failure.
+    """
+    recipient_mode = item.get("recipient_mode", "segment")
+    if recipient_mode not in _RECIPIENT_MODES:
+        raise ValueError("invalid recipient_mode")
+    if recipient_mode == "segment":
+        segment, recipient_detail = item["segment"], None
+    else:
+        # 'general' is a placeholder here, not a real target — the CHECK
+        # constraint on `segment` predates recipient_mode and only allows
+        # public/general/donor/arc; dispatch.py ignores `segment` entirely
+        # once recipient_mode is 'brevo_list' or 'custom_emails'.
+        segment = "general"
+        recipient_detail = json.dumps(item.get("recipient_detail") or {})
+
+    platform = item["platform"]
+    image_intent = item.get("image_intent", "none")
+    if image_intent not in ("none", "ai_quote", "needs_manual"):
+        raise ValueError("invalid image_intent")
+    if image_intent != "none" and platform != "facebook":
+        raise ValueError("image_intent is Facebook-only")
+
+    image_path = item.get("image_path")
+    needs_image = 0
+    rel_path = None
+    if image_intent == "ai_quote":
+        quote_text = item.get("quote_text")
+        if not quote_text:
+            raise ValueError("quote_text required for image_intent=ai_quote")
+        attribution = item.get("quote_attribution") or "Dr. Bill Yomes"
+        png_path = svg_generator.create_quote_card(quote_text, attribution)
+        if str(png_path).startswith("Error:"):
+            raise ValueError(f"quote card generation failed: {png_path}")
+        content = Path(png_path).read_bytes()
+        image_path, rel_path = _write_asset(content, "facebook", ".png")
+    elif image_intent == "needs_manual":
+        image_path = None
+        needs_image = 1
+
+    cur = conn.execute(
+        """INSERT INTO book_launch_sends
+           (campaign_id, week_number, send_date, platform, segment, subject, body_text,
+            image_template_type, image_path, status, source, author_user_id,
+            recipient_mode, recipient_detail, needs_image)
+           VALUES (?, 0, ?, ?, ?, ?, ?, NULL, ?, 'scheduled', 'comms_desk', ?, ?, ?, ?)""",
+        (GENERAL_COMMS_CAMPAIGN_ID, item["send_date"], platform, segment,
+         item.get("subject"), item["body_text"], image_path, caller_row["id"],
+         recipient_mode, recipient_detail, needs_image),
+    )
+    return cur.lastrowid, rel_path
+
+
 @comms_bp.route("/api/comms/sends", methods=["POST"])
 @_require_key
 def create_send():
@@ -231,31 +300,49 @@ def create_send():
         if not caller_row:
             return jsonify({"error": "forbidden"}), 403
 
-        recipient_mode = data.get("recipient_mode", "segment")
-        if recipient_mode not in _RECIPIENT_MODES:
-            return jsonify({"error": "invalid recipient_mode"}), 400
-        if recipient_mode == "segment":
-            segment, recipient_detail = data["segment"], None
-        else:
-            # 'general' is a placeholder here, not a real target — the CHECK
-            # constraint on `segment` predates recipient_mode and only allows
-            # public/general/donor/arc; dispatch.py ignores `segment` entirely
-            # once recipient_mode is 'brevo_list' or 'custom_emails'.
-            segment = "general"
-            recipient_detail = json.dumps(data.get("recipient_detail") or {})
-
-        cur = conn.execute(
-            """INSERT INTO book_launch_sends
-               (campaign_id, week_number, send_date, platform, segment, subject, body_text,
-                image_template_type, image_path, status, source, author_user_id,
-                recipient_mode, recipient_detail)
-               VALUES (?, 0, ?, ?, ?, ?, ?, NULL, ?, 'scheduled', 'comms_desk', ?, ?, ?)""",
-            (GENERAL_COMMS_CAMPAIGN_ID, data["send_date"], data["platform"], segment,
-             data.get("subject"), data["body_text"], data.get("image_path"), caller_row["id"],
-             recipient_mode, recipient_detail),
-        )
+        try:
+            row_id, rel_path = _create_one_send(conn, caller_row, data)
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
         conn.commit()
-        return jsonify({"id": cur.lastrowid})
+        if rel_path:
+            _commit_assets([rel_path], f"Comms Desk quote card: {rel_path}")
+        return jsonify({"id": row_id})
+    finally:
+        conn.close()
+
+
+@comms_bp.route("/api/comms/sends/batch", methods=["POST"])
+@_require_key
+def create_sends_batch():
+    """Claude.ai batch import — one request, many draft rows. Each item goes
+    through the same _create_one_send() validation as the single-item route;
+    a bad item fails only itself (ok:False in its result slot), never the
+    rest of the batch. Generated quote-card assets are swept into a single
+    comms-assets commit at the end instead of one push per item."""
+    data = request.get_json(force=True) or {}
+    conn = get_db()
+    try:
+        caller_row = _user(conn, data.get("as_user_id"))
+        if not caller_row:
+            return jsonify({"error": "forbidden"}), 403
+
+        results = []
+        generated_rel_paths = []
+        for item in data.get("items", []):
+            try:
+                row_id, rel_path = _create_one_send(conn, caller_row, item)
+                results.append({"ok": True, "id": row_id})
+                if rel_path:
+                    generated_rel_paths.append(rel_path)
+            except Exception as exc:
+                results.append({"ok": False, "error": str(exc)})
+        conn.commit()
+        _commit_assets(
+            generated_rel_paths,
+            f"Comms Desk batch import: {len(generated_rel_paths)} quote card(s)",
+        )
+        return jsonify({"results": results})
     finally:
         conn.close()
 
@@ -280,7 +367,8 @@ def edit_send(send_id):
             return jsonify({"error": "cannot edit a send that is ready or sent"}), 400
 
         fields = {k: data[k] for k in
-                  ("send_date", "subject", "body_text", "segment", "image_path", "recipient_mode")
+                  ("send_date", "subject", "body_text", "segment", "image_path",
+                   "recipient_mode", "needs_image")
                   if k in data}
         if "recipient_detail" in data:
             detail = data["recipient_detail"]
@@ -394,48 +482,60 @@ def sent_log():
 
 # ── Image upload ─────────────────────────────────────────────────────────────
 
+def _write_asset(content: bytes, kind: str, ext: str = ".jpg") -> tuple[str, str]:
+    """Writes `content` to the local cache path (what dispatch_facebook_row()/
+    facebook_post.py actually read) and the comms-assets repo working copy.
+    Returns (local_path, rel_path); does NOT commit/push — call
+    _commit_assets() once per request so N writes cost one push, not N."""
+    fname = f"{uuid.uuid4().hex}{ext}"
+    rel_path = f"{kind}/{fname}"
+    _ASSETS_CACHE.mkdir(parents=True, exist_ok=True)
+    local_path = _ASSETS_CACHE / fname
+    local_path.write_bytes(content)
+    repo_path = _ASSETS_DIR / rel_path
+    repo_path.parent.mkdir(parents=True, exist_ok=True)
+    repo_path.write_bytes(content)
+    return str(local_path), rel_path
+
+
+def _commit_assets(rel_paths: list[str], message: str) -> None:
+    if not rel_paths:
+        return
+    try:
+        subprocess.run(["git", "-C", str(_ASSETS_DIR), "add", *rel_paths], check=True)
+        subprocess.run(
+            ["git", "-C", str(_ASSETS_DIR), "-c", "user.email=watson@williamckyomes.com",
+             "-c", "user.name=Watson", "commit", "-m", message],
+            check=True,
+        )
+        subprocess.run(["git", "-C", str(_ASSETS_DIR), "push", "origin", "main"], check=True)
+    except Exception as exc:
+        log.warning("comms-assets commit failed (images still usable locally): %s", exc)
+
+
 @comms_bp.route("/api/comms/upload-image", methods=["POST"])
 @_require_key
 def upload_image():
     """Accepts {filename, content_base64, kind: 'facebook'|'email'}. Writes to
-    a local cache path (what dispatch_facebook_row()/facebook_post.py actually
-    read — they treat image_path as a local filesystem path, not a URL) and
-    commits the same bytes to comms-assets for durable storage / raw-URL
-    display in the composer preview. Returns both; callers store `imagePath`
-    (local) on the send row, not `rawUrl`."""
+    a local cache path and commits the same bytes to comms-assets for durable
+    storage / raw-URL display in the composer preview. Returns both; callers
+    store `imagePath` (local) on the send row, not `rawUrl`."""
     data = request.get_json(force=True) or {}
     kind = data.get("kind", "email")
     if kind not in ("facebook", "email"):
         return jsonify({"error": "invalid kind"}), 400
 
     ext = Path(data.get("filename", "")).suffix or ".jpg"
-    fname = f"{uuid.uuid4().hex}{ext}"
-    rel_path = f"{kind}/{fname}"
 
     try:
         content = base64.b64decode(data["content_base64"])
     except Exception:
         return jsonify({"error": "invalid content_base64"}), 400
 
-    _ASSETS_CACHE.mkdir(parents=True, exist_ok=True)
-    local_path = _ASSETS_CACHE / fname
-    local_path.write_bytes(content)
-
-    try:
-        repo_path = _ASSETS_DIR / rel_path
-        repo_path.parent.mkdir(parents=True, exist_ok=True)
-        repo_path.write_bytes(content)
-        subprocess.run(["git", "-C", str(_ASSETS_DIR), "add", rel_path], check=True)
-        subprocess.run(
-            ["git", "-C", str(_ASSETS_DIR), "-c", "user.email=watson@williamckyomes.com",
-             "-c", "user.name=Watson", "commit", "-m", f"Comms Desk upload: {rel_path}"],
-            check=True,
-        )
-        subprocess.run(["git", "-C", str(_ASSETS_DIR), "push", "origin", "main"], check=True)
-    except Exception as exc:
-        log.warning("comms-assets commit failed (image still usable locally): %s", exc)
+    local_path, rel_path = _write_asset(content, kind, ext)
+    _commit_assets([rel_path], f"Comms Desk upload: {rel_path}")
 
     return jsonify({
-        "imagePath": str(local_path),
+        "imagePath": local_path,
         "rawUrl": f"{_ASSETS_RAW_BASE}/{rel_path}",
     })
