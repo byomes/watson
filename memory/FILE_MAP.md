@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-08-16*
+*Generated: 2026-08-17*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -177,6 +177,7 @@ data/
     qr_20260702_121611.png
     qr_20260702_122730.png
     qr_20260721_135815.png
+  retreats_seen.json
   riddle_history.json
   skill_audit.json
   watson.db
@@ -298,6 +299,12 @@ jobs/
     confirm.py
     prompts/
       build.md
+  comms/
+    __init__.py
+    api.py
+    release_holds.py
+    reset.py
+    wordlist.txt
   congregation/
     __init__.py
     batch_intake.py
@@ -575,6 +582,13 @@ jobs/
     semantic_search.py
     summarizer.py
     web_search.py
+  retreats/
+    __init__.py
+    discover.py
+    extract.py
+    fit.py
+    push.py
+    run.py
   routing/
     __init__.py
     directive_prefixes.py
@@ -1222,11 +1236,12 @@ watson.db
 
 ```
 ~/wcky/
+.devdispatch/
+  progress.json
 .env.local
 .gitattributes
 .gitignore
 .vercel/
-  README.txt
   repo.json
 content/
   blog/
@@ -1279,6 +1294,8 @@ content/
     2026-08-15-the-inheritance-was-already-given.md
     the-flashlight-of-your-focus.md
     where-your-treasure-is.md
+db/
+  001_retreats.sql
 next-env.d.ts
 next.config.js
 package-lock.json
@@ -1349,6 +1366,14 @@ src/
             route.ts
           logout/
             route.ts
+      retreats/
+        [id]/
+          route.ts
+        ingest/
+          route.ts
+        login/
+          route.ts
+        route.ts
       room/
         admin/
           login/
@@ -1459,6 +1484,9 @@ src/
     not-found.tsx
     opengraph-image.tsx
     page.tsx
+    retreats/
+      RetreatsBoard.tsx
+      page.tsx
     room/
       (protected)/
         PostList.tsx
@@ -1583,10 +1611,13 @@ src/
           sample-draft.md
   lib/
     arc-api.ts
+    db.ts
     launch-dates.ts
     lead-magnet-api.ts
     og.tsx
     posts.ts
+    retreats-auth.ts
+    retreats-types.ts
     twj-api.ts
     writing-room-api.ts
     writing-room-auth.ts
