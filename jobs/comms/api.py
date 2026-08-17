@@ -27,8 +27,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from jobs.campaigns.brevo_contacts import list_contacts as brevo_list_contacts
-from jobs.campaigns.brevo_contacts import list_lists as brevo_list_lists
+from jobs.campaigns.brevo_sync import sync_once as brevo_sync_once
 from jobs.comms import GENERAL_COMMS_CAMPAIGN_ID, generate_password, get_db, send_telegram
 from jobs.comms.reset import confirm_reset, request_reset
 
@@ -144,24 +143,62 @@ def create_user():
 @comms_bp.route("/api/comms/brevo/lists", methods=["GET"])
 @_require_key
 def get_brevo_lists():
+    """Reads jobs/campaigns/brevo_sync.py's local mirror (brevo_lists +
+    brevo_list_membership), not Brevo live — see that module's docstring.
+    Same response shape as the old live jobs.campaigns.brevo_contacts.list_lists()
+    call this replaced: [{id, name, count}, ...]."""
     conn = get_db()
     try:
         if not _user(conn, request.args.get("as_user_id", type=int)):
             return jsonify({"error": "forbidden"}), 403
+        rows = conn.execute("""
+            SELECT l.id AS id, l.name AS name, COUNT(m.contact_id) AS count
+            FROM brevo_lists l
+            LEFT JOIN brevo_list_membership m ON m.list_id = l.id
+            GROUP BY l.id, l.name
+            ORDER BY l.name COLLATE NOCASE
+        """).fetchall()
+        return jsonify([dict(r) for r in rows])
+    except Exception as exc:
+        log.warning("Brevo lists mirror read failed: %s", exc)
+        return jsonify({"error": "brevo mirror unavailable"}), 502
     finally:
         conn.close()
-    try:
-        return jsonify(brevo_list_lists())
-    except Exception as exc:
-        log.warning("Brevo lists fetch failed: %s", exc)
-        return jsonify({"error": "brevo unavailable"}), 502
 
 
 @comms_bp.route("/api/comms/brevo/contacts", methods=["GET"])
 @_require_key
 def get_brevo_contacts():
     """Full contact roster for the "choose specific people" picker — not
-    list-scoped, since Kaci may want someone outside any imported list."""
+    list-scoped, since Kaci may want someone outside any imported list.
+    Reads the local mirror, not Brevo live — see
+    jobs/campaigns/brevo_sync.py. Same response shape as the old live
+    jobs.campaigns.brevo_contacts.list_contacts() call this replaced:
+    [{email, name}, ...]."""
+    conn = get_db()
+    try:
+        if not _user(conn, request.args.get("as_user_id", type=int)):
+            return jsonify({"error": "forbidden"}), 403
+        rows = conn.execute("""
+            SELECT email, TRIM(COALESCE(first_name, '') || ' ' || COALESCE(last_name, '')) AS name
+            FROM brevo_contacts
+            ORDER BY email
+        """).fetchall()
+        return jsonify([dict(r) for r in rows])
+    except Exception as exc:
+        log.warning("Brevo contacts mirror read failed: %s", exc)
+        return jsonify({"error": "brevo mirror unavailable"}), 502
+    finally:
+        conn.close()
+
+
+@comms_bp.route("/api/comms/brevo/refresh", methods=["POST"])
+@_require_key
+def refresh_brevo():
+    """On-demand trigger for jobs/campaigns/brevo_sync.py's full pull —
+    same sync_once() the hourly cron calls, just invoked immediately so
+    Kaci can refresh the mirror right before finalizing a send instead of
+    waiting for the next hourly run."""
     conn = get_db()
     try:
         if not _user(conn, request.args.get("as_user_id", type=int)):
@@ -169,9 +206,9 @@ def get_brevo_contacts():
     finally:
         conn.close()
     try:
-        return jsonify(brevo_list_contacts())
+        return jsonify(brevo_sync_once())
     except Exception as exc:
-        log.warning("Brevo contacts fetch failed: %s", exc)
+        log.warning("Brevo on-demand refresh failed: %s", exc)
         return jsonify({"error": "brevo unavailable"}), 502
 
 
