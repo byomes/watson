@@ -20,7 +20,7 @@ from jobs.email_job.brevo_send import send_email
 
 log = logging.getLogger(__name__)
 
-_RESET_URL   = "https://comms-desk.vercel.app/reset"
+_RESET_URL   = "https://comms.williamckyomes.com/reset"
 _TOKEN_TTL_H = 1
 
 
