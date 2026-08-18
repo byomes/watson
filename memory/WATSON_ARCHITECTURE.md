@@ -2150,3 +2150,22 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - 1562bb9 Merge remote-tracking branch 'origin/main'
 - e286853 Add /retreats page (Phase 02)
 - 0e9560d Add retreats storage and API (Phase 01)
+
+---
+
+## Recent Changes — 2026-08-18
+
+### ~/watson
+- b12b063 docs: bugs/backlog export 2026-08-18
+- 8827099 docs: file map 2026-08-18
+- 1a221bd Expose a browser-loadable image_url for Comms Desk sends
+- 96befa8 Require admin approval before a Comms Desk email actually sends
+- 7470d49 Allow re-editing an already-edited Comms Desk send
+- 2e2e973 Add date+time scheduling to Comms Desk sends, and fix missing Facebook dispatch
+- 2f3d162 Add needs_image flag + shared image_intent path for Comms Desk
+- affe2bc kb: sync 1 transcript(s) to kb/documents (same-day)
+- 70731db docs: record Phase 1 review decisions in Kit→Brevo audit
+- 087f0c4 Let Comms Desk email sends target a live Brevo list or hand-picked contacts
+- b656645 docs: Kit → Brevo migration audit (Phase 1)
+- c125ba6 Point Comms Desk reset link at comms.williamckyomes.com
+- af0afc3 docs: architecture update 2026-08-17
