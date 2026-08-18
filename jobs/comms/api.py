@@ -15,6 +15,7 @@ import base64
 import json
 import logging
 import os
+import re
 import subprocess
 import sys
 import uuid
@@ -22,7 +23,7 @@ from datetime import datetime, timedelta
 from functools import wraps
 from pathlib import Path
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, abort, jsonify, request, send_from_directory
 from werkzeug.security import check_password_hash, generate_password_hash
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
@@ -43,6 +44,12 @@ _HOLD_MINUTES = 12
 _ASSETS_DIR = Path.home() / "comms-assets"
 _ASSETS_CACHE = Path.home() / "watson" / "data" / "comms_assets_cache"
 _ASSETS_RAW_BASE = "https://raw.githubusercontent.com/byomes/comms-assets/main"
+# comms-assets is a private GitHub repo, so raw.githubusercontent.com 404s for
+# unauthenticated browser requests — it's kept only as a durable git-backed
+# copy (see _commit_assets()). The composer preview and Facebook itself load
+# images from this public route instead, served straight from _ASSETS_CACHE.
+WATSON_API_URL = os.getenv("WATSON_API_URL", "https://watson.tail0243ff.ts.net")
+_ASSET_FILENAME_RE = re.compile(r"^[0-9a-f]{32}\.[a-zA-Z0-9]{1,8}$")
 
 
 def _require_key(f):
@@ -189,10 +196,11 @@ def _row_to_dict(row, hold=None):
     # _write_asset()'s local_path return) — not something the browser can
     # load. Every Facebook image (manual upload or AI quote card) is written
     # via _write_asset(..., "facebook", ...), so the filename alone is enough
-    # to rebuild the durable comms-assets raw URL for display in Comms Desk's
-    # live post preview.
+    # to rebuild a browser-loadable URL for display in Comms Desk's live post
+    # preview. Served from our own public asset route, not the (private)
+    # comms-assets GitHub repo — see WATSON_API_URL above.
     if d.get("image_path"):
-        d["image_url"] = f"{_ASSETS_RAW_BASE}/facebook/{Path(d['image_path']).name}"
+        d["image_url"] = f"{WATSON_API_URL}/comms/assets/facebook/{Path(d['image_path']).name}"
     return d
 
 
@@ -563,6 +571,18 @@ def _commit_assets(rel_paths: list[str], message: str) -> None:
         subprocess.run(["git", "-C", str(_ASSETS_DIR), "push", "origin", "main"], check=True)
     except Exception as exc:
         log.warning("comms-assets commit failed (images still usable locally): %s", exc)
+
+
+@comms_bp.route("/comms/assets/<kind>/<filename>", methods=["GET"])
+def serve_asset(kind, filename):
+    """Public, unauthenticated image route — this is what <img src> tags in
+    the Comms Desk composer/preview and (indirectly) Facebook's own fetch of
+    the post's image load. No X-Watson-Key here on purpose: it just serves
+    the same bytes _write_asset() already wrote to _ASSETS_CACHE, filtered to
+    filenames matching the uuid4-hex naming _write_asset() always uses."""
+    if kind not in ("facebook", "email") or not _ASSET_FILENAME_RE.match(filename):
+        abort(404)
+    return send_from_directory(_ASSETS_CACHE, filename)
 
 
 @comms_bp.route("/api/comms/upload-image", methods=["POST"])
