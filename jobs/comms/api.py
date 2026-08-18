@@ -214,18 +214,11 @@ def list_sends():
         if not caller_row:
             return jsonify({"error": "forbidden"}), 403
 
-        if caller_row["role"] == "admin":
-            rows = conn.execute(
-                "SELECT * FROM book_launch_sends WHERE campaign_id=? AND source='comms_desk' "
-                "ORDER BY send_date",
-                (GENERAL_COMMS_CAMPAIGN_ID,),
-            ).fetchall()
-        else:
-            rows = conn.execute(
-                "SELECT * FROM book_launch_sends WHERE campaign_id=? AND source='comms_desk' "
-                "AND author_user_id=? ORDER BY send_date",
-                (GENERAL_COMMS_CAMPAIGN_ID, caller),
-            ).fetchall()
+        rows = conn.execute(
+            "SELECT * FROM book_launch_sends WHERE campaign_id=? AND source='comms_desk' "
+            "ORDER BY send_date",
+            (GENERAL_COMMS_CAMPAIGN_ID,),
+        ).fetchall()
 
         holds = {
             h["send_id"]: h for h in conn.execute(
