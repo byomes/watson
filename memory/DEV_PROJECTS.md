@@ -1,6 +1,6 @@
 # Watson Project Backlog
 _Auto-generated nightly from project_backlog. Source of truth is the database — do not hand-edit this file, changes will be overwritten._
-Last generated: 2026-08-17 02:10
+Last generated: 2026-08-18 02:10
 
 ## Planned (28)
 | ID | Title | Summary | Added |
@@ -37,6 +37,7 @@ Last generated: 2026-08-17 02:10
 ## Done (last 30 days)
 | ID | Title | Summary | Added |
 |---|---|---|---|
+| 36 | jobs/comms/api.py import collision pending (Kit->Brevo vs Comms Desk batch import) | Local main (unpushed) has 32d019d "Add local Brevo mirror" which deletes the brevo_contacts import lines in jobs/comms/api.py; PR #27 (merged) adds "from jobs.design import svg_generator" immediately after those same lines. | 2026-08-17 |
 | 35 | Backup subprocess ops now retry with backoff (shared core/retry.py) | Both backup legs (jobs/backup.py OneDrive/rclone, jobs/backup_local.py restic) now route every retry-eligible subprocess op through a shared core/retry.py:run_with_retry() helper — exponential backoff (5s->60s) up to a ~10 min real-elapsed-time budget — instead of failing on the first non-zero exit. | 2026-08-13 |
 | 30 | Adelphos Academy New Account Security Monitor — shipped | Priority 1 build (2026-07-31 to 2026-08-01), built ahead of the broader 7-job course-development queue (see item 16) because Adelphos was under active fraudulent-signup abuse. jobs/adelphos/security_monitor.py polls core_user_get_users every 5 min (crontab installed 2026-08-01) against the scoped watson_users Moodle service and alerts Bill via Telegram with Delete/Allow buttons. Delete is a two-tap confirm flow (jobs/adelphos/actions.py + bot.py handle_adelphos_callback) that fires core_user_delete_users — true deletion, not suspend, per Bill's explicit decision. First-run watermark-seeding fix prevents alerting on pre-existing accounts. Full live end-to-end test passed 2026-08-01: real test account created via core_user_create_users, alerted, deleted via two-tap Telegram flow, confirmed gone from Moodle. | 2026-08-01 |
 | 29 | FMSPC → Beelink key-based SSH not yet set up | Prerequisite for replacing generate.py's git push with direct scp/rsync transfer (bug #51 follow-up). Beelink has no ~/.ssh/authorized_keys at all -- no machine has passwordless key-based inbound SSH today; sshd defaults leave PasswordAuthentication enabled, so an FMSPC SSH attempt currently falls to an interactive password prompt. Needs a keypair generated on FMSPC and its public key installed on Beelink, then a non-interactive test (ssh ... echo ok) before jobs/generate.py can be changed to scp/rsync instead of git push. | 2026-07-28 |

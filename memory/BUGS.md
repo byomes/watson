@@ -1,6 +1,6 @@
 # Watson Bug Tracker
 _Auto-generated nightly from bug_tracker. Source of truth is the database — do not hand-edit this file, changes will be overwritten._
-Last generated: 2026-08-17 02:10
+Last generated: 2026-08-18 02:10
 
 ## Open (13)
 | ID | Title | Repo | Discovered |
@@ -22,6 +22,7 @@ Last generated: 2026-08-17 02:10
 ## Recently Resolved (last 30 days)
 | ID | Title | Repo | Resolved | Commit |
 |---|---|---|---|---|
+| 63 | Comms Desk Facebook posts never dispatched | watson | 2026-08-17 19:41:44 | cd04825 |
 | 62 | Curator ChatGPT import: verbatim-excerpt guarantee relied only on the LLM prompt | watson | 2026-08-08 21:18:52 | ef676d7 |
 | 61 | Curator ChatGPT import: hard extraction failure silently lost the pasted research text | watson | 2026-08-08 21:18:52 | 3245bef |
 | 60 | OneDrive backup: watson.db snapshot fails intermittently with SQLite 'database is locked' | watson | 2026-08-08 12:00:06 | 8996f873dd1e342cb5b4faed7f5d5eadd65cc205 |
@@ -41,13 +42,3 @@ Last generated: 2026-08-17 02:10
 | 43 | Curator ingest 500: dangling FK to books_old_ku_migration | watson | 2026-07-22 03:55:49 | 532b53d |
 | 42 | email_intake.py re-triages same unread message every poll cycle | watson | 2026-07-21 19:30:02 | dfac939 |
 | 41 | Missed-report reply mis-routed away from correction_handler.py | watson | 2026-07-20 12:54:55 | 09b41d2 |
-| 39 | Bug #35's original fix never fired against the live dashboard widget -- session_id is never sent | watson | 2026-07-18 15:34:53 | 63ad893 |
-| 37 | _stream_simple() now persists assistant replies to chat_messages -- closes bug #36 structurally | watson | 2026-07-18 14:35:07 | c748259 |
-| 36 | Dashboard contact-info lookup reply never persisted to chat_messages -- breaks pronoun resolution for that handler | watson | 2026-07-18 14:35:07 | c748259 |
-| 35 | Dashboard SMS flow sent literal bare pronoun ("that"/"it"/"this") instead of resolving prior context | watson | 2026-07-18 14:26:00 | bc1aca4 |
-| 34 | Dashboard chat "text that to me" resolved recipient to Andrea Venuto instead of Bill Yomes | watson | 2026-07-18 13:59:30 | 9709b2e |
-| 33 | reminder_create and task_create gated with YES/NO confirmation for consistency | watson | 2026-07-18 13:16:10 | b21970f |
-| 32 | task_done had no confirmation gate before a fuzzy LIKE match silently marked tasks done | watson | 2026-07-18 13:11:40 | 74df41c |
-| 31 | calendar_busy intent had no confirmation gate before writing to Google Calendar | watson | 2026-07-18 13:08:10 | f962909 |
-| 30 | Telegram classifier misrouted plain greetings ("Good morning Watson") to calendar_query instead of general chat | watson | 2026-07-18 08:40:00 | cf6a710 |
-| 29 | Telegram classify()/handle_text timeouts (10s/15s) structurally too short for classifier prompt prefill (up to 38.4s) on CPU host | watson | 2026-07-18 07:35:00 | bfdf569 |
