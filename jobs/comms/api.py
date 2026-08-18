@@ -363,7 +363,7 @@ def edit_send(send_id):
         send_row = conn.execute("SELECT * FROM book_launch_sends WHERE id=?", (send_id,)).fetchone()
         if not caller_row or not send_row or not _owns_or_admin(conn, caller_row, send_row):
             return jsonify({"error": "forbidden"}), 403
-        if send_row["status"] not in ("scheduled",):
+        if send_row["status"] not in ("scheduled", "edited"):
             return jsonify({"error": "cannot edit a send that is ready or sent"}), 400
 
         fields = {k: data[k] for k in
