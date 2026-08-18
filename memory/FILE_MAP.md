@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-08-17*
+*Generated: 2026-08-18*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -83,6 +83,11 @@ data/
       TWJ-Brevo-Automation-Handoff.md
       TWJ-Launch-Full-Copy-Weeks-1-8-CORRECTED.md
       TWJ-Launch-Outline-Weeks-1-8.md
+  comms_assets_cache/
+    49c0713f9ee642a78eb7f68686a6d1c7.png
+    665bb5cc33294aeb8d6b64b71e159375.png
+    66e0844b7fab4e0a8bb386db8504deac.png
+    9eca6f54ecff491dbed2470fd0b3d196.png
   congregation.db
   congregation.db.bak-20260712-200522
   congregation.db.bak-20260714-091212
@@ -100,6 +105,9 @@ data/
   curator.db.bak-20260721-223148
   donors.db
   exports/
+    kit_export_20260817-184426.json
+    kit_export_20260817-190511.json
+    kit_suppression_20260817-190509.json
     qr_1780863713.png
     qr_1780883260.png
     qr_1781037801.png
@@ -107,6 +115,8 @@ data/
     qr_1781039900.png
     qr_1781040379.png
     qr_1781042385.png
+    quote_1786996285.png
+    quote_1787025025.png
     twj_full_manuscript.md
   facebook_images/
     fb_14.jpg
@@ -284,6 +294,7 @@ jobs/
   campaigns/
     __init__.py
     book_launch_parser.py
+    brevo_contacts.py
     brevo_dispatcher.py
     campaign_routes.py
     dispatch.py
@@ -302,6 +313,7 @@ jobs/
   comms/
     __init__.py
     api.py
+    facebook_dispatch.py
     release_holds.py
     reset.py
     wordlist.txt
@@ -529,6 +541,11 @@ jobs/
   migrate/
     __init__.py
     twj_kv_to_db.py
+  migration/
+    __init__.py
+    brevo_import.py
+    kit_export.py
+    kit_tag_diff.py
   misc/
     __init__.py
     both_read_pdf.py
@@ -1178,6 +1195,7 @@ memory/
     telegram.md
   commands.json
   core.md
+  kit_brevo_audit.md
   model_benchmark_20260715.md
   projects/
     _index.md
