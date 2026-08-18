@@ -185,6 +185,14 @@ def _row_to_dict(row, hold=None):
     if hold:
         d["holdReleasesAt"] = hold["held_until"]
         d["holdId"] = hold["id"]
+    # image_url: image_path on the row is a local filesystem path (see
+    # _write_asset()'s local_path return) — not something the browser can
+    # load. Every Facebook image (manual upload or AI quote card) is written
+    # via _write_asset(..., "facebook", ...), so the filename alone is enough
+    # to rebuild the durable comms-assets raw URL for display in Comms Desk's
+    # live post preview.
+    if d.get("image_path"):
+        d["image_url"] = f"{_ASSETS_RAW_BASE}/facebook/{Path(d['image_path']).name}"
     return d
 
 
