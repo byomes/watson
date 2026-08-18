@@ -10,6 +10,12 @@ send_brevo_row() — the same function the dashboard/Telegram "Approve All"
 path uses for already-due rows, so there is exactly one Brevo-sending code
 path in this system, not two.
 
+Comms Desk rows (source='comms_desk') also need admin_approved_at set —
+excluded from this query's WHERE clause purely so this sweep doesn't keep
+re-polling rows that are still pending that approval; send_brevo_row() itself
+independently re-checks this regardless (see its docstring), so this filter
+is an efficiency/log-noise optimization, not the actual safety gate.
+
 send_time (added for Comms Desk's date+time picker) is nullable local
 'HH:MM' — NULL preserves the original date-only behavior (due as soon as
 send_date arrives) for every pre-existing/non-Comms-Desk row. Comparisons use
@@ -26,6 +32,7 @@ def run() -> int:
         due = conn.execute(
             "SELECT * FROM book_launch_sends "
             "WHERE platform='brevo' AND status='approved' "
+            "AND (source != 'comms_desk' OR admin_approved_at IS NOT NULL) "
             "AND (send_date < date('now','localtime') "
             "     OR (send_date = date('now','localtime') "
             "         AND (send_time IS NULL OR send_time <= time('now','localtime'))))"

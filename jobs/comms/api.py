@@ -363,7 +363,12 @@ def edit_send(send_id):
         send_row = conn.execute("SELECT * FROM book_launch_sends WHERE id=?", (send_id,)).fetchone()
         if not caller_row or not send_row or not _owns_or_admin(conn, caller_row, send_row):
             return jsonify({"error": "forbidden"}), 403
-        if send_row["status"] not in ("scheduled", "edited"):
+        editable = send_row["status"] in ("scheduled", "edited") or (
+            send_row["platform"] == "brevo"
+            and send_row["status"] == "approved"
+            and not send_row["admin_approved_at"]
+        )
+        if not editable:
             return jsonify({"error": "cannot edit a send that is ready or sent"}), 400
 
         fields = {k: data[k] for k in
@@ -392,7 +397,13 @@ def mark_ready(send_id):
     """Path A (future send_date): flips straight to status='approved' — the
     existing 15-min sweeps pick it up whenever it's due. Path B (send now):
     stays 'scheduled', creates a comms_holds row with a 12-min undo window;
-    jobs/comms/release_holds.py flips it to 'approved' once the hold expires."""
+    jobs/comms/release_holds.py flips it to 'approved' once the hold expires.
+
+    Brevo rows skip Path B entirely regardless of send_now: an email always
+    still needs a separate admin approval (see /approve-send and
+    send_brevo_row()'s admin_approved_at gate) before it can actually go out,
+    so the 12-minute undo hold's urgency doesn't apply — there's no way for
+    an email to fire without that extra click either way."""
     data = request.get_json(force=True) or {}
     conn = get_db()
     try:
@@ -401,7 +412,7 @@ def mark_ready(send_id):
         if not caller_row or not send_row or not _owns_or_admin(conn, caller_row, send_row):
             return jsonify({"error": "forbidden"}), 403
 
-        send_now = bool(data.get("send_now"))
+        send_now = bool(data.get("send_now")) and send_row["platform"] != "brevo"
         if send_now:
             # Clear any previously-chosen send_time too — "send now" means now,
             # not whatever time-of-day was picked for a since-abandoned schedule.
@@ -419,6 +430,37 @@ def mark_ready(send_id):
         conn.execute("UPDATE book_launch_sends SET status='approved' WHERE id=?", (send_id,))
         conn.commit()
         return jsonify({"status": "approved"})
+    finally:
+        conn.close()
+
+
+@comms_bp.route("/api/comms/sends/<int:send_id>/approve-send", methods=["POST"])
+@_require_key
+def approve_send(send_id):
+    """Admin-only extra gate for Comms Desk emails, separate from whoever
+    marked the row 'ready'. Sets admin_approved_at, which
+    jobs/campaigns/dispatch.py:send_brevo_row() requires (for
+    source='comms_desk' rows) before it will actually call Brevo — see
+    schema.py's admin_approved_at comment. Facebook rows don't use this at
+    all; they're unaffected and still fire straight off 'approved'/holds."""
+    data = request.get_json(force=True) or {}
+    conn = get_db()
+    try:
+        caller_row = _user(conn, data.get("as_user_id"))
+        if not caller_row or caller_row["role"] != "admin":
+            return jsonify({"error": "forbidden"}), 403
+
+        send_row = conn.execute("SELECT * FROM book_launch_sends WHERE id=?", (send_id,)).fetchone()
+        if not send_row or send_row["platform"] != "brevo":
+            return jsonify({"error": "not an email send"}), 400
+        if send_row["status"] != "approved" or send_row["admin_approved_at"]:
+            return jsonify({"error": "not pending approval"}), 400
+
+        conn.execute(
+            "UPDATE book_launch_sends SET admin_approved_at=datetime('now') WHERE id=?", (send_id,)
+        )
+        conn.commit()
+        return jsonify({"status": "approved_for_send"})
     finally:
         conn.close()
 

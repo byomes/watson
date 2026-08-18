@@ -244,8 +244,27 @@ def send_brevo_row(conn, row, dry_run: bool = False) -> dict:
     dry_run=True (or a campaign_id that isn't a real active campaign, checked
     unconditionally below) never calls send_email() and never touches
     donors.db/arc_readers — it only reports what would have been sent, and
-    leaves the book_launch_sends row untouched."""
+    leaves the book_launch_sends row untouched.
+
+    Comms Desk email rows (source='comms_desk') carry one more independent
+    gate: admin_approved_at must be set (via jobs/comms/api.py's admin-only
+    /approve-send route) regardless of dry_run or status='approved' — a
+    volunteer marking a row 'ready' is not enough on its own. This check
+    lives here, not in any one caller, for the same reason
+    _is_real_active_campaign() does: every path that can trigger a real send
+    (the periodic brevo_dispatcher.py sweep, the dashboard/Telegram "Approve
+    All" flow) goes through this function, so gating it here is the only way
+    to make the rule unconditional. Temporary — meant to come out once
+    Watson's Comms Desk pipeline has earned trust; book-launch campaign rows
+    (source != 'comms_desk') are untouched by this and keep sending on
+    'approved' alone."""
     real_dry_run = dry_run or not _is_real_active_campaign(conn, row["campaign_id"])
+
+    if row.get("source") == "comms_desk" and not row.get("admin_approved_at"):
+        log.info(
+            "Blocked send_id=%s: Comms Desk email awaiting admin approval", row["id"],
+        )
+        return {"dry_run": False, "blocked": "pending_admin_approval", "send_id": row["id"]}
 
     recipient_mode = row.get("recipient_mode") or "segment"
     if recipient_mode == "segment":

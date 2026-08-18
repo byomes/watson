@@ -98,6 +98,18 @@ def create_tables(conn=None) -> None:
         if "needs_image" not in cols:
             conn.execute("ALTER TABLE book_launch_sends ADD COLUMN needs_image INTEGER DEFAULT 0")
 
+        # admin_approved_at: temporary extra safety gate for Comms Desk email
+        # (platform='brevo', source='comms_desk') rows only — set only via
+        # jobs/comms/api.py's admin-only /approve-send route. Kaci/a volunteer
+        # marking a row 'ready' (status='approved') is no longer sufficient on
+        # its own to make an email eligible for the real Brevo send; see the
+        # gate in jobs/campaigns/dispatch.py:send_brevo_row(). Meant to be
+        # removed later once Watson's Comms Desk pipeline has earned trust —
+        # book-launch campaign Brevo rows (source != 'comms_desk') are
+        # unaffected and keep sending on 'approved' alone, same as always.
+        if "admin_approved_at" not in cols:
+            conn.execute("ALTER TABLE book_launch_sends ADD COLUMN admin_approved_at TEXT")
+
         conn.commit()
     finally:
         if owns_conn:
