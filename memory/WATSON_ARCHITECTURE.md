@@ -2169,3 +2169,14 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - b656645 docs: Kit → Brevo migration audit (Phase 1)
 - c125ba6 Point Comms Desk reset link at comms.williamckyomes.com
 - af0afc3 docs: architecture update 2026-08-17
+
+---
+
+## Recent Changes — 2026-08-19
+
+### ~/watson
+- aa15175 docs: bugs/backlog export 2026-08-19
+- 86e2ebb docs: file map 2026-08-19
+- 8155a64 Show all Comms Desk sends to every user, not just the author
+- a38baa0 Fix broken Comms Desk image preview: serve from Watson, not private GitHub repo
+- 8670c0d docs: architecture update 2026-08-18
