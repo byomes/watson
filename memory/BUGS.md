@@ -1,6 +1,6 @@
 # Watson Bug Tracker
 _Auto-generated nightly from bug_tracker. Source of truth is the database — do not hand-edit this file, changes will be overwritten._
-Last generated: 2026-08-19 02:10
+Last generated: 2026-08-20 02:10
 
 ## Open (13)
 | ID | Title | Repo | Discovered |
@@ -41,4 +41,3 @@ Last generated: 2026-08-19 02:10
 | 11 | Gutendex API (gutendex.com) now returns 403 via Cloudflare bot challenge to plain requests calls — jobs/research/gutenberg.py search()/download_and_ingest() both broken until a browser-like User-Agent or Cloudflare bypass is added; affects Telegram and Dashboard equally, dashboard routing itself verified working with mocked data | watson | 2026-07-22 15:30:00 | e505d95 |
 | 43 | Curator ingest 500: dangling FK to books_old_ku_migration | watson | 2026-07-22 03:55:49 | 532b53d |
 | 42 | email_intake.py re-triages same unread message every poll cycle | watson | 2026-07-21 19:30:02 | dfac939 |
-| 41 | Missed-report reply mis-routed away from correction_handler.py | watson | 2026-07-20 12:54:55 | 09b41d2 |
