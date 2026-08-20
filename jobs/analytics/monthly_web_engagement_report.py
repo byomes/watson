@@ -24,7 +24,17 @@ Report sections:
      totalUsers/newUsers/averageSessionDuration/eventCount for the same
      month, explicitly labeled as two different sources. No attempt to
      explain or resolve a mismatch — both numbers are just shown.
-  5. Known-oddity flags carried forward, not hidden: any TBD/unparseable
+  5. Interpretation & Recommendations — an Ollama (qwen2.5:7b) synthesis
+     grounded in this month's sections 1-4 above, a 6-month trailing trend
+     across all three sources (jobs/analytics/trailing_trends.py — "trend"
+     language requires 3+ consecutive months in the same direction),
+     church_events for the report month, and
+     memory/projects/web_engagement_benchmarks.md for peer-benchmark
+     context. Never resolves the section-4 reconciliation mismatch — flags
+     it, same as section 4 itself. Structured under three fixed sub-headers
+     (Growing Visitors & Connect Cards / Social Reach / Email Engagement)
+     so no one channel dominates just because it swung the most this month.
+  6. Known-oddity flags carried forward, not hidden: any TBD/unparseable
      Sheet cells for the month (is_flagged=1 rows), and any top page whose
      bounceRate is unusually high relative to this report's other top pages
      (device-level bounceRate is the only bounceRate GA4 gives us — flagged
@@ -53,11 +63,12 @@ import sys
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
+import requests
 from dotenv import load_dotenv
 
 from jobs.connect_cards.reports import _CSS
 from jobs.email_job.brevo_send import send_email
-from jobs.analytics import sheet_import, ga4_import, connect_card_rollup
+from jobs.analytics import sheet_import, ga4_import, connect_card_rollup, trailing_trends
 from core.database import get_connection
 
 load_dotenv(os.path.expanduser("~/watson/.env"))
@@ -71,6 +82,11 @@ log = logging.getLogger(__name__)
 
 NY = ZoneInfo("America/New_York")
 BILL_EMAIL = os.getenv("BILL_EMAIL", "")
+
+WEB_BENCHMARKS_DOC = os.path.expanduser("~/watson/memory/projects/web_engagement_benchmarks.md")
+INTERP_OLLAMA_URL = "http://localhost:11434/api/generate"
+INTERP_OLLAMA_MODEL = "qwen2.5:7b"
+INTERP_OLLAMA_TIMEOUT = 240
 
 # Sections/labels shown in report section 1 (everything the sheet parses
 # except Top Page Views, which gets its own layout).
@@ -442,6 +458,145 @@ def _reconciliation_html(conn, year: int, month: int) -> str:
     return html
 
 
+# ── Interpretation & Recommendations (Ollama synthesis) ──────────────────────
+
+def _load_web_benchmarks_doc() -> str:
+    try:
+        with open(WEB_BENCHMARKS_DOC, "r", encoding="utf-8") as f:
+            return f.read()
+    except Exception as exc:
+        log.warning("web_engagement_benchmarks.md unavailable: %s", exc)
+        return ""
+
+
+def _strip_html(html: str) -> str:
+    text = re.sub(r"<[^>]+>", " ", html)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def _events_for_month(conn, year: int, month: int) -> list[dict]:
+    """church_events (watson.db) with any date inside the report month —
+    same table/query shape as state_of_church.py's _special_events(), just
+    windowed to the report month instead of the past 14 days."""
+    start, end = _month_bounds(year, month)
+    rows = conn.execute(
+        """
+        SELECT event_name, start_date, end_date, attendance_notes
+        FROM church_events
+        WHERE start_date BETWEEN ? AND ?
+           OR (end_date IS NOT NULL AND end_date BETWEEN ? AND ?)
+        ORDER BY start_date
+        """,
+        (start, end, start, end),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def _events_text(events: list[dict]) -> str:
+    if not events:
+        return "none"
+    parts = []
+    for e in events:
+        date_range = e["start_date"]
+        if e["end_date"] and e["end_date"] != e["start_date"]:
+            date_range = f"{e['start_date']} to {e['end_date']}"
+        note = (e["attendance_notes"] or "").strip()
+        parts.append(f"{e['event_name']} ({date_range})" + (f" — {note}" if note else ""))
+    return "; ".join(parts)
+
+
+def _ollama_interpretation(
+    month_label: str,
+    sheet_text: str,
+    ga4_text: str,
+    connect_text: str,
+    reconciliation_text: str,
+    oddities_text: str,
+    trailing_text: str,
+    events_text: str,
+    benchmarks_context: str,
+) -> str | None:
+    prompt = (
+        "You are Watson, AI assistant to Dr. Bill Yomes, Senior Pastor of Catalyst Community "
+        "Church. Write the 'Interpretation & Recommendations' section for the monthly web/digital "
+        f"engagement report for {month_label}, following these rules exactly:\n\n"
+        "a. Only use 'trend' or similar language about a metric if the 6-MONTH TRAILING DATA below "
+        "shows 3 or more consecutive months moving in the same direction for that metric. A single "
+        "month's move is noise — say so plainly if that's the case, do not call it a trend.\n"
+        "b. The RECONCILIATION data below shows two different numbers for the same concept from two "
+        "different sources (a hand-copied Sheet and a live GA4 pull). Never resolve, average, or pick "
+        "a winner between them — if they disagree, flag it as worth checking with whoever maintains "
+        "the Sheet, and move on. Do not state which one is 'correct'.\n"
+        "c. Every recommendation must cite a specific number, page, or channel from THIS MONTH'S DATA "
+        "below — no generic advice like 'post more' or 'engage your audience' without a number "
+        "behind it.\n"
+        "d. If a spike or dip in this month's data lines up with an entry in CHURCH EVENTS THIS "
+        "MONTH below, lead your interpretation with that connection before any other analysis.\n"
+        "e. Reference context — digital/church-communications benchmarks (use only to judge whether "
+        "this month's numbers are normal or notable relative to peer congregations, never quote it "
+        "verbatim):\n"
+        f"{benchmarks_context or '(no benchmark research logged yet — proceed without it)'}\n\n"
+        "Structure your response under exactly these three headers, in this order, and no others — "
+        "put every recommendation inside the relevant one of these three sections, never in a "
+        "separate 'Recommendations' section or a fourth header. Each section needs at least one "
+        "paragraph of interpretation AND at least one concrete, numbered recommendation. This is "
+        "deliberate so no single channel dominates just because it had the biggest swing this "
+        "month:\n"
+        "### Growing Visitors & Connect Cards\n"
+        "### Social Reach\n"
+        "### Email Engagement\n\n"
+        f"CHURCH EVENTS THIS MONTH: {events_text}\n\n"
+        f"6-MONTH TRAILING DATA:\n{trailing_text}\n\n"
+        f"THIS MONTH'S SHEET METRICS:\n{sheet_text}\n\n"
+        f"THIS MONTH'S GA4 DATA:\n{ga4_text}\n\n"
+        f"THIS MONTH'S CONNECT CARDS:\n{connect_text}\n\n"
+        f"RECONCILIATION (Sheet vs GA4, do not resolve):\n{reconciliation_text}\n\n"
+        f"KNOWN ODDITIES / FLAGGED CAVEATS:\n{oddities_text}\n\n"
+        "You must respond in English only. Do not use any other language. Begin writing now:"
+    )
+    try:
+        resp = requests.post(
+            INTERP_OLLAMA_URL,
+            json={"model": INTERP_OLLAMA_MODEL, "prompt": prompt, "stream": False},
+            timeout=INTERP_OLLAMA_TIMEOUT,
+        )
+        resp.raise_for_status()
+        return resp.json().get("response", "").strip() or None
+    except Exception as exc:
+        log.warning("Ollama interpretation synthesis failed: %s", exc)
+        return None
+
+
+def _render_interpretation_html(text: str) -> str:
+    """Lightweight markdown-lite renderer: '#'-prefixed lines become the
+    three required sub-headers, blank-line-separated text becomes
+    paragraphs. Avoids requiring a strict output format from Ollama."""
+    html_parts = []
+    para_buf: list[str] = []
+
+    def flush():
+        if para_buf:
+            html_parts.append(
+                f'<p style="margin:0 0 10px">{" ".join(para_buf)}</p>'
+            )
+            para_buf.clear()
+
+    for line in text.strip().split("\n"):
+        stripped = line.strip()
+        if not stripped:
+            flush()
+            continue
+        header_match = re.match(r"^#{1,3}\s*(.+)$", stripped)
+        if header_match:
+            flush()
+            html_parts.append(f"<h3 style='margin:14px 0 4px;font-size:.95em'>{header_match.group(1)}</h3>")
+            continue
+        para_buf.append(stripped)
+    flush()
+
+    return "".join(html_parts)
+
+
 # ── Section 5: Known oddities ─────────────────────────────────────────────────
 
 def _oddities_html(conn, year: int, month: int, top_pages: list[dict]) -> str:
@@ -483,8 +638,27 @@ def build_report(year: int, month: int) -> tuple[str, str]:
         connect_html = _connect_card_section_html(conn, year, month)
         reconciliation_html = _reconciliation_html(conn, year, month)
         oddities_html = _oddities_html(conn, year, month, top_pages)
+
+        events = _events_for_month(conn, year, month)
+        trend = trailing_trends.build_trailing_trend(conn, year, month)
     finally:
         conn.close()
+
+    interpretation = _ollama_interpretation(
+        month_label=month_label,
+        sheet_text=_strip_html(sheet_html),
+        ga4_text=_strip_html(ga4_html),
+        connect_text=_strip_html(connect_html),
+        reconciliation_text=_strip_html(reconciliation_html),
+        oddities_text=_strip_html(oddities_html),
+        trailing_text=trailing_trends.trailing_trend_summary_text(trend),
+        events_text=_events_text(events),
+        benchmarks_context=_load_web_benchmarks_doc(),
+    )
+    interpretation_html = (
+        _render_interpretation_html(interpretation) if interpretation
+        else "<p class='empty'>Interpretation unavailable — Ollama did not respond in time.</p>"
+    )
 
     subject = f"Watson — Monthly Web Engagement Report | {month_label}"
 
@@ -492,6 +666,7 @@ def build_report(year: int, month: int) -> tuple[str, str]:
     body += "<h2>GA4 Web Trend</h2>" + ga4_html
     body += "<h2>Connect Cards</h2>" + connect_html
     body += "<h2>Reconciliation — Sheet vs. GA4</h2>" + reconciliation_html
+    body += "<h2>Interpretation & Recommendations</h2>" + interpretation_html
     body += "<h2>Known Oddities</h2>" + oddities_html
 
     return subject, _wrap("Monthly Web Engagement Report", month_label, body)
