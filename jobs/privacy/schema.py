@@ -108,13 +108,20 @@ _SEED_BROKERS = [
         opt_out_target="https://www.whitepages.com/suppression-requests",
         form_selectors=json.dumps({
             "url_field": "#suppression-requests-person-url",
-            "note": "Step 1 of 5 wizard — steps 2-5 selectors not captured, form shape doesn't fit remove.py's single fill+submit assumption.",
+            "note": "Step 1 of 5 field only — see notes column, this is not a multi-step-support gap, it's a cannot-verify-without-a-real-submission gap.",
         }),
         active=0,
-        notes=("BLOCKING DECISION -> defaulted inactive (2026-08-20 Phase 2). Real opt-out is a 5-step "
-               "wizard, not a single form — remove.py's _submit_form() only fills "
-               "fields then clicks one submit button. Needs multi-step submission "
-               "support before activating. No CAPTCHA seen on step 1."),
+        notes=("BLOCKING DECISION -> defaulted inactive, re-investigated 2026-08-20 (project_backlog "
+               "id=38, feature/privacy-guard-wizard). Worse than a plain multi-step gap: static analysis "
+               "of Whitepages' own loaded JS bundles (never executed, read-only) shows the VERY FIRST "
+               "Next click (step 1->2) already fires a real backend GET (/api/person/details), and step "
+               "2->3 actually CREATES the removal request server-side (POST /api/suppression-requests, "
+               "returns a real requestId). Step 4->5 places a real outbound verification phone call. "
+               "There is no harmless exploration path through this wizard at all — the point of no "
+               "return is the first click, not a late final-submit button. Same category as Spokeo "
+               "(project_backlog id=37): cannot verify a genuine success signal without creating a real "
+               "request. _submit_wizard() (jobs/privacy/remove.py) exists but this broker was "
+               "deliberately NOT configured with it — see that function's docstring for why."),
     ),
     dict(
         name="BeenVerified",
@@ -159,18 +166,39 @@ _SEED_BROKERS = [
         opt_out_method="form",
         opt_out_target="https://radaris.com/control-privacy",
         form_selectors=json.dumps({
-            "name_field": "#topsearch", "city_state_field": "#name_city_state",
-            "url_field": "#url-input", "url_step_submit": "button.get-url-btn",
-            "email_field": "#user_email", "submit_button": "button.btn-sbmt",
-            "note": "13-step wizard, all steps present in page HTML at once (JS "
-                    "shows/hides) — selectors read from source without stepping "
-                    "through the UI.",
+            "_reference_only_not_wired_to_submit_wizard": True,
+            "step1_intro_next": "div.js-funnel-next-btn",
+            "step4_name_field": "#topsearch", "step4_city_state_field": "#name_city_state",
+            "step4_url_field": "#url-input",
+            "step4_url_submit_REAL_BACKEND_CALL": "button.get-url-btn",
+            "step5_confirm_next": "css not captured — 'Start Removing' div, pure client-side per source read",
+            "step13_email_field": "#user_email",
+            "step13_submit_REAL_BACKEND_CALL_recaptcha_gated": "button.btn-sbmt",
+            "step14_success_signal": "sendData()'s onload handler writes a real request_id + track_url "
+                                      "from the JSON response into #step_14 .tracking — a genuine, "
+                                      "verifiable completion signal, confirmed by reading source, not guessed",
+            "note": "CORRECTED 2026-08-20 (project_backlog id=38): only 6 real steps (1,4,5,13,14,15) — "
+                    "the JS STEPS object has keys 1-15 but 2,3,6-12 are commented-out dead code. Step 4's "
+                    "profile-URL path (get-url-btn) and step 13's submit both make real backend POSTs "
+                    "(/ng/control/a.check_url and /ng/control/a.remove_request respectively) — confirmed "
+                    "by reading their handler source directly, neither was ever clicked. Not wired into "
+                    "_submit_wizard()'s 'steps' schema: the branching at step 4 (name-search vs "
+                    "profile-URL, two different backend endpoints) and the fact that step 4's own advance "
+                    "is itself a real submission don't fit that function's linear "
+                    "fill->next(safe)->...->submit(checked) model — see its docstring.",
         }),
         active=0,
-        notes=("BLOCKING DECISION -> defaulted inactive (2026-08-20 Phase 2). 13-step wizard, far beyond "
-               "remove.py's single fill+submit model. reCAPTCHA also gates the final "
-               "(13th) step's submission specifically, alongside the step-count "
-               "mismatch. Selectors saved for a future multi-step handler."),
+        notes=("BLOCKING DECISION -> defaulted inactive, re-investigated 2026-08-20 (project_backlog "
+               "id=38, feature/privacy-guard-wizard). CORRECTED from the original Phase 2 read: this is "
+               "NOT a 13-step wizard — only 6 steps are live (1,4,5,13,14,15), the rest is dead JS. "
+               "Fully mapped now via reading client-side source directly (zero real-flow clicks needed) "
+               "— including a genuine, verifiable success signal at step 14 (a real request_id + "
+               "track_url written from the server's JSON response, not static text). This broker is "
+               "blocked purely by the reCAPTCHA gating step 13's final submit — the spec's explicit v1 "
+               "CAPTCHA exclusion rule, same reason as MyLife/Nuwber — NOT a cannot-verify-success gap "
+               "like Whitepages/Spokeo/PeopleConnect. If the reCAPTCHA is ever handled some other way "
+               "(a semi-manual path per the spec's own suggestion), the selectors and success check "
+               "above are already known and verified."),
     ),
     dict(
         name="Intelius",
@@ -186,13 +214,15 @@ _SEED_BROKERS = [
                     "fields was not reached.",
         }),
         active=0,
-        notes=("BLOCKING DECISION -> defaulted inactive (2026-08-20 Phase 2). Real flow is multi-step: "
-               "submit email -> confirm via emailed link -> further fields on a "
-               "later page not yet captured. Doesn't fit remove.py's single-step "
-               "model. Shared PeopleConnect infrastructure with TruthFinder and "
-               "USSearch (see those rows) — a single multi-step PeopleConnect "
-               "handler would unlock all three at once, worth prioritizing as a "
-               "fast-follow."),
+        notes=("BLOCKING DECISION -> defaulted inactive, re-investigated 2026-08-20 (project_backlog "
+               "id=38, feature/privacy-guard-wizard). Re-confirmed directly from the page's own static "
+               "copy (no submission needed): \"Upon submission of your email address you will receive a "
+               "verification email with a link to proceed.\" Step 1's submit already sends a real email — "
+               "there is no way to safely explore step 2+ or determine a genuine success signal without "
+               "triggering that send. Same category as Whitepages/Spokeo: cannot verify without a real "
+               "submission, not a plain multi-step-support gap. Shared PeopleConnect infrastructure with "
+               "TruthFinder and USSearch (see those rows) — this same blocker applies to all three "
+               "identically."),
     ),
     dict(
         name="PeopleFinders",
@@ -224,12 +254,13 @@ _SEED_BROKERS = [
                     "only; further steps not reached.",
         }),
         active=0,
-        notes=("BLOCKING DECISION -> defaulted inactive (2026-08-20 Phase 2). Same multi-step "
-               "PeopleConnect suppression flow as Intelius/USSearch — see "
-               "Intelius's notes. privacy@truthfinder.com exists but is documented "
-               "as a separate 'User Data Rights/CCPA' channel, not confirmed "
-               "equivalent to a public-listing removal request, so not used as an "
-               "email-method substitute."),
+        notes=("BLOCKING DECISION -> defaulted inactive, re-investigated 2026-08-20 (project_backlog "
+               "id=38). Same PeopleConnect suppression flow as Intelius — step 1's email submit already "
+               "sends a real verification email (re-confirmed directly from the page's own copy, not "
+               "guessed), so step 2+ and any genuine success signal are unreachable without triggering "
+               "that. See Intelius's notes for the full finding. privacy@truthfinder.com exists but is "
+               "documented as a separate 'User Data Rights/CCPA' channel, not confirmed equivalent to a "
+               "public-listing removal request, so not used as an email-method substitute."),
     ),
     dict(
         name="USSearch",
@@ -244,12 +275,13 @@ _SEED_BROKERS = [
                     "only; further steps not reached.",
         }),
         active=0,
-        notes=("BLOCKING DECISION -> defaulted inactive (2026-08-20 Phase 2). Same multi-step "
-               "PeopleConnect suppression flow as Intelius/TruthFinder — see "
-               "Intelius's notes. privacy@ussearch.com exists but is documented as "
-               "a separate 'User Data Rights/CCPA' channel, not confirmed "
-               "equivalent to a public-listing removal request, so not used as an "
-               "email-method substitute."),
+        notes=("BLOCKING DECISION -> defaulted inactive, re-investigated 2026-08-20 (project_backlog "
+               "id=38). Same PeopleConnect suppression flow as Intelius — step 1's email submit already "
+               "sends a real verification email (re-confirmed directly from the page's own copy, not "
+               "guessed), so step 2+ and any genuine success signal are unreachable without triggering "
+               "that. See Intelius's notes for the full finding. privacy@ussearch.com exists but is "
+               "documented as a separate 'User Data Rights/CCPA' channel, not confirmed equivalent to a "
+               "public-listing removal request, so not used as an email-method substitute."),
     ),
     dict(
         name="Nuwber",
