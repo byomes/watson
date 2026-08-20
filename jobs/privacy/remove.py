@@ -260,6 +260,20 @@ async def _submit_wizard(removal: dict, dry_run: bool = False):
     buttons were confirmed to be pure client-side step transitions, not a
     real backend call, before this code was allowed to click them).
 
+    HARD PRECONDITION before configuring ANY broker with a "steps" list
+    (project_backlog id=38 — Whitepages and Radaris both real-world-proved
+    this the hard way): this function assumes every non-final next_button
+    click is a safe, pure-client-side transition. That assumption is NOT
+    universal — Whitepages' very first "Next" already creates a real
+    server-side removal request, and Radaris has a real backend POST at an
+    intermediate step (not the final one). Verify EVERY step's advance
+    action individually (network-monitor the click, or read the button's
+    JS handler source directly, per the recon approach in project_backlog
+    id=38) before adding it here — checking only the final submit_button is
+    not enough. A broker whose steps branch (different backend endpoints
+    depending on user input, e.g. Radaris' step 4) doesn't fit this
+    function's linear model at all; don't force it in.
+
     Non-dry-run return: (ok: bool, error: str | None) — same shape as
     _submit_form. Dry-run return: dict, always with "ok" and "dry_run": True.
     """
