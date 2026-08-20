@@ -360,6 +360,9 @@ app.register_blueprint(comms_bp)
 from jobs.email_activity.api import email_activity_bp
 app.register_blueprint(email_activity_bp)
 
+from jobs.privacy.dashboard_api import privacy_guard_bp
+app.register_blueprint(privacy_guard_bp)
+
 from jobs.kb.api import kb_bp
 app.register_blueprint(kb_bp)
 
