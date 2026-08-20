@@ -112,6 +112,110 @@ def run_holdout_test(strategy_id: int) -> dict:
     }
 
 
+def strategies_above_win_rate(threshold_pct: float = 80.0) -> list[int]:
+    """Strategy IDs whose training-data win_rate cleared threshold_pct,
+    ranked best-first by win_rate. Used to select candidates for
+    run_holdout_batch()."""
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            """SELECT s.id FROM strategies s JOIN backtest_runs b ON b.strategy_id = s.id
+               WHERE b.window_label = 'training' AND b.win_rate > ?
+               ORDER BY b.win_rate DESC""",
+            (threshold_pct,),
+        ).fetchall()
+        return [r["id"] for r in rows]
+    finally:
+        conn.close()
+
+
+def run_holdout_batch(strategy_ids: list[int]) -> list[dict]:
+    """Run the one-shot sealed holdout test for each id in strategy_ids.
+    Already-tested ids are skipped (not an error — keeps this safely
+    re-runnable over a list that might include a mix of new and
+    previously-tested strategies). Each individual strategy is still only
+    ever holdout-tested once, same guarantee as run_holdout_test()."""
+    results = []
+    for sid in strategy_ids:
+        if already_holdout_tested(sid):
+            continue
+        results.append(run_holdout_test(sid))
+    return results
+
+
+def format_holdout_batch_report(results: list[dict]) -> str:
+    """Rank strategies by holdout performance: passed first, then by how
+    many windows beaten, then by average return across the 3 windows as a
+    tiebreak. NOTE: ranking many candidates by holdout result and reporting
+    the "best" is weaker evidence of real edge than a single pre-registered
+    candidate passing would be — running N candidates through a fixed
+    holdout set and picking the top is a mild form of the same multiple-
+    comparisons/data-snooping bias the ingested KB material warns about for
+    training-data overfitting, just applied to the holdout set instead.
+    Each strategy is still only tested once (the seal itself isn't
+    violated), but "best of N" should be read with that caveat in mind."""
+    def _avg_return(r):
+        return sum(m["return_pct"] for m in r["window_results"].values()) / len(r["window_results"])
+
+    ranked = sorted(
+        results,
+        key=lambda r: (r["overall_pass"], r["windows_beaten"], _avg_return(r)),
+        reverse=True,
+    )
+
+    passed = [r for r in ranked if r["overall_pass"]]
+    lines = [
+        f"Holdout batch complete: {len(results)} strategies tested, {len(passed)} PASSED.",
+        "",
+        f"Caveat: this ranks {len(results)} candidates against the same sealed data — the "
+        f"top result is weaker evidence of real edge than a single pre-registered test "
+        f"would be (multiple-comparisons bias, same class QuantStart's backtesting-"
+        f"pitfalls KB article warns about for training data).",
+        "",
+        "Ranked (best first):",
+    ]
+    for r in ranked[:20]:
+        strategy = _get_strategy(r["strategy_id"])
+        label = TEMPLATES[strategy["family"]]["label"]
+        verdict = "PASS" if r["overall_pass"] else "fail"
+        lines.append(
+            f"  #{r['strategy_id']} [{verdict}] {label} {strategy['params_json']} — "
+            f"beat {r['windows_beaten']}/3, avg return {_avg_return(r):.3f}%, "
+            f"outright loss: {r['any_outright_loss']}"
+        )
+    if len(ranked) > 20:
+        lines.append(f"  ...and {len(ranked) - 20} more — see trading.db for the full list.")
+    return "\n".join(lines)
+
+
+def propose_holdout_batch(strategy_ids: list[int], chat_id: int | None = None) -> str:
+    """Single approval covering the whole holdout batch — mirrors
+    iteration_loop.propose_batch()'s one-approval-per-batch design, for the
+    same reason (no per-item pending row to cascade off)."""
+    import jobs.gcal.pending as pending_module
+
+    untested = [sid for sid in strategy_ids if not already_holdout_tested(sid)]
+    if not untested:
+        return "All of those strategies have already been holdout-tested."
+
+    chat_id = chat_id or TELEGRAM_CHAT_ID
+    existing = pending_module.get_pending(chat_id)
+    if existing:
+        return (
+            f"A previous action (#{existing['id']}, {existing['action_type']}) is still "
+            f"awaiting your YES/NO — reply to that first."
+        )
+
+    pending_module.save_pending(
+        chat_id, "trading_holdout_batch_approve", {"strategy_ids": untested}, None,
+    )
+    return (
+        f"Ready to run the sealed holdout test against {len(untested)} strategies "
+        f"(one shot each, permanent either way) and produce one ranked report.\n\n"
+        f"Reply YES to run it, or NO to hold off."
+    )
+
+
 def format_holdout_result(result: dict) -> str:
     lines = [f"Holdout evaluation — strategy #{result['strategy_id']}"]
     for name, m in result["window_results"].items():
