@@ -663,6 +663,63 @@ async def handle_campaign_callback(update, context):
     )
 
 
+async def handle_privacy_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """priv_approve:<id> / priv_skip:<id> — Privacy Guard match resolution.
+
+    Actual broker contact never runs inside this process — same Playwright
+    isolation rule as everywhere else in jobs/browser/ (see
+    browser_service.py's module docstring). Approve marks the row
+    'approved' immediately (fast DB write, safe in-process) then dispatches
+    jobs/privacy/remove.py as its own subprocess via Popen, same
+    non-blocking pattern as jobs/dev_loop/trigger.py. That subprocess sends
+    its own follow-up Telegram message with the final submitted/failed
+    result once it finishes."""
+    import subprocess
+    query = update.callback_query
+    await query.answer()
+
+    if not _is_authorized(update):
+        return
+
+    data = query.data or ""
+    action, _, id_str = data.partition(":")
+    try:
+        removal_id = int(id_str)
+    except ValueError:
+        return
+
+    if action == "priv_skip":
+        from jobs.privacy.remove import skip_removal
+        result = await asyncio.to_thread(skip_removal, removal_id)
+        note = "⏭ Skipped" if result.get("ok") else "⚠️ Could not skip (already resolved?)"
+        await query.edit_message_text(text=f"{query.message.text}\n\n{note}", reply_markup=None)
+        return
+
+    if action != "priv_approve":
+        return
+
+    conn = get_connection()
+    try:
+        conn.execute(
+            "UPDATE privacy_removals SET status='approved' WHERE id=? AND status='pending'",
+            (removal_id,),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    await query.edit_message_text(
+        text=f"{query.message.text}\n\n⏳ Submitting removal request…",
+        reply_markup=None,
+    )
+
+    venv_python = os.path.expanduser("~/watson/venv/bin/python")
+    script = os.path.expanduser("~/watson/jobs/privacy/remove.py")
+    log_path = os.path.expanduser("~/watson/logs/privacy_remove.log")
+    with open(log_path, "a") as lf:
+        subprocess.Popen([venv_python, script, "--removal-id", str(removal_id)], stdout=lf, stderr=lf)
+
+
 # Worst-case stack inside this window (bug #29, all measured on this
 # CPU-only host): skill router's own 8s timeout, then classify()'s 55s
 # timeout, then a real shot at the general-chat fallback (measured up to
@@ -4304,6 +4361,7 @@ def main():
     # Specific prefix, registered ahead of any future broader "^camp" wildcard
     # (see fb_img_ vs fb_ above — a wildcard registered first would swallow this).
     app.add_handler(CallbackQueryHandler(handle_campaign_callback, pattern=r"^camp_approve:"))
+    app.add_handler(CallbackQueryHandler(handle_privacy_callback, pattern=r"^priv_(approve|skip):"))
     app.add_handler(CallbackQueryHandler(handle_email_triage_callback, pattern=r"^et_"))
     app.add_handler(CallbackQueryHandler(handle_carrier_callback, pattern=r"^carrier_"))
     app.add_handler(CallbackQueryHandler(handle_email_callback, pattern=r"^email_"))
