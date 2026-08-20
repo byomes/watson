@@ -74,17 +74,46 @@ def _mark_failed(removal_id: int, reason: str) -> None:
         conn.close()
 
 
-async def _submit_form(removal: dict) -> tuple[bool, str | None]:
+# Hostnames reCAPTCHA/Turnstile-style challenges load resources from —
+# used only by the dry-run diagnostic below to notice a challenge firing
+# without needing to parse the DOM for it.
+_CHALLENGE_HOST_HINTS = ("google.com/recaptcha", "recaptcha.net", "gstatic.com/recaptcha")
+
+
+async def _submit_form(removal: dict, dry_run: bool = False):
+    """Navigates and fills the opt-out form exactly as a real submission
+    would. dry_run=True stops before the final page.click(submit_button)
+    and instead returns a diagnostics dict (reCAPTCHA iframe/token
+    presence, any recaptcha-related network requests, console messages,
+    a screenshot) — used only to manually assess a broker's reCAPTCHA
+    behavior before deciding whether to activate it. Real submissions
+    (submit_removal without dry_run) never take this branch.
+
+    Non-dry-run return: (ok: bool, error: str | None) — unchanged shape.
+    Dry-run return: dict, always with "ok" and "dry_run": True.
+    """
     selectors = json.loads(removal["form_selectors"] or "{}")
     submit_button = selectors.get("submit_button")
     if not removal["opt_out_target"] or not submit_button:
-        return False, "broker not fully verified (missing opt_out_target/submit_button selector)"
+        msg = "broker not fully verified (missing opt_out_target/submit_button selector)"
+        return {"ok": False, "dry_run": True, "error": msg} if dry_run else (False, msg)
 
     LOG_DIR.mkdir(parents=True, exist_ok=True)
+    challenge_requests = []
+    console_messages = []
+
     async with get_page() as page:
+        if dry_run:
+            page.on("request", lambda req: (
+                challenge_requests.append(req.url)
+                if any(h in req.url for h in _CHALLENGE_HOST_HINTS) else None
+            ))
+            page.on("console", lambda msg: console_messages.append(f"{msg.type}: {msg.text}"))
+
         ok = await goto_safe(page, removal["opt_out_target"], wait_until="networkidle")
         if not ok:
-            return False, "could not load opt-out page (robots.txt disallow or navigation failure)"
+            msg = "could not load opt-out page (robots.txt disallow or navigation failure)"
+            return {"ok": False, "dry_run": True, "error": msg} if dry_run else (False, msg)
         try:
             # Only the field shapes actually confirmed common across these
             # brokers' opt-out forms during Phase 2 verification are handled
@@ -97,6 +126,28 @@ async def _submit_form(removal: dict) -> tuple[bool, str | None]:
                 await page.fill(selectors["url_field"], removal["matched_url"] or "")
             if selectors.get("email_field"):
                 await page.fill(selectors["email_field"], os.getenv("WATSON_GMAIL_ADDRESS", ""))
+
+            if dry_run:
+                # Give any async challenge JS (invisible reCAPTCHA fires on
+                # a timer/interaction, not necessarily on page load) a beat
+                # to run before inspecting DOM state — never clicks submit.
+                await page.wait_for_timeout(1500)
+                iframe = await page.query_selector("iframe[src*='recaptcha']")
+                token_el = await page.query_selector("#g-recaptcha-response")
+                token_value = await token_el.input_value() if token_el else None
+                shot_path = LOG_DIR / f"dryrun-{removal['id']}-{datetime.now():%Y%m%d%H%M%S}.png"
+                await page.screenshot(path=str(shot_path), full_page=True)
+                return {
+                    "ok": True,
+                    "dry_run": True,
+                    "recaptcha_iframe_present": iframe is not None,
+                    "recaptcha_token_present": bool(token_value),
+                    "recaptcha_token_length": len(token_value) if token_value else 0,
+                    "challenge_network_requests": challenge_requests,
+                    "console_messages": console_messages[-20:],
+                    "screenshot": str(shot_path),
+                }
+
             await page.click(submit_button)
             await page.wait_for_timeout(2000)
         except Exception as exc:
@@ -106,14 +157,24 @@ async def _submit_form(removal: dict) -> tuple[bool, str | None]:
             except Exception:
                 pass
             log_browser_failure("privacy.remove form submit", removal["opt_out_target"], exc)
-            return False, f"form submission failed (screenshot: {shot_path})"
+            msg = f"form submission failed (screenshot: {shot_path})"
+            return {"ok": False, "dry_run": True, "error": msg} if dry_run else (False, msg)
     return True, None
 
 
-def submit_removal(removal_id: int) -> dict:
+def submit_removal(removal_id: int, dry_run: bool = False) -> dict:
     removal = _load_removal(removal_id)
     if not removal:
         return {"ok": False, "error": "removal not found"}
+
+    if dry_run:
+        # Diagnostic-only path: never checks/changes status, never sends
+        # Telegram — used to inspect a broker's reCAPTCHA behavior before
+        # deciding (at review, not here) whether to activate it.
+        if removal["opt_out_method"] != "form":
+            return {"ok": False, "error": "dry_run only applies to opt_out_method='form'"}
+        return asyncio.run(_submit_form(removal, dry_run=True))
+
     if removal["status"] not in ("pending", "approved", "failed"):
         return {"ok": False, "error": f"removal already {removal['status']}"}
 
@@ -168,5 +229,10 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     parser = argparse.ArgumentParser(description="Submit one Privacy Guard removal request.")
     parser.add_argument("--removal-id", type=int, required=True)
+    parser.add_argument(
+        "--dry-run", action="store_true",
+        help="form brokers only: fill the form but stop before clicking submit; "
+             "report reCAPTCHA/challenge signals instead. Never touches DB status.",
+    )
     args = parser.parse_args()
-    print(submit_removal(args.removal_id))
+    print(submit_removal(args.removal_id, dry_run=args.dry_run))
