@@ -2419,9 +2419,34 @@ async def _execute_pending(update: Update, context: ContextTypes.DEFAULT_TYPE, p
 
     if action_type not in (
         "block_time", "book_appointment", "calendar_busy", "task_done",
-        "reminder_create", "task_create",
+        "reminder_create", "task_create", "trading_variant_approve",
+        "trading_holdout_test_approve",
     ):
         await update.message.reply_text("I don't know how to execute that action.")
+        return
+
+    if action_type == "trading_variant_approve":
+        family = params["family"]
+        try:
+            pending_module.confirm_pending(pending_id)
+            from jobs.trading.iteration_loop import propose_and_run_next
+            reply = propose_and_run_next(family, chat_id=update.effective_chat.id)
+            await update.message.reply_text(reply)
+        except Exception as exc:
+            log.error("Trading variant advance failed: %s", exc)
+            await update.message.reply_text(f"Error advancing trading iteration: {exc}")
+        return
+
+    if action_type == "trading_holdout_test_approve":
+        strategy_id = params["strategy_id"]
+        try:
+            pending_module.confirm_pending(pending_id)
+            from jobs.trading.evaluate import run_holdout_test, format_holdout_result
+            result = run_holdout_test(strategy_id)
+            await update.message.reply_text(format_holdout_result(result))
+        except Exception as exc:
+            log.error("Trading holdout test failed: %s", exc)
+            await update.message.reply_text(f"Error running holdout test: {exc}")
         return
 
     if action_type == "reminder_create":
