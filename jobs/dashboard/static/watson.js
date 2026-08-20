@@ -1473,6 +1473,10 @@ function renderMore() {
         <span class="mtile-label">Email Activity</span>
         <span class="mtile-chev">›</span>
       </button>
+      <button class="mtile" id="mtile-privacy-guard" onclick="moreToggle('privacy-guard')">
+        <span class="mtile-label">Privacy Guard</span>
+        <span class="mtile-chev">›</span>
+      </button>
     </div>
     <div id="more-expand-area">
       <div class="msec-body" id="msec-body-skills">
@@ -1514,6 +1518,9 @@ function renderMore() {
       </div>
       <div class="msec-body" id="msec-body-email-activity">
         <div class="msec-inner" id="msec-inner-email-activity"></div>
+      </div>
+      <div class="msec-body" id="msec-body-privacy-guard">
+        <div class="msec-inner" id="msec-inner-privacy-guard"></div>
       </div>
       <div class="msec-body" id="msec-body-covercomps">
         <div class="msec-inner" id="msec-inner-covercomps"></div>
@@ -1597,6 +1604,7 @@ function moreToggle(sec) {
     if (sec === 'leadmagnet') moreLoadLeadMagnet();
     if (sec === 'links')    moreLoadLinks();
     if (sec === 'email-activity') moreLoadEmailActivity();
+    if (sec === 'privacy-guard') moreLoadPrivacyGuard();
     if (sec === 'covercomps') coverCompsLoad();
   }
 }
@@ -3575,6 +3583,86 @@ function _eaRenderTable() {
           <td>${esc(r.subject)}</td>
           <td>${_EA_FAILURE_EVENTS.includes(r.event) ? `<span style="color:var(--red)">${esc(r.event)}</span>` : esc(r.event)}</td>
           <td>${esc(r.reason)}</td>
+        </tr>`).join('')}
+    </table></div>`;
+}
+
+// ── Privacy Guard (read-only log — approve/skip stays Telegram-only) ────────
+
+const _PG_STATUSES = ['pending', 'approved', 'submitted', 'failed', 'rejected'];
+let _pgAllRows = [];
+let _pgStatus  = '';  // '' = all
+
+async function moreLoadPrivacyGuard() {
+  const el = document.getElementById('msec-inner-privacy-guard');
+  if (!el) return;
+  el.innerHTML = '<div class="loading">Loading&hellip;</div>';
+  _pgRenderShell();
+  await _pgFetch();
+}
+
+function _pgRenderShell() {
+  const el = document.getElementById('msec-inner-privacy-guard');
+  if (!el) return;
+  const selStyle = 'padding:7px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:12px;outline:none';
+  el.innerHTML = `
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+      <select id="mpg-status" style="${selStyle}" onchange="_pgOnStatusChange(this.value)">
+        <option value=""${_pgStatus===''?' selected':''}>All statuses</option>
+        ${_PG_STATUSES.map(s => `<option value="${s}"${_pgStatus===s?' selected':''}>${s[0].toUpperCase()}${s.slice(1)}</option>`).join('')}
+      </select>
+    </div>
+    <div id="mpg-table-wrap"><div class="loading">Loading&hellip;</div></div>`;
+}
+
+function _pgOnStatusChange(v) {
+  _pgStatus = v;
+  _pgRenderTable();
+}
+
+async function _pgFetch() {
+  const wrap = document.getElementById('mpg-table-wrap');
+  if (wrap) wrap.innerHTML = '<div class="loading">Loading&hellip;</div>';
+  try {
+    const rows = await api('/api/privacy-removals');
+    _pgAllRows = Array.isArray(rows) ? rows : [];
+    _pgRenderTable();
+  } catch (e) {
+    if (!wrap) return;
+    wrap.innerHTML = String(e.message).startsWith('401')
+      ? '<div class="empty">Log into <a href="/admin/login" style="color:var(--gold)">/admin</a> to view Privacy Guard.</div>'
+      : '<div class="empty">Could not load Privacy Guard log.</div>';
+  }
+}
+
+const _PG_STATUS_COLOR = { failed: 'var(--red)', rejected: 'var(--muted)', submitted: 'var(--gold)' };
+
+function _pgRenderTable() {
+  const wrap = document.getElementById('mpg-table-wrap');
+  if (!wrap) return;
+  const rows = _pgStatus ? _pgAllRows.filter(r => r.status === _pgStatus) : _pgAllRows;
+  if (!rows.length) {
+    wrap.innerHTML = '<div class="empty">No Privacy Guard matches yet.</div>';
+    return;
+  }
+  wrap.innerHTML = `
+    <div class="mshep-wrap"><table class="mshep-table">
+      <tr><th>Found</th><th>Person</th><th>Broker</th><th>Status</th><th>Confidence</th><th>Matched URL</th><th>Submitted</th><th>Next Rescan</th></tr>
+      ${rows.map(r => `
+        <tr>
+          <td style="white-space:nowrap">${esc(fmtGenerated(r.created_at))}</td>
+          <td>${esc(r.person_name)}</td>
+          <td>${esc(r.broker_name)}</td>
+          <td>
+            <span style="${_PG_STATUS_COLOR[r.status] ? `color:${_PG_STATUS_COLOR[r.status]}` : ''}">${esc(r.status)}</span>
+            ${r.status === 'failed' && r.failure_reason ? `<div style="color:var(--muted);font-size:11px">${esc(r.failure_reason)}</div>` : ''}
+          </td>
+          <td>${r.confidence_score != null ? Math.round(r.confidence_score * 100) + '%' : ''}</td>
+          <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+            ${r.matched_url ? `<a href="${esc(r.matched_url)}" target="_blank" rel="noopener noreferrer" style="color:var(--gold)">${esc(r.matched_url)}</a>` : ''}
+          </td>
+          <td style="white-space:nowrap">${esc(fmtGenerated(r.submitted_at))}</td>
+          <td style="white-space:nowrap">${esc(fmtGenerated(r.next_rescan_at))}</td>
         </tr>`).join('')}
     </table></div>`;
 }
