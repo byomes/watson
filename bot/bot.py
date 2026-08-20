@@ -2421,8 +2421,24 @@ async def _execute_pending(update: Update, context: ContextTypes.DEFAULT_TYPE, p
         "block_time", "book_appointment", "calendar_busy", "task_done",
         "reminder_create", "task_create", "trading_variant_approve",
         "trading_holdout_test_approve", "trading_batch_approve",
+        "trading_holdout_batch_approve",
     ):
         await update.message.reply_text("I don't know how to execute that action.")
+        return
+
+    if action_type == "trading_holdout_batch_approve":
+        strategy_ids = params["strategy_ids"]
+        try:
+            # Same atomic-claim + no-mid-flight-pending-row reasoning as
+            # trading_batch_approve below.
+            if not pending_module.confirm_pending(pending_id):
+                return
+            from jobs.trading.evaluate import run_holdout_batch, format_holdout_batch_report
+            results = await asyncio.to_thread(run_holdout_batch, strategy_ids)
+            await update.message.reply_text(format_holdout_batch_report(results))
+        except Exception as exc:
+            log.error("Trading holdout batch failed: %s", exc)
+            await update.message.reply_text(f"Error running holdout batch: {exc}")
         return
 
     if action_type == "trading_batch_approve":
