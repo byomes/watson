@@ -41,6 +41,12 @@ KIT_API_KEY = os.getenv("KIT_API_KEY")
 # to fetch the webfonts catalog for the Cover Comp Idea Generator's "Suggest Fonts" action.
 GOOGLE_FONTS_API_KEY = os.getenv("GOOGLE_FONTS_API_KEY")
 
+# Alpaca — paper trading only, see jobs/trading/alpaca_client.py for the hard
+# paper-only guard. Never used to place real-money orders.
+ALPACA_API_KEY_ID = os.getenv("ALPACA_API_KEY_ID")
+ALPACA_SECRET_KEY = os.getenv("ALPACA_SECRET_KEY")
+ALPACA_BASE_URL   = os.getenv("ALPACA_BASE_URL", "https://paper-api.alpaca.markets")
+
 # Briefing schedule
 BRIEFING_HOUR   = int(os.getenv("BRIEFING_HOUR",   "6"))
 
