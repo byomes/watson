@@ -68,6 +68,15 @@ TEMPLATES = {
         "grid": (
             [{"fast": f, "slow": s} for f in (10, 20) for s in (30, 50, 100)]
             + [{"fast": f, "slow": s} for f in (5, 15, 25, 30) for s in (40, 60, 70, 80, 90, 110, 120, 130, 140, 150)]
+            # Round 2: fresh fast values (never used above) crossed with a
+            # wider slow range, filtered to fast < slow so the crossover
+            # semantics stay meaningful.
+            + [
+                {"fast": f, "slow": s}
+                for f in (35, 40, 45, 55, 60)
+                for s in (70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 180, 200, 220, 250, 280)
+                if f < s
+            ]
         ),
     },
     "mean_reversion": {
@@ -76,6 +85,12 @@ TEMPLATES = {
         "grid": (
             [{"period": p, "devfactor": d} for p in (10, 20, 30) for d in (1.5, 2.0, 2.5)]
             + [{"period": p, "devfactor": d} for p in (15, 25, 40, 50) for d in (1.0, 1.25, 1.75, 2.25, 2.75, 3.0)]
+            # Round 2: fresh period values (never used above), any devfactor.
+            + [
+                {"period": p, "devfactor": d}
+                for p in (12, 18, 22, 28, 35, 45, 60, 70, 80)
+                for d in (1.0, 1.5, 2.0, 2.5, 3.0, 3.5)
+            ]
         ),
     },
     "momentum": {
@@ -84,6 +99,9 @@ TEMPLATES = {
         "grid": (
             [{"period": p} for p in (30, 60, 90, 120)]
             + [{"period": p} for p in (10, 20, 40, 50, 70, 80, 100, 110, 140, 150, 160, 180, 200, 220, 250)]
+            # Round 2: fresh period values (the "5 mod 10" gaps left by the
+            # two segments above, which only used multiples of 10).
+            + [{"period": p} for p in (15, 25, 35, 45, 55, 65, 75, 85, 95, 105, 115, 125, 135, 145, 155, 165, 175, 185, 195, 205)]
         ),
     },
 }
