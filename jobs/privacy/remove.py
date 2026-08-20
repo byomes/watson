@@ -11,6 +11,11 @@ no in-process await from bot.py, this module sends its own follow-up
 Telegram result message once submission finishes.
 
 CLI: python -m jobs.privacy.remove --removal-id N
+
+KNOWN GAP (project_backlog id=37): _submit_form()'s
+success path is "the click didn't throw", not a verified confirmation signal —
+see the comment at the return statement below for what that means in practice
+and why it wasn't fixed by just adding a text check.
 """
 import argparse
 import asyncio
@@ -159,6 +164,21 @@ async def _submit_form(removal: dict, dry_run: bool = False):
             log_browser_failure("privacy.remove form submit", removal["opt_out_target"], exc)
             msg = f"form submission failed (screenshot: {shot_path})"
             return {"ok": False, "dry_run": True, "error": msg} if dry_run else (False, msg)
+    # KNOWN GAP, deliberately not fixed this pass (project_backlog id=37): this
+    # only means the click() call didn't throw — no on-page confirmation
+    # text/state/redirect is checked. For Spokeo specifically, checked live
+    # 2026-08-20: the opt-out page's own copy states completion requires
+    # clicking a link in a follow-up confirmation EMAIL ("To complete this
+    # process, we will send you a confirmation email. Please click the link
+    # in the email.") — i.e. the real flow is two steps (form submit + email
+    # link click) even though it renders as one page. Nothing in this module
+    # watches for that email or clicks that link, so even a correct on-page
+    # acknowledgment check here would only ever confirm step 1 ("request
+    # received"), never that a listing was actually removed. Fixing this
+    # properly means wiring an email-confirmation step (Watson already has
+    # Gmail polling infra in jobs/email_intake.py / jobs/email_reply/) before
+    # status='submitted' can be trusted at face value for any broker shaped
+    # like this — not just a missing text-match on this return statement.
     return True, None
 
 

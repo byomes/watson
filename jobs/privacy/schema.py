@@ -85,13 +85,21 @@ _SEED_BROKERS = [
             "email_field": "input[name='email']",
             "submit_button": "form[name='optout-form'] button[type='submit']",
         }),
-        active=1,
-        notes=("Verified live 2026-08-20 (Phase 2). Single-step form (profile URL + email, sends confirmation link). "
-               "An invisible reCAPTCHA key is present in page config but did not "
-               "block loading/inspecting the form — not confirmed whether it blocks "
-               "automated submission. Watch the first real submission's outcome "
-               "(Telegram result message / failure screenshot) before trusting this "
-               "broker fully. Alt contact: privacy@spokeo.com."),
+        active=0,
+        notes=("BLOCKING DECISION -> defaulted inactive (2026-08-20, second pass). Verified live "
+               "(Phase 2): single-page form (profile URL + email). An invisible reCAPTCHA key is "
+               "present but did not block loading/inspecting the form — a dry-run fill-without-submit "
+               "test (goto_safe + fill, stop before click) found real reCAPTCHA v2 challenge "
+               "infrastructure loads on field interaction, no token auto-generated while idle; "
+               "inconclusive either way on what happens at the actual click (see "
+               "jobs/privacy/remove.py's dry_run mode). Separately, and more fundamentally: this "
+               "page's own copy says completion requires clicking a link in a follow-up "
+               "confirmation EMAIL ('To complete this process, we will send you a confirmation "
+               "email. Please click the link in the email.') — so it's really a two-step flow, not "
+               "single-step, and remove.py's success check ('the click didn't throw') can't verify "
+               "real completion either way. See project_backlog id=37 and the comment at "
+               "_submit_form()'s success return in remove.py. Kept inactive pending that decision — "
+               "not a rejection of Spokeo, a paused one. Alt contact: privacy@spokeo.com."),
     ),
     dict(
         name="Whitepages",
