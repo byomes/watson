@@ -5,6 +5,12 @@ from config.settings import DB_PATH
 def get_connection():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
+    # 30s busy timeout (default is 5s) — a long-running job that holds a
+    # write transaction open across slow I/O (e.g. jobs/privacy/scan.py's
+    # network fetches between commits) shouldn't make every other
+    # concurrent writer (e.g. bug_tracker failure logging) fail instantly
+    # with "database is locked" (bug_tracker: Privacy Guard scan locking).
+    conn.execute("PRAGMA busy_timeout = 30000")
     return conn
 
 

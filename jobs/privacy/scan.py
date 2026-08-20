@@ -2,8 +2,7 @@
 family_profiles on active privacy_brokers, and rescan brokers where a prior
 removal was submitted to see if the listing has come back.
 
-Cron: 30 5 * * 1 (Monday, ahead of campus_classifier.py at 45 5 * * 1 — see
-WATSON_ARCHITECTURE.md). On-demand: `python -m jobs.privacy.scan`.
+Cron: 30 5 * * * (nightly). On-demand: `python -m jobs.privacy.scan`.
 
 Never submits anything to a broker — this job is read-only. Actual removal
 submission only ever happens through jobs/privacy/remove.py, gated by a
@@ -160,7 +159,12 @@ async def _new_match_pass(conn) -> list[int]:
                 )
                 if cur.rowcount:
                     new_ids.append(conn.execute("SELECT last_insert_rowid()").fetchone()[0])
-    conn.commit()
+            # Commit after each broker attempt rather than once at the end of
+            # the whole run — this loop awaits a real network fetch per
+            # iteration, so leaving a write transaction open across all of
+            # them held a lock for the entire multi-minute run and starved
+            # every other writer (bug_tracker: Privacy Guard scan locking).
+            conn.commit()
 
     if attempts and failures == attempts:
         send_telegram(
@@ -182,6 +186,11 @@ async def _rescan_pass(conn) -> list[int]:
            WHERE r.status='submitted' AND r.next_rescan_at <= datetime('now')"""
     ).fetchall()
 
+    # Commit after every row (including the early-continue branches below)
+    # rather than once at the end — each iteration awaits a real network
+    # fetch, so leaving one write transaction open across the whole pass
+    # held a lock for the entire run and starved every other writer
+    # (bug_tracker: Privacy Guard scan locking).
     for row in due:
         row = dict(row)
         if not row["broker_active"]:
@@ -191,6 +200,7 @@ async def _rescan_pass(conn) -> list[int]:
                 "UPDATE privacy_removals SET next_rescan_at=datetime('now','+7 days') WHERE id=?",
                 (row["id"],),
             )
+            conn.commit()
             continue
 
         person = {"name": row["person_name"], "cities": row["person_cities"], "birth_year": row["person_birth_year"]}
@@ -222,7 +232,10 @@ async def _rescan_pass(conn) -> list[int]:
             )
             if cur.rowcount:
                 new_ids.append(conn.execute("SELECT last_insert_rowid()").fetchone()[0])
-    conn.commit()
+        # Same reasoning as _new_match_pass: commit per row, not once at the
+        # end, so this loop's per-row network fetch doesn't hold a write
+        # lock across the whole rescan pass.
+        conn.commit()
     return new_ids
 
 
