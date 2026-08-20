@@ -56,20 +56,34 @@ class MomentumStrategy(bt.Strategy):
             self.close()
 
 
+# Grids intentionally start with the original small combinations (already
+# tested live) as a prefix, with more combinations appended after — grid
+# indexing in iteration_loop.propose_next_variant() is positional
+# (grid[count of existing strategies rows for this family]), so extending a
+# grid must never reorder or remove earlier entries, only append.
 TEMPLATES = {
     "ma_crossover": {
         "cls": MACrossoverStrategy,
         "label": "MA crossover",
-        "grid": [{"fast": f, "slow": s} for f in (10, 20) for s in (30, 50, 100)],
+        "grid": (
+            [{"fast": f, "slow": s} for f in (10, 20) for s in (30, 50, 100)]
+            + [{"fast": f, "slow": s} for f in (5, 15, 25, 30) for s in (40, 60, 70, 80, 90, 110, 120, 130, 140, 150)]
+        ),
     },
     "mean_reversion": {
         "cls": MeanReversionStrategy,
         "label": "Mean reversion (Bollinger)",
-        "grid": [{"period": p, "devfactor": d} for p in (10, 20, 30) for d in (1.5, 2.0, 2.5)],
+        "grid": (
+            [{"period": p, "devfactor": d} for p in (10, 20, 30) for d in (1.5, 2.0, 2.5)]
+            + [{"period": p, "devfactor": d} for p in (15, 25, 40, 50) for d in (1.0, 1.25, 1.75, 2.25, 2.75, 3.0)]
+        ),
     },
     "momentum": {
         "cls": MomentumStrategy,
         "label": "Momentum (rate of change)",
-        "grid": [{"period": p} for p in (30, 60, 90, 120)],
+        "grid": (
+            [{"period": p} for p in (30, 60, 90, 120)]
+            + [{"period": p} for p in (10, 20, 40, 50, 70, 80, 100, 110, 140, 150, 160, 180, 200, 220, 250)]
+        ),
     },
 }

@@ -2420,9 +2420,31 @@ async def _execute_pending(update: Update, context: ContextTypes.DEFAULT_TYPE, p
     if action_type not in (
         "block_time", "book_appointment", "calendar_busy", "task_done",
         "reminder_create", "task_create", "trading_variant_approve",
-        "trading_holdout_test_approve",
+        "trading_holdout_test_approve", "trading_batch_approve",
     ):
         await update.message.reply_text("I don't know how to execute that action.")
+        return
+
+    if action_type == "trading_batch_approve":
+        n = params["n"]
+        try:
+            # Same atomic-claim reasoning as trading_variant_approve below —
+            # but unlike single-variant mode, batch mode never creates a new
+            # pending_actions row mid-flight (the whole batch is one call),
+            # so there's no freshly-minted row for a redundant routing-layer
+            # re-entry to latch onto even if one occurs. This is why batch
+            # mode should not be able to reproduce single-variant mode's
+            # duplicate-advance bug, though the bug's exact trigger in
+            # bot.py's overlapping routing layers is still not fully
+            # root-caused — worth real investigation if this resurfaces.
+            if not pending_module.confirm_pending(pending_id):
+                return
+            from jobs.trading.iteration_loop import run_batch_and_report
+            reply = await asyncio.to_thread(run_batch_and_report, n)
+            await update.message.reply_text(reply)
+        except Exception as exc:
+            log.error("Trading batch run failed: %s", exc)
+            await update.message.reply_text(f"Error running trading batch: {exc}")
         return
 
     if action_type == "trading_variant_approve":
