@@ -2430,7 +2430,14 @@ async def _execute_pending(update: Update, context: ContextTypes.DEFAULT_TYPE, p
         try:
             pending_module.confirm_pending(pending_id)
             from jobs.trading.iteration_loop import propose_and_run_next
-            reply = propose_and_run_next(family, chat_id=update.effective_chat.id)
+            # Backtesting runs real (if fast) CPU work synchronously — must not
+            # block the event loop, same rule as the Ollama-async convention
+            # elsewhere in this file. A blocked loop delays getUpdates long
+            # enough to trigger a Telegram long-poll timeout/retry, which
+            # re-delivers the same YES and silently re-triggers this branch —
+            # confirmed live (bug: walked an entire 6-variant grid off one
+            # YES reply before this fix).
+            reply = await asyncio.to_thread(propose_and_run_next, family, chat_id=update.effective_chat.id)
             await update.message.reply_text(reply)
         except Exception as exc:
             log.error("Trading variant advance failed: %s", exc)
@@ -2442,7 +2449,9 @@ async def _execute_pending(update: Update, context: ContextTypes.DEFAULT_TYPE, p
         try:
             pending_module.confirm_pending(pending_id)
             from jobs.trading.evaluate import run_holdout_test, format_holdout_result
-            result = run_holdout_test(strategy_id)
+            # Same event-loop-blocking risk as trading_variant_approve above —
+            # this runs 3 real backtests (one per holdout window) synchronously.
+            result = await asyncio.to_thread(run_holdout_test, strategy_id)
             await update.message.reply_text(format_holdout_result(result))
         except Exception as exc:
             log.error("Trading holdout test failed: %s", exc)
