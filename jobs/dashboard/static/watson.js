@@ -3589,7 +3589,7 @@ function _eaRenderTable() {
 
 // ── Privacy Guard (read-only log — approve/skip stays Telegram-only) ────────
 
-const _PG_STATUSES = ['pending', 'approved', 'submitted', 'failed', 'rejected'];
+const _PG_STATUSES = ['pending', 'approved', 'submitted', 'unconfirmed', 'failed', 'rejected'];
 let _pgAllRows = [];
 let _pgStatus  = '';  // '' = all
 
@@ -3635,7 +3635,11 @@ async function _pgFetch() {
   }
 }
 
-const _PG_STATUS_COLOR = { failed: 'var(--red)', rejected: 'var(--muted)', submitted: 'var(--gold)' };
+const _PG_STATUS_COLOR = { failed: 'var(--red)', rejected: 'var(--muted)', submitted: 'var(--gold)', unconfirmed: 'var(--warn)' };
+// unconfirmed = the opt-out click succeeded but this broker gives no way to
+// verify real completion (see remove.py's _mark_unconfirmed) — never render
+// it identically to a genuinely verified 'submitted' removal.
+const _PG_UNCONFIRMED_NOTE = 'Unconfirmed: submit click succeeded, but this broker has no verifiable success signal.';
 
 function _pgRenderTable() {
   const wrap = document.getElementById('mpg-table-wrap');
@@ -3654,8 +3658,9 @@ function _pgRenderTable() {
           <td>${esc(r.person_name)}</td>
           <td>${esc(r.broker_name)}</td>
           <td>
-            <span style="${_PG_STATUS_COLOR[r.status] ? `color:${_PG_STATUS_COLOR[r.status]}` : ''}">${esc(r.status)}</span>
+            <span style="${_PG_STATUS_COLOR[r.status] ? `color:${_PG_STATUS_COLOR[r.status]}` : ''}">${r.status === 'unconfirmed' ? '⚠ unconfirmed' : esc(r.status)}</span>
             ${r.status === 'failed' && r.failure_reason ? `<div style="color:var(--muted);font-size:11px">${esc(r.failure_reason)}</div>` : ''}
+            ${r.status === 'unconfirmed' ? `<div style="color:var(--warn);font-size:11px">${esc(_PG_UNCONFIRMED_NOTE)}</div>` : ''}
           </td>
           <td>${r.confidence_score != null ? Math.round(r.confidence_score * 100) + '%' : ''}</td>
           <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">

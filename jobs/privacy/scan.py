@@ -179,7 +179,7 @@ async def _rescan_pass(conn) -> list[int]:
            FROM privacy_removals r
            JOIN family_profiles p ON p.id = r.person_id
            JOIN privacy_brokers b ON b.id = r.broker_id
-           WHERE r.status='submitted' AND r.next_rescan_at <= datetime('now')"""
+           WHERE r.status IN ('submitted','unconfirmed') AND r.next_rescan_at <= datetime('now')"""
     ).fetchall()
 
     for row in due:
@@ -207,7 +207,7 @@ async def _rescan_pass(conn) -> list[int]:
         best_listing, best_score = max(scored, key=lambda t: t[1], default=(None, 0.0))
 
         if best_score < MATCH_CONFIDENCE_THRESHOLD:
-            # Still gone — leave status='submitted', push the next check out.
+            # Still gone — leave status as-is (submitted or unconfirmed), push the next check out.
             conn.execute(
                 "UPDATE privacy_removals SET next_rescan_at=datetime('now','+7 days') WHERE id=?",
                 (row["id"],),
