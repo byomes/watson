@@ -33,7 +33,17 @@ def run_backtest(strategy_cls, params: dict, data_df, symbol: str = "SPY",
     if data_df is None or len(data_df) < 2:
         raise ValueError("data_df must have at least 2 rows to backtest")
 
-    cerebro = bt.Cerebro()
+    # runonce=False (event-driven, not vectorized): default runonce=True
+    # pre-sizes internal indicator arrays based on total data length, which
+    # throws a raw "array assignment index out of range" IndexError whenever
+    # an indicator's period exceeds the window's bar count — a real case
+    # once holdout windows as short as 62 bars (crash_2020) meet large
+    # lookback periods from the expanded grids. runonce=False just never
+    # lets the indicator warm up (strategy correctly takes no positions for
+    # that window) instead of crashing. Confirmed identical output for a
+    # combo that already ran successfully under the default before this
+    # change (mean_reversion period=22/devfactor=2.0 across all 3 windows).
+    cerebro = bt.Cerebro(runonce=False)
     cerebro.addstrategy(strategy_cls, **(params or {}))
 
     feed = bt.feeds.PandasData(dataname=data_df)

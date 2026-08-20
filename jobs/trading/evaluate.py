@@ -13,6 +13,7 @@ Pass bar: beats SPY buy-and-hold on >= 2 of the 3 sealed windows, AND no
 window shows an outright loss.
 """
 import json
+import logging
 
 from config.settings import TELEGRAM_CHAT_ID
 from jobs.trading.backtest import run_backtest
@@ -20,6 +21,8 @@ from jobs.trading.data import holdout_data
 from jobs.trading.db import get_connection
 from jobs.trading.holdout import HOLDOUT_WINDOWS
 from jobs.trading.strategies.templates import TEMPLATES
+
+log = logging.getLogger(__name__)
 
 
 def _get_strategy(strategy_id: int) -> dict:
@@ -134,12 +137,24 @@ def run_holdout_batch(strategy_ids: list[int]) -> list[dict]:
     Already-tested ids are skipped (not an error — keeps this safely
     re-runnable over a list that might include a mix of new and
     previously-tested strategies). Each individual strategy is still only
-    ever holdout-tested once, same guarantee as run_holdout_test()."""
+    ever holdout-tested once, same guarantee as run_holdout_test().
+
+    Each strategy's test is independently wrapped — one bad combo (e.g. a
+    backtest engine error) is recorded and skipped rather than aborting the
+    rest of the batch and losing every result computed so far. Confirmed
+    live this matters: a large-period ma_crossover combo against the
+    62-bar crash_2020 window crashed backtrader mid-batch before this
+    (fixed separately, backtest.py's runonce=False) and the whole batch's
+    report was lost even though 42 of 62 strategies had already been
+    correctly, permanently sealed."""
     results = []
     for sid in strategy_ids:
         if already_holdout_tested(sid):
             continue
-        results.append(run_holdout_test(sid))
+        try:
+            results.append(run_holdout_test(sid))
+        except Exception as exc:
+            log.error("Holdout test failed for strategy #%d, skipping: %s", sid, exc)
     return results
 
 
