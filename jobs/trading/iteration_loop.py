@@ -18,12 +18,35 @@ The dispatch/execution side lives in bot.py's _execute_pending(), mirroring
 the existing block_time/task_done handlers.
 """
 import json
+import logging
 
-from config.settings import TELEGRAM_CHAT_ID
+import requests
+
+from config.settings import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 from jobs.trading.backtest import run_backtest
 from jobs.trading.data import training_data
 from jobs.trading.db import get_connection
 from jobs.trading.strategies.templates import TEMPLATES
+
+log = logging.getLogger(__name__)
+
+
+def _send_telegram(text: str, chat_id: int | None = None) -> None:
+    """Only needed to kick off a family's very first variant — every
+    subsequent message is a reply sent by bot.py itself after a YES. Same
+    plain requests.post pattern used elsewhere in Watson (e.g.
+    jobs/kb/sync_and_index.py's _send_telegram)."""
+    if not TELEGRAM_BOT_TOKEN or not (chat_id or TELEGRAM_CHAT_ID):
+        log.warning("Telegram not configured — cannot send: %s", text)
+        return
+    try:
+        requests.post(
+            f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+            json={"chat_id": chat_id or TELEGRAM_CHAT_ID, "text": text},
+            timeout=10,
+        )
+    except Exception as exc:
+        log.warning("Telegram send failed: %s", exc)
 
 
 def _variant_count(family: str) -> int:
@@ -160,4 +183,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--family", required=True, choices=list(TEMPLATES))
     args = parser.parse_args()
-    print(propose_and_run_next(args.family))
+    message = propose_and_run_next(args.family)
+    print(message)
+    _send_telegram(message)
