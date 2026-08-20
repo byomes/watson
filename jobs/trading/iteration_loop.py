@@ -1,6 +1,21 @@
-"""jobs/trading/iteration_loop.py — Watson proposes a strategy variant,
-backtests it against training data only, logs the result with a rationale,
-and requires an explicit Telegram YES before the next variant runs.
+"""jobs/trading/iteration_loop.py — Watson proposes strategy variants,
+backtests them against training data only, and logs each result with a
+rationale. Two modes, both gated by an explicit Telegram YES:
+
+  - Single-variant (propose_and_run_next): one approval per variant. Slower,
+    maximally supervised.
+  - Batch (run_batch / propose_batch / run_batch_and_report): one approval
+    covers a whole batch of up to N variants, run back-to-back with no
+    per-variant approval in between; results are filtered to those clearing
+    WIN_RATE_THRESHOLD_PCT and reported back as a summary. Added because
+    single-variant mode's per-item approval chaining (a fresh pending row
+    created after every variant) turned out to have an unresolved bug in
+    bot.py's overlapping routing layers — a single YES could cascade
+    through an entire grid instead of stopping after one (see git history
+    on jobs/gcal/pending.py's confirm_pending() for the partial fix that
+    didn't fully explain it). Batch mode structurally avoids the failure
+    mode: it never creates a new pending row mid-flight, so there's nothing
+    for a stray routing-layer re-entry to latch onto.
 
 "Proposes a variant" is deliberately NOT an LLM generating strategy code —
 Watson's automated jobs never call an LLM to produce code that then gets
@@ -177,12 +192,101 @@ def propose_and_run_next(family: str, chat_id: int | None = None) -> str:
     return message + "\n\nReply YES to run the next variant, or NO to stop this family here."
 
 
+WIN_RATE_THRESHOLD_PCT = 80.0
+
+
+def run_batch(n: int, families: list[str] | None = None) -> list[dict]:
+    """Run up to n variants back-to-back across `families` (default: all
+    three templates), round-robin so one family's grid doesn't consume the
+    whole budget before the others get a turn. No per-variant approval —
+    this whole batch is triggered by a single upstream approval (see
+    propose_batch/run_batch_and_report). Stops early if every family's grid
+    is exhausted before reaching n. Returns one dict per variant run,
+    combining the proposed variant and its backtest metrics."""
+    families = list(families or TEMPLATES)
+    results = []
+    exhausted = set()
+    idx = 0
+    while len(results) < n and len(exhausted) < len(families):
+        family = families[idx % len(families)]
+        idx += 1
+        if family in exhausted:
+            continue
+        variant = propose_next_variant(family)
+        if variant is None:
+            exhausted.add(family)
+            continue
+        metrics = run_variant(variant["strategy_id"])
+        results.append({**variant, **metrics})
+    return results
+
+
+def _format_batch_report(results: list[dict]) -> str:
+    winners = [r for r in results if (r.get("win_rate") or 0) > WIN_RATE_THRESHOLD_PCT]
+    lines = [f"Batch complete: {len(results)} variants run across all families."]
+    if winners:
+        winners.sort(key=lambda r: -r["win_rate"])
+        lines.append(f"{len(winners)} cleared >{WIN_RATE_THRESHOLD_PCT:.0f}% win rate:")
+        for w in winners[:15]:
+            label = TEMPLATES[w["family"]]["label"]
+            lines.append(
+                f"  #{w['strategy_id']} {label} {w['params']} — win rate {w['win_rate']}%, "
+                f"return {w['return_pct']}% (SPY {w['benchmark_return_pct']}%)"
+            )
+        if len(winners) > 15:
+            lines.append(f"  ...and {len(winners) - 15} more — see the Trading dashboard page for the full list.")
+    else:
+        lines.append(f"None cleared the >{WIN_RATE_THRESHOLD_PCT:.0f}% win-rate bar.")
+    return "\n".join(lines)
+
+
+def run_batch_and_report(n: int) -> str:
+    """The actual work run inside the trading_batch_approve YES handler
+    (bot.py) — a single call, no per-item pending_actions cycling, which is
+    exactly why this mode structurally can't hit the duplicate-advance bug
+    single-variant mode did (that bug depended on a fresh pending row being
+    created mid-flight for a stray routing layer to latch onto; batch mode
+    never creates one)."""
+    results = run_batch(n)
+    return _format_batch_report(results)
+
+
+def propose_batch(n: int, chat_id: int | None = None) -> str:
+    """Save a single pending approval covering the whole batch and return
+    the message to send. Mirrors propose_and_run_next()'s single-pending-
+    per-chat guard."""
+    import jobs.gcal.pending as pending_module
+
+    chat_id = chat_id or TELEGRAM_CHAT_ID
+
+    existing = pending_module.get_pending(chat_id)
+    if existing:
+        return (
+            f"A previous action (#{existing['id']}, {existing['action_type']}) is still "
+            f"awaiting your YES/NO — reply to that first."
+        )
+
+    pending_module.save_pending(chat_id, "trading_batch_approve", {"n": n}, None)
+    return (
+        f"Ready to run {n} strategy variants across all templates (no per-variant "
+        f"approval — this one YES covers the whole batch). Results filtered to "
+        f">{WIN_RATE_THRESHOLD_PCT:.0f}% win rate will be reported back.\n\n"
+        f"Reply YES to run it, or NO to cancel."
+    )
+
+
 if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--family", required=True, choices=list(TEMPLATES))
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument("--family", choices=list(TEMPLATES))
+    group.add_argument("--batch", type=int, metavar="N")
     args = parser.parse_args()
-    message = propose_and_run_next(args.family)
+
+    if args.family:
+        message = propose_and_run_next(args.family)
+    else:
+        message = propose_batch(args.batch)
     print(message)
     _send_telegram(message)
