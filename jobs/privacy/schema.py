@@ -12,6 +12,8 @@ pattern as camp_approve / the merge-conflict resolution handlers) — no
 later out-of-band lookup by message id is needed, and that column sits
 unused on book_launch_sends for the same reason.
 """
+import json
+
 from core.database import get_connection
 
 CREATE_BROKERS = """
@@ -60,40 +62,211 @@ CREATE TABLE IF NOT EXISTS privacy_removals (
 
 ALL_TABLES = [CREATE_BROKERS, CREATE_FAMILY_PROFILES, CREATE_REMOVALS]
 
-# Seed list — the 10 brokers from the spec. Every opt_out_target/form_selectors
-# value is NULL and every row starts active=0: none of this has been visited
-# live yet. search_url_pattern and opt_out_method are best-effort guesses from
-# public knowledge of each site's URL conventions, not confirmed — Phase 2 of
-# this build (a live, read-only verification pass per broker) corrects
-# whatever's wrong and only then flips active=1, broker by broker. Placeholders
-# {first}/{last}/{state} are filled in by scan.py per family_profiles row.
-_NEEDS_VERIFICATION = (
-    "NEEDS VERIFICATION — search_url_pattern/opt_out_method are unverified "
-    "guesses; opt_out_target and form_selectors are not yet captured. Do not "
-    "flip active=1 until confirmed live (see Privacy Guard build plan, Phase 2)."
-)
-
+# Seed list — the 10 brokers from the spec, live-verified 2026-08-20 (Phase 2
+# of this build: a read-only recon pass per broker's real opt-out page — no
+# form was ever submitted, no CAPTCHA was ever solved). Only 2 of 10 came out
+# active=1: Spokeo (single-step form) and BeenVerified (via its documented
+# email fallback, since the form itself is CAPTCHA-gated at page load). The
+# other 8 stay active=0, each for a specific, documented reason — several
+# share one root cause (a multi-step opt-out wizard, which remove.py's
+# current single fill+submit model can't drive) rather than remove.py being
+# broken per-broker; see each row's notes for detail and matched_url_pattern
+# note for a non-obvious real behavior worth reading rather than blindly
+# flipping active=1 on any of them. Placeholders {first}/{last}/{state} in
+# search_url_pattern are filled in by scan.py per family_profiles row.
 _SEED_BROKERS = [
-    ("Spokeo", "https://www.spokeo.com/{first}-{last}/{state}", "form"),
-    ("Whitepages", "https://www.whitepages.com/name/{first}-{last}/{state}", "form"),
-    ("BeenVerified", "https://www.beenverified.com/people/{first}-{last}/{state}/", "form"),
-    ("MyLife", "https://www.mylife.com/{first}-{last}/{state}", "form"),
-    ("Radaris", "https://radaris.com/p/{first}/{last}/", "form"),
-    ("Intelius", "https://www.intelius.com/people-search/{first}-{last}/{state}", "form"),
-    ("PeopleFinders", "https://www.peoplefinders.com/people/{first}-{last}/{state}", "form"),
-    ("TruthFinder", "https://truthfinder.com/people-search/{first}-{last}-{state}/", "form"),
-    ("USSearch", "https://www.ussearch.com/people/{first}-{last}/{state}/", "form"),
-    ("Nuwber", "https://nuwber.com/search?name={first}+{last}&state={state}", "form"),
+    dict(
+        name="Spokeo",
+        search_url_pattern="https://www.spokeo.com/{first}-{last}/{state}",
+        opt_out_method="form",
+        opt_out_target="https://www.spokeo.com/optout",
+        form_selectors=json.dumps({
+            "url_field": "input[name='url']",
+            "email_field": "input[name='email']",
+            "submit_button": "form[name='optout-form'] button[type='submit']",
+        }),
+        active=1,
+        notes=("Verified live 2026-08-20 (Phase 2). Single-step form (profile URL + email, sends confirmation link). "
+               "An invisible reCAPTCHA key is present in page config but did not "
+               "block loading/inspecting the form — not confirmed whether it blocks "
+               "automated submission. Watch the first real submission's outcome "
+               "(Telegram result message / failure screenshot) before trusting this "
+               "broker fully. Alt contact: privacy@spokeo.com."),
+    ),
+    dict(
+        name="Whitepages",
+        search_url_pattern="https://www.whitepages.com/name/{first}-{last}/{state}",
+        opt_out_method="form",
+        opt_out_target="https://www.whitepages.com/suppression-requests",
+        form_selectors=json.dumps({
+            "url_field": "#suppression-requests-person-url",
+            "note": "Step 1 of 5 wizard — steps 2-5 selectors not captured, form shape doesn't fit remove.py's single fill+submit assumption.",
+        }),
+        active=0,
+        notes=("BLOCKING DECISION -> defaulted inactive (2026-08-20 Phase 2). Real opt-out is a 5-step "
+               "wizard, not a single form — remove.py's _submit_form() only fills "
+               "fields then clicks one submit button. Needs multi-step submission "
+               "support before activating. No CAPTCHA seen on step 1."),
+    ),
+    dict(
+        name="BeenVerified",
+        search_url_pattern="https://www.beenverified.com/people/{first}-{last}/{state}/",
+        opt_out_method="email",
+        opt_out_target="privacy@beenverified.com",
+        form_selectors=None,
+        active=1,
+        notes=("Verified live 2026-08-20 (Phase 2). Web opt-out form (beenverified.com/svc/optout/...) is fully "
+               "Cloudflare CAPTCHA-gated at page load — no DOM was even reachable, "
+               "so no selectors exist and the form path is not used. Activated "
+               "instead via email to privacy@beenverified.com (documented contact "
+               "on their site), which remove.py's existing 'email' branch already "
+               "handles cleanly. /app/optout/search is also robots.txt-disallowed "
+               "and was not attempted."),
+    ),
+    dict(
+        name="MyLife",
+        search_url_pattern="https://www.mylife.com/{first}-{last}/{state}",
+        opt_out_method="form",
+        opt_out_target="https://www.mylife.com/privacyrequest",
+        form_selectors=json.dumps({
+            "first_name_field": "#first_6", "last_name_field": "#last_6",
+            "email_field": "#input_7", "url_field": "#input_12",
+            "state_field": "#input_21", "city_field": "#input_11_city", "zip_field": "#input_11_postal",
+            "birth_year_field": "#input_15", "submit_button": "#input_2",
+            "note": "Selectors captured for a future manual/semi-manual path per spec "
+                    "— not usable for automated submission while required reCAPTCHA "
+                    "gates the actual submit.",
+        }),
+        active=0,
+        notes=("CAPTCHA-gated per spec's explicit v1 exclusion rule (2026-08-20 Phase 2). Form itself "
+               "loads/inspects fine, but submission requires a required, visible "
+               "reCAPTCHA (name='recaptcha_visible') — not automatable in v1. "
+               "Selectors saved above for a future manual/semi-manual path. "
+               "membersupport@mylife.com is general support, not a confirmed "
+               "dedicated removal channel, so not used as an email fallback."),
+    ),
+    dict(
+        name="Radaris",
+        search_url_pattern="https://radaris.com/p/{first}/{last}/",
+        opt_out_method="form",
+        opt_out_target="https://radaris.com/control-privacy",
+        form_selectors=json.dumps({
+            "name_field": "#topsearch", "city_state_field": "#name_city_state",
+            "url_field": "#url-input", "url_step_submit": "button.get-url-btn",
+            "email_field": "#user_email", "submit_button": "button.btn-sbmt",
+            "note": "13-step wizard, all steps present in page HTML at once (JS "
+                    "shows/hides) — selectors read from source without stepping "
+                    "through the UI.",
+        }),
+        active=0,
+        notes=("BLOCKING DECISION -> defaulted inactive (2026-08-20 Phase 2). 13-step wizard, far beyond "
+               "remove.py's single fill+submit model. reCAPTCHA also gates the final "
+               "(13th) step's submission specifically, alongside the step-count "
+               "mismatch. Selectors saved for a future multi-step handler."),
+    ),
+    dict(
+        name="Intelius",
+        search_url_pattern="https://www.intelius.com/people-search/{first}-{last}/{state}",
+        opt_out_method="form",
+        opt_out_target="https://suppression.peopleconnect.us/?brand=Intelius",
+        form_selectors=json.dumps({
+            "email_field": "input[name='login-email']", "consent_checkbox": "input[name='consent']",
+            "submit_button": "form button[type='submit']",
+            "note": "PeopleConnect's shared suppression tool (also covers "
+                    "TruthFinder/USSearch/InstantCheckmate) — Step 1 (email+consent) "
+                    "only; verification-link continuation to further name/address "
+                    "fields was not reached.",
+        }),
+        active=0,
+        notes=("BLOCKING DECISION -> defaulted inactive (2026-08-20 Phase 2). Real flow is multi-step: "
+               "submit email -> confirm via emailed link -> further fields on a "
+               "later page not yet captured. Doesn't fit remove.py's single-step "
+               "model. Shared PeopleConnect infrastructure with TruthFinder and "
+               "USSearch (see those rows) — a single multi-step PeopleConnect "
+               "handler would unlock all three at once, worth prioritizing as a "
+               "fast-follow."),
+    ),
+    dict(
+        name="PeopleFinders",
+        search_url_pattern="https://www.peoplefinders.com/people/{first}-{last}/{state}",
+        opt_out_method="form",
+        opt_out_target="https://www.peoplefinders.com/opt-out",
+        form_selectors=None,
+        active=0,
+        notes=("BLOCKING DECISION -> defaulted inactive (2026-08-20 Phase 2). peoplefinders.com/robots.txt "
+               "explicitly disallows /opt-out — goto_safe() refuses this URL "
+               "automatically (Bill's standing policy: disallow rules are absolute, "
+               "no working around them). The allowed /do-not-sell info page confirms "
+               "the form exists and links to /opt-out, and lists two phone numbers "
+               "((877) 551-9688 opt-out-specific, (800) 718-8997 general) as the only "
+               "channels reachable without violating robots.txt — not automatable, "
+               "same category as the spec's mail-only 'needs manual request' "
+               "handling."),
+    ),
+    dict(
+        name="TruthFinder",
+        search_url_pattern="https://truthfinder.com/people-search/{first}-{last}-{state}/",
+        opt_out_method="form",
+        opt_out_target="https://suppression.peopleconnect.us/?brand=TruthFinder",
+        form_selectors=json.dumps({
+            "email_field": "input[name='login-email']", "consent_checkbox": "input[name='consent']",
+            "submit_button": "form button[type='submit']",
+            "note": "PeopleConnect's shared suppression tool (also covers "
+                    "Intelius/USSearch/InstantCheckmate) — Step 1 (email+consent) "
+                    "only; further steps not reached.",
+        }),
+        active=0,
+        notes=("BLOCKING DECISION -> defaulted inactive (2026-08-20 Phase 2). Same multi-step "
+               "PeopleConnect suppression flow as Intelius/USSearch — see "
+               "Intelius's notes. privacy@truthfinder.com exists but is documented "
+               "as a separate 'User Data Rights/CCPA' channel, not confirmed "
+               "equivalent to a public-listing removal request, so not used as an "
+               "email-method substitute."),
+    ),
+    dict(
+        name="USSearch",
+        search_url_pattern="https://www.ussearch.com/people/{first}-{last}/{state}/",
+        opt_out_method="form",
+        opt_out_target="https://suppression.peopleconnect.us/?brand=USSearch",
+        form_selectors=json.dumps({
+            "email_field": "input[name='login-email']", "consent_checkbox": "input[name='consent']",
+            "submit_button": "form button[type='submit']",
+            "note": "PeopleConnect's shared suppression tool (also covers "
+                    "Intelius/TruthFinder/InstantCheckmate) — Step 1 (email+consent) "
+                    "only; further steps not reached.",
+        }),
+        active=0,
+        notes=("BLOCKING DECISION -> defaulted inactive (2026-08-20 Phase 2). Same multi-step "
+               "PeopleConnect suppression flow as Intelius/TruthFinder — see "
+               "Intelius's notes. privacy@ussearch.com exists but is documented as "
+               "a separate 'User Data Rights/CCPA' channel, not confirmed "
+               "equivalent to a public-listing removal request, so not used as an "
+               "email-method substitute."),
+    ),
+    dict(
+        name="Nuwber",
+        search_url_pattern="https://nuwber.com/search?name={first}+{last}&state={state}",
+        opt_out_method="form",
+        opt_out_target="https://nuwber.com/removal/link",
+        form_selectors=None,
+        active=0,
+        notes=("CAPTCHA-gated per spec's explicit v1 exclusion rule (2026-08-20 Phase 2). Opt-out page "
+               "shows a full Cloudflare 'Verify you are human' challenge that blocks "
+               "even viewing the form — no selectors obtainable. support@nuwber.com "
+               "exists in the footer but is not confirmed as a designated removal "
+               "channel, so not used as a fallback."),
+    ),
 ]
 
 
 def seed_brokers(conn) -> None:
-    for name, url_pattern, method in _SEED_BROKERS:
+    for b in _SEED_BROKERS:
         conn.execute(
             """INSERT OR IGNORE INTO privacy_brokers
-               (name, search_url_pattern, opt_out_method, active, notes)
-               VALUES (?, ?, ?, 0, ?)""",
-            (name, url_pattern, method, _NEEDS_VERIFICATION),
+               (name, search_url_pattern, opt_out_method, opt_out_target, form_selectors, active, notes)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (b["name"], b["search_url_pattern"], b["opt_out_method"], b["opt_out_target"],
+             b["form_selectors"], b["active"], b["notes"]),
         )
 
 
