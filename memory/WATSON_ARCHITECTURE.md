@@ -2180,3 +2180,13 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - 8155a64 Show all Comms Desk sends to every user, not just the author
 - a38baa0 Fix broken Comms Desk image preview: serve from Watson, not private GitHub repo
 - 8670c0d docs: architecture update 2026-08-18
+
+---
+
+## Recent Changes — 2026-08-20
+
+### ~/watson
+- 4290c5b docs: bugs/backlog export 2026-08-20
+- 13aaae2 docs: file map 2026-08-20
+- 995b769 Fix duplicate log lines in nightly OneDrive backup
+- 9fda9c1 docs: architecture update 2026-08-19
