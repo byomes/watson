@@ -2428,15 +2428,20 @@ async def _execute_pending(update: Update, context: ContextTypes.DEFAULT_TYPE, p
     if action_type == "trading_variant_approve":
         family = params["family"]
         try:
-            pending_module.confirm_pending(pending_id)
+            # confirm_pending() is now an atomic claim — bot.py has multiple
+            # overlapping routing layers that can independently re-enter this
+            # dispatcher for what a human sent as a single YES (confirmed
+            # live: a single reply walked an entire strategy grid to
+            # exhaustion, twice, via this exact mechanism). Only the call
+            # that actually flips this specific pending_id from 'pending' to
+            # 'confirmed' gets a non-None result back; any later/redundant
+            # re-entry for the same event is a no-op here, not another
+            # advance keyed off "whatever is now the latest pending row."
+            if not pending_module.confirm_pending(pending_id):
+                return
             from jobs.trading.iteration_loop import propose_and_run_next
-            # Backtesting runs real (if fast) CPU work synchronously — must not
-            # block the event loop, same rule as the Ollama-async convention
-            # elsewhere in this file. A blocked loop delays getUpdates long
-            # enough to trigger a Telegram long-poll timeout/retry, which
-            # re-delivers the same YES and silently re-triggers this branch —
-            # confirmed live (bug: walked an entire 6-variant grid off one
-            # YES reply before this fix).
+            # Backtesting runs real CPU work — must not block the event loop,
+            # same rule as the Ollama-async convention elsewhere in this file.
             reply = await asyncio.to_thread(propose_and_run_next, family, chat_id=update.effective_chat.id)
             await update.message.reply_text(reply)
         except Exception as exc:
@@ -2447,7 +2452,9 @@ async def _execute_pending(update: Update, context: ContextTypes.DEFAULT_TYPE, p
     if action_type == "trading_holdout_test_approve":
         strategy_id = params["strategy_id"]
         try:
-            pending_module.confirm_pending(pending_id)
+            # Same atomic-claim reasoning as trading_variant_approve above.
+            if not pending_module.confirm_pending(pending_id):
+                return
             from jobs.trading.evaluate import run_holdout_test, format_holdout_result
             # Same event-loop-blocking risk as trading_variant_approve above —
             # this runs 3 real backtests (one per holdout window) synchronously.
