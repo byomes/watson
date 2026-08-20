@@ -378,6 +378,11 @@ from jobs.dev.sandbox_session import dev_sandbox_bp, ensure_table as _dev_sandbo
 _dev_sandbox_ensure_table()
 app.register_blueprint(dev_sandbox_bp)
 
+from jobs.trading.routes import trading_bp
+from jobs.trading.schema import create_tables as _trading_create_tables
+_trading_create_tables()
+app.register_blueprint(trading_bp)
+
 # ── Admin template filters ────────────────────────────────────────────────────
 
 _AV_COLORS = ['#4c7ec9','#4caf7d','#c9a84c','#c9504c','#9b59b6','#1abc9c','#e67e22','#2980b9']

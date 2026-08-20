@@ -1477,6 +1477,10 @@ function renderMore() {
         <span class="mtile-label">Privacy Guard</span>
         <span class="mtile-chev">›</span>
       </button>
+      <button class="mtile" id="mtile-trading" onclick="window.location.href='/trading'">
+        <span class="mtile-label">Trading</span>
+        <span class="mtile-chev">›</span>
+      </button>
     </div>
     <div id="more-expand-area">
       <div class="msec-body" id="msec-body-skills">
