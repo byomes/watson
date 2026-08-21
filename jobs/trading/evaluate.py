@@ -118,7 +118,11 @@ def run_holdout_test(strategy_id: int) -> dict:
 def strategies_above_win_rate(threshold_pct: float = 80.0) -> list[int]:
     """Strategy IDs whose training-data win_rate cleared threshold_pct,
     ranked best-first by win_rate. Used to select candidates for
-    run_holdout_batch()."""
+    run_holdout_batch(). Structurally biased toward low-activity/mean-
+    reversion-style strategies — a trend-following strategy that loses
+    small and often but wins big rarely can be genuinely profitable with a
+    win_rate well under 50%. See strategies_above_sharpe() for a selection
+    criterion that doesn't have this bias."""
     conn = get_connection()
     try:
         rows = conn.execute(
@@ -127,6 +131,28 @@ def strategies_above_win_rate(threshold_pct: float = 80.0) -> list[int]:
                ORDER BY b.win_rate DESC""",
             (threshold_pct,),
         ).fetchall()
+        return [r["id"] for r in rows]
+    finally:
+        conn.close()
+
+
+def strategies_above_sharpe(threshold: float = 0.5, family: str | None = None) -> list[int]:
+    """Strategy IDs whose training-data Sharpe ratio cleared threshold,
+    ranked best-first by Sharpe. Unlike strategies_above_win_rate(), this
+    doesn't structurally favor low-activity strategies — appropriate for
+    trend-following templates (e.g. time_series_momentum) where a real,
+    profitable strategy can have a win_rate well under 50%. Optionally
+    restrict to one family."""
+    conn = get_connection()
+    try:
+        query = """SELECT s.id FROM strategies s JOIN backtest_runs b ON b.strategy_id = s.id
+                   WHERE b.window_label = 'training' AND b.sharpe > ?"""
+        params = [threshold]
+        if family:
+            query += " AND s.family = ?"
+            params.append(family)
+        query += " ORDER BY b.sharpe DESC"
+        rows = conn.execute(query, params).fetchall()
         return [r["id"] for r in rows]
     finally:
         conn.close()
