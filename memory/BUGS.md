@@ -1,12 +1,22 @@
 # Watson Bug Tracker
 _Auto-generated nightly from bug_tracker. Source of truth is the database — do not hand-edit this file, changes will be overwritten._
-Last generated: 2026-08-21 02:10
+Last generated: 2026-08-21 09:52
 
-## Open (25)
+## Open (35)
 | ID | Title | Repo | Discovered |
 |---|---|---|---|
-| 75 | Privacy Guard scan: goto_safe() fails OPEN on robots.txt 403/non-200 instead of fail-closed | watson | 2026-08-20 15:21:16 |
-| 74 | Privacy Guard scan: bug_tracker logging fails with "database is locked" mid-run | watson | 2026-08-20 15:21:16 |
+| 87 | jobs.browser: goto_safe failed for https://nuwber.com/search?name=mikhaela+molanders&state=de | watson | 2026-08-21 13:46:22 |
+| 86 | jobs.browser: goto_safe failed for https://nuwber.com/search?name=emily+yomes&state=de | watson | 2026-08-21 13:45:53 |
+| 85 | jobs.browser: goto_safe failed for https://www.mylife.com/emily-yomes/de | watson | 2026-08-21 13:45:33 |
+| 84 | jobs.browser: goto_safe failed for https://nuwber.com/search?name=micah+yomes&state=de | watson | 2026-08-21 13:45:11 |
+| 83 | jobs.browser: goto_safe failed for https://nuwber.com/search?name=melanie+yomes&state=de | watson | 2026-08-21 13:44:43 |
+| 82 | jobs.browser: goto_safe failed for https://www.mylife.com/melanie-yomes/de | watson | 2026-08-21 13:44:23 |
+| 81 | jobs.browser: goto_safe failed for https://nuwber.com/search?name=william+yomes&state=de | watson | 2026-08-21 13:44:00 |
+| 80 | jobs.browser: goto_safe failed for https://www.mylife.com/william-yomes/de | watson | 2026-08-21 13:43:39 |
+| 79 | jobs.browser: goto_safe failed for https://www.mylife.com/melanie-yomes/de | watson | 2026-08-21 09:31:27 |
+| 78 | jobs.browser: goto_safe failed for https://nuwber.com/search?name=william+yomes&state=de | watson | 2026-08-21 09:31:05 |
+| 77 | jobs.browser: goto_safe failed for https://www.ussearch.com/people/william-yomes/de/ | watson | 2026-08-21 09:30:49 |
+| 76 | jobs.browser: goto_safe failed for https://www.mylife.com/william-yomes/de | watson | 2026-08-21 09:30:25 |
 | 73 | jobs.browser: goto_safe failed for https://www.mylife.com/melanie-yomes/de | watson | 2026-08-20 15:03:13 |
 | 72 | jobs.browser: goto_safe failed for https://nuwber.com/search?name=william+yomes&state=de | watson | 2026-08-20 15:02:51 |
 | 71 | jobs.browser: goto_safe failed for https://www.ussearch.com/people/william-yomes/de/ | watson | 2026-08-20 15:02:36 |
@@ -34,6 +44,8 @@ Last generated: 2026-08-21 02:10
 ## Recently Resolved (last 30 days)
 | ID | Title | Repo | Resolved | Commit |
 |---|---|---|---|---|
+| 75 | Privacy Guard scan: goto_safe() fails OPEN on robots.txt 403/non-200 instead of fail-closed | watson | 2026-08-21 13:52:28 | 98367e7 |
+| 74 | Privacy Guard scan: bug_tracker logging fails with "database is locked" mid-run | watson | 2026-08-21 13:52:28 | 98367e7 |
 | 63 | Comms Desk Facebook posts never dispatched | watson | 2026-08-17 19:41:44 | cd04825 |
 | 62 | Curator ChatGPT import: verbatim-excerpt guarantee relied only on the LLM prompt | watson | 2026-08-08 21:18:52 | ef676d7 |
 | 61 | Curator ChatGPT import: hard extraction failure silently lost the pasted research text | watson | 2026-08-08 21:18:52 | 3245bef |
