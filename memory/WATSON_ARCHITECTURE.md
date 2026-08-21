@@ -2222,3 +2222,35 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - 13aaae2 docs: file map 2026-08-20
 - 995b769 Fix duplicate log lines in nightly OneDrive backup
 - 9fda9c1 docs: architecture update 2026-08-19
+
+---
+
+## Recent Changes — 2026-08-21
+
+### ~/watson
+- cc0e738 docs: bugs/backlog export 2026-08-21
+- 4caf86d docs: file map 2026-08-21
+- 28f1c47 docs: architecture — add Paper-Trading Strategy Pipeline section
+- cf6a1f1 fix(trading): strategy selectors return duplicate ids for re-run strategies (#49)
+- 519aaa4 fix(trading): position-sizing margin-rejection bug in time_series_momentum + order-rejection tracking for all templates (#48)
+- 4fe77dd feat(trading): Sharpe-ratio strategy selection for trend-following templates (#47)
+- d8cd372 feat(trading): time-series momentum template (Moskowitz/Ooi/Pedersen) (#46)
+- 337900d feat(trading): round 3 KB ingestion — real strategy concepts beyond the current templates (#45)
+- e13117d feat(trading): round 2 KB ingestion — walk-forward, fair benchmarking, mean-reversion theory (#44)
+- d7a72f7 feat(trading): third grid expansion round for a 200-variant batch (#43)
+- 5c4046f fix(trading): backtrader runonce=False + per-strategy error isolation in holdout batches (#42)
+- b51a8e0 feat(trading): holdout batch — one approval, ranks N candidates against sealed data (#41)
+- 9740e49 feat(trading): second grid expansion round for another 100-variant batch (#40)
+- fcb8d88 feat(trading): batch mode — one approval runs up to N variants, filtered by win rate (#39)
+- 6a2bf1b fix(trading): atomic pending-action claim closes the real duplicate-advance bug (#38)
+- 4f4f094 fix(trading): wrap blocking backtest calls in asyncio.to_thread — closes a duplicate-approval bug (#37)
+- 3f467e2 Trading: paper-trading strategy development pipeline (Alpaca paper only) (#36)
+- d62310b Merge pull request #35 from byomes/feature/web-engagement-benchmarks
+- 9ab04d8 Add Interpretation & Recommendations synthesis to web engagement report (Part C)
+- f7de543 Add 6-month trailing trend helper for web engagement report (Part B)
+- 39e1143 Add web engagement benchmarks research job (Part A)
+- 91f9db5 Monthly church web engagement report (Sheet + GA4 + connect cards) (#34)
+- 6177a8c Add Privacy Guard tile to dashboard More tab (#32)
+- 7618f14 Privacy Guard: multi-step wizard driver + broker investigation (#31)
+- be8665d Add Privacy Guard: family data-broker removal automation (#30)
+- 9b7cae9 docs: architecture update 2026-08-20
