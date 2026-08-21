@@ -51,7 +51,7 @@ CREATE TABLE IF NOT EXISTS privacy_removals (
     matched_fields    TEXT,
     confidence_score  REAL NOT NULL,
     status            TEXT NOT NULL DEFAULT 'pending'
-                      CHECK(status IN ('pending','approved','submitted','failed','rejected')),
+                      CHECK(status IN ('pending','approved','submitted','unconfirmed','failed','rejected')),
     failure_reason    TEXT,
     submitted_at      TEXT,
     next_rescan_at    TEXT,

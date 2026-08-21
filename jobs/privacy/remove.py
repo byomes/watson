@@ -12,12 +12,22 @@ Telegram result message once submission finishes.
 
 CLI: python -m jobs.privacy.remove --removal-id N
 
-KNOWN GAP (project_backlog id=37): _submit_form()'s single-step success path
-is still "the click didn't throw", not a verified confirmation signal — see
-the comment at its return statement. _submit_wizard() (multi-step brokers)
-does NOT have this gap by construction: it refuses to click a final submit
-button at all unless the broker's form_selectors carries a success_check —
-see _submit_wizard()'s docstring.
+KNOWN GAP (project_backlog id=37), now surfaced rather than hidden:
+_submit_form()'s single-step success path is still "the click didn't
+throw", not a verified confirmation signal — see the comment at its return
+statement. Rather than mark that status='submitted' (indistinguishable
+from a genuinely verified removal), submit_removal() now marks it
+status='unconfirmed' — see _mark_unconfirmed(). _submit_wizard()
+(multi-step brokers) does NOT have this gap by construction: it refuses to
+click a final submit button at all unless the broker's form_selectors
+carries a success_check — see _submit_wizard()'s docstring — so a wizard
+success is always genuinely confirmed.
+
+opt_out_method='email' (BeenVerified) is a separate case, out of scope for
+this pass: send_email()'s success just means Brevo accepted the send, not
+that the broker acted on it — arguably the same "we don't actually know"
+gap, but not the literal "click didn't throw" case this pass addresses.
+Still marked status='submitted' on send success, unchanged.
 """
 import argparse
 import asyncio
@@ -69,6 +79,27 @@ def _mark_submitted(removal_id: int) -> None:
         conn.close()
 
 
+def _mark_unconfirmed(removal_id: int) -> None:
+    """Distinct from _mark_submitted(): the opt-out click succeeded (didn't
+    throw) but this broker's flow gives no independently verifiable success
+    signal (see _submit_form's KNOWN GAP, module docstring). Still scheduled
+    for rescan on the same cadence as a confirmed submission — the listing
+    may well be gone — but the status stays visibly different so Bill knows
+    not to trust it at face value."""
+    conn = get_connection()
+    try:
+        conn.execute(
+            """UPDATE privacy_removals
+               SET status='unconfirmed', submitted_at=datetime('now'),
+                   next_rescan_at=datetime('now','+7 days'), failure_reason=NULL
+               WHERE id=?""",
+            (removal_id,),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def _mark_failed(removal_id: int, reason: str) -> None:
     conn = get_connection()
     try:
@@ -96,14 +127,17 @@ async def _submit_form(removal: dict, dry_run: bool = False):
     behavior before deciding whether to activate it. Real submissions
     (submit_removal without dry_run) never take this branch.
 
-    Non-dry-run return: (ok: bool, error: str | None) — unchanged shape.
+    Non-dry-run return: (ok: bool, error: str | None, confirmed: bool). confirmed
+    is only meaningful when ok=True, and is always False here — a bare click
+    that didn't throw is never treated as a verified success (see the KNOWN
+    GAP comment at the bottom of this function).
     Dry-run return: dict, always with "ok" and "dry_run": True.
     """
     selectors = json.loads(removal["form_selectors"] or "{}")
     submit_button = selectors.get("submit_button")
     if not removal["opt_out_target"] or not submit_button:
         msg = "broker not fully verified (missing opt_out_target/submit_button selector)"
-        return {"ok": False, "dry_run": True, "error": msg} if dry_run else (False, msg)
+        return {"ok": False, "dry_run": True, "error": msg} if dry_run else (False, msg, False)
 
     LOG_DIR.mkdir(parents=True, exist_ok=True)
     challenge_requests = []
@@ -120,7 +154,7 @@ async def _submit_form(removal: dict, dry_run: bool = False):
         ok = await goto_safe(page, removal["opt_out_target"], wait_until="networkidle")
         if not ok:
             msg = "could not load opt-out page (robots.txt disallow or navigation failure)"
-            return {"ok": False, "dry_run": True, "error": msg} if dry_run else (False, msg)
+            return {"ok": False, "dry_run": True, "error": msg} if dry_run else (False, msg, False)
         try:
             # Only the field shapes actually confirmed common across these
             # brokers' opt-out forms during Phase 2 verification are handled
@@ -165,7 +199,7 @@ async def _submit_form(removal: dict, dry_run: bool = False):
                 pass
             log_browser_failure("privacy.remove form submit", removal["opt_out_target"], exc)
             msg = f"form submission failed (screenshot: {shot_path})"
-            return {"ok": False, "dry_run": True, "error": msg} if dry_run else (False, msg)
+            return {"ok": False, "dry_run": True, "error": msg} if dry_run else (False, msg, False)
     # KNOWN GAP, deliberately not fixed this pass (project_backlog id=37): this
     # only means the click() call didn't throw — no on-page confirmation
     # text/state/redirect is checked. For Spokeo specifically, checked live
@@ -179,9 +213,9 @@ async def _submit_form(removal: dict, dry_run: bool = False):
     # received"), never that a listing was actually removed. Fixing this
     # properly means wiring an email-confirmation step (Watson already has
     # Gmail polling infra in jobs/email_intake.py / jobs/email_reply/) before
-    # status='submitted' can be trusted at face value for any broker shaped
-    # like this — not just a missing text-match on this return statement.
-    return True, None
+    # a broker shaped like this could ever earn confirmed=True. Until then,
+    # submit_removal() marks this status='unconfirmed', not 'submitted'.
+    return True, None, False
 
 
 def _resolve_field_value(field_key: str, removal: dict, matched: dict) -> str | None:
@@ -274,14 +308,16 @@ async def _submit_wizard(removal: dict, dry_run: bool = False):
     depending on user input, e.g. Radaris' step 4) doesn't fit this
     function's linear model at all; don't force it in.
 
-    Non-dry-run return: (ok: bool, error: str | None) — same shape as
-    _submit_form. Dry-run return: dict, always with "ok" and "dry_run": True.
+    Non-dry-run return: (ok: bool, error: str | None, confirmed: bool) — same
+    shape as _submit_form, except confirmed is True on a genuine success (the
+    only way this function ever returns ok=True is after _check_success()
+    passed). Dry-run return: dict, always with "ok" and "dry_run": True.
     """
     selectors = json.loads(removal["form_selectors"] or "{}")
     steps = selectors.get("steps")
     if not steps:
         msg = "broker not configured for multi-step submission (no 'steps' in form_selectors)"
-        return {"ok": False, "dry_run": True, "error": msg} if dry_run else (False, msg)
+        return {"ok": False, "dry_run": True, "error": msg} if dry_run else (False, msg, False)
 
     LOG_DIR.mkdir(parents=True, exist_ok=True)
     matched = json.loads(removal["matched_fields"] or "{}")
@@ -291,7 +327,7 @@ async def _submit_wizard(removal: dict, dry_run: bool = False):
         ok = await goto_safe(page, removal["opt_out_target"], wait_until="networkidle")
         if not ok:
             msg = "could not load opt-out page (robots.txt disallow or navigation failure)"
-            return {"ok": False, "dry_run": True, "error": msg} if dry_run else (False, msg)
+            return {"ok": False, "dry_run": True, "error": msg} if dry_run else (False, msg, False)
 
         try:
             for i, step in enumerate(steps):
@@ -320,7 +356,7 @@ async def _submit_wizard(removal: dict, dry_run: bool = False):
                 success_check = step.get("success_check")
                 if not submit_button:
                     msg = "broker not fully verified (missing final submit_button selector)"
-                    return {"ok": False, "dry_run": True, "error": msg} if dry_run else (False, msg)
+                    return {"ok": False, "dry_run": True, "error": msg} if dry_run else (False, msg, False)
 
                 if dry_run:
                     shot_path = LOG_DIR / f"dryrun-wizard-{removal['id']}-{datetime.now():%Y%m%d%H%M%S}.png"
@@ -337,7 +373,7 @@ async def _submit_wizard(removal: dict, dry_run: bool = False):
                 if not success_check:
                     # Hard refusal, not a soft warning — same principle as
                     # Spokeo staying active=0 rather than trusting a bare click.
-                    return False, "no verified success_check configured — refusing to submit on click alone"
+                    return False, "no verified success_check configured — refusing to submit on click alone", False
 
                 await page.click(submit_button)
                 await page.wait_for_timeout(step.get("wait_ms", 2500))
@@ -348,7 +384,7 @@ async def _submit_wizard(removal: dict, dry_run: bool = False):
                         await page.screenshot(path=str(shot_path))
                     except Exception:
                         pass
-                    return False, reason or f"submitted, but success check failed (screenshot: {shot_path})"
+                    return False, reason or f"submitted, but success check failed (screenshot: {shot_path})", False
         except Exception as exc:
             shot_path = LOG_DIR / f"removal-{removal['id']}-{datetime.now():%Y%m%d%H%M%S}.png"
             try:
@@ -357,9 +393,9 @@ async def _submit_wizard(removal: dict, dry_run: bool = False):
                 pass
             log_browser_failure("privacy.remove wizard submit", removal["opt_out_target"], exc)
             msg = f"wizard submission failed at step {len(step_log) + 1}/{len(steps)} (screenshot: {shot_path})"
-            return {"ok": False, "dry_run": True, "error": msg} if dry_run else (False, msg)
+            return {"ok": False, "dry_run": True, "error": msg} if dry_run else (False, msg, False)
 
-    return True, None
+    return True, None, True
 
 
 def submit_removal(removal_id: int, dry_run: bool = False) -> dict:
@@ -385,7 +421,7 @@ def submit_removal(removal_id: int, dry_run: bool = False) -> dict:
     if method == "form":
         selectors = json.loads(removal["form_selectors"] or "{}")
         submit_fn = _submit_wizard if "steps" in selectors else _submit_form
-        ok, reason = asyncio.run(submit_fn(removal))
+        ok, reason, confirmed = asyncio.run(submit_fn(removal))
     elif method == "email":
         result = send_email(
             to_email=removal["opt_out_target"],
@@ -400,15 +436,26 @@ def submit_removal(removal_id: int, dry_run: bool = False) -> dict:
             ),
         )
         ok, reason = result["success"], result.get("error")
+        # Out of scope for this pass (see module docstring): email delivery
+        # success still counts as 'submitted', same as before.
+        confirmed = True
     elif method == "mail":
-        ok, reason = False, "mail opt-out not automated in v1 — needs manual mail request"
+        ok, reason, confirmed = False, "mail opt-out not automated in v1 — needs manual mail request", False
     else:
-        ok, reason = False, f"unknown opt_out_method: {method}"
+        ok, reason, confirmed = False, f"unknown opt_out_method: {method}", False
 
     if ok:
-        _mark_submitted(removal_id)
-        send_telegram(f"✅ Privacy Guard: removal submitted — {removal['person_name']} on {removal['broker_name']}.")
-        return {"ok": True}
+        if confirmed:
+            _mark_submitted(removal_id)
+            send_telegram(f"✅ Privacy Guard: removal submitted — {removal['person_name']} on {removal['broker_name']}.")
+        else:
+            _mark_unconfirmed(removal_id)
+            send_telegram(
+                f"⚠️ Privacy Guard: removal request SENT but UNCONFIRMED — "
+                f"{removal['person_name']} on {removal['broker_name']}. The submit click succeeded, but "
+                "this broker gives no way to verify real completion — treat as pending until checked manually."
+            )
+        return {"ok": True, "confirmed": confirmed}
     else:
         _mark_failed(removal_id, reason or "unknown failure")
         send_telegram(
