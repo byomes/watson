@@ -122,12 +122,24 @@ def strategies_above_win_rate(threshold_pct: float = 80.0) -> list[int]:
     reversion-style strategies — a trend-following strategy that loses
     small and often but wins big rarely can be genuinely profitable with a
     win_rate well under 50%. See strategies_above_sharpe() for a selection
-    criterion that doesn't have this bias."""
+    criterion that doesn't have this bias.
+
+    Uses only each strategy's MOST RECENT training run (correlated
+    subquery on MAX backtest_runs.id) — a strategy re-run for correctness
+    (e.g. after a bug fix) has multiple training rows, and a plain JOIN
+    would return that strategy's id once per qualifying row instead of
+    once. Confirmed live: this duplicated ids after re-running 9
+    time_series_momentum strategies following the margin-rejection bug fix."""
     conn = get_connection()
     try:
         rows = conn.execute(
-            """SELECT s.id FROM strategies s JOIN backtest_runs b ON b.strategy_id = s.id
-               WHERE b.window_label = 'training' AND b.win_rate > ?
+            """SELECT s.id FROM strategies s
+               JOIN backtest_runs b ON b.id = (
+                   SELECT id FROM backtest_runs
+                   WHERE strategy_id = s.id AND window_label = 'training'
+                   ORDER BY id DESC LIMIT 1
+               )
+               WHERE b.win_rate > ?
                ORDER BY b.win_rate DESC""",
             (threshold_pct,),
         ).fetchall()
@@ -142,11 +154,17 @@ def strategies_above_sharpe(threshold: float = 0.5, family: str | None = None) -
     doesn't structurally favor low-activity strategies — appropriate for
     trend-following templates (e.g. time_series_momentum) where a real,
     profitable strategy can have a win_rate well under 50%. Optionally
-    restrict to one family."""
+    restrict to one family. Uses only each strategy's most recent training
+    run — see strategies_above_win_rate()'s docstring for why."""
     conn = get_connection()
     try:
-        query = """SELECT s.id FROM strategies s JOIN backtest_runs b ON b.strategy_id = s.id
-                   WHERE b.window_label = 'training' AND b.sharpe > ?"""
+        query = """SELECT s.id FROM strategies s
+                   JOIN backtest_runs b ON b.id = (
+                       SELECT id FROM backtest_runs
+                       WHERE strategy_id = s.id AND window_label = 'training'
+                       ORDER BY id DESC LIMIT 1
+                   )
+                   WHERE b.sharpe > ?"""
         params = [threshold]
         if family:
             query += " AND s.family = ?"
