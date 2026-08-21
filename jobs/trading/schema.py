@@ -125,6 +125,18 @@ def create_tables(conn=None) -> None:
         for stmt in ALL_TABLES:
             conn.execute(stmt)
         _migrate_strategies_family_check(conn)
+
+        # rejected_orders: how many buy/sell orders backtrader rejected on
+        # margin during this run — added after a real bug (time_series_momentum's
+        # original 100%-of-portfolio sizing left no room for next-bar price
+        # movement/slippage, silently zeroing every order and producing a
+        # flat 0% result indistinguishable from a genuine "no signal" case).
+        # A plain additive column, not a CHECK-constraint change, so a
+        # simple guarded ALTER TABLE is enough — no table recreation needed.
+        cols = {row[1] for row in conn.execute("PRAGMA table_info(backtest_runs)").fetchall()}
+        if "rejected_orders" not in cols:
+            conn.execute("ALTER TABLE backtest_runs ADD COLUMN rejected_orders INTEGER NOT NULL DEFAULT 0")
+
         conn.execute(
             "INSERT OR IGNORE INTO risk_state (id, status) VALUES (1, 'active')"
         )

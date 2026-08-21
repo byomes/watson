@@ -10,9 +10,13 @@ Cost model (documented assumption, not hidden in a config file):
     SPY — not zero, so "model transaction costs and slippage" is never
     silently skipped, even though commission itself is genuinely zero here.
 """
+import logging
+
 import backtrader as bt
 
 from jobs.trading.db import get_connection
+
+log = logging.getLogger(__name__)
 
 SLIPPAGE_PCT = 0.0005  # 5 bps
 STARTING_CASH = 100_000.0
@@ -70,6 +74,13 @@ def run_backtest(strategy_cls, params: dict, data_df, symbol: str = "SPY",
     total_trades = trades.get("total", {}).get("total", 0) or 0
     won_trades = trades.get("won", {}).get("total", 0) or 0
     win_rate = (won_trades / total_trades * 100) if total_trades else None
+    rejected_orders = getattr(strat, "rejected_orders", 0)
+    if rejected_orders:
+        log.warning(
+            "%d order(s) rejected on margin during %s window_label=%s strategy_id=%s — "
+            "return/win_rate reflect fewer real trades than the strategy actually signaled.",
+            rejected_orders, symbol, window_label, strategy_id,
+        )
 
     metrics = {
         "return_pct": round((end_value / start_value - 1) * 100, 4),
@@ -77,6 +88,7 @@ def run_backtest(strategy_cls, params: dict, data_df, symbol: str = "SPY",
         "sharpe": round(sharpe.get("sharperatio") or 0.0, 4) if sharpe.get("sharperatio") is not None else None,
         "win_rate": round(win_rate, 2) if win_rate is not None else None,
         "benchmark_return_pct": round(_buy_and_hold_return_pct(data_df), 4),
+        "rejected_orders": rejected_orders,
     }
 
     _log_run(
@@ -93,16 +105,16 @@ def run_backtest(strategy_cls, params: dict, data_df, symbol: str = "SPY",
 
 def _log_run(strategy_id, symbol, window_label, start_date, end_date,
              return_pct, max_drawdown_pct, sharpe, win_rate, benchmark_return_pct,
-             rationale) -> int:
+             rationale, rejected_orders=0) -> int:
     conn = get_connection()
     try:
         cur = conn.execute(
             """INSERT INTO backtest_runs
                (strategy_id, symbol, window_label, start_date, end_date,
-                return_pct, max_drawdown_pct, sharpe, win_rate, benchmark_return_pct, rationale)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                return_pct, max_drawdown_pct, sharpe, win_rate, benchmark_return_pct, rationale, rejected_orders)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (strategy_id, symbol, window_label, start_date, end_date,
-             return_pct, max_drawdown_pct, sharpe, win_rate, benchmark_return_pct, rationale),
+             return_pct, max_drawdown_pct, sharpe, win_rate, benchmark_return_pct, rationale, rejected_orders),
         )
         conn.commit()
         return cur.lastrowid
