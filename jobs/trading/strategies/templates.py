@@ -15,10 +15,29 @@ orders, not while comparing strategy shape against the benchmark here.
 import backtrader as bt
 
 
-class MACrossoverStrategy(bt.Strategy):
+class _TrackedStrategy(bt.Strategy):
+    """Base class for every template here — tracks rejected/margin-failed
+    orders so a bug like time_series_momentum's original sizing bug (orders
+    submitted with the right signal, silently rejected on margin, producing
+    a flat result indistinguishable from "no signal") can never again hide
+    from a report without a deliberate check. jobs/trading/backtest.py
+    reads self.rejected_orders after cerebro.run() and surfaces it in every
+    run's metrics — a run with 0% return AND 0 signals attempted looks
+    different from one with several rejected orders."""
+
+    def __init__(self):
+        self.rejected_orders = 0
+
+    def notify_order(self, order):
+        if order.status in (order.Margin, order.Rejected):
+            self.rejected_orders += 1
+
+
+class MACrossoverStrategy(_TrackedStrategy):
     params = (("fast", 20), ("slow", 50))
 
     def __init__(self):
+        super().__init__()
         fast_sma = bt.ind.SMA(period=self.p.fast)
         slow_sma = bt.ind.SMA(period=self.p.slow)
         self.crossover = bt.ind.CrossOver(fast_sma, slow_sma)
@@ -30,10 +49,11 @@ class MACrossoverStrategy(bt.Strategy):
             self.close()
 
 
-class MeanReversionStrategy(bt.Strategy):
+class MeanReversionStrategy(_TrackedStrategy):
     params = (("period", 20), ("devfactor", 2.0))
 
     def __init__(self):
+        super().__init__()
         self.bb = bt.ind.BollingerBands(period=self.p.period, devfactor=self.p.devfactor)
 
     def next(self):
@@ -43,10 +63,11 @@ class MeanReversionStrategy(bt.Strategy):
             self.close()
 
 
-class MomentumStrategy(bt.Strategy):
+class MomentumStrategy(_TrackedStrategy):
     params = (("period", 90),)
 
     def __init__(self):
+        super().__init__()
         self.roc = bt.ind.RateOfChange(period=self.p.period)
 
     def next(self):
@@ -56,7 +77,7 @@ class MomentumStrategy(bt.Strategy):
             self.close()
 
 
-class TimeSeriesMomentumStrategy(bt.Strategy):
+class TimeSeriesMomentumStrategy(_TrackedStrategy):
     """Time-series ("absolute") momentum, per Moskowitz/Ooi/Pedersen — see
     kb/trading-strategies/articles/time-series-momentum.md. Distinct from
     MomentumStrategy above (bare rate-of-change sign, all-in-or-flat): this
@@ -70,7 +91,7 @@ class TimeSeriesMomentumStrategy(bt.Strategy):
     pipeline's single-symbol, no-leverage design.
 
     Signal: `lookback`-day trailing return sign. Sizing: target_vol /
-    realized_annualized_vol (over `vol_window` days), capped at 100% of
+    realized_annualized_vol (over `vol_window` days), capped at 95% of
     portfolio value. Rebalance: every `rebalance_days` bars, not every bar
     — closer to the source research's monthly cadence than a same-bar
     reaction.
@@ -91,6 +112,7 @@ class TimeSeriesMomentumStrategy(bt.Strategy):
     )
 
     def __init__(self):
+        super().__init__()
         self._bar_count = 0
 
     def next(self):
@@ -112,7 +134,19 @@ class TimeSeriesMomentumStrategy(bt.Strategy):
         annualized_vol = (variance ** 0.5) * (252 ** 0.5)
 
         if signal > 0 and annualized_vol > 0:
-            target_fraction = min(self.p.target_vol / annualized_vol, 1.0)
+            # Cap at 0.95, not 1.0: a market order sized at exactly 100% of
+            # portfolio value against TODAY's close, submitted to fill at
+            # TOMORROW's open, leaves zero room for the next bar's price
+            # move or slippage — backtrader rejects the whole order on
+            # margin if the fill price is even fractionally higher.
+            # Confirmed live: this silently zeroed out real signals in
+            # calm_2017 specifically (a low-volatility window where
+            # target_vol/annualized_vol routinely exceeds 1.0, pinning the
+            # cap) — every rebalance submitted a real, correctly-signed buy
+            # order that then got rejected, producing a flat 0% result
+            # indistinguishable from a genuine "no signal" case unless you
+            # check notify_order or order status directly.
+            target_fraction = min(self.p.target_vol / annualized_vol, 0.95)
             target_size = int(self.broker.getvalue() * target_fraction / self.data.close[0])
         else:
             target_size = 0
