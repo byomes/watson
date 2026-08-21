@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-08-20*
+*Generated: 2026-08-21*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -10,6 +10,7 @@
   progress.json
 .env
 .env.backup-20260713-112740
+.env.bak.20260820
 .env.example
 .env.local
 .gitignore
@@ -190,6 +191,7 @@ data/
   retreats_seen.json
   riddle_history.json
   skill_audit.json
+  trading.db
   watson.db
   watson.db.bak-20260714-103753
   watson.db.bak-20260714-133329
@@ -235,6 +237,14 @@ jobs/
     client.py
     schema.py
     security_monitor.py
+  analytics/
+    __init__.py
+    connect_card_rollup.py
+    ga4_import.py
+    monthly_web_engagement_report.py
+    schema.py
+    sheet_import.py
+    trailing_trends.py
   arc/
     __init__.py
     api.py
@@ -573,6 +583,13 @@ jobs/
     migrate.py
     registry.py
     server.py
+  privacy/
+    __init__.py
+    add_family_member.py
+    dashboard_api.py
+    remove.py
+    scan.py
+    schema.py
   publishing/
     __init__.py
     api.py
@@ -595,9 +612,11 @@ jobs/
     isbn_lookup.py
     language_detector.py
     migrate_benchmark_sources.py
+    migrate_web_benchmark_sources.py
     news_search.py
     semantic_search.py
     summarizer.py
+    web_benchmark_check.py
     web_search.py
   retreats/
     __init__.py
@@ -665,6 +684,25 @@ jobs/
     db.py
     scrape.py
   time_check.py
+  trading/
+    HOLDOUT_WINDOWS.md
+    __init__.py
+    alpaca_client.py
+    backtest.py
+    data.py
+    data_pull.py
+    db.py
+    evaluate.py
+    holdout.py
+    iteration_loop.py
+    kb_ingest.py
+    risk.py
+    routes.py
+    schema.py
+    strategies/
+      __init__.py
+      templates.py
+    verify_holdout_windows.py
   transcribe.py
   utilities/
     __init__.py
@@ -1150,6 +1188,25 @@ kb/
     What About Dinosaurs.txt
     What is Salvation by Faith.txt
     Xmas Eve 2025.txt
+  trading-strategies/
+    articles/
+      donchian-channel-breakout.md
+      fair-benchmark-comparison.md
+      mean-reversion-theory.md
+      quantinsti-algorithmic-trading-strategies-risk-management.md
+      quantinsti-free-resources-compilation.md
+      quantstart-backtesting-pitfalls.md
+      quantstart-beginners-guide.md
+      quantstart-how-to-identify-strategies.md
+      regime-detection-trending-choppy-crashing.md
+      time-series-momentum.md
+      volatility-targeting.md
+      walk-forward-optimization.md
+    case-studies/
+      flash-crash-2010.md
+      knight-capital-2012.md
+      ltcm-collapse-1998.md
+      sell-in-may-seasonal-anomaly.md
 library/
   __init__.py
   ingestor.py
@@ -1217,6 +1274,7 @@ memory/
     twj.md
     watson/
       watson.md
+    web_engagement_benchmarks.md
     writing_room.md
   relational.md
   secrets_audit_draft.md
