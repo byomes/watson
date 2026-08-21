@@ -1,10 +1,22 @@
 # Watson Bug Tracker
 _Auto-generated nightly from bug_tracker. Source of truth is the database — do not hand-edit this file, changes will be overwritten._
-Last generated: 2026-08-20 02:10
+Last generated: 2026-08-21 02:10
 
-## Open (13)
+## Open (25)
 | ID | Title | Repo | Discovered |
 |---|---|---|---|
+| 75 | Privacy Guard scan: goto_safe() fails OPEN on robots.txt 403/non-200 instead of fail-closed | watson | 2026-08-20 15:21:16 |
+| 74 | Privacy Guard scan: bug_tracker logging fails with "database is locked" mid-run | watson | 2026-08-20 15:21:16 |
+| 73 | jobs.browser: goto_safe failed for https://www.mylife.com/melanie-yomes/de | watson | 2026-08-20 15:03:13 |
+| 72 | jobs.browser: goto_safe failed for https://nuwber.com/search?name=william+yomes&state=de | watson | 2026-08-20 15:02:51 |
+| 71 | jobs.browser: goto_safe failed for https://www.ussearch.com/people/william-yomes/de/ | watson | 2026-08-20 15:02:36 |
+| 70 | jobs.browser: goto_safe failed for https://www.mylife.com/william-yomes/de | watson | 2026-08-20 15:02:11 |
+| 69 | jobs.browser: goto_safe failed for https://www.peoplefinders.com/manage | watson | 2026-08-20 12:43:12 |
+| 68 | jobs.browser: goto_safe failed for https://www.intelius.com/opt-out | watson | 2026-08-20 12:42:45 |
+| 67 | jobs.browser: goto_safe failed for https://nuwber.com/removal/link | watson | 2026-08-20 12:42:23 |
+| 66 | jobs.browser: goto_safe failed for https://control.radaris.com/ | watson | 2026-08-20 12:42:17 |
+| 65 | jobs.browser: goto_safe failed for https://www.ussearch.com/opt-out/ | watson | 2026-08-20 12:42:02 |
+| 64 | jobs.browser: goto_safe failed for https://radaris.com/page/how-to-remove | watson | 2026-08-20 12:41:52 |
 | 58 | missed_report.py cron path missing slash, silently failed weekly | watson | 2026-08-04 13:14:38 |
 | 55 | watson-codeagent.service is live but broken and undocumented | watson | 2026-08-04 02:27:18 |
 | 52 | jobs.skills.kb_search has no run() function but chat_stream imports it | watson | 2026-07-29 08:05:49 |
@@ -39,5 +51,3 @@ Last generated: 2026-08-20 02:10
 | 47 | Curator: get_job_status() collapses unverified KU (NULL) into False | watson | 2026-07-23 03:28:44 | 8e50e7f |
 | 13 | gutendex.com fully blocked by Cloudflare JS challenge (cf-mitigated: challenge) — gutenberg: search/download non-functional on both Telegram and Dashboard until resolved; confirmed browser-like User-Agent does NOT bypass it (needs JS challenge solving, a bypass library, or an alternate Gutenberg metadata source — decision deferred, see commit 21ff4c3 for the diagnostic) | watson | 2026-07-22 15:30:00 | e505d95 |
 | 11 | Gutendex API (gutendex.com) now returns 403 via Cloudflare bot challenge to plain requests calls — jobs/research/gutenberg.py search()/download_and_ingest() both broken until a browser-like User-Agent or Cloudflare bypass is added; affects Telegram and Dashboard equally, dashboard routing itself verified working with mocked data | watson | 2026-07-22 15:30:00 | e505d95 |
-| 43 | Curator ingest 500: dangling FK to books_old_ku_migration | watson | 2026-07-22 03:55:49 | 532b53d |
-| 42 | email_intake.py re-triages same unread message every poll cycle | watson | 2026-07-21 19:30:02 | dfac939 |
