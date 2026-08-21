@@ -77,6 +77,13 @@ TEMPLATES = {
                 for s in (70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 180, 200, 220, 250, 280)
                 if f < s
             ]
+            # Round 3: fresh fast values, wider slow range still. fast max
+            # (90) < slow min (100), so no explicit filter needed.
+            + [
+                {"fast": f, "slow": s}
+                for f in (65, 70, 75, 80, 90)
+                for s in (100, 120, 140, 160, 180, 200, 220, 250, 280, 300, 320, 350, 380, 400, 450, 500, 550, 600)
+            ]
         ),
     },
     "mean_reversion": {
@@ -91,6 +98,12 @@ TEMPLATES = {
                 for p in (12, 18, 22, 28, 35, 45, 60, 70, 80)
                 for d in (1.0, 1.5, 2.0, 2.5, 3.0, 3.5)
             ]
+            # Round 3: fresh period values, any devfactor.
+            + [
+                {"period": p, "devfactor": d}
+                for p in (85, 90, 95, 100, 110, 120)
+                for d in (1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 6.0)
+            ]
         ),
     },
     "momentum": {
@@ -102,6 +115,10 @@ TEMPLATES = {
             # Round 2: fresh period values (the "5 mod 10" gaps left by the
             # two segments above, which only used multiples of 10).
             + [{"period": p} for p in (15, 25, 35, 45, 55, 65, 75, 85, 95, 105, 115, 125, 135, 145, 155, 165, 175, 185, 195, 205)]
+            # Round 3: fresh period values, all > 250 (the highest used so
+            # far), so no overlap check needed against the "5 mod 10"
+            # segment above.
+            + [{"period": p} for p in range(255, 505, 5)]
         ),
     },
 }
