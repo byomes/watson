@@ -1054,6 +1054,17 @@ def run():
                 )
                 continue
 
+        # Privacy Guard broker confirmation email (project_backlog id=37) —
+        # must be checked before the generic non-whitelist triage below, or
+        # Ollama triage / email_reply/reader.py's auto-draft (15-min cron,
+        # same inbox) would consume it first. See jobs/privacy/confirm.py.
+        from jobs.privacy.confirm import handle_privacy_confirmation
+        pg_result = handle_privacy_confirmation(msg_id, addr, subject, body)
+        if pg_result is not None:
+            if pg_result == "read":
+                mark_as_read(msg_id)
+            continue
+
         # All other email — triage and prompt Bill; never mark read here
         _handle_non_whitelist(
             msg_id=msg_id,

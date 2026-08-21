@@ -13,6 +13,7 @@ later out-of-band lookup by message id is needed, and that column sits
 unused on book_launch_sends for the same reason.
 """
 import json
+import sqlite3
 
 from core.database import get_connection
 
@@ -55,6 +56,7 @@ CREATE TABLE IF NOT EXISTS privacy_removals (
     failure_reason    TEXT,
     submitted_at      TEXT,
     next_rescan_at    TEXT,
+    confirm_attempts  INTEGER NOT NULL DEFAULT 0,
     created_at        TEXT DEFAULT (datetime('now')),
     UNIQUE(person_id, broker_id, matched_url)
 );
@@ -299,6 +301,37 @@ _SEED_BROKERS = [
 ]
 
 
+def _migrate_removals_status_check(conn) -> None:
+    """The fix/privacy-guard-unconfirmed-status merge (2026-08-21) added
+    'unconfirmed' to privacy_removals' status CHECK constraint in
+    CREATE_REMOVALS above, but CREATE TABLE IF NOT EXISTS never re-applies
+    a changed CHECK to a table that already exists -- SQLite has no ALTER
+    TABLE for constraints, only a full rebuild. Without this, the very
+    first _mark_unconfirmed() call (jobs/privacy/remove.py) or Privacy
+    Guard confirm.py attempt-tracking UPDATE would raise IntegrityError
+    instead of landing, silently breaking backlog id=37's fix. Detected via
+    sqlite_master.sql (not assumed), so the rebuild runs at most once, and
+    only after confirm_attempts has already been added (see the ALTER
+    TABLE ADD COLUMN above this call in create_tables) so the copy below
+    can rely on that column existing."""
+    row = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='privacy_removals'"
+    ).fetchone()
+    if row is None or "'unconfirmed'" in row[0]:
+        return  # table doesn't exist yet, or already has the fixed constraint
+    conn.execute("ALTER TABLE privacy_removals RENAME TO privacy_removals_old")
+    conn.execute(CREATE_REMOVALS)
+    conn.execute(
+        """INSERT INTO privacy_removals
+           (id, person_id, broker_id, matched_url, matched_fields, confidence_score,
+            status, failure_reason, submitted_at, next_rescan_at, confirm_attempts, created_at)
+           SELECT id, person_id, broker_id, matched_url, matched_fields, confidence_score,
+                  status, failure_reason, submitted_at, next_rescan_at, confirm_attempts, created_at
+           FROM privacy_removals_old"""
+    )
+    conn.execute("DROP TABLE privacy_removals_old")
+
+
 def seed_brokers(conn) -> None:
     for b in _SEED_BROKERS:
         conn.execute(
@@ -319,6 +352,13 @@ def create_tables(conn=None) -> None:
     try:
         for stmt in ALL_TABLES:
             conn.execute(stmt)
+        try:
+            conn.execute(
+                "ALTER TABLE privacy_removals ADD COLUMN confirm_attempts INTEGER NOT NULL DEFAULT 0"
+            )
+        except sqlite3.OperationalError:
+            pass  # column already exists (pre-2026-08-21 databases)
+        _migrate_removals_status_check(conn)
         seed_brokers(conn)
         conn.commit()
     finally:

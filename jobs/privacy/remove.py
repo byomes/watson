@@ -41,6 +41,7 @@ from core.database import get_connection
 from jobs.browser.browser_service import get_page, goto_safe, log_browser_failure
 from jobs.email_job.brevo_send import send_email
 from jobs.privacy import send_telegram
+from jobs.privacy.verify import check_success
 
 log = logging.getLogger(__name__)
 
@@ -238,39 +239,12 @@ def _resolve_field_value(field_key: str, removal: dict, matched: dict) -> str | 
     return None
 
 
-async def _check_success(page, success_check: dict | None) -> tuple[bool, str | None]:
-    """Verifies a genuine post-submit completion signal — the whole point
-    of _submit_wizard existing instead of just extending _submit_form.
-    success_check is captured live per broker (never guessed) as one of:
-      {"type": "url_contains", "value": "..."}   — post-click page.url check
-      {"type": "selector", "value": "css..."}    — a confirmation element exists
-      {"type": "text", "value": "..."}           — literal text appears on the page
-    No success_check configured -> (False, explanatory reason), never a
-    silent pass."""
-    if not success_check:
-        return False, "no verified success_check configured for this broker"
-    check_type = success_check.get("type")
-    value = success_check.get("value")
-    try:
-        if check_type == "url_contains":
-            return (value in page.url), None
-        if check_type == "selector":
-            el = await page.query_selector(value)
-            return (el is not None), None
-        if check_type == "text":
-            content = await page.content()
-            return (value in content), None
-    except Exception as exc:
-        return False, f"success check raised: {exc}"
-    return False, f"unrecognized success_check type: {check_type!r}"
-
-
 async def _submit_wizard(removal: dict, dry_run: bool = False):
     """Drives a multi-step opt-out wizard: fill a step's fields -> click its
     next_button -> wait for the next step to actually render -> repeat,
     ending on the final step's submit_button — which this function refuses
     to click at all unless that step's form_selectors carries a verified
-    success_check (see _check_success). This is the fix for the gap found
+    success_check (see jobs/privacy/verify.py's check_success). This is the fix for the gap found
     on Spokeo (project_backlog id=37): "the click didn't throw" is never
     treated as success here, by construction, not by convention.
 
@@ -377,7 +351,7 @@ async def _submit_wizard(removal: dict, dry_run: bool = False):
 
                 await page.click(submit_button)
                 await page.wait_for_timeout(step.get("wait_ms", 2500))
-                success, reason = await _check_success(page, success_check)
+                success, reason = await check_success(page, success_check)
                 if not success:
                     shot_path = LOG_DIR / f"removal-{removal['id']}-{datetime.now():%Y%m%d%H%M%S}.png"
                     try:
