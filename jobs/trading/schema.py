@@ -30,10 +30,14 @@ CREATE TABLE IF NOT EXISTS risk_state (
 );
 """
 
+# Keep this family list in sync with jobs/trading/strategies/templates.py's
+# TEMPLATES dict. SQLite can't ALTER a CHECK constraint in place — adding a
+# new family value to a live DB needs the table-recreate migration in
+# _migrate_strategies_family_check() below, not just editing this string.
 CREATE_STRATEGIES = """
 CREATE TABLE IF NOT EXISTS strategies (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    family     TEXT NOT NULL CHECK (family IN ('ma_crossover', 'mean_reversion', 'momentum')),
+    family     TEXT NOT NULL CHECK (family IN ('ma_crossover', 'mean_reversion', 'momentum', 'time_series_momentum')),
     params_json TEXT NOT NULL,
     rationale  TEXT,
     status     TEXT NOT NULL DEFAULT 'proposed'
@@ -83,6 +87,36 @@ ALL_TABLES = [
 ]
 
 
+def _migrate_strategies_family_check(conn) -> None:
+    """SQLite can't ALTER a CHECK constraint in place — recreate the table
+    with the wider CHECK, copy every row across (ids preserved, so
+    backtest_runs/holdout_tests foreign keys still resolve — FK constraints
+    aren't enforced by this connection anyway, but keeping ids stable is
+    still the correct thing to do), drop the old, rename the new one in.
+    Guarded by inspecting the live CHECK text so this only runs once ever,
+    and is a safe no-op if the table doesn't exist yet (fresh installs get
+    the right CHECK straight from CREATE_STRATEGIES above)."""
+    row = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='strategies'"
+    ).fetchone()
+    if not row or "time_series_momentum" in row[0]:
+        return
+    conn.execute("""
+        CREATE TABLE strategies_new (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            family     TEXT NOT NULL CHECK (family IN ('ma_crossover', 'mean_reversion', 'momentum', 'time_series_momentum')),
+            params_json TEXT NOT NULL,
+            rationale  TEXT,
+            status     TEXT NOT NULL DEFAULT 'proposed'
+                       CHECK (status IN ('proposed', 'training_tested', 'holdout_tested', 'passed', 'failed')),
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+    conn.execute("INSERT INTO strategies_new SELECT * FROM strategies")
+    conn.execute("DROP TABLE strategies")
+    conn.execute("ALTER TABLE strategies_new RENAME TO strategies")
+
+
 def create_tables(conn=None) -> None:
     """Create all trading.db tables (idempotent — CREATE TABLE IF NOT EXISTS)."""
     owns_conn = conn is None
@@ -90,6 +124,7 @@ def create_tables(conn=None) -> None:
     try:
         for stmt in ALL_TABLES:
             conn.execute(stmt)
+        _migrate_strategies_family_check(conn)
         conn.execute(
             "INSERT OR IGNORE INTO risk_state (id, status) VALUES (1, 'active')"
         )

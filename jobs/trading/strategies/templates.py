@@ -56,6 +56,78 @@ class MomentumStrategy(bt.Strategy):
             self.close()
 
 
+class TimeSeriesMomentumStrategy(bt.Strategy):
+    """Time-series ("absolute") momentum, per Moskowitz/Ooi/Pedersen — see
+    kb/trading-strategies/articles/time-series-momentum.md. Distinct from
+    MomentumStrategy above (bare rate-of-change sign, all-in-or-flat): this
+    adds the two refinements the research specifically credits with real
+    performance — volatility-scaled position sizing and periodic (not
+    every-bar) rebalancing.
+
+    Long-only, capped at 1x notional exposure (no leverage, no shorting) —
+    a deliberate simplification of the source research (which uses
+    leverage and shorting across a multi-asset portfolio) to fit this
+    pipeline's single-symbol, no-leverage design.
+
+    Signal: `lookback`-day trailing return sign. Sizing: target_vol /
+    realized_annualized_vol (over `vol_window` days), capped at 100% of
+    portfolio value. Rebalance: every `rebalance_days` bars, not every bar
+    — closer to the source research's monthly cadence than a same-bar
+    reaction.
+
+    Caveat (see iteration_loop/templates.py module docstring on holdout
+    windows): needs `lookback + vol_window` bars of warmup. holdout_data()
+    returns each sealed window in isolation with no pre-window buffer, so
+    a long-lookback variant literally cannot trade within crash_2020 (62
+    bars) — it will show a flat 0%-return "beat" of SPY's -10% there, for
+    lack of data rather than skill. Check the per-window breakdown, not
+    just the aggregate PASS/FAIL, before trusting a holdout result for
+    this family."""
+    params = (
+        ("lookback", 252),      # ~12 months of trading days, per the source research
+        ("vol_window", 20),
+        ("target_vol", 0.15),   # annualized target volatility for the position
+        ("rebalance_days", 21), # ~1 trading month
+    )
+
+    def __init__(self):
+        self._bar_count = 0
+
+    def next(self):
+        self._bar_count += 1
+        warmup = self.p.lookback + self.p.vol_window
+        if self._bar_count <= warmup:
+            return
+        if (self._bar_count - warmup) % self.p.rebalance_days != 0:
+            return
+
+        signal = self.data.close[0] / self.data.close[-self.p.lookback] - 1
+
+        daily_returns = [
+            self.data.close[-i] / self.data.close[-i - 1] - 1
+            for i in range(self.p.vol_window)
+        ]
+        mean_r = sum(daily_returns) / len(daily_returns)
+        variance = sum((r - mean_r) ** 2 for r in daily_returns) / max(len(daily_returns) - 1, 1)
+        annualized_vol = (variance ** 0.5) * (252 ** 0.5)
+
+        if signal > 0 and annualized_vol > 0:
+            target_fraction = min(self.p.target_vol / annualized_vol, 1.0)
+            target_size = int(self.broker.getvalue() * target_fraction / self.data.close[0])
+        else:
+            target_size = 0
+
+        if target_size <= 0:
+            if self.position:
+                self.close()
+        else:
+            diff = target_size - (self.position.size if self.position else 0)
+            if diff > 0:
+                self.buy(size=diff)
+            elif diff < 0:
+                self.sell(size=-diff)
+
+
 # Grids intentionally start with the original small combinations (already
 # tested live) as a prefix, with more combinations appended after — grid
 # indexing in iteration_loop.propose_next_variant() is positional
@@ -120,5 +192,15 @@ TEMPLATES = {
             # segment above.
             + [{"period": p} for p in range(255, 505, 5)]
         ),
+    },
+    "time_series_momentum": {
+        "cls": TimeSeriesMomentumStrategy,
+        "label": "Time-series momentum (vol-scaled)",
+        "grid": [
+            {"lookback": lb, "target_vol": tv, "vol_window": vw}
+            for lb in (126, 189, 252)   # ~6, 9, 12 months
+            for tv in (0.10, 0.15, 0.20)
+            for vw in (20, 60)
+        ],
     },
 }
