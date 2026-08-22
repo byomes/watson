@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-08-21*
+*Generated: 2026-08-22*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -586,10 +586,13 @@ jobs/
   privacy/
     __init__.py
     add_family_member.py
+    confirm.py
     dashboard_api.py
+    discover.py
     remove.py
     scan.py
     schema.py
+    verify.py
   publishing/
     __init__.py
     api.py
