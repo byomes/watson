@@ -143,6 +143,23 @@ def dash_wr_resend_welcome():
     partner_id = (request.get_json(force=True) or {}).get("partner_id")
     if not partner_id:
         return jsonify({"error": "partner_id required"}), 400
+    conn = get_wr_db()
+    try:
+        row = conn.execute(
+            "SELECT id, status FROM writing_room_partners WHERE id = ?", (partner_id,)
+        ).fetchone()
+    finally:
+        conn.close()
+    if not row:
+        return jsonify({"error": "partner not found"}), 404
+    # The email this sends says "Dr. Bill approved your Writing Room
+    # application" and hands out a verify link — only true/safe for a partner
+    # who's been approved but hasn't verified yet. Sending it to a denied or
+    # revoked partner would directly contradict that decision; an already-
+    # active partner has the self-service forgot-password flow instead.
+    if row["status"] != "approved":
+        return jsonify({"error": f"partner status is '{row['status']}', not approved — cannot resend welcome"}), 400
+
     ok = resend_welcome(int(partner_id))
     if not ok:
         return jsonify({"error": "partner not found"}), 404
@@ -157,12 +174,17 @@ def dash_wr_reset_password():
     conn = get_wr_db()
     try:
         row = conn.execute(
-            "SELECT id FROM writing_room_partners WHERE id = ?", (partner_id,)
+            "SELECT id, status FROM writing_room_partners WHERE id = ?", (partner_id,)
         ).fetchone()
     finally:
         conn.close()
     if not row:
         return jsonify({"error": "partner not found"}), 404
+    # Only a verified, already-active partner has a real password to reset —
+    # pending/approved haven't set one via the verify flow yet, and
+    # denied/revoked/deleted shouldn't get a working credential at all.
+    if row["status"] != "active":
+        return jsonify({"error": f"partner status is '{row['status']}', not active — cannot reset password"}), 400
 
     new_password = generate_reader_password()
     set_partner_password(partner_id, new_password)
