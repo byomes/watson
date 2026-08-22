@@ -292,11 +292,16 @@ def dash_arc_reset_password(reader_id: int):
     _ensure_arc_tables()
     conn = get_wr_db()
     try:
-        row = conn.execute("SELECT id FROM arc_readers WHERE id = ?", (reader_id,)).fetchone()
+        row = conn.execute("SELECT id, status FROM arc_readers WHERE id = ?", (reader_id,)).fetchone()
     finally:
         conn.close()
     if not row:
         return jsonify({"error": "reader not found"}), 404
+    # Waitlisted readers (2026-08-22 pause, jobs/arc/api.py::arc_apply) have no
+    # login at all — issuing a password here would silently contradict that
+    # pause even though status still blocks the login itself.
+    if row["status"] != "active":
+        return jsonify({"error": f"reader status is '{row['status']}', not active — cannot reset password"}), 400
 
     new_password = generate_reader_password()
     set_arc_reader_password(reader_id, new_password)
@@ -306,6 +311,19 @@ def dash_arc_reset_password(reader_id: int):
 @publishing_dashboard_bp.route("/api/dashboard/arc/readers/<int:reader_id>/resend-welcome", methods=["POST"])
 def dash_arc_resend_welcome(reader_id: int):
     _ensure_arc_tables()
+    conn = get_wr_db()
+    try:
+        row = conn.execute("SELECT id, status FROM arc_readers WHERE id = ?", (reader_id,)).fetchone()
+    finally:
+        conn.close()
+    if not row:
+        return jsonify({"error": "reader not found"}), 404
+    # Same guard as reset-password above — a waitlisted reader has no login
+    # to "resend," and the old template's copy ("a new password has been
+    # generated for your ARC team login") would be actively misleading.
+    if row["status"] != "active":
+        return jsonify({"error": f"reader status is '{row['status']}', not active — cannot resend welcome"}), 400
+
     ok = arc_resend_welcome(reader_id)
     if not ok:
         return jsonify({"error": "reader not found"}), 404
