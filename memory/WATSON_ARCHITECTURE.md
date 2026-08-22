@@ -2254,3 +2254,16 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - 7618f14 Privacy Guard: multi-step wizard driver + broker investigation (#31)
 - be8665d Add Privacy Guard: family data-broker removal automation (#30)
 - 9b7cae9 docs: architecture update 2026-08-20
+
+---
+
+## Recent Changes — 2026-08-22
+
+### ~/watson
+- 9b72b9c docs: bugs/backlog export 2026-08-22
+- 2c8fd2e docs: file map 2026-08-22
+- 1a98b6c Add Privacy Guard email-confirmation polling (project_backlog id=37)
+- 773c517 docs: bugs/backlog export 2026-08-21
+- 0e2242a Merge branch 'fix/privacy-guard-unconfirmed-status'
+- 98367e7 Merge branch 'fix/privacy-guard-scan-locking-robots'
+- 709e954 docs: architecture update 2026-08-21
