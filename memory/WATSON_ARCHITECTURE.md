@@ -2267,3 +2267,26 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - 0e2242a Merge branch 'fix/privacy-guard-unconfirmed-status'
 - 98367e7 Merge branch 'fix/privacy-guard-scan-locking-robots'
 - 709e954 docs: architecture update 2026-08-21
+
+---
+
+## Recent Changes — 2026-08-23
+
+### ~/watson
+- f900ea0 docs: bugs/backlog export 2026-08-23
+- 3f2c75e docs: file map 2026-08-23
+- a31ef64 Gitignore .env.bak.* / .env.bak-* patterns
+- f203e14 Back up all code repos + full data/ tree to the local restic leg
+- c977d20 Guard Writing Room resend-welcome/reset-password by partner status
+- bc64370 Guard ARC reset-password/resend-welcome against non-active readers
+- 00405f2 Pause ARC manuscript access for new signups
+- a1273d4 Move lead-magnet subscriber tagging from Kit to Brevo
+- d4f8607 docs: architecture update 2026-08-22
+
+### ~/wcky
+- 5599f06 Rewrite Wrong Jesus companion guide copy on /guides
+- b9bc94b Fix He Is Risen description on /guides and /books
+- a036501 Update ARC signup success message for waitlist flow
+- b01c93d Remove Start from main nav
+- a7577e5 Add /guides companion-guide hub page
+- 5aefd68 publish: Is This Genocide? Reading Joshua 6 Honestly
