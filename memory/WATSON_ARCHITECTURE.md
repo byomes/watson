@@ -274,7 +274,7 @@ now a confirmed-closed result, not an open gap pending a retest.
 | Job | Schedule | Purpose |
 |-----|----------|---------|
 | `jobs/scheduler.py` | Daily 10am | Publish blog drafts from `watson.db` |
-| `core/pipeline.py` | Daily 6am | Main content pipeline |
+| `core/pipeline.py` | **DISABLED 2026-08-23** | Content pipeline feeding the Briefing tab (Gemini fetch/score + `briefing.builder`) — Briefing/Reading List/Meeting Reviews tabs removed from dashboard as unused; cron line commented out in crontab, not deleted |
 | `jobs/facebook/facebook_post.py` | Every 15 min | Facebook post queue |
 | `jobs/email_job/draft_email.py` | Thu 7am | Weekly email draft |
 | `jobs/connect_cards/intake.py` | Every 30 min | Parse Subsplash connect cards from Gmail |
@@ -325,6 +325,134 @@ now a confirmed-closed result, not an open gap pending a retest.
 - `jobs/dev_loop/` — trigger.py, loop.py, deliver.py, cleanup.py
 - `jobs/meet/summarize.py` — Meet transcript summarization via Scribbl → Gmail → Watson
 - `jobs/trading/` — Paper-trading strategy pipeline (Alpaca paper API only) — see Paper-Trading Strategy Pipeline section below
+
+---
+
+## Skills & Capabilities Catalog
+
+> Machine-readable version: `memory/skills.json` in the watson repo (each entry has `slug`, `module`, `function`, `triggers`, `interfaces`, `status`). This section is a human/LLM-readable mirror of that file plus the direct prefix commands that bypass it — kept current manually, so if it ever drifts from skills.json, skills.json is the source of truth.
+
+**How to trigger a skill.** Talk to Watson via the Telegram bot (`@wckyWatsonbot`) or the dashboard chat tab (`https://watson.tail0243ff.ts.net`). Two ways to invoke:
+
+1. **Natural language** — say what you want in plain English close to the skill's description; `jobs/skillbuilder/router.py` matches known trigger phrases first (no LLM call, instant) and falls back to an LLM intent classifier (`gemma3:4b`) for anything else, so exact trigger wording usually isn't required.
+2. **Exact trigger phrase** — the phrases listed below always work and skip the classifier. Several skills use a colon-prefix form (`kb:`, `bible:`, `polish this:`) — the prefix must be exact and the text after it is passed straight through as the argument.
+
+A skill marked **disabled** below is registered but intentionally turned off — it will not fire even if its trigger phrase is used.
+
+### Core
+
+| Skill | Status | Interfaces | Trigger phrases | What it does |
+|---|---|---|---|---|
+| **Add Task** (`add_task`) | ready | telegram, dashboard | `add a task`, `new task`, `add task`, `create task`, `add to my tasks`, `task:`, `tasks:` | Add a task with optional due date and priority. |
+| **Bible Lookup** (`bible_lookup`) | ready | telegram, dashboard | `watson bible`, `what does the bible say`, `bible verse`, `look up verse`, `verse`, `passage` | Look up any Bible passage in NIV, CSB, or NASB. |
+| **Book Appointment** (`book_appointment`) | ready | telegram, dashboard | `book an appointment`, `set an appointment`, `schedule a meeting`, `add to my calendar`, `create an appointment`, `book a meeting`, `schedule an appointment` | Parses natural language to create a Google Calendar event, optionally drafting a confirmation email if a known contact is mentioned. |
+| **Calendar Query** (`calendar_query`) | ready | telegram, dashboard | `what's on my calendar`, `whats on my calendar`, `check my calendar`, `my schedule`, `today's schedule`, `todays schedule`, `what's my day`, `whats my day`, `what's my schedule`, `whats my schedule`, `what do i have today`, `what do i have on` | Show what's on your Google Calendar for today or a given day. |
+| **Clear Day / Push Appointments** (`clear_day`) | disabled | telegram, dashboard | `block out`, `clear the day`, `clear my day`, `push all`, `push my appointments`, `pastoral override` | Blocks out the rest of today or X hours, reschedules all affected appointments to next available slot, and notifies guests by email. |
+| **Contacts Lookup** (`contacts_lookup`) | ready | telegram, dashboard | `show all contacts`, `list contacts`, `contact search` | Search congregation and personal contacts by name. |
+| **Send Email** (`email_send`) | ready | telegram, dashboard | `send an email`, `draft an email`, `write an email to`, `compose an email` | Draft and send an email via Watson Gmail. |
+| **Logins** (`logins`) | ready | telegram | `what's my password for`, `my password for`, `login for`, `credentials for` | Look up saved login credentials by service name. |
+| **Pastoral Notes** (`pastoral_notes`) | ready | telegram | `pastoral note:`, `pastoral notes:` | Save a freeform pastoral note directly to the database. |
+| **Pastoral Search** (`pastoral_search`) | ready | telegram, dashboard | `pastoral search` | Returns a pastoral summary for a named member — campus, attendance, connect cards, prayer requests, and next steps from the last 3 weeks. |
+| **QR Code** (`qr_generate`) | ready | telegram, dashboard | `make a qr code`, `qr code for`, `generate a qr`, `create a qr` | Generate a QR code for any URL or text. |
+| **Time Check** (`time_check`) | ready | telegram, dashboard | `what time is it`, `current time`, `time check`, `tell me the time` | Check the current time in Eastern timezone. |
+
+### Research
+
+| Skill | Status | Interfaces | Trigger phrases | What it does |
+|---|---|---|---|---|
+| **Academic Search** (`academic_search`) | ready | telegram, dashboard | `search academic`, `find papers on`, `scholarly search`, `academic search` | Search academic sources and papers. |
+| **Classics KB Search** (`classics`) | ready | telegram, dashboard | `classics:` | Query the 'gutenberg' ChromaDB collection (Project Gutenberg texts) with llama3.2:3b synopsis — kept separate from the sermons KB. |
+| **Fetch URL** (`gemini_fetch`) | disabled | telegram, dashboard | `fetch this`, `read this url`, `scrape this`, `summarize this url`, `get this page` | Fetch a webpage and process it with Gemini. |
+| **Gutenberg Search** (`gutenberg`) | ready | telegram, dashboard | `gutenberg:` | Search Project Gutenberg via Gutendex, reply with a number to download and ingest into the separate 'gutenberg' ChromaDB collection. |
+| **Image Search** (`image_search`) | ready | telegram, dashboard | `find image`, `search image`, `find a photo`, `image of` | Search for images matching a query. |
+| **ISBN Lookup** (`isbn_lookup`) | ready | telegram, dashboard | `look up book`, `isbn`, `find book`, `book info` | Look up a book by ISBN or title. |
+| **KB Ask** (`kb`) | ready | telegram, dashboard | `kb:`, `search kb`, `search my notes`, `search my sermons`, `what have i said about`, `what did i preach on`, `find in my notes` | Query sermon transcripts and documents via ChromaDB. |
+| **KB Export** (`kb_export`) | ready | telegram | `kb export:` | Zip and send matching KB source files for a query via Telegram. |
+| **KB Search** (`kb_search`) | ready | telegram, dashboard | `kb:`, `search the kb:` | Search the ChromaDB sermons collection with llama3.2:3b synopsis. Reply 'email that to me' to send results to inbox. |
+| **News Search** (`news_search`) | ready | telegram, dashboard | `search news`, `latest news on`, `what's the news about`, `news about` | Search recent news on any topic. |
+| **Summarize** (`summarizer`) | ready | telegram, dashboard | `summarize`, `give me a summary`, `tldr`, `summarize this` | Summarize any text or article. |
+| **Web Search** (`web_search`) | ready | telegram, dashboard | `search the web`, `web search`, `google`, `look it up online` | Search the web via Serper.dev. |
+
+### Writing
+
+| Skill | Status | Interfaces | Trigger phrases | What it does |
+|---|---|---|---|---|
+| **Citation Manager** (`citation_manager`) | ready | telegram, dashboard | `format citation`, `cite this`, `create a citation`, `bibliography` | Format and manage citations. |
+| **Grammar Check** (`grammar_checker`) | ready | telegram, dashboard | `check grammar`, `grammar check`, `proofread`, `fix my grammar` | Check grammar and style of any text. |
+| **Polish Text** (`polish`) | ready | telegram, dashboard | `polish this:` | Polish text in the voice of Dr. William C.K. Yomes — pastoral-scholarly prose, first-person plural, Jesus pronouns capitalized. |
+| **Readability Check** (`readability`) | ready | telegram, dashboard | `check readability`, `readability score`, `how readable is` | Score the readability of any text. |
+| **Style Check** (`style_checker`) | ready | telegram, dashboard | `check style`, `style check`, `check my writing style` | Check writing style and tone. |
+
+### Documents
+
+| Skill | Status | Interfaces | Trigger phrases | What it does |
+|---|---|---|---|---|
+| **Document Converter** (`document_converter`) | ready | telegram, dashboard | `convert document`, `convert to pdf`, `convert to word`, `document converter` | Convert documents between formats. |
+| **Excel / Spreadsheet** (`excel`) | ready | telegram, dashboard | `create spreadsheet`, `open excel`, `read excel`, `xlsx` | Create or read Excel spreadsheets. |
+| **PDF Tools** (`pdf`) | ready | telegram, dashboard | `read pdf`, `extract pdf`, `open pdf`, `pdf` | Read, extract, or manipulate PDF files. |
+| **PowerPoint** (`powerpoint`) | ready | telegram, dashboard | `create presentation`, `make slides`, `powerpoint`, `pptx` | Create or read PowerPoint presentations. |
+| **Word Document** (`word`) | ready | telegram, dashboard | `create word doc`, `open word`, `word document`, `docx` | Create or edit Word documents. |
+
+### Design
+
+| Skill | Status | Interfaces | Trigger phrases | What it does |
+|---|---|---|---|---|
+| **Generate Image** (`image_gen`) | ready | telegram, dashboard | `generate image:`, `generate an image:`, `create an image:`, `make an image:`, `imagegen:`, `imgen:` | Generate an AI image from a text prompt and deliver it via Telegram. |
+| **Screenshot** (`screenshot`) | ready | telegram, dashboard | `screenshot`, `take a screenshot`, `capture page` | Take a screenshot of a webpage. |
+| **SVG Generator** (`svg_generator`) | ready | telegram, dashboard | `generate svg`, `create svg`, `make an icon`, `svg` | Generate SVG graphics and icons. |
+
+### Utilities
+
+| Skill | Status | Interfaces | Trigger phrases | What it does |
+|---|---|---|---|---|
+| **Chart Generator** (`chart_generator`) | ready | telegram, dashboard | `make a chart`, `generate chart`, `chart this data`, `create a graph` | Generate charts from data. |
+| **Dad Joke** (`dad_joke`) | ready | telegram, dashboard | `tell me a joke`, `dad joke`, `give me a joke` | Tell a random dad joke. |
+| **Data Analyzer** (`data_analyzer`) | ready | telegram, dashboard | `analyze data`, `data analysis`, `analyze this data` | Analyze data and generate insights. |
+| **Date Helper** (`date_helper`) | ready | telegram, dashboard | `how many days until`, `date calculator`, `days between`, `what day is` | Calculate dates, days between dates, countdowns. |
+| **Riddle** (`riddle`) | ready | telegram, dashboard | `tell me a riddle`, `riddle`, `give me a riddle` | Tell a random riddle. |
+
+### Watson Dev
+
+| Skill | Status | Interfaces | Trigger phrases | What it does |
+|---|---|---|---|---|
+| **Claude Debug** (`claude_debug`) | ready | telegram, dashboard | `debug:`, `diagnose this`, `watson debug`, `run diagnostics` | Diagnose a Watson problem using Claude API and Claude Code. |
+| **Command Executor** (`command_executor`) | ready | telegram, dashboard | `run command`, `shell command`, `terminal`, `bash` | Execute approved shell commands on Beelink. |
+| **Secrets Audit** (`secrets_audit`) | ready | telegram, dashboard | `audit secrets`, `check credentials`, `secrets audit` | Audit Watson environment variables and credentials. |
+| **Skill Audit** (`skill_audit`) | ready | telegram, dashboard | `audit skills`, `test my skills`, `run skill audit`, `which skills work`, `skill audit` | Run a full audit of all Watson skills and report which pass and which fail. |
+| **System Monitor** (`system_monitor`) | ready | telegram, dashboard | `system status`, `check system`, `how is watson doing`, `server status` | Check Beelink CPU, memory, and disk usage. |
+
+### Direct commands (bypass the skill router)
+
+These are handled by hardcoded prefix/exact-match checks in `jobs/dashboard/app.py` (`/api/terminal` and the chat endpoint) rather than through `skills.json` — they are not in the machine-readable catalog above, but they're real, working capabilities and the prefix must be typed exactly as shown.
+
+| Command | What it does |
+|---|---|
+| `cdb: <question>` | Query the congregation database in plain English (attendance, membership, campus, engagement trends) — e.g. `cdb: who missed this Sunday`. |
+| `wdb: <question>` | Query the leadership/team database (task status, stalled work, follow-ups, meeting notes) — e.g. `wdb: stalled tasks`. |
+| `web: <query>` | Web search (duplicate entry point to the web_search skill, prefix form). |
+| `bible: <reference>` | Bible lookup (duplicate entry point to bible_lookup, prefix form) — e.g. `bible: John 3:16 NIV`. |
+| `kb: <query>` / `search the kb: <query>` | Search the sermon-transcript ChromaDB knowledge base. |
+| `xkb: <query>` | Search the sermons KB with expanded/deeper matching. |
+| `gutenberg: <query>` | Search Project Gutenberg; reply with a number (in chat, not terminal) to download and ingest a text into the `gutenberg` KB collection. |
+| `classics: <query>` | Search the `gutenberg` KB collection (ingested public-domain texts), kept separate from sermons. |
+| `imagegen: <prompt>` / `imgen: <prompt>` | Generate an AI image from a text prompt. |
+| `polish this: <text>` / `polish: <text>` | Polish text in Dr. Yomes's pastoral-scholarly voice (duplicate entry point to the polish skill). |
+| `bug: <title>` | Log a bug directly to the `bug_tracker` table. |
+| `backlog: <title> | <summary>` | Log an item to the project backlog. |
+| `build: <description>` / `devloop: <description>` | Trigger a new Dev Loop autonomous coding project (`devloop:` is the Telegram spelling, `build:` the dashboard spelling — both work in both places). |
+| `debug: <problem>` | Run Claude-assisted diagnostics on a Watson problem. |
+| `run: <slug> <args>` | Explicitly dispatch a registered skill by its skills.json slug, bypassing trigger-phrase matching. |
+| `shepherding:` | Pastoral shepherding report — critical care, at-risk, first-time visitors, no-next-step members. |
+| `state of church report` | Generate and email the full State of the Church HTML report (async — runs in the background, delivered by email). |
+| `remind me at <time> <text>` / `remind me <text>` | Create a timed or plain reminder. |
+| what's on my calendar / my schedule / today's schedule / etc. | Also reachable via the calendar_query skill above; these phrasings work identically. |
+| `system status` | CPU, memory, disk, and service health. |
+| `check logs` | Tail the last 50 lines of the watson-bot / watson-dashboard systemd journal (dashboard only, via /api/terminal). |
+| `count congregation members` / `count tasks` / `count connect cards` | Quick row counts from the relevant database. |
+| `conflict_check` | Run the member-conflict report in the background (results arrive via Telegram). |
+| `watson audit skills` | Run the full skill_audit self-test and report pass/fail (dashboard only, via /api/terminal). |
+| `git pull` | Pull latest changes into ~/watson (dashboard only, via /api/terminal). |
+| `restart watson bot` / `restart dashboard` | Restart the named systemd service (dashboard only, via /api/terminal; passwordless sudo scoped to exactly these two commands). |
 
 ---
 
