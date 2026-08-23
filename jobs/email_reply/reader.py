@@ -165,6 +165,15 @@ def run() -> None:
             _mark_seen(mail, em["uid"])
             continue
 
+        # wcky /tools/connect-card submissions send from watson@williamckyomes.com
+        # via Brevo (migrated off Subsplash/Snappages 2026-07-27), so they don't
+        # match the snappages.com/no-reply@ block above. Same exemption as
+        # email_intake.py's Connect Card Bcc guard.
+        if addr == "watson@williamckyomes.com" and em["subject"].startswith("Connect Card — "):
+            log.info("Skipping connect card email: %s", em["subject"])
+            _mark_seen(mail, em["uid"])
+            continue
+
         draft = draft_reply(em)
         if not draft:
             log.warning("Empty draft for %s; skipping.", em["message_id"])
