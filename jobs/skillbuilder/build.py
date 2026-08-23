@@ -381,6 +381,12 @@ def _post_success(job_path: str, description: str, built_by: str, code: str = ""
         sync_main()
     except Exception as exc:
         log.warning("Memory update failed (non-fatal): %s", exc)
+
+    try:
+        from jobs.dev.skills_catalog import sync_skills_catalog
+        sync_skills_catalog()
+    except Exception as exc:
+        log.warning("Skills catalog sync failed (non-fatal, daily cron will catch it): %s", exc)
     _validate_after_build(job_path)
 
 

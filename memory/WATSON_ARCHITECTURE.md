@@ -311,6 +311,7 @@ now a confirmed-closed result, not an open gap pending a retest.
 | `jobs/dev/file_map.py` | Daily 2am | Auto-update FILE_MAP.md |
 | `jobs/dev/bugs_backlog_sync.py` | Daily 2am | Regenerate BUGS.md / DEV_PROJECTS.md from bug_tracker / project_backlog, push to byomes/watson-docs |
 | `jobs/dev/update_arch.py` | Daily 2am | Auto-update WATSON_ARCHITECTURE.md |
+| `jobs/dev/skills_catalog.py` | Daily 2:20am (+ triggered directly after every skillbuilder build) | Regenerate the Skills & Capabilities Catalog section of WATSON_ARCHITECTURE.md from skills.json, push to byomes/watson-docs |
 | `jobs/kb/sync_and_index.py` | Daily 2am | Git pull (ff-only) + same-day transcript sync (`kb/transcripts/` → `kb/documents/`) + incremental Chroma index + Telegram summary |
 | `jobs/campaigns/weekly_digest.py` | Sun 6pm | Book-launch campaign digest — Telegram summary of queued sends per active campaign, with Open Editor / Approve All buttons; also runnable on-demand (`--campaign-id` CLI flag) |
 | `jobs/campaigns/brevo_dispatcher.py` | Every 15 min | Book-launch campaign Brevo dispatcher — sends approved+due `book_launch_sends` rows (Facebook rows are instead queued into the existing `facebook_queue`/`facebook_post.py` pipeline at approval time, not handled here) |
