@@ -553,24 +553,24 @@ def vacation_mode_api():
 _TERM_BLOCKLIST = ("rm ", "sudo rm", "drop ", "drop;", "format ", "shutdown", "reboot", ":(){", ">(")
 
 _TERM_COMMANDS = {
-    "system status": ("skill", "jobs.dev.system_monitor"),
+    "system status": ("skill", "jobs.dev.system_monitor"),  # doc: CPU, memory, disk, and service health.
     # watson-bot.service / watson-dashboard.service log via StandardOutput=journal
     # (see /etc/systemd/system/*.service) — there is no single ~/watson/logs/watson.log
     # file to tail anymore; per-job scripts each write their own log under logs/ instead.
     # The api.telegram.org/bot lines are filtered out: they're just getUpdates polling
     # noise, and the raw URL embeds the bot token in plaintext (httpx request logging).
-    "check logs": ("shell", "journalctl -u watson-bot.service -u watson-dashboard.service -n 100 --no-pager | grep -v 'api.telegram.org/bot' | tail -50"),
-    "disk usage": ("shell", "df -h"),
-    "memory usage": ("shell", "free -h"),
-    "git pull": ("shell", "git -C " + os.path.expanduser("~/watson") + " pull"),
-    "restart watson bot": ("shell", "sudo systemctl restart watson-bot.service"),
-    "restart dashboard": ("shell", "sudo systemctl restart watson-dashboard.service"),
-    "count congregation members": ("sqlite", "congregation"),
-    "count tasks": ("sqlite", "tasks"),
-    "count connect cards": ("sqlite", "connect_cards"),
-    "watson audit skills": ("skill", "jobs.dev.skill_tester"),
-    "watson fix all failing skills": ("fix_skills", None),
-    "conflict_check": ("async_job", "jobs.connect_cards.conflict_report"),
+    "check logs": ("shell", "journalctl -u watson-bot.service -u watson-dashboard.service -n 100 --no-pager | grep -v 'api.telegram.org/bot' | tail -50"),  # doc: Tail the watson-bot / watson-dashboard systemd journal.
+    "disk usage": ("shell", "df -h"),  # doc: Disk usage.
+    "memory usage": ("shell", "free -h"),  # doc: Memory usage.
+    "git pull": ("shell", "git -C " + os.path.expanduser("~/watson") + " pull"),  # doc: Pull latest changes into ~/watson.
+    "restart watson bot": ("shell", "sudo systemctl restart watson-bot.service"),  # doc: Restart watson-bot.service (passwordless sudo scoped to exactly this command).
+    "restart dashboard": ("shell", "sudo systemctl restart watson-dashboard.service"),  # doc: Restart watson-dashboard.service (passwordless sudo scoped to exactly this command).
+    "count congregation members": ("sqlite", "congregation"),  # doc: Row count from the congregation table.
+    "count tasks": ("sqlite", "tasks"),  # doc: Row count of active tasks.
+    "count connect cards": ("sqlite", "connect_cards"),  # doc: Row count from the connect_cards table.
+    "watson audit skills": ("skill", "jobs.dev.skill_tester"),  # doc: Run the full skill_audit self-test and report pass/fail.
+    "watson fix all failing skills": ("fix_skills", None),  # doc: Queue every skill_audit-failing skill for auto-fix.
+    "conflict_check": ("async_job", "jobs.connect_cards.conflict_report"),  # doc: Run the member-conflict report in the background (results arrive via Telegram).
 }
 
 
@@ -593,35 +593,35 @@ def terminal():
     def _pfx_out(text):
         return jsonify({"output": (text or "(no output)").strip(), "success": True})
 
-    if cmd_lower.startswith("cdb:"):
+    if cmd_lower.startswith("cdb:"):  # doc: Query the congregation database in plain English (attendance, membership, campus, engagement trends).
         try:
             from jobs.skills.cdb_query import run as _cdb_run
             return _pfx_out(_cdb_run(cmd[4:].strip()) or "No results.")
         except Exception as _exc:
             return jsonify({"output": f"cdb error: {_exc}", "success": False})
 
-    if cmd_lower.startswith("wdb:"):
+    if cmd_lower.startswith("wdb:"):  # doc: Query the leadership/team database (task status, stalled work, follow-ups, meeting notes).
         try:
             from jobs.skills.wdb_query import run as _wdb_run
             return _pfx_out(_wdb_run(cmd[4:].strip()) or "No results.")
         except Exception as _exc:
             return jsonify({"output": f"wdb error: {_exc}", "success": False})
 
-    if cmd_lower.startswith("web:"):
+    if cmd_lower.startswith("web:"):  # doc: Web search (prefix form of the web_search skill).
         try:
             from jobs.research.web_search import run as _web_run
             return _pfx_out(_web_run(cmd[4:].strip()) or "No results.")
         except Exception as _exc:
             return jsonify({"output": f"web error: {_exc}", "success": False})
 
-    if cmd_lower.startswith("bible:"):
+    if cmd_lower.startswith("bible:"):  # doc: Bible lookup (prefix form of the bible_lookup skill).
         try:
             from jobs.bible import run as _bible_run
             return _pfx_out(_bible_run(cmd[6:].strip()) or "No results.")
         except Exception as _exc:
             return jsonify({"output": f"bible error: {_exc}", "success": False})
 
-    if cmd_lower.startswith("imagegen:") or cmd_lower.startswith("imgen:"):
+    if cmd_lower.startswith("imagegen:") or cmd_lower.startswith("imgen:"):  # doc: Generate an AI image from a text prompt.
         try:
             from jobs.skills.image_gen_skill import run as _image_gen_run
             _prefix_len = len("imagegen:") if cmd_lower.startswith("imagegen:") else len("imgen:")
@@ -629,14 +629,14 @@ def terminal():
         except Exception as _exc:
             return jsonify({"output": f"image error: {_exc}", "success": False})
 
-    if cmd_lower.startswith("polish this:"):
+    if cmd_lower.startswith("polish this:"):  # doc: Polish text in Dr. Yomes's pastoral-scholarly voice.
         try:
             from jobs.skills.polish import polish_text as _polish_text
             return _pfx_out(_polish_text(cmd[12:].strip()) or "No results.")
         except Exception as _exc:
             return jsonify({"output": f"polish error: {_exc}", "success": False})
 
-    if cmd_lower.startswith("bug:"):
+    if cmd_lower.startswith("bug:"):  # doc: Log a bug directly to the bug_tracker table.
         _bug_title = cmd[4:].strip()
         if not _bug_title:
             return _pfx_out("Format: bug: <title>")
@@ -644,7 +644,7 @@ def terminal():
         _db().commit()
         return _pfx_out(f"Logged: {_bug_title}")
 
-    if cmd_lower.startswith("backlog:"):
+    if cmd_lower.startswith("backlog:"):  # doc: Log an item to the project backlog.
         _bl_arg = cmd[8:].strip()
         if not _bl_arg:
             return _pfx_out("Format: backlog: <title> | <summary>")
@@ -653,14 +653,14 @@ def terminal():
         _create_backlog_item(_bl_title, _bl_summary)
         return _pfx_out(f"Logged to backlog: {_bl_title}")
 
-    if cmd_lower.startswith("polish:"):
+    if cmd_lower.startswith("polish:"):  # doc: Polish text in Dr. Yomes's pastoral-scholarly voice (alternate prefix form).
         try:
             from jobs.skills.polish import run as _polish_run
             return _pfx_out(_polish_run(cmd[7:].strip()) or "No results.")
         except Exception as _exc:
             return jsonify({"output": f"polish error: {_exc}", "success": False})
 
-    if cmd_lower.startswith("gutenberg:"):
+    if cmd_lower.startswith("gutenberg:"):  # doc: Search Project Gutenberg; reply with a number in chat to download and ingest a text into the gutenberg KB collection.
         _gb_cmd_q = cmd[10:].strip()
         if not _gb_cmd_q:
             return _pfx_out("What would you like to search for on Project Gutenberg?")
@@ -685,14 +685,14 @@ def terminal():
         except Exception as _exc:
             return jsonify({"output": f"gutenberg error: {_exc}", "success": False})
 
-    if cmd_lower.startswith("classics:"):
+    if cmd_lower.startswith("classics:"):  # doc: Search the gutenberg KB collection (ingested public-domain texts), kept separate from sermons.
         try:
             from jobs.skills.kb_search import search_kb as _classics_search_kb_t, format_result as _fmt_classics_t
             return _pfx_out(_fmt_classics_t(_classics_search_kb_t(cmd[9:].strip(), "gutenberg")))
         except Exception as _exc:
             return jsonify({"output": f"classics error: {_exc}", "success": False})
 
-    if cmd_lower.startswith("xkb:"):
+    if cmd_lower.startswith("xkb:"):  # doc: Search the sermons KB with expanded/deeper matching.
         try:
             from jobs.skills.kb_search import search_kb as _search_kb, format_result as _fmt_kb
             _kq = cmd[4:].strip()
@@ -700,7 +700,7 @@ def terminal():
         except Exception as _exc:
             return jsonify({"output": f"KB error: {_exc}", "success": False})
 
-    if cmd_lower.startswith("search the kb:") or cmd_lower.startswith("kb:"):
+    if cmd_lower.startswith("search the kb:") or cmd_lower.startswith("kb:"):  # doc: Search the sermon-transcript ChromaDB knowledge base.
         try:
             from jobs.skills.kb_search import search_kb as _search_kb, format_result as _fmt_kb
             _kq = cmd[14:].strip() if cmd_lower.startswith("search the kb:") else cmd[3:].strip()
@@ -708,7 +708,7 @@ def terminal():
         except Exception as _exc:
             return jsonify({"output": f"KB error: {_exc}", "success": False})
 
-    if cmd_lower.startswith("build:"):
+    if cmd_lower.startswith("build:"):  # doc: Trigger a new Dev Loop autonomous coding project.
         import threading as _th
         import re as _re_build
         try:
@@ -724,14 +724,14 @@ def terminal():
         except Exception as _exc:
             return jsonify({"output": f"build error: {_exc}", "success": False})
 
-    if cmd_lower.startswith("debug:"):
+    if cmd_lower.startswith("debug:"):  # doc: Run Claude-assisted diagnostics on a Watson problem.
         try:
             from jobs.dev.claude_debug import run as _debug_run
             return _pfx_out(str(_debug_run(cmd)))
         except Exception as _exc:
             return jsonify({"output": f"debug error: {_exc}", "success": False})
 
-    if cmd_lower.startswith("run:"):
+    if cmd_lower.startswith("run:"):  # doc: Explicitly dispatch a registered skill by its skills.json slug, bypassing trigger-phrase matching.
         try:
             from jobs.skillbuilder import router as _router
             _run_parts = cmd[4:].strip().split(None, 1)
@@ -744,14 +744,14 @@ def terminal():
         except Exception as _exc:
             return jsonify({"output": f"run error: {_exc}", "success": False})
 
-    if cmd_lower.startswith("shepherding:"):
+    if cmd_lower.startswith("shepherding:"):  # doc: Pastoral shepherding report — critical care, at-risk, first-time visitors, no-next-step members.
         try:
             from jobs.connect_cards.shepherding_report import telegram_shepherding_summary
             return _pfx_out(telegram_shepherding_summary() or "No results.")
         except Exception as _exc:
             return jsonify({"output": f"shepherding error: {_exc}", "success": False})
 
-    if cmd_lower == "state of church report":
+    if cmd_lower == "state of church report":  # doc: Generate and email the full State of the Church HTML report (async — delivered by email).
         # jobs.connect_cards.state_of_church has no importable run() (it's a
         # python -m script that emails the HTML report) and connect_cards/ is
         # off-limits to modify -- so this fires it the same way

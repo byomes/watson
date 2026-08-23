@@ -9,9 +9,14 @@ is left untouched.
 
 skills.json doesn't cover the direct prefix commands that bypass the skill
 router entirely (cdb:, wdb:, kb:, etc. -- hardcoded in jobs/dashboard/app.py's
-/api/terminal and chat_stream()). _DIRECT_COMMANDS below is a hand-maintained
-mirror of those; there's no registry to generate it from, so if a prefix
-command is added/changed/removed in app.py, this list needs a matching edit.
+/api/terminal). Those are parsed straight out of app.py's source instead of
+hand-maintained here: every `if cmd_lower.startswith(...)` / `== ...` branch
+in terminal(), and every _TERM_COMMANDS dict entry, is expected to carry a
+trailing `# doc: <description>` comment; _extract_direct_commands() reads it
+via ast + tokenize. A branch missing that comment shows up in the generated
+table flagged as undocumented rather than silently omitted -- so the fix for
+a stale/missing description is a one-line comment in app.py, right next to
+the code it describes, not an edit to this file or the doc.
 
 Called two ways:
   - jobs/skillbuilder/build.py's _post_success(), right after a new skill is
@@ -23,10 +28,13 @@ Called two ways:
 Cron: 0 2 * * * PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python
       /home/billyomes/watson/jobs/dev/skills_catalog.py >> /home/billyomes/watson/logs/skills_catalog.log 2>&1
 """
+import ast
+import io
 import json
 import logging
 import re
 import subprocess
+import tokenize
 from pathlib import Path
 
 log = logging.getLogger(__name__)
@@ -34,6 +42,7 @@ log = logging.getLogger(__name__)
 REPO = Path(__file__).resolve().parents[2]
 SKILLS_FILE = REPO / "memory" / "skills.json"
 ARCH_FILE = REPO / "memory" / "WATSON_ARCHITECTURE.md"
+APP_FILE = REPO / "jobs" / "dashboard" / "app.py"
 
 START_MARKER = "## Skills & Capabilities Catalog\n"
 
@@ -42,35 +51,94 @@ START_MARKER = "## Skills & Capabilities Catalog\n"
 # alphabetically, rather than silently dropped.
 CATEGORY_ORDER = ["Core", "Research", "Writing", "Documents", "Design", "Utilities", "Watson Dev"]
 
-# Hand-maintained -- see module docstring. (command shown, description)
-_DIRECT_COMMANDS = [
-    ("`cdb: <question>`", "Query the congregation database in plain English (attendance, membership, campus, engagement trends) — e.g. `cdb: who missed this Sunday`."),
-    ("`wdb: <question>`", "Query the leadership/team database (task status, stalled work, follow-ups, meeting notes) — e.g. `wdb: stalled tasks`."),
-    ("`web: <query>`", "Web search (duplicate entry point to the web_search skill, prefix form)."),
-    ("`bible: <reference>`", "Bible lookup (duplicate entry point to bible_lookup, prefix form) — e.g. `bible: John 3:16 NIV`."),
-    ("`kb: <query>` / `search the kb: <query>`", "Search the sermon-transcript ChromaDB knowledge base."),
-    ("`xkb: <query>`", "Search the sermons KB with expanded/deeper matching."),
-    ("`gutenberg: <query>`", "Search Project Gutenberg; reply with a number (in chat, not terminal) to download and ingest a text into the `gutenberg` KB collection."),
-    ("`classics: <query>`", "Search the `gutenberg` KB collection (ingested public-domain texts), kept separate from sermons."),
-    ("`imagegen: <prompt>` / `imgen: <prompt>`", "Generate an AI image from a text prompt."),
-    ("`polish this: <text>` / `polish: <text>`", "Polish text in Dr. Yomes's pastoral-scholarly voice (duplicate entry point to the polish skill)."),
-    ("`bug: <title>`", "Log a bug directly to the `bug_tracker` table."),
-    ("`backlog: <title> | <summary>`", "Log an item to the project backlog."),
-    ("`build: <description>` / `devloop: <description>`", "Trigger a new Dev Loop autonomous coding project (`devloop:` is the Telegram spelling, `build:` the dashboard spelling — both work in both places)."),
-    ("`debug: <problem>`", "Run Claude-assisted diagnostics on a Watson problem."),
-    ("`run: <slug> <args>`", "Explicitly dispatch a registered skill by its skills.json slug, bypassing trigger-phrase matching."),
-    ("`shepherding:`", "Pastoral shepherding report — critical care, at-risk, first-time visitors, no-next-step members."),
-    ("`state of church report`", "Generate and email the full State of the Church HTML report (async — runs in the background, delivered by email)."),
-    ("`remind me at <time> <text>` / `remind me <text>`", "Create a timed or plain reminder."),
-    ("what's on my calendar / my schedule / today's schedule / etc.", "Also reachable via the calendar_query skill above; these phrasings work identically."),
-    ("`system status`", "CPU, memory, disk, and service health."),
-    ("`check logs`", "Tail the last 50 lines of the watson-bot / watson-dashboard systemd journal (dashboard only, via /api/terminal)."),
-    ("`count congregation members` / `count tasks` / `count connect cards`", "Quick row counts from the relevant database."),
-    ("`conflict_check`", "Run the member-conflict report in the background (results arrive via Telegram)."),
-    ("`watson audit skills`", "Run the full skill_audit self-test and report pass/fail (dashboard only, via /api/terminal)."),
-    ("`git pull`", "Pull latest changes into ~/watson (dashboard only, via /api/terminal)."),
-    ("`restart watson bot` / `restart dashboard`", "Restart the named systemd service (dashboard only, via /api/terminal; passwordless sudo scoped to exactly these two commands)."),
-]
+_UNDOCUMENTED = "*(undocumented — add a `# doc: ...` comment on this line in app.py)*"
+
+
+def _comment_map(source: str) -> dict[int, str]:
+    """1-indexed source line -> trailing comment text (leading '#' stripped)."""
+    out: dict[int, str] = {}
+    try:
+        for tok in tokenize.generate_tokens(io.StringIO(source).readline):
+            if tok.type == tokenize.COMMENT:
+                out[tok.start[0]] = tok.string.lstrip("#").strip()
+    except tokenize.TokenError:
+        pass
+    return out
+
+
+def _doc_comment(comments: dict[int, str], lineno: int) -> str:
+    text = comments.get(lineno, "")
+    if text.lower().startswith("doc:"):
+        return text[4:].strip()
+    return _UNDOCUMENTED
+
+
+def _extract_direct_commands() -> list[tuple[str, str]]:
+    """Parse jobs/dashboard/app.py's terminal() function (the /api/terminal
+    view) for `cmd_lower.startswith("...")` / `cmd_lower == "..."` branches,
+    plus the _TERM_COMMANDS dict, pairing each with its `# doc: ...` trailing
+    comment. See this module's docstring for the comment convention."""
+    if not APP_FILE.exists():
+        return []
+    source = APP_FILE.read_text(encoding="utf-8")
+    comments = _comment_map(source)
+    tree = ast.parse(source)
+
+    results: list[tuple[str, str]] = []
+
+    term_fn = next(
+        (n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == "terminal"),
+        None,
+    )
+    if term_fn is not None:
+        for node in ast.walk(term_fn):
+            if not isinstance(node, ast.If):
+                continue
+            tests = node.test.values if isinstance(node.test, ast.BoolOp) else [node.test]
+            prefixes: list[str] = []
+            exacts: list[str] = []
+            for t in tests:
+                if (
+                    isinstance(t, ast.Call)
+                    and isinstance(t.func, ast.Attribute)
+                    and t.func.attr == "startswith"
+                    and isinstance(t.func.value, ast.Name)
+                    and t.func.value.id == "cmd_lower"
+                    and t.args
+                    and isinstance(t.args[0], ast.Constant)
+                ):
+                    prefixes.append(t.args[0].value)
+                elif (
+                    isinstance(t, ast.Compare)
+                    and isinstance(t.left, ast.Name)
+                    and t.left.id == "cmd_lower"
+                    and len(t.ops) == 1
+                    and isinstance(t.ops[0], ast.Eq)
+                    and isinstance(t.comparators[0], ast.Constant)
+                ):
+                    exacts.append(t.comparators[0].value)
+            if not prefixes and not exacts:
+                continue
+            doc = _doc_comment(comments, node.lineno)
+            display = " / ".join(f"`{p} <...>`" for p in prefixes) or " / ".join(f"`{e}`" for e in exacts)
+            if prefixes and exacts:
+                display += " / " + " / ".join(f"`{e}`" for e in exacts)
+            results.append((display, doc))
+
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Assign)
+            and len(node.targets) == 1
+            and isinstance(node.targets[0], ast.Name)
+            and node.targets[0].id == "_TERM_COMMANDS"
+            and isinstance(node.value, ast.Dict)
+        ):
+            for key_node in node.value.keys:
+                if isinstance(key_node, ast.Constant):
+                    results.append((f"`{key_node.value}`", _doc_comment(comments, key_node.lineno)))
+            break
+
+    return results
 
 
 def _load_skills() -> list:
@@ -98,10 +166,10 @@ def build_section() -> str:
         "",
         "> Auto-generated by `jobs/dev/skills_catalog.py` from `memory/skills.json` "
         "(each entry there has `slug`, `module`/`job_module`, `function`, `triggers`, "
-        "`interfaces`, `status`) plus a hand-maintained list of direct prefix commands. "
-        "Do not hand-edit this section -- edit skills.json (or _DIRECT_COMMANDS in "
-        "skills_catalog.py for prefix commands) and re-run the job instead; a manual "
-        "edit here will be overwritten on the next regeneration.",
+        "`interfaces`, `status`) plus the `# doc:` comments on jobs/dashboard/app.py's "
+        "`/api/terminal` prefix commands. Do not hand-edit this section -- edit "
+        "skills.json or the relevant `# doc:` comment in app.py and re-run the job "
+        "instead; a manual edit here will be overwritten on the next regeneration.",
         "",
         "**How to trigger a skill.** Talk to Watson via the Telegram bot "
         "(`@wckyWatsonbot`) or the dashboard chat tab "
@@ -139,16 +207,22 @@ def build_section() -> str:
 
     lines.append(
         "### Direct commands (bypass the skill router)\n\n"
-        "These are handled by hardcoded prefix/exact-match checks in "
-        "`jobs/dashboard/app.py` (`/api/terminal` and the chat endpoint) rather than "
-        "through `skills.json` — they are not in the machine-readable catalog above, "
-        "but they're real, working capabilities and the prefix must be typed exactly "
-        "as shown. (Hand-maintained list — see this file's module docstring.)"
+        "Parsed directly out of `jobs/dashboard/app.py`'s `/api/terminal` view "
+        "(`terminal()`'s prefix/exact-match checks and its `_TERM_COMMANDS` dict) — "
+        "they're not in `skills.json`, so this table can't come from that file the way "
+        "the ones above do; each row's description instead comes from a `# doc: ...` "
+        "comment on that line in app.py. A row that says *undocumented* means that "
+        "comment is missing — add it in app.py, not here.\n\n"
+        "Every prefix here also works typed directly in dashboard/Telegram chat, not "
+        "just in the terminal. Chat additionally recognizes `devloop:` as an alias for "
+        "`build:`, plus a few things too free-form for a prefix table: natural-language "
+        "reminders (`remind me ...` / `remind me at <time> ...`) and calendar phrasing "
+        "(see the calendar_query skill above)."
     )
     lines.append("")
     lines.append("| Command | What it does |")
     lines.append("|---|---|")
-    for cmd, desc in _DIRECT_COMMANDS:
+    for cmd, desc in _extract_direct_commands():
         lines.append(f"| {cmd} | {desc} |")
     lines.append("")
 
