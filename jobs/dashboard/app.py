@@ -554,7 +554,12 @@ _TERM_BLOCKLIST = ("rm ", "sudo rm", "drop ", "drop;", "format ", "shutdown", "r
 
 _TERM_COMMANDS = {
     "system status": ("skill", "jobs.dev.system_monitor"),
-    "check logs": ("shell", "tail -50 " + os.path.expanduser("~/watson/logs/watson.log")),
+    # watson-bot.service / watson-dashboard.service log via StandardOutput=journal
+    # (see /etc/systemd/system/*.service) — there is no single ~/watson/logs/watson.log
+    # file to tail anymore; per-job scripts each write their own log under logs/ instead.
+    # The api.telegram.org/bot lines are filtered out: they're just getUpdates polling
+    # noise, and the raw URL embeds the bot token in plaintext (httpx request logging).
+    "check logs": ("shell", "journalctl -u watson-bot.service -u watson-dashboard.service -n 100 --no-pager | grep -v 'api.telegram.org/bot' | tail -50"),
     "disk usage": ("shell", "df -h"),
     "memory usage": ("shell", "free -h"),
     "git pull": ("shell", "git -C " + os.path.expanduser("~/watson") + " pull"),
@@ -745,6 +750,24 @@ def terminal():
             return _pfx_out(telegram_shepherding_summary() or "No results.")
         except Exception as _exc:
             return jsonify({"output": f"shepherding error: {_exc}", "success": False})
+
+    if cmd_lower == "state of church report":
+        # jobs.connect_cards.state_of_church has no importable run() (it's a
+        # python -m script that emails the HTML report) and connect_cards/ is
+        # off-limits to modify -- so this fires it the same way
+        # /api/reports/state-of-church already does: background subprocess.
+        import subprocess as _sp_soc
+        import threading as _th_soc
+
+        def _run_state_of_church():
+            _sp_soc.run(
+                ["venv/bin/python", "-m", "jobs.connect_cards.state_of_church"],
+                cwd="/home/billyomes/watson",
+                env={**os.environ, "PYTHONPATH": "/home/billyomes/watson"},
+            )
+
+        _th_soc.Thread(target=_run_state_of_church, daemon=True).start()
+        return _pfx_out("Generating the State of the Church report — it'll be emailed to you shortly.")
 
     output = ""
     success = True
