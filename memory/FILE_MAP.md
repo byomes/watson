@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-08-22*
+*Generated: 2026-08-23*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -684,6 +684,7 @@ jobs/
     resend_last.py
   thesis_tracker/
     __init__.py
+    citations.py
     db.py
     scrape.py
   time_check.py
@@ -1371,6 +1372,9 @@ content/
     2026-08-11-are-you-with-me.md
     2026-08-13-what-your-children-inherit.md
     2026-08-15-the-inheritance-was-already-given.md
+    2026-08-18-faith-looks-foolish-from-the-wall.md
+    2026-08-20-holy-and-devoted-two-words-for-belonging-to-god.md
+    2026-08-22-is-this-genocide-reading-joshua-6-honestly.md
     the-flashlight-of-your-focus.md
     where-your-treasure-is.md
 db/
@@ -1382,6 +1386,7 @@ package.json
 postcss.config.js
 public/
   guides/
+    he-is-risen-study-guide.pdf
     study-like-a-pastor.pdf
     wrong-jesus-companion-guide.pdf
   images/
@@ -1550,6 +1555,8 @@ src/
         page.tsx
         thanks/
           page.tsx
+    guides/
+      page.tsx
     ingest/
       page.tsx
     layout.tsx
