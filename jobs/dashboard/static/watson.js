@@ -114,19 +114,17 @@ async function renderHome() {
   setContent('<div class="loading">Loading&hellip;</div>');
   _homeTaskTab = 'catalyst';
 
-  const [pendingRes, calRes, openTasksRes, remindersRes, briefingRes, compTasksRes] = await Promise.allSettled([
+  const [pendingRes, calRes, openTasksRes, remindersRes, compTasksRes] = await Promise.allSettled([
     api('/api/pending'),
     api('/api/calendar/today'),
     api('/api/team/members/12/tasks?status=open&category=catalyst'),
     api('/api/reminders'),
-    api('/api/briefing'),
     api('/api/team/members/12/tasks?status=completed&category=catalyst'),
   ]);
 
   const pending   = pendingRes.status   === 'fulfilled' ? pendingRes.value   : [];
   const calEvents = calRes.status       === 'fulfilled' ? calRes.value       : [];
   const reminders = remindersRes.status === 'fulfilled' ? remindersRes.value : [];
-  const briefing  = briefingRes.status  === 'fulfilled' ? briefingRes.value  : [];
 
   const openTasks = openTasksRes.status === 'fulfilled' && Array.isArray(openTasksRes.value) ? openTasksRes.value : [];
   const compTasks = compTasksRes.status === 'fulfilled' && Array.isArray(compTasksRes.value) ? compTasksRes.value : [];
@@ -197,10 +195,6 @@ async function renderHome() {
       <div class="stat-card" style="cursor:pointer" onclick="switchTab('reminders')">
         <div class="stat-num">${Array.isArray(reminders) ? reminders.length : 0}</div>
         <div class="stat-lbl">Reminders</div>
-      </div>
-      <div class="stat-card" style="cursor:pointer" onclick="switchTab('briefing')">
-        <div class="stat-num">${Array.isArray(briefing) ? briefing.length : 0}</div>
-        <div class="stat-lbl">Briefing</div>
       </div>
     </div>`;
 
@@ -1409,16 +1403,8 @@ function renderMore() {
     </div>
     <div id="vacation-suppressed-list" style="display:none;padding:0 16px 12px"></div>
     <div class="mgrid">
-      <button class="mtile" id="mtile-briefing" onclick="switchTab('briefing')">
-        <span class="mtile-label">Briefing</span>
-        <span class="mtile-chev">›</span>
-      </button>
       <button class="mtile" id="mtile-skills" onclick="moreToggle('skills')">
         <span class="mtile-label">Skills</span>
-        <span class="mtile-chev">›</span>
-      </button>
-      <button class="mtile" id="mtile-reading" onclick="moreToggle('reading')">
-        <span class="mtile-label">Reading List</span>
         <span class="mtile-chev">›</span>
       </button>
       <button class="mtile" id="mtile-ministry" onclick="moreToggle('ministry')">
@@ -1435,10 +1421,6 @@ function renderMore() {
       </button>
       <button class="mtile" id="mtile-people" onclick="moreToggle('people')">
         <span class="mtile-label">Contacts</span>
-        <span class="mtile-chev">›</span>
-      </button>
-      <button class="mtile" id="mtile-meet-reviews" onclick="window.location.href='/meet/reviews'">
-        <span class="mtile-label">Meeting Reviews</span>
         <span class="mtile-chev">›</span>
       </button>
       <button class="mtile" id="mtile-publishing" onclick="moreToggle('publishing')">
@@ -1485,9 +1467,6 @@ function renderMore() {
     <div id="more-expand-area">
       <div class="msec-body" id="msec-body-skills">
         <div class="msec-inner" id="msec-inner-skills"></div>
-      </div>
-      <div class="msec-body" id="msec-body-reading">
-        <div class="msec-inner" id="msec-inner-reading"><div class="loading">Loading&hellip;</div></div>
       </div>
       <div class="msec-body" id="msec-body-ministry">
         <div class="msec-inner" id="msec-inner-ministry"><div class="loading">Loading&hellip;</div></div>
