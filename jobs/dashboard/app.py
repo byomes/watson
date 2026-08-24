@@ -364,6 +364,8 @@ from jobs.privacy.dashboard_api import privacy_guard_bp
 app.register_blueprint(privacy_guard_bp)
 
 from jobs.kb.api import kb_bp
+from jobs.kb.schema import create_tables as _kb_create_tables
+_kb_create_tables()
 app.register_blueprint(kb_bp)
 
 from jobs.book.routes import book_bp

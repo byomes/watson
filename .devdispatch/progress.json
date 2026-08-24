@@ -1,1 +1,1 @@
-{"step": 5, "total": 5, "label": "Reporting", "detail": "Committed c78ff9d, pushed, PR #50 opened, bug_tracker #95 marked resolved."}
+{"step": 4, "total": 5, "label": "Testing", "detail": "py_compile clean; smoke-tested export_link.run, download route (200/410/404/expiry), cleanup sweep, and full router dispatch path — all passed"}

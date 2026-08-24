@@ -1,4 +1,5 @@
-"""jobs/kb/api.py — Flask Blueprint: immediate KB sync trigger.
+"""jobs/kb/api.py — Flask Blueprint: immediate KB sync trigger + export
+download links.
 
 Mount on the Watson dashboard app:
     from jobs.kb.api import kb_bp
@@ -13,12 +14,22 @@ Same X-Watson-Key shared-secret pattern as jobs/bodyrec/api.py and
 jobs/writing_room/api.py. This route calls run_sync() directly — same code
 path as the cron, serialized against it via the same lock — so it is a
 trigger, not a second implementation of the sync logic.
+
+GET /kb/download/<token> (added 2026-08-24) streams a KB export zip issued
+by jobs.kb.export_link.run() — unauthenticated by design, since the token
+itself (a secrets.token_urlsafe(24) URL path segment) is the credential,
+same shape as a signed download link. Safe because this route is reachable
+only via the Tailscale-only dashboard origin (watson.tail0243ff.ts.net),
+not the public Funnel path, and every token is single-use and expires in
+15 minutes (jobs/kb/schema.py).
 """
 import logging
 import os
+from pathlib import Path
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, send_file, after_this_request
 
+from core.database import get_connection
 from jobs.kb.sync_and_index import run_sync
 
 log = logging.getLogger(__name__)
@@ -53,3 +64,44 @@ def sync_now():
         return jsonify({"ok": False, "moved": 0, "indexed": 0, "error": str(exc)}), 500
 
     return jsonify(result), (200 if result["ok"] else 500)
+
+
+@kb_bp.route("/kb/download/<token>", methods=["GET"])
+def download_export(token):
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT zip_path, caption, used, (expires_at <= datetime('now')) AS expired "
+            "FROM kb_export_links WHERE token = ?",
+            (token,),
+        ).fetchone()
+    finally:
+        conn.close()
+
+    if not row:
+        return jsonify({"error": "unknown download link"}), 404
+    if row["used"]:
+        return jsonify({"error": "download link already used"}), 410
+    if row["expired"]:
+        return jsonify({"error": "download link expired"}), 410
+
+    zip_path = Path(row["zip_path"])
+    if not zip_path.exists():
+        return jsonify({"error": "export file no longer available"}), 410
+
+    @after_this_request
+    def _cleanup(response):
+        # Runs after the response has fully streamed — marking the token
+        # used and deleting the zip any earlier would break a legitimate
+        # download that's still in flight.
+        cleanup_conn = get_connection()
+        try:
+            cleanup_conn.execute("UPDATE kb_export_links SET used = 1 WHERE token = ?", (token,))
+            cleanup_conn.commit()
+        finally:
+            cleanup_conn.close()
+        zip_path.unlink(missing_ok=True)
+        return response
+
+    log.info("KB export download served: token=%s... zip=%s", token[:8], zip_path.name)
+    return send_file(zip_path, as_attachment=True, download_name=zip_path.name)
