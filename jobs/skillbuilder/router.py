@@ -358,6 +358,20 @@ def _run_skill(skill: dict, message: str = None) -> str:
         sig = inspect.signature(fn)
         if message is not None and "message" in sig.parameters:
             result = fn(message=message)
+        elif message is not None:
+            # Not every skill's entry point names its argument `message`
+            # (e.g. kb's ask(question, ...), kb_search's search_kb(query,
+            # ...)) — forward the text under whatever the function's own
+            # first required parameter is called instead of silently
+            # dropping it and calling fn() with no arguments (bug: MCP
+            # run_watson_skill calls into kb/kb_search via this path and
+            # raised "missing 1 required positional argument" for both).
+            required = [
+                p for p in sig.parameters.values()
+                if p.default is inspect.Parameter.empty
+                and p.kind in (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)
+            ]
+            result = fn(**{required[0].name: message}) if required else fn()
         else:
             result = fn()
     if isinstance(result, dict):
