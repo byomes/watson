@@ -788,6 +788,39 @@ client as of 2026-08-04, using this full root-proxy + OAuth stack.
   A **job that reports `failed` should not be assumed to have produced no
   usable work** — check GitHub for an open PR on the job's branch before
   discarding it, especially for any job predating this fix.
+- **Fixed 2026-08-24 — worktree branch deviation + stale local `main`
+  misreported real work as failed** (bug_tracker #95, jobs 36–38,
+  2026-08-16). Two distinct failure modes in `_finalize_completed_job()`,
+  found on top of both fixes above:
+  1. **Refspec mismatch (job 37).** The function assumed the worktree's
+     checked-out branch was literally named `_git_branch_for(branch_name)`
+     and ran `git push -u origin git_branch` (bare branch name, no local
+     ref). A dispatched session that ran its own `git checkout -b
+     <custom-name>` inside the worktree instead of committing on the
+     branch Claude Code created for `-w` left no local branch by the
+     expected name, so the push failed outright with "src refspec ...
+     does not match any."
+  2. **Stale local `main` (jobs 36 & 38).** Worktrees of the same repo
+     share refs, so the local `main` pointer inside a job's worktree does
+     not move when another job — running concurrently or moments earlier
+     in a different worktree of the same repo — merges a PR into `main`
+     via GitHub. The ahead-count check compared `HEAD` against that stale
+     local `main`, so it still reported the job's commits as "ahead" and
+     proceeded to push and open a PR, which then got a 422 "No commits
+     between main and `<branch>`" from GitHub once it compared against
+     the real, already-current `origin/main`.
+  **Fix:** `_finalize_completed_job()` now runs `git fetch origin main`
+  before the ahead-count check and compares `HEAD` against `origin/main`
+  (not local `main`) everywhere in the function; the push now uses an
+  explicit refspec, `git push -u origin HEAD:<git_branch>`, which lands
+  whatever `HEAD` actually contains under the expected remote branch name
+  regardless of what the local branch is actually called. `_open_pr()`'s
+  own bug #59 handling is untouched. Verified in a scratch git repo (not
+  just reasoned about): a worktree checked out on a mismatched branch name
+  pushed successfully under the expected remote name via the new refspec,
+  and a worktree with a deliberately stale local `main` (but a fetched
+  `origin/main` already containing the equivalent commit) correctly
+  reported "no changes" instead of attempting a push.
 
 ### Superseded prior art
 

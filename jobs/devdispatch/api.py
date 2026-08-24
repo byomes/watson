@@ -508,12 +508,29 @@ def _finalize_completed_job(row) -> dict:
             _telegram(f"❌ devdispatch job {job_id} — git commit failed: {err}")
             return _row_to_dict(_get_job_row(job_id))
 
+    # Worktrees of the same repo share refs, so the local `main` pointer in
+    # THIS worktree does not move on its own when another job — running
+    # concurrently or moments earlier in a different worktree of the same
+    # repo — merges a PR into main via GitHub. Comparing against a stale
+    # local `main` let the ahead-count check below report commits as
+    # "ahead" when they were actually already present on origin/main,
+    # which then made _open_pr() fail with a 422 "No commits between main
+    # and <branch>" once GitHub compared against the real, current
+    # origin/main (bug_tracker #95, jobs 36 & 38, 2026-08-16). Fetch first
+    # and compare against origin/main, not local main, everywhere below.
+    fetch_proc = _run_git(["fetch", "origin", "main"], worktree)
+    if fetch_proc.returncode != 0:
+        err = _redact((fetch_proc.stderr or fetch_proc.stdout).strip())[:500]
+        _update_job(job_id, status="failed", summary=f"git fetch origin main failed: {err}")
+        _telegram(f"❌ devdispatch job {job_id} — git fetch origin main failed: {err}")
+        return _row_to_dict(_get_job_row(job_id))
+
     # A clean working tree does NOT mean "nothing happened" — confirmed
     # 2026-08-04: with bypassPermissions and no instruction against it, a
     # dispatched session sometimes commits its own work unprompted. Check
-    # whether HEAD is actually ahead of main rather than trusting `git
-    # status` alone.
-    ahead_proc = _run_git(["rev-list", "--count", "main..HEAD"], worktree)
+    # whether HEAD is actually ahead of origin/main rather than trusting
+    # `git status` alone.
+    ahead_proc = _run_git(["rev-list", "--count", "origin/main..HEAD"], worktree)
     if ahead_proc.returncode != 0:
         err = _redact(ahead_proc.stderr.strip())[:500]
         _update_job(job_id, status="failed", summary=f"git rev-list failed: {err}")
@@ -521,7 +538,7 @@ def _finalize_completed_job(row) -> dict:
         return _row_to_dict(_get_job_row(job_id))
 
     if int((ahead_proc.stdout or "0").strip() or "0") == 0:
-        summary = "Completed — no commits produced (branch is even with main)."
+        summary = "Completed — no commits produced (branch is even with origin/main)."
         _update_job(job_id, status="done", summary=summary)
         try:
             subprocess.run([_CLAUDE_BIN, "rm", cli_id], capture_output=True, text=True, timeout=30)
@@ -535,7 +552,18 @@ def _finalize_completed_job(row) -> dict:
     subject_proc = _run_git(["log", "-1", "--format=%s"], worktree)
     pr_title = (subject_proc.stdout or "").strip() or f"devdispatch job #{job_id}"
 
-    push_proc = _run_git(["push", "-u", "origin", git_branch], worktree)
+    # Push whatever HEAD actually contains under the expected remote branch
+    # name via an explicit refspec, rather than assuming the worktree's
+    # checked-out local branch is literally named git_branch. A dispatched
+    # session sometimes runs its own `git checkout -b <custom-name>` inside
+    # the worktree instead of committing on the branch Claude Code created
+    # for -w — `git push -u origin git_branch` (bare name, no local ref)
+    # then fails with "src refspec ... does not match any" since no local
+    # branch by that exact name exists (bug_tracker #95, job 37,
+    # 2026-08-16). `HEAD:<git_branch>` pushes the current commit content
+    # under the desired remote ref name regardless of what the local branch
+    # is actually called.
+    push_proc = _run_git(["push", "-u", "origin", f"HEAD:{git_branch}"], worktree)
     if push_proc.returncode != 0:
         err = _redact((push_proc.stderr or push_proc.stdout).strip())[:500]
         _update_job(job_id, status="failed", summary=f"git push failed (committed locally): {err}")
