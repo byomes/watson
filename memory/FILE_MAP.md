@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-08-23*
+*Generated: 2026-08-24*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -189,6 +189,7 @@ data/
     qr_20260702_122730.png
     qr_20260721_135815.png
   retreats_seen.json
+  riddle_current.json
   riddle_history.json
   skill_audit.json
   trading.db
@@ -436,6 +437,7 @@ jobs/
     secrets_audit.py
     skill_tester.py
     skill_validator.py
+    skills_catalog.py
     smoke_test_triggers.py
     system_monitor.py
     test_runner.py
@@ -487,6 +489,7 @@ jobs/
   gcal/
     __init__.py
     availability.py
+    calendar.py
     create_event.py
     gcal_service.py
     meet_token_health.py
