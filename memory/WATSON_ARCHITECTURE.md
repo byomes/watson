@@ -2426,3 +2426,20 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - b01c93d Remove Start from main nav
 - a7577e5 Add /guides companion-guide hub page
 - 5aefd68 publish: Is This Genocide? Reading Joshua 6 Honestly
+
+---
+
+## Recent Changes — 2026-08-24
+
+### ~/watson
+- 9252e30 docs: bugs/backlog export 2026-08-24
+- 3fafb38 docs: file map 2026-08-24
+- c34918d Derive the direct-commands catalog table from app.py source, not a hand list
+- 1d805da docs: regenerate Skills & Capabilities Catalog
+- a455ae8 Auto-regenerate the Skills & Capabilities Catalog going forward
+- f6fbbb7 docs: regenerate Skills & Capabilities Catalog
+- f591510 docs: add Skills & Capabilities Catalog to WATSON_ARCHITECTURE.md
+- 256f0f5 Remove unused Briefing, Reading List, and Meeting Reviews tabs from dashboard
+- 0fc9934 Fix dashboard More-tab skill gaps found in skill audit
+- 5709440 Exempt Connect Card emails from the email-reply skill
+- 771866e docs: architecture update 2026-08-23
