@@ -191,6 +191,21 @@
       "status": "ready"
     },
     {
+      "slug": "kb_export_link",
+      "name": "KB Export Link",
+      "description": "Zip matching KB source files for a query and return a Tailscale-only, expiring, single-use download link.",
+      "category": "Research",
+      "triggers": [
+        "kb export link:"
+      ],
+      "module": "jobs.kb.export_link",
+      "function": "run",
+      "interfaces": [
+        "dashboard"
+      ],
+      "status": "ready"
+    },
+    {
       "slug": "gemini_fetch",
       "name": "Fetch URL",
       "description": "Fetch a webpage and process it with Gemini.",
