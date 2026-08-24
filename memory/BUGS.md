@@ -1,10 +1,15 @@
 # Watson Bug Tracker
 _Auto-generated nightly from bug_tracker. Source of truth is the database — do not hand-edit this file, changes will be overwritten._
-Last generated: 2026-08-23 02:10
+Last generated: 2026-08-24 02:10
 
-## Open (35)
+## Open (40)
 | ID | Title | Repo | Discovered |
 |---|---|---|---|
+| 94 | skill_tester.py audit harness gave false failures for 7+ skills | watson | 2026-08-23 21:36:18 |
+| 93 | pastoral_notes skill registered against a nonexistent function | watson | 2026-08-23 21:36:18 |
+| 92 | Dashboard 'state of church report' quick-command didn't reach the report generator | watson | 2026-08-23 21:36:18 |
+| 91 | Dashboard 'check logs' command tailed a log file that no longer exists | watson | 2026-08-23 21:36:18 |
+| 90 | calendar_query skill unregistered — 'what's on my calendar' always failed | watson | 2026-08-23 21:36:18 |
 | 87 | jobs.browser: goto_safe failed for https://nuwber.com/search?name=mikhaela+molanders&state=de | watson | 2026-08-21 13:46:22 |
 | 86 | jobs.browser: goto_safe failed for https://nuwber.com/search?name=emily+yomes&state=de | watson | 2026-08-21 13:45:53 |
 | 85 | jobs.browser: goto_safe failed for https://www.mylife.com/emily-yomes/de | watson | 2026-08-21 13:45:33 |
@@ -44,6 +49,8 @@ Last generated: 2026-08-23 02:10
 ## Recently Resolved (last 30 days)
 | ID | Title | Repo | Resolved | Commit |
 |---|---|---|---|---|
+| 95 | devdispatch: dispatched session deviating from -w worktree branch loses/misreports real work (wcky retreats cluster, 2026-08-16) | watson | 2026-08-24 01:53:25 | c78ff9d8a29f21d6ad14e01502f3465429c154fe |
+| 89 | email_reply/reader.py replied to Connect Card submissions | watson | 2026-08-23 21:11:57 | 5709440 |
 | 75 | Privacy Guard scan: goto_safe() fails OPEN on robots.txt 403/non-200 instead of fail-closed | watson | 2026-08-21 13:52:28 | 98367e7 |
 | 74 | Privacy Guard scan: bug_tracker logging fails with "database is locked" mid-run | watson | 2026-08-21 13:52:28 | 98367e7 |
 | 63 | Comms Desk Facebook posts never dispatched | watson | 2026-08-17 19:41:44 | cd04825 |
