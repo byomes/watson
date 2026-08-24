@@ -230,8 +230,13 @@ def _parse_html(html: str) -> dict | None:
     fields["email"]      = get_one("email")
     fields["phone"]      = get_one("phone number")
 
-    qc = get_one("question/comment")
-    fields["questions_comments"] = qc or None
+    # get_one() would silently drop everything after the first line -- a
+    # hard return in the textarea (wcky /tools/connect-card form) renders as
+    # a <br/> between separate sibling text nodes, so a multi-line answer
+    # becomes multiple list entries, not one. Join them all instead of
+    # taking vals[0], same as prayer_request below already does.
+    qc_vals = get("question/comment")
+    fields["questions_comments"] = "\n".join(qc_vals).strip() or None
 
     ns_values = get("next step")
     fields["next_steps"] = [v for v in ns_values if _match_next_step(v)]
