@@ -15,13 +15,19 @@ jobs/writing_room/api.py. This route calls run_sync() directly — same code
 path as the cron, serialized against it via the same lock — so it is a
 trigger, not a second implementation of the sync logic.
 
-GET /kb/download/<token> (added 2026-08-24) streams a KB export zip issued
-by jobs.kb.export_link.run() — unauthenticated by design, since the token
-itself (a secrets.token_urlsafe(24) URL path segment) is the credential,
-same shape as a signed download link. Safe because this route is reachable
-only via the Tailscale-only dashboard origin (watson.tail0243ff.ts.net),
-not the public Funnel path, and every token is single-use and expires in
-15 minutes (jobs/kb/schema.py).
+GET /api/kb/export-link (added 2026-08-24) is a thin, X-Watson-Key-gated
+manual-trigger wrapper around jobs.kb.export_link.run() — mainly for
+curl/browser testing without going through the dashboard chat or MCP
+connector. The real intended callers are the kb_export_link skill (dashboard
+chat, jobs/skillbuilder/router.py) and Claude.ai's run_watson_skill MCP tool
+(jobs/devdispatch/api.py) — both route to the same jobs.kb.export_link.run().
+
+GET /kb/download/<token> streams the resulting zip — unauthenticated by
+design, since the token itself (a secrets.token_urlsafe(24) URL path
+segment) is the credential, same shape as a signed download link. Safe
+because this route is reachable only via the Tailscale-only dashboard
+origin (watson.tail0243ff.ts.net), not the public Funnel path, and every
+token is single-use and expires in 15 minutes (jobs/kb/schema.py).
 """
 import logging
 import os
@@ -64,6 +70,22 @@ def sync_now():
         return jsonify({"ok": False, "moved": 0, "indexed": 0, "error": str(exc)}), 500
 
     return jsonify(result), (200 if result["ok"] else 500)
+
+
+@kb_bp.route("/api/kb/export-link", methods=["GET"])
+def export_link_route():
+    expected = _API_KEY()
+    received = request.headers.get("X-Watson-Key")
+    if not expected or not received or received != expected:
+        return jsonify({"error": "unauthorized"}), 401
+
+    query = request.args.get("q", "").strip()
+    if not query:
+        return jsonify({"ok": False, "error": "missing query parameter 'q'"}), 400
+
+    from jobs.kb.export_link import run as export_link_run
+    result = export_link_run(query)
+    return jsonify(result), (200 if result.get("ok") else 404)
 
 
 @kb_bp.route("/kb/download/<token>", methods=["GET"])
