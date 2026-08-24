@@ -7,7 +7,7 @@ Mount on the Watson dashboard app:
 Implements the minimal MCP (Model Context Protocol) JSON-RPC surface needed
 to register /mcp/devdispatch as a Claude.ai custom connector — initialize,
 tools/list, tools/call — over a single POST endpoint (no streaming/SSE
-needed since both tools return synchronously). See
+needed since all tools return synchronously). See
 MCP-Claude-Code-Dispatcher-Spec.md for the full spec.
 
 Auth: two independent paths, either satisfies it —
@@ -81,6 +81,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from config.settings import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 from core.database import get_connection
 from jobs.devdispatch.schema import ALLOWED_REPOS, create_tables
+from jobs.skillbuilder import router as _skill_router
 
 import requests
 
@@ -168,6 +169,33 @@ _TOOLS = [
             },
             "required": ["job_id"],
         },
+    },
+    {
+        "name": "run_watson_skill",
+        "description": (
+            "Run one of Watson's existing skills (bible lookup, web search, "
+            "contacts lookup, KB search, etc.) synchronously and return its "
+            "result. Only a curated, read-only/low-risk subset of Watson's "
+            "skill registry is exposed here — see list_watson_skills for the "
+            "current set. Does not cover shell execution, credentials, email "
+            "sending, or pastoral/congregant lookups — those stay "
+            "dashboard/Telegram-only."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string",
+                    "description": "The natural-language request to route to a Watson skill, exactly as Bill would type it in the dashboard or Telegram.",
+                },
+            },
+            "required": ["message"],
+        },
+    },
+    {
+        "name": "list_watson_skills",
+        "description": "List the Watson skills exposed to this connector, with descriptions.",
+        "inputSchema": {"type": "object", "properties": {}},
     },
 ]
 
@@ -718,12 +746,111 @@ def _merge_claude_code_job(job_id) -> dict:
     return {"status": "merged", "pr_url": pr_url, "merged_at": merged_at}
 
 
+# Skills deliberately withheld from this connector: shell execution
+# (command_executor), anything touching credentials (secrets_audit,
+# logins), real email send with a dashboard-session confirm-flow UI that
+# doesn't exist here (email_send), pastoral/congregant PII (pastoral_search),
+# and claude_debug (redundant with dispatch_claude_code_job, recursive-cost
+# risk). Telegram-only skills (pastoral_notes, kb_export, logins) are
+# already excluded by routing with interface="dashboard" below.
+#
+# Included with awareness of their side effects (Bill's call, 2026-08-23):
+# qr_generate/image_gen only return a confirmation string here — the actual
+# QR/image still goes out over Telegram, not inline in the MCP response.
+# book_appointment creates a real Google Calendar event from a hallucinated
+# match, same as it would from Telegram. The nine file-output skills
+# (pdf/word/excel/powerpoint/document_converter/svg_generator/screenshot/
+# chart_generator/data_analyzer) write files on the Beelink and mostly
+# return a file path string, not the file itself.
+#
+# kb_export_link (added 2026-08-24) is a deliberate exception to the
+# "file-output skills return a bare path" note above: it returns a scoped,
+# expiring (15 min), single-use https://watson.tail0243ff.ts.net/kb/download/
+# link instead of a local path, so it's safe to hand back over this
+# stateless connector the same way qr_generate/image_gen are — no raw
+# filesystem access, no credentials, and the link stops working on its own.
+# kb_export itself (Telegram raw-zip-attach) stays excluded, same as before.
+#
+# Bill: add/remove slugs here to change what's reachable from Claude.ai.
+_MCP_SKILL_ALLOWLIST = frozenset({
+    "bible_lookup", "add_task", "contacts_lookup", "time_check",
+    "web_search", "kb", "kb_search", "news_search", "academic_search",
+    "isbn_lookup", "summarizer", "image_search", "grammar_checker",
+    "readability", "style_checker", "citation_manager", "date_helper",
+    "dad_joke", "riddle", "system_monitor", "skill_audit",
+    "calendar_query", "polish", "gutenberg", "classics",
+    "qr_generate", "image_gen", "book_appointment",
+    "pdf", "word", "excel", "powerpoint", "document_converter",
+    "svg_generator", "screenshot", "chart_generator", "data_analyzer",
+    "kb_export_link",
+})
+
+
+def _list_watson_skills() -> dict:
+    skills = _skill_router._load_skills("dashboard")
+    exposed = [s for s in skills if s["slug"] in _MCP_SKILL_ALLOWLIST]
+    return {
+        "skills": [
+            {"slug": s["slug"], "description": s.get("description", "")}
+            for s in exposed
+        ]
+    }
+
+
+def _run_watson_skill(message) -> dict:
+    if not message:
+        return {"error": "message is required"}
+
+    try:
+        route_result = _skill_router.route(message, "dashboard")
+    except Exception as exc:
+        return {"error": f"router failed: {exc}"}
+
+    if route_result.get("action") != "skill":
+        # build/propose/chat/wrap_up/conversational all assume a live
+        # dashboard or Telegram session (background threads, Ollama chat
+        # fallback, session memory) that doesn't exist over this stateless
+        # connector — surface that no skill matched instead of guessing.
+        return {
+            "matched": False,
+            "action": route_result.get("action", "chat"),
+            "note": "No Watson skill matched this message.",
+        }
+
+    slug = route_result.get("slug", "unknown")
+    if slug not in _MCP_SKILL_ALLOWLIST:
+        return {"error": f"skill '{slug}' matched but is not exposed to this connector"}
+
+    if "result" not in route_result:
+        skills = _skill_router._load_skills("dashboard")
+        skill = next((s for s in skills if s["slug"] == slug), None)
+        if not skill:
+            return {"error": f"skill '{slug}' not found in registry"}
+        try:
+            route_result["result"] = _skill_router._run_skill(
+                skill, message=route_result.get("message")
+            )
+        except Exception as exc:
+            return {"error": f"skill '{slug}' failed: {exc}"}
+
+    result = route_result["result"]
+    if isinstance(result, dict) and result.get("confirm"):
+        return {"error": f"skill '{slug}' requires interactive confirmation and isn't supported over this connector"}
+    return {
+        "matched": True,
+        "slug": slug,
+        "result": result if isinstance(result, dict) else str(result),
+    }
+
+
 _TOOL_IMPLS = {
     "dispatch_claude_code_job": lambda args: _dispatch_claude_code_job(
         args.get("spec"), args.get("repo"), args.get("branch_name")
     ),
     "check_claude_code_job": lambda args: _check_claude_code_job(args.get("job_id")),
     "merge_claude_code_job": lambda args: _merge_claude_code_job(args.get("job_id")),
+    "run_watson_skill": lambda args: _run_watson_skill(args.get("message")),
+    "list_watson_skills": lambda args: _list_watson_skills(),
 }
 
 
