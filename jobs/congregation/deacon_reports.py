@@ -224,7 +224,7 @@ def _attendance_line(last_seen: str) -> str:
 
 def _person_card(r, prayers: list, steps: list) -> str:
     name = _display_name(r["name"]) or "(no name)"
-    contact = r["email"] or r["phone"] or "—"
+    contact = " · ".join(x for x in (r["email"], r["phone"]) if x) or "—"
 
     badges = ""
     if r["deacon_status"]:
@@ -267,7 +267,6 @@ def _person_card(r, prayers: list, steps: list) -> str:
 
 
 def _family_card(group: list, prayers_by_member: dict, steps_by_member: dict) -> str:
-    address = next((r["address"] for r in group if r["address"]), None)
     header = ""
     if len(group) > 1:
         surnames = []
@@ -277,12 +276,11 @@ def _family_card(group: list, prayers_by_member: dict, steps_by_member: dict) ->
                 surnames.append(parts[-1])
         fam_label = f"{'/'.join(surnames)} Family" if surnames else "Household"
         header = f"<div style='font-weight:600;font-size:13px;color:#555;margin-top:16px'>{fam_label}</div>"
-    addr_html = f"<div style='font-size:11px;color:#aaa;margin-top:2px'>{address}</div>" if address else ""
     people = "".join(
         _person_card(r, prayers_by_member.get(r["id"], []), steps_by_member.get(r["id"], []))
         for r in group
     )
-    return f"<div style='margin-bottom:4px'>{header}{addr_html}{people}</div>"
+    return f"<div style='margin-bottom:4px'>{header}{people}</div>"
 
 
 def _build_roster(clause: str, clause_params: tuple, include_leadership_only: bool) -> tuple[str, int, int, int]:
@@ -292,7 +290,7 @@ def _build_roster(clause: str, clause_params: tuple, include_leadership_only: bo
         rows = conn.execute(
             f"""
             SELECT m.id, m.name, m.email, m.phone, m.deacon_status, m.member_status,
-                   m.household_id, m.address,
+                   m.household_id,
                    MAX(
                      COALESCE((SELECT MAX(service_date) FROM connect_cards WHERE member_id = m.id), '{_LAST_SEEN_NEVER}'),
                      COALESCE((SELECT MAX(service_date) FROM attendance  WHERE member_id = m.id), '{_LAST_SEEN_NEVER}')
