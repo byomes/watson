@@ -330,6 +330,9 @@ app.register_blueprint(publishing_bp)
 from jobs.dashboard.publishing_routes import publishing_dashboard_bp
 app.register_blueprint(publishing_dashboard_bp)
 
+from jobs.congregation.deacon_admin_api import deacon_admin_bp
+app.register_blueprint(deacon_admin_bp)
+
 from jobs.team.api import team_bp
 app.register_blueprint(team_bp)
 
@@ -4793,6 +4796,117 @@ def shepherding_checkin():
         return jsonify({"ok": True, "name": name, "date": _fmt_date(prev_sunday)})
     except Exception as exc:
         log.error("shepherding/checkin failed: %s", exc)
+        return jsonify({"error": str(exc)}), 500
+
+
+# ── Deacon Reports (manual send only — never on a cron; a report is only
+#    ever sent after the dashboard shows a preview and the button is clicked) ──
+
+def _strip_body(html: str) -> str:
+    import re as _re_body
+    m = _re_body.search(r'<body[^>]*>(.*?)</body>', html, _re_body.DOTALL)
+    return m.group(1) if m else html
+
+
+@app.route("/api/deacon-reports/list")
+def deacon_reports_list():
+    from jobs.congregation.deacon_reports import deacon_counts
+    try:
+        return jsonify({"deacons": deacon_counts()})
+    except Exception as exc:
+        log.error("deacon-reports/list failed: %s", exc)
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/deacon-reports/preview-master")
+def deacon_reports_preview_master():
+    from jobs.congregation.deacon_reports import generate_master_shepherding_report
+    try:
+        _, html = generate_master_shepherding_report()
+        return jsonify({"html": _strip_body(html)})
+    except Exception as exc:
+        log.error("deacon-reports/preview-master failed: %s", exc)
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/deacon-reports/preview-unassigned")
+def deacon_reports_preview_unassigned():
+    from jobs.congregation.deacon_reports import generate_unassigned_report
+    try:
+        _, html = generate_unassigned_report()
+        return jsonify({"html": _strip_body(html)})
+    except Exception as exc:
+        log.error("deacon-reports/preview-unassigned failed: %s", exc)
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/deacon-reports/preview-pastor-list")
+def deacon_reports_preview_pastor_list():
+    from jobs.congregation.deacon_reports import generate_pastor_list_report
+    try:
+        _, html = generate_pastor_list_report()
+        return jsonify({"html": _strip_body(html)})
+    except Exception as exc:
+        log.error("deacon-reports/preview-pastor-list failed: %s", exc)
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/deacon-reports/preview/<path:deacon_name>")
+def deacon_reports_preview_one(deacon_name):
+    from jobs.congregation.deacon_reports import generate_deacon_report
+    try:
+        _, html = generate_deacon_report(deacon_name)
+        return jsonify({"html": _strip_body(html)})
+    except Exception as exc:
+        log.error("deacon-reports/preview failed: %s", exc)
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/deacon-reports/send-master", methods=["POST"])
+def deacon_reports_send_master():
+    from jobs.congregation.deacon_reports import send_master_shepherding_report
+    data = request.get_json(force=True) or {}
+    try:
+        sent_to = send_master_shepherding_report(
+            also_to_bill=bool(data.get("also_bill")),
+            also_to_elders=bool(data.get("also_elders")),
+        )
+        return jsonify({"message": f"Master Shepherding Report sent to {', '.join(sent_to)} ✓"})
+    except Exception as exc:
+        log.error("deacon-reports/send-master failed: %s", exc)
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/deacon-reports/send-unassigned", methods=["POST"])
+def deacon_reports_send_unassigned():
+    from jobs.congregation.deacon_reports import send_unassigned_report
+    try:
+        sent_to = send_unassigned_report()
+        return jsonify({"message": f"Unassigned report sent to {sent_to} ✓"})
+    except Exception as exc:
+        log.error("deacon-reports/send-unassigned failed: %s", exc)
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/deacon-reports/send-pastor-list", methods=["POST"])
+def deacon_reports_send_pastor_list():
+    from jobs.congregation.deacon_reports import send_pastor_list_report
+    try:
+        sent_to = send_pastor_list_report()
+        return jsonify({"message": f"Pastor Bill's List sent to {sent_to} ✓"})
+    except Exception as exc:
+        log.error("deacon-reports/send-pastor-list failed: %s", exc)
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/deacon-reports/send/<path:deacon_name>", methods=["POST"])
+def deacon_reports_send_one(deacon_name):
+    from jobs.congregation.deacon_reports import send_deacon_report
+    try:
+        sent_to = send_deacon_report(deacon_name)
+        return jsonify({"message": f"Deacon Report sent to {deacon_name} ({sent_to}) ✓"})
+    except Exception as exc:
+        log.error("deacon-reports/send failed: %s", exc)
         return jsonify({"error": str(exc)}), 500
 
 

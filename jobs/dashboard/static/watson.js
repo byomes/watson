@@ -1635,9 +1635,10 @@ function moreLoadMinistry() {
   if (!el) return;
   el.innerHTML = `
     <div class="mtabs">
-      <button class="mtab active" id="mmin-tab-pn"    onclick="moreMinTab('pn')">Pastoral Notes</button>
-      <button class="mtab"        id="mmin-tab-shep"  onclick="moreMinTab('shep')">Shepherding</button>
-      <button class="mtab"        id="mmin-tab-audit" onclick="moreMinTab('audit')">Audit</button>
+      <button class="mtab active" id="mmin-tab-pn"     onclick="moreMinTab('pn')">Pastoral Notes</button>
+      <button class="mtab"        id="mmin-tab-shep"   onclick="moreMinTab('shep')">Shepherding</button>
+      <button class="mtab"        id="mmin-tab-deacon" onclick="moreMinTab('deacon')">Deacon Reports</button>
+      <button class="mtab"        id="mmin-tab-audit"  onclick="moreMinTab('audit')">Audit</button>
     </div>
     <div id="mmin-body-pn">
       <button class="mbtn mbtn-sm" onclick="moreTogglePNForm()" style="margin-bottom:8px">+ New Note</button>
@@ -1661,15 +1662,22 @@ function moreLoadMinistry() {
       <button class="mbtn" onclick="moreRunShepReport()">Run Shepherding Report</button>
       <div id="mshep-result"></div>
     </div>
+    <div id="mmin-body-deacon" style="display:none">
+      <button class="mbtn" onclick="moreDeaconPreviewMaster()">Preview Master Shepherding Report</button>
+      <div class="mlabel">Individual Deacon Reports</div>
+      <div id="mdeacon-list"><div class="loading">Loading&hellip;</div></div>
+      <div id="mdeacon-preview"></div>
+    </div>
     <div id="mmin-body-audit" style="display:none">
       <button class="mbtn" onclick="moreRunAudit()">Run Congregation Audit</button>
       <div id="maudit-result"></div>
     </div>`;
   moreLoadPN('active');
+  moreLoadDeaconReports();
 }
 
 function moreMinTab(tab) {
-  ['pn', 'shep', 'audit'].forEach(t => {
+  ['pn', 'shep', 'deacon', 'audit'].forEach(t => {
     const body = document.getElementById(`mmin-body-${t}`);
     const btn  = document.getElementById(`mmin-tab-${t}`);
     if (body) body.style.display = t === tab ? '' : 'none';
@@ -1807,6 +1815,145 @@ async function moreShepEmail() {
     await api('/api/shepherding/email', { method: 'POST' });
     alert('Sent via email!');
   } catch { alert('Failed to send.'); }
+}
+
+// ── Deacon Reports ───────────────────────────────────────────────────────────
+// Every send requires a preview first, then an explicit confirm click — never
+// sent automatically.
+
+let _deaconReportsData = null;
+let _deaconPreviewTarget = null; // {type:'deacon',name,email} | {type:'master'} | {type:'unassigned'}
+
+async function moreLoadDeaconReports() {
+  const el = document.getElementById('mdeacon-list');
+  if (!el) return;
+  el.innerHTML = '<div class="loading">Loading&hellip;</div>';
+  try {
+    const data = await api('/api/deacon-reports/list');
+    _deaconReportsData = data.deacons || [];
+    if (!_deaconReportsData.length) {
+      el.innerHTML = '<div class="empty">No deacons on file.</div>';
+      return;
+    }
+    el.innerHTML = `
+      <div class="mshep-wrap"><table class="mshep-table">
+        <tr><th>List</th><th>People</th><th>Email</th><th></th></tr>
+        ${_deaconReportsData.map((d, i) => `
+          <tr>
+            <td><strong>${esc(d.label || d.name || 'Unassigned')}</strong></td>
+            <td>${d.count}</td>
+            <td>${d.email ? esc(d.email) : '<span style="color:var(--muted)">no email on file</span>'}</td>
+            <td style="white-space:nowrap">
+              <button class="mbtn mbtn-sm" onclick="moreDeaconPreviewByIndex(${i})">Preview</button>
+            </td>
+          </tr>`).join('')}
+      </table></div>`;
+  } catch {
+    el.innerHTML = '<div class="empty">Could not load deacon list.</div>';
+  }
+}
+
+function moreDeaconPreviewByIndex(idx) {
+  const d = (_deaconReportsData || [])[idx];
+  if (!d) return;
+  if (d.kind === 'unassigned') moreDeaconPreviewUnassigned();
+  else if (d.kind === 'pastor_list') moreDeaconPreviewPastorList();
+  else moreDeaconPreviewOne(d.name, d.email);
+}
+
+async function moreDeaconPreviewOne(name, email) {
+  _deaconPreviewTarget = { type: 'deacon', name, email };
+  const sendBtn = email
+    ? `<button class="mbtn mbtn-p" onclick="moreDeaconSend()">Send to ${esc(name)} (${esc(email)})</button>`
+    : `<div class="empty">No email on file for ${esc(name)} — cannot send.</div>`;
+  await moreDeaconRenderPreview(
+    `/api/deacon-reports/preview/${encodeURIComponent(name)}`,
+    `Deacon Report — ${name}`,
+    sendBtn,
+  );
+}
+
+async function moreDeaconPreviewUnassigned() {
+  _deaconPreviewTarget = { type: 'unassigned' };
+  await moreDeaconRenderPreview(
+    '/api/deacon-reports/preview-unassigned',
+    'Unassigned — Needs Deacon Assignment',
+    `<button class="mbtn mbtn-p" onclick="moreDeaconSend()">Send to Elders (elders@catalyst302.com)</button>`,
+  );
+}
+
+async function moreDeaconPreviewPastorList() {
+  _deaconPreviewTarget = { type: 'pastor_list' };
+  await moreDeaconRenderPreview(
+    '/api/deacon-reports/preview-pastor-list',
+    "Pastor Bill's List — Deacons & Families",
+    `<button class="mbtn mbtn-p" onclick="moreDeaconSend()">Send to Me</button>`,
+  );
+}
+
+async function moreDeaconPreviewMaster() {
+  _deaconPreviewTarget = { type: 'master' };
+  const sendControls = `
+    <div class="mform" style="margin-top:10px">
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px;margin-bottom:6px">
+        <input type="checkbox" id="mdeacon-master-bill"> Also send to me (Bill)
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px">
+        <input type="checkbox" id="mdeacon-master-elders"> Also send to elders@catalyst302.com
+      </label>
+      <button class="mbtn mbtn-p" style="margin-top:10px" onclick="moreDeaconSend()">Send Master Report to Jim Bouchat</button>
+    </div>`;
+  await moreDeaconRenderPreview(
+    '/api/deacon-reports/preview-master',
+    'Master Shepherding Report',
+    sendControls,
+  );
+}
+
+async function moreDeaconRenderPreview(url, title, sendControlsHtml) {
+  const el = document.getElementById('mdeacon-preview');
+  if (!el) return;
+  el.innerHTML = '<div class="loading">Generating preview&hellip;</div>';
+  try {
+    const data = await api(url);
+    el.innerHTML = `
+      <div class="mlabel" style="margin-top:12px">${esc(title)} — Preview (not sent yet)</div>
+      <div style="border:1px solid var(--border);border-radius:4px;padding:12px;max-height:480px;overflow:auto;background:#fff;color:#222">
+        ${data.html}
+      </div>
+      ${sendControlsHtml}
+      <div id="mdeacon-send-status" style="margin-top:8px;font-size:12px"></div>`;
+  } catch {
+    el.innerHTML = '<div class="empty">Could not generate preview.</div>';
+  }
+}
+
+async function moreDeaconSend() {
+  if (!_deaconPreviewTarget) return;
+  if (!confirm('Send this report now? This cannot be undone.')) return;
+  const statusEl = document.getElementById('mdeacon-send-status');
+  try {
+    let url;
+    const opts = { method: 'POST' };
+    if (_deaconPreviewTarget.type === 'deacon') {
+      url = `/api/deacon-reports/send/${encodeURIComponent(_deaconPreviewTarget.name)}`;
+    } else if (_deaconPreviewTarget.type === 'unassigned') {
+      url = '/api/deacon-reports/send-unassigned';
+    } else if (_deaconPreviewTarget.type === 'pastor_list') {
+      url = '/api/deacon-reports/send-pastor-list';
+    } else {
+      url = '/api/deacon-reports/send-master';
+      opts.headers = { 'Content-Type': 'application/json' };
+      opts.body = JSON.stringify({
+        also_bill:   !!document.getElementById('mdeacon-master-bill')?.checked,
+        also_elders: !!document.getElementById('mdeacon-master-elders')?.checked,
+      });
+    }
+    const data = await api(url, opts);
+    if (statusEl) statusEl.innerHTML = `<span style="color:var(--gold)">${esc(data.message || 'Sent.')}</span>`;
+  } catch {
+    if (statusEl) statusEl.innerHTML = `<span style="color:#ff6b6b">Failed to send.</span>`;
+  }
 }
 
 async function moreRunAudit() {
