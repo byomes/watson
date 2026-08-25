@@ -1,10 +1,12 @@
 # Watson Bug Tracker
 _Auto-generated nightly from bug_tracker. Source of truth is the database — do not hand-edit this file, changes will be overwritten._
-Last generated: 2026-08-24 02:10
+Last generated: 2026-08-25 02:10
 
-## Open (40)
+## Open (42)
 | ID | Title | Repo | Discovered |
 |---|---|---|---|
+| 98 | connect_cards intake truncates multi-line question/comment field | watson | 2026-08-24 13:04:31 |
+| 97 | Dashboard SSE chat KB pre-check imports nonexistent kb_search.run | watson | 2026-08-24 12:44:22 |
 | 94 | skill_tester.py audit harness gave false failures for 7+ skills | watson | 2026-08-23 21:36:18 |
 | 93 | pastoral_notes skill registered against a nonexistent function | watson | 2026-08-23 21:36:18 |
 | 92 | Dashboard 'state of church report' quick-command didn't reach the report generator | watson | 2026-08-23 21:36:18 |
@@ -49,6 +51,9 @@ Last generated: 2026-08-24 02:10
 ## Recently Resolved (last 30 days)
 | ID | Title | Repo | Resolved | Commit |
 |---|---|---|---|---|
+| 100 | MCP run_watson_skill fails on kb/kb_search: missing positional argument | watson | 2026-08-24 13:09:59 | e6f674b |
+| 99 | connect_cards intake truncates multi-line question/comment field | watson | 2026-08-24 13:09:59 | a90d6d5 |
+| 96 | run_watson_skill/list_watson_skills MCP tools were live in production but never committed to git | watson | 2026-08-24 12:21:16 | eb40d7c |
 | 95 | devdispatch: dispatched session deviating from -w worktree branch loses/misreports real work (wcky retreats cluster, 2026-08-16) | watson | 2026-08-24 01:53:25 | c78ff9d8a29f21d6ad14e01502f3465429c154fe |
 | 89 | email_reply/reader.py replied to Connect Card submissions | watson | 2026-08-23 21:11:57 | 5709440 |
 | 75 | Privacy Guard scan: goto_safe() fails OPEN on robots.txt 403/non-200 instead of fail-closed | watson | 2026-08-21 13:52:28 | 98367e7 |
