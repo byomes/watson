@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-08-24*
+*Generated: 2026-08-25*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -96,6 +96,8 @@ data/
   congregation.db.bak-20260715-124007
   congregation.db.bak-20260716-101416
   congregation.db.bak-20260716-111858
+  congregation.db.bak-20260824-090356
+  congregation.db.bak-20260824-102211
   cover_images/
     cover_1.jpg
     cover_10.jpg
@@ -159,8 +161,12 @@ data/
   generated_images/
     img_a_lighthouse_at_sunset_1783180276.jpg
   imports/
+    Deacon-Directory.xlsx
     catalyst_contacts2.csv
     church_contacts.csv
+    deacon_directory_clean.csv
+    deacon_directory_report_20260824-141656.md
+    deacon_directory_report_20260824-142211.md
     phone_match_review.csv
     phone_match_review_v2.csv
   qr/
@@ -331,8 +337,12 @@ jobs/
   congregation/
     __init__.py
     batch_intake.py
+    deacon_admin_api.py
+    deacon_reports.py
+    import_deacon_directory.py
     init_db.py
     member_match.py
+    migrate_deacon_directory.py
     migrate_leadership_roles.py
     migrate_reparse.py
   connect_cards/
@@ -518,6 +528,9 @@ jobs/
     __init__.py
     api.py
     archive_transcripts.py
+    export_link.py
+    export_link_cleanup.py
+    schema.py
     sync_and_index.py
     tag_source_types.py
   lead_magnet/
