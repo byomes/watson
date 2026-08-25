@@ -2476,3 +2476,23 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - 0fc9934 Fix dashboard More-tab skill gaps found in skill audit
 - 5709440 Exempt Connect Card emails from the email-reply skill
 - 771866e docs: architecture update 2026-08-23
+
+---
+
+## Recent Changes — 2026-08-25
+
+### ~/watson
+- 0348812 docs: bugs/backlog export 2026-08-25
+- 31b13a0 docs: file map 2026-08-25
+- eb73a7a kb: sync 1 transcript(s) to kb/documents (same-day)
+- 298f3f8 kb: sync 1 transcript(s) to kb/documents (same-day)
+- a90d6d5 connect_cards: fix multi-line question/comment truncation (#54)
+- e6f674b router: forward query text under the skill fn's actual param name (#53)
+- 71e0592 Merge pull request #52 from byomes/worktree-kb-export-download-link
+- 9da8649 devdispatch: progress -> reporting complete, PR #51
+- 071dd86 devdispatch: progress -> reporting (kb-export-download-link)
+- 5626a71 kb: add GET /api/kb/export-link manual-trigger route for testing
+- 2135eaf kb: add Tailscale-only download-link export for Claude.ai/MCP
+- eb40d7c devdispatch: commit already-live run_watson_skill/list_watson_skills MCP tools
+- 7b1a1da devdispatch: fix stale-main false-422 and branch-mismatch push failure (bug #95) (#50)
+- 8823fac docs: architecture update 2026-08-24
