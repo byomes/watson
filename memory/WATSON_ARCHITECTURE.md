@@ -369,6 +369,7 @@ A skill marked **disabled** below is registered but intentionally turned off —
 | **ISBN Lookup** (`isbn_lookup`) | ready | telegram, dashboard | `look up book`, `isbn`, `find book`, `book info` | Look up a book by ISBN or title. |
 | **KB Ask** (`kb`) | ready | telegram, dashboard | `kb:`, `search kb`, `search my notes`, `search my sermons`, `what have i said about`, `what did i preach on`, `find in my notes` | Query sermon transcripts and documents via ChromaDB. |
 | **KB Export** (`kb_export`) | ready | telegram | `kb export:` | Zip and send matching KB source files for a query via Telegram. |
+| **KB Export Link** (`kb_export_link`) | ready | dashboard | `kb export link:` | Zip matching KB source files for a query and return a Tailscale-only, expiring, single-use download link. |
 | **KB Search** (`kb_search`) | ready | telegram, dashboard | `kb:`, `search the kb:` | Search the ChromaDB sermons collection with llama3.2:3b synopsis. Reply 'email that to me' to send results to inbox. |
 | **News Search** (`news_search`) | ready | telegram, dashboard | `search news`, `latest news on`, `what's the news about`, `news about` | Search recent news on any topic. |
 | **Summarize** (`summarizer`) | ready | telegram, dashboard | `summarize`, `give me a summary`, `tldr`, `summarize this` | Summarize any text or article. |
