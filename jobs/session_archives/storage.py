@@ -39,6 +39,10 @@ MAX_TRANSCRIPT_BYTES = 5 * 1024 * 1024  # generous — a hard error, not a skip,
                                          # transcript is the core content, not optional
 MAX_SUMMARY_RETURN_BYTES = 20_000       # get_project_summary read cap (newest-first, so
                                          # truncation only ever drops the oldest entries)
+SMALL_CONTENT_WARN_BYTES = 300          # below this, a transcript or file is flagged as
+                                         # suspiciously small rather than silently accepted —
+                                         # this is what would have caught archive #1666's
+                                         # 22-byte placeholder file immediately (2026-08-26)
 
 # Flagged, never silently stripped — the match just gets surfaced (pattern
 # names + a frontmatter flag) so a human or a future Claude.ai session knows
@@ -162,6 +166,12 @@ def archive_session(transcript, files, project, title, summary, source_conversat
     skipped_files = []
     total_bytes = len(transcript_bytes)
     secret_hits = _scan_secrets(transcript)
+    warnings = []
+    if len(transcript_bytes) < SMALL_CONTENT_WARN_BYTES:
+        warnings.append(
+            f"transcript is only {len(transcript_bytes)} bytes — unusually short for a full "
+            "verbatim transcript; verify this isn't a placeholder before treating the archive as complete."
+        )
 
     for f in files:
         raw_filename = (f or {}).get("filename", "?")
@@ -186,7 +196,12 @@ def archive_session(transcript, files, project, title, summary, source_conversat
             n += 1
         dest.write_bytes(raw)
         total_bytes += len(raw)
-        accepted_files.append(dest.name)
+        accepted_files.append({"filename": dest.name, "size_bytes": len(raw)})
+        if len(raw) < SMALL_CONTENT_WARN_BYTES:
+            warnings.append(
+                f"file '{dest.name}' is only {len(raw)} bytes — unusually small; verify it's not a "
+                "truncated/placeholder write before treating the archive as complete."
+            )
 
         try:
             secret_hits |= _scan_secrets(raw.decode("utf-8"))
@@ -245,28 +260,41 @@ def archive_session(transcript, files, project, title, summary, source_conversat
         "secrets_flagged": secrets_flagged,
         "auto_classified": auto_classified,
     }
+    if warnings:
+        result["warnings"] = warnings
     if secrets_flagged:
         result["secrets_flagged_patterns"] = sorted(secret_hits)
     return result
 
 
-# ── Read path (via run_watson_skill) ────────────────────────────────────
+# ── Read path ────────────────────────────────────────────────────────────
+# Two entry points per operation: a message-based one (kept for the
+# run_watson_skill/_SKILL_PRE_CHECKS route used by Telegram/dashboard, where
+# free text is all there is) and a typed one taking real parameters (used
+# directly by the get_archive/list_archives/etc. MCP tools in
+# jobs/devdispatch/api.py, skipping trigger-phrase parsing entirely). The
+# message-based functions are thin wrappers around the typed ones.
 
 def list_archives(message: str = "") -> dict:
     project = _strip_trigger(message, ("list archives:", "list archives"))
+    return list_archives_by_project(project or None)
+
+
+def list_archives_by_project(project: str = None, include_superseded: bool = False) -> dict:
     conn = get_connection()
     try:
+        where, params = [], []
         if project:
-            rows = conn.execute(
-                "SELECT id, project, title, created_at, file_count FROM session_archives "
-                "WHERE project = ? ORDER BY created_at DESC LIMIT 20",
-                (_slugify(project, max_len=60),),
-            ).fetchall()
-        else:
-            rows = conn.execute(
-                "SELECT id, project, title, created_at, file_count FROM session_archives "
-                "ORDER BY created_at DESC LIMIT 20"
-            ).fetchall()
+            where.append("project = ?")
+            params.append(_slugify(project, max_len=60))
+        if not include_superseded:
+            where.append("superseded_by IS NULL")
+        clause = ("WHERE " + " AND ".join(where)) if where else ""
+        rows = conn.execute(
+            "SELECT id, project, title, created_at, file_count, superseded_by FROM session_archives "
+            f"{clause} ORDER BY created_at DESC LIMIT 20",
+            params,
+        ).fetchall()
     finally:
         conn.close()
     return {"archives": [dict(r) for r in rows]}
@@ -274,17 +302,23 @@ def list_archives(message: str = "") -> dict:
 
 def search_archives(message: str = "") -> dict:
     query = _strip_trigger(message, ("search archives:", "search archives"))
-    if not query:
-        return {"error": "provide a search query, e.g. 'search archives: retreat budget decision'"}
+    return search_archives_by_query(query)
+
+
+def search_archives_by_query(query: str, include_superseded: bool = False) -> dict:
+    if not query or not query.strip():
+        return {"error": "provide a search query, e.g. 'retreat budget decision'"}
 
     conn = get_connection()
     try:
+        fts_clause = "" if include_superseded else "AND sa.superseded_by IS NULL"
+        like_clause = "" if include_superseded else "AND superseded_by IS NULL"
         try:
             rows = conn.execute(
                 "SELECT sa.id AS id, sa.project AS project, sa.title AS title, sa.created_at AS created_at, "
                 "snippet(session_archives_fts, 1, '[', ']', '...', 12) AS snippet "
                 "FROM session_archives_fts JOIN session_archives sa ON sa.id = session_archives_fts.rowid "
-                "WHERE session_archives_fts MATCH ? ORDER BY rank LIMIT 20",
+                f"WHERE session_archives_fts MATCH ? {fts_clause} ORDER BY rank LIMIT 20",
                 (_fts_match_expr(query),),
             ).fetchall()
             results = [dict(r) for r in rows]
@@ -292,7 +326,7 @@ def search_archives(message: str = "") -> dict:
             like = f"%{query}%"
             rows = conn.execute(
                 "SELECT id, project, title, created_at, substr(transcript, 1, 300) AS snippet "
-                "FROM session_archives WHERE transcript LIKE ? OR title LIKE ? "
+                f"FROM session_archives WHERE (transcript LIKE ? OR title LIKE ?) {like_clause} "
                 "ORDER BY created_at DESC LIMIT 20",
                 (like, like),
             ).fetchall()
@@ -312,12 +346,15 @@ def get_archive(message: str = "") -> dict:
     except ValueError:
         return {"error": f"'{parts[0]}' is not a valid archive id"}
     filename = parts[1].strip() if len(parts) > 1 else None
+    return get_archive_by_id(archive_id, filename)
 
+
+def get_archive_by_id(archive_id: int, filename: str = None) -> dict:
     conn = get_connection()
     try:
         row = conn.execute(
             "SELECT id, project, title, dir_path, transcript, file_count, created_at, "
-            "secrets_flagged, secrets_patterns FROM session_archives WHERE id = ?",
+            "secrets_flagged, secrets_patterns, superseded_by FROM session_archives WHERE id = ?",
             (archive_id,),
         ).fetchone()
     finally:
@@ -342,7 +379,7 @@ def get_archive(message: str = "") -> dict:
             "size_bytes": len(raw),
         }
 
-    return {
+    result = {
         "id": row["id"],
         "project": row["project"],
         "title": row["title"],
@@ -352,6 +389,13 @@ def get_archive(message: str = "") -> dict:
         "secrets_flagged": bool(row["secrets_flagged"]),
         "secrets_flagged_patterns": row["secrets_patterns"].split(",") if row["secrets_patterns"] else [],
     }
+    if row["superseded_by"]:
+        result["superseded_by"] = row["superseded_by"]
+        result["note"] = (
+            f"This archive was marked superseded by archive #{row['superseded_by']} — "
+            "that one is the corrected/authoritative version."
+        )
+    return result
 
 
 def list_projects(message: str = "") -> dict:
@@ -359,7 +403,7 @@ def list_projects(message: str = "") -> dict:
     try:
         rows = conn.execute(
             "SELECT project, COUNT(*) AS archive_count, MAX(created_at) AS most_recent "
-            "FROM session_archives GROUP BY project ORDER BY most_recent DESC"
+            "FROM session_archives WHERE superseded_by IS NULL GROUP BY project ORDER BY most_recent DESC"
         ).fetchall()
     finally:
         conn.close()
@@ -371,8 +415,12 @@ def get_project_summary(message: str = "") -> dict:
         message,
         ("get project summary:", "project summary:", "get project summary", "project summary"),
     )
-    if not project:
-        return {"error": "provide a project slug, e.g. 'project summary: curator'"}
+    return get_project_summary_for(project)
+
+
+def get_project_summary_for(project: str) -> dict:
+    if not project or not project.strip():
+        return {"error": "provide a project slug, e.g. 'curator'"}
     project_slug = _slugify(project, max_len=60)
     summary_path = ARCHIVES_ROOT / project_slug / "_summary.md"
     if not summary_path.is_file():
@@ -383,6 +431,34 @@ def get_project_summary(message: str = "") -> dict:
     if truncated:
         text = text[:MAX_SUMMARY_RETURN_BYTES]
     return {"project": project_slug, "summary": text, "truncated": truncated}
+
+
+def mark_superseded(archive_id: int, superseded_by: int) -> dict:
+    """Marks archive_id as superseded by another archive — hides it from
+    list_archives/search_archives/list_projects by default without deleting
+    it or touching its files on disk, per the immutable/append-only design
+    (see module docstring). Pass superseded_by=None to un-mark."""
+    conn = get_connection()
+    try:
+        row = conn.execute("SELECT id FROM session_archives WHERE id = ?", (archive_id,)).fetchone()
+        if row is None:
+            return {"error": f"no archive with id {archive_id}"}
+        if superseded_by is not None:
+            if superseded_by == archive_id:
+                return {"error": "an archive cannot supersede itself"}
+            replacement = conn.execute(
+                "SELECT id FROM session_archives WHERE id = ?", (superseded_by,)
+            ).fetchone()
+            if replacement is None:
+                return {"error": f"no archive with id {superseded_by} to supersede with"}
+        conn.execute(
+            "UPDATE session_archives SET superseded_by = ? WHERE id = ?",
+            (superseded_by, archive_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return {"id": archive_id, "superseded_by": superseded_by, "hidden_from_listings": bool(superseded_by)}
 
 
 # ── Claude.ai export import support (jobs/session_archives/claude_export_import.py,

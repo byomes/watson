@@ -61,6 +61,15 @@ def create_tables(conn=None) -> None:
         if "summary" not in cols:
             conn.execute("ALTER TABLE session_archives ADD COLUMN summary TEXT")
 
+        # superseded_by: set when an archive turns out to be bad (truncated,
+        # wrong content, etc.) and a corrected archive replaces it. Archives
+        # stay immutable/append-only (no update or delete path) — this just
+        # hides the bad one from list_archives/search_archives by default so
+        # it stops cluttering retrieval, while keeping it in the DB for
+        # audit/history. NULL for every normal archive.
+        if "superseded_by" not in cols:
+            conn.execute("ALTER TABLE session_archives ADD COLUMN superseded_by INTEGER")
+
         conn.commit()
     finally:
         if owns_conn:

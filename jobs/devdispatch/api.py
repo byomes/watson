@@ -215,10 +215,13 @@ _TOOLS = [
             "falling back to a general catch-all only if nothing matches "
             "confidently. Files are base64-encoded; anything over roughly 8MB "
             "per file is rejected individually and reported back in "
-            "skipped_files, never silently dropped. Retrieve archives later with "
-            "the run_watson_skill skills list_archives, search_archives, "
-            "get_archive, list_projects, and get_project_summary — those work "
-            "even from a future session with no memory of this one."
+            "skipped_files, never silently dropped. The response includes a "
+            "'warnings' field if the transcript or any file looks suspiciously "
+            "small — treat that as a signal to double check before assuming the "
+            "archive is complete. Retrieve archives later with the list_archives, "
+            "search_archives, get_archive, list_projects, and get_project_summary "
+            "tools — those work even from a future session with no memory of "
+            "this one."
         ),
         "inputSchema": {
             "type": "object",
@@ -253,6 +256,88 @@ _TOOLS = [
                 },
             },
             "required": ["transcript", "files", "project", "title", "summary"],
+        },
+    },
+    {
+        "name": "list_archives",
+        "description": (
+            "List archived Claude.ai sessions, newest first, optionally filtered "
+            "to one project. Superseded archives (see mark_archive_superseded) "
+            "are hidden by default. Use get_archive with an id from here to "
+            "read a specific archive's full transcript."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project": {"type": "string", "description": "Project slug to filter to, e.g. 'curator'. Omit to list across all projects."},
+                "include_superseded": {"type": "boolean", "description": "Include archives marked superseded. Defaults to false."},
+            },
+        },
+    },
+    {
+        "name": "search_archives",
+        "description": (
+            "Full-text search over archived session titles and transcripts. "
+            "Superseded archives are excluded by default."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Search terms, e.g. 'retreat budget decision'."},
+                "include_superseded": {"type": "boolean", "description": "Include archives marked superseded. Defaults to false."},
+            },
+            "required": ["query"],
+        },
+    },
+    {
+        "name": "get_archive",
+        "description": (
+            "Fetch one archived session by id — its full verbatim transcript "
+            "and the list of attached files, or (if filename is given) one "
+            "attached file's content, base64-encoded. Get ids from "
+            "list_archives or search_archives."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "integer", "description": "The archive id, from list_archives/search_archives."},
+                "filename": {"type": "string", "description": "If given, return this one attached file's base64 content instead of the transcript."},
+            },
+            "required": ["id"],
+        },
+    },
+    {
+        "name": "list_projects",
+        "description": "List every project with archived sessions, with archive counts and the most recent archive date. Superseded archives are excluded from counts.",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "get_project_summary",
+        "description": "Get a project's rolling catch-up summary (newest entry first) — a quick recap without pulling every individual archive.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project": {"type": "string", "description": "Project slug, e.g. 'curator'."},
+            },
+            "required": ["project"],
+        },
+    },
+    {
+        "name": "mark_archive_superseded",
+        "description": (
+            "Mark a bad archive (truncated, wrong content, botched upload) as "
+            "superseded by a corrected one. The bad archive is kept — nothing "
+            "is deleted — but it's hidden from list_archives/search_archives/ "
+            "list_projects by default so it stops cluttering retrieval. Pass "
+            "superseded_by omitted or null to un-mark an archive."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "integer", "description": "The bad archive's id to hide."},
+                "superseded_by": {"type": "integer", "description": "The id of the corrected archive that replaces it."},
+            },
+            "required": ["id", "superseded_by"],
         },
     },
 ]
@@ -922,6 +1007,18 @@ _TOOL_IMPLS = {
     "run_watson_skill": lambda args: _run_watson_skill(args.get("message")),
     "list_watson_skills": lambda args: _list_watson_skills(),
     "archive_session": _archive_session_tool,
+    "list_archives": lambda args: _archives.list_archives_by_project(
+        args.get("project"), bool(args.get("include_superseded", False))
+    ),
+    "search_archives": lambda args: _archives.search_archives_by_query(
+        args.get("query"), bool(args.get("include_superseded", False))
+    ),
+    "get_archive": lambda args: _archives.get_archive_by_id(args.get("id"), args.get("filename")),
+    "list_projects": lambda args: _archives.list_projects(),
+    "get_project_summary": lambda args: _archives.get_project_summary_for(args.get("project")),
+    "mark_archive_superseded": lambda args: _archives.mark_superseded(
+        args.get("id"), args.get("superseded_by")
+    ),
 }
 
 
