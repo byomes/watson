@@ -652,6 +652,10 @@ jobs/
   security/
     __init__.py
     encryptor.py
+  session_archives/
+    __init__.py
+    schema.py
+    storage.py
   skillbuilder/
     __init__.py
     acquire.py

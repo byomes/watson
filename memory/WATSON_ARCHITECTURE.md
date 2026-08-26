@@ -836,6 +836,120 @@ restart-only scope (see Development Conventions), so it's flagged in
 
 ---
 
+## Session Archives (Claude.ai)
+
+Built 2026-08-25. Lets Bill say "send to watson" (or a close variant) at the
+end of any Claude.ai session and have the full transcript, plus any files
+created that session, archived durably on Watson — retrievable later by a
+future Claude.ai session with no memory of the original conversation.
+Separate, purpose-built capability — not an extension of the small ad-hoc
+`note:`/`list notes`/`search notes` skills, which still exist independently
+for quick one-off notes.
+
+**Write path — dedicated MCP tool, not the skill router.** `archive_session`
+is declared directly in `_TOOLS`/`_TOOL_IMPLS` in `jobs/devdispatch/api.py`,
+alongside `dispatch_claude_code_job` etc. — it needed its own tool schema
+because it takes structured params (a file array) that `run_watson_skill`'s
+single `message` string can't carry. Params: `transcript` (full verbatim
+text, required), `files` (array of `{filename, content_base64}`, required —
+empty array if none), `project` (required — no silent default; the caller
+must pass `general` explicitly if a session isn't tied to a specific
+project), `title` and `summary` (both written by Claude.ai itself, like
+`title` already was for other tools). Inherits the same auth gate
+(`X-Watson-Key` / bearer) as every other tool on `/mcp/devdispatch` — no new
+auth surface.
+
+**Read path — via `run_watson_skill`, same mechanism as `kb_search`.** Five
+new skills, registered in `memory/skills.json` and added to
+`_MCP_SKILL_ALLOWLIST`: `list_archives`, `search_archives`, `get_archive`,
+`list_projects`, `get_project_summary`. Each function's first parameter is
+named `message` so `router._run_skill` forwards the raw trigger-prefixed
+text directly. Deterministic trigger phrases added to `_SKILL_PRE_CHECKS` in
+`jobs/skillbuilder/router.py` (`list archives:`, `search archives:`, `get
+archive:`, `list projects`, `project summary:`) — matched before any LLM
+routing call, so these are never a judgment call. Looser natural phrasing
+("catch me up on X") falls through to the existing LLM semantic router, same
+as `kb_search` already relies on with no pre-check trigger of its own.
+
+- `get_archive: <id>` returns the full transcript + a list of attached
+  filenames (not their content — could be large/binary). `get_archive: <id>
+  <filename>` (id followed by a filename token, same skill) returns that one
+  file's base64 content instead — deliberate 2-call shape rather than a 4th
+  tool, since most retrieval only needs the transcript text.
+- `list_projects` returns every project slug with at least one archive, plus
+  archive count and most-recent `created_at` — how a cold session discovers
+  what project slugs even exist, instead of guessing.
+- `get_project_summary: <project>` reads
+  `data/session_archives/<project>/_summary.md` directly (capped at ~20KB
+  read, newest-entries-first so a cap only ever drops the oldest context) —
+  the fast catch-up layer, not a substitute for pulling full archives.
+
+**Storage:** `jobs/session_archives/` (`schema.py` + `storage.py`).
+Filesystem layout:
+```
+data/session_archives/<project-slug>/<timestamp>-<title-slug>/
+  transcript.md   — frontmatter (project, title, created_at, secrets_flagged[, secrets_patterns]) + the verbatim transcript
+  <files...>      — sanitized filenames, as submitted
+data/session_archives/<project-slug>/_summary.md   — rolling recap, newest entry prepended to the top after every archive_session call
+```
+Timestamp-first directory naming means no two archives can collide.
+Filenames are sanitized before ever touching the filesystem (path
+separators stripped, collapsed to a bare basename) — an incoming filename is
+untrusted input; a raw `../../etc/...`-shaped value must not be able to
+write outside the archive directory. Confirmed empirically during build: a
+test file submitted as `../../etc/evil` landed as `evil` inside the archive
+dir, not outside it.
+
+Mirrored into SQLite (`session_archives` table in `watson.db`, via the same
+`core.database.get_connection()` every other job uses) for fast listing and
+search — full transcript text stored in the DB row too, not just on disk.
+Search uses an FTS5 external-content virtual table
+(`session_archives_fts`, kept in sync by an explicit paired INSERT in
+`archive_session()`, not a trigger — there is exactly one write path, so a
+trigger would be unnecessary machinery); confirmed FTS5 is compiled into
+this box's Python 3.12 stdlib `sqlite3`. `search_archives` falls back to a
+plain `LIKE` query if FTS5 is ever unavailable (wrapped in try/except at
+both create-table and query time) — same call shape either way, so this is
+invisible to a caller.
+
+**Size caps** (decoded bytes): 8MB per file, 20MB total per archive
+(transcript + accepted files combined), 5MB hard cap on the transcript
+itself (an error, not a skip — the transcript is the core content, never
+optional). A file over its cap is rejected individually and reported back
+in `skipped_files` with a reason — never silently dropped.
+
+**Secret guard:** before writing, `transcript` (and any file that decodes as
+UTF-8 text) is scanned against a fixed set of regexes — AWS access keys,
+GitHub/Slack/Stripe tokens, PEM private-key headers, bearer tokens, and
+generic `api_key:`/`secret:`/`token:`/`password:`-shaped assignments. A hit
+never strips or blocks anything — it sets `secrets_flagged: true` +
+`secrets_patterns` in both the tool's response and `transcript.md`'s own
+frontmatter, so a cold future `get_archive` call still surfaces the warning
+even with no memory of why it was flagged.
+
+**Backup coverage — actually tested, not just read from the script.**
+`data/` (which now includes `data/session_archives/`) was already inside
+both of Watson's nightly backup legs with zero changes needed. Verified for
+real during this build: archived a test session (with a file, and a
+deliberately-injected fake secret to confirm the flag fires), ran
+`jobs/backup_local.py` (the local restic leg) manually, then `restic
+restore latest` to a scratch path and `diff -r`'d it against the live
+`data/session_archives/` tree — byte-identical. Only the local leg was
+exercised live (no test data pushed to the real OneDrive leg,
+`jobs/backup.py`, which backs up the same `data/` tree via a different
+mechanism); a live OneDrive round-trip hasn't been separately confirmed.
+Test archives and DB rows were deleted after verification — nothing left
+behind.
+
+**Not built:** no dashboard UI for browsing archives (retrieval is
+Claude.ai/Telegram/dashboard-chat only, via the skills above, or direct
+filesystem/`sqlite3` access); no edit/delete of an existing archive once
+written (append-only by design — the entire point is not losing data, so
+nothing removes it once archived); no binary-file secret scanning (only
+UTF-8-decodable file contents are scanned, same as the transcript).
+
+---
+
 ## Writing Room (`williamckyomes.com/room`)
 
 Private community hub for Writing Room Partners (invitation-only, earned via ARC completion).

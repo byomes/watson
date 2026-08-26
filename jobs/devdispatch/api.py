@@ -81,6 +81,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from config.settings import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 from core.database import get_connection
 from jobs.devdispatch.schema import ALLOWED_REPOS, create_tables
+from jobs.session_archives import storage as _archives
+from jobs.session_archives.schema import create_tables as _create_archive_tables
 from jobs.skillbuilder import router as _skill_router
 
 import requests
@@ -90,6 +92,7 @@ log = logging.getLogger(__name__)
 devdispatch_bp = Blueprint("devdispatch", __name__)
 
 create_tables()
+_create_archive_tables()
 
 _API_KEY = lambda: os.getenv("MCP_DISPATCH_API_KEY", "")
 _PROTOCOL_VERSION = "2025-06-18"
@@ -196,6 +199,58 @@ _TOOLS = [
         "name": "list_watson_skills",
         "description": "List the Watson skills exposed to this connector, with descriptions.",
         "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "archive_session",
+        "description": (
+            "Archive an entire Claude.ai session — full verbatim transcript plus "
+            "any files created during it — to Watson for durable, backed-up "
+            "storage. Call this every time Bill says 'send to watson' (or a close "
+            "variant like 'save this session to watson' / 'archive this to "
+            "watson'): send the complete transcript, never a summary in its "
+            "place. Every archive is filed under a project — pass 'general' "
+            "explicitly if the session isn't tied to a specific one; there is no "
+            "silent default. Files are base64-encoded; anything over roughly 8MB "
+            "per file is rejected individually and reported back in "
+            "skipped_files, never silently dropped. Retrieve archives later with "
+            "the run_watson_skill skills list_archives, search_archives, "
+            "get_archive, list_projects, and get_project_summary — those work "
+            "even from a future session with no memory of this one."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "transcript": {
+                    "type": "string",
+                    "description": "The full, verbatim conversation transcript for this session — not a summary.",
+                },
+                "files": {
+                    "type": "array",
+                    "description": "Files created during the session (drafts, docs, code). Pass an empty array if none.",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "filename": {"type": "string"},
+                            "content_base64": {"type": "string"},
+                        },
+                        "required": ["filename", "content_base64"],
+                    },
+                },
+                "project": {
+                    "type": "string",
+                    "description": "Project slug this session belongs to (e.g. 'curator', 'comms-desk'). Required — pass 'general' explicitly if there is no specific project.",
+                },
+                "title": {
+                    "type": "string",
+                    "description": "A short, scannable one-line title for this session, written by Claude.ai.",
+                },
+                "summary": {
+                    "type": "string",
+                    "description": "A few-sentence recap of what happened this session and what's next, written by Claude.ai — appended to the project's rolling catch-up file.",
+                },
+            },
+            "required": ["transcript", "files", "project", "title", "summary"],
+        },
     },
 ]
 
@@ -783,6 +838,8 @@ _MCP_SKILL_ALLOWLIST = frozenset({
     "pdf", "word", "excel", "powerpoint", "document_converter",
     "svg_generator", "screenshot", "chart_generator", "data_analyzer",
     "kb_export_link",
+    "list_archives", "search_archives", "get_archive",
+    "list_projects", "get_project_summary",
 })
 
 
@@ -843,6 +900,16 @@ def _run_watson_skill(message) -> dict:
     }
 
 
+def _archive_session_tool(args: dict) -> dict:
+    return _archives.archive_session(
+        args.get("transcript"),
+        args.get("files"),
+        args.get("project"),
+        args.get("title"),
+        args.get("summary"),
+    )
+
+
 _TOOL_IMPLS = {
     "dispatch_claude_code_job": lambda args: _dispatch_claude_code_job(
         args.get("spec"), args.get("repo"), args.get("branch_name")
@@ -851,6 +918,7 @@ _TOOL_IMPLS = {
     "merge_claude_code_job": lambda args: _merge_claude_code_job(args.get("job_id")),
     "run_watson_skill": lambda args: _run_watson_skill(args.get("message")),
     "list_watson_skills": lambda args: _list_watson_skills(),
+    "archive_session": _archive_session_tool,
 }
 
 

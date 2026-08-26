@@ -76,6 +76,21 @@ _SKILL_PRE_CHECKS: dict[str, tuple] = {
     "kb_export": (
         "kb export:",
     ),
+    "list_archives": (
+        "list archives", "list archives:",
+    ),
+    "search_archives": (
+        "search archives:",
+    ),
+    "get_archive": (
+        "get archive:",
+    ),
+    "list_projects": (
+        "list projects", "list archive projects",
+    ),
+    "get_project_summary": (
+        "project summary:", "get project summary:",
+    ),
     "gutenberg": (
         "gutenberg:",
     ),
