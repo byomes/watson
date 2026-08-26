@@ -129,8 +129,16 @@ def archive_session(transcript, files, project, title, summary) -> dict:
     timestamp = created_dt.strftime("%Y%m%d-%H%M%S")
     created_at = created_dt.isoformat(timespec="seconds")
 
-    archive_dir = ARCHIVES_ROOT / project_slug / f"{timestamp}-{title_slug}"
-    archive_dir.mkdir(parents=True, exist_ok=True)
+    # Guard against two archives landing in the same second with the same
+    # title slug (e.g. a fast bulk import) silently colliding into one
+    # directory and overwriting each other's transcript.md.
+    base_name = f"{timestamp}-{title_slug}"
+    archive_dir = ARCHIVES_ROOT / project_slug / base_name
+    n = 1
+    while archive_dir.exists():
+        archive_dir = ARCHIVES_ROOT / project_slug / f"{base_name}-{n}"
+        n += 1
+    archive_dir.mkdir(parents=True)
 
     accepted_files = []
     skipped_files = []
