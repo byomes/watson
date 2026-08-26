@@ -25,7 +25,16 @@ from chromadb.utils import embedding_functions
 # CLASSIFY_THRESHOLD and re-running against what's already archived
 # shouldn't require him to burn another export just to get the project list
 # back. See jobs/session_archives/reclassify_threshold.py.
+#
+# This file is fully overwritten every time build_project_refs() runs against
+# a real export, so it only ever reflects Bill's actual named Claude.ai
+# projects. Hand-defined buckets that don't correspond to a real Claude.ai
+# project (e.g. "watson-development" — a huge, real, ongoing body of work
+# that was never done inside a Claude.ai Project container) live in
+# _MANUAL_PROJECT_REFS instead, which nothing auto-overwrites, and get merged
+# in by load_project_refs_cache() every time classification actually runs.
 _PROJECT_REFS_CACHE = Path(__file__).resolve().parents[2] / "data" / "session_archives" / "_project_refs.json"
+_MANUAL_PROJECT_REFS = Path(__file__).resolve().parents[2] / "data" / "session_archives" / "_manual_project_refs.json"
 
 # Chosen conservatively: MiniLM cosine similarity between a short conversation
 # title+summary and a project name+description rarely exceeds ~0.6 even for a
@@ -77,7 +86,19 @@ def build_project_refs(projects: list) -> list:
         })
     if refs:
         save_project_refs_cache(refs)
-    return refs
+    return _merge_manual(refs)
+
+
+def _merge_manual(refs: list) -> list:
+    """Manual refs win on a matching slug — lets a hand-written description
+    (richer than a real Claude.ai project's often-blank description field)
+    enrich classification for a real project without inventing a duplicate
+    bucket. A manual ref with a slug that isn't a real project at all (e.g.
+    a genuinely synthetic bucket) is just added alongside."""
+    manual_by_slug = {m["slug"]: m for m in load_manual_project_refs()}
+    merged = [manual_by_slug.pop(r["slug"], r) for r in refs]
+    merged.extend(manual_by_slug.values())
+    return merged
 
 
 def save_project_refs_cache(refs: list) -> None:
@@ -86,12 +107,32 @@ def save_project_refs_cache(refs: list) -> None:
 
 
 def load_project_refs_cache() -> list:
-    if not _PROJECT_REFS_CACHE.is_file():
+    refs = []
+    if _PROJECT_REFS_CACHE.is_file():
+        try:
+            refs = json.loads(_PROJECT_REFS_CACHE.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    return _merge_manual(refs)
+
+
+def load_manual_project_refs() -> list:
+    if not _MANUAL_PROJECT_REFS.is_file():
         return []
     try:
-        return json.loads(_PROJECT_REFS_CACHE.read_text(encoding="utf-8"))
+        return json.loads(_MANUAL_PROJECT_REFS.read_text(encoding="utf-8"))
     except Exception:
         return []
+
+
+def add_manual_project_ref(slug: str, name: str, text: str) -> None:
+    """Register a hand-defined classification target that doesn't correspond
+    to a real Claude.ai project (e.g. watson-development) — persists across
+    future real-export cache refreshes, unlike _PROJECT_REFS_CACHE."""
+    refs = [r for r in load_manual_project_refs() if r["slug"] != slug]
+    refs.append({"slug": slug, "name": name, "text": text})
+    _MANUAL_PROJECT_REFS.parent.mkdir(parents=True, exist_ok=True)
+    _MANUAL_PROJECT_REFS.write_text(json.dumps(refs, indent=2), encoding="utf-8")
 
 
 def classify(conversations: list, project_refs: list) -> list:

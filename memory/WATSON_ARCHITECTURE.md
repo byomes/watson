@@ -1043,6 +1043,25 @@ since a wrong reclassification is worse than staying unsorted. Run via
 `python3 -m jobs.session_archives.backfill_reclassify` after dropping a
 fresh `conversations-*.zip` + `projects-*.zip` pair.
 
+**Manual project refs** (`data/session_archives/_manual_project_refs.json`,
+via `classify.add_manual_project_ref()`) — hand-written classification
+targets that survive the auto cache being fully overwritten on every real
+export (`_project_refs.json`). Two uses: (1) a bucket for real, ongoing work
+that never happened inside a Claude.ai Project container — e.g. after the
+first backfill left ~370 conversations unsorted, ~185 of them turned out to
+be Watson development work (dashboard, bot, backups, congregation.db, etc.)
+done as plain chats, not inside a Project. (2) Enriching a *real* project's
+classification signal — Claude.ai project description fields are usually
+blank, so a real project's own text is often just its bare name, too weak a
+signal to reliably catch related chats. A manual ref sharing a real
+project's slug **overrides** that project's auto-derived text rather than
+being skipped (`classify._merge_manual()`), rather than existing as a
+separate duplicate bucket. Concretely: Bill's real "Development Project"
+(`development-project`) is where he plans Watson upgrades — the manual ref
+for that slug carries a full paragraph describing Watson's architecture,
+which is what actually caught those ~185 conversations; the original
+synthetic bucket idea was retired the same session once this came up.
+
 ---
 
 ## Writing Room (`williamckyomes.com/room`)
