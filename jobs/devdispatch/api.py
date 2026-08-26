@@ -208,9 +208,12 @@ _TOOLS = [
             "storage. Call this every time Bill says 'send to watson' (or a close "
             "variant like 'save this session to watson' / 'archive this to "
             "watson'): send the complete transcript, never a summary in its "
-            "place. Every archive is filed under a project — pass 'general' "
-            "explicitly if the session isn't tied to a specific one; there is no "
-            "silent default. Files are base64-encoded; anything over roughly 8MB "
+            "place. Every archive is filed under a project — if you know which "
+            "one (this session is clearly part of a specific book/course/app "
+            "project), name it; if not, pass 'general' and Watson will try to "
+            "classify it itself from the title/summary against known projects, "
+            "falling back to a general catch-all only if nothing matches "
+            "confidently. Files are base64-encoded; anything over roughly 8MB "
             "per file is rejected individually and reported back in "
             "skipped_files, never silently dropped. Retrieve archives later with "
             "the run_watson_skill skills list_archives, search_archives, "
@@ -238,7 +241,7 @@ _TOOLS = [
                 },
                 "project": {
                     "type": "string",
-                    "description": "Project slug this session belongs to (e.g. 'curator', 'comms-desk'). Required — pass 'general' explicitly if there is no specific project.",
+                    "description": "Project slug this session belongs to (e.g. 'curator', 'comms-desk'), if known. Required field — pass 'general' explicitly when unsure, which triggers Watson's own classifier (title/summary similarity against known projects) rather than leaving it in a generic bucket.",
                 },
                 "title": {
                     "type": "string",

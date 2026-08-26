@@ -125,6 +125,23 @@ def archive_session(transcript, files, project, title, summary, source_conversat
         }
 
     project_slug = _slugify(project, max_len=60)
+    auto_classified = False
+    if project_slug == "general":
+        # Claude.ai explicitly said it couldn't confidently name a project —
+        # rather than actually filing it under the literal "general" bucket,
+        # try the same classifier the nightly export importer uses (cached
+        # project refs, title+summary similarity) before falling back to
+        # "general" for real. Neither Claude.ai nor Watson can reliably guess
+        # a project blind; a calibrated similarity score can do better than
+        # Claude.ai's own guess for chats outside a formal Claude.ai Project.
+        from jobs.session_archives import classify
+        refs = classify.load_project_refs_cache()
+        if refs:
+            [(classified_slug, _score)] = classify.classify([{"name": title, "summary": summary}], refs)
+            if classified_slug:
+                project_slug = classified_slug
+                auto_classified = True
+
     title_slug = _slugify(title)
     created_dt = datetime.now()
     timestamp = created_dt.strftime("%Y%m%d-%H%M%S")
@@ -226,6 +243,7 @@ def archive_session(transcript, files, project, title, summary, source_conversat
         "files": accepted_files,
         "skipped_files": skipped_files,
         "secrets_flagged": secrets_flagged,
+        "auto_classified": auto_classified,
     }
     if secrets_flagged:
         result["secrets_flagged_patterns"] = sorted(secret_hits)

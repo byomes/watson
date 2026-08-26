@@ -36,14 +36,14 @@ from chromadb.utils import embedding_functions
 _PROJECT_REFS_CACHE = Path(__file__).resolve().parents[2] / "data" / "session_archives" / "_project_refs.json"
 _MANUAL_PROJECT_REFS = Path(__file__).resolve().parents[2] / "data" / "session_archives" / "_manual_project_refs.json"
 
-# Chosen conservatively: MiniLM cosine similarity between a short conversation
-# title+summary and a project name+description rarely exceeds ~0.6 even for a
-# clear match (these are short, differently-shaped texts, not paraphrases of
-# each other), and unrelated pairs commonly sit in the 0.15-0.30 range. 0.40
-# is deliberately on the stricter side — a conversation that doesn't clearly
-# match stays in the catch-all rather than getting misfiled into a book
-# project it doesn't belong to.
-CLASSIFY_THRESHOLD = 0.40
+# Started conservative at 0.40 (a conversation that doesn't clearly match
+# stays in the catch-all rather than getting misfiled). Lowered to 0.30 after
+# the first real backfill (2026-08-26): 0.40 left ~649 conversations
+# unsorted, most of them genuinely classifiable — re-running at 0.30 moved
+# 270 more with no visible false positives in a manual spot-check of the
+# lowest-scoring matches (0.30-0.35 range). Kept as the permanent default,
+# not just a one-off override, since it held up in practice.
+CLASSIFY_THRESHOLD = 0.30
 
 _ef = None
 

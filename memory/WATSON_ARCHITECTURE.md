@@ -1062,6 +1062,36 @@ for that slug carries a full paragraph describing Watson's architecture,
 which is what actually caught those ~185 conversations; the original
 synthetic bucket idea was retired the same session once this came up.
 
+**`CLASSIFY_THRESHOLD` lowered from 0.40 to 0.30, permanently** — the first
+backfill at 0.40 left ~649 conversations unsorted, most genuinely
+classifiable; re-running at 0.30 moved 270 more with no visible false
+positives spot-checked at the low end (0.30-0.35 range). Kept as the real
+default in the code, not just a one-off override for that run.
+
+**Live `archive_session` now auto-classifies too, not just the nightly
+importer.** Originally, only the account-export pipeline ran the classifier
+— a live "send to watson" call always required Claude.ai to name a project,
+with no silent default. That fell apart once it was clear most of Bill's
+actual work (per the 992-conversation import) never happens inside a formal
+Claude.ai Project at all — Claude.ai usually can't know which of Bill's
+named projects a given live session belongs to either, so requiring it to
+state one was asking it to guess blind. Now: if `archive_session` is called
+with `project: "general"`, it runs the same classifier
+(`classify.load_project_refs_cache()` + `classify.classify()`) against the
+title/summary before accepting "general" as the real answer — same cached
+project refs, same 0.30 threshold, immediate at write time (no incoming-
+folder detour, no overnight wait — considered and rejected: the nightly
+importer only knows how to parse Anthropic's raw export JSON shape, not an
+already-rendered `archive_session` transcript, so literally routing
+`archive_session` through the same folder+cron pipeline would have meant
+faking that format for no real benefit). A project Claude.ai *does* name
+explicitly is never second-guessed — auto-classify only fires on the literal
+"general" fallback. Result carries `auto_classified: true/false` so it's
+visible which path a given archive took. Verified live: a clearly
+Watson-flavored session auto-landed in `development-project`; a deliberately
+weak/generic one correctly fell through to `general` rather than guessing
+wrong (score 0.27, under threshold) — both cleaned up as test data after.
+
 ---
 
 ## Writing Room (`williamckyomes.com/room`)
@@ -2725,3 +2755,19 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - eb40d7c devdispatch: commit already-live run_watson_skill/list_watson_skills MCP tools
 - 7b1a1da devdispatch: fix stale-main false-422 and branch-mismatch push failure (bug #95) (#50)
 - 8823fac docs: architecture update 2026-08-24
+
+---
+
+## Recent Changes — 2026-08-26
+
+### ~/watson
+- 5f9f8ef docs: bugs/backlog export 2026-08-26
+- 59e18c7 Let manual project refs override a real project's classification signal
+- f80be20 docs: file map 2026-08-26
+- 606e809 Add nightly Claude.ai export ingest with project classification
+- 3dcecb9 Fix archive directory collision when two archives share a title in the same second
+- 61f98f2 Add Claude.ai session archive system (archive_session + retrieval skills)
+- 60708a1 fix: deacon reports show email + phone, drop address
+- b4b9609 feat: deacon shepherding reports + admin API
+- 797fb66 docs: regenerate Skills & Capabilities Catalog
+- aec6f09 docs: architecture update 2026-08-25
