@@ -263,7 +263,7 @@ _TOOLS = [
                 },
                 "summary": {
                     "type": "string",
-                    "description": "A few-sentence recap of what happened this session and what's next, written by Claude.ai — appended to the project's rolling catch-up file.",
+                    "description": "A few-sentence recap of what happened this session and what's next, written by Claude.ai — surfaced later via get_project_summary alongside every other archive in the project.",
                 },
             },
             "required": ["transcript", "files", "project", "title", "summary"],
@@ -324,7 +324,7 @@ _TOOLS = [
     },
     {
         "name": "get_project_summary",
-        "description": "Get a project's rolling catch-up summary (newest entry first) — a quick recap without pulling every individual archive.",
+        "description": "Get a project's archive summaries rebuilt live from its current archive rows (newest first, superseded archives excluded) — a quick recap without pulling every individual archive.",
         "inputSchema": {
             "type": "object",
             "properties": {

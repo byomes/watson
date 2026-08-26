@@ -16,7 +16,19 @@ Storage layout: data/session_archives/<project>/<timestamp>-<slug>/
   transcript.md   — frontmatter (project, title, created_at, secrets_flagged)
                     + the full verbatim transcript
   <files...>       — sanitized filenames, as submitted
-  ../._summary.md  — rolling per-project catch-up file, newest entry on top
+
+get_project_summary_for() is rebuilt live from session_archives rows on every
+call (title/created_at/summary, newest first, superseded archives excluded)
+rather than reading an accumulated file — there is deliberately no
+independent summary store to write into or drift from. This replaced an
+earlier design (a per-project _summary.md file, appended to on every
+archive_session/reclassify_archive call) after that file was found to
+contain an entry with no corresponding archive row: something had written
+to it directly — most plausibly a one-off manual test of the "explicit
+project bypasses auto-classification" behavior — and because the file was
+pure accumulated text with no row backing it, there was no way to tell a
+legitimate entry from a stray one, nor any path for a deleted/reclassified
+archive's entry to ever be removed. Retired 2026-08-26.
 
 data/ is covered by both of Watson's nightly backup legs (OneDrive + local
 restic) with no changes needed there — see WATSON_ARCHITECTURE.md, "Session
@@ -124,15 +136,6 @@ def _fts_match_expr(query: str) -> str:
     # punctuation in `query` can't be misread as FTS5 query-syntax operators.
     words = re.findall(r"[A-Za-z0-9_]+", query)
     return " ".join(f'"{w}"' for w in words) if words else '""'
-
-
-def _append_project_summary(project_slug: str, title: str, created_at: str, summary: str) -> None:
-    project_dir = ARCHIVES_ROOT / project_slug
-    project_dir.mkdir(parents=True, exist_ok=True)
-    summary_path = project_dir / "_summary.md"
-    existing = summary_path.read_text(encoding="utf-8") if summary_path.exists() else ""
-    entry = f"## {created_at} — {title}\n\n{summary.strip()}\n\n---\n\n"
-    summary_path.write_text(entry + existing, encoding="utf-8")
 
 
 def _purge_expired_staging() -> None:
@@ -385,8 +388,6 @@ def archive_session(transcript, files, project, title, summary, source_conversat
     finally:
         conn.close()
 
-    _append_project_summary(project_slug, title, created_at, summary)
-
     result = {
         "id": archive_id,
         "project": project_slug,
@@ -575,17 +576,35 @@ def get_project_summary(message: str = "") -> dict:
 
 
 def get_project_summary_for(project: str) -> dict:
+    """Rebuilt live from session_archives every call — title/created_at/
+    summary, newest first, superseded archives excluded — rather than read
+    from an accumulated file. There is no separate summary store to write to
+    (see module docstring): this is what closes off the drift a stray direct
+    write previously caused, since every line here traces back to a real,
+    still-live archive row."""
     if not project or not project.strip():
         return {"error": "provide a project slug, e.g. 'curator'", "error_code": "bad_request"}
     project_slug = _slugify(project, max_len=60)
-    summary_path = ARCHIVES_ROOT / project_slug / "_summary.md"
-    if not summary_path.is_file():
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            "SELECT title, created_at, summary FROM session_archives "
+            "WHERE project = ? AND superseded_by IS NULL ORDER BY created_at DESC",
+            (project_slug,),
+        ).fetchall()
+    finally:
+        conn.close()
+    if not rows:
         return {
             "error": f"no summary found for project '{project_slug}' — check 'list projects' for known slugs",
             "error_code": "not_found",
         }
 
-    text = summary_path.read_text(encoding="utf-8")
+    blocks = []
+    for r in rows:
+        recap = (r["summary"] or "").strip() or "(no summary recorded for this archive — see its full transcript via get_archive)"
+        blocks.append(f"## {r['created_at']} — {r['title']}\n\n{recap}\n\n---\n")
+    text = "\n".join(blocks)
     truncated = len(text.encode("utf-8")) > MAX_SUMMARY_RETURN_BYTES
     if truncated:
         text = text[:MAX_SUMMARY_RETURN_BYTES]
@@ -653,9 +672,10 @@ def archives_missing_source_uuid(project: str) -> list:
 
 def reclassify_archive(archive_id: int, new_project: str, source_conversation_uuid: str = None) -> dict:
     """Move an existing archive into a different project: relocates its
-    directory on disk, updates its DB row, and appends a recap to the new
-    project's _summary.md. Does not touch the old project's _summary.md —
-    that entry is left in place as harmless history."""
+    directory on disk and updates its DB row (project, dir_path, and — only
+    if it had none — a fallback summary). get_project_summary_for is derived
+    live from these rows, so nothing further needs updating for the new
+    project's summary to pick this archive up correctly."""
     new_project_slug = _slugify(new_project, max_len=60)
     conn = get_connection()
     try:
@@ -701,13 +721,13 @@ def reclassify_archive(archive_id: int, new_project: str, source_conversation_uu
         if source_conversation_uuid:
             set_clause += ", source_conversation_uuid = ?"
             update_args.append(source_conversation_uuid)
+        if not row["summary"]:
+            set_clause += ", summary = ?"
+            update_args.append("(reclassified from an earlier bulk import — see full transcript for content)")
         update_args.append(archive_id)
         conn.execute(f"UPDATE session_archives SET {set_clause} WHERE id = ?", update_args)
         conn.commit()
     finally:
         conn.close()
-
-    recap = row["summary"] or f"(reclassified from an earlier bulk import — see full transcript for content)"
-    _append_project_summary(new_project_slug, row["title"], row["created_at"], recap)
 
     return {"id": archive_id, "project": new_project_slug, "dir_path": new_rel, "moved": True}
