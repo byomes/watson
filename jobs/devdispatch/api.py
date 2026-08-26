@@ -213,12 +213,22 @@ _TOOLS = [
             "project), name it; if not, pass 'general' and Watson will try to "
             "classify it itself from the title/summary against known projects, "
             "falling back to a general catch-all only if nothing matches "
-            "confidently. Files are base64-encoded; anything over roughly 8MB "
-            "per file is rejected individually and reported back in "
-            "skipped_files, never silently dropped. The response includes a "
-            "'warnings' field if the transcript or any file looks suspiciously "
-            "small — treat that as a signal to double check before assuming the "
-            "archive is complete. Retrieve archives later with the list_archives, "
+            "confidently — in that case the response may include a "
+            "'possible_duplicate' field if another project already has an "
+            "archive opening with nearly the same text (same conversation "
+            "re-archived under a different project slug); check it before "
+            "assuming this is a genuinely new archive. Files can be given "
+            "inline as base64, or by file_ref from stage_archive_file for a "
+            "large file that shouldn't be base64-encoded and sent more than "
+            "once; anything over roughly 8MB per file is rejected individually "
+            "and reported back in skipped_files, never silently dropped. The "
+            "response includes a 'warnings' field if the transcript or any "
+            "file looks suspiciously small — treat that as a signal to double "
+            "check before assuming the archive is complete. Never pass a real "
+            "project slug for throwaway/test archives — use '_test' (any slug "
+            "starting with '_' is reserved for internal testing and is never "
+            "an auto-classify target) so test data never lands in real project "
+            "history. Retrieve archives later with the list_archives, "
             "search_archives, get_archive, list_projects, and get_project_summary "
             "tools — those work even from a future session with no memory of "
             "this one."
@@ -232,19 +242,20 @@ _TOOLS = [
                 },
                 "files": {
                     "type": "array",
-                    "description": "Files created during the session (drafts, docs, code). Pass an empty array if none.",
+                    "description": "Files created during the session (drafts, docs, code). Pass an empty array if none. Each item needs either content_base64 (inline) or file_ref (from a prior stage_archive_file call) — not both.",
                     "items": {
                         "type": "object",
                         "properties": {
                             "filename": {"type": "string"},
-                            "content_base64": {"type": "string"},
+                            "content_base64": {"type": "string", "description": "Inline base64 file content. Omit if using file_ref instead."},
+                            "file_ref": {"type": "string", "description": "A token from stage_archive_file, referencing an already-uploaded file instead of inline content_base64."},
                         },
-                        "required": ["filename", "content_base64"],
+                        "required": ["filename"],
                     },
                 },
                 "project": {
                     "type": "string",
-                    "description": "Project slug this session belongs to (e.g. 'curator', 'comms-desk'), if known. Required field — pass 'general' explicitly when unsure, which triggers Watson's own classifier (title/summary similarity against known projects) rather than leaving it in a generic bucket.",
+                    "description": "Project slug this session belongs to (e.g. 'curator', 'comms-desk'), if known. Required field — pass 'general' explicitly when unsure, which triggers Watson's own classifier (title/summary similarity against known projects) rather than leaving it in a generic bucket. For throwaway/test archives, use '_test' instead of a real project or 'general'.",
                 },
                 "title": {
                     "type": "string",
@@ -340,6 +351,46 @@ _TOOLS = [
             "required": ["id", "superseded_by"],
         },
     },
+    {
+        "name": "reclassify_archive",
+        "description": (
+            "Move an existing archive into a different project — fixes a "
+            "misclassification (e.g. the auto-classifier filed it under the "
+            "wrong project, or a possible_duplicate turned out to be a genuine "
+            "misfile rather than a real duplicate). Relocates the archive's "
+            "files on disk and updates its project. Nothing is deleted."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "integer", "description": "The archive id to move."},
+                "project": {"type": "string", "description": "The correct project slug to file it under."},
+            },
+            "required": ["id", "project"],
+        },
+    },
+    {
+        "name": "stage_archive_file",
+        "description": (
+            "Upload one file's base64 content to Watson ahead of an "
+            "archive_session call, getting back a file_ref token — use this "
+            "instead of putting content_base64 directly in archive_session's "
+            "files list when a large file might need to be staged, checked, "
+            "or retried before the archive actually commits, so the bytes "
+            "don't have to be re-sent. The staged file is single-use: "
+            "consumed and deleted the moment archive_session's files list "
+            "references its file_ref, or purged automatically after 24 hours "
+            "if never used."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "filename": {"type": "string", "description": "The file's name."},
+                "content_base64": {"type": "string", "description": "The file's full content, base64-encoded."},
+            },
+            "required": ["filename", "content_base64"],
+        },
+    },
 ]
 
 
@@ -383,8 +434,17 @@ def _rpc_result(req_id, result):
     return jsonify({"jsonrpc": "2.0", "id": req_id, "result": result})
 
 
-def _rpc_error(req_id, code, message):
-    return jsonify({"jsonrpc": "2.0", "id": req_id, "error": {"code": code, "message": message}})
+def _rpc_error(req_id, code, message, error_code=None):
+    # error_code (in `data`, alongside the numeric JSON-RPC `code`) lets a
+    # caller tell apart a malformed request ("bad_request"), a tool that
+    # genuinely doesn't exist ("not_found"), and an unhandled exception on
+    # Watson's side ("internal_error") — all three used to surface as an
+    # equally opaque string, indistinguishable from a transient connector/
+    # network failure that never reaches this function at all.
+    error = {"code": code, "message": message}
+    if error_code:
+        error["data"] = {"error_code": error_code}
+    return jsonify({"jsonrpc": "2.0", "id": req_id, "error": error})
 
 
 def _tool_content(payload: dict) -> dict:
@@ -944,43 +1004,51 @@ def _list_watson_skills() -> dict:
 
 def _run_watson_skill(message) -> dict:
     if not message:
-        return {"error": "message is required"}
+        return {"error": "message is required", "error_code": "bad_request"}
 
     try:
         route_result = _skill_router.route(message, "dashboard")
     except Exception as exc:
-        return {"error": f"router failed: {exc}"}
+        return {"error": f"router failed: {exc}", "error_code": "internal_error"}
 
     if route_result.get("action") != "skill":
         # build/propose/chat/wrap_up/conversational all assume a live
         # dashboard or Telegram session (background threads, Ollama chat
         # fallback, session memory) that doesn't exist over this stateless
-        # connector — surface that no skill matched instead of guessing.
+        # connector — surface that no skill matched instead of guessing. This
+        # is a genuine "your phrasing didn't match anything" result, distinct
+        # from a network/transport failure, which never reaches this line —
+        # those raise and get caught at the tools/call level (see
+        # mcp_endpoint), returning a JSON-RPC error instead of this dict.
         return {
             "matched": False,
             "action": route_result.get("action", "chat"),
             "note": "No Watson skill matched this message.",
+            "error_code": "no_match",
         }
 
     slug = route_result.get("slug", "unknown")
     if slug not in _MCP_SKILL_ALLOWLIST:
-        return {"error": f"skill '{slug}' matched but is not exposed to this connector"}
+        return {"error": f"skill '{slug}' matched but is not exposed to this connector", "error_code": "bad_request"}
 
     if "result" not in route_result:
         skills = _skill_router._load_skills("dashboard")
         skill = next((s for s in skills if s["slug"] == slug), None)
         if not skill:
-            return {"error": f"skill '{slug}' not found in registry"}
+            return {"error": f"skill '{slug}' not found in registry", "error_code": "not_found"}
         try:
             route_result["result"] = _skill_router._run_skill(
                 skill, message=route_result.get("message")
             )
         except Exception as exc:
-            return {"error": f"skill '{slug}' failed: {exc}"}
+            return {"error": f"skill '{slug}' failed: {exc}", "error_code": "internal_error"}
 
     result = route_result["result"]
     if isinstance(result, dict) and result.get("confirm"):
-        return {"error": f"skill '{slug}' requires interactive confirmation and isn't supported over this connector"}
+        return {
+            "error": f"skill '{slug}' requires interactive confirmation and isn't supported over this connector",
+            "error_code": "unsupported",
+        }
     return {
         "matched": True,
         "slug": slug,
@@ -995,6 +1063,12 @@ def _archive_session_tool(args: dict) -> dict:
         args.get("project"),
         args.get("title"),
         args.get("summary"),
+    )
+
+
+def _reclassify_archive_tool(args: dict) -> dict:
+    return _archives.reclassify_archive(
+        args.get("id"), args.get("project"), args.get("source_conversation_uuid")
     )
 
 
@@ -1018,6 +1092,10 @@ _TOOL_IMPLS = {
     "get_project_summary": lambda args: _archives.get_project_summary_for(args.get("project")),
     "mark_archive_superseded": lambda args: _archives.mark_superseded(
         args.get("id"), args.get("superseded_by")
+    ),
+    "reclassify_archive": _reclassify_archive_tool,
+    "stage_archive_file": lambda args: _archives.stage_file(
+        args.get("filename"), args.get("content_base64")
     ),
 }
 
@@ -1256,12 +1334,12 @@ def mcp_endpoint():
         args = params.get("arguments") or {}
         impl = _TOOL_IMPLS.get(name)
         if impl is None:
-            return _rpc_error(req_id, -32602, f"unknown tool: {name}")
+            return _rpc_error(req_id, -32602, f"unknown tool: {name}", error_code="bad_request")
         try:
             result = impl(args)
         except Exception as exc:
             log.error("devdispatch tool %s failed: %s", name, exc)
-            return _rpc_error(req_id, -32000, str(exc))
+            return _rpc_error(req_id, -32000, str(exc), error_code="internal_error")
         return _rpc_result(req_id, _tool_content(result))
 
-    return _rpc_error(req_id, -32601, f"unknown method: {method}")
+    return _rpc_error(req_id, -32601, f"unknown method: {method}", error_code="bad_request")

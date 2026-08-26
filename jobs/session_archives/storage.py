@@ -21,10 +21,28 @@ Storage layout: data/session_archives/<project>/<timestamp>-<slug>/
 data/ is covered by both of Watson's nightly backup legs (OneDrive + local
 restic) with no changes needed there — see WATSON_ARCHITECTURE.md, "Session
 Archives (Claude.ai)" for the verification test.
+
+Reserved project-slug convention: any project slug starting with "_" (e.g.
+"_test") is for internal/dev testing only. classify()'s auto-classifier
+never routes real "general"-fallback content into one (see the filter in
+archive_session below), so ad-hoc test archives created during tool
+development stay out of real project history as long as the caller passes
+project="_test" explicitly rather than "general". Added 2026-08-26 after a
+prior upgrade pass risked leaving test archives mixed into real projects.
+
+File staging: archive_session's files can be passed as either inline
+{filename, content_base64} or {filename, file_ref} — the latter references
+a file already pushed via stage_file(), avoiding a second full base64
+round-trip when a file needs to be built, verified, then archived. Staged
+files live under data/session_archives/_staging/<token>/, are single-use
+(deleted once archive_session consumes them), and expire after
+STAGING_TTL_SECONDS if never consumed.
 """
 import base64
 import re
+import secrets
 import shutil
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -32,6 +50,9 @@ from core.database import get_connection
 
 WATSON_DIR = Path(__file__).resolve().parents[2]
 ARCHIVES_ROOT = WATSON_DIR / "data" / "session_archives"
+STAGING_ROOT = ARCHIVES_ROOT / "_staging"
+STAGING_TTL_SECONDS = 24 * 60 * 60      # unconsumed staged files are purged after this long
+RESERVED_PROJECT_PREFIX = "_"           # "_test", "_dev", etc. — never an auto-classify target
 
 MAX_FILE_BYTES = 8 * 1024 * 1024        # per-file cap, decoded size
 MAX_TOTAL_BYTES = 20 * 1024 * 1024      # transcript + accepted files combined, decoded
@@ -65,8 +86,17 @@ def _scan_secrets(text: str) -> set:
 
 
 def _slugify(text: str, max_len: int = 50) -> str:
+    # A leading RESERVED_PROJECT_PREFIX ("_") is preserved deliberately — the
+    # generic strip("-") below would otherwise eat it (an underscore isn't
+    # [a-z0-9], so it becomes a "-" that strip("-") then removes), silently
+    # turning "_test" into "test" and defeating the reserved-slug convention
+    # entirely. Caught by testing stage_file/archive_session together
+    # (2026-08-26): an archive passed project="_test" landed in a real-
+    # looking "test" project instead of staying clearly marked as internal.
+    reserved = (text or "").strip().startswith(RESERVED_PROJECT_PREFIX)
     slug = re.sub(r"[^a-z0-9]+", "-", (text or "").lower()).strip("-")
-    return (slug or "session")[:max_len].strip("-") or "session"
+    slug = (slug or "session")[:max_len].strip("-") or "session"
+    return RESERVED_PROJECT_PREFIX + slug if reserved else slug
 
 
 def _sanitize_filename(name: str) -> str:
@@ -105,29 +135,125 @@ def _append_project_summary(project_slug: str, title: str, created_at: str, summ
     summary_path.write_text(entry + existing, encoding="utf-8")
 
 
+def _purge_expired_staging() -> None:
+    if not STAGING_ROOT.is_dir():
+        return
+    cutoff = time.time() - STAGING_TTL_SECONDS
+    for entry in STAGING_ROOT.iterdir():
+        try:
+            if entry.is_dir() and entry.stat().st_mtime < cutoff:
+                shutil.rmtree(entry, ignore_errors=True)
+        except OSError:
+            pass  # best-effort cleanup — a race with a concurrent consume is fine to skip
+
+
+def stage_file(filename: str, content_base64: str) -> dict:
+    """Push one file's bytes to Watson once, ahead of an archive_session call
+    — returns a file_ref token that archive_session's files list can carry
+    instead of content_base64, so a large file doesn't have to be
+    base64-encoded and re-sent if the caller needs to verify/retry before
+    the archive_session call actually commits. Single-use: consumed and
+    deleted by archive_session, or purged after STAGING_TTL_SECONDS if
+    never consumed."""
+    _purge_expired_staging()
+    if not filename or not filename.strip():
+        return {"error": "filename is required", "error_code": "bad_request"}
+    try:
+        raw = base64.b64decode(content_base64 or "", validate=False)
+    except Exception as exc:
+        return {"error": f"invalid base64: {exc}", "error_code": "bad_request"}
+    if len(raw) > MAX_FILE_BYTES:
+        return {
+            "error": f"file too large ({len(raw)} bytes > {MAX_FILE_BYTES} cap)",
+            "error_code": "bad_request",
+        }
+
+    token = secrets.token_hex(16)
+    staged_dir = STAGING_ROOT / token
+    staged_dir.mkdir(parents=True)
+    safe_name = _sanitize_filename(filename)
+    (staged_dir / safe_name).write_bytes(raw)
+    return {
+        "file_ref": token,
+        "filename": safe_name,
+        "size_bytes": len(raw),
+        "expires_at": datetime.fromtimestamp(time.time() + STAGING_TTL_SECONDS).isoformat(timespec="seconds"),
+    }
+
+
+def _read_staged_file(file_ref: str) -> tuple:
+    """Returns (raw_bytes, filename) for a staged file, or (None, error_dict)
+    if the ref is missing/expired/invalid. Deletes the staged directory on
+    successful read — refs are single-use."""
+    staged_dir = STAGING_ROOT / re.sub(r"[^A-Za-z0-9]", "", file_ref or "")
+    if not staged_dir.is_dir():
+        return None, {"error": f"file_ref '{file_ref}' not found or already consumed/expired", "error_code": "not_found"}
+    on_disk = [p for p in staged_dir.iterdir() if p.is_file()]
+    if not on_disk:
+        shutil.rmtree(staged_dir, ignore_errors=True)
+        return None, {"error": f"file_ref '{file_ref}' is empty", "error_code": "not_found"}
+    staged_path = on_disk[0]
+    raw = staged_path.read_bytes()
+    filename = staged_path.name
+    shutil.rmtree(staged_dir, ignore_errors=True)
+    return (raw, filename), None
+
+
+def _find_cross_project_duplicate(transcript: str, exclude_project: str):
+    """Cheap near-duplicate check: does another (non-superseded) archive in a
+    *different* project already start with roughly the same text? Used only
+    on the 'general'-fallback auto-classify path, since that's already the
+    expensive-classification code path — not run on every archive_session
+    call. A LIKE substring match on a normalized opening fingerprint catches
+    the common case (same conversation re-archived or re-imported under a
+    different project) without a full-transcript similarity pass."""
+    fingerprint = re.sub(r"\s+", " ", (transcript or "").strip())[:200]
+    if len(fingerprint) < 40:
+        return None
+    escaped = fingerprint.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT id, project, title FROM session_archives "
+            "WHERE project != ? AND superseded_by IS NULL AND transcript LIKE ? ESCAPE '\\' LIMIT 1",
+            (exclude_project, f"%{escaped}%"),
+        ).fetchone()
+    finally:
+        conn.close()
+    return dict(row) if row else None
+
+
 # ── Write path ───────────────────────────────────────────────────────────
 
 def archive_session(transcript, files, project, title, summary, source_conversation_uuid=None) -> dict:
     if not transcript or not transcript.strip():
-        return {"error": "transcript is required and cannot be empty"}
+        return {"error": "transcript is required and cannot be empty", "error_code": "bad_request"}
     if not project or not project.strip():
-        return {"error": "project is required — pass 'general' explicitly if this session isn't tied to a specific project"}
+        return {
+            "error": "project is required — pass 'general' explicitly if this session isn't tied to a specific project",
+            "error_code": "bad_request",
+        }
     if not title or not title.strip():
-        return {"error": "title is required"}
+        return {"error": "title is required", "error_code": "bad_request"}
     if not summary or not summary.strip():
-        return {"error": "summary is required"}
+        return {"error": "summary is required", "error_code": "bad_request"}
     if files is None:
         files = []
     if not isinstance(files, list):
-        return {"error": "files must be a list of {filename, content_base64} objects"}
+        return {
+            "error": "files must be a list of {filename, content_base64} or {filename, file_ref} objects",
+            "error_code": "bad_request",
+        }
 
     transcript_bytes = transcript.encode("utf-8")
     if len(transcript_bytes) > MAX_TRANSCRIPT_BYTES:
         return {
             "error": f"transcript too large ({len(transcript_bytes)} bytes > "
-                     f"{MAX_TRANSCRIPT_BYTES} cap) — split the session into multiple archives"
+                     f"{MAX_TRANSCRIPT_BYTES} cap) — split the session into multiple archives",
+            "error_code": "bad_request",
         }
 
+    was_general_fallback = _slugify(project, max_len=60) == "general"
     project_slug = _slugify(project, max_len=60)
     auto_classified = False
     if project_slug == "general":
@@ -139,12 +265,16 @@ def archive_session(transcript, files, project, title, summary, source_conversat
         # a project blind; a calibrated similarity score can do better than
         # Claude.ai's own guess for chats outside a formal Claude.ai Project.
         from jobs.session_archives import classify
-        refs = classify.load_project_refs_cache()
+        refs = [r for r in classify.load_project_refs_cache() if not r["slug"].startswith(RESERVED_PROJECT_PREFIX)]
         if refs:
             [(classified_slug, _score)] = classify.classify([{"name": title, "summary": summary}], refs)
             if classified_slug:
                 project_slug = classified_slug
                 auto_classified = True
+
+    possible_duplicate = None
+    if was_general_fallback:
+        possible_duplicate = _find_cross_project_duplicate(transcript, project_slug)
 
     title_slug = _slugify(title)
     created_dt = datetime.now()
@@ -175,12 +305,21 @@ def archive_session(transcript, files, project, title, summary, source_conversat
 
     for f in files:
         raw_filename = (f or {}).get("filename", "?")
-        try:
-            filename = _sanitize_filename(raw_filename)
-            raw = base64.b64decode((f or {}).get("content_base64") or "", validate=False)
-        except Exception as exc:
-            skipped_files.append({"filename": raw_filename, "reason": f"invalid base64: {exc}"})
-            continue
+        file_ref = (f or {}).get("file_ref")
+        if file_ref:
+            staged, staged_err = _read_staged_file(file_ref)
+            if staged_err:
+                skipped_files.append({"filename": raw_filename, "reason": staged_err["error"]})
+                continue
+            raw, staged_name = staged
+            filename = _sanitize_filename(raw_filename if raw_filename and raw_filename != "?" else staged_name)
+        else:
+            try:
+                filename = _sanitize_filename(raw_filename)
+                raw = base64.b64decode((f or {}).get("content_base64") or "", validate=False)
+            except Exception as exc:
+                skipped_files.append({"filename": raw_filename, "reason": f"invalid base64: {exc}"})
+                continue
         if len(raw) > MAX_FILE_BYTES:
             skipped_files.append({"filename": filename, "reason": f"file too large ({len(raw)} bytes > {MAX_FILE_BYTES} cap)"})
             continue
@@ -264,6 +403,16 @@ def archive_session(transcript, files, project, title, summary, source_conversat
         result["warnings"] = warnings
     if secrets_flagged:
         result["secrets_flagged_patterns"] = sorted(secret_hits)
+    if possible_duplicate:
+        result["possible_duplicate"] = {
+            **possible_duplicate,
+            "note": (
+                f"Archive #{possible_duplicate['id']} in project '{possible_duplicate['project']}' "
+                "opens with nearly the same text as this transcript — this may be the same "
+                "conversation already archived under a different project. Consider reclassify_archive "
+                "or mark_archive_superseded instead of leaving both as separate copies."
+            ),
+        }
     return result
 
 
@@ -307,7 +456,7 @@ def search_archives(message: str = "") -> dict:
 
 def search_archives_by_query(query: str, include_superseded: bool = False) -> dict:
     if not query or not query.strip():
-        return {"error": "provide a search query, e.g. 'retreat budget decision'"}
+        return {"error": "provide a search query, e.g. 'retreat budget decision'", "error_code": "bad_request"}
 
     conn = get_connection()
     try:
@@ -340,11 +489,14 @@ def get_archive(message: str = "") -> dict:
     body = _strip_trigger(message, ("get archive:", "get archive"))
     parts = body.split(None, 1)
     if not parts:
-        return {"error": "provide an archive id, e.g. 'get archive: 12' or 'get archive: 12 notes.md'"}
+        return {
+            "error": "provide an archive id, e.g. 'get archive: 12' or 'get archive: 12 notes.md'",
+            "error_code": "bad_request",
+        }
     try:
         archive_id = int(parts[0])
     except ValueError:
-        return {"error": f"'{parts[0]}' is not a valid archive id"}
+        return {"error": f"'{parts[0]}' is not a valid archive id", "error_code": "bad_request"}
     filename = parts[1].strip() if len(parts) > 1 else None
     return get_archive_by_id(archive_id, filename)
 
@@ -360,7 +512,7 @@ def get_archive_by_id(archive_id: int, filename: str = None) -> dict:
     finally:
         conn.close()
     if row is None:
-        return {"error": f"no archive with id {archive_id}"}
+        return {"error": f"no archive with id {archive_id}", "error_code": "not_found"}
 
     archive_dir = WATSON_DIR / row["dir_path"]
     on_disk_files = sorted(
@@ -370,7 +522,11 @@ def get_archive_by_id(archive_id: int, filename: str = None) -> dict:
     if filename:
         target_name = _sanitize_filename(filename)
         if target_name not in on_disk_files:
-            return {"error": f"file '{filename}' not found in archive {archive_id}", "available_files": on_disk_files}
+            return {
+                "error": f"file '{filename}' not found in archive {archive_id}",
+                "error_code": "not_found",
+                "available_files": on_disk_files,
+            }
         raw = (archive_dir / target_name).read_bytes()
         return {
             "id": archive_id,
@@ -420,11 +576,14 @@ def get_project_summary(message: str = "") -> dict:
 
 def get_project_summary_for(project: str) -> dict:
     if not project or not project.strip():
-        return {"error": "provide a project slug, e.g. 'curator'"}
+        return {"error": "provide a project slug, e.g. 'curator'", "error_code": "bad_request"}
     project_slug = _slugify(project, max_len=60)
     summary_path = ARCHIVES_ROOT / project_slug / "_summary.md"
     if not summary_path.is_file():
-        return {"error": f"no summary found for project '{project_slug}' — check 'list projects' for known slugs"}
+        return {
+            "error": f"no summary found for project '{project_slug}' — check 'list projects' for known slugs",
+            "error_code": "not_found",
+        }
 
     text = summary_path.read_text(encoding="utf-8")
     truncated = len(text.encode("utf-8")) > MAX_SUMMARY_RETURN_BYTES
@@ -442,15 +601,15 @@ def mark_superseded(archive_id: int, superseded_by: int) -> dict:
     try:
         row = conn.execute("SELECT id FROM session_archives WHERE id = ?", (archive_id,)).fetchone()
         if row is None:
-            return {"error": f"no archive with id {archive_id}"}
+            return {"error": f"no archive with id {archive_id}", "error_code": "not_found"}
         if superseded_by is not None:
             if superseded_by == archive_id:
-                return {"error": "an archive cannot supersede itself"}
+                return {"error": "an archive cannot supersede itself", "error_code": "bad_request"}
             replacement = conn.execute(
                 "SELECT id FROM session_archives WHERE id = ?", (superseded_by,)
             ).fetchone()
             if replacement is None:
-                return {"error": f"no archive with id {superseded_by} to supersede with"}
+                return {"error": f"no archive with id {superseded_by} to supersede with", "error_code": "not_found"}
         conn.execute(
             "UPDATE session_archives SET superseded_by = ? WHERE id = ?",
             (superseded_by, archive_id),
@@ -505,7 +664,7 @@ def reclassify_archive(archive_id: int, new_project: str, source_conversation_uu
             (archive_id,),
         ).fetchone()
         if row is None:
-            return {"error": f"no archive with id {archive_id}"}
+            return {"error": f"no archive with id {archive_id}", "error_code": "not_found"}
 
         already_in_project = row["project"] == new_project_slug
         if already_in_project and not source_conversation_uuid:
