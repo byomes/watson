@@ -654,6 +654,11 @@ jobs/
     encryptor.py
   session_archives/
     __init__.py
+    backfill_reclassify.py
+    classify.py
+    claude_export_import.py
+    claude_export_render.py
+    reclassify_threshold.py
     schema.py
     storage.py
   skillbuilder/

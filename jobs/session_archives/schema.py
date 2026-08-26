@@ -44,6 +44,23 @@ def create_tables(conn=None) -> None:
             conn.execute(CREATE_SESSION_ARCHIVES_FTS)
         except Exception:
             pass
+
+        # source_conversation_uuid: the Claude.ai conversation uuid this archive
+        # came from, when it was created by the nightly export importer (jobs/
+        # session_archives/claude_export_import.py) rather than the live
+        # archive_session MCP tool. Lets repeat nightly exports skip conversations
+        # already archived instead of re-importing duplicates. NULL for archives
+        # created via the normal "send to watson" MCP path.
+        # summary: the short recap text passed to archive_session, persisted here
+        # (not just appended to the project's _summary.md) so a later reclassify
+        # pass can re-file an archive into a different project's summary file
+        # without having to regenerate or guess the recap text.
+        cols = {row[1] for row in conn.execute("PRAGMA table_info(session_archives)").fetchall()}
+        if "source_conversation_uuid" not in cols:
+            conn.execute("ALTER TABLE session_archives ADD COLUMN source_conversation_uuid TEXT")
+        if "summary" not in cols:
+            conn.execute("ALTER TABLE session_archives ADD COLUMN summary TEXT")
+
         conn.commit()
     finally:
         if owns_conn:

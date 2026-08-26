@@ -24,6 +24,7 @@ Archives (Claude.ai)" for the verification test.
 """
 import base64
 import re
+import shutil
 from datetime import datetime
 from pathlib import Path
 
@@ -102,7 +103,7 @@ def _append_project_summary(project_slug: str, title: str, created_at: str, summ
 
 # ── Write path ───────────────────────────────────────────────────────────
 
-def archive_session(transcript, files, project, title, summary) -> dict:
+def archive_session(transcript, files, project, title, summary, source_conversation_uuid=None) -> dict:
     if not transcript or not transcript.strip():
         return {"error": "transcript is required and cannot be empty"}
     if not project or not project.strip():
@@ -193,11 +194,13 @@ def archive_session(transcript, files, project, title, summary) -> dict:
     try:
         cur = conn.execute(
             "INSERT INTO session_archives "
-            "(project, title, dir_path, transcript, file_count, secrets_flagged, secrets_patterns, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "(project, title, dir_path, transcript, file_count, secrets_flagged, secrets_patterns, "
+            "created_at, summary, source_conversation_uuid) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (project_slug, title, rel_dir, transcript, len(accepted_files),
              1 if secrets_flagged else 0,
-             ",".join(sorted(secret_hits)) if secrets_flagged else None, created_at),
+             ",".join(sorted(secret_hits)) if secrets_flagged else None, created_at,
+             summary, source_conversation_uuid),
         )
         archive_id = cur.lastrowid
         try:
@@ -362,3 +365,96 @@ def get_project_summary(message: str = "") -> dict:
     if truncated:
         text = text[:MAX_SUMMARY_RETURN_BYTES]
     return {"project": project_slug, "summary": text, "truncated": truncated}
+
+
+# ── Claude.ai export import support (jobs/session_archives/claude_export_import.py,
+# jobs/session_archives/backfill_reclassify.py) ─────────────────────────────
+
+def known_source_uuids() -> set:
+    """All source_conversation_uuid values already archived — lets a repeat
+    nightly export skip conversations it has already imported."""
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            "SELECT source_conversation_uuid FROM session_archives WHERE source_conversation_uuid IS NOT NULL"
+        ).fetchall()
+    finally:
+        conn.close()
+    return {r[0] for r in rows}
+
+
+def archives_missing_source_uuid(project: str) -> list:
+    """Archives in `project` with no source_conversation_uuid recorded yet —
+    the backfill candidates for a one-time reclassification pass."""
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            "SELECT id, title, created_at, summary FROM session_archives "
+            "WHERE project = ? AND source_conversation_uuid IS NULL",
+            (_slugify(project, max_len=60),),
+        ).fetchall()
+    finally:
+        conn.close()
+    return [dict(r) for r in rows]
+
+
+def reclassify_archive(archive_id: int, new_project: str, source_conversation_uuid: str = None) -> dict:
+    """Move an existing archive into a different project: relocates its
+    directory on disk, updates its DB row, and appends a recap to the new
+    project's _summary.md. Does not touch the old project's _summary.md —
+    that entry is left in place as harmless history."""
+    new_project_slug = _slugify(new_project, max_len=60)
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT id, project, title, dir_path, created_at, summary FROM session_archives WHERE id = ?",
+            (archive_id,),
+        ).fetchone()
+        if row is None:
+            return {"error": f"no archive with id {archive_id}"}
+
+        already_in_project = row["project"] == new_project_slug
+        if already_in_project and not source_conversation_uuid:
+            return {"id": archive_id, "project": new_project_slug, "moved": False, "reason": "already in this project"}
+        if already_in_project:
+            # No physical move needed, but a uuid backfill was requested —
+            # applying it is the whole point of this call. Skipping it here
+            # (as an earlier version of this function did) silently drops
+            # the uuid, which makes the next export re-import this
+            # conversation as if it were new — confirmed the hard way: a
+            # backfill run that only ever called this branch left 649
+            # conversations without a uuid, and the next nightly-import test
+            # duplicated all of them (2026-08-26, cleaned up).
+            conn.execute(
+                "UPDATE session_archives SET source_conversation_uuid = ? WHERE id = ?",
+                (source_conversation_uuid, archive_id),
+            )
+            conn.commit()
+            return {"id": archive_id, "project": new_project_slug, "moved": False, "reason": "uuid backfilled, already in this project"}
+
+        old_dir = WATSON_DIR / row["dir_path"]
+        new_project_dir = ARCHIVES_ROOT / new_project_slug
+        new_project_dir.mkdir(parents=True, exist_ok=True)
+        new_dir = new_project_dir / old_dir.name
+        n = 1
+        while new_dir.exists():
+            new_dir = new_project_dir / f"{old_dir.name}-{n}"
+            n += 1
+        shutil.move(str(old_dir), str(new_dir))
+        new_rel = str(new_dir.relative_to(WATSON_DIR))
+
+        update_args = [new_project_slug, new_rel]
+        set_clause = "project = ?, dir_path = ?"
+        if source_conversation_uuid:
+            set_clause += ", source_conversation_uuid = ?"
+            update_args.append(source_conversation_uuid)
+        update_args.append(archive_id)
+        conn.execute(f"UPDATE session_archives SET {set_clause} WHERE id = ?", update_args)
+        conn.commit()
+    finally:
+        conn.close()
+
+    recap = row["summary"] or f"(reclassified from an earlier bulk import — see full transcript for content)"
+    _append_project_summary(new_project_slug, row["title"], row["created_at"], recap)
+
+    return {"id": archive_id, "project": new_project_slug, "dir_path": new_rel, "moved": True}

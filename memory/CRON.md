@@ -103,3 +103,62 @@ collision. Staggered by a few minutes each instead of extending the lock to be r
 ```
 
 (Daily, staggered 5 minutes apart starting 2am)
+
+---
+
+# Gutendex Catalog Refresh — Cron Entry (project_backlog #19)
+
+The self-hosted Project Gutenberg catalog (`gutendex.service`, 127.0.0.1:8010,
+`~/gutendex`) that `jobs/research/gutenberg.py`'s `search()` depends on was
+loaded once on 2026-07-11 and has had no periodic refresh since — confirmed
+2026-07-22 to be ~67 books behind the public catalog, a gap that only grows.
+Gutendex already ships the fix as a built-in Django management command
+(`~/gutendex/books/management/commands/updatecatalog.py`): downloads the
+latest `rdf-files.tar.bz2` from gutenberg.org, rsyncs it over the local RDF
+mirror (deleting stale book directories), and re-upserts every book into the
+Postgres DB. Idempotent — safe to run repeatedly. Add this to crontab
+(`crontab -e`) to run it weekly, Sunday 3am (off-hours, doesn't collide with
+any existing Watson cron slot):
+
+```
+0 3 * * 0 cd /home/billyomes/gutendex && venv/bin/python manage.py updatecatalog >> /home/billyomes/gutendex/catalog_files/update.log 2>&1
+```
+
+Not yet installed — this is a real download (catalog tarball) plus an
+on-disk resync of `catalog_files/rdf/` (~5GB) and a full DB re-upsert against
+the live Gutendex Postgres DB backing production book search, so it's worth
+running once by hand to watch it before trusting it to cron.
+
+(Weekly, Sundays 3am — not yet added to crontab)
+
+---
+
+# Session Archives — Claude.ai Export Ingest — Cron Entry
+
+Nightly ingest of a Claude.ai account-data export dropped at
+`~/watson/incoming/claude_export/` (Bill scp's the zips there manually after
+exporting from Settings -> Export data). Extracts, skips conversations
+already archived (dedup by `source_conversation_uuid`), classifies each new
+one against Bill's named Claude.ai projects via local embedding similarity
+(`jobs/session_archives/classify.py`, all-MiniLM-L6-v2, no LLM call), and
+archives it into that project (or `claude-account-import` as the catch-all
+for anything that doesn't clear the confidence threshold — the genuinely
+random one-off chats). Deletes the consumed zips after a successful run.
+Telegram summary every run, including a "nothing new" ping on a no-op night.
+
+**Added 2026-08-26.**
+
+```
+45 1 * * * PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python -m jobs.session_archives.claude_export_import >> /home/billyomes/watson/logs/claude_export_import.log 2>&1
+```
+
+(Nightly, 1:45am — ahead of KB sync at 2am and local backup at 2:30am.
+Installed.)
+
+One-time backlog sort (not a cron job — run manually after dropping a fresh
+export, sorts whatever's still sitting in `claude-account-import` from before
+this classification system existed):
+
+```
+PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python -m jobs.session_archives.backfill_reclassify
+```

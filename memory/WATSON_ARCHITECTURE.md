@@ -948,6 +948,101 @@ written (append-only by design — the entire point is not losing data, so
 nothing removes it once archived); no binary-file secret scanning (only
 UTF-8-decodable file contents are scanned, same as the transcript).
 
+### Bulk account import + nightly ingest (added 2026-08-26)
+
+Beyond live "send to watson" archiving, the whole account can be pulled in
+via Claude.ai's own **Settings → Export data** feature (Anthropic's account
+data export, not the Claude API — produces a manifest JSON pointing at 4
+single-use download URLs: `light_metadata`, `projects`, `memories`,
+`conversations`). The download URLs sit behind Cloudflare bot protection —
+confirmed a bare `curl` from Watson gets a "Just a moment..." challenge page,
+not the file — so they must be opened in Bill's own logged-in browser; only
+the resulting zips travel to Watson (scp to `~/watson/incoming/claude_export/`
+over Tailscale). **Never recursively copy Bill's whole `OneDrive\Claude`
+folder** — that's his general legacy working directory (contains
+`SECRETS.md`, `credentials.json`, full repo checkouts with `node_modules`),
+not export-scoped; a `scp -r .` from the wrong directory pulled ~60k
+unrelated files including the master secrets store into `incoming/` on
+2026-08-26 (cleaned up, nothing left on Watson, originals on Bill's machine
+untouched — but don't repeat the mistake).
+
+The `conversations.json` inside the export has **no project field** —
+confirmed by checking all 992 entries' key sets in the first import — so
+which project a conversation belongs to has to be inferred, not read off the
+data. `jobs/session_archives/classify.py` does this with local embedding
+similarity (`all-MiniLM-L6-v2`, same model `jobs/skills/kb_search.py`
+already uses — no LLM call, no network) rather than an LLM classification
+call per conversation: embeds each named Claude.ai project's name+description
+as a reference vector, embeds each conversation's title+summary as a query,
+cosine-similarity match, `CLASSIFY_THRESHOLD = 0.40`. Calibration check:
+real matches scored ~0.69-0.70, an unrelated pair ~0.15 — clean separation.
+Blank-named Claude.ai projects (auto-grouped throwaway chats) are excluded as
+classification targets, not just low-confidence — they're not real writing
+projects. Anything that doesn't clear the threshold lands in
+`claude-account-import`, the catch-all for genuinely miscellaneous chats.
+
+**First import (2026-08-26):** all 992 conversations from the account,
+zero errors, 538 files recovered as real attachments (not just inline text —
+extracted from `artifacts` tool-use blocks with `command` in
+`create`/`rewrite`, and `create_file`/`file_create` tool-use blocks with
+`file_text`; `update`-command artifacts and other tool-created files aren't
+captured, just referenced in the transcript text), 65 conversations flagged
+for possible secrets (mostly real — Watson-development conversations that
+plausibly had live tokens pasted into them; not stripped, per the existing
+secret-guard design, so a review pass is still owed). This first batch
+landed entirely in `claude-account-import` since the classifier didn't exist
+yet — `jobs/session_archives/backfill_reclassify.py` (one-time, not cron;
+see below) sorts it retroactively once a fresh export is available again to
+reconstruct titles/summaries against.
+
+Rendering an export conversation into the (transcript, files, title,
+summary) shape `archive_session()` expects is shared logic
+(`jobs/session_archives/claude_export_render.py`) between the nightly
+importer and the backfill tool, so they can't drift into rendering the same
+format two different ways. Content-block types seen across the account:
+`text`, `tool_use`, `tool_result`, `thinking`, `voice_note`, `token_budget`
+(skipped — no real content). `attachments` on a message carry
+Anthropic's own `extracted_content` (plain text pulled from an uploaded
+PDF/doc) which gets folded into the transcript; bare `files` references
+(uuid + filename only, no bytes) are noted inline as unrecoverable from this
+export format.
+
+**Real bug found and fixed during the first bulk import:** `archive_session`
+built its directory name from `timestamp-title_slug` and did
+`mkdir(exist_ok=True)` — two archives landing in the same second with the
+same title (exactly what a fast bulk import produces) would silently share
+one directory, the second overwriting the first's `transcript.md`. Fixed by
+disambiguating with a `-1`/`-2`/... suffix, the same pattern already used for
+file-name collisions within one archive; verified with a same-second,
+same-title test before running the real 992-conversation batch. Commit
+`3dcecb9`.
+
+**`jobs/session_archives/claude_export_import.py`** — the nightly cron job
+(`45 1 * * *`, ahead of KB sync at 2am and local backup at 2:30am; see
+`memory/CRON.md`). Looks for `conversations-*.zip` in the drop folder (does
+nothing if absent — Bill only exports periodically, not nightly); if found,
+extracts, skips any conversation whose uuid is already in
+`session_archives.source_conversation_uuid` (repeat exports are full account
+snapshots, not deltas, so heavy overlap with what's already archived is
+expected every run), classifies and archives the rest, deletes the consumed
+zips, sends a Telegram summary — every run, even a plain "nothing new" ping,
+matching `jobs/kb/sync_and_index.py`'s convention so a quiet night reads as
+"checked, nothing to do" rather than looking identical to a dead cron job.
+Does **not** reclassify anything already sitting in the catch-all from a
+prior run — that churn-vs-value tradeoff belongs to a human decision, not a
+nightly job, which is why backfill is a separate manual tool.
+
+**`jobs/session_archives/backfill_reclassify.py`** — one-time, not cron.
+The 992-conversation first import predates `source_conversation_uuid`, so
+its rows can't be matched back to a source conversation by id — matches by
+exact title instead (`claude_export_render.build_title()` is deterministic,
+same conversation always produces the same title). Only touches 1:1 title
+matches — a title shared by more than one archived row or more than one
+export conversation is left alone and reported rather than guessed at,
+since a wrong reclassification is worse than staying unsorted. Run via
+`python3 -m jobs.session_archives.backfill_reclassify` after dropping a
+fresh `conversations-*.zip` + `projects-*.zip` pair.
+
 ---
 
 ## Writing Room (`williamckyomes.com/room`)
