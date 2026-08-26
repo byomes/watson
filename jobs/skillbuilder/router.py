@@ -83,7 +83,7 @@ _SKILL_PRE_CHECKS: dict[str, tuple] = {
         "search archives:",
     ),
     "get_archive": (
-        "get archive:",
+        "get archive", "get archive:",
     ),
     "list_projects": (
         "list projects", "list archive projects",
