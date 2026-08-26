@@ -423,6 +423,16 @@ A skill marked **disabled** below is registered but intentionally turned off —
 | **Skill Audit** (`skill_audit`) | ready | telegram, dashboard | `audit skills`, `test my skills`, `run skill audit`, `which skills work`, `skill audit` | Run a full audit of all Watson skills and report which pass and which fail. |
 | **System Monitor** (`system_monitor`) | ready | telegram, dashboard | `system status`, `check system`, `how is watson doing`, `server status` | Check Beelink CPU, memory, and disk usage. |
 
+### Archive
+
+| Skill | Status | Interfaces | Trigger phrases | What it does |
+|---|---|---|---|---|
+| **Get Session Archive** (`get_archive`) | ready | dashboard, telegram | `get archive:`, `open archive:`, `show archive:` | Retrieve a single archived session by id — full transcript and list of attached files, or one file's content if a filename is given. |
+| **Project Archive Summary** (`get_project_summary`) | ready | dashboard, telegram | `project summary:`, `get project summary:`, `catch me up on`, `what is the state of`, `what's the state of` | Fast catch-up on a project: the rolling summary of every archived session for it, newest first — for questions like "catch me up on Curator" or "what is the state of the Kit to Brevo migration" without reading full transcripts. |
+| **List Session Archives** (`list_archives`) | ready | dashboard, telegram | `list archives`, `list archives:`, `show my archives`, `recent archives` | List recent Claude.ai session archives, optionally filtered by project. |
+| **List Archive Projects** (`list_projects`) | ready | dashboard, telegram | `list projects`, `list archive projects`, `what projects do i have archived` | List every project that has at least one session archive, with archive count and most recent date — how a cold session discovers what project slugs exist. |
+| **Search Session Archives** (`search_archives`) | ready | dashboard, telegram | `search archives:`, `search my archives`, `find in archives` | Full-text search across archived Claude.ai session transcripts. |
+
 ### Direct commands (bypass the skill router)
 
 Parsed directly out of `jobs/dashboard/app.py`'s `/api/terminal` view (`terminal()`'s prefix/exact-match checks and its `_TERM_COMMANDS` dict) — they're not in `skills.json`, so this table can't come from that file the way the ones above do; each row's description instead comes from a `# doc: ...` comment on that line in app.py. A row that says *undocumented* means that comment is missing — add it in app.py, not here.
