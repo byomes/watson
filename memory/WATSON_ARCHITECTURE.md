@@ -2781,3 +2781,17 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - b4b9609 feat: deacon shepherding reports + admin API
 - 797fb66 docs: regenerate Skills & Capabilities Catalog
 - aec6f09 docs: architecture update 2026-08-25
+
+---
+
+## Recent Changes — 2026-08-27
+
+### ~/watson
+- c5d7592 docs: bugs/backlog export 2026-08-27
+- 3d17f16 docs: file map 2026-08-27
+- add229f fix: retire drift-prone _summary.md, derive get_project_summary from DB rows
+- b94c562 feat: file staging, error codes, cross-project dup detection, reserved test slug
+- c90430e feat: structured archive-retrieval MCP tools, size warnings, supersede flag
+- 3b9235d fix: get_archive skill trigger required exact "get archive:" phrase
+- b5593e7 docs: regenerate Skills & Capabilities Catalog
+- f6900c9 docs: architecture update 2026-08-26
