@@ -148,7 +148,7 @@ Watson acts on Dr. Bill's behalf under his supervision. Always identified openly
 | URL | Repo | Purpose |
 |-----|------|---------|
 | `williamckyomes.com` | `byomes/wcky` | William's personal site |
-| `williamckyomes.com/thewrongjesus` | `byomes/wcky` | TWJ book launch page — countdown, Kit signup |
+| `williamckyomes.com/thewrongjesus` | `byomes/wcky` | TWJ book launch page — countdown, email signup (routes through Watson's `jobs/twj/api.py` → Brevo, not Kit directly, since 2026-08-17) |
 | `williamckyomes.com/arc` | `byomes/wcky` | ARC reader signup (open) |
 | `williamckyomes.com/room` | `byomes/wcky` | Writing Room — private partner community (invitation-only) |
 | `williamckyomes.com/twj/read` | `byomes/wcky` | **Retired** (2026-07-01, TWJ/ARC consolidation) — redirects to `/arc/dashboard` |
@@ -249,8 +249,9 @@ now a confirmed-closed result, not an open gap pending a retest.
 | Gmail IMAP | Connect cards, email intake, reply handler | `watson.wcky@gmail.com` |
 | Gmail SMTP | Outbound email | `smtp.gmail.com:587`, sends as `watson@williamckyomes.com` alias |
 | Telegram | Primary away interface | `@wckyWatsonbot`, `watson-bot.service` |
-| Kit (v3 + v4) | Email platform | v3: `api_key` query param + `api_secret` in body; v4: `X-Kit-Api-Key` header |
-| Givebutter | Donor sync | Polls transactions → `donors.db` → Kit tags → Gmail thank-you |
+| Kit (v3 + v4) | Email platform — **retired 2026-08-17**, historical contact/tag data migrated to Brevo | Account itself not yet deactivated (Bill's manual step, pending a few days' production confirmation on the switch below). A few live write paths (Givebutter donor sync, ARC, lead magnet, Writing Room signups) still tag via Kit on every new signup — not yet rewired to Brevo, out of this migration's scope. See `~/watson/memory/kit_brevo_audit.md` for full history |
+| Brevo | Email platform — outbound send, plus contacts/lists/attributes (Kit's former role) | `jobs/email_job/brevo_send.py` (transactional send, all 27 sites); `jobs/campaigns/brevo_sync.py` (hourly local mirror of contacts/lists/attributes → `watson.db`, read by Comms Desk); `jobs/twj/api.py` (TWJ launch-page signup, the last touchpoint moved off Kit) |
+| Givebutter | Donor sync | Polls transactions → `donors.db` → Kit tags → Gmail thank-you (still Kit — see note above) |
 | Subsplash | Connect cards | Forwards to `watson.wcky@gmail.com` label via snappages.com |
 | Tailscale Funnel | Public Watson API access | `https://watson.tail0243ff.ts.net` → port 5200 |
 | Vercel | Web hosting | Auto-deploy on push to `main` for all web repos |
@@ -315,6 +316,7 @@ now a confirmed-closed result, not an open gap pending a retest.
 | `jobs/kb/sync_and_index.py` | Daily 2am | Git pull (ff-only) + same-day transcript sync (`kb/transcripts/` → `kb/documents/`) + incremental Chroma index + Telegram summary |
 | `jobs/campaigns/weekly_digest.py` | Sun 6pm | Book-launch campaign digest — Telegram summary of queued sends per active campaign, with Open Editor / Approve All buttons; also runnable on-demand (`--campaign-id` CLI flag) |
 | `jobs/campaigns/brevo_dispatcher.py` | Every 15 min | Book-launch campaign Brevo dispatcher — sends approved+due `book_launch_sends` rows (Facebook rows are instead queued into the existing `facebook_queue`/`facebook_post.py` pipeline at approval time, not handled here) |
+| `jobs/campaigns/brevo_sync.py` | Hourly | Read-only local mirror of Brevo contacts/attributes/list membership → `watson.db` (`brevo_contacts`/`brevo_lists`/`brevo_list_membership`), so Comms Desk reads local data instead of hitting Brevo live; on-demand refresh also available via `POST /api/comms/brevo/refresh` |
 
 ### Other Jobs (Available)
 

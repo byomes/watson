@@ -322,6 +322,9 @@ app.register_blueprint(lead_magnet_bp)
 from jobs.arc_interest.api import arc_interest_bp
 app.register_blueprint(arc_interest_bp)
 
+from jobs.twj.api import twj_bp
+app.register_blueprint(twj_bp)
+
 from jobs.publishing.api import publishing_bp
 from jobs.publishing import bootstrap_db as _publishing_bootstrap
 _publishing_bootstrap()
@@ -6274,34 +6277,6 @@ def gcal_auth_callback():
         "expiry": None
     }))
     return "<html><body><p>Calendar authorized. Token saved.</p></body></html>"
-
-
-@app.route('/api/kit/subscribe', methods=['POST', 'OPTIONS'])
-def kit_subscribe():
-    if request.method == 'OPTIONS':
-        return '', 204
-    data = request.get_json()
-    email = data.get('email', '').strip().lower()
-    tag = data.get('tag', 'fms')
-    if not email:
-        return jsonify({'error': 'Email required'}), 400
-    import requests as req
-    api_key = os.environ.get('KIT_API_KEY')
-    api_secret = os.environ.get('KIT_API_SECRET')
-    tag_map = {
-        'fms': os.environ.get('KIT_FMS_TAG_ID'),
-        'wcky': os.environ.get('KIT_WCKY_TAG_ID'),
-    }
-    tag_id = tag_map.get(tag)
-    if tag_id:
-        resp = req.post(
-            f'https://api.convertkit.com/v3/tags/{tag_id}/subscribe',
-            params={'api_key': api_key},
-            json={'api_secret': api_secret, 'email': email}
-        )
-        if not resp.ok:
-            return jsonify({'error': 'Kit API error'}), 500
-    return jsonify({'ok': True}), 200
 
 
 @app.route("/robots.txt")
