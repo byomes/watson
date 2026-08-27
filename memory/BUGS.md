@@ -1,6 +1,6 @@
 # Watson Bug Tracker
 _Auto-generated nightly from bug_tracker. Source of truth is the database — do not hand-edit this file, changes will be overwritten._
-Last generated: 2026-08-26 02:10
+Last generated: 2026-08-27 02:10
 
 ## Open (37)
 | ID | Title | Repo | Discovered |
@@ -46,6 +46,7 @@ Last generated: 2026-08-26 02:10
 ## Recently Resolved (last 30 days)
 | ID | Title | Repo | Resolved | Commit |
 |---|---|---|---|---|
+| 101 | get_archive skill trigger too strict, silently unroutable from Claude.ai | watson | 2026-08-26T09:12:36 | 3b9235d |
 | 100 | MCP run_watson_skill fails on kb/kb_search: missing positional argument | watson | 2026-08-24 13:09:59 | e6f674b |
 | 99 | connect_cards intake truncates multi-line question/comment field | watson | 2026-08-24 13:09:59 | a90d6d5 |
 | 96 | run_watson_skill/list_watson_skills MCP tools were live in production but never committed to git | watson | 2026-08-24 12:21:16 | eb40d7c |
@@ -69,6 +70,3 @@ Last generated: 2026-08-26 02:10
 | 54 | Suggest Fonts narrow stage timed out silently on every real run | watson | 2026-08-02 18:01:26 | 30161e4 |
 | 53 | Dashboard Commands panel missing xkb:/debug:/bug:/run: entries | watson | 2026-07-29 08:58:46 | ad78f46 |
 | 51 | Two 2026-07-27 sermon transcripts landed in kb/documents/ directly and were never indexed | watson | 2026-07-28 15:10:08 | 0a973b8 |
-| 50 | email_intake.py silently dropped HTML-only email bodies (no text/plain fallback) | watson | 2026-07-27 15:49:16 | cb1399e |
-| 49 | Connect Card Bcc copy would fire spurious Ollama-triage Telegram prompt to Bill | watson | 2026-07-27 15:49:16 | 5b9290c |
-| 48 | All Brevo outbound email failing: missing_parameter, name is missing in to | watson | 2026-07-27 13:03:28 | 68a3dd9 |
