@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-08-26*
+*Generated: 2026-08-27*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -204,7 +204,7 @@ data/
       20260826-015833-adding-growth-tracking-models-to-watson-database/
         Growth_Tracking_Build_Spec.md
         transcript.md
-      _summary.md
+    _manual_project_refs.json
     _project_refs.json
     adelphos-course-creation/
       20260826-013953-adelphos-vision-statement-refinement/
@@ -250,7 +250,6 @@ data/
         transcript.md
       20260826-015831-watson-log-monitoring-for-adelphos-moodle/
         transcript.md
-      _summary.md
     beyond-the-noise-writing-project/
       20260826-013953-beyond-the-noise-chat/
         back_cover_text.txt
@@ -284,7 +283,6 @@ data/
         transcript.md
       20260826-015828-normalizing-sermon-audio-volume-in-adobe-audition/
         transcript.md
-      _summary.md
     blog-articles/
       20260826-013954-drafting-weekly-articles-with-editorial-guidelines/
         articles.js
@@ -415,7 +413,6 @@ data/
         transcript.md
       20260826-015828-updating-claude-s-architecture-documentation/
         transcript.md
-      _summary.md
     book-editting/
       20260826-013954-combining-manuscript-chapters-into-master-file/
         build_manuscript.js
@@ -481,7 +478,6 @@ data/
         transcript.md
       20260826-015833-watson-note-storage-system-design/
         transcript.md
-      _summary.md
     christian-worldview-writing-project/
       20260826-013953-church-project-brainstorming/
         family_bible_conference_logos.html
@@ -542,11 +538,9 @@ data/
         transcript.md
       20260826-015830-christian-principles-vs-christian-nation-america-s/
         transcript.md
-      _summary.md
     christmas-apologetics-conference-book/
       20260826-002207-new-project-christmas-apologetics-book-from-family/
         transcript.md
-      _summary.md
     claude-account-import/
       20260826-015822-analyzing-student-access-patterns-in-online-course/
         transcript.md
@@ -941,7 +935,6 @@ data/
         transcript.md
       20260826-015833-print-file-review-for-kdp-upload/
         transcript.md
-      _summary.md
     derivitivism/
       20260826-013953-inherited-sin-nature-and-salvation-of-the-unborn/
         transcript.md
@@ -974,7 +967,6 @@ data/
         transcript.md
       20260826-015827-understanding-cage-stage-in-calvinism/
         transcript.md
-      _summary.md
     development-project/
       20260826-013955-next-steps-for-content-development/
         transcript.md
@@ -984,13 +976,432 @@ data/
         transcript.md
       20260826-014005-previous-project-work-status/
         transcript.md
+      20260826-015823-claude-s-new-dispatch-feature-explained/
+        transcript.md
+      20260826-015823-google-meet-free-account-call-duration-limits/
+        transcript.md
+      20260826-015824-automation-and-workflow-continuation/
+        transcript.md
+      20260826-015824-batch-processing-audio-files-to-knowledge-library/
+        Start-Watson.bat
+        cleanup_library.ps1
+        transcript.md
+        watcher.py
+      20260826-015824-bringing-watson-home-on-stream/
+        transcript.md
+      20260826-015824-checking-queued-articles-in-watson-email/
+        transcript.md
+      20260826-015824-exporting-chat-history-to-web-app/
+        transcript.md
+      20260826-015824-hosting-watson-as-a-24-7-telegram-agent/
+        transcript.md
+      20260826-015824-morning-briefing-broken-after-component-update/
+        transcript.md
+      20260826-015824-ollama-0-24-new-features-overview/
+        transcript.md
+      20260826-015824-ollama-setup-on-watson-linux/
+        transcript.md
+      20260826-015824-openwebui-knowledge-collection-api-endpoint-issue/
+        transcript.md
       20260826-015824-project-clarification-questions-while-driving/
+        transcript.md
+      20260826-015824-redefining-assistant-communication-style/
+        transcript.md
+      20260826-015824-watson-system-updates-and-daily-task-list/
+        transcript.md
+      20260826-015825-building-watson-s-mobile-ui-navigation-and-contact/
+        PeopleView.tsx
+        transcript.md
+      20260826-015825-building-workflow-automation-tools-with-claude/
+        CORE-Pipeline-Agent-Spec.md
+        transcript.md
+      20260826-015825-connecting-webui-to-watson-s-llm/
+        transcript.md
+      20260826-015825-delegating-tasks-to-claude-code/
+        transcript.md
+      20260826-015825-deleting-test-comments-from-beta-reader-site/
+        transcript.md
+      20260826-015825-installing-claude-code-on-chrome-os-flex/
+        transcript.md
+      20260826-015825-laptop-sleep-and-claude-ai-work-loss/
+        transcript.md
+      20260826-015825-mini-pc-upgrade-for-watson-with-500-budget/
         transcript.md
       20260826-015825-project-working-title-review/
         transcript.md
+      20260826-015825-running-claude-code-on-a-chromebook/
+        transcript.md
+      20260826-015825-running-claude-code-on-iphone/
+        transcript.md
+      20260826-015825-setting-up-watson-as-catch-all-email-handler/
+        transcript.md
+      20260826-015825-troubleshooting-watson-s-facebook-post-task/
+        transcript.md
+      20260826-015825-watson-admin-console-mobile-responsiveness/
+        build_docx.js
+        transcript.md
+      20260826-015825-watson-upgrade-storage-requirements-for-mini-pc/
+        beelink-setup-checklist.md
+        transcript.md
+      20260826-015826-audio-transcription-pipeline-module-error/
+        transcript.md
+      20260826-015826-briefing-read-button-malfunction-and-duplicate-con/
+        transcript.md
+      20260826-015826-building-watson-locally-before-remote-access/
+        transcript.md
+      20260826-015826-chat-history-tab-for-dashboard/
+        transcript.md
+      20260826-015826-comparing-localai-and-ollama-for-watson/
+        transcript.md
+      20260826-015826-contact-info-search-formatting-issue/
+        transcript.md
+      20260826-015826-merging-knowledge-database-from-fmspc-to-beelink/
+        transcript.md
+        watson-arch-june8-2026.md
+      20260826-015826-mini-pc-migration-assessment/
+        transcript.md
+      20260826-015826-natural-language-description-parser-capability-gap/
+        transcript.md
+      20260826-015826-optimizing-watson-s-response-speed/
+        transcript.md
+      20260826-015826-retrieving-new-watson-files/
+        transcript.md
+        watson-qr-build-spec.md
+        watson-sms-build-spec.md
+      20260826-015826-review-of-yesterday-s-chats/
+        transcript.md
+      20260826-015826-update-git-on-fmspc-from-local-directory/
+        transcript.md
+      20260826-015826-watson-api-url-configuration-error/
+        transcript.md
+      20260826-015826-watson-console-dashboard-connection-issues/
+        transcript.md
+      20260826-015826-watson-missed-ids-in-connect-card-run/
+        import_connect_cards.py
+        transcript.md
+      20260826-015826-watson-performance-and-dashboard-timeout-issues/
+        transcript.md
+      20260826-015826-watson-response-timeout-issue/
+        transcript.md
+      20260826-015826-watson-s-models-and-usage-explained/
+        transcript.md
+      20260826-015826-watson-skill-audit-system-details/
+        transcript.md
+      20260826-015827-adding-to-watson/
+        transcript.md
+      20260826-015827-calendar-availability-loading-error/
+        transcript.md
+      20260826-015827-claude-code-auto-approving-without-human-confirmat/
+        transcript.md
+      20260826-015827-daily-session-review-and-work-priorities/
+        transcript.md
+      20260826-015827-disambiguating-watson-s-telegram-message-intent/
+        transcript.md
+        watson-dashboard.html
+      20260826-015827-enhancing-watson-with-gemini-for-theology-discussi/
+        debug-gemini-routing.txt
+        gemini-chat-prompt.txt
+        revert-to-ollama.txt
+        transcript.md
+      20260826-015827-file-reading-skill-implementation-issue/
+        transcript.md
+      20260826-015827-filter-connect-card-emails-from-draft-replay/
+        transcript.md
+      20260826-015827-finding-the-meet-schedule-tool-chat/
+        transcript.md
+      20260826-015827-meet-scheduling-tool-implementation-decision/
+        transcript.md
+      20260826-015827-moving-reading-list-to-more-tab/
+        transcript.md
+      20260826-015827-ollama-cline-integration-for-watson-development/
+        transcript.md
+      20260826-015827-pocket-watson-on-raspberry-pi-pros-and-cons/
+        transcript.md
+      20260826-015827-settings-panel-close-button-unreachable-on-iphone/
+        transcript.md
+      20260826-015827-shepherd-report-timing-adjustment-for-attendance-u/
+        transcript.md
+      20260826-015827-simple-time-query-project-for-gemini/
+        transcript.md
+      20260826-015827-skip-all-option-for-recurring-appointment-notes/
+        transcript.md
+      20260826-015827-tasks-page-add-task-input-obscured-by-footer/
+        transcript.md
+      20260826-015827-tell-watson-siri-function-issue/
+        transcript.md
+      20260826-015827-watson-dashboard-reminder-checkbox-glitch/
+        transcript.md
+      20260826-015827-watson-email-automation-with-qwen-model/
+        transcript.md
+      20260826-015827-watson-qr-code-scanning-issue/
+        transcript.md
+        watson-arch-june11-2026.md
+      20260826-015827-watson-reminder-function-database-schema-issue/
+        transcript.md
+      20260826-015827-watson-s-emails-not-reaching-kaci/
+        transcript.md
+      20260826-015827-watson-service-restart-command/
+        transcript.md
+      20260826-015827-watson-upgrades-to-prioritize/
+        transcript.md
+      20260826-015827-watson-working-state-display-upgrade/
+        transcript.md
+      20260826-015828-admin-profile-updates-for-task-counts-and-priority/
+        transcript.md
+      20260826-015828-automating-call-transcripts-and-meeting-summaries/
+        transcript.md
+      20260826-015828-development-task-backlog-review/
+        transcript.md
+      20260826-015828-email-confirmation-preview-vs-actual-send/
+        transcript.md
+      20260826-015828-fix-favicon-on-team-page/
+        transcript.md
+      20260826-015828-fixing-calendar-authentication-issue/
+        transcript.md
+      20260826-015828-fmspc-onedrive-and-loop-dev-setup/
+        Watson_Build_List_June_27_2026.md
+        transcript.md
+      20260826-015828-natural-language-queries-for-congregation-database/
+        transcript.md
+      20260826-015828-optimizing-hp-stream-linux-for-maximum-performance/
+        transcript.md
+      20260826-015828-pastoral-search-function-debugging/
+        transcript.md
+      20260826-015828-project-file-and-chat-review/
+        import_chrome.py
+        import_passwords.py
+        transcript.md
+      20260826-015828-project-status-update-and-next-build-priorities/
+        transcript.md
+      20260826-015828-retrieving-password-challenge-response-pairs/
+        transcript.md
+      20260826-015828-skills-menu-dashboard-update/
+        transcript.md
+      20260826-015828-skills-tab-necessity-review/
+        transcript.md
+      20260826-015828-structured-spec-generation-workflow-for-claude/
+        transcript.md
+      20260826-015828-task-creation-error-with-due-datetime-column/
+        transcript.md
+      20260826-015828-vercel-build-failing-missing-root-directory/
+        transcript.md
+      20260826-015828-watson-congregation-database-query-system/
+        transcript.md
+      20260826-015828-watson-dev-session-handoff-june-20/
+        transcript.md
+      20260826-015828-watson-development-priorities/
+        Watson_Build_List_June_22_2026.md
+        transcript.md
+      20260826-015828-watson-s-self-coding-capabilities-and-limitations/
+        transcript.md
+      20260826-015828-watson-server-upgrade-costs/
+        transcript.md
+      20260826-015828-watson-team-management-system-status-update/
+        transcript.md
+      20260826-015829-adding-memory-write-capability-to-watson/
+        transcript.md
+      20260826-015829-auto-restart-beelink-after-power-outage/
+        transcript.md
+      20260826-015829-body-rec-app-data-platform/
+        transcript.md
+      20260826-015829-body-rec-site-data-storage-location/
+        transcript.md
+      20260826-015829-deleted-credentials-still-showing-in-dashboard/
+        transcript.md
+      20260826-015829-missing-prayer-request-email-cron-job/
+        transcript.md
+      20260826-015829-recurring-project-instructions-text-source-mystery/
+        transcript.md
+      20260826-015829-redirecting-faithmakessense-com-to-vercel/
+        transcript.md
+      20260826-015829-resolving-shared-email-member-conflict/
+        transcript.md
+      20260826-015829-tasks-not-appearing-in-dashboard/
+        transcript.md
+      20260826-015829-thesis-tracker-data-refresh-button/
+        transcript.md
+      20260826-015829-watson-appointment-notification-details/
+        transcript.md
+      20260826-015829-watson-email-reply-job-filtering-connect-cards/
+        transcript.md
+      20260826-015829-watson-merged-duplicate-names-incorrectly/
+        transcript.md
+      20260826-015829-watson-password-issuance-changes-for-arc-and-writi/
+        transcript.md
+      20260826-015829-watson-report-filtering-issues-with-deceased-recor/
+        WATSON_ARCHITECTURE.md
+        Watson_Build_List_June_29_2026.md
+        transcript.md
+      20260826-015829-watson-s-arch-structural-assessment/
+        transcript.md
+      20260826-015829-watson-state-reconciliation-and-memory-audit/
+        transcript.md
+      20260826-015829-watson-upgrade-options/
+        transcript.md
+      20260826-015829-website-copy-review-for-grammar-and-style/
+        fix_style.py
+        transcript.md
+      20260826-015830-automated-rural-property-search-with-watson/
+        transcript.md
+      20260826-015830-beelink-auto-power-on-after-outage/
+        transcript.md
+      20260826-015830-dashboard-chat-timeout-on-basic-message/
+        transcript.md
+      20260826-015830-disable-and-delete-prayer-request-job-for-kaci/
+        transcript.md
+      20260826-015830-email-to-sms-notification-formatting-by-carrier/
+        apply-confirmed-phone-backfill.md
+        build-a-pastoral-search-fix.md
+        build-b-name-and-carrier-editing.md
+        build-b-name-editing-ui.md
+        cross-reference-people-table.md
+        fix-carrier-confirm-trust.md
+        forward-last-contact-spec.md
+        forward-telegram-content-spec.md
+        investigate-name-case-and-edit-gap.md
+        match-church-contacts-review-v2.md
+        match-church-contacts-review.md
+        remove-qwen14b-beelink-hangs.md
+        resolve-me-contact-spec.md
+        sms-autoreply-build.md
+        sms-carrier-lookup-spec.md
+        sms-reply-detection-spec.md
+        transcript.md
+      20260826-015830-gutenberg-project-recovery-status/
+        transcript.md
+      20260826-015830-improving-watson-s-calendar-access-and-error-handl/
+        transcript.md
+      20260826-015830-member-id-missing-in-conflict-report/
+        transcript.md
+      20260826-015830-menu-spacing-issue-in-dashboard/
+        transcript.md
+      20260826-015830-migrating-bodyrec-project-to-watson/
+        transcript.md
+      20260826-015830-ollama-model-audit-and-routing-fix/
+        transcript.md
+      20260826-015830-prayer-request-email-schedule-change/
+        transcript.md
+      20260826-015830-sermon-transcript-git-push-troubleshooting/
+        transcript.md
+      20260826-015830-tasks-not-disappearing-after-completion/
+        transcript.md
+      20260826-015830-telegram-notifications-missing-email-for-signups/
+        transcript.md
+      20260826-015830-transcript-push-to-github-failed/
+        transcript.md
+      20260826-015830-updating-member-last-seen-dates/
+        batch_member_updates_build_prompt.md
+        member_aliases_build_prompt.md
+        transcript.md
+      20260826-015830-watson-gpu-upgrade-for-performance-bottleneck/
+        transcript.md
+      20260826-015831-adding-us-state-hierarchy-to-thesis-tracker/
+        transcript.md
+      20260826-015831-bash-curl-current-watson-docs/
+        claude-code-email-activity-exclude.md
+        transcript.md
+      20260826-015831-connecting-logos-study-assistant-to-watson-via-hea/
+        transcript.md
+      20260826-015831-contact-resolver-bug-with-me-pronoun/
+        transcript.md
+      20260826-015831-donna-s-attendance-reply-timing/
+        transcript.md
+      20260826-015831-email-delivery-loop-to-comcast-address/
+        transcript.md
+      20260826-015831-identifying-potential-scammer-email-on-adelphos/
+        transcript.md
+      20260826-015831-kb-sync-not-updating-after-new-sermon/
+        transcript.md
+      20260826-015831-library-sorting-filters-for-read-status-and-kindle/
+        transcript.md
+      20260826-015831-monthly-connect-card-completion-reporting/
+        connect_card_monthly_report_spec.md
+        headcount_integration_spec.md
+        monthly_state_of_church_report_spec.md
+        monthly_state_of_church_report_spec_v2_person_focused.md
+        transcript.md
+      20260826-015831-optimizing-curator-search-performance-to-15-second/
+        transcript.md
+      20260826-015831-rerunning-conflict-report-after-power-outage/
+        transcript.md
+      20260826-015831-restarting-curator-project-dev-server/
+        transcript.md
+      20260826-015831-setting-up-branded-links-on-watson-dashboard/
+        transcript.md
+      20260826-015831-stuck-dev-loop-projects-from-june-27/
+        transcript.md
+      20260826-015831-transcript-generation-module-import-error/
+        transcript.md
+      20260826-015831-watson-dashboard-email-activity-update-frequency/
+        transcript.md
+      20260826-015831-watson-elder-meeting-transcript-job-configuration/
+        transcript.md
+      20260826-015831-watson-email-processing-error-with-ollama/
+        transcript.md
+      20260826-015831-watson-monday-reports-missing-from-inbox/
+        transcript.md
+      20260826-015832-arc-reader-dashboard-login-help/
+        transcript.md
+      20260826-015832-claude-code-sandbox-not-launching-with-mcp-connect/
+        transcript.md
+        ttyd-embed-test.html
+      20260826-015832-contemporary-church-shepherding-strategies/
+        transcript.md
+      20260826-015832-curator-tool-backend-architecture/
+        curator-chatgpt-import-spec.md
+        transcript.md
+      20260826-015832-duplicate-blog-article-labels/
+        transcript.md
+      20260826-015832-evaluating-cursor-and-open-hands-as-watson-coding/
+        transcript.md
+      20260826-015832-free-sms-options-for-watson/
+        transcript.md
+      20260826-015832-got-this-today-onedrive-b/
+        transcript.md
+      20260826-015832-improving-watson-s-church-attendance-analysis/
+        transcript.md
+        watson_benchmarks.md
+      20260826-015832-integrating-twilio-sms-with-watson/
+        transcript.md
+      20260826-015832-moodle-integration-alert-email-visibility-issue/
+        transcript.md
+      20260826-015832-troubleshooting-missed-report-delivery/
+        transcript.md
+      20260826-015832-using-a-home-nas-for-family-backups-and-storage/
+        transcript.md
+      20260826-015832-verifying-merge-claude-code-job-tool-availability/
+        transcript.md
+      20260826-015832-watson-db-local-backup-snapshot-failure/
+        transcript.md
+      20260826-015832-watson-hardware-upgrade-to-ryzen-ai-9-hx-470/
+        transcript.md
+      20260826-015832-watson-merge-claude-code-job-tool-availability-che/
+        transcript.md
+      20260826-015832-watson-monthly-state-report-command/
+        transcript.md
+      20260826-015833-batch-post-workflow-for-social-media-distribution/
+        transcript.md
+      20260826-015833-enabling-ip-address-sharing-in-moodle/
+        transcript.md
       20260826-015833-project-backup-and-archive-preservation/
         transcript.md
-      _summary.md
+      20260826-015833-setting-up-watson-to-analyze-church-engagement-dat/
+        transcript.md
+      20260826-015833-transcript-upload-notification-missing-on-telegram/
+        transcript.md
+      20260826-015833-watson-congregation-deacon-directory-details/
+        deacon_directory_import_spec.md
+        deacon_directory_raw.tsv
+        transcript.md
+      20260826-015833-watson-pc-hardware-upgrade-evaluation/
+        transcript.md
+      20260826-015833-watson-s-backup-storage-feature/
+        transcript.md
+      20260826-015833-watson-skills-and-workflow-improvements/
+        transcript.md
+      20260826-015833-watson-trading-skill-development-review/
+        transcript.md
+        watson-kb-mcp-bugfix-prompt.md
     dreamstone-chronicles/
       20260826-013954-dreamstone-chronicles-book-files/
         build_book.js
@@ -1009,11 +1420,9 @@ data/
         transcript.md
       20260826-015832-consolidating-wcky-site-book-pages/
         transcript.md
-      _summary.md
     fms-wcky-restructure/
       20260826-013954-wcky-site-loading-slower-than-fms/
         transcript.md
-      _summary.md
     funeral-orders/
       20260826-013956-sanitizing-funeral-service-order-for-keith-redman/
         transcript.md
@@ -1022,7 +1431,6 @@ data/
       20260826-015825-part-time-employee-vacation-and-bereavement-polici/
         policy.js
         transcript.md
-      _summary.md
     funerals/
       20260826-013953-funny-nicknames-for-irish-funeral-director-friend/
         transcript.md
@@ -1039,7 +1447,6 @@ data/
         build-1.js
         build.js
         transcript.md
-      _summary.md
     ghostwriter/
       20260826-013954-tracking-quotes-and-punchy-sayings/
         quotes-and-sayings.md
@@ -1212,11 +1619,9 @@ data/
         Privacy-Guard-Build-Spec.md
         family_data_template.sql
         transcript.md
-      _summary.md
     ideas-to-be-developed/
       20260826-013954-expanding-concept-ideas/
         transcript.md
-      _summary.md
     revelation-writing-project/
       20260826-013954-cosmic-king-teaching-project-development/
         transcript.md
@@ -1316,7 +1721,6 @@ data/
         transcript.md
       20260826-015833-untitled-2026-08-18/
         transcript.md
-      _summary.md
     sermon-writing/
       20260826-013953-biblical-principles-for-money-management/
         biblical_finance_booklet.js
@@ -1721,7 +2125,6 @@ data/
       20260826-015833-weekly-sermon-preparation/
         The_Humility_of_Christ_Encoded.md
         transcript.md
-      _summary.md
     song-for-mel/
       20260826-013953-writing-a-valentine-s-day-song-for-my-wife/
         Twenty_Two_Recording_Guide.txt
@@ -1732,11 +2135,9 @@ data/
         transcript.md
       20260826-015823-stray-kids-ringtone-for-wife/
         transcript.md
-      _summary.md
     the-s-dimension/
       20260826-014000-s-dimension-cover-concept-directions/
         transcript.md
-      _summary.md
     to-my-muslim-friends/
       20260825-234821-previous-project-work-status-investigation-into-mi/
         transcript.md
@@ -1761,429 +2162,18 @@ data/
       20260826-003611-recovered-the-double-standard-working-list-master/
         The-Double-Standard-Working-List.md
         transcript.md
-      _summary.md
-    watson-development/
-      20260826-015823-claude-s-new-dispatch-feature-explained/
+      20260826-014002-comparative-christian-islamic-apologetics-approach/
+        Scimitars-Edge-Cover-Brief.md
+        The-Double-Standard-Working-List.md
+        To-My-Muslim-Friends.txt
         transcript.md
-      20260826-015823-google-meet-free-account-call-duration-limits/
+      20260826-093104-master-rebuild-document-backfill-punch-list-rebuil/
+        To-My-Muslim-Friends-MASTER-REBUILD.md
         transcript.md
-      20260826-015824-automation-and-workflow-continuation/
+      20260826-094328-corrected-master-rebuild-document-backfill-punch-l/
+        To-My-Muslim-Friends-MASTER-REBUILD.md
+        To-My-Muslim-Friends-PUNCH-LIST.md
         transcript.md
-      20260826-015824-batch-processing-audio-files-to-knowledge-library/
-        Start-Watson.bat
-        cleanup_library.ps1
-        transcript.md
-        watcher.py
-      20260826-015824-bringing-watson-home-on-stream/
-        transcript.md
-      20260826-015824-checking-queued-articles-in-watson-email/
-        transcript.md
-      20260826-015824-exporting-chat-history-to-web-app/
-        transcript.md
-      20260826-015824-hosting-watson-as-a-24-7-telegram-agent/
-        transcript.md
-      20260826-015824-morning-briefing-broken-after-component-update/
-        transcript.md
-      20260826-015824-ollama-0-24-new-features-overview/
-        transcript.md
-      20260826-015824-ollama-setup-on-watson-linux/
-        transcript.md
-      20260826-015824-openwebui-knowledge-collection-api-endpoint-issue/
-        transcript.md
-      20260826-015824-redefining-assistant-communication-style/
-        transcript.md
-      20260826-015824-watson-system-updates-and-daily-task-list/
-        transcript.md
-      20260826-015825-building-watson-s-mobile-ui-navigation-and-contact/
-        PeopleView.tsx
-        transcript.md
-      20260826-015825-building-workflow-automation-tools-with-claude/
-        CORE-Pipeline-Agent-Spec.md
-        transcript.md
-      20260826-015825-connecting-webui-to-watson-s-llm/
-        transcript.md
-      20260826-015825-delegating-tasks-to-claude-code/
-        transcript.md
-      20260826-015825-deleting-test-comments-from-beta-reader-site/
-        transcript.md
-      20260826-015825-installing-claude-code-on-chrome-os-flex/
-        transcript.md
-      20260826-015825-laptop-sleep-and-claude-ai-work-loss/
-        transcript.md
-      20260826-015825-mini-pc-upgrade-for-watson-with-500-budget/
-        transcript.md
-      20260826-015825-running-claude-code-on-a-chromebook/
-        transcript.md
-      20260826-015825-running-claude-code-on-iphone/
-        transcript.md
-      20260826-015825-setting-up-watson-as-catch-all-email-handler/
-        transcript.md
-      20260826-015825-troubleshooting-watson-s-facebook-post-task/
-        transcript.md
-      20260826-015825-watson-admin-console-mobile-responsiveness/
-        build_docx.js
-        transcript.md
-      20260826-015825-watson-upgrade-storage-requirements-for-mini-pc/
-        beelink-setup-checklist.md
-        transcript.md
-      20260826-015826-audio-transcription-pipeline-module-error/
-        transcript.md
-      20260826-015826-briefing-read-button-malfunction-and-duplicate-con/
-        transcript.md
-      20260826-015826-building-watson-locally-before-remote-access/
-        transcript.md
-      20260826-015826-chat-history-tab-for-dashboard/
-        transcript.md
-      20260826-015826-comparing-localai-and-ollama-for-watson/
-        transcript.md
-      20260826-015826-contact-info-search-formatting-issue/
-        transcript.md
-      20260826-015826-merging-knowledge-database-from-fmspc-to-beelink/
-        transcript.md
-        watson-arch-june8-2026.md
-      20260826-015826-mini-pc-migration-assessment/
-        transcript.md
-      20260826-015826-natural-language-description-parser-capability-gap/
-        transcript.md
-      20260826-015826-optimizing-watson-s-response-speed/
-        transcript.md
-      20260826-015826-retrieving-new-watson-files/
-        transcript.md
-        watson-qr-build-spec.md
-        watson-sms-build-spec.md
-      20260826-015826-review-of-yesterday-s-chats/
-        transcript.md
-      20260826-015826-update-git-on-fmspc-from-local-directory/
-        transcript.md
-      20260826-015826-watson-api-url-configuration-error/
-        transcript.md
-      20260826-015826-watson-console-dashboard-connection-issues/
-        transcript.md
-      20260826-015826-watson-missed-ids-in-connect-card-run/
-        import_connect_cards.py
-        transcript.md
-      20260826-015826-watson-performance-and-dashboard-timeout-issues/
-        transcript.md
-      20260826-015826-watson-response-timeout-issue/
-        transcript.md
-      20260826-015826-watson-s-models-and-usage-explained/
-        transcript.md
-      20260826-015826-watson-skill-audit-system-details/
-        transcript.md
-      20260826-015827-adding-to-watson/
-        transcript.md
-      20260826-015827-calendar-availability-loading-error/
-        transcript.md
-      20260826-015827-claude-code-auto-approving-without-human-confirmat/
-        transcript.md
-      20260826-015827-daily-session-review-and-work-priorities/
-        transcript.md
-      20260826-015827-disambiguating-watson-s-telegram-message-intent/
-        transcript.md
-        watson-dashboard.html
-      20260826-015827-enhancing-watson-with-gemini-for-theology-discussi/
-        debug-gemini-routing.txt
-        gemini-chat-prompt.txt
-        revert-to-ollama.txt
-        transcript.md
-      20260826-015827-file-reading-skill-implementation-issue/
-        transcript.md
-      20260826-015827-filter-connect-card-emails-from-draft-replay/
-        transcript.md
-      20260826-015827-finding-the-meet-schedule-tool-chat/
-        transcript.md
-      20260826-015827-meet-scheduling-tool-implementation-decision/
-        transcript.md
-      20260826-015827-moving-reading-list-to-more-tab/
-        transcript.md
-      20260826-015827-ollama-cline-integration-for-watson-development/
-        transcript.md
-      20260826-015827-pocket-watson-on-raspberry-pi-pros-and-cons/
-        transcript.md
-      20260826-015827-settings-panel-close-button-unreachable-on-iphone/
-        transcript.md
-      20260826-015827-shepherd-report-timing-adjustment-for-attendance-u/
-        transcript.md
-      20260826-015827-simple-time-query-project-for-gemini/
-        transcript.md
-      20260826-015827-skip-all-option-for-recurring-appointment-notes/
-        transcript.md
-      20260826-015827-tasks-page-add-task-input-obscured-by-footer/
-        transcript.md
-      20260826-015827-tell-watson-siri-function-issue/
-        transcript.md
-      20260826-015827-watson-dashboard-reminder-checkbox-glitch/
-        transcript.md
-      20260826-015827-watson-email-automation-with-qwen-model/
-        transcript.md
-      20260826-015827-watson-qr-code-scanning-issue/
-        transcript.md
-        watson-arch-june11-2026.md
-      20260826-015827-watson-reminder-function-database-schema-issue/
-        transcript.md
-      20260826-015827-watson-s-emails-not-reaching-kaci/
-        transcript.md
-      20260826-015827-watson-service-restart-command/
-        transcript.md
-      20260826-015827-watson-upgrades-to-prioritize/
-        transcript.md
-      20260826-015827-watson-working-state-display-upgrade/
-        transcript.md
-      20260826-015828-admin-profile-updates-for-task-counts-and-priority/
-        transcript.md
-      20260826-015828-automating-call-transcripts-and-meeting-summaries/
-        transcript.md
-      20260826-015828-development-task-backlog-review/
-        transcript.md
-      20260826-015828-email-confirmation-preview-vs-actual-send/
-        transcript.md
-      20260826-015828-fix-favicon-on-team-page/
-        transcript.md
-      20260826-015828-fixing-calendar-authentication-issue/
-        transcript.md
-      20260826-015828-fmspc-onedrive-and-loop-dev-setup/
-        Watson_Build_List_June_27_2026.md
-        transcript.md
-      20260826-015828-natural-language-queries-for-congregation-database/
-        transcript.md
-      20260826-015828-optimizing-hp-stream-linux-for-maximum-performance/
-        transcript.md
-      20260826-015828-pastoral-search-function-debugging/
-        transcript.md
-      20260826-015828-project-file-and-chat-review/
-        import_chrome.py
-        import_passwords.py
-        transcript.md
-      20260826-015828-project-status-update-and-next-build-priorities/
-        transcript.md
-      20260826-015828-retrieving-password-challenge-response-pairs/
-        transcript.md
-      20260826-015828-skills-menu-dashboard-update/
-        transcript.md
-      20260826-015828-skills-tab-necessity-review/
-        transcript.md
-      20260826-015828-structured-spec-generation-workflow-for-claude/
-        transcript.md
-      20260826-015828-task-creation-error-with-due-datetime-column/
-        transcript.md
-      20260826-015828-vercel-build-failing-missing-root-directory/
-        transcript.md
-      20260826-015828-watson-congregation-database-query-system/
-        transcript.md
-      20260826-015828-watson-dev-session-handoff-june-20/
-        transcript.md
-      20260826-015828-watson-development-priorities/
-        Watson_Build_List_June_22_2026.md
-        transcript.md
-      20260826-015828-watson-s-self-coding-capabilities-and-limitations/
-        transcript.md
-      20260826-015828-watson-server-upgrade-costs/
-        transcript.md
-      20260826-015828-watson-team-management-system-status-update/
-        transcript.md
-      20260826-015829-adding-memory-write-capability-to-watson/
-        transcript.md
-      20260826-015829-auto-restart-beelink-after-power-outage/
-        transcript.md
-      20260826-015829-body-rec-app-data-platform/
-        transcript.md
-      20260826-015829-body-rec-site-data-storage-location/
-        transcript.md
-      20260826-015829-deleted-credentials-still-showing-in-dashboard/
-        transcript.md
-      20260826-015829-missing-prayer-request-email-cron-job/
-        transcript.md
-      20260826-015829-recurring-project-instructions-text-source-mystery/
-        transcript.md
-      20260826-015829-redirecting-faithmakessense-com-to-vercel/
-        transcript.md
-      20260826-015829-resolving-shared-email-member-conflict/
-        transcript.md
-      20260826-015829-tasks-not-appearing-in-dashboard/
-        transcript.md
-      20260826-015829-thesis-tracker-data-refresh-button/
-        transcript.md
-      20260826-015829-watson-appointment-notification-details/
-        transcript.md
-      20260826-015829-watson-email-reply-job-filtering-connect-cards/
-        transcript.md
-      20260826-015829-watson-merged-duplicate-names-incorrectly/
-        transcript.md
-      20260826-015829-watson-password-issuance-changes-for-arc-and-writi/
-        transcript.md
-      20260826-015829-watson-report-filtering-issues-with-deceased-recor/
-        WATSON_ARCHITECTURE.md
-        Watson_Build_List_June_29_2026.md
-        transcript.md
-      20260826-015829-watson-s-arch-structural-assessment/
-        transcript.md
-      20260826-015829-watson-state-reconciliation-and-memory-audit/
-        transcript.md
-      20260826-015829-watson-upgrade-options/
-        transcript.md
-      20260826-015829-website-copy-review-for-grammar-and-style/
-        fix_style.py
-        transcript.md
-      20260826-015830-automated-rural-property-search-with-watson/
-        transcript.md
-      20260826-015830-beelink-auto-power-on-after-outage/
-        transcript.md
-      20260826-015830-dashboard-chat-timeout-on-basic-message/
-        transcript.md
-      20260826-015830-disable-and-delete-prayer-request-job-for-kaci/
-        transcript.md
-      20260826-015830-email-to-sms-notification-formatting-by-carrier/
-        apply-confirmed-phone-backfill.md
-        build-a-pastoral-search-fix.md
-        build-b-name-and-carrier-editing.md
-        build-b-name-editing-ui.md
-        cross-reference-people-table.md
-        fix-carrier-confirm-trust.md
-        forward-last-contact-spec.md
-        forward-telegram-content-spec.md
-        investigate-name-case-and-edit-gap.md
-        match-church-contacts-review-v2.md
-        match-church-contacts-review.md
-        remove-qwen14b-beelink-hangs.md
-        resolve-me-contact-spec.md
-        sms-autoreply-build.md
-        sms-carrier-lookup-spec.md
-        sms-reply-detection-spec.md
-        transcript.md
-      20260826-015830-gutenberg-project-recovery-status/
-        transcript.md
-      20260826-015830-improving-watson-s-calendar-access-and-error-handl/
-        transcript.md
-      20260826-015830-member-id-missing-in-conflict-report/
-        transcript.md
-      20260826-015830-menu-spacing-issue-in-dashboard/
-        transcript.md
-      20260826-015830-migrating-bodyrec-project-to-watson/
-        transcript.md
-      20260826-015830-ollama-model-audit-and-routing-fix/
-        transcript.md
-      20260826-015830-prayer-request-email-schedule-change/
-        transcript.md
-      20260826-015830-sermon-transcript-git-push-troubleshooting/
-        transcript.md
-      20260826-015830-tasks-not-disappearing-after-completion/
-        transcript.md
-      20260826-015830-telegram-notifications-missing-email-for-signups/
-        transcript.md
-      20260826-015830-transcript-push-to-github-failed/
-        transcript.md
-      20260826-015830-updating-member-last-seen-dates/
-        batch_member_updates_build_prompt.md
-        member_aliases_build_prompt.md
-        transcript.md
-      20260826-015830-watson-gpu-upgrade-for-performance-bottleneck/
-        transcript.md
-      20260826-015831-adding-us-state-hierarchy-to-thesis-tracker/
-        transcript.md
-      20260826-015831-bash-curl-current-watson-docs/
-        claude-code-email-activity-exclude.md
-        transcript.md
-      20260826-015831-connecting-logos-study-assistant-to-watson-via-hea/
-        transcript.md
-      20260826-015831-contact-resolver-bug-with-me-pronoun/
-        transcript.md
-      20260826-015831-donna-s-attendance-reply-timing/
-        transcript.md
-      20260826-015831-email-delivery-loop-to-comcast-address/
-        transcript.md
-      20260826-015831-identifying-potential-scammer-email-on-adelphos/
-        transcript.md
-      20260826-015831-kb-sync-not-updating-after-new-sermon/
-        transcript.md
-      20260826-015831-library-sorting-filters-for-read-status-and-kindle/
-        transcript.md
-      20260826-015831-monthly-connect-card-completion-reporting/
-        connect_card_monthly_report_spec.md
-        headcount_integration_spec.md
-        monthly_state_of_church_report_spec.md
-        monthly_state_of_church_report_spec_v2_person_focused.md
-        transcript.md
-      20260826-015831-optimizing-curator-search-performance-to-15-second/
-        transcript.md
-      20260826-015831-rerunning-conflict-report-after-power-outage/
-        transcript.md
-      20260826-015831-restarting-curator-project-dev-server/
-        transcript.md
-      20260826-015831-setting-up-branded-links-on-watson-dashboard/
-        transcript.md
-      20260826-015831-stuck-dev-loop-projects-from-june-27/
-        transcript.md
-      20260826-015831-transcript-generation-module-import-error/
-        transcript.md
-      20260826-015831-watson-dashboard-email-activity-update-frequency/
-        transcript.md
-      20260826-015831-watson-elder-meeting-transcript-job-configuration/
-        transcript.md
-      20260826-015831-watson-email-processing-error-with-ollama/
-        transcript.md
-      20260826-015831-watson-monday-reports-missing-from-inbox/
-        transcript.md
-      20260826-015832-arc-reader-dashboard-login-help/
-        transcript.md
-      20260826-015832-claude-code-sandbox-not-launching-with-mcp-connect/
-        transcript.md
-        ttyd-embed-test.html
-      20260826-015832-contemporary-church-shepherding-strategies/
-        transcript.md
-      20260826-015832-curator-tool-backend-architecture/
-        curator-chatgpt-import-spec.md
-        transcript.md
-      20260826-015832-duplicate-blog-article-labels/
-        transcript.md
-      20260826-015832-evaluating-cursor-and-open-hands-as-watson-coding/
-        transcript.md
-      20260826-015832-free-sms-options-for-watson/
-        transcript.md
-      20260826-015832-got-this-today-onedrive-b/
-        transcript.md
-      20260826-015832-improving-watson-s-church-attendance-analysis/
-        transcript.md
-        watson_benchmarks.md
-      20260826-015832-integrating-twilio-sms-with-watson/
-        transcript.md
-      20260826-015832-moodle-integration-alert-email-visibility-issue/
-        transcript.md
-      20260826-015832-troubleshooting-missed-report-delivery/
-        transcript.md
-      20260826-015832-using-a-home-nas-for-family-backups-and-storage/
-        transcript.md
-      20260826-015832-verifying-merge-claude-code-job-tool-availability/
-        transcript.md
-      20260826-015832-watson-db-local-backup-snapshot-failure/
-        transcript.md
-      20260826-015832-watson-hardware-upgrade-to-ryzen-ai-9-hx-470/
-        transcript.md
-      20260826-015832-watson-merge-claude-code-job-tool-availability-che/
-        transcript.md
-      20260826-015832-watson-monthly-state-report-command/
-        transcript.md
-      20260826-015833-batch-post-workflow-for-social-media-distribution/
-        transcript.md
-      20260826-015833-enabling-ip-address-sharing-in-moodle/
-        transcript.md
-      20260826-015833-setting-up-watson-to-analyze-church-engagement-dat/
-        transcript.md
-      20260826-015833-transcript-upload-notification-missing-on-telegram/
-        transcript.md
-      20260826-015833-watson-congregation-deacon-directory-details/
-        deacon_directory_import_spec.md
-        deacon_directory_raw.tsv
-        transcript.md
-      20260826-015833-watson-pc-hardware-upgrade-evaluation/
-        transcript.md
-      20260826-015833-watson-s-backup-storage-feature/
-        transcript.md
-      20260826-015833-watson-skills-and-workflow-improvements/
-        transcript.md
-      20260826-015833-watson-trading-skill-development-review/
-        transcript.md
-        watson-kb-mcp-bugfix-prompt.md
-      _summary.md
     wcky-book-launch-project/
       20260826-013953-sending-giving-statements-in-tithely/
         transcript.md
@@ -2612,7 +2602,6 @@ data/
       20260826-015833-watson-passive-income-opportunities/
         transcript.md
         watson-trading-build-prompt.md
-      _summary.md
     wrong-jesus-book-development/
       20260826-013953-historical-evidence-for-jesus-s-death-in-islam-vs/
         transcript.md
@@ -2725,11 +2714,6 @@ data/
         transcript.md
       20260826-014001-spelling-and-grammar-check-for-book-announcement/
         transcript.md
-      20260826-014002-comparative-christian-islamic-apologetics-approach/
-        Scimitars-Edge-Cover-Brief.md
-        The-Double-Standard-Working-List.md
-        To-My-Muslim-Friends.txt
-        transcript.md
       20260826-014002-wrong-jesus-book-launch-plan/
         TWJ-Brevo-Automation-Handoff.md
         TWJ-Launch-Full-Copy-Weeks-1-8-CORRECTED.md
@@ -2793,7 +2777,6 @@ data/
         transcript.md
       20260826-015833-amazon-bio-update-draft/
         transcript.md
-      _summary.md
   skill_audit.json
   trading.db
   watson.db
