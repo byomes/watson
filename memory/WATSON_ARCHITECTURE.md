@@ -2901,3 +2901,24 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - 3b9235d fix: get_archive skill trigger required exact "get archive:" phrase
 - b5593e7 docs: regenerate Skills & Capabilities Catalog
 - f6900c9 docs: architecture update 2026-08-26
+
+---
+
+## Recent Changes — 2026-08-28
+
+### ~/watson
+- 278650a docs: file map 2026-08-28
+- c4751fd Add watson-tools to update_arch.py's tracked repos
+- 623dc4d wtsn.me first-deploy confirm: buttons, not typed YES/NO
+- 2ecbf88 Add category to public_tools: wtsn.me/<category>/<slug>, not flat slugs
+- 1d58749 Document wtsn.me public-tools build in WATSON_ARCHITECTURE.md
+- c38b7c6 Add wtsn.me public-tools registry: jobs/tools/, first-deploy Telegram gate
+- a2e4de8 docs: architecture update 2026-08-27
+- c5d7592 docs: bugs/backlog export 2026-08-27
+- 3d17f16 docs: file map 2026-08-27
+
+### ~/watson-tools
+- 7f7071b Fix: cat/connect's API route was unguarded, direct-POST-able while draft
+- 741eb17 Fix: cat/connect's draft gate was purely decorative, not enforced
+- bb45f45 Category routing (wtsn.me/<category>/<slug>) + Catalyst connect-card copy
+- cabe1c4 Scaffold watson-tools: Next.js 16 app for wtsn.me public tools
