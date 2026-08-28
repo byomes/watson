@@ -2421,7 +2421,7 @@ async def _execute_pending(update: Update, context: ContextTypes.DEFAULT_TYPE, p
         "block_time", "book_appointment", "calendar_busy", "task_done",
         "reminder_create", "task_create", "trading_variant_approve",
         "trading_holdout_test_approve", "trading_batch_approve",
-        "trading_holdout_batch_approve",
+        "trading_holdout_batch_approve", "tool_first_deploy",
     ):
         await update.message.reply_text("I don't know how to execute that action.")
         return
@@ -2566,6 +2566,19 @@ async def _execute_pending(update: Update, context: ContextTypes.DEFAULT_TYPE, p
             log.error("Task done execute failed: %s", exc)
             pending_module.cancel_pending(pending_id)
             await update.message.reply_text(f"Error marking tasks done: {exc}")
+        return
+
+    if action_type == "tool_first_deploy":
+        slug = params["slug"]
+        try:
+            if not pending_module.confirm_pending(pending_id):
+                return
+            from jobs.tools.registry import flip_live
+            flip_live(slug)
+            await update.message.reply_text(f"✅ Live: https://wtsn.me/{slug}")
+        except Exception as exc:
+            log.error("Tool first-deploy confirm failed: %s", exc)
+            await update.message.reply_text(f"Error going live: {exc}")
         return
 
     title = params.get("title") or (

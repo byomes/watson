@@ -350,6 +350,11 @@ _curator_start_worker()
 from jobs.links.api import links_bp
 app.register_blueprint(links_bp)
 
+from jobs.tools.api import tools_bp
+from jobs.tools.schema import create_tables as _tools_create_tables
+_tools_create_tables()
+app.register_blueprint(tools_bp)
+
 from jobs.campaigns.campaign_routes import campaigns_bp
 from jobs.campaigns.schema import create_tables as _campaigns_create_tables
 _campaigns_create_tables()
