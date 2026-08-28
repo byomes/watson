@@ -1,6 +1,6 @@
 # Watson Bug Tracker
 _Auto-generated nightly from bug_tracker. Source of truth is the database — do not hand-edit this file, changes will be overwritten._
-Last generated: 2026-08-27 02:10
+Last generated: 2026-08-28 00:29
 
 ## Open (37)
 | ID | Title | Repo | Discovered |
@@ -46,6 +46,8 @@ Last generated: 2026-08-27 02:10
 ## Recently Resolved (last 30 days)
 | ID | Title | Repo | Resolved | Commit |
 |---|---|---|---|---|
+| 103 | cat/connect API route was unguarded — direct-POST-able while draft, real Brevo creds active | watson-tools | 2026-08-28 04:28:26 | 7f7071b |
+| 102 | cat/connect draft gate was decorative — custom-type page never checked public_tools.status | watson-tools | 2026-08-28 04:28:26 | 741eb17 |
 | 101 | get_archive skill trigger too strict, silently unroutable from Claude.ai | watson | 2026-08-26T09:12:36 | 3b9235d |
 | 100 | MCP run_watson_skill fails on kb/kb_search: missing positional argument | watson | 2026-08-24 13:09:59 | e6f674b |
 | 99 | connect_cards intake truncates multi-line question/comment field | watson | 2026-08-24 13:09:59 | a90d6d5 |
@@ -69,4 +71,3 @@ Last generated: 2026-08-27 02:10
 | 57 | devdispatch _worktree_path() mismatches CLI worktree dirname sanitization | watson | 2026-08-04 12:36:50 | c3db18f |
 | 54 | Suggest Fonts narrow stage timed out silently on every real run | watson | 2026-08-02 18:01:26 | 30161e4 |
 | 53 | Dashboard Commands panel missing xkb:/debug:/bug:/run: entries | watson | 2026-07-29 08:58:46 | ad78f46 |
-| 51 | Two 2026-07-27 sermon transcripts landed in kb/documents/ directly and were never indexed | watson | 2026-07-28 15:10:08 | 0a973b8 |
