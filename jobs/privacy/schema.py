@@ -62,7 +62,23 @@ CREATE TABLE IF NOT EXISTS privacy_removals (
 );
 """
 
-ALL_TABLES = [CREATE_BROKERS, CREATE_FAMILY_PROFILES, CREATE_REMOVALS]
+CREATE_CANDIDATES = """
+CREATE TABLE IF NOT EXISTS privacy_broker_candidates (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    domain           TEXT NOT NULL UNIQUE,
+    example_url      TEXT NOT NULL,
+    example_snippet  TEXT,
+    example_person   TEXT,
+    match_count      INTEGER NOT NULL DEFAULT 1,
+    confidence       REAL,
+    status           TEXT NOT NULL DEFAULT 'new' CHECK(status IN ('new','flagged','dismissed')),
+    notified_at      TEXT,
+    first_seen_at    TEXT DEFAULT (datetime('now')),
+    last_seen_at     TEXT DEFAULT (datetime('now'))
+);
+"""
+
+ALL_TABLES = [CREATE_BROKERS, CREATE_FAMILY_PROFILES, CREATE_REMOVALS, CREATE_CANDIDATES]
 
 # Seed list — the 10 brokers from the spec, live-verified 2026-08-20 (Phase 2
 # of this build: a read-only recon pass per broker's real opt-out page — no

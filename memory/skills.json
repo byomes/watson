@@ -1,6 +1,26 @@
 {
   "skills": [
     {
+      "slug": "romantic_getaway",
+      "name": "Romantic Getaway Finder",
+      "description": "Propose a 3-day romantic getaway (flight + hotel) for Bill and Donna, delivered privately by Telegram DM for approve/reject. Never delivered to any group, Kaci, or Donna.",
+      "category": "Personal",
+      "triggers": [
+        "find us a romantic getaway",
+        "plan a romantic trip",
+        "romantic getaway",
+        "surprise us with a trip",
+        "trip:"
+      ],
+      "module": "jobs.trip.propose",
+      "function": "run",
+      "interfaces": [
+        "telegram",
+        "dashboard"
+      ],
+      "status": "ready"
+    },
+    {
       "slug": "bible_lookup",
       "name": "Bible Lookup",
       "description": "Look up any Bible passage in NIV, CSB, or NASB.",

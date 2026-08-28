@@ -640,6 +640,35 @@ async def handle_font_suggestion_callback(update, context):
         await query.edit_message_caption(caption=f"{query.message.caption}\n\n❌ Rejected", reply_markup=None)
 
 
+async def handle_trip_callback(update, context):
+    """Handle trip_approve:/trip_reject: button taps from
+    jobs.trip.propose — romantic getaway proposal cards. 'Approve' just
+    stars the pick (status='approved'); Watson never books, so there's no
+    further action to trigger here."""
+    query = update.callback_query
+    await query.answer()
+    if not _is_authorized(update):
+        return
+
+    from jobs.trip.propose import approve_trip, reject_trip
+
+    action, proposal_id_str = query.data.split(":", 1)
+    proposal_id = int(proposal_id_str)
+
+    if action == "trip_approve":
+        proposal = await asyncio.to_thread(approve_trip, proposal_id)
+        if not proposal:
+            await query.edit_message_text("Proposal not found.", reply_markup=None)
+            return
+        await query.edit_message_text(f"{query.message.text}\n\n✅ Liked", reply_markup=None)
+    elif action == "trip_reject":
+        proposal = await asyncio.to_thread(reject_trip, proposal_id)
+        if not proposal:
+            await query.edit_message_text("Proposal not found.", reply_markup=None)
+            return
+        await query.edit_message_text(f"{query.message.text}\n\n❌ Passed", reply_markup=None)
+
+
 async def handle_campaign_callback(update, context):
     query = update.callback_query
     await query.answer()
@@ -718,6 +747,77 @@ async def handle_privacy_callback(update: Update, context: ContextTypes.DEFAULT_
     log_path = os.path.expanduser("~/watson/logs/privacy_remove.log")
     with open(log_path, "a") as lf:
         subprocess.Popen([venv_python, script, "--removal-id", str(removal_id)], stdout=lf, stderr=lf)
+
+
+async def handle_privacy_candidate_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """pgcand_flag:<id> / pgcand_skip:<id> — resolves a candidate row from
+    jobs/privacy/discover.py's weekly new-broker digest. Flag files a
+    project_backlog item for the same manual investigation every existing
+    broker in privacy_brokers went through (see project_backlog id=37/38) —
+    this handler never touches privacy_brokers itself. Skip marks the
+    candidate dismissed for good; discover.py never resurfaces a dismissed
+    domain."""
+    query = update.callback_query
+    await query.answer()
+
+    if not _is_authorized(update):
+        return
+
+    data = query.data or ""
+    action, _, id_str = data.partition(":")
+    try:
+        candidate_id = int(id_str)
+    except ValueError:
+        return
+
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT * FROM privacy_broker_candidates WHERE id=?", (candidate_id,)
+        ).fetchone()
+        if not row:
+            await query.edit_message_text(text=f"{query.message.text}\n\n⚠️ Candidate not found.", reply_markup=None)
+            return
+
+        if action == "pgcand_skip":
+            conn.execute(
+                "UPDATE privacy_broker_candidates SET status='dismissed' WHERE id=?", (candidate_id,)
+            )
+            conn.commit()
+            await query.edit_message_text(
+                text=f"{query.message.text}\n\n🚫 {row['domain']} — dismissed, won't resurface.",
+                reply_markup=None,
+            )
+            return
+
+        if action != "pgcand_flag":
+            return
+
+        from jobs.dev.backlog import create_backlog_item
+        create_backlog_item(
+            title=f"Privacy Guard: investigate new candidate broker — {row['domain']}",
+            summary=(
+                f"Auto-surfaced by jobs/privacy/discover.py's weekly pass, approved by Bill for "
+                f"investigation. Seen {row['match_count']} time(s), first via {row['example_person']}'s search."
+            ),
+            detail=(
+                f"Example URL: {row['example_url']}\nExample snippet: {row['example_snippet']}\n\n"
+                "Needs the same manual opt-out-flow investigation every current privacy_brokers row "
+                "got before being trusted (CAPTCHA/robots.txt check, real success-signal verification) "
+                "— see project_backlog id=37/38 and jobs/privacy/schema.py's _SEED_BROKERS notes for "
+                "the pattern. Never activate a broker without that."
+            ),
+        )
+        conn.execute(
+            "UPDATE privacy_broker_candidates SET status='flagged' WHERE id=?", (candidate_id,)
+        )
+        conn.commit()
+        await query.edit_message_text(
+            text=f"{query.message.text}\n\n🔎 {row['domain']} — added to backlog for investigation.",
+            reply_markup=None,
+        )
+    finally:
+        conn.close()
 
 
 # Worst-case stack inside this window (bug #29, all measured on this
@@ -4498,12 +4598,14 @@ def main():
     app.add_handler(CallbackQueryHandler(handle_meeting_pattern_callback, pattern=r"^mtp_(approve|reject):"))
     app.add_handler(CallbackQueryHandler(handle_cover_comp_callback, pattern=r"^cvr_(?:approve|regen|reject):"))
     app.add_handler(CallbackQueryHandler(handle_font_suggestion_callback, pattern=r"^fsg_(?:approve|reject):"))
+    app.add_handler(CallbackQueryHandler(handle_trip_callback, pattern=r"^trip_(?:approve|reject):"))
     app.add_handler(CallbackQueryHandler(handle_facebook_image_callback, pattern=r"^fb_img_(?:approve|regen|discard):"))
     app.add_handler(CallbackQueryHandler(handle_facebook_callback, pattern=r"^fb_"))
     # Specific prefix, registered ahead of any future broader "^camp" wildcard
     # (see fb_img_ vs fb_ above — a wildcard registered first would swallow this).
     app.add_handler(CallbackQueryHandler(handle_campaign_callback, pattern=r"^camp_approve:"))
     app.add_handler(CallbackQueryHandler(handle_privacy_callback, pattern=r"^priv_(approve|skip):"))
+    app.add_handler(CallbackQueryHandler(handle_privacy_candidate_callback, pattern=r"^pgcand_(flag|skip):"))
     app.add_handler(CallbackQueryHandler(handle_email_triage_callback, pattern=r"^et_"))
     app.add_handler(CallbackQueryHandler(handle_carrier_callback, pattern=r"^carrier_"))
     app.add_handler(CallbackQueryHandler(handle_email_callback, pattern=r"^email_"))

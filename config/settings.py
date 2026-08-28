@@ -47,6 +47,11 @@ ALPACA_API_KEY_ID = os.getenv("ALPACA_API_KEY_ID")
 ALPACA_SECRET_KEY = os.getenv("ALPACA_SECRET_KEY")
 ALPACA_BASE_URL   = os.getenv("ALPACA_BASE_URL", "https://paper-api.alpaca.markets")
 
+# Amadeus Self-Service — free test-tier only, see jobs/trip/amadeus_client.py
+# (pinned to test.api.amadeus.com). Used by the Romantic Trip Finder.
+AMADEUS_API_KEY    = os.getenv("AMADEUS_API_KEY")
+AMADEUS_API_SECRET = os.getenv("AMADEUS_API_SECRET")
+
 # Briefing schedule
 BRIEFING_HOUR   = int(os.getenv("BRIEFING_HOUR",   "6"))
 

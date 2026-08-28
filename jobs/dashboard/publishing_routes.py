@@ -348,7 +348,10 @@ def dash_arc_resend_welcome(reader_id: int):
 
     ok = arc_resend_welcome(reader_id)
     if not ok:
-        return jsonify({"error": "reader not found"}), 404
+        # Reader existence was already confirmed above, so a False here means
+        # the password was regenerated but the email send itself failed
+        # (jobs/arc/api.py::resend_welcome logs the underlying exception).
+        return jsonify({"error": "password reset but email send failed — check logs"}), 500
     return jsonify({"ok": True}), 200
 
 

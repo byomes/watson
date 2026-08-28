@@ -1039,6 +1039,42 @@ function thesisRows(items, nameKey) {
 let _thesisCountriesData = null;
 let _thesisMapInstance = null;
 
+function thesisCitationCard(c) {
+  const venue = c.venue ? esc(c.venue) : '';
+  const year = c.year ? ` (${c.year})` : '';
+  const meta = [c.authors ? esc(c.authors) : null, [venue, year].join('') || null]
+    .filter(Boolean).join(' — ');
+  const sources = (c.sources || '').split(',').map(s => s.trim()).filter(Boolean);
+  const badges = sources.map(s =>
+    `<span class="mth-cite-badge ${c.confidence === 'high' ? 'mth-cite-high' : ''}">${esc(s.replace('_', ' '))}</span>`
+  ).join('');
+  const titleHtml = c.url
+    ? `<a href="${esc(c.url)}" target="_blank" rel="noopener noreferrer">${esc(c.title || 'Untitled')}</a>`
+    : esc(c.title || 'Untitled');
+  return `
+    <div class="mth-cite-card">
+      <div class="mth-cite-title">${titleHtml}</div>
+      ${meta ? `<div class="mth-cite-meta">${meta}</div>` : ''}
+      <div class="mth-cite-badges">${badges}</div>
+    </div>`;
+}
+
+function thesisCitationsSection(citations, doi) {
+  const count = citations ? citations.length : 0;
+  const body = count
+    ? citations.map(thesisCitationCard).join('')
+    : '<div class="empty">No citations found yet — checked weekly.</div>';
+  const doiNote = doi
+    ? `<div class="mth-doi-watch">DOI on record: <b>${esc(doi)}</b></div>`
+    : '';
+  return `
+    <div class="mth-label-row">
+      <span class="mlabel">Citations${count ? ` (${count})` : ''}</span>
+    </div>
+    ${body}
+    ${doiNote}`;
+}
+
 async function moreLoadThesis() {
   const el = document.getElementById('msec-inner-thesis');
   if (!el) return;
@@ -1047,15 +1083,18 @@ async function moreLoadThesis() {
   _thesisTileLayer = null;
   _thesisGeoLayer  = null;
   try {
-    const [data, countries] = await Promise.all([
+    const [data, countries, citeData] = await Promise.all([
       api('/api/thesis-tracker/latest'),
       api('/api/thesis-tracker/countries'),
+      api('/api/thesis-tracker/citations'),
     ]);
     if (!data) {
       el.innerHTML = '<div class="empty">No data yet.</div>';
       return;
     }
     _thesisCountriesData = countries;
+    const citations = (citeData && citeData.citations) || [];
+    const doi = citeData && citeData.doi;
     el.innerHTML = `
       <div class="mth-updated">Last updated: <b>${esc(fmtGenerated(data.pulled_at) || data.pulled_at)}</b></div>
       <div class="mth-stats">
@@ -1070,6 +1109,10 @@ async function moreLoadThesis() {
         <div class="mth-stat">
           <div class="mth-stat-num">${data.total_countries ?? '—'}</div>
           <div class="mth-stat-lbl">Countries</div>
+        </div>
+        <div class="mth-stat">
+          <div class="mth-stat-num">${citations.length}</div>
+          <div class="mth-stat-lbl">Citations</div>
         </div>
       </div>
       <div class="mlabel" style="margin-top:0">Titles</div>
@@ -1086,7 +1129,8 @@ async function moreLoadThesis() {
         </div>
       </div>
       <div class="mlabel">Institutions</div>
-      ${thesisRows(data.institutions, 'institution')}`;
+      ${thesisRows(data.institutions, 'institution')}
+      ${thesisCitationsSection(citations, doi)}`;
   } catch {
     el.innerHTML = '<div class="empty">Could not load thesis tracker data.</div>';
   }

@@ -387,14 +387,12 @@ def resend_welcome(reader_id: int) -> bool:
     new_password = generate_password()
     set_reader_password(reader_id, new_password)
 
-    def _send():
-        try:
-            from jobs.arc.send_signup_confirmation import send_password_reset_email
-            send_password_reset_email(reader["email"], reader["first_name"], new_password)
-        except Exception as exc:
-            log.error("Password reset email failed for ARC reader %s: %s", reader["email"], exc)
-
-    threading.Thread(target=_send, daemon=True).start()
+    try:
+        from jobs.arc.send_signup_confirmation import send_password_reset_email
+        send_password_reset_email(reader["email"], reader["first_name"], new_password)
+    except Exception as exc:
+        log.error("Password reset email failed for ARC reader %s: %s", reader["email"], exc)
+        return False
     return True
 
 

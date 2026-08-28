@@ -3653,12 +3653,14 @@ def chat_stream():
     # KB search pre-check — must fire before conversational/factual intercepts
     _kb_triggers = ("search kb", "search my notes", "search my sermons", "what have i said about", "what did i preach on", "find in my notes", "look in my sermons", "kb search", "search my kb", "summarize my")
     if any(t in message.lower() for t in _kb_triggers):
-        from jobs.skills.kb_search import run as _kb_run
-        def _kb_stream():
+        from jobs.skills.kb_search import search_kb as _kb_run, format_result as _kb_fmt
+        def _kb_stream(q=message):
             yield _emit_status("→ Searching your notes...")
             try:
-                result = _kb_run(message)
-                yield _sse(result)
+                result = _kb_run(q)
+                yield _sse(_kb_fmt(result))
+                from jobs.telegram.pending import store_skill_confirmation as _store_kb_nl_pending
+                _store_kb_nl_pending("kb_expand", {"source": "dashboard", "query": q})
             except Exception as exc:
                 yield _sse(f"KB search failed: {exc}")
             yield "data: [DONE]\n\n"
