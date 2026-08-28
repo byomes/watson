@@ -2569,13 +2569,14 @@ async def _execute_pending(update: Update, context: ContextTypes.DEFAULT_TYPE, p
         return
 
     if action_type == "tool_first_deploy":
+        category = params["category"]
         slug = params["slug"]
         try:
             if not pending_module.confirm_pending(pending_id):
                 return
             from jobs.tools.registry import flip_live
-            flip_live(slug)
-            await update.message.reply_text(f"✅ Live: https://wtsn.me/{slug}")
+            flip_live(category, slug)
+            await update.message.reply_text(f"✅ Live: https://wtsn.me/{category}/{slug}")
         except Exception as exc:
             log.error("Tool first-deploy confirm failed: %s", exc)
             await update.message.reply_text(f"Error going live: {exc}")
