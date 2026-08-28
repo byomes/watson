@@ -138,6 +138,7 @@ Watson acts on Dr. Bill's behalf under his supervision. Always identified openly
 | Watson UI | `github.com/byomes/watson-ui` | `~/watson-ui` | Vercel auto on push |
 | FMS site | `github.com/byomes/fms` | `~/fms` (planned) | Vercel auto on push |
 | bodyrec | `github.com/byomes/bodyrec` | `~/bodyrec` | Vercel auto on push |
+| Watson Tools | `github.com/byomes/watson-tools` | `~/watson-tools` | Vercel auto on push |
 
 **All web development happens on the Beelink.** Claude Code builds on the Beelink, commits, pushes to GitHub, Vercel deploys automatically.
 
@@ -160,6 +161,8 @@ Watson acts on Dr. Bill's behalf under his supervision. Always identified openly
 | `faithmakessense.com` | `byomes/fms` (planned) | FMS ministry site — rebuild pending |
 | `www.adelphosonline.com` | — | Moodle 5.0 theology school (`adelphosacademy.com` is a stale/wrong domain — do not build against it) |
 | `bodyrec.vercel.app` | `byomes/bodyrec` | Body composition tracker (bill/mel profiles), backed by Watson API |
+| `wtsn.me` | `byomes/watson-tools` | Public Watson tools — shared app, slug-based routes; nameserver-delegated to Vercel |
+| `www.wtsn.me` | `byomes/watson-tools` | Redirects (301, Vercel domain-level) to `wtsn.me` — not an independent surface |
 
 ---
 
@@ -190,6 +193,7 @@ Watson acts on Dr. Bill's behalf under his supervision. Always identified openly
 - `church_events` — special events log, feeds State of the Church report
 - `bug_tracker` — session bug log (open on discovery, resolved with commit_hash on fix); see Issues tab
 - `body_entries`, `body_settings` — bodyrec body composition tracker data
+- `public_tools` — wtsn.me public-tools registry: `slug` (unique), `title`, `tool_type` (`redirect`/`page`/`custom`), `target_url`, `body_text`, `status` (`draft`/`live`), `created_at`, `updated_at`, `first_deploy_confirmed_at` — see Public Tools (wtsn.me) below
 
 ### congregation.db Key Tables
 
@@ -326,6 +330,7 @@ now a confirmed-closed result, not an open gap pending a retest.
 - `jobs/dev_loop/` — trigger.py, loop.py, deliver.py, cleanup.py
 - `jobs/meet/summarize.py` — Meet transcript summarization via Scribbl → Gmail → Watson
 - `jobs/trading/` — Paper-trading strategy pipeline (Alpaca paper API only) — see Paper-Trading Strategy Pipeline section below
+- `jobs/tools/` — wtsn.me public-tools registry (register/query/gate `public_tools` rows, `/api/tools/resolve/<slug>` blueprint) — no cron entry, purely dispatch/on-demand: tools are registered by a build step, gated live by Telegram confirm, never scheduled — see Public Tools (wtsn.me) below
 
 ---
 
@@ -1146,6 +1151,60 @@ Private community hub for Writing Room Partners (invitation-only, earned via ARC
 
 ---
 
+## Public Tools (wtsn.me)
+
+`wtsn.me` — Watson's own public identity for stranger-facing tools (the Catalyst connect-card
+pattern, but for anything outside Bill's Tailscale network), deliberately separate from
+`williamckyomes.com`'s author/book-launch surface. One shared Next.js app/Vercel project,
+slug-based routes — same architecture as wcky's `/go/[slug]` branded-link redirector, not
+one repo/project/domain per tool. Real per-tool isolation (its own repo) stays available
+later if a specific tool ever needs it; nothing here defaults to that. Full investigation
+and build log: `notes/wtsn-me-public-tools-spec.md`.
+
+**Architecture:** Next.js frontend (`~/watson-tools`) → Watson API → `watson.db`
+**Watson API base:** `https://watson.tail0243ff.ts.net` (Tailscale Funnel)
+**Auth on `/api/tools/resolve/<slug>`:** none — public, unauthenticated, same shape as
+`jobs/links/api.py`'s `/api/links/resolve/<slug>`. Unlike bodyrec/Writing Room, this route is
+*meant* to be called by an anonymous public visitor's request (via the Vercel app), not just
+another Watson-authenticated service, so the `X-Watson-Key` shared-secret pattern doesn't
+apply here. It only ever returns a tool whose `status = 'live'` — a `draft` row 404s even if
+its slug is already known.
+**Watson job files:** `jobs/tools/schema.py`, `jobs/tools/registry.py`, `jobs/tools/api.py` —
+Flask blueprint, routes registered on dashboard app
+**Table:** `public_tools` — see watson.db Key Tables above
+
+**Routing pattern (`~/watson-tools/src/app/[slug]/page.tsx`):** a dynamic catch-all route
+resolves each slug against `/api/tools/resolve/<slug>` and renders per `tool_type` —
+`redirect` (server-side `redirect()` to `target_url`), `page` (renders `title` + `body_text`),
+or `custom` (a tool with real logic gets its own dedicated route file, e.g.
+`src/app/connect-card/page.tsx`, which Next.js's router matches ahead of the `[slug]`
+catch-all — its `public_tools` row exists purely to carry the same go-live gate below, its
+`target_url`/`body_text` are never read).
+
+**First-deploy Telegram confirm gate:** a tool is registered `status = 'draft'` (invisible to
+the public resolve route) until `jobs/tools/registry.request_first_deploy()` sends a Telegram
+YES/NO prompt and Bill confirms — reuses the same `pending_actions`/`_execute_pending()`
+mechanism as the six classifier-stage gated writes (see Confirmation Gate above), via a new
+`tool_first_deploy` action_type branch in `bot.py`, but isn't itself one of those six —
+covered separately there rather than added to that table. Edits to an already-live tool don't
+re-trigger this; only the first flip from `draft` to `live` does.
+
+**DNS:** `wtsn.me`'s nameservers are delegated to Vercel (`ns1`/`ns2.vercel-dns.com`) — the
+one-time manual step that makes every future subdomain/record purely a Vercel API/dashboard
+action, no further Namecheap involvement. `www.wtsn.me` redirects to the apex at the Vercel
+domain level (301, not app code — see Web Properties above).
+
+**Credentials:** `VERCEL_API_TOKEN` in `.env` (Vercel REST API, project/domain management —
+did not exist before this build, see Credentials below). `WATSON_API_URL` is a **Vercel
+project env var on watson-tools**, not just a `.env` entry — it was initially only in
+`~/watson-tools/.env.example` and missing from the actual live Vercel project, which produced
+a real bug (an uncaught error inside the `[slug]` Server Component → `500` instead of the
+intended `404` for a draft tool) on the first live test. Worth checking for by name on any
+future Vercel project built the same way — an `.env.example` documents the shape, it doesn't
+provision anything.
+
+---
+
 ## Book Launch Campaign System (`jobs/campaigns/`)
 
 Reusable, campaign-agnostic marketing automation for book launches — built out
@@ -1353,6 +1412,14 @@ REST endpoints/UI rather than chat intents. `build:` (dashboard) and `devloop:`
 (Telegram) trigger the identical Dev Loop function under different spellings — a naming
 mismatch, not a gap.
 
+**Not in the table above — a different mechanism, same underlying plumbing.** The wtsn.me
+first-deploy gate (`jobs/tools/registry.request_first_deploy()`, see Public Tools (wtsn.me)
+below) reuses `pending_actions`/`save_pending()`/`_execute_pending()` exactly like the six
+intents above, but it isn't one of the stage-5 classifier intents — it's triggered
+proactively by a build step (registering a new tool), not by an incoming Telegram message
+being classified. Left out of the table above rather than forced in, since "classifier-
+stage write intent" doesn't accurately describe it.
+
 ---
 
 ## Contact Resolution
@@ -1522,6 +1589,7 @@ WATSON_API_URL=https://watson.tail0243ff.ts.net
 MCP_DISPATCH_API_KEY=
 MCP_OAUTH_CLIENT_ID=
 MCP_OAUTH_CLIENT_SECRET=
+VERCEL_API_TOKEN=
 ```
 
 ---
