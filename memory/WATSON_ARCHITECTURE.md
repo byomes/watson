@@ -1156,38 +1156,62 @@ Private community hub for Writing Room Partners (invitation-only, earned via ARC
 `wtsn.me` — Watson's own public identity for stranger-facing tools (the Catalyst connect-card
 pattern, but for anything outside Bill's Tailscale network), deliberately separate from
 `williamckyomes.com`'s author/book-launch surface. One shared Next.js app/Vercel project,
-slug-based routes — same architecture as wcky's `/go/[slug]` branded-link redirector, not
+category/slug routes — same architecture as wcky's `/go/[slug]` branded-link redirector, not
 one repo/project/domain per tool. Real per-tool isolation (its own repo) stays available
 later if a specific tool ever needs it; nothing here defaults to that. Full investigation
 and build log: `notes/wtsn-me-public-tools-spec.md`.
 
 **Architecture:** Next.js frontend (`~/watson-tools`) → Watson API → `watson.db`
 **Watson API base:** `https://watson.tail0243ff.ts.net` (Tailscale Funnel)
-**Auth on `/api/tools/resolve/<slug>`:** none — public, unauthenticated, same shape as
-`jobs/links/api.py`'s `/api/links/resolve/<slug>`. Unlike bodyrec/Writing Room, this route is
+**Auth on `/api/tools/resolve/<category>/<slug>`:** none — public, unauthenticated, same shape
+as `jobs/links/api.py`'s `/api/links/resolve/<slug>`. Unlike bodyrec/Writing Room, this route is
 *meant* to be called by an anonymous public visitor's request (via the Vercel app), not just
 another Watson-authenticated service, so the `X-Watson-Key` shared-secret pattern doesn't
 apply here. It only ever returns a tool whose `status = 'live'` — a `draft` row 404s even if
-its slug is already known.
+its category/slug is already known.
 **Watson job files:** `jobs/tools/schema.py`, `jobs/tools/registry.py`, `jobs/tools/api.py` —
 Flask blueprint, routes registered on dashboard app
 **Table:** `public_tools` — see watson.db Key Tables above
 
-**Routing pattern (`~/watson-tools/src/app/[slug]/page.tsx`):** a dynamic catch-all route
-resolves each slug against `/api/tools/resolve/<slug>` and renders per `tool_type` —
+**Categories:** tools group by area of life, Bill's choice per tool, not inferred — `cat/` for
+Catalyst, and `writing/`, `fms/`, `adelphos/` etc. as those get built out. `(category, slug)` is
+the real unique key (`UNIQUE (category, slug)` in the table), not slug alone.
+
+**Routing pattern (`~/watson-tools/src/app/[category]/[slug]/page.tsx`):** a dynamic catch-all
+route resolves against `/api/tools/resolve/<category>/<slug>` and renders per `tool_type` —
 `redirect` (server-side `redirect()` to `target_url`), `page` (renders `title` + `body_text`),
 or `custom` (a tool with real logic gets its own dedicated route file, e.g.
-`src/app/connect-card/page.tsx`, which Next.js's router matches ahead of the `[slug]`
-catch-all — its `public_tools` row exists purely to carry the same go-live gate below, its
-`target_url`/`body_text` are never read).
+`src/app/cat/connect/page.tsx`, which Next.js's router matches ahead of the `[category]/[slug]`
+catch-all).
+
+**`'custom'` tools are NOT gated for free — two real bugs found live confirmed this the hard
+way** (both during the `cat/connect` build, 2026-08-28, both caught by testing the actual
+public URL rather than trusting the code): (1) a `'custom'` tool's own page component never
+consulted `public_tools.status` on its own — the dynamic catch-all's automatic gating doesn't
+extend to a static route file. (2) Fixing the page alone was still not enough — the page's own
+gate does not protect its own API route; `cat/connect`'s form-submit endpoint was directly
+POST-able (and, briefly, with real Brevo credentials in place, would have actually sent email)
+regardless of draft status. **The fix, and the pattern every future `'custom'` tool must
+follow:** `~/watson-tools/src/lib/requireLiveTool.ts` exports `isToolLive(category, slug)` (raw
+boolean, fails closed) and `requireLiveTool(category, slug)` (page usage — calls Next's
+`notFound()` itself). A `'custom'` tool's page must `await requireLiveTool(...)` as its first
+line, marked `export const dynamic = 'force-dynamic'` so it's never statically prerendered
+against a status that can change at any moment; **any API route that tool posts to must
+separately call `isToolLive(...)` as its own first line** — the page check does not cover it.
 
 **First-deploy Telegram confirm gate:** a tool is registered `status = 'draft'` (invisible to
 the public resolve route) until `jobs/tools/registry.request_first_deploy()` sends a Telegram
-YES/NO prompt and Bill confirms — reuses the same `pending_actions`/`_execute_pending()`
-mechanism as the six classifier-stage gated writes (see Confirmation Gate above), via a new
-`tool_first_deploy` action_type branch in `bot.py`, but isn't itself one of those six —
-covered separately there rather than added to that table. Edits to an already-live tool don't
-re-trigger this; only the first flip from `draft` to `live` does.
+message with inline **✅ Go Live / ❌ Cancel** buttons and Bill taps one — `bot.py`'s
+`handle_tool_deploy_callback` (`callback_data` pattern `tool_deploy_(yes|no):<category>:<slug>`)
+acts on the tap directly and calls `flip_live()`. **Button-based, not the typed-YES/NO
+`pending_actions` mechanism** the six classifier-stage gated writes use (see Confirmation Gate
+below) — Bill's explicit preference (2026-08-28), matching the button pattern
+`jobs/adelphos/security_monitor.py`'s Delete/Allow alerts already established, rather than
+layering buttons onto the older mechanism. `callback_data` carries `category:slug` directly, so
+there's no separate pending-state row; the tap is idempotent (checks current status before
+flipping), so a duplicate prompt from a second `request_first_deploy()` call is just mildly
+noisy, never unsafe. Edits to an already-live tool don't re-trigger this; only the first flip
+from `draft` to `live` does.
 
 **DNS:** `wtsn.me`'s nameservers are delegated to Vercel (`ns1`/`ns2.vercel-dns.com`) — the
 one-time manual step that makes every future subdomain/record purely a Vercel API/dashboard
@@ -1198,10 +1222,22 @@ domain level (301, not app code — see Web Properties above).
 did not exist before this build, see Credentials below). `WATSON_API_URL` is a **Vercel
 project env var on watson-tools**, not just a `.env` entry — it was initially only in
 `~/watson-tools/.env.example` and missing from the actual live Vercel project, which produced
-a real bug (an uncaught error inside the `[slug]` Server Component → `500` instead of the
-intended `404` for a draft tool) on the first live test. Worth checking for by name on any
-future Vercel project built the same way — an `.env.example` documents the shape, it doesn't
-provision anything.
+a real bug (an uncaught error inside the `[category]/[slug]` Server Component → `500` instead
+of the intended `404` for a draft tool) on the first live test. Worth checking for by name on
+any future Vercel project built the same way — an `.env.example` documents the shape, it
+doesn't provision anything. Vercel's `sensitive` env var type is **write-only** — its value
+can never be read back via API *or* dashboard, not even by Bill, and its **key name can't be
+renamed** either once set (confirmed live — a misnamed `Brevo_Api` var had to be deleted and
+re-added under the correct name, `BREVO_API_KEY_CONNECT_CARD`, rather than renamed in place).
+
+**Live tools:**
+- `cat/connect` — full copy of wcky's Catalyst connect card (`williamckyomes.com/tools/connect-card`,
+  untouched, still live there too), same direct-to-Brevo mechanism (confirmed by reading wcky's
+  actual `route.ts` and its live Vercel project's env var names — not assumed): `CONNECT_CARD_TO_BILL`,
+  `CONNECT_CARD_TO_DONNA`, `CONNECT_CARD_TO_TYLER`, `CONNECT_CARD_BCC` (set to `watson.wcky@gmail.com`,
+  the real IMAP intake mailbox — not `watson@williamckyomes.com`, which is send-only), and
+  `BREVO_API_KEY_CONNECT_CARD`, all set fresh on `watson-tools`' own Vercel project (wcky's values
+  aren't copyable — `sensitive` type). Live as of 2026-08-28.
 
 ---
 
@@ -1412,13 +1448,15 @@ REST endpoints/UI rather than chat intents. `build:` (dashboard) and `devloop:`
 (Telegram) trigger the identical Dev Loop function under different spellings — a naming
 mismatch, not a gap.
 
-**Not in the table above — a different mechanism, same underlying plumbing.** The wtsn.me
-first-deploy gate (`jobs/tools/registry.request_first_deploy()`, see Public Tools (wtsn.me)
-below) reuses `pending_actions`/`save_pending()`/`_execute_pending()` exactly like the six
-intents above, but it isn't one of the stage-5 classifier intents — it's triggered
-proactively by a build step (registering a new tool), not by an incoming Telegram message
-being classified. Left out of the table above rather than forced in, since "classifier-
-stage write intent" doesn't accurately describe it.
+**Not in the table above — a different mechanism entirely, not just a different trigger.** The
+wtsn.me first-deploy gate (`jobs/tools/registry.request_first_deploy()`, see Public Tools
+(wtsn.me) below) is triggered proactively by a build step (registering a new tool), not by an
+incoming Telegram message being classified, so it was never one of the stage-5 classifier
+intents — but it also doesn't use `pending_actions`/`_execute_pending()` at all. It sends
+inline **Go Live / Cancel** buttons (`bot.py`'s `handle_tool_deploy_callback`), matching the
+button-based pattern `jobs/adelphos/security_monitor.py`'s Delete/Allow alerts already use,
+per Bill's explicit preference (2026-08-28) for buttons over typing a reply. Left out of the
+table above rather than forced in, for both reasons.
 
 ---
 

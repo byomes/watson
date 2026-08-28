@@ -2421,7 +2421,7 @@ async def _execute_pending(update: Update, context: ContextTypes.DEFAULT_TYPE, p
         "block_time", "book_appointment", "calendar_busy", "task_done",
         "reminder_create", "task_create", "trading_variant_approve",
         "trading_holdout_test_approve", "trading_batch_approve",
-        "trading_holdout_batch_approve", "tool_first_deploy",
+        "trading_holdout_batch_approve",
     ):
         await update.message.reply_text("I don't know how to execute that action.")
         return
@@ -2566,20 +2566,6 @@ async def _execute_pending(update: Update, context: ContextTypes.DEFAULT_TYPE, p
             log.error("Task done execute failed: %s", exc)
             pending_module.cancel_pending(pending_id)
             await update.message.reply_text(f"Error marking tasks done: {exc}")
-        return
-
-    if action_type == "tool_first_deploy":
-        category = params["category"]
-        slug = params["slug"]
-        try:
-            if not pending_module.confirm_pending(pending_id):
-                return
-            from jobs.tools.registry import flip_live
-            flip_live(category, slug)
-            await update.message.reply_text(f"✅ Live: https://wtsn.me/{category}/{slug}")
-        except Exception as exc:
-            log.error("Tool first-deploy confirm failed: %s", exc)
-            await update.message.reply_text(f"Error going live: {exc}")
         return
 
     title = params.get("title") or (
@@ -3753,6 +3739,40 @@ async def handle_adelphos_callback(update: Update, context: ContextTypes.DEFAULT
         await query.edit_message_text(f"{query.message.text}\n\n✅ Allowed to stay", reply_markup=None)
 
 
+async def handle_tool_deploy_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """tool_deploy_yes:<category>:<slug> / tool_deploy_no:<category>:<slug> —
+    wtsn.me public-tools first-deploy go-live confirm, sent by
+    jobs.tools.registry.request_first_deploy(). Button-based per Bill's
+    preference (2026-08-28), matching the Adelphos alert pattern above —
+    supersedes the earlier typed YES/NO pending_actions flow for this gate.
+    callback_data carries category:slug directly, so there's no separate
+    pending-state row to look up; the tap acts immediately and is idempotent
+    (checks current status before flipping).
+    """
+    query = update.callback_query
+    await query.answer()
+    if not _is_authorized(update):
+        return
+
+    from jobs.tools.registry import flip_live, get_tool
+
+    _, _, rest = query.data.partition(":")
+    category, _, slug = rest.partition(":")
+
+    if query.data.startswith("tool_deploy_yes:"):
+        tool = await asyncio.to_thread(get_tool, category, slug)
+        if not tool:
+            await query.edit_message_text("Tool not found.", reply_markup=None)
+            return
+        if tool["status"] != "live":
+            await asyncio.to_thread(flip_live, category, slug)
+        await query.edit_message_text(
+            f"{query.message.text}\n\n✅ Live: https://wtsn.me/{category}/{slug}", reply_markup=None
+        )
+    elif query.data.startswith("tool_deploy_no:"):
+        await query.edit_message_text(f"{query.message.text}\n\n🚫 Cancelled — stays draft.", reply_markup=None)
+
+
 async def handle_ask(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not _is_authorized(update):
         return
@@ -4464,6 +4484,7 @@ def main():
     app.add_handler(CallbackQueryHandler(handle_git_sync_callback,        pattern=r"^gs_"))
     app.add_handler(CallbackQueryHandler(handle_merge_conflict_callback,  pattern=r"^(merge_old_|merge_new_|skip_|different_)\d+$"))
     app.add_handler(CallbackQueryHandler(handle_adelphos_callback, pattern=r"^adelphos_(delete|confirmdelete|canceldelete|allow)_\d+$"))
+    app.add_handler(CallbackQueryHandler(handle_tool_deploy_callback, pattern=r"^tool_deploy_(yes|no):"))
     app.add_handler(CallbackQueryHandler(handle_benchmark_callback, pattern=r"^bench_(update|ignore):\d+$"))
     app.add_handler(CallbackQueryHandler(handle_web_benchmark_callback, pattern=r"^webbench_(update|ignore):\d+$"))
     app.add_handler(CallbackQueryHandler(handle_member_conflict_callback, pattern=r"^mc_"))

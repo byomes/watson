@@ -11,9 +11,12 @@ Slug status is the single source of truth for whether a tool is reachable:
 jobs/tools/api.py's public /api/tools/resolve/<category>/<slug> route
 calls), so a tool can be built and pushed to the watson-tools repo well
 before it's actually live — going live is a separate, explicit step gated
-by Telegram confirm (request_first_deploy / flip_live), the same
-pending_actions mechanism the six classifier-stage gated writes in bot.py
-already use (see Confirmation Gate in WATSON_ARCHITECTURE.md).
+by a Telegram Go Live/Cancel button confirm (request_first_deploy /
+flip_live), matching the button-based pattern jobs/adelphos/security_monitor.py
+already established (see bot.py's handle_tool_deploy_callback) — not the
+pending_actions/typed-YES-NO mechanism the six classifier-stage gated
+writes use. Bill's explicit preference (2026-08-28): buttons over typing a
+reply for this kind of confirm.
 
 'custom' tool_type rows track status/gating for a tool that has its own
 dedicated Next.js route (e.g. src/app/cat/connect/page.tsx) rather than
@@ -84,49 +87,31 @@ def get_live_tool(category: str, slug: str) -> dict | None:
     return dict(row) if row else None
 
 
-def _has_pending_first_deploy(category: str, slug: str) -> bool:
-    from config.settings import TELEGRAM_CHAT_ID
-    from jobs.gcal import pending as pending_module
-
-    p = pending_module.get_pending(TELEGRAM_CHAT_ID)
-    return bool(
-        p and p["action_type"] == "tool_first_deploy"
-        and p["params"].get("category") == category and p["params"].get("slug") == slug
-    )
-
-
 def request_first_deploy(category: str, slug: str) -> dict:
     """Kick off the first-deploy Telegram confirm gate for a draft tool.
 
-    Proactive send — this isn't a reply to an incoming Telegram message, it's
-    called by whatever build step just finished pushing the tool's first
-    deploy. Uses the same pending_actions/save_pending mechanism the six
-    classifier-stage gated writes rely on, so bot.py's existing YES/NO
-    handling in _execute_pending picks it up with just one new action_type
-    branch there — no new plumbing.
+    Proactive send — this isn't a reply to an incoming Telegram message,
+    it's called by whatever build step just finished pushing the tool's
+    first deploy. Sends a message with inline Go Live / Cancel buttons
+    (callback_data carries category:slug directly, so no separate
+    pending-state row is needed — bot.py's handle_tool_deploy_callback acts
+    directly on the tap). No dedup guard against a second call sending a
+    second prompt: the callback is idempotent (checks current status before
+    flipping), so a duplicate prompt is just mildly noisy, never unsafe.
     """
     import requests
     from config.settings import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
     from core.vacation import vacation_gate
-    from jobs.gcal import pending as pending_module
 
     tool = get_tool(category, slug)
     if not tool:
         raise ValueError(f"no tool registered for '{category}/{slug}'")
     if tool["status"] != "draft":
         raise ValueError(f"tool '{category}/{slug}' is not in draft status (status={tool['status']!r})")
-    if _has_pending_first_deploy(category, slug):
-        return {"already_pending": True, "category": category, "slug": slug}
 
     display = f"{tool['title']} — https://wtsn.me/{category}/{slug}"
-    pending_module.save_pending(
-        TELEGRAM_CHAT_ID, "tool_first_deploy", {"category": category, "slug": slug}, {"display": display},
-    )
+    text = f"\U0001f195 First deploy of a new public tool — go live?\n\n{display}"
 
-    text = (
-        f"\U0001f195 First deploy of a new public tool — go live?\n\n{display}\n\n"
-        "Reply YES to confirm or NO to cancel."
-    )
     # "normal" priority (not "system_failure") — a new tool going live isn't
     # urgent the way a security alert is; it can wait out a vacation-mode
     # suppression window like the other five gated write intents.
@@ -134,10 +119,19 @@ def request_first_deploy(category: str, slug: str) -> dict:
         if TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID:
             requests.post(
                 f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
-                json={"chat_id": TELEGRAM_CHAT_ID, "text": text},
+                json={
+                    "chat_id": TELEGRAM_CHAT_ID,
+                    "text": text,
+                    "reply_markup": {
+                        "inline_keyboard": [[
+                            {"text": "✅ Go Live", "callback_data": f"tool_deploy_yes:{category}:{slug}"},
+                            {"text": "❌ Cancel", "callback_data": f"tool_deploy_no:{category}:{slug}"},
+                        ]],
+                    },
+                },
                 timeout=10,
             )
-    return {"already_pending": False, "category": category, "slug": slug}
+    return {"category": category, "slug": slug}
 
 
 def flip_live(category: str, slug: str) -> None:
