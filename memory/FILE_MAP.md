@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-08-27*
+*Generated: 2026-08-28*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -1402,6 +1402,8 @@ data/
       20260826-015833-watson-trading-skill-development-review/
         transcript.md
         watson-kb-mcp-bugfix-prompt.md
+      20260827-233259-wtsn-me-public-tools-pathway-investigation-build-a/
+        transcript.md
     dreamstone-chronicles/
       20260826-013954-dreamstone-chronicles-book-files/
         build_book.js
@@ -3293,6 +3295,11 @@ jobs/
     db.py
     scrape.py
   time_check.py
+  tools/
+    __init__.py
+    api.py
+    registry.py
+    schema.py
   trading/
     HOLDOUT_WINDOWS.md
     __init__.py
@@ -3894,6 +3901,7 @@ memory/
   working.md
 notes/
   .gitkeep
+  wtsn-me-public-tools-spec.md
 prompts/
   cleanup.md
   generate_blog.md
@@ -4535,5 +4543,44 @@ src/
     storage.ts
     types.ts
     watson.ts
+tsconfig.json
+```
+
+## ~/watson-tools/
+
+```
+~/watson-tools/
+.env.example
+.env.local
+.gitignore
+eslint.config.mjs
+next-env.d.ts
+next.config.ts
+package-lock.json
+package.json
+postcss.config.mjs
+src/
+  app/
+    [category]/
+      [slug]/
+        page.tsx
+    api/
+      cat/
+        connect/
+          route.ts
+    cat/
+      connect/
+        ConnectCardForm.tsx
+        layout.tsx
+        page.tsx
+    globals.css
+    layout.tsx
+    not-found.tsx
+    page.tsx
+  lib/
+    requireLiveTool.ts
+    validation.ts
+    watson.ts
+  proxy.ts
 tsconfig.json
 ```
