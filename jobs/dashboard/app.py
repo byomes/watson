@@ -2112,6 +2112,25 @@ def thesis_tracker_countries():
     return jsonify(result)
 
 
+@app.route("/api/thesis-tracker/citations")
+def thesis_tracker_citations():
+    try:
+        db = _db()
+        rows = db.execute(
+            "SELECT title, authors, venue, year, doi, url, sources, confidence "
+            "FROM thesis_citations ORDER BY first_seen_at DESC"
+        ).fetchall()
+        doi_row = db.execute(
+            "SELECT doi FROM thesis_doi_watch ORDER BY id DESC LIMIT 1"
+        ).fetchone()
+    except sqlite3.OperationalError:
+        return jsonify({"citations": [], "doi": None})
+    return jsonify({
+        "citations": [dict(r) for r in rows],
+        "doi": doi_row["doi"] if doi_row else None,
+    })
+
+
 @app.route("/api/thesis-tracker/pull", methods=["POST"])
 def thesis_tracker_pull():
     dashboard_link = os.getenv("DC_DASHBOARD_LINK")
