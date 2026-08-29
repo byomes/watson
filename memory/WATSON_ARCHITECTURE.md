@@ -2944,3 +2944,13 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - 741eb17 Fix: cat/connect's draft gate was purely decorative, not enforced
 - bb45f45 Category routing (wtsn.me/<category>/<slug>) + Catalyst connect-card copy
 - cabe1c4 Scaffold watson-tools: Next.js 16 app for wtsn.me public tools
+
+---
+
+## Recent Changes — 2026-08-29
+
+### ~/watson
+- 75121e2 docs: bugs/backlog export 2026-08-29
+- 421d2af docs: file map 2026-08-29
+- bef91e6 Add romantic trip finder, plus other in-progress work already in the tree
+- b230a2f docs: architecture update 2026-08-28
