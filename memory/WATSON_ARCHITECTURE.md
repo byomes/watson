@@ -438,6 +438,12 @@ A skill marked **disabled** below is registered but intentionally turned off —
 | **List Archive Projects** (`list_projects`) | ready | dashboard, telegram | `list projects`, `list archive projects`, `what projects do i have archived` | List every project that has at least one session archive, with archive count and most recent date — how a cold session discovers what project slugs exist. |
 | **Search Session Archives** (`search_archives`) | ready | dashboard, telegram | `search archives:`, `search my archives`, `find in archives` | Full-text search across archived Claude.ai session transcripts. |
 
+### Personal
+
+| Skill | Status | Interfaces | Trigger phrases | What it does |
+|---|---|---|---|---|
+| **Romantic Getaway Finder** (`romantic_getaway`) | ready | telegram, dashboard | `find us a romantic getaway`, `plan a romantic trip`, `romantic getaway`, `surprise us with a trip`, `trip:` | Propose a 3-day romantic getaway (flight + hotel) for Bill and Donna, delivered privately by Telegram DM for approve/reject. Never delivered to any group, Kaci, or Donna. |
+
 ### Direct commands (bypass the skill router)
 
 Parsed directly out of `jobs/dashboard/app.py`'s `/api/terminal` view (`terminal()`'s prefix/exact-match checks and its `_TERM_COMMANDS` dict) — they're not in `skills.json`, so this table can't come from that file the way the ones above do; each row's description instead comes from a `# doc: ...` comment on that line in app.py. A row that says *undocumented* means that comment is missing — add it in app.py, not here.
