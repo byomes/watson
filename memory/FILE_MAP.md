@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-08-28*
+*Generated: 2026-08-29*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -2127,6 +2127,10 @@ data/
       20260826-015833-weekly-sermon-preparation/
         The_Humility_of_Christ_Encoded.md
         transcript.md
+    servant-care/
+      20260828-123025-hospitality-homes-search-wv-va-md-pa-ky-nc-6-night/
+        servant_care_hospitality_homes_search.md
+        transcript.md
     song-for-mel/
       20260826-013953-writing-a-valentine-s-day-song-for-my-wife/
         Twenty_Two_Recording_Guide.txt
@@ -3320,6 +3324,11 @@ jobs/
       templates.py
     verify_holdout_windows.py
   transcribe.py
+  trip/
+    __init__.py
+    amadeus_client.py
+    propose.py
+    schema.py
   utilities/
     __init__.py
     calendar_importer.py
