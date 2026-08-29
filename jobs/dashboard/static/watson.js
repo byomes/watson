@@ -1099,6 +1099,10 @@ async function moreLoadThesis() {
       <div class="mth-updated">Last updated: <b>${esc(fmtGenerated(data.pulled_at) || data.pulled_at)}</b></div>
       <div class="mth-stats">
         <div class="mth-stat">
+          <div class="mth-stat-num">${data.weekly_downloads ?? '—'}</div>
+          <div class="mth-stat-lbl">This Week</div>
+        </div>
+        <div class="mth-stat">
           <div class="mth-stat-num">${data.total_downloads ?? '—'}</div>
           <div class="mth-stat-lbl">Downloads</div>
         </div>
