@@ -26,6 +26,13 @@ def init_db():
         except sqlite3.OperationalError as e:
             if "duplicate column name" not in str(e):
                 raise
+        try:
+            conn.execute(
+                "ALTER TABLE thesis_snapshots ADD COLUMN weekly_downloads INTEGER"
+            )
+        except sqlite3.OperationalError as e:
+            if "duplicate column name" not in str(e):
+                raise
         conn.execute("""
             CREATE TABLE IF NOT EXISTS thesis_titles (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -96,16 +103,17 @@ def insert_snapshot(
     institutions: list[dict],
     referrers: list[dict],
     window_type: str = "rolling_30d",
+    weekly_downloads: int | None = None,
 ) -> int:
     """Insert one full snapshot (parent row + breakdown rows). Returns snapshot id."""
     with get_db() as conn:
         cur = conn.execute(
             """INSERT INTO thesis_snapshots
                (pulled_at, window_type, window_start, window_end, total_downloads, total_views,
-                total_countries, source_link, raw_json)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                total_countries, source_link, raw_json, weekly_downloads)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (pulled_at, window_type, window_start, window_end, total_downloads, total_views,
-             total_countries, source_link, raw_json),
+             total_countries, source_link, raw_json, weekly_downloads),
         )
         snapshot_id = cur.lastrowid
 
@@ -131,6 +139,15 @@ def insert_snapshot(
             )
 
         return snapshot_id
+
+
+def get_latest_snapshot() -> dict | None:
+    """Most recent snapshot row (before any new insert), or None if this is the first pull."""
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT * FROM thesis_snapshots ORDER BY id DESC LIMIT 1"
+        ).fetchone()
+    return dict(row) if row else None
 
 
 def get_known_countries() -> set[str]:
