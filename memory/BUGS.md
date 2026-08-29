@@ -1,6 +1,6 @@
 # Watson Bug Tracker
 _Auto-generated nightly from bug_tracker. Source of truth is the database — do not hand-edit this file, changes will be overwritten._
-Last generated: 2026-08-28 02:10
+Last generated: 2026-08-29 02:10
 
 ## Open (37)
 | ID | Title | Repo | Discovered |
@@ -70,4 +70,3 @@ Last generated: 2026-08-28 02:10
 | 56 | headcount_sync.py never wired into crontab — Wilmington headcount data missing since 7/27 | watson | 2026-08-04 13:53:32 | 3b1abf94b4e2f87f0675f90be19dc965285e2688 |
 | 57 | devdispatch _worktree_path() mismatches CLI worktree dirname sanitization | watson | 2026-08-04 12:36:50 | c3db18f |
 | 54 | Suggest Fonts narrow stage timed out silently on every real run | watson | 2026-08-02 18:01:26 | 30161e4 |
-| 53 | Dashboard Commands panel missing xkb:/debug:/bug:/run: entries | watson | 2026-07-29 08:58:46 | ad78f46 |
