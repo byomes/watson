@@ -2761,9 +2761,33 @@ async def handle_reject(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    payload = context.args[0] if context.args else ""
+
+    # Leader onboarding: a /start deep link carrying a live claim code has to
+    # work from a chat_id that isn't Bill's, so this check must run before
+    # (and bypass) the _is_authorized gate below -- every other case (no
+    # payload, garbage, or one of the reject_/share_/email_/savelater_
+    # payloads below) falls straight through unchanged, so a stranger
+    # sending /start still gets exactly today's silence.
+    if payload:
+        with get_connection() as conn:
+            claimant = conn.execute(
+                "SELECT id FROM people WHERE telegram_claim_code = ?", (payload,)
+            ).fetchone()
+            if claimant:
+                conn.execute(
+                    "UPDATE people SET telegram_chat_id = ?, telegram_claim_code = NULL "
+                    "WHERE id = ?",
+                    (str(update.effective_chat.id), claimant["id"]),
+                )
+        if claimant:
+            await update.message.reply_text(
+                "You're connected to Watson, Dr. Bill's digital assistant."
+            )
+            return
+
     if not _is_authorized(update):
         return
-    payload = context.args[0] if context.args else ""
     if payload.startswith("reject_") and payload[7:].isdigit():
         await _send_reject_keyboard(update, int(payload[7:]))
     elif payload.startswith("share_") and payload[6:].isdigit():
