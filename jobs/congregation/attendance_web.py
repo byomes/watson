@@ -51,6 +51,15 @@ def _recent_sundays(count: int) -> list[str]:
     return [(latest - timedelta(weeks=i)).isoformat() for i in range(count)]
 
 
+def _last_name_key(name: str) -> str:
+    """Sort key by last name. `members.name` is a single free-text field
+    (no separate first/last columns anywhere in this schema), so this is
+    the same last-whitespace-token heuristic used nowhere else yet but
+    good enough for display ordering."""
+    parts = (name or "").strip().split()
+    return parts[-1].lower() if parts else ""
+
+
 def _require_key(f):
     @wraps(f)
     def wrapper(*args, **kwargs):
@@ -69,9 +78,9 @@ def get_state():
 
     with _conn() as conn:
         members = conn.execute(
-            "SELECT id, name, campus_preference FROM members "
-            "WHERE member_status = 'active' ORDER BY name COLLATE NOCASE"
+            "SELECT id, name, campus_preference FROM members WHERE member_status = 'active'"
         ).fetchall()
+        members = sorted(members, key=lambda m: (_last_name_key(m["name"]), m["name"] or ""))
         present_ids = {
             row["member_id"]
             for row in conn.execute(
