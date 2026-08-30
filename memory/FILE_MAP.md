@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-08-29*
+*Generated: 2026-08-30*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -3297,6 +3297,7 @@ jobs/
     __init__.py
     citations.py
     db.py
+    migrate_backfill_weekly_downloads.py
     scrape.py
   time_check.py
   tools/
@@ -4562,6 +4563,8 @@ tsconfig.json
 .env.example
 .env.local
 .gitignore
+AGENTS.md
+CLAUDE.md
 eslint.config.mjs
 next-env.d.ts
 next.config.ts
