@@ -331,6 +331,7 @@ now a confirmed-closed result, not an open gap pending a retest.
 - `jobs/meet/summarize.py` — Meet transcript summarization via Scribbl → Gmail → Watson
 - `jobs/trading/` — Paper-trading strategy pipeline (Alpaca paper API only) — see Paper-Trading Strategy Pipeline section below
 - `jobs/tools/` — wtsn.me public-tools registry (register/query/gate `public_tools` rows, `/api/tools/resolve/<slug>` blueprint) — no cron entry, purely dispatch/on-demand: tools are registered by a build step, gated live by Telegram confirm, never scheduled — see Public Tools (wtsn.me) below
+- `jobs/telegram/` — `seed_claim_codes.py` (one-off leader onboarding), `send_to_person.py` (generic per-person send), `pending.py`, `resend_last.py` — no cron entry, seeding is manual/one-off per leader — see Telegram Leader Onboarding above
 
 ---
 
@@ -515,6 +516,57 @@ Three sections, each suppressed if empty: WILMINGTON CAMPUS / ONLINE CAMPUS / HY
 ### Conflict Resolution
 Sunday 5pm Telegram report with 3-button resolution: Keep Old / Keep New / Skip
 Dashboard trigger available: "Run Conflict Check" in More tab.
+
+---
+
+## Telegram Leader Onboarding
+
+Lets Watson send Telegram messages to specific leaders beyond Bill —
+without opening group channels or broadcasting. Built 2026-08-30.
+Registration + generic send capability only; which recurring reports
+actually route to Telegram for a given leader is decided job-by-job,
+separately, once that leader is actually connected.
+
+**The bot is otherwise single-tenant.** Every handler in `bot/bot.py`
+guards on `_is_authorized(update)` — `update.effective_chat.id` matched
+against one hardcoded ID (Bill's, via `TELEGRAM_CHAT_ID`/`WATSON_CHAT_ID`).
+Onboarding a new person means getting their real chat_id written to
+`people.telegram_chat_id` from a `/start` message sent by *their* chat_id
+— which the gate would otherwise silently drop.
+
+- **Schema:** `people.telegram_claim_code` (nullable `TEXT`, uniqueness
+  enforced via a separate index rather than an inline `UNIQUE` — SQLite's
+  `ALTER TABLE ADD COLUMN` rejects that directly) —
+  `jobs/people/migrate_telegram_claim_code.py`. `people.telegram_chat_id`
+  already existed (populated for Bill only, otherwise unused by any code
+  path before this build) and is reused as-is.
+- **Seed a leader:** `python3 jobs/telegram/seed_claim_codes.py "Full Name"`
+  — looks up/creates the `people` row, generates an unguessable 8-char
+  `secrets`-based code, prints a deep link:
+  `https://t.me/wckyWatsonbot?start=<code>`. Not a scheduled job — run
+  manually, once per leader. Bill hand-delivers the link (text, email, in
+  person) — not automated.
+- **Claim flow (`handle_start` in `bot/bot.py`):** the claim-code check
+  runs *before*, and bypasses, the `_is_authorized` gate — the only
+  carve-out anywhere in the bot. If the `/start` payload exactly matches
+  a live `telegram_claim_code`, that row's `telegram_chat_id` is set to
+  the sender's chat_id, the code is cleared, and the bot replies
+  confirming the connection. Any other payload — empty, garbage, or one
+  of the existing `reject_`/`share_`/`email_`/`savelater_` payloads —
+  falls through unchanged to the normal gate, so a stranger sending a
+  bare `/start` still gets today's total silence, not a reply.
+- **Send helper:** `jobs/telegram/send_to_person.py` —
+  `send_to_person(person_id, message) -> bool`. Generic, one person per
+  call — no group/channel sends, no broadcast-all helper. Returns
+  `False` (and logs) if the person has no `telegram_chat_id` yet; never
+  falls back to Bill's own chat.
+
+**Status (2026-08-30):** built, migrated, and deployed
+(`watson-bot.service` restarted). Three claim codes seeded — Donna
+Redman, Jim Bouchat, Bill Crook — links generated but not yet confirmed
+delivered/claimed as of this writing. No existing report has been
+rewired to send via `send_to_person()` yet — deliberately deferred, to
+be picked job-by-job once a given leader is actually connected.
 
 ---
 
