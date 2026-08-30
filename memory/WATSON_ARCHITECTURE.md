@@ -2960,3 +2960,20 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - 421d2af docs: file map 2026-08-29
 - bef91e6 Add romantic trip finder, plus other in-progress work already in the tree
 - b230a2f docs: architecture update 2026-08-28
+
+---
+
+## Recent Changes — 2026-08-30
+
+### ~/watson
+- 6de9e74 docs: bugs/backlog export 2026-08-30
+- a2d2560 docs: file map 2026-08-30
+- 9a62ce9 fix: add missing /api/thesis-tracker/citations route
+- 925887e feat: show weekly downloads on Thesis Tracker dashboard card
+- 3218f25 feat: add weekly downloads to thesis_tracker Telegram alert
+- 62915f6 docs: regenerate Skills & Capabilities Catalog
+- de8f879 docs: architecture update 2026-08-29
+
+### ~/watson-tools
+- a02287b Fix /ham redirect loop in the hamprep rewrite
+- 638cf51 Add rewrite for wtsn.me/ham -> hamprep exam prep app
