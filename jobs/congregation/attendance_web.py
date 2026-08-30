@@ -33,6 +33,8 @@ _API_KEY = lambda: os.getenv("ATTENDANCE_API_KEY", "")
 
 _RECENT_SUNDAYS_COUNT = 10
 
+_VALID_CAMPUS_PREFERENCES = ("Wilmington", "Online", "Hybrid", "Inactive")
+
 
 def _conn():
     conn = sqlite3.connect(DB_PATH)
@@ -89,20 +91,33 @@ def get_state():
             )
         }
 
-    wilmington, online = [], []
+    wilmington, online, inactive = [], [], []
     for m in members:
-        entry = {"id": m["id"], "name": m["name"], "present": m["id"] in present_ids}
         pref = m["campus_preference"]
-        if pref in (None, "", "Wilmington", "Hybrid"):
-            wilmington.append(entry)
-        if pref in ("Online", "Hybrid"):
-            online.append(entry)
+        # Unset/unrecognized values default to Wilmington, same as the
+        # pre-Inactive fallback -- preserved here so old rows with a NULL
+        # campus_preference don't silently vanish from either list.
+        resolved_pref = pref if pref in _VALID_CAMPUS_PREFERENCES else "Wilmington"
+        entry = {
+            "id": m["id"],
+            "name": m["name"],
+            "present": m["id"] in present_ids,
+            "campus_preference": resolved_pref,
+        }
+        if resolved_pref == "Inactive":
+            inactive.append(entry)
+        else:
+            if resolved_pref in ("Wilmington", "Hybrid"):
+                wilmington.append(entry)
+            if resolved_pref in ("Online", "Hybrid"):
+                online.append(entry)
 
     return jsonify({
         "service_date": service_date,
         "recent_sundays": _recent_sundays(_RECENT_SUNDAYS_COUNT),
         "wilmington": wilmington,
         "online": online,
+        "inactive": inactive,
     }), 200
 
 
@@ -146,3 +161,28 @@ def toggle():
         conn.commit()
 
     return jsonify({"member_id": member_id, "service_date": service_date, "present": present}), 200
+
+
+@attendance_web_bp.route("/api/cat/attendance/campus", methods=["POST"])
+@_require_key
+def set_campus():
+    data = request.get_json(force=True) or {}
+    member_id = data.get("member_id")
+    campus_preference = (data.get("campus_preference") or "").strip()
+
+    if not isinstance(member_id, int):
+        return jsonify({"error": "member_id (int) is required"}), 400
+    if campus_preference not in _VALID_CAMPUS_PREFERENCES:
+        return jsonify({"error": f"campus_preference must be one of {_VALID_CAMPUS_PREFERENCES}"}), 400
+
+    with _conn() as conn:
+        existing = conn.execute("SELECT id FROM members WHERE id = ?", (member_id,)).fetchone()
+        if not existing:
+            return jsonify({"error": "not found"}), 404
+        conn.execute(
+            "UPDATE members SET campus_preference = ?, updated_at = datetime('now') WHERE id = ?",
+            (campus_preference, member_id),
+        )
+        conn.commit()
+
+    return jsonify({"member_id": member_id, "campus_preference": campus_preference}), 200
