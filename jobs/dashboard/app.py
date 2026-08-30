@@ -333,6 +333,9 @@ app.register_blueprint(publishing_dashboard_bp)
 from jobs.congregation.deacon_admin_api import deacon_admin_bp
 app.register_blueprint(deacon_admin_bp)
 
+from jobs.congregation.attendance_web import attendance_web_bp
+app.register_blueprint(attendance_web_bp)
+
 from jobs.team.api import team_bp
 app.register_blueprint(team_bp)
 
