@@ -74,7 +74,7 @@ def _send(to: str, subject: str, html: str, preview: bool = False) -> None:
 
     text_fallback = re.sub(r"<[^>]+>", "", html)
 
-    recipients = [to] + ([cc] if cc else [])
+    recipients = list(dict.fromkeys([to] + ([cc] if cc else [])))
     for recipient in recipients:
         result = send_email(
             to_email=recipient, to_name="", subject=subject,
@@ -83,7 +83,7 @@ def _send(to: str, subject: str, html: str, preview: bool = False) -> None:
         if not result["success"]:
             raise RuntimeError(f"Brevo send to {recipient} failed: {result['error']}")
 
-    cc_note = f", CC {cc}" if cc else ""
+    cc_note = f", CC {cc}" if cc and cc not in (to,) else ""
     print(f"Sent: {subject!r} → {to}{cc_note}")
 
 
