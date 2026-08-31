@@ -148,16 +148,25 @@ step "Step 7: Installing Tailscale"
 # package" — and since step 6 installs that whole list as one atomic xargs
 # command, one missing package would abort everything after it (found by
 # testing this script for real, see docs/RECOVERY.md). Tailscale's official
-# installer adds its own apt repo first, then installs the package.
+# installer adds its own apt repo first, then installs the package. Needs
+# `curl`/`ca-certificates` from deploy/apt-packages.txt (step 6).
 curl -fsSL https://tailscale.com/install.sh | sh
 
-step "Step 8: Creating watson's virtualenv and installing requirements"
+step "Step 8: Installing Ollama"
+# Also never installable via deploy/apt-packages.txt — Ollama isn't in
+# Ubuntu's apt repos either. Its official installer sets up its own systemd
+# service (enabled and started automatically), which step 12 depends on for
+# `ollama pull`. Needs `curl` and `zstd` (extraction) from step 6 — found by
+# testing this script for real, see docs/RECOVERY.md.
+curl -fsSL https://ollama.com/install.sh | sh
+
+step "Step 9: Creating watson's virtualenv and installing requirements"
 python3 -m venv "$CLONE_DIR/venv"
 "$CLONE_DIR/venv/bin/pip" install --upgrade pip
 "$CLONE_DIR/venv/bin/pip" install -r "$CLONE_DIR/requirements.txt"
 echo "venv ready at $CLONE_DIR/venv"
 
-step "Step 9: Reinstalling dependencies for other restored repos"
+step "Step 10: Reinstalling dependencies for other restored repos"
 echo "Regenerating node_modules/venv for every other repo the backup"
 echo "restored — these were deliberately excluded from the backup itself"
 echo "(regenerable, not worth the backup size/time)."
@@ -179,7 +188,7 @@ for repo_dir in "$HOME"/*/; do
     fi
 done
 
-step "Step 10: Restoring crontab"
+step "Step 11: Restoring crontab"
 if [ -n "$CRONTAB_SNAPSHOT" ] && [ -f "$CRONTAB_SNAPSHOT" ]; then
     crontab "$CRONTAB_SNAPSHOT"
     echo "Crontab restored from $CRONTAB_SNAPSHOT"
@@ -187,14 +196,14 @@ else
     echo "WARNING: no crontab snapshot found — crontab not restored"
 fi
 
-step "Step 11: Installing systemd services"
+step "Step 12: Installing systemd services"
 sudo cp deploy/*.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now watson-bot.service
 sudo systemctl enable --now watson-dashboard.service
 echo "watson-bot.service and watson-dashboard.service enabled and started"
 
-step "Step 12: Pulling Ollama models"
+step "Step 13: Pulling Ollama models"
 if [ -f "deploy/ollama-models.txt" ]; then
     while IFS= read -r model; do
         [ -z "$model" ] && continue
@@ -205,7 +214,7 @@ else
     echo "WARNING: deploy/ollama-models.txt not found, skipping model pulls"
 fi
 
-step "Step 13: Starting FlareSolverr"
+step "Step 14: Starting FlareSolverr"
 if [ -f "deploy/flaresolverr_run.sh" ]; then
     bash deploy/flaresolverr_run.sh
 else

@@ -8,3 +8,6 @@ docker.io
 ffmpeg
 git
 cron
+curl
+ca-certificates
+zstd

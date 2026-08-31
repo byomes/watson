@@ -52,27 +52,33 @@ In order:
 5. Fixes `~/.ssh` permissions (`chmod 700` dir, `600` private keys, `644`
    public keys)
 6. Installs the rest of `deploy/apt-packages.txt` (python3, sqlite3, rclone,
-   docker.io, ffmpeg, cron, etc. — deliberately NOT tailscale, see step 7)
+   docker.io, ffmpeg, cron, curl, ca-certificates, zstd, etc. — deliberately
+   NOT tailscale or ollama, see steps 7-8)
 7. Installs Tailscale via its official installer
    (`curl -fsSL https://tailscale.com/install.sh | sh`) — not from
    `deploy/apt-packages.txt`, because `tailscale` isn't in stock Ubuntu's
    apt repos and would abort step 6's atomic install of everything else
-8. Creates the watson venv and `pip install -r requirements.txt`
-9. Regenerates dependencies for every other restored repo — `npm install`
-   where a `package.json` exists, a fresh venv + `pip install` where a
-   `requirements.txt` exists (these were deliberately excluded from the
-   backup itself as regenerable)
-10. `crontab`s the restored crontab snapshot
-11. Copies `deploy/*.service` into `/etc/systemd/system/`, runs
+8. Installs Ollama via its official installer
+   (`curl -fsSL https://ollama.com/install.sh | sh`) — same reason as
+   Tailscale; also sets up and starts Ollama's own systemd service, which
+   step 13 depends on
+9. Creates the watson venv and `pip install -r requirements.txt`
+10. Regenerates dependencies for every other restored repo — `npm install`
+    where a `package.json` exists, a fresh venv + `pip install` where a
+    `requirements.txt` exists (these were deliberately excluded from the
+    backup itself as regenerable)
+11. `crontab`s the restored crontab snapshot
+12. Copies `deploy/*.service` into `/etc/systemd/system/`, runs
     `systemctl daemon-reload`, enables and starts `watson-bot.service` and
     `watson-dashboard.service`
-12. Loops `ollama pull <model>` for every line in `deploy/ollama-models.txt`
-13. Runs `deploy/flaresolverr_run.sh` to start the FlareSolverr container
+13. Loops `ollama pull <model>` for every line in `deploy/ollama-models.txt`
+14. Runs `deploy/flaresolverr_run.sh` to start the FlareSolverr container
 
 The script prints progress at each step and ends with the manual checklist
 below.
 
-**Tested 2026-08-30** end-to-end, twice, against a synthetic fake backup:
+**Tested 2026-08-30** end-to-end, three times, against a synthetic fake
+backup:
 
 - **Pass 1** (plain Docker container, steps 1-9 — restic/git bootstrap
   through the old step 9's crontab restore): confirmed the watson repo
@@ -101,6 +107,29 @@ below.
   systemd were ever reached. Fixed by moving `tailscale` out of
   `deploy/apt-packages.txt` and into its own step using Tailscale's
   official installer (which adds the repo itself).
+- **Pass 3** (same systemd-enabled container, adding a real — but trimmed —
+  Ollama pull and a real nested Docker daemon for FlareSolverr): as
+  predicted from reading the code, the unmodified script died at old step
+  12 with `ollama: command not found`, exit 127 — nothing in the script or
+  `deploy/apt-packages.txt` ever installed the `ollama` binary itself, only
+  assumed it. Once Ollama was installed manually to test downstream:
+  `ollama pull llama3.2:1b` succeeded exactly matching the script's loop
+  logic, and `deploy/flaresolverr_run.sh` started a real container in an
+  isolated nested Docker daemon (never the host's) — `curl localhost:8191`
+  returned HTTP 200, and re-running it correctly hit the "already exists,
+  skipping" idempotency check with no duplicate. Fixed by adding a
+  dedicated Ollama install step (step 8, its official installer). That in
+  turn surfaced two more real gaps: Tailscale's installer (added in pass 2)
+  needs `curl`, not in `deploy/apt-packages.txt` at the time, so it would
+  have failed *before* Tailscale, venv setup, npm, crontab, systemd, or
+  Ollama ever ran — and Ollama's installer additionally needs `zstd` for
+  extraction. Both added to `deploy/apt-packages.txt` (along with
+  `ca-certificates`, the usual companion for `curl`-based HTTPS installers).
+  Two container-only artifacts surfaced during testing, not script bugs:
+  the `ubuntu:24.04` base image ships a `policy-rc.d` that blocks services
+  from auto-starting after `apt install` (bare-metal/VM installs don't have
+  this), and nested Docker-in-Docker hit an overlay2-on-overlay2 storage
+  conflict that a single non-nested daemon on real hardware won't hit.
 
 ## Manual follow-up steps (required after running the script)
 
