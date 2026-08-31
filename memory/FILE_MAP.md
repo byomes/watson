@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-08-30*
+*Generated: 2026-08-31*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -2922,9 +2922,12 @@ jobs/
     wordlist.txt
   congregation/
     __init__.py
+    attendance_web.py
     batch_intake.py
     deacon_admin_api.py
     deacon_reports.py
+    duplicate_review.py
+    duplicates_weekly_notify.py
     import_deacon_directory.py
     init_db.py
     member_match.py
@@ -3183,6 +3186,7 @@ jobs/
     google_contacts.py
     lookup.py
     migrate.py
+    migrate_telegram_claim_code.py
     registry.py
     server.py
   privacy/
@@ -3291,8 +3295,12 @@ jobs/
     weekly_completed_report.py
   telegram/
     __init__.py
+    dashboard_api.py
+    migrate_recipient.py
     pending.py
     resend_last.py
+    seed_claim_codes.py
+    send_to_person.py
   thesis_tracker/
     __init__.py
     citations.py
@@ -3970,6 +3978,7 @@ content/
     2026-06-12-god-doesn-t-do-detours.md
     2026-06-14-stop-making-yourself-the-main-character.md
     2026-06-17-the-inheritance-you-didn-t-build.md
+    2026-06-19-be-strong-and-courageous-is-not-a-feeling.md
     2026-06-21-covenant-before-conquest.md
     2026-06-24-passion-isn-t-character.md
     2026-06-26-still-fighting-for-someone-else-s-land.md
@@ -3998,6 +4007,9 @@ content/
     2026-08-18-faith-looks-foolish-from-the-wall.md
     2026-08-20-holy-and-devoted-two-words-for-belonging-to-god.md
     2026-08-22-is-this-genocide-reading-joshua-6-honestly.md
+    2026-08-25-rahab-and-the-allegiance-that-saves.md
+    2026-08-27-when-one-sin-belongs-to-everyone.md
+    2026-08-29-the-danger-of-yesterday-s-victory.md
     the-flashlight-of-your-focus.md
     where-your-treasure-is.md
 db/
@@ -4563,6 +4575,9 @@ tsconfig.json
 .env.example
 .env.local
 .gitignore
+.vercel/
+  README.txt
+  project.json
 AGENTS.md
 CLAUDE.md
 eslint.config.mjs
@@ -4578,12 +4593,34 @@ src/
         page.tsx
     api/
       cat/
+        attendance/
+          campus/
+            route.ts
+          state/
+            route.ts
+          toggle/
+            route.ts
         connect/
           route.ts
+        duplicates/
+          dismiss/
+            route.ts
+          list/
+            route.ts
+          merge/
+            route.ts
+          rescan/
+            route.ts
     cat/
+      attendance/
+        AttendanceBoard.tsx
+        page.tsx
       connect/
         ConnectCardForm.tsx
         layout.tsx
+        page.tsx
+      duplicates/
+        DuplicateReviewBoard.tsx
         page.tsx
     globals.css
     layout.tsx
@@ -4595,4 +4632,5 @@ src/
     watson.ts
   proxy.ts
 tsconfig.json
+tsconfig.tsbuildinfo
 ```
