@@ -68,6 +68,19 @@ In order:
 The script prints progress at each step and ends with the manual checklist
 below.
 
+**Tested 2026-08-30** end-to-end against a synthetic fake backup in a Docker
+container (steps 1-9 — restic/git bootstrap through crontab restore; steps
+10-12 aren't testable in a plain container, no real init system, and are
+unchanged from the previously-shipped script). Confirmed: the watson repo
+restores with `.git` intact rather than falling back to a GitHub clone, the
+DB overwrite step correctly picks the consistency-safe snapshot over the
+raw repo-tree copy, `~/.ssh` permissions land correctly, and dependency
+reinstall works for other restored repos. Found and fixed one real bug:
+`deploy/apt-packages.txt` was missing `cron`, so step 9 (`crontab
+$CRONTAB_SNAPSHOT`) failed with `crontab: command not found` on a minimal
+fresh machine and aborted the whole script — a full Ubuntu Server ISO
+usually has `cron` preinstalled, but nothing here guaranteed it.
+
 ## Manual follow-up steps (required after running the script)
 
 ### 1. Re-register with Tailscale
@@ -109,6 +122,17 @@ Watson** with its own Postgres-backed book catalog. It is not covered by
 `scripts/watson_recover.sh`. Follow Gutendex's own setup process to rebuild
 the catalog (originally built via `finish_catalog_load.py` — see
 `memory/DEV_PROJECTS.md` item #19 for known staleness caveats).
+
+### 5. Clear git's "dubious ownership" warning on the restored repo
+
+If the account running `git` commands afterward doesn't have the exact same
+uid as whichever account the backup was taken from, the first `git status`
+or `git pull` in the restored `~/watson` prints a "detected dubious
+ownership" warning (harmless, but easy to mistake for something broken):
+
+```bash
+git config --global --add safe.directory /home/billyomes/watson
+```
 
 ## Edge case: local backup drive also lost (true disaster, not planned upgrade)
 
