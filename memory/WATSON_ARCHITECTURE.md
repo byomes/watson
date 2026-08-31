@@ -500,12 +500,12 @@ All non-active statuses excluded from: missed report, shepherding report, State 
 reply emails to the missed report and auto-set `active = 0` for anyone under
 a "Non-Active" heading) was **deleted 2026-08-31** — corrections and
 inactive-marking now go through `wtsn.me/cat/attendance` (Jim) instead of
-reply-email parsing. `missed_report.py` still asks recipients to reply with
-corrections and `jobs/email_intake.py` still specially defers those replies
-(`_is_missed_report_reply()`, `~line 1022`) expecting `correction_handler.py`
-to pick them up — nothing does anymore, so those replies now sit unread
-indefinitely. Not yet fixed; flagged to Bill 2026-08-31, needs a decision on
-new copy/routing.
+reply-email parsing. Same day: `missed_report.py`'s footer now points
+recipients at `https://wtsn.me/cat/attendance` instead of soliciting reply
+corrections, and `jobs/email_intake.py`'s `_is_missed_report_reply()`
+deferral (which left those replies unread waiting for
+`correction_handler.py`) was removed — such replies now fall through to
+normal handling instead of sitting unread indefinitely.
 
 ### Campus Classification (`campus_preference` column)
 Values: `Wilmington`, `Online`, `Hybrid`, `Inactive`
