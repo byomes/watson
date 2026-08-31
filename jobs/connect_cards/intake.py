@@ -263,6 +263,13 @@ def _parse_html(html: str) -> dict | None:
 
 # ── Service date ──────────────────────────────────────────────────────────────
 
+def _attendance_exists(conn: sqlite3.Connection, member_id: int, service_date: str) -> bool:
+    return conn.execute(
+        "SELECT 1 FROM attendance WHERE member_id = ? AND service_date = ?",
+        (member_id, service_date),
+    ).fetchone() is not None
+
+
 def _service_date(received_dt) -> str:
     d = received_dt.date() if hasattr(received_dt, "date") else received_dt
     days_back = (d.weekday() + 1) % 7
@@ -460,14 +467,19 @@ def _process_email(msg, dry_run: bool, conn: sqlite3.Connection) -> bool:
             (card_id, conflict_row_id),
         )
 
-    # attendance (one row per card)
-    conn.execute(
-        """
-        INSERT INTO attendance (member_id, service_date, campus, card_id)
-        VALUES (?, ?, ?, ?)
-        """,
-        (member_id, svc_date, fields.get("campus") or "", card_id),
-    )
+    # attendance -- keyed by (member_id, service_date) only (matching
+    # attendance_web.py's data model note and attendance_intake.py's same
+    # check), so a card for someone already marked present that Sunday
+    # (tool toggle, Donna's list, or an earlier card) must not add a
+    # second row -- reports that COUNT(*) FROM attendance rely on this.
+    if not _attendance_exists(conn, member_id, svc_date):
+        conn.execute(
+            """
+            INSERT INTO attendance (member_id, service_date, campus, card_id)
+            VALUES (?, ?, ?, ?)
+            """,
+            (member_id, svc_date, fields.get("campus") or "", card_id),
+        )
 
     # next_steps
     for ns_label in fields.get("next_steps") or []:
