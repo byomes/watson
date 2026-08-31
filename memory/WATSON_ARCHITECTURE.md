@@ -286,7 +286,6 @@ now a confirmed-closed result, not an open gap pending a retest.
 | `jobs/connect_cards/email_reports.py --donna` | Tue 5am | Attendance → Donna |
 | `jobs/connect_cards/attendance_intake.py` | Every 30 min | Attendance intake |
 | `jobs/connect_cards/correction_handler.py` | Every 30 min | Attendance corrections |
-| `jobs/connect_cards/campus_classifier.py` | Mon 5:45am | Classify member campus from 8-week connect card history |
 | `jobs/connect_cards/missed_report.py` | Mon 6am | Missed report — 3 sections: Wilmington, Online, Hybrid — recipients: Bill, Donna, Kaci |
 | `jobs/connect_cards/shepherding_report.py` | Wed 6am | Pastoral care digest |
 | `jobs/connect_cards/conflict_report.py` | Sun 5pm | Member conflict report with 3-button Telegram resolution |
@@ -499,16 +498,20 @@ Every prefix here also works typed directly in dashboard/Telegram chat, not just
 All non-active statuses excluded from: missed report, shepherding report, State of the Church members-not-seen list.
 
 ### Campus Classification (`campus_preference` column)
-Values: `Wilmington`, `Online`, `Hybrid`
+Values: `Wilmington`, `Online`, `Hybrid`, `Inactive`
 
-**Classifier logic** (`jobs/connect_cards/campus_classifier.py`, runs Mon 5:45am):
-1. Count Online vs Wilmington connect cards in last 56 days
-2. Both ≥ 2 → Hybrid
-3. Either ≥ 5 (not hybrid) → that campus
-4. Middle zone → whichever is higher; Wilmington tiebreak
-5. No cards in 8 weeks → Wilmington
+**Manually managed only** — as of 2026-08-31, campus is set by Jim (or any
+staff with access) via the `wtsn.me/cat/attendance` tool
+(`jobs/congregation/attendance_web.py`, `/api/cat/attendance/campus`), and via
+manual override in the dashboard Member Management panel. There is no
+automatic classifier.
 
-Manual override available in dashboard Member Management panel.
+`jobs/connect_cards/campus_classifier.py` (Mon 5:45am cron) was **deleted
+2026-08-31** — it unconditionally overwrote `campus_preference` for every
+active member each week from 8-week connect-card counts, with no awareness
+of `Inactive` (added 2026-08-30). It silently reverted 15 members that staff
+had just marked Inactive back to `Wilmington` on its very next run. See
+`bug_tracker` id 110 in `data/watson.db`.
 
 ### Missed Report Sections
 Three sections, each suppressed if empty: WILMINGTON CAMPUS / ONLINE CAMPUS / HYBRID CAMPUS
