@@ -1,7 +1,7 @@
 # Watson Recovery
 
-Runbook for rebuilding Watson on a fresh machine from (a) the git repo and
-(b) the local restic backup on the external drive
+Runbook for rebuilding Watson on a fresh machine from the local restic
+backup on the external drive
 (`jobs/backup_local.py` → `/mnt/family-storage/watson/restic-repo`).
 
 This is a **human-run, interactive** process — `scripts/watson_recover.sh`
@@ -20,28 +20,50 @@ drive moved over from the old Beelink, or a copy of it.
 bash scripts/watson_recover.sh /path/to/mounted/restic-repo
 ```
 
+**Design note — the restore is scope-generic, not a hardcoded list.** The
+script doesn't know (or need to know) that `jobs/backup_local.py` backs up
+`memory/`, or `kb/documents/`, or the `curator` repo, or `~/.claude/projects`.
+It mirrors *whatever the backup actually contains* under `$HOME` back to its
+original absolute path. When backup scope changes in `jobs/backup_local.py`
+(a new repo added to `CODE_REPO_SOURCES`, a new path added to `DIR_SOURCES`,
+a new DB added to `DB_NAMES`), this script restores it correctly with no
+update needed — there's no second list to keep in sync. The only
+hand-maintained exceptions are things that need special handling regardless
+of *what* is backed up: the DB snapshots and crontab.txt live in a
+randomly-named temp directory each night (matched by `*.db` / `crontab.txt`,
+not by name), and `~/.ssh` needs its permissions fixed up after restore.
+
 In order:
 
-1. Installs packages from `deploy/apt-packages.txt` via `apt install -y`
-   (python3, python3-venv, python3-pip, sqlite3, restic, rclone, docker.io,
-   ffmpeg, git, tailscale)
-2. `git clone`s `github.com/byomes/watson` (prompts for target directory,
-   defaults to `~/watson`)
-3. `restic restore latest --target <staging-dir>` from the given repo path
-   — restores `.env`, `config/`, `data/chroma/`, `memory/`, the four DB
-   snapshots, `~/.ssh`, `rclone.conf`, and the crontab snapshot
-4. Moves the restored files into their real locations:
-   - `.env`, `config/`, `data/chroma/`, `memory/`, and the DB snapshots into
-     the cloned repo
-   - `~/.ssh` keys into `~/.ssh/`, with `chmod 600` on private keys
-   - `rclone.conf` into `~/.config/rclone/`
-5. Creates the Python venv and `pip install -r requirements.txt`
-6. `crontab`s the restored crontab snapshot
-7. Copies `deploy/*.service` into `/etc/systemd/system/`, runs
-   `systemctl daemon-reload`, enables and starts `watson-bot.service` and
-   `watson-dashboard.service`
-8. Loops `ollama pull <model>` for every line in `deploy/ollama-models.txt`
-9. Runs `deploy/flaresolverr_run.sh` to start the FlareSolverr container
+1. Installs `restic` and `git` (minimal bootstrap — everything else comes
+   from `deploy/apt-packages.txt` once the watson repo is restored)
+2. `restic restore latest --target <staging-dir>` from the given repo path
+3. Mirrors every backed-up path under `$HOME` back into place — this is
+   where the watson repo itself lands (complete with `.git`, `.env`,
+   `config/`, `data/`, `memory/`, `kb/documents/`, any uncommitted changes
+   or unpushed commits/branches), alongside every other actively-developed
+   repo (`wcky`, `curator`, `bodyrec`, etc.), `~/.ssh`, `~/.config/rclone/`,
+   and `~/.claude/projects`. Falls back to a fresh `git clone` from GitHub
+   only if the watson repo is unexpectedly missing from the backup (losing
+   anything never pushed, in that case)
+4. Overwrites `data/*.db` with the consistency-safe `sqlite3 .backup`
+   snapshots from the random temp directory (the raw copies from step 3 can
+   be mid-write and aren't trusted), and locates the crontab snapshot there
+5. Fixes `~/.ssh` permissions (`chmod 700` dir, `600` private keys, `644`
+   public keys)
+6. Installs the rest of `deploy/apt-packages.txt` (python3, sqlite3, rclone,
+   docker.io, ffmpeg, tailscale, etc.)
+7. Creates the watson venv and `pip install -r requirements.txt`
+8. Regenerates dependencies for every other restored repo — `npm install`
+   where a `package.json` exists, a fresh venv + `pip install` where a
+   `requirements.txt` exists (these were deliberately excluded from the
+   backup itself as regenerable)
+9. `crontab`s the restored crontab snapshot
+10. Copies `deploy/*.service` into `/etc/systemd/system/`, runs
+    `systemctl daemon-reload`, enables and starts `watson-bot.service` and
+    `watson-dashboard.service`
+11. Loops `ollama pull <model>` for every line in `deploy/ollama-models.txt`
+12. Runs `deploy/flaresolverr_run.sh` to start the FlareSolverr container
 
 The script prints progress at each step and ends with the manual checklist
 below.

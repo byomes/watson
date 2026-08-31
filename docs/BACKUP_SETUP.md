@@ -15,9 +15,10 @@ excluding regenerable directories (`node_modules`, `venv`/`.venv`, `.next`,
 `dist`, `build`, `__pycache__`). Because it's a real filesystem backup (not
 just `git push`), this captures uncommitted changes and unpushed
 commits/branches too — a dead Beelink no longer means losing anything that
-never made it to GitHub. To recreate Watson on a new machine: restore this
-restic snapshot, then re-run each repo's normal install step (`pip install
--r requirements.txt`, `npm install`) to regenerate the excluded directories.
+never made it to GitHub. `scripts/watson_recover.sh` (see `docs/RECOVERY.md`)
+restores this snapshot generically and re-runs each repo's install step
+(`pip install -r requirements.txt`, `npm install`) automatically — it has no
+hardcoded list of what's backed up, so it stays correct as this scope grows.
 
 The drive is `/mnt/family-storage` — an already-mounted 2TB HDD that also
 serves as family NAS storage. It is **not** dedicated to Watson. Watson's
