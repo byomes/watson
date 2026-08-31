@@ -339,6 +339,9 @@ app.register_blueprint(attendance_web_bp)
 from jobs.congregation.duplicate_review import duplicate_review_bp
 app.register_blueprint(duplicate_review_bp)
 
+from jobs.congregation.deacons_web import deacons_web_bp
+app.register_blueprint(deacons_web_bp)
+
 from jobs.team.api import team_bp
 app.register_blueprint(team_bp)
 
