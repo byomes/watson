@@ -62,6 +62,13 @@ _ROSTER_FIELDS = (
 
 _UPDATABLE_FIELDS = {"deacon", "deacon_status", "email", "phone", "address"}
 
+# EXCLUDED_DEACON_VALUES (from deacon_reports.py) also contains "Inactive" --
+# that exclusion is about keeping it out of list_deacons()/Master Report
+# sections, not about blocking it here. This tool is exactly where a deacon
+# is meant to set someone to "Inactive" (or move them back off it), so only
+# the three truly-reserved bucket labels are blocked from being PATCHed.
+_BLOCKED_DEACON_VALUES = EXCLUDED_DEACON_VALUES - {"Inactive"}
+
 
 def _attach_shepherding_info(conn, people: list[dict]) -> None:
     """Mutates each person dict in place: prayer_requests (leadership_only
@@ -140,7 +147,7 @@ def update_member(member_id):
         # A brand-new name here becomes a real, selectable deacon the moment
         # it's saved -- only the reserved bucket labels are blocked.
         deacon_val = (fields["deacon"] or "").strip()
-        if deacon_val in EXCLUDED_DEACON_VALUES:
+        if deacon_val in _BLOCKED_DEACON_VALUES:
             return jsonify({"error": f"{deacon_val!r} is a reserved label, not an individual deacon"}), 400
         fields["deacon"] = deacon_val or None
 

@@ -55,8 +55,15 @@ ELDERS_EMAIL = "elders@catalyst302.com"
 MASTER_ELDER_NAME = "Jim Bouchat"
 PASTOR_LIST_LABEL = "Pastor Bill's List — Deacons & Families"
 
-# members.deacon values that are group/bucket labels, not one addressable deacon
-EXCLUDED_DEACON_VALUES = {"Elders & Deacons", "~ Admin", "P Bill Yomes"}
+# members.deacon values that are group/bucket labels, not one addressable deacon.
+# "Inactive" (added 2026-08-31) is the deacons_web.py roster's shepherding-roll
+# bucket for members whose campus_preference is also "Inactive" -- deliberately
+# excluded here so it never gets its own Master Report section or email, same
+# as the other three. Unlike those three, it IS a settable value in
+# deacons_web.py's PATCH (a deacon can move someone onto or off of it) --
+# see that module's own _BLOCKED_DEACON_VALUES, which excludes "Inactive"
+# from the reserved/blocked set this constant would otherwise imply.
+EXCLUDED_DEACON_VALUES = {"Elders & Deacons", "~ Admin", "P Bill Yomes", "Inactive"}
 
 # members.deacon value -> canonical members.name, for values that don't match
 # the member record's name exactly (see deacon_directory_report_20260824-*.md
