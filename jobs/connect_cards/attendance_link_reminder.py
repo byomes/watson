@@ -3,11 +3,8 @@ Attendance link reminder — Sunday 3pm nudge to add human corrections
 before missed_report.py runs Tuesday 7am.
 
 Sends a Telegram message with the wtsn.me/cat/attendance link to Jim
-Bouchat, Donna Redman, and Bill Yomes via jobs/telegram/send_to_person.py.
-Bill Crook is intentionally omitted -- as of 2026-08-31 he has an
-outstanding claim link (jobs/telegram/seed_claim_codes.py) but hasn't
-connected yet, so send_to_person() would just skip him. Add "Bill Crook"
-to RECIPIENT_NAMES once his people.telegram_chat_id is confirmed set.
+Bouchat, Donna Redman, Bill Crook, and Bill Yomes via
+jobs/telegram/send_to_person.py.
 
 Usage:
   PYTHONPATH=/home/billyomes/watson python jobs/connect_cards/attendance_link_reminder.py
@@ -36,7 +33,7 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-RECIPIENT_NAMES = ("Jim Bouchat", "Donna Redman", "Bill Yomes")
+RECIPIENT_NAMES = ("Jim Bouchat", "Donna Redman", "Bill Crook", "Bill Yomes")
 
 MESSAGE = (
     "\U0001F4CB Sunday attendance check-in\n\n"
