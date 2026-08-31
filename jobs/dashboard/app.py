@@ -374,6 +374,9 @@ app.register_blueprint(comms_bp)
 from jobs.email_activity.api import email_activity_bp
 app.register_blueprint(email_activity_bp)
 
+from jobs.telegram.dashboard_api import telegram_log_bp
+app.register_blueprint(telegram_log_bp)
+
 from jobs.privacy.dashboard_api import privacy_guard_bp
 app.register_blueprint(privacy_guard_bp)
 

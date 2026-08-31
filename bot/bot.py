@@ -335,18 +335,18 @@ def _log_telegram_exchange(user_text: str, reply_text: str) -> None:
                 "UPDATE chat_sessions SET updated_at = datetime('now') WHERE id = ?",
                 (session_id,),
             )
-        _log_tg('out', reply_text)
+        _log_tg('out', reply_text, recipient='Bill')
     except Exception as exc:
         log.warning("Failed to log telegram exchange: %s", exc)
 
 
-def _log_tg(direction: str, message: str) -> None:
+def _log_tg(direction: str, message: str, recipient: str = 'Bill') -> None:
     db_path = os.path.expanduser("~/watson/data/watson.db")
     try:
         with sqlite3.connect(db_path) as _conn:
             _conn.execute(
-                "INSERT INTO telegram_log (direction, message) VALUES (?, ?)",
-                (direction, message),
+                "INSERT INTO telegram_log (direction, message, recipient) VALUES (?, ?, ?)",
+                (direction, message, recipient),
             )
     except Exception as exc:
         log.warning("telegram_log write failed: %s", exc)
@@ -2772,7 +2772,7 @@ async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if payload:
         with get_connection() as conn:
             claimant = conn.execute(
-                "SELECT id FROM people WHERE telegram_claim_code = ?", (payload,)
+                "SELECT id, name FROM people WHERE telegram_claim_code = ?", (payload,)
             ).fetchone()
             if claimant:
                 conn.execute(
@@ -2781,9 +2781,9 @@ async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     (str(update.effective_chat.id), claimant["id"]),
                 )
         if claimant:
-            await update.message.reply_text(
-                "You're connected to Watson, Dr. Bill's digital assistant."
-            )
+            confirm_text = "You're connected to Watson, Dr. Bill's digital assistant."
+            await update.message.reply_text(confirm_text)
+            _log_tg('out', confirm_text, recipient=claimant["name"])
             return
 
     if not _is_authorized(update):

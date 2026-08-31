@@ -1503,6 +1503,10 @@ function renderMore() {
         <span class="mtile-label">Email Activity</span>
         <span class="mtile-chev">›</span>
       </button>
+      <button class="mtile" id="mtile-telegram-log" onclick="moreToggle('telegram-log')">
+        <span class="mtile-label">Telegram Log</span>
+        <span class="mtile-chev">›</span>
+      </button>
       <button class="mtile" id="mtile-privacy-guard" onclick="moreToggle('privacy-guard')">
         <span class="mtile-label">Privacy Guard</span>
         <span class="mtile-chev">›</span>
@@ -1549,6 +1553,9 @@ function renderMore() {
       </div>
       <div class="msec-body" id="msec-body-email-activity">
         <div class="msec-inner" id="msec-inner-email-activity"></div>
+      </div>
+      <div class="msec-body" id="msec-body-telegram-log">
+        <div class="msec-inner" id="msec-inner-telegram-log"></div>
       </div>
       <div class="msec-body" id="msec-body-privacy-guard">
         <div class="msec-inner" id="msec-inner-privacy-guard"></div>
@@ -1635,6 +1642,7 @@ function moreToggle(sec) {
     if (sec === 'leadmagnet') moreLoadLeadMagnet();
     if (sec === 'links')    moreLoadLinks();
     if (sec === 'email-activity') moreLoadEmailActivity();
+    if (sec === 'telegram-log') moreLoadTelegramLog();
     if (sec === 'privacy-guard') moreLoadPrivacyGuard();
     if (sec === 'covercomps') coverCompsLoad();
   }
@@ -3761,6 +3769,85 @@ function _eaRenderTable() {
           <td>${esc(r.subject)}</td>
           <td>${_EA_FAILURE_EVENTS.includes(r.event) ? `<span style="color:var(--red)">${esc(r.event)}</span>` : esc(r.event)}</td>
           <td>${esc(r.reason)}</td>
+        </tr>`).join('')}
+    </table></div>`;
+}
+
+// ── Telegram Log (outbound only — Watson now sends to onboarded leaders, ──
+//    not just Bill; jobs/telegram/send_to_person.py) ────────────────────────
+
+let _tlDays      = 7;
+let _tlRecipient = '';
+let _tlSearchTimer = null;
+
+async function moreLoadTelegramLog() {
+  const el = document.getElementById('msec-inner-telegram-log');
+  if (!el) return;
+  el.innerHTML = '<div class="loading">Loading&hellip;</div>';
+  _tlRenderShell();
+  await _tlFetch();
+}
+
+function _tlRenderShell() {
+  const el = document.getElementById('msec-inner-telegram-log');
+  if (!el) return;
+  const selStyle = 'padding:7px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:12px;outline:none';
+  el.innerHTML = `
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+      <select id="mtl-days" style="${selStyle}" onchange="_tlOnDaysChange(this.value)">
+        <option value="1"${_tlDays===1?' selected':''}>24h</option>
+        <option value="7"${_tlDays===7?' selected':''}>7d</option>
+        <option value="30"${_tlDays===30?' selected':''}>30d</option>
+      </select>
+      <input id="mtl-search" type="text" placeholder="Search recipient&hellip;" value="${esc(_tlRecipient)}"
+        style="flex:1;min-width:140px;padding:7px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:12px;outline:none"
+        oninput="_tlOnSearchInput(this.value)">
+    </div>
+    <div id="mtl-table-wrap"><div class="loading">Loading&hellip;</div></div>`;
+}
+
+function _tlOnDaysChange(v) {
+  _tlDays = parseInt(v, 10) || 7;
+  _tlFetch();
+}
+
+function _tlOnSearchInput(v) {
+  _tlRecipient = v.trim();
+  clearTimeout(_tlSearchTimer);
+  _tlSearchTimer = setTimeout(_tlFetch, 400);
+}
+
+async function _tlFetch() {
+  const wrap = document.getElementById('mtl-table-wrap');
+  if (wrap) wrap.innerHTML = '<div class="loading">Loading&hellip;</div>';
+  try {
+    const params = new URLSearchParams({ days: String(_tlDays) });
+    if (_tlRecipient) params.set('recipient', _tlRecipient);
+    const rows = await api(`/api/telegram-log?${params.toString()}`);
+    _tlRenderTable(Array.isArray(rows) ? rows : []);
+  } catch (e) {
+    if (!wrap) return;
+    wrap.innerHTML = String(e.message).startsWith('401')
+      ? '<div class="empty">Log into <a href="/admin/login" style="color:var(--gold)">/admin</a> to view the Telegram log.</div>'
+      : '<div class="empty">Could not load the Telegram log.</div>';
+  }
+}
+
+function _tlRenderTable(rows) {
+  const wrap = document.getElementById('mtl-table-wrap');
+  if (!wrap) return;
+  if (!rows.length) {
+    wrap.innerHTML = '<div class="empty">No messages sent in this window.</div>';
+    return;
+  }
+  wrap.innerHTML = `
+    <div class="mshep-wrap"><table class="mshep-table">
+      <tr><th>Time</th><th>Recipient</th><th>Message</th></tr>
+      ${rows.map(r => `
+        <tr>
+          <td style="white-space:nowrap">${esc(fmtGenerated(r.created_at))}</td>
+          <td>${esc(r.recipient)}</td>
+          <td>${esc(r.message)}</td>
         </tr>`).join('')}
     </table></div>`;
 }

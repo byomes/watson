@@ -20,7 +20,7 @@ log = logging.getLogger(__name__)
 def send_to_person(person_id: int, message: str) -> bool:
     with get_connection() as conn:
         row = conn.execute(
-            "SELECT telegram_chat_id FROM people WHERE id = ?", (person_id,)
+            "SELECT name, telegram_chat_id FROM people WHERE id = ?", (person_id,)
         ).fetchone()
 
     chat_id = row["telegram_chat_id"] if row else None
@@ -38,7 +38,21 @@ def send_to_person(person_id: int, message: str) -> bool:
             timeout=10,
         )
         resp.raise_for_status()
-        return True
     except Exception as exc:
         log.error("send_to_person: send failed for person_id=%s: %s", person_id, exc)
         return False
+
+    _log_sent(row["name"], message)
+    return True
+
+
+def _log_sent(recipient: str, message: str) -> None:
+    """Best-effort entry in telegram_log for the dashboard's Telegram Log tile."""
+    try:
+        with get_connection() as conn:
+            conn.execute(
+                "INSERT INTO telegram_log (direction, message, recipient) VALUES ('out', ?, ?)",
+                (message, recipient),
+            )
+    except Exception as exc:
+        log.warning("send_to_person: telegram_log write failed: %s", exc)
