@@ -12,6 +12,8 @@ Backs up:
     kb/documents — full parity with the OneDrive leg's data coverage,
     which this leg previously only partially matched (data/chroma only)
   - ~/.ssh, ~/.config/rclone/rclone.conf, a crontab snapshot
+  - ~/.claude/projects (2026-08-30 addition) — Claude Code's own session
+    memory, not reconstructible from anything else on the box
   - CODE_REPO_SOURCES: every actively-developed byomes repo on this box
     (2026-08-22 addition) — full working trees, including uncommitted
     changes and .git history, so the machine can be recreated from this
@@ -63,6 +65,7 @@ DIR_SOURCES = [
     f"{WATSON_DIR}/kb/documents",
     f"{HOME_DIR}/.ssh",
     f"{HOME_DIR}/.config/rclone/rclone.conf",
+    f"{HOME_DIR}/.claude/projects",
 ]
 
 # Every actively-developed byomes repo on this box — added 2026-08-22 so a
