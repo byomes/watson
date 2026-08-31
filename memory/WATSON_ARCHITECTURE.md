@@ -285,7 +285,6 @@ now a confirmed-closed result, not an open gap pending a retest.
 | `jobs/connect_cards/email_reports.py --bill --prayer --kaci` | Mon 5am | Next steps/comments → Bill; prayer digest → Bill; prayer requests report → Kaci |
 | `jobs/connect_cards/email_reports.py --donna` | Tue 5am | Attendance → Donna |
 | `jobs/connect_cards/attendance_intake.py` | Every 30 min | Attendance intake |
-| `jobs/connect_cards/correction_handler.py` | Every 30 min | Attendance corrections |
 | `jobs/connect_cards/missed_report.py` | Mon 6am | Missed report — 3 sections: Wilmington, Online, Hybrid — recipients: Bill, Donna, Kaci |
 | `jobs/connect_cards/shepherding_report.py` | Wed 6am | Pastoral care digest |
 | `jobs/connect_cards/conflict_report.py` | Sun 5pm | Member conflict report with 3-button Telegram resolution |
@@ -496,6 +495,17 @@ Every prefix here also works typed directly in dashboard/Telegram chat, not just
 - `snowbird` — not flagged as missing, optional return date for auto-reinstatement
 
 All non-active statuses excluded from: missed report, shepherding report, State of the Church members-not-seen list.
+
+`jobs/connect_cards/correction_handler.py` (30-min cron, parsed Donna/Bill
+reply emails to the missed report and auto-set `active = 0` for anyone under
+a "Non-Active" heading) was **deleted 2026-08-31** — corrections and
+inactive-marking now go through `wtsn.me/cat/attendance` (Jim) instead of
+reply-email parsing. `missed_report.py` still asks recipients to reply with
+corrections and `jobs/email_intake.py` still specially defers those replies
+(`_is_missed_report_reply()`, `~line 1022`) expecting `correction_handler.py`
+to pick them up — nothing does anymore, so those replies now sit unread
+indefinitely. Not yet fixed; flagged to Bill 2026-08-31, needs a decision on
+new copy/routing.
 
 ### Campus Classification (`campus_preference` column)
 Values: `Wilmington`, `Online`, `Hybrid`, `Inactive`
