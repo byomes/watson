@@ -149,8 +149,8 @@ def run() -> None:
     body_parts += [
         "",
         "---",
-        "Reply to this email with the names of anyone who was actually present "
-        "and Watson will update the records.",
+        "To correct attendance or campus, use https://wtsn.me/cat/attendance "
+        "— replies to this email are no longer processed.",
     ]
 
     body = "\n".join(body_parts)
