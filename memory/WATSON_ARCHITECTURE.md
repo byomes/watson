@@ -3029,3 +3029,37 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 ### ~/watson-tools
 - a02287b Fix /ham redirect loop in the hamprep rewrite
 - 638cf51 Add rewrite for wtsn.me/ham -> hamprep exam prep app
+
+---
+
+## Recent Changes — 2026-08-31
+
+### ~/watson
+- ac05a1e docs: bugs/backlog export 2026-08-31
+- 1fe7059 docs: file map 2026-08-31
+- 12813d5 docs: architecture update — recovery script current state
+- c342d86 fix: stop watson_recover.sh sweeping unrelated .service files into place
+- ecd0478 fix: install Ollama separately + add curl/zstd, found by testing steps 12-13 for real
+- 8e7d2a9 fix: install Tailscale separately, found by testing watson_recover.sh with real systemd
+- 2a077ed fix: add missing cron package, found by testing watson_recover.sh for real
+- d38d533 fix: make watson_recover.sh restore backup scope generically, not by name
+- 265a8e9 fix: guard connect-card attendance insert against duplicates
+- 9c7bb10 docs: architecture update — backup job scope
+- 9989c74 backup: add ~/.claude/projects to both OneDrive and local restic legs
+- da2c30e Add Telegram Log tab: track outbound messages now that Watson sends to more than Bill
+- 5236b68 docs: document Telegram Leader Onboarding in architecture doc
+- e6f7b7f Add Telegram leader onboarding (claim-code /start flow)
+- 4f395b0 attendance_web: add Inactive as a campus designation
+- 022e790 attendance_web: sort by last name, not first
+- 46c02f4 Add wtsn.me/cat/duplicates staff tool: duplicate-member review
+- 720a966 Add wtsn.me/cat/attendance staff tool: present/absent toggles
+- 9cdca2e docs: architecture update 2026-08-30
+
+### ~/wcky
+- 9c2bb98 fix: revert connect-card auto-redirect to Subsplash giving page
+
+### ~/watson-tools
+- 6f65db4 attendance: add Inactive campus + Edit Campus mode
+- 099353b Add cat/duplicates page: staff duplicate-member review tool
+- 8be14c5 Add cat/attendance page: staff attendance toggle tool
+- 65afe11 fix: revert connect-card auto-redirect to Subsplash giving page
