@@ -52,34 +52,55 @@ In order:
 5. Fixes `~/.ssh` permissions (`chmod 700` dir, `600` private keys, `644`
    public keys)
 6. Installs the rest of `deploy/apt-packages.txt` (python3, sqlite3, rclone,
-   docker.io, ffmpeg, tailscale, etc.)
-7. Creates the watson venv and `pip install -r requirements.txt`
-8. Regenerates dependencies for every other restored repo — `npm install`
+   docker.io, ffmpeg, cron, etc. — deliberately NOT tailscale, see step 7)
+7. Installs Tailscale via its official installer
+   (`curl -fsSL https://tailscale.com/install.sh | sh`) — not from
+   `deploy/apt-packages.txt`, because `tailscale` isn't in stock Ubuntu's
+   apt repos and would abort step 6's atomic install of everything else
+8. Creates the watson venv and `pip install -r requirements.txt`
+9. Regenerates dependencies for every other restored repo — `npm install`
    where a `package.json` exists, a fresh venv + `pip install` where a
    `requirements.txt` exists (these were deliberately excluded from the
    backup itself as regenerable)
-9. `crontab`s the restored crontab snapshot
-10. Copies `deploy/*.service` into `/etc/systemd/system/`, runs
+10. `crontab`s the restored crontab snapshot
+11. Copies `deploy/*.service` into `/etc/systemd/system/`, runs
     `systemctl daemon-reload`, enables and starts `watson-bot.service` and
     `watson-dashboard.service`
-11. Loops `ollama pull <model>` for every line in `deploy/ollama-models.txt`
-12. Runs `deploy/flaresolverr_run.sh` to start the FlareSolverr container
+12. Loops `ollama pull <model>` for every line in `deploy/ollama-models.txt`
+13. Runs `deploy/flaresolverr_run.sh` to start the FlareSolverr container
 
 The script prints progress at each step and ends with the manual checklist
 below.
 
-**Tested 2026-08-30** end-to-end against a synthetic fake backup in a Docker
-container (steps 1-9 — restic/git bootstrap through crontab restore; steps
-10-12 aren't testable in a plain container, no real init system, and are
-unchanged from the previously-shipped script). Confirmed: the watson repo
-restores with `.git` intact rather than falling back to a GitHub clone, the
-DB overwrite step correctly picks the consistency-safe snapshot over the
-raw repo-tree copy, `~/.ssh` permissions land correctly, and dependency
-reinstall works for other restored repos. Found and fixed one real bug:
-`deploy/apt-packages.txt` was missing `cron`, so step 9 (`crontab
-$CRONTAB_SNAPSHOT`) failed with `crontab: command not found` on a minimal
-fresh machine and aborted the whole script — a full Ubuntu Server ISO
-usually has `cron` preinstalled, but nothing here guaranteed it.
+**Tested 2026-08-30** end-to-end, twice, against a synthetic fake backup:
+
+- **Pass 1** (plain Docker container, steps 1-9 — restic/git bootstrap
+  through the old step 9's crontab restore): confirmed the watson repo
+  restores with `.git` intact rather than falling back to a GitHub clone,
+  the DB overwrite step correctly picks the consistency-safe snapshot over
+  the raw repo-tree copy, `~/.ssh` permissions land correctly, and
+  dependency reinstall works for other restored repos. Found and fixed:
+  `deploy/apt-packages.txt` was missing `cron`, aborting the script at the
+  crontab step on any minimal/fresh machine (a full Ubuntu Server ISO
+  usually has `cron` preinstalled, but nothing here guaranteed it).
+- **Pass 2** (a systemd-enabled Docker container — real `systemd` as PID 1
+  via `--privileged --cgroupns=host -v /sys/fs/cgroup:/sys/fs/cgroup:rw` and
+  `/sbin/init`, to actually exercise `systemctl`): confirmed step 11's
+  service install mechanics work for real — both `.service` files copy in,
+  `daemon-reload` succeeds, `enable --now` reports "enabled" for both units
+  (the underlying processes correctly fail to fully run in the fake
+  environment — no real `billyomes` system user or app code — which is
+  expected; the install itself is what's being verified). Steps 12-13 hit
+  their existing skip branches cleanly and the script reached "Automated
+  recovery complete." Found and fixed: `tailscale` isn't installable via
+  plain `apt-get install` on stock Ubuntu 24.04 (`Unable to locate
+  package`) — it needs Tailscale's own apt repo added first, which nothing
+  in the old package list did. Since the old step 6 ran the whole
+  `apt-packages.txt` list as one atomic command, this would have aborted
+  *every* real recovery at that step, before venv setup, crontab, or
+  systemd were ever reached. Fixed by moving `tailscale` out of
+  `deploy/apt-packages.txt` and into its own step using Tailscale's
+  official installer (which adds the repo itself).
 
 ## Manual follow-up steps (required after running the script)
 

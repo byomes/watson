@@ -7,5 +7,4 @@ rclone
 docker.io
 ffmpeg
 git
-tailscale
 cron
