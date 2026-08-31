@@ -1,6 +1,6 @@
 # Watson Bug Tracker
 _Auto-generated nightly from bug_tracker. Source of truth is the database — do not hand-edit this file, changes will be overwritten._
-Last generated: 2026-08-30 02:10
+Last generated: 2026-08-31 02:10
 
 ## Open (37)
 | ID | Title | Repo | Discovered |
@@ -46,6 +46,11 @@ Last generated: 2026-08-30 02:10
 ## Recently Resolved (last 30 days)
 | ID | Title | Repo | Resolved | Commit |
 |---|---|---|---|---|
+| 105 | Connect-card intake created duplicate attendance rows | watson | 2026-08-31 02:09:11 | 265a8e9 |
+| 109 | watson_recover.sh: systemd install step swept up unrelated .service files | watson | 2026-08-30 22:58:00 | c342d86 |
+| 108 | watson_recover.sh: ollama binary never installed; installer needs curl/zstd not in apt list | watson | 2026-08-30 22:54:00 | ecd0478 |
+| 107 | watson_recover.sh: tailscale not installable via plain apt on stock Ubuntu | watson | 2026-08-30 22:41:00 | 8e7d2a9 |
+| 106 | watson_recover.sh: missing cron package aborts recovery at crontab restore | watson | 2026-08-30 22:32:00 | 2a077ed |
 | 104 | Thesis Tracker dashboard card fails to load (missing citations API route) | watson | 2026-08-29 14:17:03 | 9a62ce9 |
 | 103 | cat/connect API route was unguarded — direct-POST-able while draft, real Brevo creds active | watson-tools | 2026-08-28 04:28:26 | 7f7071b |
 | 102 | cat/connect draft gate was decorative — custom-type page never checked public_tools.status | watson-tools | 2026-08-28 04:28:26 | 741eb17 |
