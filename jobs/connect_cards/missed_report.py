@@ -7,8 +7,10 @@ recent Sunday, then emails Dr. Bill, Donna, and Kaci with the list grouped by ca
 Usage:
   PYTHONPATH=/home/billyomes/watson python jobs/connect_cards/missed_report.py
 
-Cron (Monday 6:00am):
-  0 6 * * 1 PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python \
+Cron (Tuesday 7:00am -- moved from Mon 6am 2026-08-31 to give staff a
+1.5-day window after the Sunday 3pm attendance_link_reminder.py nudge to
+enter corrections via https://wtsn.me/cat/attendance):
+  0 7 * * 2 PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python \
     /home/billyomes/watson/jobs/connect_cards/missed_report.py \
     >> /home/billyomes/watson/logs/missed_report.log 2>&1
 """
