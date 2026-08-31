@@ -197,7 +197,11 @@ else
 fi
 
 step "Step 12: Installing systemd services"
-sudo cp deploy/*.service /etc/systemd/system/
+# Named explicitly, not `deploy/*.service` — that directory also holds
+# gutendex.service (a real, separate install this script deliberately does
+# NOT cover, see docs/RECOVERY.md) and a stale people-server.service (not
+# even enabled on the live box); a wildcard would sweep both in.
+sudo cp deploy/watson-bot.service deploy/watson-dashboard.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now watson-bot.service
 sudo systemctl enable --now watson-dashboard.service

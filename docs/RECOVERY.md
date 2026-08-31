@@ -68,9 +68,12 @@ In order:
     `requirements.txt` exists (these were deliberately excluded from the
     backup itself as regenerable)
 11. `crontab`s the restored crontab snapshot
-12. Copies `deploy/*.service` into `/etc/systemd/system/`, runs
-    `systemctl daemon-reload`, enables and starts `watson-bot.service` and
-    `watson-dashboard.service`
+12. Copies `deploy/watson-bot.service` and `deploy/watson-dashboard.service`
+    into `/etc/systemd/system/` (named explicitly, not a `deploy/*.service`
+    wildcard — that directory also holds `gutendex.service`, a real
+    separate install this script doesn't cover, and a stale
+    `people-server.service` not even enabled on the live box), runs
+    `systemctl daemon-reload`, enables and starts both units
 13. Loops `ollama pull <model>` for every line in `deploy/ollama-models.txt`
 14. Runs `deploy/flaresolverr_run.sh` to start the FlareSolverr container
 
