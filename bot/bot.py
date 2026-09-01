@@ -30,7 +30,7 @@ from telegram.ext import (
 )
 
 from briefing.builder import build_telegram_briefing
-from config.settings import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, WATSON_SYSTEM
+from config.settings import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, WATSON_SYSTEM, TEAM_CHAT_SYSTEM
 from core.database import get_connection, init_db
 from core.scorer import _BOOST
 from jobs.ask import ask
@@ -855,6 +855,9 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not _is_authorized(update):
+        _team_name = _team_member_name_for_chat(str(update.effective_chat.id))
+        if _team_name:
+            await _handle_team_chat(update, _team_name, update.message.text or "")
         return
 
     text = update.message.text or ""
@@ -2152,6 +2155,60 @@ def _get_general_reply_sync(text: str) -> str:
 
 async def _get_general_reply(text: str) -> str:
     return await asyncio.to_thread(_get_general_reply_sync, text)
+
+
+def _team_member_name_for_chat(chat_id: str) -> str | None:
+    """Return the team_members.name for an onboarded, active team member
+    whose people.telegram_chat_id matches this chat, or None. Scoped to
+    team_members (not every connected person -- e.g. deacons onboarded for
+    attendance reports are NOT team members and get no chat access here)."""
+    with get_connection() as conn:
+        row = conn.execute(
+            """
+            SELECT tm.name FROM team_members tm
+            JOIN people p ON p.name = tm.name COLLATE NOCASE
+            WHERE p.telegram_chat_id = ? AND tm.active = 1
+            """,
+            (chat_id,),
+        ).fetchone()
+    return row["name"] if row else None
+
+
+def _get_team_reply_sync(text: str) -> str:
+    """Plain Ollama Q&A for a limited-access team member chat -- deliberately
+    NOT build_prompt() (that's Bill's own routing/memory-aware prompt) and no
+    skill routing, so a team member's chat can never reach Bill's directives,
+    calendar, email, or the church database."""
+    import requests as _req
+    try:
+        resp = _req.post(
+            "http://localhost:11434/api/chat",
+            json={
+                "model": "llama3.2:3b",
+                "messages": [
+                    {"role": "system", "content": TEAM_CHAT_SYSTEM},
+                    {"role": "user", "content": text},
+                ],
+                "stream": False,
+            },
+            timeout=60,
+        )
+        resp.raise_for_status()
+        reply = resp.json()["message"]["content"].strip()
+        return reply or "I didn't get a response."
+    except Exception as exc:
+        log.error("Ollama team chat failed: %s", exc)
+        return "I'm having trouble thinking right now. Try again in a moment."
+
+
+async def _handle_team_chat(update: Update, name: str, text: str) -> None:
+    text = (text or "").strip()
+    if not text:
+        return
+    _log_tg('in', text, recipient=name)
+    reply = await asyncio.to_thread(_get_team_reply_sync, text)
+    await update.message.reply_text(reply)
+    _log_tg('out', reply, recipient=name)
 
 
 async def _handle_general(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str) -> str:
