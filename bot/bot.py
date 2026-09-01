@@ -2178,7 +2178,11 @@ def _get_team_reply_sync(text: str) -> str:
     """Plain Ollama Q&A for a limited-access team member chat -- deliberately
     NOT build_prompt() (that's Bill's own routing/memory-aware prompt) and no
     skill routing, so a team member's chat can never reach Bill's directives,
-    calendar, email, or the church database."""
+    calendar, email, tasks, or KB. The one narrow exception is the read-only
+    people lookup in _extract_team_lookup()/_format_team_lookup_reply() below,
+    which bypasses this Ollama path entirely for a recognized phone/address/
+    last-attended question -- everything else still lands here, unable to
+    touch the database."""
     import requests as _req
     try:
         resp = _req.post(
@@ -2201,12 +2205,76 @@ def _get_team_reply_sync(text: str) -> str:
         return "I'm having trouble thinking right now. Try again in a moment."
 
 
+_TEAM_LOOKUP_FIELD_WORDS = {"email": "email", "phone": "phone", "number": "phone", "contact": "contact", "address": "address"}
+
+
+def _extract_team_lookup(text: str) -> tuple[str, str] | None:
+    """Recognize a read-only phone/email/address/last-attended question and
+    return (person_name, field), or None to fall through to Ollama chat.
+    Regex-based on purpose, matching Bill's own '_possessive' pattern in
+    _handle_general -- not general NLU, just the phrasings Bill asked for."""
+    # (?<!') guards against "what's X's email" -- without it, the leading
+    # "what's" contraction's own trailing "s" greedily wins the match first
+    # (captures "s X" instead of "X"), since re.search takes the leftmost
+    # successful match and stops there.
+    m = re.search(r"(?<!')(\w+(?:\s+\w+)?)'s\s+(email|phone|number|contact|address)", text, re.IGNORECASE)
+    if m:
+        return m.group(1), _TEAM_LOOKUP_FIELD_WORDS[m.group(2).lower()]
+    m = re.search(r"where\s+does\s+(\w+(?:\s+\w+)?)\s+live", text, re.IGNORECASE)
+    if m:
+        return m.group(1), "address"
+    m = re.search(
+        r"when\s+(?:was|did)\s+(?:the\s+last\s+time\s+)?(\w+(?:\s+\w+)?)\s+"
+        r"(?:last\s+)?(?:come|came|attend(?:ed)?|showed?\s+up|was\s+(?:here|at\s+church))",
+        text,
+        re.IGNORECASE,
+    )
+    if m:
+        return m.group(1), "last_seen"
+    return None
+
+
+def _format_team_lookup_reply(person_name: str, field: str) -> str:
+    from jobs.people.lookup import lookup_member_details
+
+    hits = lookup_member_details(person_name)
+    if not hits:
+        return f'I couldn\'t find anyone matching "{person_name}".'
+    if len(hits) > 1:
+        names = ", ".join(h["name"] for h in hits)
+        return f"I found more than one match: {names}. Can you be more specific?"
+
+    m = hits[0]
+    if field == "contact":
+        parts = [p for p in (m.get("email"), m.get("phone")) if p]
+        return f"{m['name']}: " + (" | ".join(parts) if parts else "no contact info on file.")
+    if field == "email":
+        return f"{m['name']}'s email: {m.get('email') or 'not on file.'}"
+    if field == "phone":
+        return f"{m['name']}'s phone: {m.get('phone') or 'not on file.'}"
+    if field == "address":
+        return f"{m['name']} lives at: {m.get('address') or 'no address on file.'}"
+    if field == "last_seen":
+        seen = m.get("last_seen")
+        if not seen or seen == "1900-01-01":
+            return f"{m['name']} has no recorded attendance."
+        return f"{m['name']} was last seen on {seen}."
+    return f"{m['name']}: no data on file for that."
+
+
 async def _handle_team_chat(update: Update, name: str, text: str) -> None:
     text = (text or "").strip()
     if not text:
         return
     _log_tg('in', text, recipient=name)
-    reply = await asyncio.to_thread(_get_team_reply_sync, text)
+
+    lookup = _extract_team_lookup(text)
+    if lookup:
+        person_name, field = lookup
+        reply = await asyncio.to_thread(_format_team_lookup_reply, person_name, field)
+    else:
+        reply = await asyncio.to_thread(_get_team_reply_sync, text)
+
     await update.message.reply_text(reply)
     _log_tg('out', reply, recipient=name)
 
