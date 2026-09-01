@@ -341,6 +341,16 @@ def _log_telegram_exchange(user_text: str, reply_text: str) -> None:
 
 
 def _log_tg(direction: str, message: str, recipient: str = 'Bill') -> None:
+    # Per Bill's 2026-09-01 request: his own chat with Watson isn't written
+    # to telegram_log (the dashboard's Telegram Log tile) -- he already has
+    # that history natively in his own Telegram app. Only affects this
+    # dashboard-log table; chat_messages/chat_sessions (Watson's own
+    # conversational memory/context) is untouched and still persisted the
+    # usual way by the caller above. Everyone else's messages (team-chat
+    # lookups, onboarding confirmations, broadcast reports) still log here
+    # normally so Bill can review them on the dashboard.
+    if recipient == 'Bill':
+        return
     db_path = os.path.expanduser("~/watson/data/watson.db")
     try:
         with sqlite3.connect(db_path) as _conn:
