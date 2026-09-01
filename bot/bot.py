@@ -2174,15 +2174,27 @@ def _team_member_name_for_chat(chat_id: str) -> str | None:
     return row["name"] if row else None
 
 
-def _get_team_reply_sync(text: str) -> str:
+# Tolerant of the model dropping the brackets or using a space instead of
+# an underscore (observed both from llama3.2:3b in testing) -- a strict
+# literal "[NO_ACCESS]" match missed those, which both silently skipped
+# Bill's alert AND leaked the raw tag word into the team member's reply.
+_NO_ACCESS_TAG_RE = re.compile(r"^\[?no[_\s]?access\]?[:\s]*", re.IGNORECASE)
+
+
+def _get_team_reply_sync(text: str) -> tuple[str, bool]:
     """Plain Ollama Q&A for a limited-access team member chat -- deliberately
     NOT build_prompt() (that's Bill's own routing/memory-aware prompt) and no
     skill routing, so a team member's chat can never reach Bill's directives,
     calendar, email, tasks, or KB. The one narrow exception is the read-only
-    people lookup in _extract_team_lookup()/_format_team_lookup_reply() below,
-    which bypasses this Ollama path entirely for a recognized phone/address/
-    last-attended question -- everything else still lands here, unable to
-    touch the database."""
+    people/classroom lookups in _extract_team_lookup()/_extract_classroom_lookup()
+    below, which bypass this Ollama path entirely for a recognized question --
+    everything else still lands here, unable to touch the database.
+
+    Returns (reply, declined_for_lack_of_access) -- TEAM_CHAT_SYSTEM
+    (config/settings.py) instructs the model to prefix a decline with
+    [NO_ACCESS], stripped here before the reply is shown to anyone; the flag
+    lets _handle_team_chat alert Bill per his 2026-09-01 decision to review
+    these and judge whether they're worth building a real lookup for."""
     import requests as _req
     try:
         resp = _req.post(
@@ -2199,10 +2211,12 @@ def _get_team_reply_sync(text: str) -> str:
         )
         resp.raise_for_status()
         reply = resp.json()["message"]["content"].strip()
-        return reply or "I didn't get a response."
+        declined = bool(_NO_ACCESS_TAG_RE.match(reply))
+        reply = _NO_ACCESS_TAG_RE.sub("", reply).strip()
+        return reply or "I didn't get a response.", declined
     except Exception as exc:
         log.error("Ollama team chat failed: %s", exc)
-        return "I'm having trouble thinking right now. Try again in a moment."
+        return "I'm having trouble thinking right now. Try again in a moment.", False
 
 
 _TEAM_LOOKUP_FIELD_WORDS = {"email": "email", "phone": "phone", "number": "phone", "contact": "contact", "address": "address"}
@@ -2310,6 +2324,69 @@ def _format_classroom_reply(room: str) -> str:
     return f"{_ROOM_LABELS[room]} on {row['date']}: {detail}."
 
 
+# "calendar/schedule/agenda" covers "what's on Bill's calendar today", "his
+# schedule tomorrow", etc.; "free/busy/available" needs "bill" nearby since
+# those words alone are too generic ("are you free to chat"). Per Bill's
+# 2026-09-01 decision, team members can see his calendar -- read-only, no
+# create/edit/cancel.
+_CALENDAR_TRIGGER_RE = re.compile(
+    r"\b(calendar|schedule|agenda)\b|\bbill\b.{0,20}\b(free|busy|available)\b|\b(free|busy|available)\b.{0,20}\bbill\b",
+    re.IGNORECASE,
+)
+
+
+def _extract_calendar_lookup(text: str) -> bool:
+    return bool(_CALENDAR_TRIGGER_RE.search(text))
+
+
+def _format_calendar_reply(text: str) -> str:
+    from jobs.gcal.calendar import run as calendar_run
+
+    try:
+        # calendar_run() does its own day-resolution (today/tomorrow/a
+        # weekday name) straight out of the raw message text. It's shared
+        # with Bill's own chat, where "Your calendar" is correct -- reworded
+        # to third person here since it'd otherwise read as if it were the
+        # team member's own calendar.
+        reply = calendar_run(text)
+        return reply.replace("Your calendar", "Dr. Bill's calendar", 1).replace(
+            "Nothing on your calendar", "Nothing on Dr. Bill's calendar", 1
+        )
+    except Exception as exc:
+        log.error("Team calendar lookup failed: %s", exc)
+        return "I couldn't reach the calendar right now — try again in a moment."
+
+
+def _alert_unanswered_team_question(team_member_name: str, question: str, reply: str) -> None:
+    """Per Bill's 2026-09-01 decision: whenever team-chat can only answer a
+    question generically (TEAM_CHAT_SYSTEM's [NO_ACCESS] tag, stripped by
+    the time this is called), tell Bill so he can judge whether it's worth
+    building a real lookup for -- the same way the phone/address/
+    last-attended and classroom-attendance lookups above started as exactly
+    this kind of ask."""
+    from core.vacation import vacation_gate
+    import requests as _req
+
+    text = (
+        f"\U0001f914 {team_member_name} asked Watson something it could only answer generically:\n\n"
+        f"Q: {question}\n\n"
+        f"Watson's reply: {reply}\n\n"
+        "Worth coding a real lookup for this?"
+    )
+    if vacation_gate("normal", "bot._handle_team_chat", text):
+        return
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        return
+    try:
+        _req.post(
+            f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+            json={"chat_id": TELEGRAM_CHAT_ID, "text": text},
+            timeout=10,
+        )
+    except Exception as exc:
+        log.warning("Failed to alert Bill about an unanswered team question: %s", exc)
+
+
 async def _handle_team_chat(update: Update, name: str, text: str) -> None:
     text = (text or "").strip()
     if not text:
@@ -2318,13 +2395,18 @@ async def _handle_team_chat(update: Update, name: str, text: str) -> None:
 
     lookup = _extract_team_lookup(text)
     classroom = _extract_classroom_lookup(text) if not lookup else None
+    calendar = _extract_calendar_lookup(text) if not lookup and not classroom else False
     if lookup:
         person_name, field = lookup
         reply = await asyncio.to_thread(_format_team_lookup_reply, person_name, field)
     elif classroom:
         reply = await asyncio.to_thread(_format_classroom_reply, classroom)
+    elif calendar:
+        reply = await asyncio.to_thread(_format_calendar_reply, text)
     else:
-        reply = await asyncio.to_thread(_get_team_reply_sync, text)
+        reply, declined = await asyncio.to_thread(_get_team_reply_sync, text)
+        if declined:
+            await asyncio.to_thread(_alert_unanswered_team_question, name, text, reply)
 
     await update.message.reply_text(reply)
     _log_tg('out', reply, recipient=name)
