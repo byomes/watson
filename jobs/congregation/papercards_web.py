@@ -15,12 +15,10 @@ exists specifically for its automated-parse-of-an-email path. Donna is a
 human looking at the physical card while she types, so that extra
 conflict-flagging layer isn't needed here.
 
-Every card is logged against the most recent Sunday (jobs.congregation.
-attendance_web.py's _most_recent_sunday, duplicated here per that file's own
-duplication of jobs/connect_cards/intake.py's _service_date) -- paper cards
-often get batched and entered days after the service, but they were filled
-out AT that Sunday's service, so that's the attendance/connect-card date
-regardless of when Donna sits down to type them in.
+The card's service date is NOT inferred (no "most recent Sunday" guess) --
+Donna picks it herself via a date field on the form, since she knows which
+Sunday (or other service) the physical card actually came from and that's
+more reliable than any date math on when she happens to be typing it in.
 
 Mount on the Watson dashboard app:
     from jobs.congregation.papercards_web import papercards_web_bp
@@ -28,7 +26,7 @@ Mount on the Watson dashboard app:
 """
 import os
 import sqlite3
-from datetime import date, timedelta
+from datetime import date
 from functools import wraps
 
 from flask import Blueprint, jsonify, request
@@ -54,12 +52,6 @@ def _conn():
     return conn
 
 
-def _most_recent_sunday() -> date:
-    today = date.today()
-    days_since_sunday = (today.weekday() + 1) % 7
-    return today - timedelta(days=days_since_sunday)
-
-
 def _require_key(f):
     @wraps(f)
     def wrapper(*args, **kwargs):
@@ -74,6 +66,7 @@ def _require_key(f):
 def submit():
     data = request.get_json(force=True) or {}
 
+    service_date_raw = (data.get("service_date") or "").strip()
     campus = (data.get("campus") or "").strip()
     first_name = (data.get("first_name") or "").strip()
     last_name = (data.get("last_name") or "").strip()
@@ -86,6 +79,10 @@ def submit():
     prayer_request = (data.get("prayer_request") or "").strip()
     prayer_leadership_only = bool(data.get("prayer_leadership_only"))
 
+    try:
+        service_date = date.fromisoformat(service_date_raw).isoformat()
+    except ValueError:
+        return jsonify({"error": "service_date must be a valid date (YYYY-MM-DD)"}), 400
     if campus not in _VALID_CAMPUSES:
         return jsonify({"error": f"campus must be one of {_VALID_CAMPUSES}"}), 400
     if not first_name:
@@ -97,7 +94,6 @@ def submit():
     next_steps = [s for s in next_steps if s in _NEXT_STEP_KEYS]
 
     name = f"{first_name} {last_name}".strip()
-    service_date = _most_recent_sunday().isoformat()
 
     qc_parts = []
     if questions_comments:
