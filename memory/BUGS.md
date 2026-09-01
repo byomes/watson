@@ -1,6 +1,6 @@
 # Watson Bug Tracker
 _Auto-generated nightly from bug_tracker. Source of truth is the database — do not hand-edit this file, changes will be overwritten._
-Last generated: 2026-08-31 02:10
+Last generated: 2026-09-01 02:10
 
 ## Open (37)
 | ID | Title | Repo | Discovered |
@@ -46,6 +46,9 @@ Last generated: 2026-08-31 02:10
 ## Recently Resolved (last 30 days)
 | ID | Title | Repo | Resolved | Commit |
 |---|---|---|---|---|
+| 112 | connect_cards email_reports.py sent Bill duplicate copies of every report | watson | 2026-08-31 15:43:25 | 74ced40 |
+| 111 | connect_cards intake.py only scanned INBOX, silently dropping spam-misclassified cards | watson | 2026-08-31 15:43:25 | 74ced40 |
+| 110 | campus_classifier.py overwrites Inactive campus_preference every Monday | watson | 2026-08-31 11:14:53 | ebe5de2 |
 | 105 | Connect-card intake created duplicate attendance rows | watson | 2026-08-31 02:09:11 | 265a8e9 |
 | 109 | watson_recover.sh: systemd install step swept up unrelated .service files | watson | 2026-08-30 22:58:00 | c342d86 |
 | 108 | watson_recover.sh: ollama binary never installed; installer needs curl/zstd not in apt list | watson | 2026-08-30 22:54:00 | ecd0478 |
