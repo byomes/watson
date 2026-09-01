@@ -26,9 +26,13 @@ or attendance row on file. Same deacon-bucket exclusions as deacon_reports.py
 "Inactive" are group labels, not addressable deacons, and are skipped here
 too, per the same 2026-08-24 decision that scopes deacon_reports.py.
 
-Telegram-only for now, delivered via jobs/telegram/send_to_person.py, sent
-to Bill Yomes only. No email counterpart -- this is deliberately Telegram
-as the primary channel.
+Telegram-only, delivered via jobs/telegram/send_to_person.py. Sent to Bill
+Yomes, Jim Bouchat, and Bill Crook (2026-09-01 -- expanded from Bill Yomes
+only, once Bill approved the wtsn.me/cat/shepherdingreport page; Jim and
+Bill Crook are, as of this date, the only two deacons onboarded to
+Telegram of the 7 in list_deacons(), so this is everyone reachable today,
+not a deliberate subset). No email counterpart -- this is deliberately
+Telegram as the primary channel.
 
 Named, per-group breakdown (2026-09-01): the Telegram message stays
 counts-only to stay well under Telegram's character limit -- full names,
@@ -74,7 +78,7 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-RECIPIENT_NAME = "Bill Yomes"
+RECIPIENT_NAMES = ("Bill Yomes", "Jim Bouchat", "Bill Crook")
 REPORT_URL = "https://wtsn.me/cat/shepherdingreport"
 
 _BLANK_DEACON_VALUES = {"none"}
@@ -247,7 +251,8 @@ def _person_id(conn, name: str) -> int | None:
 
 
 def send_elder_shepherding_report() -> bool:
-    """Generate and send the report to Bill Yomes. Returns True if sent."""
+    """Generate and send the report to everyone in RECIPIENT_NAMES.
+    Returns True if at least one send succeeded."""
     text = build_report_text()
 
     if vacation_gate("normal", "jobs.congregation.elder_shepherding_report", text):
@@ -255,18 +260,20 @@ def send_elder_shepherding_report() -> bool:
         return False
 
     with get_connection() as conn:
-        person_id = _person_id(conn, RECIPIENT_NAME)
+        ids = {name: _person_id(conn, name) for name in RECIPIENT_NAMES}
 
-    if person_id is None:
-        log.error("No people row found for %r — cannot send.", RECIPIENT_NAME)
-        return False
+    sent_any = False
+    for name, person_id in ids.items():
+        if person_id is None:
+            log.error("No people row found for %r — skipped", name)
+            continue
+        if send_to_person(person_id, text):
+            log.info("Sent Elder Shepherding Report to %s", name)
+            sent_any = True
+        else:
+            log.warning("Failed to send Elder Shepherding Report to %s (not onboarded?)", name)
 
-    if send_to_person(person_id, text):
-        log.info("Sent Elder Shepherding Report to %s", RECIPIENT_NAME)
-        return True
-
-    log.warning("Failed to send Elder Shepherding Report to %s (not onboarded?)", RECIPIENT_NAME)
-    return False
+    return sent_any
 
 
 if __name__ == "__main__":
