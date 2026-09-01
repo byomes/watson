@@ -15,6 +15,16 @@ LLM-narrative-synthesized, with rolling averages, seasonal caveats, and
 benchmark comparisons. This job is monthly and purely quantitative — no LLM
 call.
 
+"Wilmington Headcount — Historical Context" (added 2026-09-01, per Bill):
+this month's average weekly Wilmington headcount from wilmington_headcounts
+(jobs/gsheets/headcount_sync.py, sourced from the Catalyst Count Tracking
+Google Sheet, back to 2023) against this year's YTD average and the same
+calendar month's average across the past 3 years -- separate from the
+existing "Wilmington Headcount Gap" section above it, which measures
+connect-card tracking accuracy (a different question from "is this month
+high or low for us historically"). Averages whichever prior years actually
+have synced data rather than requiring all 3.
+
 Schema used (confirmed via .schema before build):
   attendance:     member_id, service_date, campus — one row per member per
                   Sunday attended. Duplicate (member_id, service_date) rows
@@ -318,6 +328,60 @@ def _gap_trend_direction(trend: list[tuple[str, float]]) -> str:
     return "Flat"
 
 
+def _headcount_values(conn, start: str, end: str) -> list[int]:
+    return [r[0] for r in conn.execute(
+        "SELECT headcount FROM wilmington_headcounts WHERE date BETWEEN ? AND ?", (start, end),
+    ).fetchall()]
+
+
+def _year_to_date_headcount_avg(conn, year: int, through_month: int) -> tuple[float, int] | None:
+    """Average weekly Wilmington headcount from Jan 1 through the end of
+    `through_month`, same year. None if nothing synced yet."""
+    _, end = _month_bounds(year, through_month)
+    values = _headcount_values(conn, f"{year}-01-01", end)
+    return (sum(values) / len(values), len(values)) if values else None
+
+
+def _three_year_same_month_headcount_avg(conn, year: int, month: int) -> tuple[float, int] | None:
+    """Average weekly Wilmington headcount for this same calendar month
+    across the previous 3 years. Averages whichever of those years actually
+    have synced data rather than requiring all 3 -- headcount_sync.py's
+    earliest tab is 2023, so a report for an early-year month may only have
+    1-2 prior years available yet. None if none of the 3 years have any."""
+    values: list[int] = []
+    years_with_data = 0
+    for offset in (1, 2, 3):
+        y = year - offset
+        start, end = _month_bounds(y, month)
+        year_values = _headcount_values(conn, start, end)
+        if year_values:
+            years_with_data += 1
+            values.extend(year_values)
+    return (sum(values) / len(values), years_with_data) if values else None
+
+
+def _headcount_historical_context(conn, year: int, month: int) -> dict | None:
+    """This month's average weekly Wilmington headcount against YTD (same
+    year) and the same-month average across the past 3 years -- per Bill's
+    2026-09-01 request to give elders multi-year context on the Sheet's
+    real headcount number, on top of the month-over-month gap-tracking
+    above. None if this month itself has no synced headcount data."""
+    start, end = _month_bounds(year, month)
+    this_month_values = _headcount_values(conn, start, end)
+    if not this_month_values:
+        return None
+    ytd = _year_to_date_headcount_avg(conn, year, month)
+    three_year = _three_year_same_month_headcount_avg(conn, year, month)
+    return {
+        "this_month_avg": sum(this_month_values) / len(this_month_values),
+        "weeks": len(this_month_values),
+        "ytd_avg": ytd[0] if ytd else None,
+        "ytd_weeks": ytd[1] if ytd else 0,
+        "three_year_avg": three_year[0] if three_year else None,
+        "three_year_years": three_year[1] if three_year else 0,
+    }
+
+
 # ── New people funnel ────────────────────────────────────────────────────────────
 
 def _first_time_visitor_count(conn, year: int, month: int) -> int:
@@ -396,6 +460,7 @@ def build_report(year: int, month: int) -> tuple[str, str]:
         headcount_gap = _month_headcount_gap(conn, year, month)
         six_month_gap = _six_month_headcount_gap_trend(conn, year, month)
         gap_direction = _gap_trend_direction(six_month_gap)
+        historical_context = _headcount_historical_context(conn, year, month)
 
         new_visitors = _first_time_visitor_count(conn, year, month)
         return_rate = _return_rate(conn, year, month)
@@ -445,6 +510,42 @@ def build_report(year: int, month: int) -> tuple[str, str]:
                 + "".join(f"<tr><td>{label}</td><td>{pct:.0f}%</td></tr>" for label, pct in six_month_gap)
                 + "</tbody></table>"
             )
+    else:
+        body += "<p class='empty'>No headcount data synced yet this month.</p>"
+
+    body += "<h2>Wilmington Headcount — Historical Context</h2>"
+    if historical_context is not None:
+        hc = historical_context
+        parts = [
+            f"<p>Average weekly Wilmington headcount this month: "
+            f"<strong>{hc['this_month_avg']:.0f}</strong> (across {hc['weeks']} synced Sunday(s)).</p>"
+        ]
+        if hc["ytd_avg"] is not None:
+            delta = hc["this_month_avg"] - hc["ytd_avg"]
+            delta_pct = (delta / hc["ytd_avg"] * 100) if hc["ytd_avg"] else 0.0
+            parts.append(
+                f"<p>Vs. {year} year-to-date average (<strong>{hc['ytd_avg']:.0f}</strong>, "
+                f"{hc['ytd_weeks']} Sunday(s)): "
+                f"<strong>{'+' if delta >= 0 else ''}{delta:.0f}</strong> ({delta_pct:+.0f}%).</p>"
+            )
+        if hc["three_year_avg"] is not None:
+            delta = hc["this_month_avg"] - hc["three_year_avg"]
+            delta_pct = (delta / hc["three_year_avg"] * 100) if hc["three_year_avg"] else 0.0
+            years_note = (
+                f"{hc['three_year_years']} prior year(s)" if hc["three_year_years"] < 3
+                else "the past 3 years"
+            )
+            parts.append(
+                f"<p>Vs. {_month_label(year, month).split()[0]} average across {years_note} "
+                f"(<strong>{hc['three_year_avg']:.0f}</strong>): "
+                f"<strong>{'+' if delta >= 0 else ''}{delta:.0f}</strong> ({delta_pct:+.0f}%).</p>"
+            )
+        else:
+            parts.append(
+                "<p style='color:#888;font-size:.85em'>No prior-year data synced yet for this "
+                "calendar month — 3-year comparison unavailable.</p>"
+            )
+        body += "".join(parts)
     else:
         body += "<p class='empty'>No headcount data synced yet this month.</p>"
 
