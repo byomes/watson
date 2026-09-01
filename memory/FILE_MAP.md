@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-08-31*
+*Generated: 2026-09-01*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -2924,24 +2924,25 @@ jobs/
     __init__.py
     attendance_web.py
     batch_intake.py
-    deacon_admin_api.py
     deacon_reports.py
+    deacons_web.py
     duplicate_review.py
     duplicates_weekly_notify.py
+    elder_shepherding_report.py
     import_deacon_directory.py
     init_db.py
     member_match.py
     migrate_deacon_directory.py
+    migrate_inactive_deacon.py
     migrate_leadership_roles.py
     migrate_reparse.py
   connect_cards/
     __init__.py
     attendance_intake.py
+    attendance_link_reminder.py
     backfill.py
     batch_update.py
-    campus_classifier.py
     conflict_report.py
-    correction_handler.py
     data_audit.py
     email_reports.py
     find_malformed_names.py
@@ -2955,7 +2956,6 @@ jobs/
     reports.py
     shepherding_report.py
     state_of_church.py
-    test_correction_handler.py
     test_data/
       donna_565_reply_raw.txt
     utils.py
@@ -4602,6 +4602,16 @@ src/
             route.ts
         connect/
           route.ts
+        deacons/
+          list/
+            route.ts
+          member/
+            [id]/
+              follow-up/
+                route.ts
+              route.ts
+          roster/
+            route.ts
         duplicates/
           dismiss/
             route.ts
@@ -4618,6 +4628,10 @@ src/
       connect/
         ConnectCardForm.tsx
         layout.tsx
+        page.tsx
+      deacons/
+        DeaconBoard.tsx
+        EditableSelect.tsx
         page.tsx
       duplicates/
         DuplicateReviewBoard.tsx
