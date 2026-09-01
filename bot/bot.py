@@ -2367,6 +2367,81 @@ def _format_calendar_reply(text: str) -> str:
         return "I couldn't reach the calendar right now — try again in a moment."
 
 
+# Keyword -> ("section", "metric_label") in engagement_sheet_metrics, or the
+# sentinel "top_pages" for the multi-row Top Page Views case. Scoped to the
+# web/email/traffic sections of the Catalyst Tracking Sheet (per Bill's
+# 2026-09-01 "web diagnostics" ask) -- Social Media and Catalyt App
+# Engagement sections exist in the same sheet/table but aren't wired here;
+# same pattern to extend if/when asked. Checked longest-keyword-first so a
+# specific phrase ("new web users") wins over a shorter one it contains
+# ("web users").
+_WEB_METRIC_KEYWORDS: dict[str, tuple[str, str] | str] = {
+    "top page": "top_pages",
+    "top pages": "top_pages",
+    "most visited page": "top_pages",
+    "most viewed page": "top_pages",
+    "popular page": "top_pages",
+    "new web user": ("E Mails/Website", "New Web Users"),
+    "new visitor": ("E Mails/Website", "New Web Users"),
+    "active web user": ("E Mails/Website", "Active Web Users"),
+    "website traffic": ("E Mails/Website", "Active Web Users"),
+    "site traffic": ("E Mails/Website", "Active Web Users"),
+    "web user": ("E Mails/Website", "Active Web Users"),
+    "engagement time": ("E Mails/Website", "Avg Engagement Time (sec)"),
+    "time on site": ("E Mails/Website", "Avg Engagement Time (sec)"),
+    "event count": ("E Mails/Website", "Event Count"),
+    "website events": ("E Mails/Website", "Event Count"),
+    "email campaign": ("E Mails/Website", "Email Campaigns Sent"),
+    "emails opened": ("E Mails/Website", "Emails Opened"),
+    "email open": ("E Mails/Website", "Emails Opened"),
+    "email link": ("E Mails/Website", "Email Links Clicked"),
+    "email click": ("E Mails/Website", "Email Links Clicked"),
+    "total emails sent": ("E Mails/Website", "Total Emails Sent"),
+    "emails sent": ("E Mails/Website", "Total Emails Sent"),
+    "emails did we send": ("E Mails/Website", "Total Emails Sent"),
+    "direct link": ("Aquisitions", "Direct Link"),
+    "direct traffic": ("Aquisitions", "Direct Link"),
+    "organic search": ("Aquisitions", "Organic Search"),
+    "search traffic": ("Aquisitions", "Organic Search"),
+    "social referral": ("Aquisitions", "Social/Referrals"),
+    "referral traffic": ("Aquisitions", "Social/Referrals"),
+}
+_WEB_METRIC_KEYWORDS_BY_LENGTH = sorted(_WEB_METRIC_KEYWORDS, key=len, reverse=True)
+
+
+def _extract_web_metric_lookup(text: str):
+    lowered = text.lower()
+    for kw in _WEB_METRIC_KEYWORDS_BY_LENGTH:
+        if kw in lowered:
+            return _WEB_METRIC_KEYWORDS[kw]
+    return None
+
+
+def _format_web_metric_reply(route) -> str:
+    from jobs.analytics.sheet_import import latest_metric, latest_top_pages
+
+    if route == "top_pages":
+        pages = latest_top_pages()
+        if not pages:
+            return "I don't have any Top Page Views data synced yet."
+        month = pages[0]["month"][:7]
+        lines = [f"Top pages ({month}):"]
+        for i, p in enumerate(pages, start=1):
+            share = f"{p['value_numeric']*100:.0f}%" if p["value_numeric"] is not None else "?"
+            lines.append(f"{i}. {p['value_raw']} — {share}")
+        return "\n".join(lines)
+
+    section, metric_label = route
+    row = latest_metric(section, metric_label)
+    if not row:
+        return f"I don't have any {metric_label} data synced yet."
+    month = row["month"][:7]
+    # value_raw already carries a "%" for percentage metrics (sheet_import.py
+    # parses those into 0-1 floats in value_numeric but keeps the original
+    # "84.00%"-style text in value_raw) -- just show it as entered.
+    return f"{metric_label} for {month}: {row['value_raw']}"
+
+
 def _alert_unanswered_team_question(team_member_name: str, question: str, reply: str) -> None:
     """Per Bill's 2026-09-01 decision: whenever team-chat can only answer a
     question generically (TEAM_CHAT_SYSTEM's [NO_ACCESS] tag, stripped by
@@ -2406,6 +2481,7 @@ async def _handle_team_chat(update: Update, name: str, text: str) -> None:
     lookup = _extract_team_lookup(text)
     classroom = _extract_classroom_lookup(text) if not lookup else None
     calendar = _extract_calendar_lookup(text) if not lookup and not classroom else False
+    web_metric = _extract_web_metric_lookup(text) if not lookup and not classroom and not calendar else None
     if lookup:
         person_name, field = lookup
         reply = await asyncio.to_thread(_format_team_lookup_reply, person_name, field)
@@ -2413,6 +2489,8 @@ async def _handle_team_chat(update: Update, name: str, text: str) -> None:
         reply = await asyncio.to_thread(_format_classroom_reply, classroom)
     elif calendar:
         reply = await asyncio.to_thread(_format_calendar_reply, text)
+    elif web_metric:
+        reply = await asyncio.to_thread(_format_web_metric_reply, web_metric)
     else:
         reply, declined = await asyncio.to_thread(_get_team_reply_sync, text)
         if declined:

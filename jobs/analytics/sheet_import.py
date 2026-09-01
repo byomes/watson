@@ -323,6 +323,47 @@ def sync(dry_run: bool = False) -> dict:
     return result
 
 
+# ── Query helpers (bot.py's team-chat web-diagnostics lookup) ───────────────
+
+def latest_metric(section: str, metric_label: str) -> dict | None:
+    """Most recent non-flagged month's value for one section/metric_label
+    pair, or None if nothing's synced. Skips is_flagged rows (e.g. a "TBD"
+    cell in the sheet) so a lookup doesn't answer with a non-answer when an
+    earlier month has real data -- doesn't filter by `tab`, since month
+    strings (YYYY-MM-01) already sort correctly across years."""
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT month, value_raw, value_numeric FROM engagement_sheet_metrics "
+            "WHERE section = ? AND metric_label = ? AND is_flagged = 0 "
+            "ORDER BY month DESC LIMIT 1",
+            (section, metric_label),
+        ).fetchone()
+    finally:
+        conn.close()
+    return dict(row) if row else None
+
+
+def latest_top_pages() -> list[dict]:
+    """Top Page 1-5 for the most recent month that has any Top Page Views
+    data, ordered by rank (Top Page 1 first)."""
+    conn = get_connection()
+    try:
+        latest = conn.execute(
+            "SELECT MAX(month) AS m FROM engagement_sheet_metrics WHERE section = 'Top Page Views'"
+        ).fetchone()
+        if not latest or not latest["m"]:
+            return []
+        rows = conn.execute(
+            "SELECT metric_label, month, value_raw, value_numeric FROM engagement_sheet_metrics "
+            "WHERE section = 'Top Page Views' AND month = ? ORDER BY metric_label",
+            (latest["m"],),
+        ).fetchall()
+    finally:
+        conn.close()
+    return [dict(r) for r in rows]
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Sync the Catalyst Tracking Sheet into engagement_sheet_metrics.")
     parser.add_argument("--dry-run", action="store_true", help="Parse and log without writing to the DB")
