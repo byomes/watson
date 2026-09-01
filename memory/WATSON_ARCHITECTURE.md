@@ -3076,3 +3076,33 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - 099353b Add cat/duplicates page: staff duplicate-member review tool
 - 8be14c5 Add cat/attendance page: staff attendance toggle tool
 - 65afe11 fix: revert connect-card auto-redirect to Subsplash giving page
+
+---
+
+## Recent Changes — 2026-09-01
+
+### ~/watson
+- 5a72a2d docs: bugs/backlog export 2026-09-01
+- 870cc81 docs: file map 2026-09-01
+- 59a4a93 feat(congregation): add Elder Shepherding Report (Telegram, per-deacon-group)
+- b7d3469 kb: sync 1 transcript(s) to kb/documents (same-day)
+- 4c811f0 kb: sync 1 transcript(s) to kb/documents (same-day)
+- b98c2d1 deacons_web.py: add "Inactive" as a selectable deacon bucket
+- 3a548d5 Retire watson-people: remove deacon_admin_api.py backend
+- df8bed2 feat(connect_cards): add Bill Crook to Sunday attendance reminder
+- 046842d Add wtsn.me/cat/deacons backend: unified deacon roster tool
+- 74ced40 fix(connect_cards): recover spam-quarantined cards, dedupe Bill's reports
+- 6c937a9 missed_report.py: move to Tue 7am, add Sunday attendance-link Telegram reminder
+- c00164a docs: close out the correction_handler.py removal loose end
+- c6709e1 email_intake.py: drop the missed-report-reply deferral
+- 8c04d87 missed_report.py: direct corrections to wtsn.me/cat/attendance
+- 9a93fb8 Remove correction_handler.py — Jim's attendance tool now owns corrections
+- e54ab7f Drop campus_classifier.py references from batch_update note and architecture doc
+- ebe5de2 Remove campus_classifier.py — Jim now manages campus via attendance tool
+- 272a941 docs: architecture update 2026-08-31
+
+### ~/watson-tools
+- 5def608 cat/deacons: add second subtitle sentence pointing to the Open button
+- 08cda7e cat/deacons: update header and subtitle copy
+- dfbec96 DeaconBoard.tsx: add "Inactive" as a filter and per-card deacon option
+- 76058c8 Add /cat/deacons: unified deacon roster tool
