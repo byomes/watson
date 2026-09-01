@@ -52,7 +52,7 @@ _API_KEY = lambda: os.getenv("DEACONS_API_KEY", "")
 _LAST_SEEN_NEVER = "1900-01-01"
 
 _ROSTER_FIELDS = (
-    "m.id, m.name, m.email, m.phone, m.address, m.household_id, "
+    "m.id, m.name, m.email, m.phone, m.address, m.birthdate, m.household_id, "
     "m.deacon, m.deacon_status, m.member_status, "
     "MAX("
     f"  COALESCE((SELECT MAX(service_date) FROM connect_cards WHERE member_id = m.id), '{_LAST_SEEN_NEVER}'),"
@@ -60,7 +60,7 @@ _ROSTER_FIELDS = (
     ") AS last_seen"
 )
 
-_UPDATABLE_FIELDS = {"deacon", "deacon_status", "email", "phone", "address"}
+_UPDATABLE_FIELDS = {"deacon", "deacon_status", "email", "phone", "address", "birthdate"}
 
 # EXCLUDED_DEACON_VALUES (from deacon_reports.py) also contains "Inactive" --
 # that exclusion is about keeping it out of list_deacons()/Master Report
