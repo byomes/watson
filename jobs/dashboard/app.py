@@ -6397,4 +6397,13 @@ if __name__ == "__main__":
         format="%(asctime)s %(levelname)s %(message)s",
         datefmt="%H:%M:%S",
     )
-    app.run(host="0.0.0.0", port=5200, debug=False)
+    # threaded=True: without it, Werkzeug's dev server handles one request
+    # at a time -- any page that fires concurrent requests (e.g.
+    # DeaconBoard.tsx's parallel roster+list fetch, each of which also
+    # makes its own isToolLive() resolve call) can have one queue behind
+    # another long enough that the caller gives up, which requireLiveTool.ts
+    # fails closed on ("tool not live" 404) even though the tool is live.
+    # Reproduced 2026-09-01 on /cat/deacons; safe to enable since
+    # core/database.py's get_connection() already sets a busy_timeout for
+    # concurrent SQLite access.
+    app.run(host="0.0.0.0", port=5200, debug=False, threaded=True)
