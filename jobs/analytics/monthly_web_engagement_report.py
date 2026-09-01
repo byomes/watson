@@ -11,29 +11,41 @@ first, then builds and sends an HTML email to Bill only (BILL_EMAIL in
 .env). Adding Kaci or other recipients is a follow-up decision once this is
 confirmed working — not done here.
 
-Report sections:
-  1. Sheet's Social/App/Email/Acquisition metrics for the month, with
-     month-over-month deltas.
-  2. GA4 weekly trend for the month — totals per week, channel/device
-     monthly summary (sessions/users summed across weeks, engagementRate/
-     bounceRate weighted by sessions since they're ratios, not summable),
-     and top pages with real titles.
-  3. Connect card counts from congregation.db for the month, by campus.
-  4. Reconciliation — the Sheet's hand-copied "Active Web Users / New Web
-     Users / Avg Engagement Time / Event Count" rows next to GA4's live
-     totalUsers/newUsers/averageSessionDuration/eventCount for the same
-     month, explicitly labeled as two different sources. No attempt to
-     explain or resolve a mismatch — both numbers are just shown.
-  5. Interpretation & Recommendations — an Ollama (qwen2.5:7b) synthesis
-     grounded in this month's sections 1-4 above, a 6-month trailing trend
+Report sections, in send order (reordered 2026-09-01 per Bill: the numbers-
+first version left the team without help deciphering them — the written
+analysis now leads, everything else follows under one "The Data" break):
+
+  1. Interpretation & Recommendations — an Ollama (qwen2.5:7b) synthesis
+     grounded in this month's data sections below, a 6-month trailing trend
      across all three sources (jobs/analytics/trailing_trends.py — "trend"
      language requires 3+ consecutive months in the same direction),
      church_events for the report month, and
      memory/projects/web_engagement_benchmarks.md for peer-benchmark
-     context. Never resolves the section-4 reconciliation mismatch — flags
-     it, same as section 4 itself. Structured under three fixed sub-headers
-     (Growing Visitors & Connect Cards / Social Reach / Email Engagement)
-     so no one channel dominates just because it swung the most this month.
+     context. Never resolves the reconciliation mismatch (section 4 below)
+     — flags it, same as that section itself. Structured under three fixed
+     sub-headers (Growing Visitors & Connect Cards / Social Reach / Email
+     Engagement) so no one channel dominates just because it swung the most
+     this month. Generation gets a 600s timeout, one retry, and a head-start
+     warm-up ping (_warm_up_interpretation_model()) fired before the DB
+     work below — qwen2.5:7b isn't kept warm the way jobs/intent/
+     keep_warm.py keeps gemma3:4b warm for live chat, so a cold 4.7GB
+     CPU load previously ate into the same budget as generation and blew
+     the old 240s timeout outright (confirmed via the August 2026 send
+     log). On ultimate failure the report still sends with the data
+     sections intact, with a plain "unavailable this month" note in place
+     of this section, and Bill gets a Telegram alert to go check the logs.
+  2. Sheet's Social/App/Email/Acquisition metrics for the month, with
+     month-over-month deltas.
+  3. GA4 weekly trend for the month — totals per week, channel/device
+     monthly summary (sessions/users summed across weeks, engagementRate/
+     bounceRate weighted by sessions since they're ratios, not summable),
+     and top pages with real titles.
+  4. Connect card counts from congregation.db for the month, by campus.
+  5. Reconciliation — the Sheet's hand-copied "Active Web Users / New Web
+     Users / Avg Engagement Time / Event Count" rows next to GA4's live
+     totalUsers/newUsers/averageSessionDuration/eventCount for the same
+     month, explicitly labeled as two different sources. No attempt to
+     explain or resolve a mismatch — both numbers are just shown.
   6. Known-oddity flags carried forward, not hidden: any TBD/unparseable
      Sheet cells for the month (is_flagged=1 rows), and any top page whose
      bounceRate is unusually high relative to this report's other top pages
@@ -70,6 +82,8 @@ from jobs.connect_cards.reports import _CSS
 from jobs.email_job.brevo_send import send_email
 from jobs.analytics import sheet_import, ga4_import, connect_card_rollup, trailing_trends
 from core.database import get_connection
+from core.vacation import vacation_gate
+from config.settings import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 
 load_dotenv(os.path.expanduser("~/watson/.env"))
 
@@ -86,7 +100,19 @@ BILL_EMAIL = os.getenv("BILL_EMAIL", "")
 WEB_BENCHMARKS_DOC = os.path.expanduser("~/watson/memory/projects/web_engagement_benchmarks.md")
 INTERP_OLLAMA_URL = "http://localhost:11434/api/generate"
 INTERP_OLLAMA_MODEL = "qwen2.5:7b"
-INTERP_OLLAMA_TIMEOUT = 240
+# 2026-09-01: the August report's real prompt (full sheet/GA4/reconciliation/
+# trend/benchmark context in, a 3-header structured synthesis out) blew past
+# the previous 240s timeout -- confirmed via logs, not a model failure, a
+# budget-too-small failure. qwen2.5:7b also isn't kept warm the way
+# jobs/intent/keep_warm.py keeps gemma3:4b warm (that model serves live chat
+# intent classification; this one only runs once a month), so a cold 4.7GB
+# CPU load eats into the same budget as generation. This is a monthly batch
+# job with no one waiting synchronously, so there's no real cost to a
+# generous timeout -- 600s, plus one retry (_ollama_interpretation below),
+# plus _warm_up_interpretation_model() firing early in send_report() so the
+# model has a head start loading during the sheet/GA4/connect-card syncs
+# that run first anyway.
+INTERP_OLLAMA_TIMEOUT = 600
 
 # Sections/labels shown in report section 1 (everything the sheet parses
 # except Top Page Views, which gets its own layout).
@@ -554,17 +580,57 @@ def _ollama_interpretation(
         f"KNOWN ODDITIES / FLAGGED CAVEATS:\n{oddities_text}\n\n"
         "You must respond in English only. Do not use any other language. Begin writing now:"
     )
+    for attempt in (1, 2):
+        try:
+            resp = requests.post(
+                INTERP_OLLAMA_URL,
+                json={"model": INTERP_OLLAMA_MODEL, "prompt": prompt, "stream": False},
+                timeout=INTERP_OLLAMA_TIMEOUT,
+            )
+            resp.raise_for_status()
+            return resp.json().get("response", "").strip() or None
+        except Exception as exc:
+            log.warning("Ollama interpretation synthesis failed (attempt %d/2): %s", attempt, exc)
+    return None
+
+
+def _warm_up_interpretation_model() -> None:
+    """Best-effort head start on loading qwen2.5:7b into memory, fired
+    before the sheet/GA4/connect-card syncs below so the ~5-30s cold load
+    (see INTERP_OLLAMA_TIMEOUT comment) overlaps with that ~10s of unrelated
+    work instead of eating into the interpretation call's own budget.
+    Failure here is not fatal -- _ollama_interpretation's own retry covers
+    a still-cold model."""
     try:
-        resp = requests.post(
+        requests.post(
             INTERP_OLLAMA_URL,
-            json={"model": INTERP_OLLAMA_MODEL, "prompt": prompt, "stream": False},
-            timeout=INTERP_OLLAMA_TIMEOUT,
+            json={"model": INTERP_OLLAMA_MODEL, "prompt": "hi", "stream": False},
+            timeout=30,
         )
-        resp.raise_for_status()
-        return resp.json().get("response", "").strip() or None
     except Exception as exc:
-        log.warning("Ollama interpretation synthesis failed: %s", exc)
-        return None
+        log.info("Interpretation model warm-up ping failed (non-fatal): %s", exc)
+
+
+def _alert_interpretation_failed(month_label: str) -> None:
+    text = (
+        f"⚠️ Monthly Web Engagement Report ({month_label}): the Interpretation & "
+        "Recommendations section failed to generate after 2 attempts (Ollama "
+        "timeout or error) -- the report still sent with the data sections, just "
+        "without the written analysis at the top. Check logs/monthly_web_engagement_report.log."
+    )
+    log.error(text)
+    if vacation_gate("system_failure", "jobs.analytics.monthly_web_engagement_report", text):
+        return
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        return
+    try:
+        requests.post(
+            f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+            json={"chat_id": TELEGRAM_CHAT_ID, "text": text},
+            timeout=10,
+        )
+    except Exception as exc:
+        log.warning("Failed to send interpretation-failure Telegram alert: %s", exc)
 
 
 def _render_interpretation_html(text: str) -> str:
@@ -631,6 +697,7 @@ def _oddities_html(conn, year: int, month: int, top_pages: list[dict]) -> str:
 
 def build_report(year: int, month: int) -> tuple[str, str]:
     month_label = _month_label(year, month)
+    _warm_up_interpretation_model()
     conn = get_connection()
     try:
         sheet_html = _sheet_metrics_section_html(conn, year, month)
@@ -655,19 +722,31 @@ def build_report(year: int, month: int) -> tuple[str, str]:
         events_text=_events_text(events),
         benchmarks_context=_load_web_benchmarks_doc(),
     )
-    interpretation_html = (
-        _render_interpretation_html(interpretation) if interpretation
-        else "<p class='empty'>Interpretation unavailable — Ollama did not respond in time.</p>"
-    )
+    if interpretation:
+        interpretation_html = _render_interpretation_html(interpretation)
+    else:
+        interpretation_html = (
+            "<p class='empty'>Interpretation unavailable this month — Ollama didn't respond in "
+            "time after two attempts. The data below is unaffected; Bill's been alerted to check "
+            "the logs.</p>"
+        )
+        _alert_interpretation_failed(month_label)
 
     subject = f"Watson — Monthly Web Engagement Report | {month_label}"
 
-    body = "<h2>Sheet Metrics — Social / App / Email / Acquisitions</h2>" + sheet_html
-    body += "<h2>GA4 Web Trend</h2>" + ga4_html
-    body += "<h2>Connect Cards</h2>" + connect_html
-    body += "<h2>Reconciliation — Sheet vs. GA4</h2>" + reconciliation_html
-    body += "<h2>Interpretation & Recommendations</h2>" + interpretation_html
-    body += "<h2>Known Oddities</h2>" + oddities_html
+    # Interpretation leads the email -- the written read on what the numbers
+    # mean and what to do about it, before any raw data. Per Bill's
+    # 2026-09-01 request: the numbers-first version left the team without
+    # help deciphering them. "The Data" below is a deliberate section break,
+    # not just another <h2>, so it's visually clear everything past that
+    # point is reference material for the analysis above it.
+    body = "<h2>Interpretation & Recommendations</h2>" + interpretation_html
+    body += "<h2 style='margin-top:28px;padding-top:14px;border-top:2px solid #ddd'>The Data</h2>"
+    body += "<h3 style='margin:14px 0 4px'>Sheet Metrics — Social / App / Email / Acquisitions</h3>" + sheet_html
+    body += "<h3 style='margin:14px 0 4px'>GA4 Web Trend</h3>" + ga4_html
+    body += "<h3 style='margin:14px 0 4px'>Connect Cards</h3>" + connect_html
+    body += "<h3 style='margin:14px 0 4px'>Reconciliation — Sheet vs. GA4</h3>" + reconciliation_html
+    body += "<h3 style='margin:14px 0 4px'>Known Oddities</h3>" + oddities_html
 
     return subject, _wrap("Monthly Web Engagement Report", month_label, body)
 
