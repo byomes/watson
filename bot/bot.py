@@ -2262,6 +2262,54 @@ def _format_team_lookup_reply(person_name: str, field: str) -> str:
     return f"{m['name']}: no data on file for that."
 
 
+# Sheet header abbreviation -> room key expected by jobs.gsheets.classroom_sync.ROOMS.
+_CLASSROOM_KEYWORDS = {
+    "nursery": "nursery",
+    "toddler": "toddlers",
+    "toddlers": "toddlers",
+    "pre-k": "prek",
+    "prek": "prek",
+    "pre k": "prek",
+    "elementary": "elementary",
+}
+
+
+def _extract_classroom_lookup(text: str) -> str | None:
+    """Recognize a classroom-attendance question ('elementary attendance',
+    'how many kids were in nursery') and return the room key (a key of
+    jobs.gsheets.classroom_sync.ROOMS), or None. Requires an attendance-ish
+    trigger word alongside the room name so ordinary mentions of a room
+    ("I love working in nursery") don't turn into a DB lookup. Always
+    answers for the most recently synced Sunday -- doesn't try to parse a
+    specific date out of the question."""
+    lowered = text.lower()
+    if not re.search(r"\battend|\bhow many\b|\bheadcount\b|\bcount\b|\bnumbers?\b", lowered):
+        return None
+    for kw, room in _CLASSROOM_KEYWORDS.items():
+        if re.search(rf"\b{re.escape(kw)}\b", lowered):
+            return room
+    return None
+
+
+_ROOM_LABELS = {"nursery": "Nursery", "toddlers": "Toddlers", "prek": "PreK", "elementary": "Elementary"}
+
+
+def _format_classroom_reply(room: str) -> str:
+    from jobs.gsheets.classroom_sync import latest_room_count
+
+    row = latest_room_count(room)
+    if not row:
+        return "I don't have any classroom attendance data synced yet."
+
+    parts = []
+    if row["kids"] is not None:
+        parts.append(f"{row['kids']} kid{'s' if row['kids'] != 1 else ''}")
+    if row["adults"] is not None:
+        parts.append(f"{row['adults']} worker{'s' if row['adults'] != 1 else ''}")
+    detail = " and ".join(parts) if parts else "no data"
+    return f"{_ROOM_LABELS[room]} on {row['date']}: {detail}."
+
+
 async def _handle_team_chat(update: Update, name: str, text: str) -> None:
     text = (text or "").strip()
     if not text:
@@ -2269,9 +2317,12 @@ async def _handle_team_chat(update: Update, name: str, text: str) -> None:
     _log_tg('in', text, recipient=name)
 
     lookup = _extract_team_lookup(text)
+    classroom = _extract_classroom_lookup(text) if not lookup else None
     if lookup:
         person_name, field = lookup
         reply = await asyncio.to_thread(_format_team_lookup_reply, person_name, field)
+    elif classroom:
+        reply = await asyncio.to_thread(_format_classroom_reply, classroom)
     else:
         reply = await asyncio.to_thread(_get_team_reply_sync, text)
 
