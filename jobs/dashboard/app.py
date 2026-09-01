@@ -333,6 +333,9 @@ app.register_blueprint(publishing_dashboard_bp)
 from jobs.congregation.attendance_web import attendance_web_bp
 app.register_blueprint(attendance_web_bp)
 
+from jobs.congregation.elder_shepherding_report_web import elder_shepherding_report_web_bp
+app.register_blueprint(elder_shepherding_report_web_bp)
+
 from jobs.congregation.duplicate_review import duplicate_review_bp
 app.register_blueprint(duplicate_review_bp)
 

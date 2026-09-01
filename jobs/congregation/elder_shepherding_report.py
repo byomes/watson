@@ -30,6 +30,16 @@ Telegram-only for now, delivered via jobs/telegram/send_to_person.py, sent
 to Bill Yomes only. No email counterpart -- this is deliberately Telegram
 as the primary channel.
 
+Named, per-group breakdown (2026-09-01): the Telegram message stays
+counts-only to stay well under Telegram's character limit -- full names,
+grouped by deacon and sorted worst-bucket-first, live instead at
+wtsn.me/cat/shepherdingreport (build_deacon_group_names() below, served by
+jobs/congregation/elder_shepherding_report_web.py). The Telegram message
+links to it. That page is a 'custom' public_tools row gated the same way
+every other wtsn.me tool is -- draft until Bill taps Go Live on the
+first-deploy Telegram prompt, then reachable by anyone with the URL (no
+further per-viewer auth, same as /cat/attendance and /cat/deacons).
+
 Cron (Wednesday 6:15am, right after shepherding_report.py's 6:00am run --
 matching its live schedule, which corrects the docstring-stated Monday and
 actually runs Wednesday, after missed_report.py's Tuesday 7am corrected
@@ -65,6 +75,7 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 RECIPIENT_NAME = "Bill Yomes"
+REPORT_URL = "https://wtsn.me/cat/shepherdingreport"
 
 _BLANK_DEACON_VALUES = {"none"}
 
@@ -86,11 +97,11 @@ def _bucket(days_since: int, visit_count: int) -> str | None:
 
 def _raw_rows() -> list:
     """Every non-excluded member with at least one attendance record, plus
-    their raw members.deacon value, last_seen, and total visit count."""
+    their name, raw members.deacon value, last_seen, and total visit count."""
     with _conn() as conn:
         return conn.execute(
             """
-            SELECT m.id, m.deacon,
+            SELECT m.id, m.name, m.deacon,
                    MAX(
                      COALESCE((SELECT MAX(service_date) FROM connect_cards WHERE member_id = m.id), '1900-01-01'),
                      COALESCE((SELECT MAX(service_date) FROM attendance  WHERE member_id = m.id), '1900-01-01')
@@ -157,6 +168,52 @@ def build_deacon_group_counts() -> list[dict]:
     return rows
 
 
+def _last_name_key(name: str) -> str:
+    """Sort key by last name -- same last-whitespace-token heuristic
+    jobs/congregation/attendance_web.py uses (members.name is one free-text
+    field, no separate first/last columns)."""
+    parts = (name or "").strip().split()
+    return parts[-1].lower() if parts else ""
+
+
+_BUCKET_ORDER = {"6wk": 0, "3-5wk": 1, "2wk": 2, None: 3}
+
+
+def build_deacon_group_names() -> list[dict]:
+    """[{name, members: [{name, bucket}, ...]}, ...] -- one row per real
+    deacon (same list_deacons() order as build_deacon_group_counts()), plus
+    a trailing Unassigned row. Every non-excluded member with attendance
+    history appears exactly once, under `bucket` (None = no flag -- seen
+    within the last 2 weeks, or an old first-timer that doesn't clear the
+    6+wk visit-count gate). Each group's members are pre-sorted
+    worst-bucket-first, then by last name, so the page renders top to
+    bottom with no client-side sort. Powers wtsn.me/cat/shepherdingreport
+    -- kept separate from build_deacon_group_counts() because Telegram's
+    character limit is the reason that one stays counts-only."""
+    deacons = list_deacons()
+    groups = {d: {"name": d, "members": []} for d in deacons}
+    unassigned = {"name": "Unassigned", "members": []}
+
+    today = date.today()
+    for r in _raw_rows():
+        key = _group_key(r["deacon"])
+        if key == "_excluded_":
+            continue
+        target = unassigned if key is None else groups.get(key)
+        if target is None:
+            continue
+
+        days_since = (today - date.fromisoformat(r["last_seen"])).days
+        bucket = _bucket(days_since, r["visit_count"])
+        target["members"].append({"name": r["name"], "bucket": bucket})
+
+    rows = [groups[d] for d in deacons]
+    rows.append(unassigned)
+    for row in rows:
+        row["members"].sort(key=lambda m: (_BUCKET_ORDER[m["bucket"]], _last_name_key(m["name"])))
+    return rows
+
+
 def build_report_text() -> str:
     today = _today()
     rows = build_deacon_group_counts()
@@ -177,6 +234,8 @@ def build_report_text() -> str:
     lines.append("")
     tot_flag = " \U0001f534" if tot6 else ""
     lines.append(f"Totals — 2wk {tot2} | 3-5wk {tot35} | 6+wk {tot6}{tot_flag}")
+    lines.append("")
+    lines.append(f"Names by group: {REPORT_URL}")
     return "\n".join(lines)
 
 
