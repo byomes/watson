@@ -1,6 +1,12 @@
 """
 Elder Shepherding Report — weekly per-deacon-group attendance rollup for Bill.
 
+Displayed to users as "Catalyst Attendance Overview" (Telegram message
+header, wtsn.me/cat/shepherdingreport page title/heading) as of 2026-09-01
+-- module/file/function names and this docstring keep the original
+internal name deliberately, to avoid a disruptive rename touching cron
+entries, log filenames, and imports for a purely cosmetic label change.
+
 Counts-only summary (no names): for each deacon and the Unassigned pool, how
 many of their people fall into each absence bucket. This sits above
 deacon_reports.py's full-roster Master Shepherding Report -- it's for an
@@ -222,7 +228,7 @@ def build_report_text() -> str:
     today = _today()
     rows = build_deacon_group_counts()
 
-    lines = [f"\U0001f4ca Elder Shepherding Report — {today}", ""]
+    lines = [f"\U0001f4ca Catalyst Attendance Overview — {today}", ""]
     tot2 = tot35 = tot6 = 0
     for r in rows:
         tot2 += r["wk2"]
