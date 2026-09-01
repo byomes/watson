@@ -342,6 +342,9 @@ app.register_blueprint(duplicate_review_bp)
 from jobs.congregation.deacons_web import deacons_web_bp
 app.register_blueprint(deacons_web_bp)
 
+from jobs.congregation.papercards_web import papercards_web_bp
+app.register_blueprint(papercards_web_bp)
+
 from jobs.team.api import team_bp
 app.register_blueprint(team_bp)
 
@@ -600,6 +603,12 @@ _TERM_COMMANDS = {
 def terminal():
     import subprocess as _sp
     import sqlite3 as _sq
+
+    if not session.get("admin_logged_in"):
+        return jsonify({
+            "output": "Not authenticated — log in at /admin/login to use the terminal.",
+            "success": False,
+        }), 401
 
     data = request.get_json(force=True) or {}
     cmd = (data.get("command") or "").strip()
