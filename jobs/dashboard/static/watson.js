@@ -3799,7 +3799,7 @@ function _tlRenderShell() {
         <option value="7"${_tlDays===7?' selected':''}>7d</option>
         <option value="30"${_tlDays===30?' selected':''}>30d</option>
       </select>
-      <input id="mtl-search" type="text" placeholder="Search recipient&hellip;" value="${esc(_tlRecipient)}"
+      <input id="mtl-search" type="text" placeholder="Search person&hellip;" value="${esc(_tlRecipient)}"
         style="flex:1;min-width:140px;padding:7px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:12px;outline:none"
         oninput="_tlOnSearchInput(this.value)">
     </div>
@@ -3837,15 +3837,18 @@ function _tlRenderTable(rows) {
   const wrap = document.getElementById('mtl-table-wrap');
   if (!wrap) return;
   if (!rows.length) {
-    wrap.innerHTML = '<div class="empty">No messages sent in this window.</div>';
+    wrap.innerHTML = '<div class="empty">No messages in this window.</div>';
     return;
   }
   wrap.innerHTML = `
     <div class="mshep-wrap"><table class="mshep-table">
-      <tr><th>Time</th><th>Recipient</th><th>Message</th></tr>
+      <tr><th>Time</th><th></th><th>Person</th><th>Message</th></tr>
       ${rows.map(r => `
         <tr>
           <td style="white-space:nowrap">${esc(fmtGenerated(r.created_at))}</td>
+          <td style="white-space:nowrap">${r.direction === 'in'
+            ? '<span title="Received" style="color:var(--gold)">&larr; in</span>'
+            : '<span title="Sent" style="color:var(--muted)">&rarr; out</span>'}</td>
           <td>${esc(r.recipient)}</td>
           <td>${esc(r.message)}</td>
         </tr>`).join('')}

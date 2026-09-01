@@ -1,6 +1,7 @@
 """jobs/telegram/dashboard_api.py -- Flask Blueprint serving the dashboard's
-Telegram Log tile: outbound messages Watson has sent, now that it sends to
-onboarded leaders (jobs/telegram/send_to_person.py) and not just Bill.
+Telegram Log tile: full two-way Telegram traffic (both direction='in' and
+direction='out' rows), across everyone bot.py logs -- Bill, onboarded team
+members, and anyone else _log_tg() has recorded, not just what Watson sent.
 
 Mount on the Watson dashboard app:
     from jobs.telegram.dashboard_api import telegram_log_bp
@@ -45,8 +46,8 @@ def telegram_log():
     # send_to_person.py's _log_sent) -- the cutoff must be computed the same
     # way or it drifts against UTC by the local offset.
     query = (
-        "SELECT id, message, recipient, created_at FROM telegram_log "
-        "WHERE direction = 'out' AND created_at >= datetime('now', 'localtime', ?)"
+        "SELECT id, direction, message, recipient, created_at FROM telegram_log "
+        "WHERE created_at >= datetime('now', 'localtime', ?)"
     )
     params: list = [f"-{days} days"]
     if recipient:
@@ -61,6 +62,7 @@ def telegram_log():
     return jsonify([
         {
             "id": r["id"],
+            "direction": r["direction"],
             "recipient": r["recipient"] or "Bill",
             "message": r["message"],
             "created_at": r["created_at"],

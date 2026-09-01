@@ -72,7 +72,10 @@ _BLOCKED_DEACON_VALUES = EXCLUDED_DEACON_VALUES - {"Inactive"}
 
 def _attach_shepherding_info(conn, people: list[dict]) -> None:
     """Mutates each person dict in place: prayer_requests (leadership_only
-    excluded -- see module docstring) + next_steps, last 90 days each."""
+    excluded -- see module docstring) + next_steps (last 90 days each) +
+    follow_ups (full history, no window -- these are deacon-logged and
+    typically few enough per person that a cutoff would just hide the
+    ones worth seeing)."""
     member_ids = [p["id"] for p in people]
     if not member_ids:
         return
@@ -99,9 +102,20 @@ def _attach_shepherding_info(conn, people: list[dict]) -> None:
             {"step": ns["step"], "label": _STEP_NAMES.get(ns["step"], ns["step"]), "date": ns["date"]}
         )
 
+    follow_ups_by_member: dict = {}
+    for fu in conn.execute(
+        f"SELECT member_id, note, status, created_at FROM follow_ups "
+        f"WHERE member_id IN ({placeholders}) ORDER BY created_at DESC",
+        member_ids,
+    ):
+        follow_ups_by_member.setdefault(fu["member_id"], []).append(
+            {"note": fu["note"], "status": fu["status"], "created_at": fu["created_at"]}
+        )
+
     for p in people:
         p["prayer_requests"] = prayers_by_member.get(p["id"], [])
         p["next_steps"] = steps_by_member.get(p["id"], [])
+        p["follow_ups"] = follow_ups_by_member.get(p["id"], [])
 
 
 def _require_key(f):
