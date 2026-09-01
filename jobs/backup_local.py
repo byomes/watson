@@ -78,6 +78,7 @@ CODE_REPO_SOURCES = [
     f"{HOME_DIR}/wcky",
     f"{HOME_DIR}/watson-admin",
     f"{HOME_DIR}/watson-ui",
+    f"{HOME_DIR}/watson-tools",
     f"{HOME_DIR}/watson-docs-sync",
     f"{HOME_DIR}/comms-desk",
     f"{HOME_DIR}/comms-assets",
