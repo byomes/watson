@@ -2368,11 +2368,12 @@ def _format_calendar_reply(text: str) -> str:
 
 
 # Keyword -> ("section", "metric_label") in engagement_sheet_metrics, or the
-# sentinel "top_pages" for the multi-row Top Page Views case. Scoped to the
-# web/email/traffic sections of the Catalyst Tracking Sheet (per Bill's
-# 2026-09-01 "web diagnostics" ask) -- Social Media and Catalyt App
-# Engagement sections exist in the same sheet/table but aren't wired here;
-# same pattern to extend if/when asked. Checked longest-keyword-first so a
+# sentinel "top_pages" for the multi-row Top Page Views case. Covers every
+# section of the Catalyst Tracking Sheet (per Bill's 2026-09-01 "access all
+# available data from that sheet" follow-up to the original web-diagnostics
+# ask): E Mails/Website, Aquisitions, Top Page Views, Social Media, and
+# Catalyt App Engagement (sic on both -- matched as-is from the sheet, see
+# jobs/analytics/sheet_import.py). Checked longest-keyword-first so a
 # specific phrase ("new web users") wins over a shorter one it contains
 # ("web users").
 _WEB_METRIC_KEYWORDS: dict[str, tuple[str, str] | str] = {
@@ -2405,6 +2406,25 @@ _WEB_METRIC_KEYWORDS: dict[str, tuple[str, str] | str] = {
     "search traffic": ("Aquisitions", "Organic Search"),
     "social referral": ("Aquisitions", "Social/Referrals"),
     "referral traffic": ("Aquisitions", "Social/Referrals"),
+    "facebook post likes": ("Social Media", "Facebook Post Likes"),
+    "facebook likes": ("Social Media", "Facebook Post Likes"),
+    "likes on facebook": ("Social Media", "Facebook Post Likes"),
+    "facebook post shares": ("Social Media", "Facebook Post Shares"),
+    "facebook shares": ("Social Media", "Facebook Post Shares"),
+    "shares on facebook": ("Social Media", "Facebook Post Shares"),
+    "facebook followers": ("Social Media", "Facebook Followers"),
+    "total facebook posts": ("Social Media", "Total Facebook Posts"),
+    "instagram post likes": ("Social Media", "Instagram Post Likes"),
+    "instagram likes": ("Social Media", "Instagram Post Likes"),
+    "likes on instagram": ("Social Media", "Instagram Post Likes"),
+    "instagram post shares": ("Social Media", "Instagram Post Shares"),
+    "instagram shares": ("Social Media", "Instagram Post Shares"),
+    "shares on instagram": ("Social Media", "Instagram Post Shares"),
+    "instagram followers": ("Social Media", "Instagram Followers"),
+    "total instagram posts": ("Social Media", "Total Instagram Posts"),
+    "app downloads": ("Catalyt App Engagement", "App Downloads"),
+    "app impressions": ("Catalyt App Engagement", "App Impressions"),
+    "app launches": ("Catalyt App Engagement", "App Launches"),
 }
 _WEB_METRIC_KEYWORDS_BY_LENGTH = sorted(_WEB_METRIC_KEYWORDS, key=len, reverse=True)
 
