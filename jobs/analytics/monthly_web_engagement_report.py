@@ -7,9 +7,10 @@ monthly_engagement_report.py, which is jobs/connect_cards/
 monthly_engagement_report.py, an unrelated existing report to Kaci.
 
 Runs the three import jobs (sheet_import, ga4_import, connect_card_rollup)
-first, then builds and sends an HTML email to Bill only (BILL_EMAIL in
-.env). Adding Kaci or other recipients is a follow-up decision once this is
-confirmed working — not done here.
+first, then builds and sends an HTML email to Bill and Kaci (BILL_EMAIL,
+KACI_EMAIL in .env) -- confirmed working 2026-09-01, per Bill, after the
+interpretation-leads-the-email rewrite that same day (_resolve_recipients()
+below).
 
 Report sections, in send order (reordered 2026-09-01 per Bill: the numbers-
 first version left the team without help deciphering them — the written
@@ -751,20 +752,44 @@ def build_report(year: int, month: int) -> tuple[str, str]:
     return subject, _wrap("Monthly Web Engagement Report", month_label, body)
 
 
+def _resolve_recipients() -> list[str]:
+    """Bill + Kaci (comms team) -- per Bill's 2026-09-01 confirmation, the
+    "Adding Kaci or other recipients" follow-up this module's docstring
+    originally deferred. KACI_EMAIL, like BILL_EMAIL, comes from .env
+    (already used the same way by jobs/connect_cards/email_reports.py) --
+    never hardcoded."""
+    recipients = []
+    if BILL_EMAIL:
+        recipients.append(BILL_EMAIL)
+    else:
+        log.warning("BILL_EMAIL not set in .env — skipping Bill.")
+    kaci_email = os.getenv("KACI_EMAIL", "")
+    if kaci_email:
+        recipients.append(kaci_email)
+    else:
+        log.warning("KACI_EMAIL not set in .env — skipping Kaci.")
+    return recipients
+
+
 def send_report(year: int, month: int, to_override: str | None = None) -> None:
     subject, html = build_report(year, month)
-    to = to_override or BILL_EMAIL
-    if not to:
-        raise RuntimeError("No recipient — BILL_EMAIL not set in .env and no --to override given.")
+
+    if to_override:
+        recipients = [to_override]
+    else:
+        recipients = _resolve_recipients()
+        if not recipients:
+            raise RuntimeError("No recipients — neither BILL_EMAIL nor KACI_EMAIL set in .env, and no --to override given.")
 
     text_fallback = re.sub(r"<[^>]+>", "", html)
-    result = send_email(
-        to_email=to, to_name="", subject=subject,
-        text_body=text_fallback, html_body=html, include_signature=False,
-    )
-    if not result["success"]:
-        raise RuntimeError(f"Brevo send to {to} failed: {result['error']}")
-    log.info("Sent %r to %s", subject, to)
+    for to in recipients:
+        result = send_email(
+            to_email=to, to_name="", subject=subject,
+            text_body=text_fallback, html_body=html, include_signature=False,
+        )
+        if not result["success"]:
+            raise RuntimeError(f"Brevo send to {to} failed: {result['error']}")
+        log.info("Sent %r to %s", subject, to)
 
 
 # ── Entry point ────────────────────────────────────────────────────────────────
