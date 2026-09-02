@@ -865,9 +865,15 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not _is_authorized(update):
-        _team_name = _team_member_name_for_chat(str(update.effective_chat.id))
-        if _team_name:
-            await _handle_team_chat(update, _team_name, update.message.text or "")
+        # Per Bill's 2026-09-02 decision, every onboarded Catalyst leader
+        # gets the same full team-chat access with no distinction between
+        # staff/elders/deacons -- team_members and deacons are just two
+        # different registries a person can be onboarded through, both
+        # routed to the identical _handle_team_chat.
+        _chat_id = str(update.effective_chat.id)
+        _leader_name = _team_member_name_for_chat(_chat_id) or _deacon_name_for_chat(_chat_id)
+        if _leader_name:
+            await _handle_team_chat(update, _leader_name, update.message.text or "")
         return
 
     text = update.message.text or ""
@@ -2184,11 +2190,40 @@ def _team_member_name_for_chat(chat_id: str) -> str | None:
     return row["name"] if row else None
 
 
+def _deacon_name_for_chat(chat_id: str) -> str | None:
+    """Return the deacon's own name if this chat belongs to a known deacon
+    (jobs.congregation.deacon_reports.list_deacons()). Added 2026-09-02
+    alongside _team_member_name_for_chat above as a second registry a
+    person can be onboarded through -- deacons who were never added to
+    team_members (e.g. Jim Bouchat, Bill Crook) still reach the identical
+    full _handle_team_chat via this lookup (see _handle_text_body). Per
+    Bill's same-day follow-up decision there's no access difference between
+    the two registries -- this only exists because deacons and team members
+    happen to be tracked in separate tables, not to gate anything."""
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT name FROM people WHERE telegram_chat_id = ?", (chat_id,)
+        ).fetchone()
+    if not row:
+        return None
+    from jobs.congregation.deacon_reports import list_deacons
+    return row["name"] if row["name"] in set(list_deacons()) else None
+
+
 # Tolerant of the model dropping the brackets or using a space instead of
 # an underscore (observed both from llama3.2:3b in testing) -- a strict
 # literal "[NO_ACCESS]" match missed those, which both silently skipped
 # Bill's alert AND leaked the raw tag word into the team member's reply.
-_NO_ACCESS_TAG_RE = re.compile(r"^\[?no[_\s]?access\]?[:\s]*", re.IGNORECASE)
+#
+# Unanchored as of 2026-09-02 (bug found investigating Donna's unanswered
+# attendance question): the model doesn't always put the tag at the very
+# start -- it can write a sentence first and the tag mid-reply ("I'm not
+# aware of the current attendance numbers. [NO_ACCESS] Please contact...").
+# The old `^`-anchored version missed that entirely, so neither the strip
+# nor Bill's alert fired. Brackets are now required (not optional) since
+# without the anchor, a bracket-optional match risks catching a normal
+# sentence that happens to contain the words "no access".
+_NO_ACCESS_TAG_RE = re.compile(r"\[\s*no[_\s]?access\s*\]:?\s*", re.IGNORECASE)
 
 
 def _get_team_reply_sync(text: str) -> tuple[str, bool]:
@@ -2221,7 +2256,7 @@ def _get_team_reply_sync(text: str) -> tuple[str, bool]:
         )
         resp.raise_for_status()
         reply = resp.json()["message"]["content"].strip()
-        declined = bool(_NO_ACCESS_TAG_RE.match(reply))
+        declined = bool(_NO_ACCESS_TAG_RE.search(reply))
         reply = _NO_ACCESS_TAG_RE.sub("", reply).strip()
         return reply or "I didn't get a response.", declined
     except Exception as exc:
@@ -2512,9 +2547,23 @@ async def _handle_team_chat(update: Update, name: str, text: str) -> None:
     elif web_metric:
         reply = await asyncio.to_thread(_format_web_metric_reply, web_metric)
     else:
-        reply, declined = await asyncio.to_thread(_get_team_reply_sync, text)
-        if declined:
-            await asyncio.to_thread(_alert_unanswered_team_question, name, text, reply)
+        # Per Bill's 2026-09-02 decisions: attendance, web-traffic, and
+        # contact-info questions should have NOTHING off limits for any
+        # onboarded leader (team member or deacon alike -- both land here
+        # via _handle_text_body), unlike everything else in this function
+        # above (which only answers phrasings it explicitly recognizes).
+        # jobs.analytics.data_chat runs a real read-only query instead of
+        # pattern-matching every possible wording -- only a genuinely
+        # off-topic question (on_topic=False) falls through to the generic
+        # decline-and-alert path below.
+        from jobs.analytics.data_chat import answer_data_question
+        on_topic, dc_reply = await asyncio.to_thread(answer_data_question, text, name)
+        if on_topic:
+            reply = dc_reply
+        else:
+            reply, declined = await asyncio.to_thread(_get_team_reply_sync, text)
+            if declined:
+                await asyncio.to_thread(_alert_unanswered_team_question, name, text, reply)
 
     await update.message.reply_text(reply)
     _log_tg('out', reply, recipient=name)
