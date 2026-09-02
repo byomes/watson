@@ -1,6 +1,6 @@
 # Watson Bug Tracker
 _Auto-generated nightly from bug_tracker. Source of truth is the database — do not hand-edit this file, changes will be overwritten._
-Last generated: 2026-09-01 02:10
+Last generated: 2026-09-02 02:10
 
 ## Open (37)
 | ID | Title | Repo | Discovered |
@@ -46,6 +46,7 @@ Last generated: 2026-09-01 02:10
 ## Recently Resolved (last 30 days)
 | ID | Title | Repo | Resolved | Commit |
 |---|---|---|---|---|
+| 113 | watson-tools dispatcher crashed intermittently on DNS resolution to the Watson backend | watson-tools | 2026-09-01 13:09:37 | 08ed7a9 |
 | 112 | connect_cards email_reports.py sent Bill duplicate copies of every report | watson | 2026-08-31 15:43:25 | 74ced40 |
 | 111 | connect_cards intake.py only scanned INBOX, silently dropping spam-misclassified cards | watson | 2026-08-31 15:43:25 | 74ced40 |
 | 110 | campus_classifier.py overwrites Inactive campus_preference every Monday | watson | 2026-08-31 11:14:53 | ebe5de2 |
@@ -78,4 +79,3 @@ Last generated: 2026-09-01 02:10
 | 17 | Export CSV button downloads HTML instead of CSV | watson | 2026-08-06 04:29:27 | f50910d |
 | 56 | headcount_sync.py never wired into crontab — Wilmington headcount data missing since 7/27 | watson | 2026-08-04 13:53:32 | 3b1abf94b4e2f87f0675f90be19dc965285e2688 |
 | 57 | devdispatch _worktree_path() mismatches CLI worktree dirname sanitization | watson | 2026-08-04 12:36:50 | c3db18f |
-| 54 | Suggest Fonts narrow stage timed out silently on every real run | watson | 2026-08-02 18:01:26 | 30161e4 |
