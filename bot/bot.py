@@ -47,6 +47,23 @@ from jobs.givebutter.templates import first_gift_email, repeat_gift_email
 
 log = logging.getLogger(__name__)
 
+# Found 2026-09-02 debugging a team-chat failure: the pre-existing
+# "normalize smart quotes" line further down was a no-op (both .replace()
+# calls used a straight quote as BOTH the search and replacement char --
+# likely a curly-quote character lost somewhere along the way to a plain-
+# ASCII source file). Real mapping here, applied to both Bill's own chat
+# and team/deacon-chat, since mobile keyboards auto-curl apostrophes/quotes
+# and a name/date matched via exact SQL string equality needs the straight
+# form to reliably match what's actually stored in the database.
+_SMART_QUOTE_MAP = {"‘": "'", "’": "'", "“": '"', "”": '"'}
+
+
+def _normalize_smart_quotes(text: str) -> str:
+    for smart, straight in _SMART_QUOTE_MAP.items():
+        text = text.replace(smart, straight)
+    return text
+
+
 _AUTHORIZED_ID = int(TELEGRAM_CHAT_ID) if TELEGRAM_CHAT_ID else None
 
 _DONORS_DB = Path(__file__).resolve().parents[1] / "data" / "donors.db"
@@ -881,7 +898,7 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     # Normalize smart quotes from mobile keyboards
-    text_clean = text.replace("'", "'").replace("'", "'")
+    text_clean = _normalize_smart_quotes(text)
     text_lower = text_clean.lower().strip()
     _log_tg('in', text_clean)
 
@@ -2528,7 +2545,7 @@ def _alert_unanswered_team_question(team_member_name: str, question: str, reply:
 
 
 async def _handle_team_chat(update: Update, name: str, text: str) -> None:
-    text = (text or "").strip()
+    text = _normalize_smart_quotes((text or "").strip())
     if not text:
         return
     _log_tg('in', text, recipient=name)

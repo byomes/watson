@@ -90,7 +90,10 @@ def _attendance_schema(allow_contact_info: bool) -> str:
         "classroom_attendance(date TEXT, kids_nursery, adults_nursery, kids_toddlers, adults_toddlers, kids_prek, adults_prek, kids_elementary, adults_elementary INTEGER)\n"
         "  -- one row per Sunday with headcounts for each of the 4 kids' classrooms.\n"
         f"members(id INTEGER, name TEXT, deacon TEXT, status TEXT, member_status TEXT, campus_preference TEXT, first_visit_date TEXT, active INTEGER, partnership_status TEXT{contact_cols})\n"
-        "  -- deacon holds the NAME of the deacon shepherding that member -- \"a deacon's group\" is every member row with that deacon value.\n"
+        "  -- deacon holds the free-text NAME of the deacon shepherding that member -- \"who's in <X>'s deacon group\" means WHERE deacon LIKE '%X%' DIRECTLY.\n"
+        "  -- Never look up X's own row and reuse ITS deacon value instead -- deacons/elders themselves are tagged with a\n"
+        "  -- leadership bucket there (e.g. 'Elders & Deacons'), shared by every deacon/elder and their spouse, not their own\n"
+        "  -- name -- reusing it returns that whole leadership bucket, a wrong and unrelated group, not the person's shepherded members.\n"
         "  -- join attendance.member_id = members.id for a specific person's or group's attendance."
     )
 
@@ -112,7 +115,15 @@ in the same domain. WEB covers social-media/website traffic metrics. If it's one
 single-line read-only SQLite SELECT statement that answers it exactly, using ONLY the tables and columns \
 listed below -- never invent a table or column, never write anything but SELECT. If the question has no \
 month/date range and asks for a current or total count ("how many X do we have", "what's our X"), use the \
-single most recent row (ORDER BY month DESC LIMIT 1 for web metrics) rather than every historical row.
+single most recent row (ORDER BY month DESC LIMIT 1 for web metrics) rather than every historical row. \
+When matching a person's name (members.name or members.deacon), NEVER use exact equality (=) -- the asker's \
+spelling may drop punctuation, get plural/typo'd, or vary in case. Use `LIKE '%Full Name%'` with the WHOLE \
+name as given (first and last together, case-insensitive by default in SQLite, punctuation/trailing letters \
+just fall outside the %...% wildcard) so "bill crooks" or "Bill Crook's" still matches the stored name \
+"Bill Crook" -- do NOT reduce the match to just the last name, since spouses/relatives sharing a surname \
+(e.g. "Tara Mathena" and "Dino Mathena") would then wrongly match each other too. Whenever a query matches a \
+person this way, always SELECT their name column alongside whatever was asked for, so an unexpected multi-\
+match is still attributable to a specific person rather than an unlabeled list of values.
 Today's date is {today}.
 
 ATTENDANCE tables (file: congregation.db):
@@ -139,17 +150,21 @@ SQL: SELECT value_raw FROM engagement_sheet_metrics WHERE section = 'Social Medi
 
 Q: how is Jim Bouchat's group doing for attendance?
 DOMAIN: attendance
-SQL: SELECT COUNT(*) FROM attendance WHERE member_id IN (SELECT id FROM members WHERE deacon = 'Jim Bouchat') AND service_date >= date('now', '-4 weeks')
+SQL: SELECT COUNT(*) FROM attendance WHERE member_id IN (SELECT id FROM members WHERE deacon LIKE '%Jim Bouchat%') AND service_date >= date('now', '-4 weeks')
+
+Q: who is in bill crooks deacon group?
+DOMAIN: attendance
+SQL: SELECT name FROM members WHERE deacon LIKE '%Bill Crook%'
 {contact_example}"""
 
 _CONTACT_ALLOWED_EXAMPLE = """
 Q: what's Kaci's phone number?
 DOMAIN: attendance
-SQL: SELECT phone FROM members WHERE name = 'Kaci Gravatt'
+SQL: SELECT name, phone FROM members WHERE name LIKE '%Kaci%'
 
 Q: when is Tara Mathena's birthday?
 DOMAIN: attendance
-SQL: SELECT birthdate FROM members WHERE name = 'Tara Mathena'
+SQL: SELECT name, birthdate FROM members WHERE name LIKE '%Tara Mathena%'
 """
 
 _CONTACT_BLOCKED_EXAMPLE = """
@@ -316,12 +331,23 @@ def answer_data_question(
     question. on_topic=True always comes with a reply (an answer, or an
     apologetic failure message) and should be sent back as-is.
     """
+    # Found 2026-09-02 debugging Donna's "who is in Bill Crook's deacon
+    # group?" -- cdb_query._pattern_match()'s 'who is'/'tell me about'
+    # trigger is built for simple name lookups and can misfire on a longer
+    # question, treating the WHOLE question as a person's name. That query
+    # still runs cleanly and (correctly) finds nobody named "in bill
+    # crook's deacon group", so a bare "rows is not None" check was trusting
+    # a false-positive match as a genuine empty-result answer and never
+    # gave the smarter model-generated query below a chance to try. Only
+    # short-circuit on the fast path when it actually found something --
+    # zero rows (or an execution error) falls through to generation instead.
     pm_sql = _validate_sql("attendance", _try_pattern_match(question), allow_contact_info)
     if pm_sql:
         rows = _run("attendance", pm_sql)
-        if rows is not None:
+        if rows:
             log.info("data_chat: pattern-match hit, asker=%s q=%r sql=%r rows=%d", asker_name, question, pm_sql, len(rows))
             return True, _format_rows(rows)
+        log.info("data_chat: pattern-match matched but found nothing (rows=%s), falling through to generation: q=%r sql=%r", rows, question, pm_sql)
 
     domain, sql = _generate(question, asker_name, allow_contact_info)
     if domain in (None, "none"):
