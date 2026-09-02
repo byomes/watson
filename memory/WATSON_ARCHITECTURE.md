@@ -286,7 +286,7 @@ now a confirmed-closed result, not an open gap pending a retest.
 | `jobs/connect_cards/email_reports.py --donna` | Tue 5am | Attendance → Donna |
 | `jobs/connect_cards/attendance_intake.py` | Every 30 min | Attendance intake |
 | `jobs/connect_cards/missed_report.py` | Mon 6am | Missed report — 3 sections: Wilmington, Online, Hybrid — recipients: Bill, Donna, Kaci |
-| `jobs/connect_cards/shepherding_report.py` | Wed 6am | Pastoral care digest |
+| `jobs/congregation/shepherding_report_ready.py` | Wed 8:30am | Telegram nudge (Bill, Jim Bouchat, Bill Crook) linking to `wtsn.me/cat/shepherdingreport` — replaces `shepherding_report.py` (Wed 6am email) and `elder_shepherding_report.py` (Wed 6:15am Telegram counts), both retired 2026-09-02; their report-building functions stay in place since the wtsn.me page still imports from them |
 | `jobs/connect_cards/conflict_report.py` | Sun 5pm | Member conflict report with 3-button Telegram resolution |
 | `jobs/connect_cards/state_of_church.py` | Thu 4pm | State of the Church HTML email |
 | `jobs/email_intake.py` | Every min | Gmail polling + triage |
