@@ -60,7 +60,7 @@ _ROSTER_FIELDS = (
     ") AS last_seen"
 )
 
-_UPDATABLE_FIELDS = {"deacon", "deacon_status", "email", "phone", "address", "birthdate"}
+_UPDATABLE_FIELDS = {"name", "deacon", "deacon_status", "email", "phone", "address", "birthdate"}
 
 # EXCLUDED_DEACON_VALUES (from deacon_reports.py) also contains "Inactive" --
 # that exclusion is about keeping it out of list_deacons()/Master Report
@@ -154,6 +154,17 @@ def update_member(member_id):
     fields = {k: v for k, v in data.items() if k in _UPDATABLE_FIELDS}
     if not fields:
         return jsonify({"error": "nothing to update"}), 400
+
+    if "name" in fields:
+        # members.name is NOT NULL and is the join key/display key used
+        # throughout the rest of the app (attendance, connect cards,
+        # reports) -- never let it be saved blank. The frontend sends a
+        # single combined "First Last" string (it splits/joins on the
+        # UI side for editing; there's no separate first/last column).
+        name_val = (fields["name"] or "").strip()
+        if not name_val:
+            return jsonify({"error": "name cannot be blank"}), 400
+        fields["name"] = name_val
 
     if "deacon" in fields:
         # Free-text by design: deacons aren't a fixed enum, they're whatever
