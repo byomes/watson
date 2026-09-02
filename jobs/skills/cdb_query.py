@@ -12,7 +12,7 @@ CONG_DB     = Path(__file__).resolve().parents[2] / "data" / "congregation.db"
 MAX_ROWS    = 20
 
 _TABLES = [
-    "members", "connect_cards", "attendance", "follow_ups",
+    "members", "connect_cards", "attendance", "follow_ups", "deacon_notes",
     "prayer_requests", "next_steps", "duplicate_flags",
     "audit_exemptions", "member_conflicts",
 ]

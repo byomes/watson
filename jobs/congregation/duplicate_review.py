@@ -42,7 +42,7 @@ _FUZZY_NAME_THRESHOLD = 0.86  # stricter than FUZZY_THRESHOLD (0.82) -- this
 # runs over the WHOLE table (n^2), not one new record against the rest, so
 # a slightly higher bar keeps the review queue from filling with noise.
 
-_LINKED_TABLES = ("attendance", "connect_cards", "follow_ups", "prayer_requests", "next_steps")
+_LINKED_TABLES = ("attendance", "connect_cards", "follow_ups", "deacon_notes", "prayer_requests", "next_steps")
 
 # Filled on the kept record only if it's currently null/blank.
 _FILL_IF_BLANK_FIELDS = (

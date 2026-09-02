@@ -27,6 +27,14 @@ requests with no leadership_only gate -- safe there only because both
 watson-people logins are leadership-tier; not safe once every deacon gets
 access here.
 
+Same reasoning is why this blueprint never touches the follow_ups table
+(2026-09-02): that table is read by pastoral-only tooling
+(pastoral_reports.py, state_of_church.py, gcal/pre_meeting_brief.py,
+monthly_state_report.py) and written to by connect-card intake, none of
+it meant for deacon eyes. deacon_notes (see migrate_deacon_notes.py) is
+the deacon-facing equivalent -- same shape, entirely separate table, and
+the only note history this blueprint reads or writes.
+
 Mount on the Watson dashboard app:
     from jobs.congregation.deacons_web import deacons_web_bp
     app.register_blueprint(deacons_web_bp)
@@ -73,9 +81,10 @@ _BLOCKED_DEACON_VALUES = EXCLUDED_DEACON_VALUES - {"Inactive"}
 def _attach_shepherding_info(conn, people: list[dict]) -> None:
     """Mutates each person dict in place: prayer_requests (leadership_only
     excluded -- see module docstring) + next_steps (last 90 days each) +
-    follow_ups (full history, no window -- these are deacon-logged and
+    deacon_notes (full history, no window -- these are deacon-logged and
     typically few enough per person that a cutoff would just hide the
-    ones worth seeing)."""
+    ones worth seeing). Deliberately does NOT touch follow_ups -- see
+    module docstring."""
     member_ids = [p["id"] for p in people]
     if not member_ids:
         return
@@ -102,20 +111,20 @@ def _attach_shepherding_info(conn, people: list[dict]) -> None:
             {"step": ns["step"], "label": _STEP_NAMES.get(ns["step"], ns["step"]), "date": ns["date"]}
         )
 
-    follow_ups_by_member: dict = {}
-    for fu in conn.execute(
-        f"SELECT member_id, note, status, created_at FROM follow_ups "
+    notes_by_member: dict = {}
+    for dn in conn.execute(
+        f"SELECT member_id, note, status, created_at FROM deacon_notes "
         f"WHERE member_id IN ({placeholders}) ORDER BY created_at DESC",
         member_ids,
     ):
-        follow_ups_by_member.setdefault(fu["member_id"], []).append(
-            {"note": fu["note"], "status": fu["status"], "created_at": fu["created_at"]}
+        notes_by_member.setdefault(dn["member_id"], []).append(
+            {"note": dn["note"], "status": dn["status"], "created_at": dn["created_at"]}
         )
 
     for p in people:
         p["prayer_requests"] = prayers_by_member.get(p["id"], [])
         p["next_steps"] = steps_by_member.get(p["id"], [])
-        p["follow_ups"] = follow_ups_by_member.get(p["id"], [])
+        p["deacon_notes"] = notes_by_member.get(p["id"], [])
 
 
 def _require_key(f):
@@ -191,9 +200,9 @@ def update_member(member_id):
     return jsonify(person), 200
 
 
-@deacons_web_bp.route("/api/cat/deacons/member/<int:member_id>/follow-up", methods=["POST"])
+@deacons_web_bp.route("/api/cat/deacons/member/<int:member_id>/note", methods=["POST"])
 @_require_key
-def add_follow_up(member_id):
+def add_deacon_note(member_id):
     data = request.get_json(force=True) or {}
     note = (data.get("note") or "").strip()
     if not note:
@@ -204,12 +213,12 @@ def add_follow_up(member_id):
         if not existing:
             return jsonify({"error": "not found"}), 404
         conn.execute(
-            "INSERT INTO follow_ups (member_id, note, status) VALUES (?, ?, 'open')",
+            "INSERT INTO deacon_notes (member_id, note, status) VALUES (?, ?, 'open')",
             (member_id, note),
         )
         conn.commit()
         row = conn.execute(
-            "SELECT id, member_id, note, status, created_at FROM follow_ups WHERE id = last_insert_rowid()"
+            "SELECT id, member_id, note, status, created_at FROM deacon_notes WHERE id = last_insert_rowid()"
         ).fetchone()
 
     return jsonify(dict(row)), 201
