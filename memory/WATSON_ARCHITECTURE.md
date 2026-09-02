@@ -3106,3 +3106,62 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - 08cda7e cat/deacons: update header and subtitle copy
 - dfbec96 DeaconBoard.tsx: add "Inactive" as a filter and per-card deacon option
 - 76058c8 Add /cat/deacons: unified deacon roster tool
+
+---
+
+## Recent Changes — 2026-09-02
+
+### ~/watson
+- 15743dc docs: bugs/backlog export 2026-09-02
+- bce8e3f docs: file map 2026-09-02
+- 6951c1d Add jobs/servantcare — wtsn.me/p/servantcare vacation-rental search tool
+- 64a048a monthly_web_engagement_report: add Kaci as a recipient
+- 2df7dc1 monthly_state_report: add Wilmington headcount YTD + 3-year comparison
+- 6ae25bc monthly_web_engagement_report: lead with interpretation, fix silent timeout
+- 85f3740 bot: extend team-chat sheet lookup to Social Media + App Engagement
+- 73c9338 bot: add team-chat web diagnostics lookup (Catalyst Tracking Sheet)
+- fdae52f bot: stop logging Bill's own chat to telegram_log (dashboard log tile)
+- e4e81b8 bot: add team-chat calendar access + alert-Bill-on-decline
+- a28ecf9 Add per-classroom attendance sync + team-chat lookup (Nursery/Toddlers/PreK/Elementary)
+- 30a2142 backup_local: add watson-tools to CODE_REPO_SOURCES
+- 9e25878 Clarify FMSPC status in CLAUDE.md; add weekly duplicate-member digest job
+- 9f97e51 Add follow-up history to Deacon Tool; expand Sunday attendance reminder; show in/out Telegram traffic
+- 3bb0e20 bot: add read-only phone/address/last-attended lookups to team chat
+- c824ecf elder_shepherding_report: rename Telegram header to Catalyst Shepherding Report
+- 9ebb37e bot: add limited Ollama chat for onboarded team_members
+- 41d0440 Rename Elder Shepherding Report to Catalyst Attendance Overview (display only)
+- e2ddd11 weekly_changes_report: narrow to identity/contact fields only
+- 648b7d0 Add weekly congregation.db changes report (review mode, no cron yet)
+- bfc5b52 papercards_web: replace previous-Sunday guess with Donna's own date
+- bdd4a46 Add /cat/papercards backend: manual connect-card entry for Donna
+- 90fd038 deacons_web: expose birthdate on the roster API
+- f14ed0d fix(dashboard): enable threaded Flask dev server
+- 7ad9d37 feat(congregation): expand Elder Shepherding Report to Jim Bouchat + Bill Crook
+- 7221f66 feat(congregation): named per-deacon-group web report for elders
+- 9ef4e9f docs: architecture update 2026-09-01
+
+### ~/watson-tools
+- 0d2375a Add wtsn.me/p/servantcare — ServantCare vacation-rental search
+- c63aff3 DeaconBoard: recolor Open/Done toggle to gray
+- 5795415 DeaconBoard: show follow-up note history per person
+- 8caae9f DeaconBoard: drop sort toggle, collapse unassigned/inactive by default
+- 83cf804 Rename 'Catalyst Deacons' heading to 'Catalyst Deacons Tool'
+- 3408aab Rename 'Catalyst Attendance Overview' to 'Catalyst Shepherding Report'
+- 08ed7a9 watsonFetch: resolve DNS via node:https.request, drop undici entirely
+- 7ce308c dns-test: add fallback-IP path test (forced-bad lookup, hardcoded IP)
+- 3762f96 dns-test: add a node:https.request-based lookup test
+- 455fcc5 Add isolated /api/debug/dns-test route for diagnosing the dispatcher crash
+- 58b8729 Revert "watsonFetch: resolve DNS over HTTPS instead of raw UDP"
+- 36c7358 watsonFetch: resolve DNS over HTTPS instead of raw UDP
+- 6dea31f Revert "watsonFetch: resolve DNS explicitly, don't trust Vercel's runtime resolver"
+- 0d04b89 watsonFetch: resolve DNS explicitly, don't trust Vercel's runtime resolver
+- 6a5a708 watsonFetch: force fresh connections and log resolve failures
+- a3378dc Rename Elder Shepherding Report to Catalyst Attendance Overview
+- d20b4fb requireLiveTool: retry isToolLive once before failing closed
+- 8d82d0d PaperCardForm: add a date field, drop the previous-Sunday default
+- d382842 Add /cat/papercards: paper connect-card entry form for Donna
+- 26d3a10 DeaconBoard: add editable Birthdate field
+- d05f7a1 DeaconBoard: show address as a maps/navigation link in collapsed card
+- 9b5847d cat/shepherdingreport: fix Collapse all crash
+- cec1347 cat/shepherdingreport: add Expand all / Collapse all buttons
+- 679b53b Add /cat/shepherdingreport: named elder shepherding view
