@@ -8,6 +8,16 @@ state_of_church), runs it through the current production model and a
 candidate model, and writes both full outputs side by side to
 memory/reasoning_comparisons/ for a human to read and judge directly.
 
+The written doc's judging protocol puts a fabrication check FIRST for each
+candidate, before any quality/completeness commentary — every factual claim
+must be cross-referenced against the source data, and any claim not directly
+grounded there disqualifies that output outright, per
+WATSON_ARCHITECTURE.md's "No hallucination" principle. The script itself
+only scaffolds this structure (reviewer placeholders); it does not attempt
+to auto-detect fabrication — that still requires a human (or Claude) reading
+both outputs against the real source data, same "no automated grading" rule
+as before, just structurally enforced as a gate instead of left implicit.
+
 Not wired into any job or cron — a one-off qualification tool, run manually.
 
 Usage:
@@ -214,9 +224,12 @@ _JOB_BUILDERS = {
 }
 
 
-def _call_ollama(model, system, user, think=None, num_predict=400, timeout=180):
+def _call_ollama(model, system, user, think=None, num_predict=400, timeout=180, num_ctx=None):
     prompt = f"{system}\n\n{user}"
-    payload = {"model": model, "prompt": prompt, "stream": False, "options": {"num_predict": num_predict}}
+    options = {"num_predict": num_predict}
+    if num_ctx is not None:
+        options["num_ctx"] = num_ctx
+    payload = {"model": model, "prompt": prompt, "stream": False, "options": options}
     if think is not None:
         payload["think"] = think
     t0 = time.monotonic()
@@ -250,17 +263,58 @@ def run(job, session_id, baseline_model, candidate_model, candidate_think):
     print(f"Baseline model: {baseline_model}")
     print(f"Candidate model: {candidate_model} (think={candidate_think})")
 
-    print(f"\nRunning {baseline_model}...")
-    baseline_result = _call_ollama(baseline_model, system, user)
+    call_timeout = max(300, len(system + user) // 20)  # scale with prompt size; skill_audit's ~8k-token prompt needs headroom
+
+    # Real jobs (e.g. jobs/skillbuilder/audit.py) send this prompt with no num_ctx
+    # override, so a prompt this size can exceed the model's default runtime context
+    # (4096, confirmed via `ollama ps` — the model's trained max of 32768 is not what
+    # Ollama allocates by default) and silently drop the system prompt's task
+    # instructions (bug_tracker #118, logged 2026-09-03). That's a truncation
+    # artifact, not a reasoning signal, so this harness sets num_ctx explicitly with
+    # headroom to actually test reasoning quality rather than reproduce the bug.
+    approx_tokens = len(system + user) // 4
+    call_num_ctx = max(4096, approx_tokens + 1500)
+
+    print(f"\nRunning {baseline_model}... (num_ctx={call_num_ctx})")
+    baseline_result = _call_ollama(baseline_model, system, user, timeout=call_timeout, num_ctx=call_num_ctx, num_predict=600)
     print(f"  done in {baseline_result['elapsed_s']}s")
 
-    print(f"Running {candidate_model} (think={candidate_think})...")
-    candidate_result = _call_ollama(candidate_model, system, user, think=candidate_think)
+    print(f"Running {candidate_model} (think={candidate_think})... (num_ctx={call_num_ctx})")
+    candidate_result = _call_ollama(candidate_model, system, user, think=candidate_think, timeout=call_timeout, num_ctx=call_num_ctx, num_predict=600)
     print(f"  done in {candidate_result['elapsed_s']}s")
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     ts = datetime.now().strftime("%Y%m%d-%H%M%S")
     out_path = OUT_DIR / f"{ts}_{job}.md"
+
+    def _candidate_section(heading, result, extra_label):
+        return [
+            f"## {heading} — `{result['model']}`{extra_label}",
+            "",
+            f"*{result['elapsed_s']}s total, {result['eval_count']} tokens, "
+            f"{result['eval_duration_s']}s eval, {result['load_duration_s']}s load*",
+            "",
+            "### Fabrication check (evaluated FIRST — a fabricated claim disqualifies the output outright, "
+            "regardless of completeness or style, per WATSON_ARCHITECTURE.md's 'No hallucination' principle)",
+            "",
+            "**Verdict:** _[REVIEWER: PASS — no claim below traces outside the source data, or FAIL — "
+            "list every claim not directly grounded in the system/user prompt above]_",
+            "",
+            "_[REVIEWER: list each unsupported claim found, quoting the exact phrase, or write "
+            "\"None found — every claim traces to the source data.\" if clean]_",
+            "",
+            "### Full output",
+            "",
+            "```",
+            result["response"],
+            "```",
+            "",
+            "### Quality/completeness notes",
+            "",
+            "_[REVIEWER: only evaluate this if the fabrication check above is PASS. If FAIL, write "
+            "\"N/A — disqualified by fabrication check\" and stop; do not weigh other qualities against it.]_",
+            "",
+        ]
 
     md = [
         f"# Reasoning Comparison — {job}",
@@ -268,7 +322,14 @@ def run(job, session_id, baseline_model, candidate_model, candidate_think):
         f"**Prompt source:** {label}",
         f"**Run at:** {datetime.now().isoformat(timespec='seconds')}",
         "",
-        "No automated grading. Read both outputs and judge directly.",
+        "**Judging protocol:** fabrication check runs first, per candidate, before any quality/completeness "
+        "commentary. Every factual claim in each output is cross-referenced against the source data below; "
+        "any claim not directly grounded there is listed. A fabricated claim disqualifies that output "
+        "outright — it is not weighed against completeness, style, or usefulness. This is not a new rule: "
+        "it enforces WATSON_ARCHITECTURE.md's existing 'No hallucination. If Watson does not know, Watson "
+        "says so and stops' principle as a hard first-pass gate rather than leaving it as one quality factor "
+        "among several. No automated grading beyond this structural gate — a human reads and completes the "
+        "fabrication check and quality notes below.",
         "",
         "---",
         "",
@@ -277,33 +338,17 @@ def run(job, session_id, baseline_model, candidate_model, candidate_think):
         system.strip(),
         "```",
         "",
-        "## User prompt",
+        "## User prompt (source data to cross-reference every claim against)",
         "```",
         user.strip(),
         "```",
         "",
         "---",
         "",
-        f"## Baseline — `{baseline_result['model']}` (current production model)",
-        "",
-        f"*{baseline_result['elapsed_s']}s total, {baseline_result['eval_count']} tokens, "
-        f"{baseline_result['eval_duration_s']}s eval, {baseline_result['load_duration_s']}s load*",
-        "",
-        "```",
-        baseline_result["response"],
-        "```",
-        "",
+        *_candidate_section("Baseline", baseline_result, " (current production model)"),
         "---",
         "",
-        f"## Candidate — `{candidate_result['model']}` (think={candidate_think})",
-        "",
-        f"*{candidate_result['elapsed_s']}s total, {candidate_result['eval_count']} tokens, "
-        f"{candidate_result['eval_duration_s']}s eval, {candidate_result['load_duration_s']}s load*",
-        "",
-        "```",
-        candidate_result["response"],
-        "```",
-        "",
+        *_candidate_section("Candidate", candidate_result, f" (think={candidate_think})"),
     ]
     out_path.write_text("\n".join(md), encoding="utf-8")
     print(f"\nWritten to {out_path}")
