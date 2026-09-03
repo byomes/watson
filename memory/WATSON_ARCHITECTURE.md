@@ -454,19 +454,10 @@ Every prefix here also works typed directly in dashboard/Telegram chat, not just
 | `cdb: <...>` | Query the congregation database in plain English (attendance, membership, campus, engagement trends). |
 | `wdb: <...>` | Query the leadership/team database (task status, stalled work, follow-ups, meeting notes). |
 | `web: <...>` | Web search (prefix form of the web_search skill). |
-| `bible: <...>` | Bible lookup (prefix form of the bible_lookup skill). |
 | `imagegen: <...>` / `imgen: <...>` | Generate an AI image from a text prompt. |
-| `polish this: <...>` | Polish text in Dr. Yomes's pastoral-scholarly voice. |
-| `bug: <...>` | Log a bug directly to the bug_tracker table. |
 | `backlog: <...>` | Log an item to the project backlog. |
-| `polish: <...>` | Polish text in Dr. Yomes's pastoral-scholarly voice (alternate prefix form). |
-| `gutenberg: <...>` | Search Project Gutenberg; reply with a number in chat to download and ingest a text into the gutenberg KB collection. |
-| `classics: <...>` | Search the gutenberg KB collection (ingested public-domain texts), kept separate from sermons. |
 | `xkb: <...>` | Search the sermons KB with expanded/deeper matching. |
 | `search the kb: <...>` / `kb: <...>` | Search the sermon-transcript ChromaDB knowledge base. |
-| `build: <...>` | Trigger a new Dev Loop autonomous coding project. |
-| `debug: <...>` | Run Claude-assisted diagnostics on a Watson problem. |
-| `run: <...>` | Explicitly dispatch a registered skill by its skills.json slug, bypassing trigger-phrase matching. |
 | `shepherding: <...>` | Pastoral shepherding report — critical care, at-risk, first-time visitors, no-next-step members. |
 | `state of church report` | Generate and email the full State of the Church HTML report (async — delivered by email). |
 | `system status` | CPU, memory, disk, and service health. |
