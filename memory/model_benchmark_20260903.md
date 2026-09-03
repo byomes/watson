@@ -7,6 +7,17 @@ reason-heavy jobs. Not a full task-accuracy benchmark like
 does loading and running this model in the background stall or corrupt the
 live Telegram intent classifier (`gemma3:4b`), the way `qwen2.5:14b` did.
 
+**Update, same day, follow-up round:** the isolated concurrency stress test
+below (single background call vs. classifier) is not the only failure mode
+that matters — a candidate can pass that test cleanly and still cause
+eviction/reload churn against the existing resident-model rotation under
+`OLLAMA_MAX_LOADED_MODELS=3`. A second round of testing (mixed-traffic
+eviction/thrash test, and a separate output-quality comparison harness) was
+run to close that gap for `qwen3:8b` before considering it for any live job.
+See "Mixed-traffic eviction/thrash test" below, added after the original
+pass. `qwen3:8b` and `phi4:14b` remain installed but **unrouted** — still a
+test, not a rollout.
+
 **Read-only qualification exercise.** No routing code, cron config, or the
 LLM Stack table in `WATSON_ARCHITECTURE.md` were changed. `qwen3:8b` and
 `phi4:14b` remain installed but unrouted — this is a test, not a rollout.
@@ -194,6 +205,78 @@ not assume both plus `gemma3:4b` can comfortably coexist under
 `OLLAMA_MAX_LOADED_MODELS=3` the way the current lineup (llama3.2:3b/
 qwen2.5:7b/qwen2.5-coder:7b, all smaller) does. This is a memory observation,
 not a routing change — nothing was modified as part of this test.
+
+---
+
+## Mixed-traffic eviction/thrash test (follow-up round, same day)
+
+The concurrency test above proves one thing: a single isolated background
+call on the candidate doesn't starve the classifier of CPU mid-generation.
+It does **not** prove the candidate is safe to add to the resident-model
+rotation — `OLLAMA_MAX_LOADED_MODELS=3` means only 3 models can be resident
+at once, and the classifier already shares the other 2 slots with
+`llama3.2:3b`, `qwen2.5-coder:7b`, and `qwen2.5:7b` (3 candidates already
+competing for 2 slots, before adding a 4th). A model that forces frequent
+evict/reload cycling against that existing rotation can degrade real jobs
+even if it never wins the isolated stress test — this is a different failure
+mode (reload latency under normal traffic pressure) from generate-time CPU
+contention.
+
+**Methodology:** `tests/ollama_parallel_candidate_test.py --mixed-traffic`
+(new mode, same file as the concurrency test above). A fixed 1200s (20 min)
+schedule of real, production-shaped calls — real `classify()` calls against
+`gemma3:4b` every 90s, a real dashboard-chat-summarize-shaped call against
+`llama3.2:3b` every 240s, a real `jobs.ask` KB-search call against
+`qwen2.5-coder:7b` every 300s, and a real `jobs.memory.reflect`-shaped
+background call against `qwen2.5:7b` every 400s — run twice with the exact
+same schedule: once with no candidate calls (**baseline**), once with
+`qwen3:8b` (`think:false`) calls added every 300s (**with-candidate**), so
+the two runs are an apples-to-apples before/after comparison, not just two
+independent samples. `ollama ps` was sampled every 20s throughout both runs;
+every call's `load_duration` was captured, and any call to a model already
+seen earlier in the run with `load_duration > 1.0s` was flagged as a reload
+(an evict-and-reload, not the model's first appearance).
+
+**Result — the classifier was never evicted in either run.** `gemma3:4b`
+appears in every single `ollama ps` sample across both 20-minute windows
+(120+ samples total), and every one of its `classify()` calls had
+`load_duration_s: 0.0` — it never left residency and never paid a reload
+cost, with or without `qwen3:8b` in the mix. This is the finding that
+matters most: the specific failure mode from the `qwen2.5:14b` incident
+(classifier gets evicted or starved) does not reproduce here either.
+
+**But `qwen3:8b` measurably increases reload churn among the other resident
+models:**
+
+| Run | Reload events (non-classifier models) | Total extra reload time | Which models reloaded |
+|---|---|---|---|
+| Baseline (no candidate) | 5 | 30.95s | `llama3.2:3b` ×1, `qwen2.5:7b` ×2, `qwen2.5-coder:7b` ×2 |
+| With `qwen3:8b` in rotation | 9 | 61.57s | `llama3.2:3b` ×3, `qwen3:8b` ×2 (itself), `qwen2.5:7b` ×2, `qwen2.5-coder:7b` ×2 |
+
+Adding `qwen3:8b` to the rotation roughly **doubled** both the reload count
+(5→9) and the total reload-time overhead (30.95s→61.57s) over the identical
+20-minute call schedule. `llama3.2:3b` — the model that competes most
+directly for the 2 open slots — went from 1 reload to 3. This is the
+mechanically expected result of going from 3 candidates competing for 2 free
+slots to 4 candidates competing for 2 free slots, now measured rather than
+assumed. `qwen3:8b` itself paid the cost twice (had to cold-reload itself,
+~7.7-7.9s each time, on 2 of its 4 calls in the window) — its own repeated
+calls aren't guaranteed to land while it's still warm from the last one.
+
+**Reload events do not corrupt correctness** — every `classify()`,
+`chat_summarize`, `kb_search`, and `background_qwen7b` call in both runs
+returned `ok: True`; the cost is purely added latency (each reload adds
+roughly 5-9s on top of that call's normal time), not wrong output.
+
+**Verdict:** `qwen3:8b` does not threaten the classifier under mixed
+traffic — that invariant held cleanly in both runs. But it is not a free
+addition to the rotation either: expect roughly double the background-model
+reload churn (and the latency that comes with it) if it's ever actually
+routed to a job that runs alongside the existing `llama3.2:3b` /
+`qwen2.5-coder:7b` / `qwen2.5:7b` traffic. Whether that's an acceptable
+tradeoff depends on how latency-sensitive the job routed to `qwen3:8b`
+actually is — worth weighing per job, not a blanket pass/fail. No routing
+changes were made; `qwen3:8b` remains unrouted.
 
 ---
 
