@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-09-02*
+*Generated: 2026-09-03*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -4628,6 +4628,7 @@ jobs/
   analytics/
     __init__.py
     connect_card_rollup.py
+    data_chat.py
     ga4_import.py
     monthly_web_engagement_report.py
     schema.py
@@ -4729,10 +4730,12 @@ jobs/
     init_db.py
     member_match.py
     migrate_deacon_directory.py
+    migrate_deacon_notes.py
     migrate_inactive_deacon.py
     migrate_leadership_roles.py
     migrate_reparse.py
     papercards_web.py
+    shepherding_report_ready.py
     weekly_changes_report.py
   connect_cards/
     __init__.py
@@ -4952,6 +4955,9 @@ jobs/
     sync.py
     wrap_up.py
   memory_manager.py
+  micah_tasks/
+    __init__.py
+    push_reminder.py
   migrate/
     __init__.py
     twj_kv_to_db.py
@@ -6390,6 +6396,8 @@ next.config.ts
 package-lock.json
 package.json
 postcss.config.mjs
+public/
+  catalyst-c-logo.jpg
 src/
   app/
     [category]/
@@ -6411,7 +6419,7 @@ src/
             route.ts
           member/
             [id]/
-              follow-up/
+              note/
                 route.ts
               route.ts
           roster/
@@ -6445,6 +6453,16 @@ src/
         ConnectCardForm.tsx
         layout.tsx
         page.tsx
+      deaconapp/
+        DeaconAppTabs.tsx
+        NotesFeed.tsx
+        actions.ts
+        apple-icon.jpg
+        icon.jpg
+        login/
+          page.tsx
+          pin-pad.tsx
+        page.tsx
       deacons/
         DeaconBoard.tsx
         EditableSelect.tsx
@@ -6467,7 +6485,10 @@ src/
         page.tsx
     page.tsx
   lib/
+    deaconAuth.ts
+    deaconNotes.ts
     requireLiveTool.ts
+    shepherdingReport.ts
     validation.ts
     watson.ts
   proxy.ts
