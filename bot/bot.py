@@ -1654,13 +1654,11 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # handler -- see bug #31-#33 / Confirmation Gate in WATSON_ARCHITECTURE.md),
     # and for "general" there was never anything to confirm -- it just answers.
     if _looks_actionable(text_lower):
-        await update.message.reply_text("💭 Thinking...")
         _classifier_system = build_prompt(task=text_clean, project=None)
         result = await asyncio.to_thread(_classify_intent, text_clean, _classifier_system)
         log.info("DEBUG classifier raw result: %s", result)
         await _dispatch_intent(update, context, result, text_clean)
     else:
-        await update.message.reply_text("💭 Thinking...")
         reply = await _handle_general(update, context, text_clean)
         _log_telegram_exchange(text_clean, reply)
         _maybe_reflect(chat_id)
@@ -2198,7 +2196,16 @@ def _extract_team_lookup(text: str) -> tuple[str, str] | None:
     if m:
         return m.group(1), "address"
     m = re.search(
-        r"when\s+(?:was|did)\s+(?:the\s+last\s+time\s+)?(\w+(?:\s+\w+)?)\s+"
+        # Lazy second-word group: without it, "when did Donna last attend"
+        # greedily captures "Donna last" as the name (group 1 prefers to eat
+        # as many words as it can before backtracking, and "last attend"
+        # alone satisfies the rest of the pattern via the optional
+        # "(?:last\s+)?" below it). Lazy makes it prefer one word first and
+        # only expand to two if the verb doesn't immediately follow --
+        # correctly handles both "Donna" and two-word names like "Sarah
+        # Mitchell" (bug found 2026-09-03 testing the new Telegram
+        # natural-language contact lookup).
+        r"when\s+(?:was|did)\s+(?:the\s+last\s+time\s+)?(\w+(?:\s+\w+)??)\s+"
         r"(?:last\s+)?(?:come|came|attend(?:ed)?|showed?\s+up|was\s+(?:here|at\s+church))",
         text,
         re.IGNORECASE,
@@ -2495,6 +2502,47 @@ async def _handle_team_chat(update: Update, name: str, text: str) -> None:
     await update.message.reply_text(reply)
 
 
+async def _try_congregation_data_lookup(text: str) -> str | None:
+    """Mirrors the leader-facing team-chat data path (compute_team_chat_reply,
+    ~line 2450) for Bill's own chat -- person/address/last-attended lookups,
+    classroom attendance, and web/engagement metric questions get a real
+    answer here instead of falling through to general chat, which has no DB
+    access and (per build_prompt's anti-hallucination guard) can only decline
+    with the canned "no record of recent activity" reply. Added 2026-09-03
+    after exactly that happened for "what was the attendance in the toddler
+    class last Sunday"; _extract_team_lookup added same day per Bill's
+    explicit ask -- useful phone/email/address/last-attended lookups while
+    away from his computer, phrased more loosely than the "phone/email/
+    contact/reach/who is" wording _ACTIONABLE_KEYWORDS already routes to the
+    classifier's contact_lookup intent (e.g. "where does X live" / "when did
+    X last attend" carry none of those keywords).
+
+    Deliberately does NOT mirror _extract_calendar_lookup: its third-person
+    "Dr. Bill's calendar" phrasing is built for team members asking about
+    him, not Bill asking about himself, and "calendar"/"schedule" are already
+    in _ACTIONABLE_KEYWORDS, routing to the classifier's calendar_* intents
+    before this function is ever called.
+
+    Returns None if the question isn't a congregation-data question at all --
+    caller falls through to general chat as before."""
+    lookup = _extract_team_lookup(text)
+    if lookup:
+        person_name, field = lookup
+        return await asyncio.to_thread(_format_team_lookup_reply, person_name, field)
+
+    classroom = _extract_classroom_lookup(text)
+    if classroom:
+        return await asyncio.to_thread(_format_classroom_reply, classroom)
+
+    web_metric = _extract_web_metric_lookup(text)
+    if web_metric:
+        return await asyncio.to_thread(_format_web_metric_reply, web_metric)
+
+    from jobs.analytics.data_chat import answer_data_question
+    on_topic, reply = await asyncio.to_thread(answer_data_question, text, "Bill")
+    return reply if on_topic else None
+
+
 async def _handle_general(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str) -> str:
     _possessive = re.search(r"(\w+)'s\s+(?:email|phone|number|contact)", text, re.IGNORECASE)
     if _possessive:
@@ -2507,6 +2555,12 @@ async def _handle_general(update: Update, context: ContextTypes.DEFAULT_TYPE, te
                 _lines.append(f"*{m['name']}* — {_contact}" if _contact else f"*{m['name']}*")
             await update.message.reply_text("\n".join(_lines), parse_mode="Markdown")
             return ""
+
+    _data_reply = await _try_congregation_data_lookup(text)
+    if _data_reply is not None:
+        await update.message.reply_text(_data_reply)
+        return _data_reply
+
     reply = await _get_general_reply(text)
     await update.message.reply_text(reply)
     return reply
