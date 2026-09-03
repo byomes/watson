@@ -4132,7 +4132,7 @@ async function sendChatStream() {
     return;
   }
 
-  if (message.toLowerCase().startsWith('polish this:')) {
+  if (message.toLowerCase().startsWith('teamtest:')) {
     ta.value = '';
     ta.style.height = 'auto';
     ta.focus();
@@ -4140,16 +4140,17 @@ async function sendChatStream() {
     const msgs = document.getElementById('chat-messages');
     const statusEl = document.createElement('div');
     statusEl.className = 'cstatus';
-    statusEl.textContent = 'Polishing…';
+    statusEl.textContent = 'Asking as a team member…';
     if (msgs) { msgs.appendChild(statusEl); msgs.scrollTop = msgs.scrollHeight; }
     try {
-      const res = await api('/api/skills/polish', {
+      const question = message.slice(message.indexOf(':') + 1).trim();
+      const res = await api('/api/team-chat-test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: message }),
+        body: JSON.stringify({ text: question }),
       });
       if (statusEl.parentNode) statusEl.remove();
-      appendChatMsg('watson', res.result || '(no result)');
+      appendChatMsg('watson', res.reply || '(no result)');
     } catch (err) {
       if (statusEl.parentNode) statusEl.remove();
       appendChatMsg('watson', `Error: ${err.message}`);

@@ -37,46 +37,11 @@ DIRECTIVE_PREFIXES: dict = {
         "description": "Search the web and return a synthesized answer",
         "example": "web: Scot McKnight on the Sermon on the Mount",
     },
-    "bible:": {
-        "telegram": True, "dashboard": True, "category": "Bible",
-        "description": "Look up a scripture passage in NIV, CSB, or NASB",
-        "example": "bible: John 3:16 NIV",
-    },
-    "debug:": {
-        "telegram": True, "dashboard": True, "category": "Dev",
-        "description": "Kick off Watson's autonomous debug loop — diagnose, generate a fix, review, and notify when done",
-        "example": "debug: watson-bot.service not responding",
-    },
-    "bug:": {
-        "telegram": True, "dashboard": True, "category": "Dev",
-        "description": "Log a bug to the bug tracker",
-        "example": "bug: dashboard chat scroll jumps on new message",
-    },
     "backlog:": {
         "telegram": True, "dashboard": False, "category": "Dev",
         # dashboard reachable via /api/terminal only, not this registry — see app.py terminal()
         "description": "Log an item to the dev backlog",
         "example": "backlog: add dark mode | requested by Mel",
-    },
-    "gutenberg:": {
-        "telegram": True, "dashboard": True, "category": "Knowledge Base",
-        "description": "Search Project Gutenberg; reply with a number 1-5 to download and ingest the pick into the classics KB",
-        "example": "gutenberg: Meditations Marcus Aurelius",
-    },
-    "classics:": {
-        "telegram": True, "dashboard": True, "category": "Knowledge Base",
-        "description": "Query the classics/Project Gutenberg knowledge base, isolated from sermon search",
-        "example": "classics: what does Marcus Aurelius say about death",
-    },
-    "polish:": {
-        "telegram": True, "dashboard": True, "category": "Writing",
-        "description": "Light copy-edit in Dr. Bill's voice — no expansion, no new ideas",
-        "example": "polish: The church exists to make disciples who make disciples.",
-    },
-    "run:": {
-        "telegram": True, "dashboard": True, "category": "Dev",
-        "description": "Run a named skill directly by slug",
-        "example": "run: bible_lookup John 3:16",
     },
     "kb:": {
         "telegram": True, "dashboard": True, "category": "Knowledge Base",
@@ -87,11 +52,6 @@ DIRECTIVE_PREFIXES: dict = {
         "telegram": True, "dashboard": True, "category": "Knowledge Base",
         "description": "Same as kb:, but immediately includes bible study notes and handouts — no follow-up needed",
         "example": "xkb: what does the sermon say about forgiveness",
-    },
-    "devloop:": {
-        "telegram": True, "dashboard": True, "category": "Dev", "aliases": ["build:"],
-        "description": "Send a build spec to the Dev Loop for autonomous code generation",
-        "example": "devloop: add a GET /api/status/extended endpoint that returns uptime and last cron run",
     },
     # Telegram-only — verified 2026-07-17, not just unported:
     "task:": {
@@ -142,6 +102,15 @@ DIRECTIVE_PREFIXES: dict = {
         "telegram": True, "dashboard": True, "category": "Congregation",
         "description": "Members overdue for pastoral contact based on attendance history",
         "example": "shepherding:",
+    },
+    # Added 2026-09-02: dashboard-only debug bypass so Bill can exercise the
+    # leader-facing Telegram team-chat path (bot.py's compute_team_chat_reply /
+    # data_chat.py) without a second Telegram account. No Telegram equivalent —
+    # Bill's own Telegram already gets full owner access, not the team-chat path.
+    "teamtest:": {
+        "telegram": False, "dashboard": True, "category": "Dev",
+        "description": "Ask a question as the synthetic 'Test Person' team member — mirrors exactly what an onboarded leader's Telegram team-chat gets back",
+        "example": "teamtest: how many people came Sunday?",
     },
 }
 

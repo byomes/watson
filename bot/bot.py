@@ -79,9 +79,6 @@ _GMAIL_APP_PASSWORD = os.getenv("WATSON_GMAIL_APP_PASSWORD", "")
 # Pending skill proposals keyed by Telegram chat_id
 _pending_skills: dict[int, str] = {}
 
-# LOW-confidence intent results awaiting user confirmation
-_pending_intents: dict[int, dict] = {}
-
 # Pending capability gap proposals (from audit) — resolved via DB
 
 # Per-chat message counter for background reflection
@@ -859,6 +856,29 @@ _HANDLE_TEXT_TIMEOUT_SECONDS = 100
 _background_tasks: set = set()
 
 
+# Keyword gate in front of the classify() call (stage 4 of _handle_text_body) --
+# deliberately recall-biased (a false positive just costs one extra classify()
+# call; a false negative would silently skip a real action and answer it as
+# conversation instead). Not meant to be exhaustive/precise the way the intent
+# classifier's own examples are -- just cheap enough to skip that whole Ollama
+# round trip for messages that plainly aren't asking for any of these 11 actions.
+_ACTIONABLE_KEYWORDS = frozenset({
+    "block", "book", "schedule", "appointment", "calendar",
+    "busy", "headed to", "going to",
+    "available", "availability", "free",
+    "remind", "reminder",
+    "task", "todo", "to-do", "don't forget",
+    "done", "finished", "complete",
+    "phone", "email", "e-mail", "contact", "number", "reach", "lookup", "look up",
+    "who is", "who's",
+    "image", "photo", "picture",
+})
+
+
+def _looks_actionable(text_lower: str) -> bool:
+    return any(kw in text_lower for kw in _ACTIONABLE_KEYWORDS)
+
+
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         await asyncio.wait_for(
@@ -966,30 +986,10 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         _log_telegram_exchange(text_clean, _dr)
                 else:
                     await update.message.reply_text("Format: sms: Name: message")
-            elif _dpfx == "polish:":
-                await _handle_polish(update, context, _darg)
             elif _dpfx == "wdb:":
                 from jobs.skills.wdb_query import run as _wdb_run_d
                 _dr = await asyncio.to_thread(_wdb_run_d, _darg)
                 await update.message.reply_text(_dr or "No results.")
-            elif _dpfx == "bible:":
-                from jobs.bible import run as _bible_run_d
-                _dr = await asyncio.to_thread(_bible_run_d, _darg)
-                await update.message.reply_text(_dr or "No result.")
-                _log_telegram_exchange(text_clean, _dr or "")
-            elif _dpfx == "devloop:":
-                await _handle_devloop(update, context, _darg)
-            elif _dpfx == "bug:":
-                if not _darg:
-                    await update.message.reply_text("Format: bug: <title>")
-                else:
-                    with get_connection() as _bc:
-                        _bc.execute(
-                            "INSERT INTO bug_tracker (title, repo) VALUES (?, 'watson')",
-                            (_darg,),
-                        )
-                    await update.message.reply_text(f"Logged: {_darg}")
-                    _log_telegram_exchange(text_clean, f"Logged: {_darg}")
             elif _dpfx == "backlog:":
                 if not _darg:
                     await update.message.reply_text("Format: backlog: <title> | <summary>")
@@ -999,47 +999,6 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     _create_backlog_item_d(_bl_title, _bl_summary)
                     await update.message.reply_text(f"Logged to backlog: {_bl_title}")
                     _log_telegram_exchange(text_clean, f"Logged to backlog: {_bl_title}")
-            elif _dpfx == "debug:":
-                if not _darg:
-                    await update.message.reply_text("Format: debug: <problem description>")
-                else:
-                    await update.message.reply_text(f"Starting debug loop for: {_darg}")
-                    _debug_text_clean = text_clean
-
-                    # Detached on purpose, same reasoning as fireflies: below —
-                    # claude_debug.run() can take several minutes (up to
-                    # MAX_ITERATIONS Claude Code rounds) and _send_telegram()
-                    # itself already posts the final result, so awaiting it
-                    # inline would just trip the 15s wrapper for no benefit.
-                    async def _run_debug_directive():
-                        from jobs.dev.claude_debug import run as _debug_run_d
-                        try:
-                            result = await asyncio.to_thread(_debug_run_d, _debug_text_clean)
-                        except Exception as exc:
-                            log.error("debug: directive failed: %s", exc)
-                            result = f"Debug loop failed: {exc}"
-                        _log_telegram_exchange(_debug_text_clean, result)
-
-                    _debug_task = asyncio.create_task(_run_debug_directive())
-                    _background_tasks.add(_debug_task)
-                    _debug_task.add_done_callback(_background_tasks.discard)
-            elif _dpfx == "run:":
-                from jobs.skillbuilder import router as _router_d
-                _run_parts_d = _darg.split(None, 1)
-                _slug_d = _run_parts_d[0] if _run_parts_d else ""
-                _skill_msg_d = _run_parts_d[1] if len(_run_parts_d) > 1 else ""
-                _skills_d = _router_d._load_skills("telegram")
-                _skill_d = next((s for s in _skills_d if s["slug"] == _slug_d), None)
-                if _skill_d:
-                    _dr = str(await asyncio.to_thread(_router_d._run_skill, _skill_d, message=_skill_msg_d))
-                else:
-                    _dr = f"Skill not found: {_slug_d}"
-                await update.message.reply_text(_dr)
-                _log_telegram_exchange(text_clean, _dr)
-            elif _dpfx == "gutenberg:":
-                await _handle_gutenberg_search(update, context, _darg)
-            elif _dpfx == "classics:":
-                await _handle_classics(update, context, _darg)
             elif _dpfx == "fireflies:":
                 if not _darg:
                     await update.message.reply_text("Format: fireflies: <meeting_id>")
@@ -1200,11 +1159,6 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Handle CONFIRM / CANCEL for pending actions (calendar, skill proposals, capability gaps)
     if text_lower in ("yes", "confirm", "yes do it", "book it", "go ahead") or text_lower in _SKILL_AFFIRM:
-        if chat_id in _pending_intents:
-            _pi = _pending_intents.pop(chat_id)
-            await _dispatch_intent(update, context, _pi["result"], _pi["text_clean"])
-            log.info("DEBUG pre-check: confirmed pending intent")
-            return
         if chat_id in _pending_skills:
             pending_desc = _pending_skills.pop(chat_id)
             from jobs.skillbuilder import router as _router
@@ -1682,38 +1636,34 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
         log.info("DEBUG pre-check: safety net build trigger")
         return
 
-    # 4. Classify intent via Ollama gemma3:4b (non-blocking)
-    # Ack before the slow part starts (bug #29) — classify()/general-chat
-    # can legitimately take up to _HANDLE_TEXT_TIMEOUT_SECONDS on this
-    # CPU-only host, and a silent 15-80s wait reads as a broken bot.
-    await update.message.reply_text("💭 Thinking...")
-    _classifier_system = build_prompt(task=text_clean, project=None)
-    result = await asyncio.to_thread(_classify_intent, text_clean, _classifier_system)
-    log.info("DEBUG classifier raw result: %s", result)
-    intent = result.get("intent", "general")
-    params = result.get("params", {})
-    confidence = result.get("confidence", "HIGH")
-    log.info("Intent: %s | Params: %s | Confidence: %s", intent, params, confidence)
-
-    if confidence == "LOW":
-        _intent_plain = {
-            "contact_lookup": f"look up {params.get('name', 'someone')}",
-            "image_search": f"search for an image of {params.get('query', 'something')}",
-            "calendar_query": f"check your calendar for {params.get('day', 'today')}",
-            "block_time": f"block {params.get('duration_minutes', 60)} minutes for {params.get('title', 'something')}",
-            "reminder_create": f"set a reminder: {params.get('title', '...')}",
-            "task_create": f"add a task: {params.get('title', '...')}",
-            "task_list": "list your tasks",
-            "book_appointment": f"book an appointment with {params.get('name', 'someone')}",
-        }
-        desc = _intent_plain.get(intent, "handle this")
-        _pending_intents[chat_id] = {"result": result, "text_clean": text_clean}
-        await update.message.reply_text(f"Just to confirm — are you asking me to {desc}?")
-        return
-
-    await _dispatch_intent(update, context, result, text_clean)
-    if confidence == "MEDIUM":
-        await update.message.reply_text("Is that right?")
+    # 4. Everything above only matches exact triggers/prefixes/regexes -- by this
+    # point the message survived all of them, so it's either a looser phrasing of
+    # one of the classifier's action intents (block_time, book_appointment, etc.)
+    # or genuine conversation. _looks_actionable() is a cheap, recall-biased
+    # keyword gate: only messages that plausibly reference an action pay for the
+    # classify() round trip (gemma3:4b); anything else skips straight to a single
+    # conversational reply (llama3.2:3b) instead of paying for both calls back to
+    # back on this CPU-only, single-request-at-a-time host (see
+    # WATSON_ARCHITECTURE.md's FMSPC/NUM_PARALLEL note -- two sequential Ollama
+    # calls don't parallelize here, they just both happen).
+    #
+    # No confidence-gated pre-confirmation anymore ("Just to confirm -- are you
+    # asking me to X?"): it was redundant for the 6 intents that actually write
+    # anything (block_time, book_appointment, calendar_busy, task_done,
+    # reminder_create, task_create already get their own YES/NO gate inside their
+    # handler -- see bug #31-#33 / Confirmation Gate in WATSON_ARCHITECTURE.md),
+    # and for "general" there was never anything to confirm -- it just answers.
+    if _looks_actionable(text_lower):
+        await update.message.reply_text("💭 Thinking...")
+        _classifier_system = build_prompt(task=text_clean, project=None)
+        result = await asyncio.to_thread(_classify_intent, text_clean, _classifier_system)
+        log.info("DEBUG classifier raw result: %s", result)
+        await _dispatch_intent(update, context, result, text_clean)
+    else:
+        await update.message.reply_text("💭 Thinking...")
+        reply = await _handle_general(update, context, text_clean)
+        _log_telegram_exchange(text_clean, reply)
+        _maybe_reflect(chat_id)
 
 
 # --- New intent handlers --------------------------------------------------
@@ -1910,58 +1860,6 @@ async def _handle_kb(update: Update, context: ContextTypes.DEFAULT_TYPE, text: s
     except Exception as exc:
         log.error("KB search failed: %s", exc)
         await update.message.reply_text(f"KB search failed: {exc}")
-
-
-async def _handle_gutenberg_search(update: Update, context: ContextTypes.DEFAULT_TYPE, query: str) -> None:
-    if not query:
-        await update.message.reply_text("What would you like to search for on Project Gutenberg?")
-        return
-    await update.message.reply_text("Searching Project Gutenberg...")
-    try:
-        from jobs.research.gutenberg import search as gutenberg_search
-        hits = await asyncio.to_thread(gutenberg_search, query)
-    except Exception as exc:
-        log.error("Gutenberg search failed: %s", exc)
-        await update.message.reply_text(f"Gutenberg search failed: {exc}")
-        return
-    if not hits:
-        await update.message.reply_text(f"No Project Gutenberg matches for: {query}")
-        return
-    lines = [f'Project Gutenberg results for "{query}":\n']
-    for i, hit in enumerate(hits, start=1):
-        year = hit["year"] or "n/a"
-        lines.append(
-            f"{i}. {hit['title']} — {hit['authors']} ({year}) — {hit['download_count']} downloads"
-        )
-    lines.append("\nReply with a number to download and add it to the classics knowledge base.")
-    reply = "\n".join(lines)
-    sent = await update.message.reply_text(reply)
-    _log_telegram_exchange(query, reply)
-    from jobs.telegram.pending import store_pending_action
-    store_pending_action("gutenberg_select", sent.message_id, {"candidates": hits, "query": query})
-
-
-async def _handle_classics(update: Update, context: ContextTypes.DEFAULT_TYPE, question: str) -> None:
-    if not question:
-        await update.message.reply_text("What would you like to ask the classics knowledge base?")
-        return
-    await update.message.reply_text("Searching classics knowledge base...")
-    try:
-        from jobs.skills.kb_search import search_kb, format_result
-        result = await asyncio.to_thread(search_kb, question, "gutenberg")
-        reply = format_result(result)
-        sent = await update.message.reply_text(reply)
-        _log_telegram_exchange(question, reply)
-        from jobs.telegram.pending import store_pending_action
-        store_pending_action("kb_email", sent.message_id, {
-            "synopsis": result["synopsis"],
-            "sources": result["sources"],
-            "query": result["query"],
-            "collection": "gutenberg",
-        })
-    except Exception as exc:
-        log.error("Classics KB search failed: %s", exc)
-        await update.message.reply_text(f"Classics search failed: {exc}")
 
 
 async def _handle_polish(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str) -> None:
@@ -2544,10 +2442,14 @@ def _alert_unanswered_team_question(team_member_name: str, question: str, reply:
         log.warning("Failed to alert Bill about an unanswered team question: %s", exc)
 
 
-async def _handle_team_chat(update: Update, name: str, text: str) -> None:
+async def compute_team_chat_reply(name: str, text: str) -> str | None:
+    """Pure (non-Telegram) core of the team-chat path -- shared by the real
+    Telegram handler below and the dashboard's `teamtest:` debug prefix
+    (jobs/dashboard/app.py) so Bill can exercise the exact leader-facing
+    logic without a second Telegram account. Returns None for blank input."""
     text = _normalize_smart_quotes((text or "").strip())
     if not text:
-        return
+        return None
     _log_tg('in', text, recipient=name)
 
     lookup = _extract_team_lookup(text)
@@ -2582,8 +2484,15 @@ async def _handle_team_chat(update: Update, name: str, text: str) -> None:
             if declined:
                 await asyncio.to_thread(_alert_unanswered_team_question, name, text, reply)
 
-    await update.message.reply_text(reply)
     _log_tg('out', reply, recipient=name)
+    return reply
+
+
+async def _handle_team_chat(update: Update, name: str, text: str) -> None:
+    reply = await compute_team_chat_reply(name, text)
+    if reply is None:
+        return
+    await update.message.reply_text(reply)
 
 
 async def _handle_general(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str) -> str:
@@ -2864,41 +2773,6 @@ async def _route_tg_pending_reply(
                 await update.message.reply_text(f"Expanded search failed: {exc}")
             return True
         return False
-
-    if action_type == "gutenberg_select":
-        candidates = payload.get("candidates", [])
-        if text_lower in ("cancel", "no", "never mind"):
-            mark_cancelled(pending_id)
-            await update.message.reply_text("Cancelled.")
-            return True
-        try:
-            choice = int(text_lower)
-        except ValueError:
-            await update.message.reply_text(
-                f"Reply with a number 1-{len(candidates)} to select, or 'cancel' to stop."
-            )
-            return True
-        if choice < 1 or choice > len(candidates):
-            await update.message.reply_text(f"Pick a number between 1 and {len(candidates)}.")
-            return True
-        book = candidates[choice - 1]
-        await update.message.reply_text(f"Downloading and ingesting: {book['title']}...")
-        from jobs.research.gutenberg import download_and_ingest
-        result = await asyncio.to_thread(download_and_ingest, book["id"])
-        if not result["ok"]:
-            await update.message.reply_text(f"Ingestion failed: {result['error']}")
-            return True
-        if result["already_ingested"]:
-            await update.message.reply_text(
-                f"'{result['title']}' is already in the classics knowledge base."
-            )
-        else:
-            await update.message.reply_text(
-                f"✅ Added '{result['title']}' to the classics knowledge base — "
-                f"{result['chunks_added']} chunks."
-            )
-        mark_done(pending_id)
-        return True
 
     if action_type == "forward_medium_clarify":
         name = payload.get("name")
@@ -4833,47 +4707,6 @@ async def handle_batch_update_callback(update: Update, context: ContextTypes.DEF
 
 
 # ── Dev Loop handlers ─────────────────────────────────────────────────────────
-
-async def _handle_devloop(update: Update, context: ContextTypes.DEFAULT_TYPE, description: str) -> None:
-    """Handle `devloop: <description>` — create new project and trigger loop."""
-    import re
-    import threading
-    from jobs.dev_loop.trigger import trigger_dev_loop
-
-    description = description.strip()
-    if not description:
-        await update.message.reply_text("Usage: devloop: <description of what to build>")
-        return
-
-    slug = re.sub(r"[^a-z0-9]+", "-", description.lower())[:32].strip("-")
-    title = description[:60]
-
-    await update.message.reply_text(
-        f"Dev Loop starting\n"
-        f"Slug: {slug}\n"
-        f"Sending to FMSPC…"
-    )
-
-    def _run():
-        result = trigger_dev_loop(slug=slug, title=title, input_type="description", input_text=description)
-        if not result["ok"]:
-            import requests as _rq
-            from core.vacation import vacation_gate
-            fail_text = f"Dev Loop failed to start: {result.get('error')}"
-            token = os.getenv("WATSON_BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
-            chat_id = os.getenv("WATSON_CHAT_ID") or os.getenv("TELEGRAM_CHAT_ID")
-            if token and chat_id and not vacation_gate("system_failure", "bot.bot._handle_devloop", fail_text):
-                try:
-                    _rq.post(
-                        f"https://api.telegram.org/bot{token}/sendMessage",
-                        json={"chat_id": chat_id, "text": fail_text},
-                        timeout=10,
-                    )
-                except Exception:
-                    pass
-
-    threading.Thread(target=_run, daemon=True).start()
-
 
 async def handle_devloop_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle devloop_keep:<slug> and devloop_stop:<slug> inline button callbacks."""

@@ -650,13 +650,6 @@ def terminal():
         except Exception as _exc:
             return jsonify({"output": f"web error: {_exc}", "success": False})
 
-    if cmd_lower.startswith("bible:"):  # doc: Bible lookup (prefix form of the bible_lookup skill).
-        try:
-            from jobs.bible import run as _bible_run
-            return _pfx_out(_bible_run(cmd[6:].strip()) or "No results.")
-        except Exception as _exc:
-            return jsonify({"output": f"bible error: {_exc}", "success": False})
-
     if cmd_lower.startswith("imagegen:") or cmd_lower.startswith("imgen:"):  # doc: Generate an AI image from a text prompt.
         try:
             from jobs.skills.image_gen_skill import run as _image_gen_run
@@ -664,21 +657,6 @@ def terminal():
             return _pfx_out(_image_gen_run(cmd[_prefix_len:].strip()) or "No result.")
         except Exception as _exc:
             return jsonify({"output": f"image error: {_exc}", "success": False})
-
-    if cmd_lower.startswith("polish this:"):  # doc: Polish text in Dr. Yomes's pastoral-scholarly voice.
-        try:
-            from jobs.skills.polish import polish_text as _polish_text
-            return _pfx_out(_polish_text(cmd[12:].strip()) or "No results.")
-        except Exception as _exc:
-            return jsonify({"output": f"polish error: {_exc}", "success": False})
-
-    if cmd_lower.startswith("bug:"):  # doc: Log a bug directly to the bug_tracker table.
-        _bug_title = cmd[4:].strip()
-        if not _bug_title:
-            return _pfx_out("Format: bug: <title>")
-        _db().execute("INSERT INTO bug_tracker (title, repo) VALUES (?, 'watson')", (_bug_title,))
-        _db().commit()
-        return _pfx_out(f"Logged: {_bug_title}")
 
     if cmd_lower.startswith("backlog:"):  # doc: Log an item to the project backlog.
         _bl_arg = cmd[8:].strip()
@@ -688,45 +666,6 @@ def terminal():
         _bl_title, _bl_summary = _parse_backlog(_bl_arg)
         _create_backlog_item(_bl_title, _bl_summary)
         return _pfx_out(f"Logged to backlog: {_bl_title}")
-
-    if cmd_lower.startswith("polish:"):  # doc: Polish text in Dr. Yomes's pastoral-scholarly voice (alternate prefix form).
-        try:
-            from jobs.skills.polish import run as _polish_run
-            return _pfx_out(_polish_run(cmd[7:].strip()) or "No results.")
-        except Exception as _exc:
-            return jsonify({"output": f"polish error: {_exc}", "success": False})
-
-    if cmd_lower.startswith("gutenberg:"):  # doc: Search Project Gutenberg; reply with a number in chat to download and ingest a text into the gutenberg KB collection.
-        _gb_cmd_q = cmd[10:].strip()
-        if not _gb_cmd_q:
-            return _pfx_out("What would you like to search for on Project Gutenberg?")
-        try:
-            from jobs.research.gutenberg import search as _gutenberg_search_t
-            _gb_hits = _gutenberg_search_t(_gb_cmd_q)
-            if not _gb_hits:
-                return _pfx_out(f"No Project Gutenberg matches for: {_gb_cmd_q}")
-            _gb_lines = [f'Project Gutenberg results for "{_gb_cmd_q}":\n']
-            for _gb_i, _gb_hit in enumerate(_gb_hits, start=1):
-                _gb_year = _gb_hit["year"] or "n/a"
-                _gb_lines.append(
-                    f"{_gb_i}. {_gb_hit['title']} — {_gb_hit['authors']} ({_gb_year}) — {_gb_hit['download_count']} downloads"
-                )
-            # The "reply with a number" download+ingest follow-up is a stateful
-            # pending-confirmation flow that only chat_stream() supports (see
-            # the "Gutenberg selection gate" below) — /api/terminal is
-            # one-shot, so it points the user at chat for that step instead of
-            # faking a selection flow the terminal can't actually carry.
-            _gb_lines.append("\nTo download and ingest a pick, use gutenberg: from the chat panel instead of the terminal.")
-            return _pfx_out("\n".join(_gb_lines))
-        except Exception as _exc:
-            return jsonify({"output": f"gutenberg error: {_exc}", "success": False})
-
-    if cmd_lower.startswith("classics:"):  # doc: Search the gutenberg KB collection (ingested public-domain texts), kept separate from sermons.
-        try:
-            from jobs.skills.kb_search import search_kb as _classics_search_kb_t, format_result as _fmt_classics_t
-            return _pfx_out(_fmt_classics_t(_classics_search_kb_t(cmd[9:].strip(), "gutenberg")))
-        except Exception as _exc:
-            return jsonify({"output": f"classics error: {_exc}", "success": False})
 
     if cmd_lower.startswith("xkb:"):  # doc: Search the sermons KB with expanded/deeper matching.
         try:
@@ -743,42 +682,6 @@ def terminal():
             return _pfx_out(_fmt_kb(_search_kb(_kq)))
         except Exception as _exc:
             return jsonify({"output": f"KB error: {_exc}", "success": False})
-
-    if cmd_lower.startswith("build:"):  # doc: Trigger a new Dev Loop autonomous coding project.
-        import threading as _th
-        import re as _re_build
-        try:
-            from jobs.dev_loop.trigger import trigger_dev_loop as _trigger_dev_loop
-            _desc = cmd[6:].strip()
-            _slug = _re_build.sub(r"[^a-z0-9]+", "-", _desc.lower())[:32].strip("-")
-            _th.Thread(
-                target=_trigger_dev_loop,
-                kwargs={"slug": _slug, "title": _desc[:60], "input_type": "description", "input_text": _desc},
-                daemon=True,
-            ).start()
-            return _pfx_out("Build triggered — follow progress on the Dev Loop tab or via Telegram.")
-        except Exception as _exc:
-            return jsonify({"output": f"build error: {_exc}", "success": False})
-
-    if cmd_lower.startswith("debug:"):  # doc: Run Claude-assisted diagnostics on a Watson problem.
-        try:
-            from jobs.dev.claude_debug import run as _debug_run
-            return _pfx_out(str(_debug_run(cmd)))
-        except Exception as _exc:
-            return jsonify({"output": f"debug error: {_exc}", "success": False})
-
-    if cmd_lower.startswith("run:"):  # doc: Explicitly dispatch a registered skill by its skills.json slug, bypassing trigger-phrase matching.
-        try:
-            from jobs.skillbuilder import router as _router
-            _run_parts = cmd[4:].strip().split(None, 1)
-            _slug = _run_parts[0] if _run_parts else ""
-            _skill_msg = _run_parts[1] if len(_run_parts) > 1 else ""
-            _skills = _router._load_skills("dashboard")
-            _skill = next((s for s in _skills if s["slug"] == _slug), None)
-            _out = str(_router._run_skill(_skill, message=_skill_msg)) if _skill else f"Skill not found: {_slug}"
-            return _pfx_out(_out)
-        except Exception as _exc:
-            return jsonify({"output": f"run error: {_exc}", "success": False})
 
     if cmd_lower.startswith("shepherding:"):  # doc: Pastoral shepherding report — critical care, at-risk, first-time visitors, no-next-step members.
         try:
@@ -2788,23 +2691,6 @@ def skill_kb_email():
         return jsonify({"error": str(exc)}), 500
 
 
-@app.route("/api/skills/polish", methods=["POST"])
-def skill_polish():
-    data = request.get_json(force=True) or {}
-    text = (data.get("text") or "").strip()
-    if text.lower().startswith("polish this:"):
-        text = text[len("polish this:"):].strip()
-    if not text:
-        return jsonify({"error": "No text provided"}), 400
-    try:
-        from jobs.skills.polish import polish_text
-        result = polish_text(text)
-        return jsonify({"result": result})
-    except Exception as exc:
-        log.error("Polish skill error: %s", exc)
-        return jsonify({"error": str(exc)}), 500
-
-
 # ── Report API ────────────────────────────────────────────────────────────────
 
 @app.route("/api/report", methods=["POST"])
@@ -2881,6 +2767,24 @@ def chat_summarize():
         _db().execute("INSERT INTO memory_sessions (summary) VALUES (?)", (summary,))
         _db().commit()
     return jsonify({"ok": True})
+
+
+@app.route("/api/team-chat-test", methods=["POST"])
+def team_chat_test():
+    """Debug-only mirror of the leader Telegram team-chat path (bot.py's
+    `_handle_team_chat` / data_chat.py), invoked via the dashboard chat's
+    `teamtest:` prefix -- lets Bill exercise exactly what an onboarded
+    leader would get back without a second Telegram account. Runs as the
+    synthetic 'Test Person' team_members identity, not as Bill himself."""
+    import asyncio as _asyncio
+    from bot.bot import compute_team_chat_reply
+
+    data = request.get_json(force=True) or {}
+    text = (data.get("text") or "").strip()
+    if not text:
+        return jsonify({"error": "text is required"}), 400
+    reply = _asyncio.run(compute_team_chat_reply("Test Person", text))
+    return jsonify({"reply": reply or "(no reply — that question is out of scope for team chat)"})
 
 
 # ── Chat Streaming API ────────────────────────────────────────────────────────
@@ -3003,94 +2907,9 @@ def chat_stream():
                     yield _sse(f"Expanded search failed: {exc}")
                 yield "data: [DONE]\n\n"
             return _sse_response(_kb_expand_stream())
-    if msg_lower.startswith("bible:"):
-        from jobs.bible import run as _bible_run
-        _q = message[6:].strip()
-        return _sse_response(_stream_simple(_bible_run(_q) or "No results."))
-    if msg_lower.startswith("polish:"):
-        from jobs.skills.polish import run as _polish_run
-        _q = message[7:].strip()
-        return _sse_response(_stream_simple(_polish_run(_q) or "No results."))
-    if msg_lower.startswith("bug:"):
-        _bug_title = message[4:].strip()
-        if not _bug_title:
-            return _sse_response(_stream_simple("Format: bug: <title>"))
-        _db().execute("INSERT INTO bug_tracker (title, repo) VALUES (?, 'watson')", (_bug_title,))
-        _db().commit()
-        return _sse_response(_stream_simple(f"Logged: {_bug_title}"))
-    if msg_lower.startswith("gutenberg:"):
-        _gb_q = message[len("gutenberg:"):].strip()
-        if not _gb_q:
-            return _sse_response(_stream_simple("What would you like to search for on Project Gutenberg?"))
-        from jobs.research.gutenberg import search as _gutenberg_search
-        def _gutenberg_stream(q=_gb_q):
-            yield _emit_status("→ Searching Project Gutenberg...")
-            try:
-                hits = _gutenberg_search(q)
-            except Exception as exc:
-                yield _sse(f"Gutenberg search failed: {exc}")
-                yield "data: [DONE]\n\n"
-                return
-            if not hits:
-                yield _sse(f"No Project Gutenberg matches for: {q}")
-                yield "data: [DONE]\n\n"
-                return
-            lines = [f'Project Gutenberg results for "{q}":\n']
-            for i, hit in enumerate(hits, start=1):
-                year = hit["year"] or "n/a"
-                lines.append(
-                    f"{i}. {hit['title']} — {hit['authors']} ({year}) — {hit['download_count']} downloads"
-                )
-            lines.append("\nReply with a number to download and add it to the classics knowledge base.")
-            from jobs.telegram.pending import store_skill_confirmation as _store_gb_pending
-            _store_gb_pending("gutenberg_select", {"source": "dashboard", "candidates": hits, "query": q})
-            yield _sse("\n".join(lines))
-            yield "data: [DONE]\n\n"
-        return _sse_response(_gutenberg_stream())
-    if msg_lower.startswith("classics:"):
-        _cl_q = message[len("classics:"):].strip()
-        if not _cl_q:
-            return _sse_response(_stream_simple("What would you like to ask the classics knowledge base?"))
-        from jobs.skills.kb_search import search_kb as _classics_search_kb, format_result as _classics_fmt
-        def _classics_stream(q=_cl_q):
-            yield _emit_status("→ Searching classics knowledge base...")
-            try:
-                result = _classics_search_kb(q, "gutenberg")
-                yield _sse(_classics_fmt(result))
-            except Exception as exc:
-                yield _sse(f"Classics search failed: {exc}")
-            yield "data: [DONE]\n\n"
-        return _sse_response(_classics_stream())
 
 
-    # Gutenberg selection gate — bare 1-N reply while a search is pending
     from jobs.telegram.pending import get_pending_confirmation, mark_pending_status
-    _dash_conf = get_pending_confirmation()
-    if _dash_conf and _dash_conf["type"] == "gutenberg_select":
-        _gb_candidates = _dash_conf["payload"].get("candidates", [])
-        _gb_choice_m = _re.fullmatch(r"[1-5]", message.strip())
-        if _gb_choice_m and int(_gb_choice_m.group(0)) <= len(_gb_candidates):
-            mark_pending_status(_dash_conf["id"], "confirmed")
-            _gb_book = _gb_candidates[int(_gb_choice_m.group(0)) - 1]
-            from jobs.research.gutenberg import download_and_ingest as _gb_ingest
-            def _gb_ingest_stream(book=_gb_book):
-                yield _emit_status(f"→ Downloading and ingesting: {book['title']}...")
-                result = _gb_ingest(book["id"])
-                if not result["ok"]:
-                    yield _sse(f"Ingestion failed: {result['error']}")
-                elif result["already_ingested"]:
-                    yield _sse(f"'{result['title']}' is already in the classics knowledge base.")
-                else:
-                    yield _sse(
-                        f"Added '{result['title']}' to the classics knowledge base — "
-                        f"{result['chunks_added']} chunks."
-                    )
-                yield "data: [DONE]\n\n"
-            return _sse_response(_gb_ingest_stream())
-        else:
-            # Not a valid 1-N selection — cancel the stale pending state and
-            # fall through so this message is processed normally below.
-            mark_pending_status(_dash_conf["id"], "cancelled")
 
     # Dashboard confirmation gate — check for a pending skill confirmation before routing
     _dash_conf = get_pending_confirmation()
@@ -3160,29 +2979,6 @@ def chat_stream():
             _db().commit()
             _reply = f"Reminder set for {_rt}: {_title}" if _rt else f"Reminder saved: {_title}"
             return _sse_response(_stream_simple(_reply))
-
-    # build:/devloop: dispatch — route to Dev Loop (devloop: is Telegram's spelling,
-    # kept here as an alias — see jobs/routing/directive_prefixes.py)
-    if msg_lower.startswith('build:') or msg_lower.startswith('devloop:'):
-        _dl_pfx_len = len('devloop:') if msg_lower.startswith('devloop:') else len('build:')
-        description = message[_dl_pfx_len:].strip()
-        import threading
-        import re as _re_build2
-        from jobs.dev_loop.trigger import trigger_dev_loop as _trigger_dev_loop2
-        _slug2 = _re_build2.sub(r"[^a-z0-9]+", "-", description.lower())[:32].strip("-")
-        threading.Thread(
-            target=_trigger_dev_loop2,
-            kwargs={"slug": _slug2, "title": description[:60], "input_type": "description", "input_text": description},
-            daemon=True,
-        ).start()
-        return _sse_response(_stream_simple(
-            "Build triggered — follow progress on the Dev Loop tab or via Telegram."
-        ))
-
-    if msg_lower.startswith('debug:'):
-        from jobs.dev.claude_debug import run
-        result = run(message)
-        return _sse_response(_stream_simple(str(result)))
 
     # QR code generation
     _QR_TRIGGERS = ('qr code', 'qr-code', 'make a qr', 'give me a qr',
@@ -3674,23 +3470,6 @@ def chat_stream():
             "Running skill audit in the background. I'll send a Telegram when it's done."
         ))
 
-    # Direct slug dispatch — from dashboard Use button (run:<slug>)
-    if msg_lower.startswith("run:"):
-        run_body = message[4:].strip()
-        _run_parts = run_body.split(None, 1)
-        slug = _run_parts[0] if _run_parts else ""
-        skill_message = _run_parts[1] if len(_run_parts) > 1 else ""
-        skills = _router._load_skills("dashboard")
-        skill = next((s for s in skills if s["slug"] == slug), None)
-        if skill:
-            try:
-                result = _router._run_skill(skill, message=skill_message)
-            except Exception as exc:
-                result = f"Skill error: {exc}"
-            return _sse_response(_stream_simple(str(result)))
-        else:
-            return _sse_response(_stream_simple(f"Skill not found: {slug}"))
-
     # Time query pre-check
     if _re.search(r"what.*(time|hour).*is it|what time|current time", msg_lower):
         from jobs.time_check import run as _time_run
@@ -4028,24 +3807,6 @@ def siri():
                         (_title, _rt),
                     )
                 return _reply(f"Reminder set for {_rt}: {_title}" if _rt else f"Reminder saved: {_title}")
-
-        # build: dispatch — route to Dev Loop
-        if msg_lower.startswith('build:'):
-            import re as _re_build3
-            from jobs.dev_loop.trigger import trigger_dev_loop as _trigger_dev_loop3
-            _desc3 = msg[6:].strip()
-            _slug3 = _re_build3.sub(r"[^a-z0-9]+", "-", _desc3.lower())[:32].strip("-")
-            _siri_threading.Thread(
-                target=_trigger_dev_loop3,
-                kwargs={"slug": _slug3, "title": _desc3[:60], "input_type": "description", "input_text": _desc3},
-                daemon=True,
-            ).start()
-            return _reply("Build triggered — follow progress on the Dev Loop tab or via Telegram.")
-
-        if msg_lower.startswith('debug:'):
-            from jobs.dev.claude_debug import run
-            result = run(message)
-            return _reply(str(result))
 
         # Time query
         if _siri_re.search(r"what.*(time|hour).*is it|what time|current time", msg_lower):

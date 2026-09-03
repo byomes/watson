@@ -15,6 +15,13 @@ DOCS_DIR   = BASE_DIR / "docs"
 GITHUB_REPO  = os.getenv("GITHUB_REPO")
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 
+# Micah's Tasks (jobs/micah_tasks) -- own Neon Postgres + VAPID web-push
+# keypair, separate app from anything else Watson touches.
+MICAH_TASKS_DATABASE_URL      = os.getenv("MICAH_TASKS_DATABASE_URL")
+MICAH_TASKS_VAPID_PRIVATE_KEY = os.getenv("MICAH_TASKS_VAPID_PRIVATE_KEY")
+MICAH_TASKS_VAPID_PUBLIC_KEY  = os.getenv("MICAH_TASKS_VAPID_PUBLIC_KEY")
+MICAH_TASKS_VAPID_SUBJECT     = os.getenv("MICAH_TASKS_VAPID_SUBJECT")
+
 # Vercel
 VERCEL_DEPLOY_HOOK = os.getenv("VERCEL_DEPLOY_HOOK")
 
