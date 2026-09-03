@@ -8,6 +8,7 @@ from pathlib import Path
 import requests
 from dotenv import load_dotenv
 
+from core.claude_tier import call_claude
 from jobs.email_job.brevo_send import send_email
 
 load_dotenv()
@@ -26,13 +27,15 @@ def _extract_fields(message: str) -> dict:
         'Return JSON only: {"to": "", "subject": "", "body": ""}\n\n'
         f'Message: {message}'
     )
-    resp = requests.post(
-        OLLAMA_URL,
-        json={"model": OLLAMA_MODEL, "prompt": prompt, "stream": False},
-        timeout=60,
-    )
-    resp.raise_for_status()
-    raw = resp.json().get("response", "").strip()
+    raw = call_claude(system="", user=prompt, job_name="email_send.send")
+    if not raw:
+        resp = requests.post(
+            OLLAMA_URL,
+            json={"model": OLLAMA_MODEL, "prompt": prompt, "stream": False},
+            timeout=60,
+        )
+        resp.raise_for_status()
+        raw = resp.json().get("response", "").strip()
     start = raw.find("{")
     end = raw.rfind("}") + 1
     if start >= 0 and end > start:

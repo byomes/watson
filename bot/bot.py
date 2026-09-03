@@ -4760,71 +4760,6 @@ async def handle_batch_update_callback(update: Update, context: ContextTypes.DEF
         await query.edit_message_text("Cancelled.", reply_markup=None)
 
 
-# ── Dev Loop handlers ─────────────────────────────────────────────────────────
-
-async def handle_devloop_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle devloop_keep:<slug> and devloop_stop:<slug> inline button callbacks."""
-    import threading
-    query = update.callback_query
-    await query.answer()
-
-    if not _is_authorized(update):
-        return
-
-    data = query.data or ""
-    if data.startswith("devloop_keep:"):
-        slug = data[len("devloop_keep:"):]
-        db_path = os.path.expanduser("~/watson/data/watson.db")
-        try:
-            import sqlite3 as _sq
-            with _sq.connect(db_path) as _c:
-                _c.row_factory = _sq.Row
-                row = _c.execute("SELECT * FROM dev_projects WHERE slug=?", (slug,)).fetchone()
-        except Exception:
-            row = None
-
-        if not row:
-            await query.edit_message_text(f"Project '{slug}' not found.", reply_markup=None)
-            return
-
-        if dict(row).get("status") != "paused":
-            await query.edit_message_text(f"Project '{slug}' is not paused.", reply_markup=None)
-            return
-
-        await query.edit_message_text(
-            f"Dev Loop — RESUMING\n{slug}\n\nExtending by 3 more iterations…",
-            reply_markup=None,
-        )
-
-        row_d = dict(row)
-        def _run():
-            from jobs.dev_loop.trigger import trigger_dev_loop
-            trigger_dev_loop(
-                slug=slug,
-                title=row_d["title"],
-                input_type=row_d["input_type"],
-                input_text=row_d["input_text"],
-                start_iteration=row_d["current_iteration"] + 1,
-                extend_by=3,
-            )
-        threading.Thread(target=_run, daemon=True).start()
-
-    elif data.startswith("devloop_stop:"):
-        slug = data[len("devloop_stop:"):]
-        db_path = os.path.expanduser("~/watson/data/watson.db")
-        try:
-            import sqlite3 as _sq
-            with _sq.connect(db_path) as _c:
-                _c.execute("UPDATE dev_projects SET status='stopped', updated_at=datetime('now') WHERE slug=?", (slug,))
-        except Exception as exc:
-            await query.edit_message_text(f"Failed to stop: {exc}", reply_markup=None)
-            return
-        await query.edit_message_text(
-            f"Dev Loop — STOPPED\n{slug}\n\nStopped. Review code on dashboard.",
-            reply_markup=None,
-        )
-
-
 async def handle_git_sync_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle gs_pull:/gs_skip: button taps from jobs/dev/git_sync.py's needs-decision alerts."""
     query = update.callback_query
@@ -4923,7 +4858,6 @@ def main():
     app.add_handler(CommandHandler("read",        handle_read))
     app.add_handler(CommandHandler("saved",       handle_saved))
     app.add_handler(CommandHandler("ask",         handle_ask))
-    app.add_handler(CallbackQueryHandler(handle_devloop_callback,         pattern=r"^devloop_"))
     app.add_handler(CallbackQueryHandler(handle_git_sync_callback,        pattern=r"^gs_"))
     app.add_handler(CallbackQueryHandler(handle_merge_conflict_callback,  pattern=r"^(merge_old_|merge_new_|skip_|different_)\d+$"))
     app.add_handler(CallbackQueryHandler(handle_adelphos_callback, pattern=r"^adelphos_(delete|confirmdelete|canceldelete|allow)_\d+$"))

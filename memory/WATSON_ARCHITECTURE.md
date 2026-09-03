@@ -185,8 +185,8 @@ Watson acts on Dr. Bill's behalf under his supervision. Always identified openly
 - `arc_readers`, `arc_reader_commitments`, `arc_reader_feedback`, `arc_sessions` — ARC reader signup, commitment tracking, manuscript feedback, sessions
 - `twj_readers`, `twj_feedback` — legacy TWJ reader accounts/feedback, migrated from Upstash KV; dashboard UI tab retired, data and routes intact
 - `login_challenges` — login vault challenge/response pairs (dashboard-only)
-- `dev_projects` — Dev Loop project tracking
 - `claude_code_jobs` — MCP Claude Code dispatcher job tracking (in progress)
+- `claude_tier_spend_log`, `claude_tier_budget_alerts` — `core/claude_tier.py`'s budget-capped Claude tier spend ledger and once-per-month budget-exhausted alert state (added 2026-09-03)
 - `memory_sessions` — persistent chat memory, injected into Ollama system prompt
 - `routing_corrections` — intent correction log; memory note prepended after 5+ in 30 days
 - `team_tasks`, `shared_notes`, `team_members` — leadership team management
@@ -222,12 +222,13 @@ Deploy pattern: `cd ~/watson && git pull && sudo systemctl restart watson-bot.se
 | Claude Code | `--dangerously-skip-permissions` on Beelink | File editing, building, committing |
 | `llama3.2:3b` | Beelink Ollama | Primary Watson chat (Telegram general-chat fallback), session summarization |
 | `gemma3:4b` | Beelink Ollama | Intent classification (Telegram only, `jobs/intent/classifier.py`) — swapped from `llama3.2:3b` 2026-07-17 (bug #20, `56d60dd`); `keep_alive=30m` plus `jobs/intent/keep_warm.py` cron (every 4 min) keep it resident |
-| `qwen2.5-coder:7b` | Beelink Ollama | Dev Loop, KB search, structured reasoning |
-| `qwen2.5:7b` | Beelink Ollama | Accuracy-sensitive background jobs: pastoral notes, meeting/note task+goal extraction, email drafts, State of Church synthesis, skill/capability audits, elder-review meeting summaries |
+| `qwen2.5-coder:7b` | Beelink Ollama | KB search, structured reasoning |
+| `qwen2.5:7b` | Beelink Ollama | Accuracy-sensitive background jobs: pastoral notes, meeting/note task+goal extraction, email drafts, State of Church synthesis, skill/capability audits, elder-review meeting summaries — first attempted via the Claude tier below, falls back here on no-key/budget-exhausted/error |
 | `phi3:mini` | Beelink Ollama | Background tasks |
 | `gemma3:1b` | Beelink Ollama | Fast/lightweight queries |
+| `claude-sonnet-5` (`core/claude_tier.py`) | Claude API, budget-capped | Opt-in first-choice tier (added 2026-09-03) for the 8 `qwen2.5:7b` jobs listed above — `$10/month` hard cap (`CLAUDE_MONTHLY_BUDGET_USD`), tracked in `claude_tier_spend_log`, falls back to Ollama on no-key/budget-exhausted/error. Uses `WATSON_CLAUDE_BUDGET_KEY`, a separate key from `ANTHROPIC_API_KEY` (see below) |
 
-**No Claude API calls in automated Watson jobs.** Ollama handles all automated inference.
+**Claude API calls in automated Watson jobs are now limited to the budget-capped tier above** (added 2026-09-03, superseding the prior "Ollama handles all automated inference" rule). `ANTHROPIC_API_KEY` itself remains unset — that name is read by several other, still-dormant Claude features (`jobs/dev/command_executor.py`, `jobs/dev/claude_debug.py`, `jobs/dev/build_pipeline.py`, `jobs/dev/claude_api_final_review.py`, `jobs/code_agent/agent.py`, `jobs/dashboard/app.py`, `jobs/skillbuilder/build.py`'s Tier 3) with no budget tracking of their own — deliberately not activated by this change.
 
 **Retired — `qwen2.5:14b` (FMSPC Ollama):** was listed here for "accuracy-sensitive"
 jobs, but FMSPC isn't always on, so those jobs actually ran `qwen2.5:14b` against
@@ -309,7 +310,6 @@ now a confirmed-closed result, not an open gap pending a retest.
 | `jobs/team/note_task_scan.py` | Tue/Wed/Thu 7am | Extract tasks from shared notes → Donna approval email |
 | `jobs/backup.py` | Daily 3am | OneDrive backup via rclone (offsite disaster leg) — `data/`, `config/`, `data/chroma/`, `kb/documents/`, `.env`, `~/.claude/projects` (added 2026-08-30) |
 | `jobs/backup_local.py` | Daily 2:30am | Local restic backup to `/mnt/family-storage/watson/` (fast/versioned recovery leg, independent of OneDrive — see Hardware). Full scope: DB snapshots, `data/` (incl. chroma), `config/`, `.env`, `memory/`, `kb/documents/`, `~/.ssh`, `~/.config/rclone/rclone.conf`, `~/.claude/projects` (added 2026-08-30), a crontab snapshot, plus full working trees (code + uncommitted changes + `.git` history) of every actively-developed repo — `watson, wcky, watson-admin, watson-ui, watson-docs-sync, comms-desk, comms-assets, curator, bodyrec, fms` (added 2026-08-22) — excluding `node_modules/venv/.venv/.next/dist/build/__pycache__`. Retention: 14 daily/8 weekly/6 monthly (`restic forget --prune`) |
-| `jobs/dev_loop/cleanup.py` | Mon 4am | Purge Dev Loop projects older than 7 days |
 | `jobs/dev/file_map.py` | Daily 2am | Auto-update FILE_MAP.md |
 | `jobs/dev/bugs_backlog_sync.py` | Daily 2am | Regenerate BUGS.md / DEV_PROJECTS.md from bug_tracker / project_backlog, push to byomes/watson-docs |
 | `jobs/dev/update_arch.py` | Daily 2am | Auto-update WATSON_ARCHITECTURE.md |
@@ -325,7 +325,6 @@ now a confirmed-closed result, not an open gap pending a retest.
 - `jobs/writing_room/` — onboard.py, reset.py, api.py (Flask blueprint)
 - `jobs/kb/` — KB search, build, ingest, archive
 - `jobs/dev/` — Claude Code agent launcher, smoke tests, file map, arch update
-- `jobs/dev_loop/` — trigger.py, loop.py, deliver.py, cleanup.py
 - `jobs/meet/summarize.py` — Meet transcript summarization via Scribbl → Gmail → Watson
 - `jobs/trading/` — Paper-trading strategy pipeline (Alpaca paper API only) — see Paper-Trading Strategy Pipeline section below
 - `jobs/tools/` — wtsn.me public-tools registry (register/query/gate `public_tools` rows, `/api/tools/resolve/<slug>` blueprint) — no cron entry, purely dispatch/on-demand: tools are registered by a build step, gated live by Telegram confirm, never scheduled — see Public Tools (wtsn.me) below
@@ -576,17 +575,15 @@ be picked job-by-job once a given leader is actually connected.
 
 ## Dev Loop
 
-- Runs locally on Beelink via `subprocess.Popen` (non-blocking)
-- Script: `~/watson/jobs/dev_loop/loop.py`
-- Trigger: `jobs/dev_loop/trigger.py` — called from Telegram `devloop:` command (no dashboard UI trigger since 2026-07-01)
-- Ollama model: `qwen2.5-coder:7b` at `localhost:11434`
-- Test method: syntax check only (`python3 -m py_compile`) — not execution
-- Callback: `POST /api/dev-loop/callback` with `X-Watson-Key: WRITING_ROOM_API_KEY`
-- Dashboard: no UI tab as of 2026-07-01 (removed from More menu, TWJ/ARC consolidation) — `/api/dev-loop/*` routes still live, reachable directly, just no dashboard entry point
-- Logs: `~/watson/logs/devloop-{slug}.log`
-- Cleanup: `jobs/dev_loop/cleanup.py` — Monday 4am, purges projects older than 7 days
-- Stuck-running handling (`jobs/dev_loop/cleanup.py`): `auto_fail_stuck_running()` runs before the 7-day purge — checks `ps -eo args` for a live `loop.py --slug <slug>` process, and any `dev_projects` row still `'running'` past 2h with no matching process is auto-marked `'failed'` and reported via Telegram. Complements the pre-existing `flag_stuck_running()`, which is read-only and alerts at a 24h threshold without changing status.
-- Projects staged to `~/watson/dev/<slug>/` — never auto-committed to main
+**Removed 2026-09-03** — `jobs/dev_loop/` (autonomous Ollama-driven code
+generation, triggered via Telegram `devloop:`) is gone. Already ~fully
+dormant before removal: dashboard UI tab dropped 2026-07-01, the `devloop:`
+chat trigger itself removed 2026-09-02 (`3afff17`), `dev_projects` had 0
+rows. Superseded by **Dev Sandbox** (`jobs/dev/sandbox_session.py`,
+human-attended Claude Code in a container) and **Watson Dev Dispatch**
+(`jobs/devdispatch/`, `claude --bg` background Claude Code jobs on the
+Beelink, MCP-exposed) — both already live and unaffected by this removal.
+See Retired section below.
 
 ---
 
@@ -1506,9 +1503,9 @@ path at all. Everything else — including every `_DIRECTIVE_PREFIXES` colon-pre
 just via inconsistent syntax and duplicated code paths rather than a real gap.
 `contact_lookup` and `reminder_create` are independently reimplemented in dashboard's
 `/api/chat/stream`; `book_appointment` and `calendar_busy` exist as dedicated dashboard
-REST endpoints/UI rather than chat intents. `build:` (dashboard) and `devloop:`
-(Telegram) trigger the identical Dev Loop function under different spellings — a naming
-mismatch, not a gap.
+REST endpoints/UI rather than chat intents. (Historical note: `build:`/`devloop:` used
+to both trigger Dev Loop under different spellings — both prefixes and Dev Loop itself
+are gone as of 2026-09-03, see Retired section.)
 
 **Not in the table above — a different mechanism entirely, not just a different trigger.** The
 wtsn.me first-deploy gate (`jobs/tools/registry.request_first_deploy()`, see Public Tools
@@ -1811,6 +1808,7 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - ~~Windows machine for web development~~ — all web dev now on Beelink
 - ~~Upstash KV in blog pipeline~~ — `ingest_drafts.py` retired, direct POST to Flask
 - ~~FMSPC SSH for Dev Loop~~ — moved to local Beelink execution
+- ~~Dev Loop (`jobs/dev_loop/`)~~ — Ollama-driven (`qwen2.5-coder:7b`) autonomous code generation, triggered via Telegram `devloop:`; removed 2026-09-03, superseded by Dev Sandbox (`jobs/dev/sandbox_session.py`) and Watson Dev Dispatch (`jobs/devdispatch/`) running real Claude Code on the Beelink instead. Was already ~fully dormant (dashboard UI removed 2026-07-01, `devloop:` chat trigger removed 2026-09-02, `dev_projects` had 0 rows at removal time). `dev_projects` table left in place (empty, no longer created/read by any code).
 - ~~iOS keyboard patch in dashboard chat~~ — attempted and reverted 7 times, permanently removed from build queue
 - ~~Build Pipeline (`jobs/dev/build_pipeline.py`)~~ — Claude API spec/review/approve flow triggered by bare `build <request>` / `approve` in Telegram; last ran 2026-06-15, superseded by Dev Loop. Bot triggers removed 2026-07-03. File left in place, unreferenced.
 - ~~`jobs/kb/archive_transcripts.py`~~ — retired 2026-07-20, superseded by `jobs/kb/sync_and_index.py`. Its 30-day-old-file threshold became unreachable once transcripts started moving to `kb/documents/` the same day they arrive. File left in place, unreferenced; cron entry removed.

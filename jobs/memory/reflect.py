@@ -7,6 +7,8 @@ from pathlib import Path
 
 import requests
 
+from core.claude_tier import call_claude
+
 REPO = Path(__file__).resolve().parents[2]
 MEMORY = REPO / "memory"
 DB_PATH = REPO / "data" / "watson.db"
@@ -59,6 +61,10 @@ def _format_transcript(messages: list[dict]) -> str:
 
 
 def _call_ollama_chat(system: str, user: str) -> str:
+    claude_result = call_claude(system=system, user=user, job_name="memory.reflect")
+    if claude_result:
+        return claude_result
+
     resp = requests.post(
         "http://localhost:11434/api/chat",
         json={

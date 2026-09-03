@@ -6,6 +6,8 @@ from pathlib import Path
 import requests
 from dotenv import load_dotenv
 
+from core.claude_tier import call_claude
+
 BASE_DIR = Path(__file__).resolve().parents[2]
 load_dotenv(BASE_DIR / ".env")
 
@@ -51,6 +53,10 @@ Transcript:
 
 
 def _call_ollama(system: str, prompt: str, timeout: int = 120) -> str:
+    claude_result = call_claude(system=system, user=prompt, job_name="team.extractor")
+    if claude_result:
+        return claude_result
+
     resp = requests.post(
         OLLAMA_URL,
         json={

@@ -20,6 +20,7 @@ from pathlib import Path
 import requests
 
 from config.settings import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+from core.claude_tier import call_claude
 from core.vacation import vacation_gate
 from jobs.pastoral_notes.db import get_db
 
@@ -159,6 +160,11 @@ def _parse_numbered_reply(reply_text: str) -> list[tuple[int, str]] | None:
 
 def _ollama_generate(note_text: str) -> str:
     prompt = f"{_TASK_PROMPT}\n\nNotes: {note_text}"
+
+    claude_result = call_claude(system="", user=prompt, job_name="pastoral_notes.handler")
+    if claude_result:
+        return claude_result
+
     resp = requests.post(
         _OLLAMA_URL,
         json={"model": _OLLAMA_MODEL, "prompt": prompt, "stream": False},

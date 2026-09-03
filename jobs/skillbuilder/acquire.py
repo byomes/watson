@@ -10,6 +10,7 @@ from pathlib import Path
 import requests
 from dotenv import load_dotenv
 
+from core.claude_tier import call_claude
 from core.vacation import vacation_gate
 
 load_dotenv()
@@ -148,17 +149,19 @@ def search_for_skill(capability_description: str) -> dict:
             "beautifulsoup4, pillow, pandas, pydantic."
         )
         try:
-            resp = requests.post(
-                OLLAMA_URL,
-                json={
-                    "model": OLLAMA_MODEL,
-                    "prompt": f"SYSTEM:\n{system}\n\nUSER:\n{call_user}",
-                    "stream": False,
-                },
-                timeout=120,
-            )
-            resp.raise_for_status()
-            raw = resp.json().get("response", "").strip()
+            raw = call_claude(system=system, user=call_user, job_name="skillbuilder.acquire")
+            if not raw:
+                resp = requests.post(
+                    OLLAMA_URL,
+                    json={
+                        "model": OLLAMA_MODEL,
+                        "prompt": f"SYSTEM:\n{system}\n\nUSER:\n{call_user}",
+                        "stream": False,
+                    },
+                    timeout=120,
+                )
+                resp.raise_for_status()
+                raw = resp.json().get("response", "").strip()
             match = re.search(r'\{[^{}]+\}', raw, re.DOTALL)
             if not match:
                 log.error("Ollama returned no JSON (attempt %d): %s", attempt + 1, raw[:200])

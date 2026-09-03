@@ -24,6 +24,7 @@ from datetime import date, timedelta
 import requests
 from dotenv import load_dotenv
 
+from core.claude_tier import call_claude
 from jobs.connect_cards.utils import _display_name
 from jobs.email_job.brevo_send import send_email
 
@@ -295,6 +296,14 @@ def _ollama_synthesis(condensed: str, benchmarks_context: str) -> str | None:
         f"{condensed}\n\n"
         "You must respond in English only. Do not use any other language. Begin writing now:"
     )
+
+    claude_result = call_claude(
+        system="", user=prompt,
+        job_name="connect_cards.state_of_church", max_tokens=900,
+    )
+    if claude_result:
+        return claude_result
+
     try:
         resp = requests.post(
             OLLAMA_URL,

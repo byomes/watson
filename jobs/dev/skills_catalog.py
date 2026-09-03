@@ -214,10 +214,9 @@ def build_section() -> str:
         "comment on that line in app.py. A row that says *undocumented* means that "
         "comment is missing — add it in app.py, not here.\n\n"
         "Every prefix here also works typed directly in dashboard/Telegram chat, not "
-        "just in the terminal. Chat additionally recognizes `devloop:` as an alias for "
-        "`build:`, plus a few things too free-form for a prefix table: natural-language "
-        "reminders (`remind me ...` / `remind me at <time> ...`) and calendar phrasing "
-        "(see the calendar_query skill above)."
+        "just in the terminal, plus a few things too free-form for a prefix table: "
+        "natural-language reminders (`remind me ...` / `remind me at <time> ...`) and "
+        "calendar phrasing (see the calendar_query skill above)."
     )
     lines.append("")
     lines.append("| Command | What it does |")

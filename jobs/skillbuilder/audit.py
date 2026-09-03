@@ -13,6 +13,7 @@ from pathlib import Path
 import requests
 from dotenv import load_dotenv
 
+from core.claude_tier import call_claude
 from core.vacation import vacation_gate
 
 load_dotenv()
@@ -136,7 +137,9 @@ def run_audit() -> str:
     )
 
     try:
-        raw = _call_ollama(f"SYSTEM:\n{system}\n\nUSER:\n{user}")
+        raw = call_claude(system=system, user=user, job_name="skillbuilder.audit")
+        if not raw:
+            raw = _call_ollama(f"SYSTEM:\n{system}\n\nUSER:\n{user}")
     except Exception as exc:
         log.error("Ollama audit call failed: %s", exc)
         _telegram(f"⚠️ Weekly audit failed: {exc}")

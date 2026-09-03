@@ -9,6 +9,7 @@ from pathlib import Path
 import requests
 from dotenv import load_dotenv
 
+from core.claude_tier import call_claude
 from core.vacation import vacation_gate
 
 load_dotenv()
@@ -54,6 +55,10 @@ def _format_transcript(messages: list[dict]) -> str:
 
 
 def _call_ollama(prompt: str) -> str:
+    claude_result = call_claude(system="", user=prompt, job_name="memory.wrap_up")
+    if claude_result:
+        return claude_result
+
     resp = requests.post(
         OLLAMA_URL,
         json={"model": OLLAMA_MODEL, "prompt": prompt, "stream": False},

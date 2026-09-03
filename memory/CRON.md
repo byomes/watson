@@ -34,18 +34,6 @@ PYTHONPATH=/home/billyomes/watson 0 3 * * 0 /home/billyomes/watson/venv/bin/pyth
 
 ---
 
-# Dev Loop Cleanup — Cron Entry
-
-Add this to crontab (`crontab -e`) to purge dev loop projects older than 7 days every Monday at 4am:
-
-```
-PYTHONPATH=/home/billyomes/watson 0 4 * * 1 /home/billyomes/watson/venv/bin/python /home/billyomes/watson/jobs/dev_loop/cleanup.py >> /home/billyomes/watson/logs/devloop_cleanup.log 2>&1
-```
-
-(Weekly, Mondays 4am)
-
----
-
 # Thesis Tracker Token Health — Cron Entry (TEMPORARY)
 
 Added to crontab daily at 8am to check whether the Digital Commons/bepress
