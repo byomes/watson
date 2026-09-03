@@ -1,10 +1,12 @@
 # Watson Bug Tracker
 _Auto-generated nightly from bug_tracker. Source of truth is the database — do not hand-edit this file, changes will be overwritten._
-Last generated: 2026-09-02 02:10
+Last generated: 2026-09-03 02:10
 
-## Open (37)
+## Open (39)
 | ID | Title | Repo | Discovered |
 |---|---|---|---|
+| 115 | Telegram: LOW-confidence general intent produced a pointless confirm prompt; write intents double-confirmed | watson | 2026-09-03 03:46:06 |
+| 114 | Telegram intent classifier misroutes reflective/advice questions into calendar actions | watson | 2026-09-03 03:46:06 |
 | 98 | connect_cards intake truncates multi-line question/comment field | watson | 2026-08-24 13:04:31 |
 | 97 | Dashboard SSE chat KB pre-check imports nonexistent kb_search.run | watson | 2026-08-24 12:44:22 |
 | 87 | jobs.browser: goto_safe failed for https://nuwber.com/search?name=mikhaela+molanders&state=de | watson | 2026-08-21 13:46:22 |
