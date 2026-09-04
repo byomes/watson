@@ -24,8 +24,12 @@ _CHAT_ID   = lambda: os.getenv("WATSON_CHAT_ID") or os.getenv("TELEGRAM_CHAT_ID"
 
 # Curator users.name -> watson.db people.name, for SMS/email notifications. Exact
 # mapping only, deliberately not fuzzy — a wrong guess here means texting/emailing the
-# wrong person. Add an entry per daughter as they're onboarded.
-_CONTACT_NAME_MAP = {"mel": "Melanie Yomes"}
+# wrong person. Re-keyed 2026-09-04: Bill and Mel merged into one shared "Adults"
+# account (PIN-only login, no per-adult identity — see [[project_curator]]), so this
+# now routes batch-completion notifications to Mel regardless of which adult
+# submitted; add a "kids" entry too if the shared Kids account should ever get its
+# own SMS/email routing.
+_CONTACT_NAME_MAP = {"adults": "Melanie Yomes"}
 
 
 def get_db() -> sqlite3.Connection:
