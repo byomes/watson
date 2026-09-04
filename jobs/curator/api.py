@@ -8,6 +8,7 @@ import json
 import logging
 import os
 import sys
+import time
 from functools import wraps
 from pathlib import Path
 
@@ -40,6 +41,37 @@ _EDIT_FIELDS = (
 _VALID_STATUSES = ("pending", "confirmed", "needs_review", "rejected")
 _VALID_SHELVES = ("want_to_read", "reading", "read")
 _VALID_SOURCE_TYPES = ("screenshot", "tiktok", "instagram", "youtube", "goodreads", "amazon", "chatgpt", "other")
+
+# Login lockout — in-memory, keyed by username (not IP: this app sits behind
+# several proxy hops — watson-tools' rewrite, Vercel — making the true client
+# IP unreliable to extract, and username-keyed is simpler and sufficient for
+# a low-stakes family app; the tradeoff is a bad actor could lock out a real
+# user by deliberately failing their name, which is an acceptable annoyance
+# here, not a real risk). In-memory (not DB-backed) is fine specifically
+# because this Flask process is one long-running instance on the Beelink,
+# unlike Curator's Next.js API routes on Vercel, which don't reliably share
+# state across serverless invocations.
+_LOGIN_ATTEMPT_WINDOW_SECONDS = 15 * 60
+_LOGIN_MAX_ATTEMPTS = 6
+_login_attempts: dict[str, list[float]] = {}
+
+
+def _login_locked_out(name_key: str) -> int | None:
+    """Returns seconds until unlock if locked out, else None. Prunes old entries."""
+    now = time.time()
+    attempts = [t for t in _login_attempts.get(name_key, []) if now - t < _LOGIN_ATTEMPT_WINDOW_SECONDS]
+    _login_attempts[name_key] = attempts
+    if len(attempts) >= _LOGIN_MAX_ATTEMPTS:
+        return int(_LOGIN_ATTEMPT_WINDOW_SECONDS - (now - attempts[0]))
+    return None
+
+
+def _record_login_failure(name_key: str) -> None:
+    _login_attempts.setdefault(name_key, []).append(time.time())
+
+
+def _clear_login_attempts(name_key: str) -> None:
+    _login_attempts.pop(name_key, None)
 
 
 def _require_key(f):
@@ -186,6 +218,13 @@ def login():
     if not (name and password):
         return jsonify({"error": "name and password required"}), 400
 
+    name_key = name.lower()
+    retry_after = _login_locked_out(name_key)
+    if retry_after is not None:
+        return jsonify({
+            "error": f"Too many attempts. Try again in {max(1, retry_after // 60 + 1)} minute(s).",
+        }), 429
+
     conn = get_db()
     try:
         row = conn.execute(
@@ -193,7 +232,9 @@ def login():
             (name,),
         ).fetchone()
         if not row or not bcrypt.checkpw(password.encode(), row["password_hash"].encode()):
+            _record_login_failure(name_key)
             return jsonify({"error": "invalid credentials"}), 401
+        _clear_login_attempts(name_key)
         return jsonify({"userId": row["id"], "name": row["name"]}), 200
     finally:
         conn.close()
