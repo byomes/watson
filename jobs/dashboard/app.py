@@ -3219,7 +3219,7 @@ def chat_stream():
                 args=(pending, job_path, "dashboard"),
                 daemon=True,
             ).start()
-            return _sse_response(_stream_simple("Building that skill now. I'll notify you via Telegram when it's ready."))
+            return _sse_response(_stream_simple("Building that skill now — this'll take a few minutes. I'll notify you via Telegram when it's ready; other requests may be delayed until it's done."))
         if msg_lower in _DENY or msg_lower.startswith("no "):
             _pending_skill_request = None
             return _sse_response(_stream_simple("Got it. Let me know if you need anything else."))
@@ -3543,7 +3543,7 @@ def chat_stream():
             args=(route_result["description"], route_result["job_path"], "dashboard"),
             daemon=True,
         ).start()
-        return _sse_response(_stream_simple("Building that skill now. I'll notify you via Telegram when it's ready."))
+        return _sse_response(_stream_simple("Building that skill now — this'll take a few minutes. I'll notify you via Telegram when it's ready; other requests may be delayed until it's done."))
 
     if route_result["action"] == "propose":
         route_result = {"action": "chat"}
@@ -3571,7 +3571,7 @@ def chat_stream():
             args=(description, job_path, "dashboard"),
             daemon=True,
         ).start()
-        return _sse_response(_stream_simple("Building that skill now. I'll notify you via Telegram when it's ready."))
+        return _sse_response(_stream_simple("Building that skill now — this'll take a few minutes. I'll notify you via Telegram when it's ready; other requests may be delayed until it's done."))
 
     # ── LLM inference — Claude (primary) with Ollama fallback ────────────────
     # Build message history — last 20 from DB session if available
@@ -3833,7 +3833,7 @@ def siri():
                 args=(route_result["description"], route_result["job_path"], "dashboard"),
                 daemon=True,
             ).start()
-            return _reply("Building that skill now. I'll notify you via Telegram when it's ready.")
+            return _reply("Building that skill now — this'll take a few minutes. I'll notify you via Telegram when it's ready; other requests may be delayed until it's done.")
 
         if route_result["action"] == "propose":
             return _reply(route_result["message"])
@@ -3846,7 +3846,7 @@ def siri():
                 args=(description, job_path, "dashboard"),
                 daemon=True,
             ).start()
-            return _reply("Building that skill now. I'll notify you via Telegram when it's ready.")
+            return _reply("Building that skill now — this'll take a few minutes. I'll notify you via Telegram when it's ready; other requests may be delayed until it's done.")
 
         # Ollama fallback
         try:
@@ -3915,7 +3915,7 @@ def chat():
                 args=(pending, job_path, "dashboard"),
                 daemon=True,
             ).start()
-            return jsonify({"response": "Building that skill now. I’ll notify you via Telegram when it’s ready."})
+            return jsonify({"response": "Building that skill now — this'll take a few minutes. I'll notify you via Telegram when it's ready; other requests may be delayed until it's done."})
         if msg_lower in _DENY or msg_lower.startswith("no "):
             _pending_skill_request = None
             return jsonify({"response": "Got it. Let me know if you need anything else."})
@@ -4007,7 +4007,7 @@ def chat():
             args=(route_result["description"], route_result["job_path"], "dashboard"),
             daemon=True,
         ).start()
-        return jsonify({"response": "Building that skill now. I'll notify you via Telegram when it's ready."})
+        return jsonify({"response": "Building that skill now — this'll take a few minutes. I'll notify you via Telegram when it's ready; other requests may be delayed until it's done."})
 
     if route_result["action"] == "propose":
         _pending_skill_request = message
@@ -4040,7 +4040,7 @@ def chat():
             args=(description, job_path, "dashboard"),
             daemon=True,
         ).start()
-        return jsonify({"response": "Building that skill now. I'll notify you via Telegram when it's ready."})
+        return jsonify({"response": "Building that skill now — this'll take a few minutes. I'll notify you via Telegram when it's ready; other requests may be delayed until it's done."})
 
     # Fall through to Ollama
     messages = []

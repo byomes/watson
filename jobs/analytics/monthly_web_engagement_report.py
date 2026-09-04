@@ -83,6 +83,8 @@ from jobs.connect_cards.reports import _CSS
 from jobs.email_job.brevo_send import send_email
 from jobs.analytics import sheet_import, ga4_import, connect_card_rollup, trailing_trends
 from core.database import get_connection
+from core.ollama_context import size_num_ctx
+from core.ollama_lock import heavy_ollama_call
 from core.vacation import vacation_gate
 from config.settings import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 
@@ -583,13 +585,27 @@ def _ollama_interpretation(
     )
     for attempt in (1, 2):
         try:
-            resp = requests.post(
-                INTERP_OLLAMA_URL,
-                json={"model": INTERP_OLLAMA_MODEL, "prompt": prompt, "stream": False},
-                timeout=INTERP_OLLAMA_TIMEOUT,
-            )
-            resp.raise_for_status()
-            return resp.json().get("response", "").strip() or None
+            # bug_tracker #118/#121: runs monthly at 4am (see cron), inside this
+            # codebase's established quiet-hours cluster, but keep_warm.py's
+            # every-4-minute cadence has no time-of-day exception -- the busy
+            # lock still matters even here.
+            with heavy_ollama_call("analytics.monthly_web_engagement_report"):
+                resp = requests.post(
+                    INTERP_OLLAMA_URL,
+                    json={
+                        "model": INTERP_OLLAMA_MODEL,
+                        "prompt": prompt,
+                        "stream": False,
+                        # bug_tracker #118: same benchmarks-doc + multi-section
+                        # condensed-data pattern as the state_of_church family --
+                        # sized with headroom so it doesn't silently start
+                        # truncating against Ollama's ~4096 default num_ctx.
+                        "options": {"num_ctx": size_num_ctx(prompt)},
+                    },
+                    timeout=INTERP_OLLAMA_TIMEOUT,
+                )
+                resp.raise_for_status()
+                return resp.json().get("response", "").strip() or None
         except Exception as exc:
             log.warning("Ollama interpretation synthesis failed (attempt %d/2): %s", attempt, exc)
     return None

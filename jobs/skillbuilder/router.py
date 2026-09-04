@@ -11,6 +11,7 @@ from pathlib import Path
 import requests
 
 from core.ollama_context import size_num_ctx
+from core.ollama_lock import BUSY_MESSAGE, ollama_busy
 
 REPO = Path(__file__).resolve().parents[2]
 SKILLS_FILE = REPO / "memory" / "skills.json"
@@ -325,6 +326,12 @@ def _load_skills(interface: str) -> list:
 
 
 def _ask_router(message: str, skills: list) -> str:
+    # bug_tracker #118/#121: don't race a contended, single-request-at-a-time
+    # Ollama queue and silently fall through to CHAT/general on timeout —
+    # say so honestly instead if a long job is holding the busy lock.
+    if ollama_busy():
+        return "BUSY"
+
     skills_json = json.dumps(skills, indent=2)
     prompt = (
         "SYSTEM: You are Watson's skill router. Given a user message and a list of "
@@ -533,6 +540,9 @@ def _route(message: str, interface: str) -> dict:
     except Exception as exc:
         log.warning("Skill router LLM call failed: %s", exc)
         return {"action": "chat"}
+
+    if decision == "BUSY":
+        return {"action": "busy", "message": BUSY_MESSAGE}
 
     # If the LLM mistakenly returned CHAT for a build-phrased message, force BUILD.
     if decision == "CHAT" and any(

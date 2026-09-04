@@ -4,6 +4,8 @@ import re
 
 import requests
 
+from core.ollama_lock import BUSY_MESSAGE, ollama_busy
+
 log = logging.getLogger(__name__)
 
 _OLLAMA_URL = "http://localhost:11434/api/generate"
@@ -76,6 +78,15 @@ Return ONLY the JSON object. No markdown. No explanation. No other text.
 
 
 def classify(message_text: str, system_prompt: str = "") -> dict:
+    # bug_tracker #118/#121: don't race a contended, single-request-at-a-time
+    # Ollama queue and silently guess "general" on timeout — that's a
+    # hallucination wearing a latency costume. If a long job (audit.py,
+    # build.py, etc.) is holding the busy lock, say so honestly instead.
+    busy = ollama_busy()
+    if busy:
+        log.info("classify() skipped — Ollama busy with %s", busy.get("job"))
+        return {"intent": "busy", "params": {}, "confidence": "HIGH", "message": BUSY_MESSAGE}
+
     prompt = f"{_SYSTEM_PROMPT}\n\nMessage: {message_text}"
     payload: dict = {
         "model": _MODEL,

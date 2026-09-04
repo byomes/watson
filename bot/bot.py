@@ -1169,7 +1169,7 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 args=(pending_desc, job_path, "telegram"),
                 daemon=True,
             ).start()
-            await update.message.reply_text("Building that skill now. I'll notify you via Telegram when it's ready.")
+            await update.message.reply_text("Building that skill now — this'll take a few minutes. I'll notify you via Telegram when it's ready; other requests may be delayed until it's done.")
             log.info("DEBUG pre-check: confirmed pending skill build")
             return
         gap = _get_next_proposed_gap()
@@ -1185,7 +1185,8 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 daemon=True,
             ).start()
             await update.message.reply_text(
-                f"Building {gap['gap_name']} now. I'll notify you via Telegram when it's ready."
+                f"Building {gap['gap_name']} now — this'll take a few minutes. I'll notify you via "
+                "Telegram when it's ready; other requests may be delayed until it's done."
             )
             log.info("DEBUG pre-check: confirmed capability gap build")
             return
@@ -1572,6 +1573,16 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
         log.warning("Skill router failed: %s", exc)
         route_result = {"action": "chat"}
 
+    if route_result["action"] == "busy":
+        # bug_tracker #118/#121: a long job (audit.py, build.py, etc.) is
+        # holding the Ollama busy lock — say so honestly instead of racing
+        # a contended queue. Do NOT fall through to _handle_general below,
+        # which would just queue a second Ollama call behind the same job.
+        await update.message.reply_text(route_result["message"])
+        _log_telegram_exchange(text_clean, route_result["message"])
+        log.info("DEBUG pre-check: skill router action:busy")
+        return
+
     if route_result["action"] == "skill":
         skill_result = route_result.get("result")
         if skill_result is None:
@@ -1612,7 +1623,7 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
             args=(route_result["description"], route_result["job_path"], "telegram"),
             daemon=True,
         ).start()
-        await update.message.reply_text("Building that skill now. I'll notify you via Telegram when it's ready.")
+        await update.message.reply_text("Building that skill now — this'll take a few minutes. I'll notify you via Telegram when it's ready; other requests may be delayed until it's done.")
         log.info("DEBUG pre-check: skill router action:build")
         return
 
@@ -1632,7 +1643,7 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
             args=(description, job_path, "telegram"),
             daemon=True,
         ).start()
-        await update.message.reply_text("Building that skill now. I'll notify you via Telegram when it's ready.")
+        await update.message.reply_text("Building that skill now — this'll take a few minutes. I'll notify you via Telegram when it's ready; other requests may be delayed until it's done.")
         log.info("DEBUG pre-check: safety net build trigger")
         return
 
@@ -1732,6 +1743,15 @@ async def _dispatch_intent(
     log.info("DEBUG dispatch intent: %s params: %s", intent, result.get("params", {}))
     params = result.get("params", {})
     chat_id = update.effective_chat.id
+    if intent == "busy":
+        # bug_tracker #118/#121: classify() skipped the Ollama round trip
+        # because a long job is holding the busy lock — say so honestly
+        # instead of falling through to _handle_general's own Ollama call,
+        # which would just queue behind the same contended instance.
+        message = result.get("message", "Watson's running a background task right now — try again in a few minutes.")
+        await update.message.reply_text(message)
+        _log_telegram_exchange(text_clean, message)
+        return
     if intent == "contact_lookup":
         await _handle_contact_lookup(update, context, params)
     elif intent == "calendar_query":

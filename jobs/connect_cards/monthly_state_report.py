@@ -84,6 +84,8 @@ from jobs.connect_cards.monthly_engagement_report import (
     _tracking_started_by, _earliest_service_date,
 )
 from jobs.email_job.brevo_send import send_email
+from core.ollama_context import size_num_ctx
+from core.ollama_lock import heavy_ollama_call
 from core.vacation import vacation_gate
 from config.settings import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 
@@ -592,11 +594,28 @@ def _ollama_synthesis(month_label: str, condensed: str, benchmarks_context: str)
     )
     for attempt in (1, 2):
         try:
-            resp = requests.post(
-                OLLAMA_URL, json={"model": OLLAMA_MODEL, "prompt": prompt, "stream": False}, timeout=OLLAMA_TIMEOUT,
-            )
-            resp.raise_for_status()
-            return resp.json().get("response", "").strip() or None
+            # bug_tracker #118/#121: runs monthly at 3am (see cron), inside this
+            # codebase's established quiet-hours cluster, but keep_warm.py's
+            # every-4-minute cadence has no time-of-day exception -- the busy
+            # lock still matters even here.
+            with heavy_ollama_call("connect_cards.monthly_state_report"):
+                resp = requests.post(
+                    OLLAMA_URL,
+                    json={
+                        "model": OLLAMA_MODEL,
+                        "prompt": prompt,
+                        "stream": False,
+                        # bug_tracker #118: same benchmarks-doc + condensed-data
+                        # pattern as jobs/connect_cards/state_of_church.py, richer
+                        # here (month-over-month history, tier movement) -- sized
+                        # with headroom so it doesn't silently start truncating
+                        # against Ollama's ~4096 default num_ctx.
+                        "options": {"num_ctx": size_num_ctx(prompt)},
+                    },
+                    timeout=OLLAMA_TIMEOUT,
+                )
+                resp.raise_for_status()
+                return resp.json().get("response", "").strip() or None
         except Exception as exc:
             log.warning("Ollama synthesis failed (attempt %d/2): %s", attempt, exc)
     return None

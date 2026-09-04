@@ -11,6 +11,8 @@ from pathlib import Path
 import requests
 from dotenv import load_dotenv
 
+from core.ollama_context import size_num_ctx
+from core.ollama_lock import heavy_ollama_call
 from core.vacation import vacation_gate
 
 load_dotenv()
@@ -89,13 +91,26 @@ def _load_examples() -> str:
 # ── Model callers ─────────────────────────────────────────────────────────────
 
 def _call_ollama(prompt: str) -> str:
-    resp = requests.post(
-        OLLAMA_URL,
-        json={"model": OLLAMA_MODEL, "prompt": prompt, "stream": False},
-        timeout=600,
-    )
-    resp.raise_for_status()
-    return resp.json().get("response", "").strip()
+    # bug_tracker #118/#121: see jobs/skillbuilder/audit.py's matching comment —
+    # this can now run long enough to starve the live classifier without the
+    # busy lock telling it to degrade honestly instead of guessing.
+    with heavy_ollama_call("skillbuilder.build"):
+        resp = requests.post(
+            OLLAMA_URL,
+            json={
+                "model": OLLAMA_MODEL,
+                "prompt": prompt,
+                "stream": False,
+                # bug_tracker #118: _load_context() + _load_examples() alone embed
+                # ~5.6k tokens of coding-convention docs and example files before any
+                # task-specific spec is added on top, well over Ollama's ~4096 default
+                # num_ctx — was silently truncating this prompt's earliest content.
+                "options": {"num_ctx": size_num_ctx(prompt)},
+            },
+            timeout=600,
+        )
+        resp.raise_for_status()
+        return resp.json().get("response", "").strip()
 
 
 def _call_anthropic(system: str, user: str) -> str:

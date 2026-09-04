@@ -7,6 +7,8 @@ import requests
 from dotenv import load_dotenv
 
 from core.claude_tier import call_claude
+from core.ollama_context import size_num_ctx
+from core.ollama_lock import heavy_ollama_call
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 load_dotenv(BASE_DIR / ".env")
@@ -57,18 +59,28 @@ def _call_ollama(system: str, prompt: str, timeout: int = 120) -> str:
     if claude_result:
         return claude_result
 
-    resp = requests.post(
-        OLLAMA_URL,
-        json={
-            "model": MODEL,
-            "system": system,
-            "prompt": prompt,
-            "stream": False,
-        },
-        timeout=timeout,
-    )
-    resp.raise_for_status()
-    return (resp.json().get("response") or "").strip()
+    # bug_tracker #118/#121: a long real transcript here can now take a while
+    # to actually process instead of silently truncating -- this is also
+    # triggered live, mid-session (jobs/team/api.py's /process-transcript),
+    # so the busy lock matters here at least as much as for the cron jobs.
+    with heavy_ollama_call("team.extractor"):
+        resp = requests.post(
+            OLLAMA_URL,
+            json={
+                "model": MODEL,
+                "system": system,
+                "prompt": prompt,
+                "stream": False,
+                # bug_tracker #118: `prompt` embeds a manually-pasted meeting
+                # transcript (jobs/team/api.py's /process-transcript) with no size
+                # cap -- sized with headroom so a long real transcript doesn't
+                # silently start truncating against Ollama's ~4096 default num_ctx.
+                "options": {"num_ctx": size_num_ctx(system + prompt)},
+            },
+            timeout=timeout,
+        )
+        resp.raise_for_status()
+        return (resp.json().get("response") or "").strip()
 
 
 def _parse_json(raw: str) -> dict | None:
