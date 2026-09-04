@@ -12,7 +12,13 @@ from core.claude_tier import call_claude
 REPO = Path(__file__).resolve().parents[2]
 MEMORY = REPO / "memory"
 DB_PATH = REPO / "data" / "watson.db"
-OLLAMA_MODEL = "qwen2.5:7b"
+# qwen3:8b, not qwen2.5:7b -- routed 2026-09-03 per model qualification testing
+# (concurrency-safe, passed the fabrication check cleanly on this job type; see
+# watson-review/context/2026-09-03-reasoning-comparison-memory-consolidation.md).
+# think:false is a HARD requirement, not a default -- qwen3:8b defaults to
+# thinking-mode on, which made it unusably slow in testing (68s of a 78s
+# response was the thinking block). Every call site for this model must set it.
+OLLAMA_MODEL = "qwen3:8b"
 
 log = logging.getLogger(__name__)
 
@@ -70,6 +76,7 @@ def _call_ollama_chat(system: str, user: str) -> str:
         json={
             "model": OLLAMA_MODEL,
             "stream": False,
+            "think": False,  # hard requirement for qwen3:8b -- see OLLAMA_MODEL comment
             "messages": [
                 {"role": "system", "content": system},
                 {"role": "user", "content": user},
