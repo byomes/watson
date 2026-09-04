@@ -10,6 +10,8 @@ from pathlib import Path
 
 import requests
 
+from core.ollama_context import size_num_ctx
+
 REPO = Path(__file__).resolve().parents[2]
 SKILLS_FILE = REPO / "memory" / "skills.json"
 OLLAMA_URL = "http://localhost:11434/api/generate"
@@ -355,7 +357,14 @@ def _ask_router(message: str, skills: list) -> str:
             "stream": False,
             # Response is always a short label (SKILL:<slug>, BUILD, CHAT,
             # etc.) — bounds worst-case generation time (bug #28).
-            "options": {"num_predict": 40},
+            # num_ctx: this prompt embeds the full skills list (~6-7k tokens for
+            # the current ~50 ready skills) and was running against Ollama's
+            # ~4096 default, silently truncating the SYSTEM instructions above
+            # it (bug_tracker #118). Does NOT address the separate 8s timeout
+            # below, which is very likely too short for a prompt this size
+            # regardless of num_ctx — logged as bug_tracker #119, not fixed here
+            # (out of scope for the num_ctx fix specifically).
+            "options": {"num_predict": 40, "num_ctx": size_num_ctx(prompt)},
         },
         timeout=8,
     )
