@@ -3222,3 +3222,31 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - 170aebf Point micah-tasks proxy at /m/task, not /task
 - 16bcf8b Proxy wtsn.me/task to the new micah-tasks app
 - e1aae6b deacons: make first/last name editable in a person's Open view
+
+---
+
+## Recent Changes — 2026-09-04
+
+### ~/watson
+- a6dda15 docs: bugs/backlog export 2026-09-04
+- e26b678 docs: file map 2026-09-04
+- 278edaf docs: qwen3:8b scope caveat in LLM Stack (reload churn, pastoral-synthesis gap)
+- b1db2c6 route skill_audit to qwen3:8b (think:false required) -- provisional
+- 1ed9220 route memory_consolidation to qwen3:8b (think:false required)
+- fab897f docs: note watson-review as context drop-zone in Repos & Paths
+- 7fb19e1 fix: Ollama busy-lock + batched audit.py, closes contention hallucination (bug #118/#119/#121)
+- b26a76f docs: add review diff for bug_tracker #118/#121 fix (pending approval)
+- 044b30a fix: size num_ctx for skillbuilder/router.py and state_of_church.py (bug #118)
+- 72ccc3d docs: fabrication-first judging protocol + two real target-job comparisons
+- ac54cab docs: qwen3:8b eviction/thrash test + reasoning comparison harness
+- 0f709fa docs: qwen3:8b/phi4:14b concurrency qualification test results
+- a5a5e9a Remove Dev Loop, add budget-capped Claude API tier
+- d16a99d Telegram: mirror team-chat's contact/classroom/web-metric lookups into Bill's own chat; drop Thinking ack
+- 13e9215 docs: regenerate Skills & Capabilities Catalog
+- d099d90 docs: architecture update 2026-09-03
+
+### ~/watson-tools
+- b233da4 Stop the deacon app footer from jumping during scroll
+- ad41205 Shrink the deacon app home-screen icon so it isn't flush with the edges
+- a5b44b4 Add a light/dark theme toggle to the deacon app
+- ba9114f Add a follow-up form to the Notes tab and make the header a refresh button
