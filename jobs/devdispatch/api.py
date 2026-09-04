@@ -1056,14 +1056,66 @@ def _run_watson_skill(message) -> dict:
     }
 
 
+def _notify_archive_classification(archive_id: int, project: str, title: str) -> None:
+    """Ping Telegram with Keep/Change buttons after a live 'send to watson' archive.
+
+    Scoped to the live archive_session MCP path only — the nightly bulk export
+    importer (jobs/session_archives/claude_export_import.py) calls
+    storage.archive_session() directly, not this wrapper, so a 600-conversation
+    bulk run doesn't flood Telegram with one message per conversation. Tapping
+    Change (or just replying to the message) reclassifies via the existing
+    reply-threading mechanism in bot.py — reclassify_archive already creates a
+    new project directory on the fly if the given slug doesn't exist yet.
+    """
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        return
+    try:
+        sent = requests.post(
+            f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+            json={
+                "chat_id": TELEGRAM_CHAT_ID,
+                "text": f"📥 Archived: *{title}*\nFiled under: *{project}*",
+                "parse_mode": "Markdown",
+            },
+            timeout=10,
+        ).json()
+        message_id = sent["result"]["message_id"]
+    except Exception as exc:
+        log.error("archive classify notify send failed: %s", exc)
+        return
+
+    from jobs.telegram.pending import store_pending_action
+    pending_id = store_pending_action(
+        "archive_classify", message_id, {"archive_id": archive_id, "project": project, "title": title}
+    )
+    try:
+        requests.post(
+            f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/editMessageReplyMarkup",
+            json={
+                "chat_id": TELEGRAM_CHAT_ID,
+                "message_id": message_id,
+                "reply_markup": {"inline_keyboard": [[
+                    {"text": "✅ Keep", "callback_data": f"arch_keep:{pending_id}"},
+                    {"text": "✏️ Change", "callback_data": f"arch_chg:{pending_id}"},
+                ]]},
+            },
+            timeout=10,
+        )
+    except Exception as exc:
+        log.error("archive classify keyboard attach failed: %s", exc)
+
+
 def _archive_session_tool(args: dict) -> dict:
-    return _archives.archive_session(
+    result = _archives.archive_session(
         args.get("transcript"),
         args.get("files"),
         args.get("project"),
         args.get("title"),
         args.get("summary"),
     )
+    if not result.get("error"):
+        _notify_archive_classification(result["id"], result["project"], result["title"])
+    return result
 
 
 def _reclassify_archive_tool(args: dict) -> dict:

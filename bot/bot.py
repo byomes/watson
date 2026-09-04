@@ -2725,6 +2725,49 @@ async def handle_carrier_callback(update: Update, context: ContextTypes.DEFAULT_
         )
 
 
+async def handle_archive_classify_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Keep/Change buttons on a live 'send to watson' archive notification
+    (sent from jobs/devdispatch/api.py's _notify_archive_classification).
+    Change leaves the pending row open so a plain reply routes through
+    _route_tg_pending_reply's archive_classify branch."""
+    query = update.callback_query
+    await query.answer()
+
+    if not _is_authorized(update):
+        return
+
+    data = query.data
+    pending_id = int(data.split(":")[1])
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT id, payload FROM tg_pending_actions WHERE id=? AND status='pending'",
+            (pending_id,),
+        ).fetchone()
+
+    if not row:
+        await query.edit_message_text("⚠️ Action expired or already resolved.", reply_markup=None)
+        return
+
+    import json as _json
+    payload = _json.loads(row["payload"])
+
+    if data.startswith("arch_keep:"):
+        from jobs.telegram.pending import mark_done
+        mark_done(pending_id)
+        await query.edit_message_text(
+            f"✅ Kept — filed under *{payload['project']}*: _{payload['title']}_",
+            reply_markup=None, parse_mode="Markdown",
+        )
+        return
+
+    await query.edit_message_text(
+        f"Currently filed under *{payload['project']}*: _{payload['title']}_\n\n"
+        "Reply to this message with the project name to file it under "
+        "(an existing slug moves it there; a new name creates that project).",
+        reply_markup=None, parse_mode="Markdown",
+    )
+
+
 async def _route_tg_pending_reply(
     update: Update, context: ContextTypes.DEFAULT_TYPE, text: str, tg_pending: dict
 ) -> bool:
@@ -2769,6 +2812,24 @@ async def _route_tg_pending_reply(
         from jobs.pastoral_notes.handler import handle_notes_reply
         await handle_notes_reply(text)
         mark_done(pending_id)
+        return True
+
+    if action_type == "archive_classify":
+        archive_id = payload.get("archive_id")
+        new_project = text.strip()
+        if not new_project:
+            await update.message.reply_text("Send a project name to file this under.")
+            return True
+        from jobs.session_archives.storage import reclassify_archive
+        result = await asyncio.to_thread(reclassify_archive, archive_id, new_project)
+        if result.get("error"):
+            await update.message.reply_text(f"❌ {result['error']}")
+            return True
+        mark_done(pending_id)
+        note = "moved" if result.get("moved") else result.get("reason", "unchanged")
+        await update.message.reply_text(
+            f"✅ Filed under *{result['project']}* ({note}).", parse_mode="Markdown"
+        )
         return True
 
     if action_type == "curator_edit":
@@ -4905,6 +4966,7 @@ def main():
     app.add_handler(CallbackQueryHandler(handle_privacy_candidate_callback, pattern=r"^pgcand_(flag|skip):"))
     app.add_handler(CallbackQueryHandler(handle_email_triage_callback, pattern=r"^et_"))
     app.add_handler(CallbackQueryHandler(handle_carrier_callback, pattern=r"^carrier_"))
+    app.add_handler(CallbackQueryHandler(handle_archive_classify_callback, pattern=r"^arch_(keep|chg):"))
     app.add_handler(CallbackQueryHandler(handle_email_callback, pattern=r"^email_"))
     app.add_handler(CallbackQueryHandler(handle_book_callback, pattern=r"^book_"))
     app.add_handler(CallbackQueryHandler(handle_menu_callback, pattern=r"^menu_"))
