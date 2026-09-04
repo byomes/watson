@@ -230,6 +230,21 @@ def _title_words(title: str) -> set[str]:
     return {w for w in words if w not in _STOPWORDS and len(w) > 2}
 
 
+def _significant_word_overlap(words: set[str], haystack: str) -> bool:
+    """True if at least half of `words` (a title's significant words — see
+    _title_words()) appear in `haystack` — loose enough to survive a source
+    dropping articles/punctuation from its own title text, strict enough to
+    reject a page/record about a different book entirely. Words is expected
+    to already be lowercased/filtered by _title_words(); haystack is
+    lowercased here since callers pass raw text. An empty `words` set can't
+    be checked, so it passes (nothing to contradict)."""
+    if not words:
+        return True
+    haystack = haystack.lower()
+    matched = sum(1 for w in words if w in haystack)
+    return matched >= max(1, len(words) // 2 + len(words) % 2)
+
+
 def _url_matches_title(url: str, title: str) -> bool:
     """True if the URL's own path plausibly corresponds to this title, not
     just some other book's page that happens to be book-page-shaped.
@@ -243,19 +258,8 @@ def _url_matches_title(url: str, title: str) -> bool:
     _looks_like_book_page() only checked URL *shape* ("/books/" present),
     never whether the URL was actually about the requested book — so that
     unrelated real book page got selected as "the" SpicyBooks match, and
-    its Beach Read content got attached to The Hating Game's findings.
-
-    Requires at least half of the title's significant words (3+ chars,
-    stopwords excluded) to appear in the URL path — loose enough to survive
-    a site dropping articles/punctuation from its own slug, strict enough
-    to reject a plausible-shaped page about a different book entirely. A
-    title with no significant words (rare) can't be checked, so it passes."""
-    words = _title_words(title)
-    if not words:
-        return True
-    path = urlparse(url).path.lower()
-    matched = sum(1 for w in words if w in path)
-    return matched >= max(1, len(words) // 2 + len(words) % 2)
+    its Beach Read content got attached to The Hating Game's findings."""
+    return _significant_word_overlap(_title_words(title), urlparse(url).path)
 
 
 def _shape_matches_book_page(stype: str, url: str) -> bool:
@@ -699,24 +703,55 @@ def extract_author_from_titles(titles: list[str]) -> str | None:
 
 # ── Amazon / Goodreads: page count, KU, cover, description, series ─────────
 
+_AMAZON_PRODUCT_URL_RE = re.compile(r"/dp/[A-Z0-9]{10}")
+
+
+def _result_matches_title(result: dict, title: str) -> bool:
+    """Same defense as _url_matches_title() (see its docstring for the real
+    SpicyBooks case that motivated this), applied to a search result's own
+    title+snippet text instead of its URL. Needed here specifically because
+    Amazon URLs don't reliably embed the book's title at all — a genuine
+    product page can be a bare /dp/<ASIN> with no title text in the path —
+    so a URL-only check would false-negative on plenty of real matches. The
+    result's own title/snippet (from Serper) carries that signal instead."""
+    haystack = f"{result.get('title', '')} {result.get('snippet', '')}"
+    return _significant_word_overlap(_title_words(title), haystack)
+
+
 def find_amazon_listing(title: str, author: str | None) -> str | None:
+    """Returns the first result that's both a genuine product-page URL (has
+    a real /dp/<ASIN>, not a store/category/search/author page — those were
+    previously accepted outright since the old check was just "amazon.com
+    in url") and plausibly about the requested book (see
+    _result_matches_title()) — not just the first amazon.com URL of any
+    shape for any book."""
     who = f"{title} {author}" if author else title
     for r in serper_search(f"{who} amazon kindle", max_results=5, timeout=_STAGE_A_TIMEOUT):
         url = r.get("url", "")
-        if "amazon.com" in url:
-            return url
+        if "amazon.com" not in url:
+            continue
+        if not _AMAZON_PRODUCT_URL_RE.search(url):
+            continue
+        if not _result_matches_title(r, title):
+            continue
+        return url
     return None
 
 
 def find_goodreads_book_page(title: str, author: str | None) -> str | None:
     """The canonical /book/show/<id>-<slug> page (real og:image/og:description/series
     info) — distinct from search_spice_content's results, which are often review or
-    Q&A subpages that carry only generic site-branding og: tags."""
+    Q&A subpages that carry only generic site-branding og: tags. Also requires the
+    result plausibly be about the requested book (see _result_matches_title()) —
+    a genuinely-shaped book/show page can still be for a different book entirely."""
     who = f"{title} {author}" if author else title
     for r in serper_search(f"{who} goodreads", max_results=5, timeout=_STAGE_A_TIMEOUT):
         url = r.get("url", "")
-        if re.search(r"goodreads\.com/(en/)?book/show/\d+", url) and "/reviews" not in url:
-            return url
+        if not re.search(r"goodreads\.com/(en/)?book/show/\d+", url) or "/reviews" in url:
+            continue
+        if not _result_matches_title(r, title):
+            continue
+        return url
     return None
 
 
@@ -795,7 +830,24 @@ def fetch_open_library_description(title: str, author: str | None, timeout: int 
         docs = resp.json().get("docs", [])
         if not docs:
             return None
-        work_key = docs[0].get("key")
+        doc = docs[0]
+        # docs[0] isn't necessarily the right book even with limit=1 — Open
+        # Library's own title search ranks by its own signals (edition
+        # count, popularity), not "closest title match": confirmed live
+        # 2026-09-04, an author-less "The Fine Print" search's own top-3
+        # included two entirely different books that merely share the
+        # title. When author is known the search API's own author= filter
+        # already disambiguates well; this check mainly protects the
+        # author=None path this function's own docstring says is common.
+        doc_title = doc.get("title", "")
+        doc_authors = " ".join(doc.get("author_name") or [])
+        if not _significant_word_overlap(_title_words(title), f"{doc_title} {doc_authors}"):
+            log.warning(
+                "Open Library description lookup for %r: top match %r looked like a different book, skipping",
+                title, doc_title,
+            )
+            return None
+        work_key = doc.get("key")
         if not work_key:
             return None
 
