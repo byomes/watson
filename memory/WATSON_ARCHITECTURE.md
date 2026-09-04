@@ -224,7 +224,8 @@ Deploy pattern: `cd ~/watson && git pull && sudo systemctl restart watson-bot.se
 | `llama3.2:3b` | Beelink Ollama | Primary Watson chat (Telegram general-chat fallback), session summarization |
 | `gemma3:4b` | Beelink Ollama | Intent classification (Telegram only, `jobs/intent/classifier.py`) — swapped from `llama3.2:3b` 2026-07-17 (bug #20, `56d60dd`); `keep_alive=30m` plus `jobs/intent/keep_warm.py` cron (every 4 min) keep it resident |
 | `qwen2.5-coder:7b` | Beelink Ollama | KB search, structured reasoning |
-| `qwen2.5:7b` | Beelink Ollama | Accuracy-sensitive background jobs: pastoral notes, meeting/note task+goal extraction, email drafts, State of Church synthesis, skill/capability audits, elder-review meeting summaries — first attempted via the Claude tier below, falls back here on no-key/budget-exhausted/error |
+| `qwen2.5:7b` | Beelink Ollama | Accuracy-sensitive background jobs: pastoral notes, meeting/note task+goal extraction, email drafts, State of Church synthesis, elder-review meeting summaries — first attempted via the Claude tier below, falls back here on no-key/budget-exhausted/error |
+| `qwen3:8b` (`think:false` required) | Beelink Ollama | Provisionally routed 2026-09-03 to exactly two jobs: `jobs/memory/reflect.py` (memory_consolidation) and `jobs/skillbuilder/audit.py` (skill_audit) — see the caveat note below. NOT routed anywhere else, including `state_of_church.py`. |
 | `phi3:mini` | Beelink Ollama | Background tasks |
 | `gemma3:1b` | Beelink Ollama | Fast/lightweight queries |
 | `claude-sonnet-5` (`core/claude_tier.py`) | Claude API, budget-capped | Opt-in first-choice tier (added 2026-09-03) for the 8 `qwen2.5:7b` jobs listed above — `$10/month` hard cap (`CLAUDE_MONTHLY_BUDGET_USD`), tracked in `claude_tier_spend_log`, falls back to Ollama on no-key/budget-exhausted/error. Uses `WATSON_CLAUDE_BUDGET_KEY`, a separate key from `ANTHROPIC_API_KEY` (see below) |
@@ -244,6 +245,42 @@ bump (2026-07-17) and a since-reverted `OLLAMA_NUM_PARALLEL=2` attempt
 no GPU) were both real fixes to *other* problems, not to this one. See the
 2026-08-06 update under the FMSPC note for the full test results — this is
 now a confirmed-closed result, not an open gap pending a retest.
+
+**`qwen3:8b` scope — read this before routing it to a new job.** This has
+been lost between sessions before with other models (see the `qwen2.5:14b`
+note above), so it's written here with the same weight:
+
+`qwen3:8b` (`think:false` required) is qualified for `memory_consolidation`
+and `skill_audit` only (as of 2026-09-03 qualification testing). It does
+NOT threaten classifier availability under mixed traffic — `gemma3:4b` was
+never evicted in either baseline or with-candidate 20-minute mixed-traffic
+test runs. However, adding it to the resident rotation roughly **doubles**
+reload churn among the other resident models (5→9 reload events,
+30.95s→61.57s total reload overhead over an identical 20-min schedule in
+testing) under `OLLAMA_MAX_LOADED_MODELS=3`. This is a latency cost, not a
+correctness one — but before routing `qwen3:8b` to any additional job,
+especially one that runs alongside live `llama3.2:3b`/`qwen2.5-coder:7b`/
+`qwen2.5:7b` traffic, weigh this per-job. Do not assume it's a free addition
+to the rotation the way the current smaller-model lineup is.
+
+`qwen2.5:7b` remains the default for pastoral-synthesis-shaped jobs (e.g.
+`state_of_church.py`) — both `qwen2.5:7b` and `qwen3:8b` failed a
+fabrication-check pass on this job type in testing (`qwen2.5:7b`: invented a
+number, called 2-of-3-weeks a "trend" against its own prompt's explicit
+rule; `qwen3:8b`: relabeled four raw head-counts as percentages,
+mischaracterized an above-range week as a seasonal dip). Neither model is
+trusted on this job type yet — this is an existing quality gap, not a
+regression introduced by the `qwen3:8b` routing above. Do not route either
+model to new pastoral-synthesis jobs without a fabrication-check pass first
+(cross-reference every factual claim in the output against the source data)
+— see testing methodology in
+`watson-review/context/2026-09-03-reasoning-comparison-state-of-church.md`
+if that file is still live.
+
+`skill_audit`'s routing above is provisional, based on an n=1 real-prompt
+comparison (post-bug#118-fix, one clean run) — a second real audit run
+should be spot-checked against the fabrication-check protocol before this
+is considered fully confirmed.
 
 ---
 
