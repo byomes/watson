@@ -26,7 +26,15 @@ DATA_DIR = REPO / "data"
 AUDIT_FILE = DATA_DIR / "skill_audit.json"
 DB_PATH = Path(os.getenv("WATSON_DB", str(DATA_DIR / "watson.db")))
 OLLAMA_URL = "http://localhost:11434/api/generate"
-OLLAMA_MODEL = "qwen2.5:7b"
+# qwen3:8b, not qwen2.5:7b -- routed 2026-09-03 per model qualification testing.
+# PROVISIONAL: based on n=1 real-prompt comparison (post-bug#118-fix, one clean
+# run) -- see watson-review/context/2026-09-03-reasoning-comparison-skill-audit.md.
+# A second real audit run should be spot-checked against the fabrication-check
+# protocol (cross-reference every claimed gap against the actual skills.json)
+# before this is considered fully confirmed, not just provisionally routed.
+# think:false is a HARD requirement, not a default -- see jobs/memory/reflect.py's
+# matching comment; every qwen3:8b call site must set it.
+OLLAMA_MODEL = "qwen3:8b"
 
 log = logging.getLogger(__name__)
 
@@ -113,6 +121,7 @@ def _call_ollama_step(prompt: str, context: list | None, num_predict: int, num_c
         "model": OLLAMA_MODEL,
         "prompt": prompt,
         "stream": False,
+        "think": False,  # hard requirement for qwen3:8b -- see OLLAMA_MODEL comment
         "options": {"num_predict": num_predict, "num_ctx": num_ctx},
     }
     if context is not None:
