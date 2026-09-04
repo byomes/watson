@@ -12,6 +12,7 @@ import requests
 
 from core.ollama_context import size_num_ctx
 from core.ollama_lock import BUSY_MESSAGE, ollama_busy
+import core.llm_log  # noqa: F401 -- installs Ollama call logging, see core/llm_log.py
 
 REPO = Path(__file__).resolve().parents[2]
 SKILLS_FILE = REPO / "memory" / "skills.json"

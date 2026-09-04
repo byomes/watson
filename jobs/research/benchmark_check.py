@@ -46,6 +46,7 @@ log = logging.getLogger(__name__)
 
 from config.settings import WATSON_BOT_TOKEN, WATSON_CHAT_ID
 from core.vacation import vacation_gate
+import core.llm_log  # noqa: F401 -- installs Ollama call logging, see core/llm_log.py
 
 DB_PATH = os.path.expanduser("~/watson/data/watson.db")
 BENCHMARKS_DOC = os.path.expanduser("~/watson/memory/projects/benchmarks.md")

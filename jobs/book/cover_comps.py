@@ -23,6 +23,7 @@ from config.settings import WATSON_BOT_TOKEN, WATSON_CHAT_ID
 from core.database import get_connection
 from core.vacation import vacation_gate
 from jobs.book.schema import create_tables
+import core.llm_log  # noqa: F401 -- installs Ollama call logging, see core/llm_log.py
 
 log = logging.getLogger(__name__)
 

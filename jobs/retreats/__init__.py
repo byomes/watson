@@ -6,6 +6,7 @@ import os
 
 import requests
 from dotenv import load_dotenv
+import core.llm_log  # noqa: F401 -- installs Ollama call logging, see core/llm_log.py
 
 # RETREATS_API_KEY was appended as the last line of ~/watson/.env, and several
 # earlier lines in that file (unquoted "<", stray spaces) aren't valid POSIX
