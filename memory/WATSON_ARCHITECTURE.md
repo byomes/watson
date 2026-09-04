@@ -139,6 +139,7 @@ Watson acts on Dr. Bill's behalf under his supervision. Always identified openly
 | FMS site | `github.com/byomes/fms` | `~/fms` (planned) | Vercel auto on push |
 | bodyrec | `github.com/byomes/bodyrec` | `~/bodyrec` | Vercel auto on push |
 | Watson Tools | `github.com/byomes/watson-tools` | `~/watson-tools` | Vercel auto on push |
+| Watson Review | `github.com/byomes/watson-review` | `~/watson-review` | Manual only — context drop-zone, not a mirror of `watson` (deliberately no shared git history) or a deploy target. Public repo. Files land in `context/` via `~/watson-review/send_context.sh <file>`, which prints a `raw.githubusercontent.com` URL to hand to Claude.ai. Manual/on-demand only, no cron. |
 
 **All web development happens on the Beelink.** Claude Code builds on the Beelink, commits, pushes to GitHub, Vercel deploys automatically.
 
