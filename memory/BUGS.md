@@ -1,10 +1,13 @@
 # Watson Bug Tracker
 _Auto-generated nightly from bug_tracker. Source of truth is the database — do not hand-edit this file, changes will be overwritten._
-Last generated: 2026-09-03 02:10
+Last generated: 2026-09-04 02:10
 
-## Open (39)
+## Open (42)
 | ID | Title | Repo | Discovered |
 |---|---|---|---|
+| 119 | skillbuilder/router.py LLM fallback has an 8s timeout, too short for its real ~6-8k token prompt | watson | 2026-09-03 22:31:39 |
+| 117 | reflect.py _load_messages can scramble transcript order on same-second timestamps | watson | 2026-09-03 18:57:34 |
+| 116 | Team-chat "when did X last attend" regex over-captures the word "last" into the person name | watson | 2026-09-03 10:36:34 |
 | 115 | Telegram: LOW-confidence general intent produced a pointless confirm prompt; write intents double-confirmed | watson | 2026-09-03 03:46:06 |
 | 114 | Telegram intent classifier misroutes reflective/advice questions into calendar actions | watson | 2026-09-03 03:46:06 |
 | 98 | connect_cards intake truncates multi-line question/comment field | watson | 2026-08-24 13:04:31 |
@@ -48,6 +51,8 @@ Last generated: 2026-09-03 02:10
 ## Recently Resolved (last 30 days)
 | ID | Title | Repo | Resolved | Commit |
 |---|---|---|---|---|
+| 118 | skill_audit run_audit() prompt likely exceeds model context window, silently dropping task instructions | watson | 2026-09-04 02:11:31 | 7fb19e1 |
+| 121 | Classifier hallucinates wrong intent under Ollama contention instead of degrading honestly | watson | 2026-09-04 02:10:55 | 7fb19e1 |
 | 113 | watson-tools dispatcher crashed intermittently on DNS resolution to the Watson backend | watson-tools | 2026-09-01 13:09:37 | 08ed7a9 |
 | 112 | connect_cards email_reports.py sent Bill duplicate copies of every report | watson | 2026-08-31 15:43:25 | 74ced40 |
 | 111 | connect_cards intake.py only scanned INBOX, silently dropping spam-misclassified cards | watson | 2026-08-31 15:43:25 | 74ced40 |
@@ -79,5 +84,3 @@ Last generated: 2026-09-03 02:10
 | 60 | OneDrive backup: watson.db snapshot fails intermittently with SQLite 'database is locked' | watson | 2026-08-08 12:00:06 | 8996f873dd1e342cb5b4faed7f5d5eadd65cc205 |
 | 59 | devdispatch _open_pr collides with dispatched session's own PR, misreporting real work as failed | watson | 2026-08-06 04:29:27 | 4793ce6 |
 | 17 | Export CSV button downloads HTML instead of CSV | watson | 2026-08-06 04:29:27 | f50910d |
-| 56 | headcount_sync.py never wired into crontab — Wilmington headcount data missing since 7/27 | watson | 2026-08-04 13:53:32 | 3b1abf94b4e2f87f0675f90be19dc965285e2688 |
-| 57 | devdispatch _worktree_path() mismatches CLI worktree dirname sanitization | watson | 2026-08-04 12:36:50 | c3db18f |
