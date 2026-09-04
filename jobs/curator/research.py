@@ -222,9 +222,57 @@ _BOOK_PAGE_HINTS = {
 }
 
 
-def _looks_like_book_page(stype: str, url: str) -> bool:
+_STOPWORDS = {"the", "a", "an", "of", "and", "to", "in", "on", "for", "is", "with"}
+
+
+def _title_words(title: str) -> set[str]:
+    words = re.findall(r"[a-z0-9]+", title.lower())
+    return {w for w in words if w not in _STOPWORDS and len(w) > 2}
+
+
+def _url_matches_title(url: str, title: str) -> bool:
+    """True if the URL's own path plausibly corresponds to this title, not
+    just some other book's page that happens to be book-page-shaped.
+
+    Real case confirmed 2026-09-04: researching "The Hating Game" (Sally
+    Thorne), SpicyBooks has no dedicated page for it — the site search
+    (site:spicybooks.org) only returned trope/spice-level listing pages
+    that merely *mention* it in a "related books" teaser, plus one genuine
+    book page: spicybooks.org/books/beach-read, Emily Henry's book, whose
+    own listing happens to feature The Hating Game as a related read.
+    _looks_like_book_page() only checked URL *shape* ("/books/" present),
+    never whether the URL was actually about the requested book — so that
+    unrelated real book page got selected as "the" SpicyBooks match, and
+    its Beach Read content got attached to The Hating Game's findings.
+
+    Requires at least half of the title's significant words (3+ chars,
+    stopwords excluded) to appear in the URL path — loose enough to survive
+    a site dropping articles/punctuation from its own slug, strict enough
+    to reject a plausible-shaped page about a different book entirely. A
+    title with no significant words (rare) can't be checked, so it passes."""
+    words = _title_words(title)
+    if not words:
+        return True
+    path = urlparse(url).path.lower()
+    matched = sum(1 for w in words if w in path)
+    return matched >= max(1, len(words) // 2 + len(words) % 2)
+
+
+def _shape_matches_book_page(stype: str, url: str) -> bool:
+    """Pure URL-shape check — does this look like *some* book's dedicated
+    page for this source (vs. a domain root, tropes/category listing,
+    author page, etc.)? Says nothing about whether it's the *right* book —
+    see _url_matches_title() and _looks_like_book_page()."""
     hint = _BOOK_PAGE_HINTS.get(stype)
     return bool(hint) and hint in url
+
+
+def _looks_like_book_page(stype: str, url: str, title: str) -> bool:
+    """Shape *and* title match — this looks like the dedicated page for
+    THIS book specifically, not just a book-page-shaped URL for some other
+    book. Use this (not _shape_matches_book_page alone) when deciding
+    whether a URL should win as "the" source for a book."""
+    return _shape_matches_book_page(stype, url) and _url_matches_title(url, title)
 
 
 def _strip_html(html: str) -> str:
@@ -576,6 +624,14 @@ def _discover_trusted_sources(
         if not cat:
             continue
         name, stype, rank = cat
+        # A book-page-shaped URL for the WRONG book is worse evidence than a
+        # generic category/trope-listing page — it looks authoritative but
+        # its content is about a different book entirely (confirmed real
+        # case 2026-09-04: see _url_matches_title()'s docstring). Skip it
+        # outright rather than let it become "current" via first-seen below,
+        # which doesn't check title match at all.
+        if _shape_matches_book_page(stype, url) and not _url_matches_title(url, title):
+            continue
         current = best_per_category.get(stype)
         # Serper doesn't reliably rank a domain's book-specific page above its
         # homepage/category pages within one query — confirmed 2026-07-21: a
@@ -587,7 +643,7 @@ def _discover_trusted_sources(
         if (
             current is None
             or rank < current[2]
-            or (not _looks_like_book_page(stype, current[1]) and _looks_like_book_page(stype, url))
+            or (not _looks_like_book_page(stype, current[1], title) and _looks_like_book_page(stype, url, title))
         ):
             best_per_category[stype] = (name, url, rank)
 
@@ -665,6 +721,9 @@ def find_goodreads_book_page(title: str, author: str | None) -> str | None:
 
 
 _OPEN_LIBRARY_DESCRIPTION_CAP = 2000
+_OPEN_LIBRARY_CONNECT_TIMEOUT = 3  # see fetch_open_library_description() — bounds
+# the connect phase specifically, since a live reachable API shouldn't take
+# long to accept a TCP connection regardless of what the read side costs.
 
 # Open Library descriptions are community-editable wiki content and can carry
 # injected spam/promotional links — confirmed 2026-07-22: "Beach Read"'s
@@ -704,15 +763,33 @@ def fetch_open_library_description(title: str, author: str | None, timeout: int 
     title alone (confirmed for "The War of the Two Queens": empty-author
     request 500s, real request omitting the param returns a 1,151-char
     synopsis). See research_book_fast()'s retry-after-author-backfill for the
-    other half of this fix."""
+    other half of this fix.
+
+    Two sequential requests (search.json, then <work_key>.json) — `timeout`
+    is a budget for the WHOLE function, not each call independently. Fixed
+    2026-09-04: originally passed `timeout` to both calls unchanged, so a
+    slow-but-not-hung search.json (e.g. 2s) left the second call its own
+    full fresh `timeout` again, making the real worst case up to 2x the
+    caller's intended budget — confirmed live: this stage alone took 7.17s
+    against a nominal 5s Stage A per-source timeout (search.json ~2s, then
+    work_key.json timed out at its own full 5s). The second call now gets
+    whatever's left of the original budget, not a fresh one."""
+    _t_start = time.perf_counter()
     try:
         params: dict = {"title": title, "limit": 1}
         if author:
             params["author"] = author
+        # requests' `timeout=N` (a single scalar) applies separately to the
+        # connect phase AND the read phase — not a combined ceiling — so one
+        # call can itself take up to ~2x N in the worst case (confirmed live:
+        # search.json alone occasionally ran 9s+ against a nominal 5s
+        # budget). A short explicit connect timeout closes that gap: a live,
+        # reachable API shouldn't take long to accept the TCP connection,
+        # whatever the read side ends up costing.
         resp = requests.get(
             "https://openlibrary.org/search.json",
             params=params,
-            timeout=timeout,
+            timeout=(min(_OPEN_LIBRARY_CONNECT_TIMEOUT, timeout), timeout),
         )
         resp.raise_for_status()
         docs = resp.json().get("docs", [])
@@ -722,7 +799,18 @@ def fetch_open_library_description(title: str, author: str | None, timeout: int 
         if not work_key:
             return None
 
-        work_resp = requests.get(f"https://openlibrary.org{work_key}.json", timeout=timeout)
+        remaining = timeout - (time.perf_counter() - _t_start)
+        if remaining < 1:
+            log.warning(
+                "Open Library description lookup for %r: no time budget left "
+                "after search.json (%.2fs elapsed of %ss)", title, timeout - remaining, timeout,
+            )
+            return None
+
+        work_resp = requests.get(
+            f"https://openlibrary.org{work_key}.json",
+            timeout=(min(_OPEN_LIBRARY_CONNECT_TIMEOUT, remaining), remaining),
+        )
         work_resp.raise_for_status()
         desc = work_resp.json().get("description")
         if isinstance(desc, dict):
@@ -1369,9 +1457,13 @@ def _find_romance_io_finding(
         if not cat or cat[1] != "romance_io":
             continue
         name, stype, rank = cat
+        # Same wrong-book-page rejection as _discover_trusted_sources() —
+        # skip a book-page-shaped URL outright if it's for a different book.
+        if _shape_matches_book_page(stype, url) and not _url_matches_title(url, title):
+            continue
         # Same book-page preference as _discover_trusted_sources() — a bare
         # romance.io homepage/category URL shouldn't beat a real book page.
-        if best is None or (not _looks_like_book_page(stype, best[1]) and _looks_like_book_page(stype, url)):
+        if best is None or (not _looks_like_book_page(stype, best[1], title) and _looks_like_book_page(stype, url, title)):
             best = (name, url, rank)
 
     if best is None:
