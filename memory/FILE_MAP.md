@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-09-03*
+*Generated: 2026-09-04*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -54,8 +54,11 @@ config/
   token.json
 core/
   __init__.py
+  claude_tier.py
   database.py
   fetcher.py
+  ollama_context.py
+  ollama_lock.py
   pipeline.py
   retry.py
   scorer.py
@@ -4609,6 +4612,8 @@ docs/
   BACKUP_SETUP.md
   RECOVERY.md
   briefing.html
+  reviews/
+    bug_118_121_diff_20260903.md
 import_connect_cards.py
 import_contacts.py
 incoming/
@@ -4842,12 +4847,6 @@ jobs/
     system_monitor.py
     test_runner.py
     update_arch.py
-  dev_loop/
-    __init__.py
-    cleanup.py
-    deliver.py
-    loop.py
-    trigger.py
   devdispatch/
     __init__.py
     api.py
@@ -4931,6 +4930,9 @@ jobs/
   links/
     __init__.py
     api.py
+  llm/
+    __init__.py
+    compare_reasoning.py
   marketing/
     __init__.py
     seo_tools.py
@@ -5698,6 +5700,7 @@ memory/
   core.md
   kit_brevo_audit.md
   model_benchmark_20260715.md
+  model_benchmark_20260903.md
   projects/
     _index.md
     benchmarks.md
@@ -5720,6 +5723,10 @@ memory/
       watson.md
     web_engagement_benchmarks.md
     writing_room.md
+  reasoning_comparisons/
+    20260903-145856_memory_consolidation.md
+    20260903-152728_state_of_church.md
+    20260903-161744_skill_audit.md
   relational.md
   secrets_audit_draft.md
   skills.json
@@ -5740,6 +5747,7 @@ scripts/
   watson_recover.sh
   wcky_meet_reauth.py
 tests/
+  audit_concurrency_test.py
   model_qualify/
     model_qualification_spec.md
     model_qualify.py
@@ -5748,6 +5756,8 @@ tests/
     results_remaining.json
     run.log
     test_set.json
+  ollama_lock_concurrency_test.py
+  ollama_parallel_candidate_test.py
   ollama_parallel_test.py
 vercel.json
 watson.db
@@ -6456,6 +6466,7 @@ src/
       deaconapp/
         DeaconAppTabs.tsx
         NotesFeed.tsx
+        ThemeShell.tsx
         actions.ts
         apple-icon.jpg
         icon.jpg
@@ -6487,6 +6498,7 @@ src/
   lib/
     deaconAuth.ts
     deaconNotes.ts
+    deaconTheme.ts
     requireLiveTool.ts
     shepherdingReport.ts
     validation.ts
