@@ -17,7 +17,10 @@ from jobs.curator import get_db, resolve_user_contact
 
 log = logging.getLogger(__name__)
 
-_POLL_INTERVAL = 1.5
+_POLL_INTERVAL = 0.5  # tightened 2026-09-04 — pure dead-time before an idle
+# worker notices a new job; up to 1.5s of it was eating into the <10s search
+# budget for no reason (SQLite poll query, negligible cost at this interval
+# for a single-worker, low-traffic app — see [[project_curator]]).
 _started = False
 
 
