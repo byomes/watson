@@ -514,6 +514,30 @@ def _git_branch_for(branch_name: str) -> str:
     return f"worktree-{_worktree_dirname(branch_name)}"
 
 
+def _cleanup_worktree(repo: str, branch_name: str) -> None:
+    """Remove a job's worktree + local branch once its work is safely on
+    origin (PR opened or merged) — nothing did this before, so worktrees
+    accumulated indefinitely (498MB across 10 stale dirs found in the
+    2026-09-05 cleanup sweep). Best-effort: never called on a 'failed' job,
+    since a human may need the worktree intact to diagnose the failure."""
+    repo_path = _repo_path(repo)
+    worktree = _worktree_path(repo, branch_name)
+    git_branch = _git_branch_for(branch_name)
+
+    if worktree.is_dir():
+        remove_proc = _run_git(["worktree", "remove", "--force", str(worktree)], repo_path)
+        if remove_proc.returncode != 0:
+            log.warning(
+                "devdispatch: worktree cleanup failed for branch %s (%s): %s",
+                branch_name, worktree,
+                _redact((remove_proc.stderr or remove_proc.stdout).strip())[:300],
+            )
+            return
+
+    _run_git(["worktree", "prune"], repo_path)
+    _run_git(["branch", "-D", git_branch], repo_path)
+
+
 def _redact(text: str) -> str:
     return _TOKEN_URL_RE.sub("https://<redacted>@", text or "")
 
@@ -775,6 +799,10 @@ def _finalize_completed_job(row) -> dict:
             subprocess.run([_CLAUDE_BIN, "rm", cli_id], capture_output=True, text=True, timeout=30)
         except Exception as exc:
             log.warning("devdispatch: claude rm %s failed (no-op job): %s", cli_id, exc)
+        try:
+            _cleanup_worktree(repo, branch_name)
+        except Exception as exc:
+            log.warning("devdispatch: worktree cleanup raised for job %s (no-op): %s", job_id, exc)
         _telegram(f"ℹ️ devdispatch job {job_id} done — no changes produced.")
         return _row_to_dict(_get_job_row(job_id))
 
@@ -815,6 +843,10 @@ def _finalize_completed_job(row) -> dict:
         subprocess.run(["claude", "rm", cli_id], capture_output=True, text=True, timeout=30)
     except Exception as exc:
         log.warning("devdispatch: claude rm %s failed after PR: %s", cli_id, exc)
+    try:
+        _cleanup_worktree(repo, branch_name)
+    except Exception as exc:
+        log.warning("devdispatch: worktree cleanup raised for job %s (post-PR): %s", job_id, exc)
     _telegram(f"✅ devdispatch job {job_id} done — {pr_url}")
     return _row_to_dict(_get_job_row(job_id))
 
@@ -945,6 +977,10 @@ def _merge_claude_code_job(job_id) -> dict:
 
     merged_at = datetime.utcnow().isoformat()
     _update_job(job_id, merged_at=merged_at)
+    try:
+        _cleanup_worktree(row["repo"], row["branch"])
+    except Exception as exc:
+        log.warning("devdispatch: worktree cleanup raised for job %s (post-merge): %s", job_id, exc)
     _telegram(f"✅ devdispatch job {job_id} merged into main (PR #{pr_number}).")
     return {"status": "merged", "pr_url": pr_url, "merged_at": merged_at}
 
