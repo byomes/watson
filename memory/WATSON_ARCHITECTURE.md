@@ -355,6 +355,8 @@ is considered fully confirmed.
 | `jobs/kb/sync_and_index.py` | Daily 2am | Git pull (ff-only) + same-day transcript sync (`kb/transcripts/` → `kb/documents/`) + incremental Chroma index + Telegram summary |
 | `jobs/campaigns/weekly_digest.py` | Sun 6pm | Book-launch campaign digest — Telegram summary of queued sends per active campaign, with Open Editor / Approve All buttons; also runnable on-demand (`--campaign-id` CLI flag) |
 | `jobs/campaigns/brevo_dispatcher.py` | Every 15 min | Book-launch campaign Brevo dispatcher — sends approved+due `book_launch_sends` rows (Facebook rows are instead queued into the existing `facebook_queue`/`facebook_post.py` pipeline at approval time, not handled here) |
+| `jobs/dev/resource_sampler.py` | Every 5 min | Samples CPU/RAM/disk + job-busy-state into `resource_samples`, feeding the weekly utilization report below — Beelink/Watson scope only, never FMSPC. **Not yet installed in crontab as of 2026-09-04** — see PR description for the exact line to add |
+| `jobs/dev/weekly_utilization_report.py` | Mon 9am | Weekly Telegram summary of the past 7 days of `resource_samples` (avg/peak CPU+RAM, busy-vs-idle %, disk growth, top jobs by estimated active time) so Bill can estimate equivalent VPS cost — deliberately reports raw numbers only, no tier/price recommendation. Clear of Sun 3pm `attendance_link_reminder.py`, Sun 5pm `conflict_report.py`, Sun 6pm `campaigns/weekly_digest.py`, and Mon 7am `skillbuilder/audit.py`. **Not yet installed in crontab as of 2026-09-04** — see PR description for the exact line to add |
 
 ### Other Jobs (Available)
 
