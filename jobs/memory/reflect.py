@@ -47,9 +47,16 @@ def _load_messages(session_id, limit: int = 20) -> list[dict]:
     try:
         conn = sqlite3.connect(str(DB_PATH))
         conn.row_factory = sqlite3.Row
+        # bug_tracker #117: created_at alone ties on same-second messages
+        # (observed scrambling a real transcript) -- id DESC as a tie-break
+        # keeps rows deterministically ordered by actual insertion sequence
+        # within a tied second. Paired with the reversed() below, this
+        # produces the same chronological order as ORDER BY created_at ASC,
+        # id ASC would over the same LIMIT window, without restructuring the
+        # existing "grab latest N, then flip to chronological" query shape.
         rows = conn.execute(
             "SELECT role, content FROM chat_messages "
-            "WHERE session_id = ? ORDER BY created_at DESC LIMIT ?",
+            "WHERE session_id = ? ORDER BY created_at DESC, id DESC LIMIT ?",
             (sid, limit),
         ).fetchall()
         conn.close()
