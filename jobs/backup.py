@@ -3,6 +3,7 @@
 Watson nightly backup to OneDrive via rclone.
 Backs up: data/ (the four core DBs snapshotted via sqlite3 .backup, not
 copied live), .env, config/, data/chroma/ (live vector index), kb/documents/,
+~/.claude/projects (Claude Code's own session memory, added 2026-08-30),
 a crontab snapshot
 
 Deliberately does NOT back up ~/.ssh or ~/.config/rclone/rclone.conf — those
@@ -25,16 +26,19 @@ from core.vacation import vacation_gate
 RETRY_BUDGET_SECONDS = 600
 
 WATSON_DIR = "/home/billyomes/watson"
+HOME_DIR = os.path.expanduser("~")
 REMOTE = "Watson-Backup:Watson-Backup"
 LOG = f"{WATSON_DIR}/logs/backup.log"
 
 DB_NAMES = ["watson.db", "congregation.db", "donors.db", "curator.db"]
 
+# (source path, remote path under REMOTE)
 TARGETS = [
-    ("data", "data"),
-    ("config", "config"),
-    ("data/chroma", "chroma-live"),
-    ("kb/documents", "kb/documents"),
+    (f"{WATSON_DIR}/data", "data"),
+    (f"{WATSON_DIR}/config", "config"),
+    (f"{WATSON_DIR}/data/chroma", "chroma-live"),
+    (f"{WATSON_DIR}/kb/documents", "kb/documents"),
+    (f"{HOME_DIR}/.claude/projects", "claude-projects"),
 ]
 
 def log(msg):
@@ -123,12 +127,11 @@ def run_backup():
         _backup_dbs(tmp_dir, errors)
         _backup_crontab(tmp_dir, errors)
 
-    for local, remote in TARGETS:
-        src = f"{WATSON_DIR}/{local}"
+    for src, remote in TARGETS:
         dst = f"{REMOTE}/{remote}"
-        log(f"Backing up {local}...")
+        log(f"Backing up {src}...")
         args = ["rclone", "copy", src, dst, "--stats-one-line"]
-        if local == "data":
+        if src == f"{WATSON_DIR}/data":
             # DBs are snapshotted separately via sqlite3 .backup above —
             # skip the live files here so we never upload a raw copy.
             for db_name in DB_NAMES:
@@ -136,14 +139,14 @@ def run_backup():
         result = run_with_retry(
             args,
             budget_seconds=RETRY_BUDGET_SECONDS,
-            description=f"rclone copy {local}",
+            description=f"rclone copy {src}",
             log=log,
         )
         if result.returncode != 0:
-            log(f"ERROR on {local}: {result.stderr}")
-            errors.append(local)
+            log(f"ERROR on {src}: {result.stderr}")
+            errors.append(src)
         else:
-            log(f"OK: {local}")
+            log(f"OK: {src}")
 
     # Backup .env
     result = run_with_retry(

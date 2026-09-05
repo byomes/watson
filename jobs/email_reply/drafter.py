@@ -2,6 +2,9 @@ import logging
 
 import requests
 
+from core.claude_tier import call_claude
+import core.llm_log  # noqa: F401 -- installs Ollama call logging, see core/llm_log.py
+
 log = logging.getLogger(__name__)
 
 OLLAMA_URL = "http://localhost:11434/api/generate"
@@ -24,6 +27,10 @@ def draft_reply(email: dict) -> str:
         f"{email['body']}"
     )
     try:
+        claude_result = call_claude(system=SYSTEM_PROMPT, user=prompt, job_name="email_reply.drafter")
+        if claude_result:
+            return claude_result
+
         resp = requests.post(
             OLLAMA_URL,
             json={

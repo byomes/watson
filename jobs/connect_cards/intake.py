@@ -230,8 +230,13 @@ def _parse_html(html: str) -> dict | None:
     fields["email"]      = get_one("email")
     fields["phone"]      = get_one("phone number")
 
-    qc = get_one("question/comment")
-    fields["questions_comments"] = qc or None
+    # get_one() would silently drop everything after the first line -- a
+    # hard return in the textarea (wcky /tools/connect-card form) renders as
+    # a <br/> between separate sibling text nodes, so a multi-line answer
+    # becomes multiple list entries, not one. Join them all instead of
+    # taking vals[0], same as prayer_request below already does.
+    qc_vals = get("question/comment")
+    fields["questions_comments"] = "\n".join(qc_vals).strip() or None
 
     ns_values = get("next step")
     fields["next_steps"] = [v for v in ns_values if _match_next_step(v)]
@@ -257,6 +262,13 @@ def _parse_html(html: str) -> dict | None:
 
 
 # ── Service date ──────────────────────────────────────────────────────────────
+
+def _attendance_exists(conn: sqlite3.Connection, member_id: int, service_date: str) -> bool:
+    return conn.execute(
+        "SELECT 1 FROM attendance WHERE member_id = ? AND service_date = ?",
+        (member_id, service_date),
+    ).fetchone() is not None
+
 
 def _service_date(received_dt) -> str:
     d = received_dt.date() if hasattr(received_dt, "date") else received_dt
@@ -455,14 +467,19 @@ def _process_email(msg, dry_run: bool, conn: sqlite3.Connection) -> bool:
             (card_id, conflict_row_id),
         )
 
-    # attendance (one row per card)
-    conn.execute(
-        """
-        INSERT INTO attendance (member_id, service_date, campus, card_id)
-        VALUES (?, ?, ?, ?)
-        """,
-        (member_id, svc_date, fields.get("campus") or "", card_id),
-    )
+    # attendance -- keyed by (member_id, service_date) only (matching
+    # attendance_web.py's data model note and attendance_intake.py's same
+    # check), so a card for someone already marked present that Sunday
+    # (tool toggle, Donna's list, or an earlier card) must not add a
+    # second row -- reports that COUNT(*) FROM attendance rely on this.
+    if not _attendance_exists(conn, member_id, svc_date):
+        conn.execute(
+            """
+            INSERT INTO attendance (member_id, service_date, campus, card_id)
+            VALUES (?, ?, ?, ?)
+            """,
+            (member_id, svc_date, fields.get("campus") or "", card_id),
+        )
 
     # next_steps
     for ns_label in fields.get("next_steps") or []:
@@ -561,40 +578,54 @@ def run(dry_run: bool = False) -> None:
         return
 
     try:
-        mail.select('"INBOX"')
-        status, data = mail.search(None, _build_search_query())
-        if status != "OK":
-            log.error("IMAP search failed: %s", status)
-            return
-
-        ids = data[0].split()
-        log.info("Found %d candidate email(s).", len(ids))
-        if not ids:
-            return
-
         conn = sqlite3.connect(DB_PATH)
         conn.row_factory = sqlite3.Row
         processed = inserted = 0
 
         try:
-            for eid in ids:
-                status, msg_data = mail.fetch(eid, "(RFC822)")
-                if status != "OK" or not msg_data or not msg_data[0]:
-                    log.warning("Failed to fetch email id %s", eid)
+            # Gmail occasionally spam-filters a legitimate connect-card email
+            # from the Brevo relay even with clean SPF/DKIM/DMARC (seen
+            # 2026-08-30: two cards, including Letha Palmer's, silently
+            # dropped because this job only ever looked at INBOX). Scan
+            # Spam too so a misclassification can't cause a permanent,
+            # silent miss the way the old label-only scope did (see module
+            # docstring) -- same known-sender/subject filter, so nothing
+            # that isn't already a recognized connect card gets pulled in.
+            for mailbox in ['"INBOX"', '"[Gmail]/Spam"']:
+                mail.select(mailbox)
+                status, data = mail.search(None, _build_search_query())
+                if status != "OK":
+                    log.error("IMAP search failed in %s: %s", mailbox, status)
                     continue
-                msg = email.message_from_bytes(msg_data[0][1])
-                try:
-                    result = _process_email(msg, dry_run, conn)
-                except Exception as exc:
-                    log.exception("Error processing email id %s: %s", eid, exc)
-                    result = False
 
-                processed += 1
-                if result:
-                    inserted += 1
-                    if not dry_run:
-                        mail.store(eid, "+FLAGS", "\\Seen")
-                        log.info("Marked email %s as read.", eid)
+                ids = data[0].split()
+                log.info("Found %d candidate email(s) in %s.", len(ids), mailbox)
+                if not ids:
+                    continue
+
+                for eid in ids:
+                    status, msg_data = mail.fetch(eid, "(RFC822)")
+                    if status != "OK" or not msg_data or not msg_data[0]:
+                        log.warning("Failed to fetch email id %s in %s", eid, mailbox)
+                        continue
+                    msg = email.message_from_bytes(msg_data[0][1])
+                    try:
+                        result = _process_email(msg, dry_run, conn)
+                    except Exception as exc:
+                        log.exception("Error processing email id %s in %s: %s", eid, mailbox, exc)
+                        result = False
+
+                    processed += 1
+                    if result:
+                        inserted += 1
+                        if not dry_run:
+                            mail.store(eid, "+FLAGS", "\\Seen")
+                            log.info("Marked email %s as read in %s.", eid, mailbox)
+                        if mailbox == '"[Gmail]/Spam"':
+                            log.warning(
+                                "Recovered a connect card from Spam (Gmail misclassified it): %s",
+                                msg.get("Subject", ""),
+                            )
         finally:
             conn.close()
 

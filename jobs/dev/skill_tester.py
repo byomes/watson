@@ -31,14 +31,19 @@ def test_skill(slug: str, message: str = None) -> dict:
             "execution_time_ms": 0, "traceback": "",
         }
 
+    function_name = skill.get("function", "run")
     script = (
-        "import sys, json, time, traceback as _tb\n"
+        "import sys, json, time, inspect, traceback as _tb\n"
         f"sys.path.insert(0, {repr(str(REPO))})\n"
         "try:\n"
         "    import importlib\n"
         f"    mod = importlib.import_module({repr(skill.get('module', skill.get('job_module', '')))})\n"
+        f"    fn = getattr(mod, {repr(function_name)})\n"
+        "    _sig = inspect.signature(fn)\n"
+        f"    _msg = {repr(message)}\n"
         "    _start = time.time()\n"
-        f"    result = mod.run({repr(message)})\n"
+        "    result = fn(message=_msg) if _msg is not None and 'message' in _sig.parameters else "
+        "(fn(_msg) if _sig.parameters else fn())\n"
         "    _ms = int((time.time() - _start) * 1000)\n"
         "    print(json.dumps({'output': str(result), 'ms': _ms}))\n"
         "except Exception as e:\n"

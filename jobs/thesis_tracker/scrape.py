@@ -18,6 +18,7 @@ from jobs.thesis_tracker.db import (
     insert_snapshot,
     get_known_countries,
     get_known_institutions,
+    get_latest_snapshot,
 )
 
 API_BASE = "https://dashboard.digital-commons.com/api"
@@ -108,12 +109,14 @@ def _fmt_range(window_start: str | None, window_end: datetime) -> str:
 def scrape(dashboard_link: str) -> dict:
     """Pull a fresh snapshot, insert it, and send a Telegram summary.
 
-    Returns {success, downloads, views, countries, new_countries, new_institutions,
-    snapshot_id} on success, or {success: False, error} on failure. Never raises.
+    Returns {success, downloads, weekly_downloads, views, countries, new_countries,
+    new_institutions, snapshot_id} on success, or {success: False, error} on failure.
+    Never raises.
     """
     init_db()
     known_countries_before = get_known_countries()
     known_institutions_before = get_known_institutions()
+    previous_snapshot = get_latest_snapshot()
 
     try:
         result = _pull(dashboard_link)
@@ -148,6 +151,10 @@ def scrape(dashboard_link: str) -> dict:
         {row["institution"] for row in institution_rows if row["institution"]} - known_institutions_before
     )
 
+    weekly_downloads = None
+    if previous_snapshot and previous_snapshot.get("total_downloads") is not None:
+        weekly_downloads = result["total_downloads"] - previous_snapshot["total_downloads"]
+
     now = datetime.now(timezone.utc)
     pulled_at = now.isoformat()
 
@@ -166,6 +173,7 @@ def scrape(dashboard_link: str) -> dict:
             institutions=institution_rows,
             referrers=referrer_rows,
             window_type="all_time",
+            weekly_downloads=weekly_downloads,
         )
     except Exception as exc:
         send_telegram(
@@ -175,9 +183,16 @@ def scrape(dashboard_link: str) -> dict:
         return {"success": False, "error": f"DB insert failed: {exc}"}
 
     date_range = _fmt_range(result["window_start"], now)
+    weekly_line = (
+        f"📈 {weekly_downloads} downloads this week"
+        if weekly_downloads is not None
+        else "📈 Downloads this week: n/a (first snapshot)"
+    )
     header = (
         f"📊 Thesis snapshot ({date_range})\n"
-        f"{result['total_downloads']} downloads / {result['total_views']} views / {result['total_countries']} countries"
+        f"{weekly_line}\n"
+        f"{result['total_downloads']} downloads / {result['total_views']} views / "
+        f"{result['total_countries']} countries (all-time)"
     )
 
     if new_countries or new_institutions:
@@ -193,6 +208,7 @@ def scrape(dashboard_link: str) -> dict:
     return {
         "success": True,
         "downloads": result["total_downloads"],
+        "weekly_downloads": weekly_downloads,
         "views": result["total_views"],
         "countries": result["total_countries"],
         "new_countries": new_countries,

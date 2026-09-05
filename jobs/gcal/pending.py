@@ -51,11 +51,21 @@ def get_pending(chat_id: int) -> dict | None:
 
 
 def confirm_pending(pending_id: int) -> dict | None:
+    """Atomic claim: only the call that actually transitions the row from
+    'pending' to 'confirmed' gets a result back. Any later/redundant call on
+    the same pending_id (bot.py has multiple overlapping routing layers that
+    can independently re-check "the latest pending row" for a chat — see
+    trading's bug writeup) sees the row already non-pending and gets None,
+    instead of silently re-confirming and letting a caller act on it again.
+    All 7 existing call sites in bot.py already discard the return value, so
+    this is a backward-compatible tightening, not a behavior change for them."""
     with get_connection() as conn:
-        conn.execute(
-            "UPDATE pending_actions SET status = 'confirmed' WHERE id = ?",
+        cursor = conn.execute(
+            "UPDATE pending_actions SET status = 'confirmed' WHERE id = ? AND status = 'pending'",
             (pending_id,),
         )
+        if cursor.rowcount == 0:
+            return None
         row = conn.execute(
             "SELECT id, action_type, params_json, proposed_slot_json FROM pending_actions WHERE id = ?",
             (pending_id,),

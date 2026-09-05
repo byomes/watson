@@ -30,7 +30,7 @@ from telegram.ext import (
 )
 
 from briefing.builder import build_telegram_briefing
-from config.settings import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, WATSON_SYSTEM
+from config.settings import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, WATSON_SYSTEM, TEAM_CHAT_SYSTEM
 from core.database import get_connection, init_db
 from core.scorer import _BOOST
 from jobs.ask import ask
@@ -44,8 +44,26 @@ from jobs.intent.classifier import classify as _classify_intent
 from jobs.memory.prompt_builder import build_prompt
 from jobs.routing.directive_prefixes import telegram_prefixes as _telegram_prefixes, canonicalize as _canonicalize_prefix, telegram_help_text as _telegram_help_text
 from jobs.givebutter.templates import first_gift_email, repeat_gift_email
+import core.llm_log  # noqa: F401 -- installs Ollama call logging, see core/llm_log.py
 
 log = logging.getLogger(__name__)
+
+# Found 2026-09-02 debugging a team-chat failure: the pre-existing
+# "normalize smart quotes" line further down was a no-op (both .replace()
+# calls used a straight quote as BOTH the search and replacement char --
+# likely a curly-quote character lost somewhere along the way to a plain-
+# ASCII source file). Real mapping here, applied to both Bill's own chat
+# and team/deacon-chat, since mobile keyboards auto-curl apostrophes/quotes
+# and a name/date matched via exact SQL string equality needs the straight
+# form to reliably match what's actually stored in the database.
+_SMART_QUOTE_MAP = {"‘": "'", "’": "'", "“": '"', "”": '"'}
+
+
+def _normalize_smart_quotes(text: str) -> str:
+    for smart, straight in _SMART_QUOTE_MAP.items():
+        text = text.replace(smart, straight)
+    return text
+
 
 _AUTHORIZED_ID = int(TELEGRAM_CHAT_ID) if TELEGRAM_CHAT_ID else None
 
@@ -61,9 +79,6 @@ _GMAIL_APP_PASSWORD = os.getenv("WATSON_GMAIL_APP_PASSWORD", "")
 
 # Pending skill proposals keyed by Telegram chat_id
 _pending_skills: dict[int, str] = {}
-
-# LOW-confidence intent results awaiting user confirmation
-_pending_intents: dict[int, dict] = {}
 
 # Pending capability gap proposals (from audit) — resolved via DB
 
@@ -335,18 +350,28 @@ def _log_telegram_exchange(user_text: str, reply_text: str) -> None:
                 "UPDATE chat_sessions SET updated_at = datetime('now') WHERE id = ?",
                 (session_id,),
             )
-        _log_tg('out', reply_text)
+        _log_tg('out', reply_text, recipient='Bill')
     except Exception as exc:
         log.warning("Failed to log telegram exchange: %s", exc)
 
 
-def _log_tg(direction: str, message: str) -> None:
+def _log_tg(direction: str, message: str, recipient: str = 'Bill') -> None:
+    # Per Bill's 2026-09-01 request: his own chat with Watson isn't written
+    # to telegram_log (the dashboard's Telegram Log tile) -- he already has
+    # that history natively in his own Telegram app. Only affects this
+    # dashboard-log table; chat_messages/chat_sessions (Watson's own
+    # conversational memory/context) is untouched and still persisted the
+    # usual way by the caller above. Everyone else's messages (team-chat
+    # lookups, onboarding confirmations, broadcast reports) still log here
+    # normally so Bill can review them on the dashboard.
+    if recipient == 'Bill':
+        return
     db_path = os.path.expanduser("~/watson/data/watson.db")
     try:
         with sqlite3.connect(db_path) as _conn:
             _conn.execute(
-                "INSERT INTO telegram_log (direction, message) VALUES (?, ?)",
-                (direction, message),
+                "INSERT INTO telegram_log (direction, message, recipient) VALUES (?, ?, ?)",
+                (direction, message, recipient),
             )
     except Exception as exc:
         log.warning("telegram_log write failed: %s", exc)
@@ -640,6 +665,35 @@ async def handle_font_suggestion_callback(update, context):
         await query.edit_message_caption(caption=f"{query.message.caption}\n\n❌ Rejected", reply_markup=None)
 
 
+async def handle_trip_callback(update, context):
+    """Handle trip_approve:/trip_reject: button taps from
+    jobs.trip.propose — romantic getaway proposal cards. 'Approve' just
+    stars the pick (status='approved'); Watson never books, so there's no
+    further action to trigger here."""
+    query = update.callback_query
+    await query.answer()
+    if not _is_authorized(update):
+        return
+
+    from jobs.trip.propose import approve_trip, reject_trip
+
+    action, proposal_id_str = query.data.split(":", 1)
+    proposal_id = int(proposal_id_str)
+
+    if action == "trip_approve":
+        proposal = await asyncio.to_thread(approve_trip, proposal_id)
+        if not proposal:
+            await query.edit_message_text("Proposal not found.", reply_markup=None)
+            return
+        await query.edit_message_text(f"{query.message.text}\n\n✅ Liked", reply_markup=None)
+    elif action == "trip_reject":
+        proposal = await asyncio.to_thread(reject_trip, proposal_id)
+        if not proposal:
+            await query.edit_message_text("Proposal not found.", reply_markup=None)
+            return
+        await query.edit_message_text(f"{query.message.text}\n\n❌ Passed", reply_markup=None)
+
+
 async def handle_campaign_callback(update, context):
     query = update.callback_query
     await query.answer()
@@ -720,6 +774,119 @@ async def handle_privacy_callback(update: Update, context: ContextTypes.DEFAULT_
         subprocess.Popen([venv_python, script, "--removal-id", str(removal_id)], stdout=lf, stderr=lf)
 
 
+async def handle_privacy_candidate_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """pgcand_flag:<id> / pgcand_skip:<id> — resolves a candidate row from
+    jobs/privacy/discover.py's weekly new-broker digest. Flag files a
+    project_backlog item for the same manual investigation every existing
+    broker in privacy_brokers went through (see project_backlog id=37/38) —
+    this handler never touches privacy_brokers itself. Skip marks the
+    candidate dismissed for good; discover.py never resurfaces a dismissed
+    domain."""
+    query = update.callback_query
+    await query.answer()
+
+    if not _is_authorized(update):
+        return
+
+    data = query.data or ""
+    action, _, id_str = data.partition(":")
+    try:
+        candidate_id = int(id_str)
+    except ValueError:
+        return
+
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT * FROM privacy_broker_candidates WHERE id=?", (candidate_id,)
+        ).fetchone()
+        if not row:
+            await query.edit_message_text(text=f"{query.message.text}\n\n⚠️ Candidate not found.", reply_markup=None)
+            return
+
+        if action == "pgcand_skip":
+            conn.execute(
+                "UPDATE privacy_broker_candidates SET status='dismissed' WHERE id=?", (candidate_id,)
+            )
+            conn.commit()
+            await query.edit_message_text(
+                text=f"{query.message.text}\n\n🚫 {row['domain']} — dismissed, won't resurface.",
+                reply_markup=None,
+            )
+            return
+
+        if action != "pgcand_flag":
+            return
+
+        from jobs.dev.backlog import create_backlog_item
+        create_backlog_item(
+            title=f"Privacy Guard: investigate new candidate broker — {row['domain']}",
+            summary=(
+                f"Auto-surfaced by jobs/privacy/discover.py's weekly pass, approved by Bill for "
+                f"investigation. Seen {row['match_count']} time(s), first via {row['example_person']}'s search."
+            ),
+            detail=(
+                f"Example URL: {row['example_url']}\nExample snippet: {row['example_snippet']}\n\n"
+                "Needs the same manual opt-out-flow investigation every current privacy_brokers row "
+                "got before being trusted (CAPTCHA/robots.txt check, real success-signal verification) "
+                "— see project_backlog id=37/38 and jobs/privacy/schema.py's _SEED_BROKERS notes for "
+                "the pattern. Never activate a broker without that."
+            ),
+        )
+        conn.execute(
+            "UPDATE privacy_broker_candidates SET status='flagged' WHERE id=?", (candidate_id,)
+        )
+        conn.commit()
+        await query.edit_message_text(
+            text=f"{query.message.text}\n\n🔎 {row['domain']} — added to backlog for investigation.",
+            reply_markup=None,
+        )
+    finally:
+        conn.close()
+
+
+async def handle_privacy_captcha_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """priv_captcha_ready:<removal_id> / priv_captcha_cancel:<removal_id> —
+    the resume signal for jobs/privacy/captcha_assist.py's Option C flow
+    (see that module's docstring). The waiting jobs/privacy/remove.py
+    subprocess holds its own browser page open and polls
+    privacy_captcha_waits; this handler's only job is to write the tap into
+    that row — same "SQLite as the shared coordination point" pattern as
+    everywhere else in jobs/privacy/*, no direct signaling to the waiting
+    subprocess needed."""
+    query = update.callback_query
+    await query.answer()
+
+    if not _is_authorized(update):
+        return
+
+    data = query.data or ""
+    action, _, id_str = data.partition(":")
+    try:
+        removal_id = int(id_str)
+    except ValueError:
+        return
+
+    new_status = "ready" if action == "priv_captcha_ready" else "cancelled"
+    conn = get_connection()
+    try:
+        cur = conn.execute(
+            """UPDATE privacy_captcha_waits SET status=?, resolved_at=datetime('now')
+               WHERE removal_id=? AND status='waiting'""",
+            (new_status, removal_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    note = (
+        "⏳ Verifying…" if cur.rowcount and new_status == "ready"
+        else "❌ Cancelled." if cur.rowcount
+        else "⚠️ Already resolved or timed out — nothing to do."
+    )
+    await query.edit_message_text(text=f"{query.message.text}\n\n{note}", reply_markup=None)
+
+
 # Worst-case stack inside this window (bug #29, all measured on this
 # CPU-only host): skill router's own 8s timeout, then classify()'s 55s
 # timeout, then a real shot at the general-chat fallback (measured up to
@@ -730,6 +897,29 @@ _HANDLE_TEXT_TIMEOUT_SECONDS = 100
 # fireflies: directive) so they aren't garbage-collected mid-run — a task with
 # no live reference can be silently dropped by the event loop.
 _background_tasks: set = set()
+
+
+# Keyword gate in front of the classify() call (stage 4 of _handle_text_body) --
+# deliberately recall-biased (a false positive just costs one extra classify()
+# call; a false negative would silently skip a real action and answer it as
+# conversation instead). Not meant to be exhaustive/precise the way the intent
+# classifier's own examples are -- just cheap enough to skip that whole Ollama
+# round trip for messages that plainly aren't asking for any of these 11 actions.
+_ACTIONABLE_KEYWORDS = frozenset({
+    "block", "book", "schedule", "appointment", "calendar",
+    "busy", "headed to", "going to",
+    "available", "availability", "free",
+    "remind", "reminder",
+    "task", "todo", "to-do", "don't forget",
+    "done", "finished", "complete",
+    "phone", "email", "e-mail", "contact", "number", "reach", "lookup", "look up",
+    "who is", "who's",
+    "image", "photo", "picture",
+})
+
+
+def _looks_actionable(text_lower: str) -> bool:
+    return any(kw in text_lower for kw in _ACTIONABLE_KEYWORDS)
 
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -755,6 +945,15 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not _is_authorized(update):
+        # Per Bill's 2026-09-02 decision, every onboarded Catalyst leader
+        # gets the same full team-chat access with no distinction between
+        # staff/elders/deacons -- team_members and deacons are just two
+        # different registries a person can be onboarded through, both
+        # routed to the identical _handle_team_chat.
+        _chat_id = str(update.effective_chat.id)
+        _leader_name = _team_member_name_for_chat(_chat_id) or _deacon_name_for_chat(_chat_id)
+        if _leader_name:
+            await _handle_team_chat(update, _leader_name, update.message.text or "")
         return
 
     text = update.message.text or ""
@@ -762,7 +961,7 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     # Normalize smart quotes from mobile keyboards
-    text_clean = text.replace("'", "'").replace("'", "'")
+    text_clean = _normalize_smart_quotes(text)
     text_lower = text_clean.lower().strip()
     _log_tg('in', text_clean)
 
@@ -830,30 +1029,10 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         _log_telegram_exchange(text_clean, _dr)
                 else:
                     await update.message.reply_text("Format: sms: Name: message")
-            elif _dpfx == "polish:":
-                await _handle_polish(update, context, _darg)
             elif _dpfx == "wdb:":
                 from jobs.skills.wdb_query import run as _wdb_run_d
                 _dr = await asyncio.to_thread(_wdb_run_d, _darg)
                 await update.message.reply_text(_dr or "No results.")
-            elif _dpfx == "bible:":
-                from jobs.bible import run as _bible_run_d
-                _dr = await asyncio.to_thread(_bible_run_d, _darg)
-                await update.message.reply_text(_dr or "No result.")
-                _log_telegram_exchange(text_clean, _dr or "")
-            elif _dpfx == "devloop:":
-                await _handle_devloop(update, context, _darg)
-            elif _dpfx == "bug:":
-                if not _darg:
-                    await update.message.reply_text("Format: bug: <title>")
-                else:
-                    with get_connection() as _bc:
-                        _bc.execute(
-                            "INSERT INTO bug_tracker (title, repo) VALUES (?, 'watson')",
-                            (_darg,),
-                        )
-                    await update.message.reply_text(f"Logged: {_darg}")
-                    _log_telegram_exchange(text_clean, f"Logged: {_darg}")
             elif _dpfx == "backlog:":
                 if not _darg:
                     await update.message.reply_text("Format: backlog: <title> | <summary>")
@@ -863,47 +1042,6 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     _create_backlog_item_d(_bl_title, _bl_summary)
                     await update.message.reply_text(f"Logged to backlog: {_bl_title}")
                     _log_telegram_exchange(text_clean, f"Logged to backlog: {_bl_title}")
-            elif _dpfx == "debug:":
-                if not _darg:
-                    await update.message.reply_text("Format: debug: <problem description>")
-                else:
-                    await update.message.reply_text(f"Starting debug loop for: {_darg}")
-                    _debug_text_clean = text_clean
-
-                    # Detached on purpose, same reasoning as fireflies: below —
-                    # claude_debug.run() can take several minutes (up to
-                    # MAX_ITERATIONS Claude Code rounds) and _send_telegram()
-                    # itself already posts the final result, so awaiting it
-                    # inline would just trip the 15s wrapper for no benefit.
-                    async def _run_debug_directive():
-                        from jobs.dev.claude_debug import run as _debug_run_d
-                        try:
-                            result = await asyncio.to_thread(_debug_run_d, _debug_text_clean)
-                        except Exception as exc:
-                            log.error("debug: directive failed: %s", exc)
-                            result = f"Debug loop failed: {exc}"
-                        _log_telegram_exchange(_debug_text_clean, result)
-
-                    _debug_task = asyncio.create_task(_run_debug_directive())
-                    _background_tasks.add(_debug_task)
-                    _debug_task.add_done_callback(_background_tasks.discard)
-            elif _dpfx == "run:":
-                from jobs.skillbuilder import router as _router_d
-                _run_parts_d = _darg.split(None, 1)
-                _slug_d = _run_parts_d[0] if _run_parts_d else ""
-                _skill_msg_d = _run_parts_d[1] if len(_run_parts_d) > 1 else ""
-                _skills_d = _router_d._load_skills("telegram")
-                _skill_d = next((s for s in _skills_d if s["slug"] == _slug_d), None)
-                if _skill_d:
-                    _dr = str(await asyncio.to_thread(_router_d._run_skill, _skill_d, message=_skill_msg_d))
-                else:
-                    _dr = f"Skill not found: {_slug_d}"
-                await update.message.reply_text(_dr)
-                _log_telegram_exchange(text_clean, _dr)
-            elif _dpfx == "gutenberg:":
-                await _handle_gutenberg_search(update, context, _darg)
-            elif _dpfx == "classics:":
-                await _handle_classics(update, context, _darg)
             elif _dpfx == "fireflies:":
                 if not _darg:
                     await update.message.reply_text("Format: fireflies: <meeting_id>")
@@ -1064,11 +1202,6 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Handle CONFIRM / CANCEL for pending actions (calendar, skill proposals, capability gaps)
     if text_lower in ("yes", "confirm", "yes do it", "book it", "go ahead") or text_lower in _SKILL_AFFIRM:
-        if chat_id in _pending_intents:
-            _pi = _pending_intents.pop(chat_id)
-            await _dispatch_intent(update, context, _pi["result"], _pi["text_clean"])
-            log.info("DEBUG pre-check: confirmed pending intent")
-            return
         if chat_id in _pending_skills:
             pending_desc = _pending_skills.pop(chat_id)
             from jobs.skillbuilder import router as _router
@@ -1079,7 +1212,7 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 args=(pending_desc, job_path, "telegram"),
                 daemon=True,
             ).start()
-            await update.message.reply_text("Building that skill now. I'll notify you via Telegram when it's ready.")
+            await update.message.reply_text("Building that skill now — this'll take a few minutes. I'll notify you via Telegram when it's ready; other requests may be delayed until it's done.")
             log.info("DEBUG pre-check: confirmed pending skill build")
             return
         gap = _get_next_proposed_gap()
@@ -1095,7 +1228,8 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 daemon=True,
             ).start()
             await update.message.reply_text(
-                f"Building {gap['gap_name']} now. I'll notify you via Telegram when it's ready."
+                f"Building {gap['gap_name']} now — this'll take a few minutes. I'll notify you via "
+                "Telegram when it's ready; other requests may be delayed until it's done."
             )
             log.info("DEBUG pre-check: confirmed capability gap build")
             return
@@ -1482,6 +1616,16 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
         log.warning("Skill router failed: %s", exc)
         route_result = {"action": "chat"}
 
+    if route_result["action"] == "busy":
+        # bug_tracker #118/#121: a long job (audit.py, build.py, etc.) is
+        # holding the Ollama busy lock — say so honestly instead of racing
+        # a contended queue. Do NOT fall through to _handle_general below,
+        # which would just queue a second Ollama call behind the same job.
+        await update.message.reply_text(route_result["message"])
+        _log_telegram_exchange(text_clean, route_result["message"])
+        log.info("DEBUG pre-check: skill router action:busy")
+        return
+
     if route_result["action"] == "skill":
         skill_result = route_result.get("result")
         if skill_result is None:
@@ -1522,7 +1666,7 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
             args=(route_result["description"], route_result["job_path"], "telegram"),
             daemon=True,
         ).start()
-        await update.message.reply_text("Building that skill now. I'll notify you via Telegram when it's ready.")
+        await update.message.reply_text("Building that skill now — this'll take a few minutes. I'll notify you via Telegram when it's ready; other requests may be delayed until it's done.")
         log.info("DEBUG pre-check: skill router action:build")
         return
 
@@ -1542,42 +1686,36 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
             args=(description, job_path, "telegram"),
             daemon=True,
         ).start()
-        await update.message.reply_text("Building that skill now. I'll notify you via Telegram when it's ready.")
+        await update.message.reply_text("Building that skill now — this'll take a few minutes. I'll notify you via Telegram when it's ready; other requests may be delayed until it's done.")
         log.info("DEBUG pre-check: safety net build trigger")
         return
 
-    # 4. Classify intent via Ollama gemma3:4b (non-blocking)
-    # Ack before the slow part starts (bug #29) — classify()/general-chat
-    # can legitimately take up to _HANDLE_TEXT_TIMEOUT_SECONDS on this
-    # CPU-only host, and a silent 15-80s wait reads as a broken bot.
-    await update.message.reply_text("💭 Thinking...")
-    _classifier_system = build_prompt(task=text_clean, project=None)
-    result = await asyncio.to_thread(_classify_intent, text_clean, _classifier_system)
-    log.info("DEBUG classifier raw result: %s", result)
-    intent = result.get("intent", "general")
-    params = result.get("params", {})
-    confidence = result.get("confidence", "HIGH")
-    log.info("Intent: %s | Params: %s | Confidence: %s", intent, params, confidence)
-
-    if confidence == "LOW":
-        _intent_plain = {
-            "contact_lookup": f"look up {params.get('name', 'someone')}",
-            "image_search": f"search for an image of {params.get('query', 'something')}",
-            "calendar_query": f"check your calendar for {params.get('day', 'today')}",
-            "block_time": f"block {params.get('duration_minutes', 60)} minutes for {params.get('title', 'something')}",
-            "reminder_create": f"set a reminder: {params.get('title', '...')}",
-            "task_create": f"add a task: {params.get('title', '...')}",
-            "task_list": "list your tasks",
-            "book_appointment": f"book an appointment with {params.get('name', 'someone')}",
-        }
-        desc = _intent_plain.get(intent, "handle this")
-        _pending_intents[chat_id] = {"result": result, "text_clean": text_clean}
-        await update.message.reply_text(f"Just to confirm — are you asking me to {desc}?")
-        return
-
-    await _dispatch_intent(update, context, result, text_clean)
-    if confidence == "MEDIUM":
-        await update.message.reply_text("Is that right?")
+    # 4. Everything above only matches exact triggers/prefixes/regexes -- by this
+    # point the message survived all of them, so it's either a looser phrasing of
+    # one of the classifier's action intents (block_time, book_appointment, etc.)
+    # or genuine conversation. _looks_actionable() is a cheap, recall-biased
+    # keyword gate: only messages that plausibly reference an action pay for the
+    # classify() round trip (gemma3:4b); anything else skips straight to a single
+    # conversational reply (llama3.2:3b) instead of paying for both calls back to
+    # back on this CPU-only, single-request-at-a-time host (see
+    # WATSON_ARCHITECTURE.md's FMSPC/NUM_PARALLEL note -- two sequential Ollama
+    # calls don't parallelize here, they just both happen).
+    #
+    # No confidence-gated pre-confirmation anymore ("Just to confirm -- are you
+    # asking me to X?"): it was redundant for the 6 intents that actually write
+    # anything (block_time, book_appointment, calendar_busy, task_done,
+    # reminder_create, task_create already get their own YES/NO gate inside their
+    # handler -- see bug #31-#33 / Confirmation Gate in WATSON_ARCHITECTURE.md),
+    # and for "general" there was never anything to confirm -- it just answers.
+    if _looks_actionable(text_lower):
+        _classifier_system = build_prompt(task=text_clean, project=None)
+        result = await asyncio.to_thread(_classify_intent, text_clean, _classifier_system)
+        log.info("DEBUG classifier raw result: %s", result)
+        await _dispatch_intent(update, context, result, text_clean)
+    else:
+        reply = await _handle_general(update, context, text_clean)
+        _log_telegram_exchange(text_clean, reply)
+        _maybe_reflect(chat_id)
 
 
 # --- New intent handlers --------------------------------------------------
@@ -1648,6 +1786,15 @@ async def _dispatch_intent(
     log.info("DEBUG dispatch intent: %s params: %s", intent, result.get("params", {}))
     params = result.get("params", {})
     chat_id = update.effective_chat.id
+    if intent == "busy":
+        # bug_tracker #118/#121: classify() skipped the Ollama round trip
+        # because a long job is holding the busy lock — say so honestly
+        # instead of falling through to _handle_general's own Ollama call,
+        # which would just queue behind the same contended instance.
+        message = result.get("message", "Watson's running a background task right now — try again in a few minutes.")
+        await update.message.reply_text(message)
+        _log_telegram_exchange(text_clean, message)
+        return
     if intent == "contact_lookup":
         await _handle_contact_lookup(update, context, params)
     elif intent == "calendar_query":
@@ -1774,58 +1921,6 @@ async def _handle_kb(update: Update, context: ContextTypes.DEFAULT_TYPE, text: s
     except Exception as exc:
         log.error("KB search failed: %s", exc)
         await update.message.reply_text(f"KB search failed: {exc}")
-
-
-async def _handle_gutenberg_search(update: Update, context: ContextTypes.DEFAULT_TYPE, query: str) -> None:
-    if not query:
-        await update.message.reply_text("What would you like to search for on Project Gutenberg?")
-        return
-    await update.message.reply_text("Searching Project Gutenberg...")
-    try:
-        from jobs.research.gutenberg import search as gutenberg_search
-        hits = await asyncio.to_thread(gutenberg_search, query)
-    except Exception as exc:
-        log.error("Gutenberg search failed: %s", exc)
-        await update.message.reply_text(f"Gutenberg search failed: {exc}")
-        return
-    if not hits:
-        await update.message.reply_text(f"No Project Gutenberg matches for: {query}")
-        return
-    lines = [f'Project Gutenberg results for "{query}":\n']
-    for i, hit in enumerate(hits, start=1):
-        year = hit["year"] or "n/a"
-        lines.append(
-            f"{i}. {hit['title']} — {hit['authors']} ({year}) — {hit['download_count']} downloads"
-        )
-    lines.append("\nReply with a number to download and add it to the classics knowledge base.")
-    reply = "\n".join(lines)
-    sent = await update.message.reply_text(reply)
-    _log_telegram_exchange(query, reply)
-    from jobs.telegram.pending import store_pending_action
-    store_pending_action("gutenberg_select", sent.message_id, {"candidates": hits, "query": query})
-
-
-async def _handle_classics(update: Update, context: ContextTypes.DEFAULT_TYPE, question: str) -> None:
-    if not question:
-        await update.message.reply_text("What would you like to ask the classics knowledge base?")
-        return
-    await update.message.reply_text("Searching classics knowledge base...")
-    try:
-        from jobs.skills.kb_search import search_kb, format_result
-        result = await asyncio.to_thread(search_kb, question, "gutenberg")
-        reply = format_result(result)
-        sent = await update.message.reply_text(reply)
-        _log_telegram_exchange(question, reply)
-        from jobs.telegram.pending import store_pending_action
-        store_pending_action("kb_email", sent.message_id, {
-            "synopsis": result["synopsis"],
-            "sources": result["sources"],
-            "query": result["query"],
-            "collection": "gutenberg",
-        })
-    except Exception as exc:
-        log.error("Classics KB search failed: %s", exc)
-        await update.message.reply_text(f"Classics search failed: {exc}")
 
 
 async def _handle_polish(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str) -> None:
@@ -2054,6 +2149,463 @@ async def _get_general_reply(text: str) -> str:
     return await asyncio.to_thread(_get_general_reply_sync, text)
 
 
+def _team_member_name_for_chat(chat_id: str) -> str | None:
+    """Return the team_members.name for an onboarded, active team member
+    whose people.telegram_chat_id matches this chat, or None. Scoped to
+    team_members (not every connected person -- e.g. deacons onboarded for
+    attendance reports are NOT team members and get no chat access here)."""
+    with get_connection() as conn:
+        row = conn.execute(
+            """
+            SELECT tm.name FROM team_members tm
+            JOIN people p ON p.name = tm.name COLLATE NOCASE
+            WHERE p.telegram_chat_id = ? AND tm.active = 1
+            """,
+            (chat_id,),
+        ).fetchone()
+    return row["name"] if row else None
+
+
+def _deacon_name_for_chat(chat_id: str) -> str | None:
+    """Return the deacon's own name if this chat belongs to a known deacon
+    (jobs.congregation.deacon_reports.list_deacons()). Added 2026-09-02
+    alongside _team_member_name_for_chat above as a second registry a
+    person can be onboarded through -- deacons who were never added to
+    team_members (e.g. Jim Bouchat, Bill Crook) still reach the identical
+    full _handle_team_chat via this lookup (see _handle_text_body). Per
+    Bill's same-day follow-up decision there's no access difference between
+    the two registries -- this only exists because deacons and team members
+    happen to be tracked in separate tables, not to gate anything."""
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT name FROM people WHERE telegram_chat_id = ?", (chat_id,)
+        ).fetchone()
+    if not row:
+        return None
+    from jobs.congregation.deacon_reports import list_deacons
+    return row["name"] if row["name"] in set(list_deacons()) else None
+
+
+# Tolerant of the model dropping the brackets or using a space instead of
+# an underscore (observed both from llama3.2:3b in testing) -- a strict
+# literal "[NO_ACCESS]" match missed those, which both silently skipped
+# Bill's alert AND leaked the raw tag word into the team member's reply.
+#
+# Unanchored as of 2026-09-02 (bug found investigating Donna's unanswered
+# attendance question): the model doesn't always put the tag at the very
+# start -- it can write a sentence first and the tag mid-reply ("I'm not
+# aware of the current attendance numbers. [NO_ACCESS] Please contact...").
+# The old `^`-anchored version missed that entirely, so neither the strip
+# nor Bill's alert fired. Brackets are now required (not optional) since
+# without the anchor, a bracket-optional match risks catching a normal
+# sentence that happens to contain the words "no access".
+_NO_ACCESS_TAG_RE = re.compile(r"\[\s*no[_\s]?access\s*\]:?\s*", re.IGNORECASE)
+
+
+def _get_team_reply_sync(text: str) -> tuple[str, bool]:
+    """Plain Ollama Q&A for a limited-access team member chat -- deliberately
+    NOT build_prompt() (that's Bill's own routing/memory-aware prompt) and no
+    skill routing, so a team member's chat can never reach Bill's directives,
+    calendar, email, tasks, or KB. The one narrow exception is the read-only
+    people/classroom lookups in _extract_team_lookup()/_extract_classroom_lookup()
+    below, which bypass this Ollama path entirely for a recognized question --
+    everything else still lands here, unable to touch the database.
+
+    Returns (reply, declined_for_lack_of_access) -- TEAM_CHAT_SYSTEM
+    (config/settings.py) instructs the model to prefix a decline with
+    [NO_ACCESS], stripped here before the reply is shown to anyone; the flag
+    lets _handle_team_chat alert Bill per his 2026-09-01 decision to review
+    these and judge whether they're worth building a real lookup for."""
+    import requests as _req
+    try:
+        resp = _req.post(
+            "http://localhost:11434/api/chat",
+            json={
+                "model": "llama3.2:3b",
+                "messages": [
+                    {"role": "system", "content": TEAM_CHAT_SYSTEM},
+                    {"role": "user", "content": text},
+                ],
+                "stream": False,
+            },
+            timeout=60,
+        )
+        resp.raise_for_status()
+        reply = resp.json()["message"]["content"].strip()
+        declined = bool(_NO_ACCESS_TAG_RE.search(reply))
+        reply = _NO_ACCESS_TAG_RE.sub("", reply).strip()
+        return reply or "I didn't get a response.", declined
+    except Exception as exc:
+        log.error("Ollama team chat failed: %s", exc)
+        return "I'm having trouble thinking right now. Try again in a moment.", False
+
+
+_TEAM_LOOKUP_FIELD_WORDS = {"email": "email", "phone": "phone", "number": "phone", "contact": "contact", "address": "address"}
+
+
+def _extract_team_lookup(text: str) -> tuple[str, str] | None:
+    """Recognize a read-only phone/email/address/last-attended question and
+    return (person_name, field), or None to fall through to Ollama chat.
+    Regex-based on purpose, matching Bill's own '_possessive' pattern in
+    _handle_general -- not general NLU, just the phrasings Bill asked for."""
+    # (?<!') guards against "what's X's email" -- without it, the leading
+    # "what's" contraction's own trailing "s" greedily wins the match first
+    # (captures "s X" instead of "X"), since re.search takes the leftmost
+    # successful match and stops there.
+    m = re.search(r"(?<!')(\w+(?:\s+\w+)?)'s\s+(email|phone|number|contact|address)", text, re.IGNORECASE)
+    if m:
+        return m.group(1), _TEAM_LOOKUP_FIELD_WORDS[m.group(2).lower()]
+    m = re.search(r"where\s+does\s+(\w+(?:\s+\w+)?)\s+live", text, re.IGNORECASE)
+    if m:
+        return m.group(1), "address"
+    m = re.search(
+        # Lazy second-word group: without it, "when did Donna last attend"
+        # greedily captures "Donna last" as the name (group 1 prefers to eat
+        # as many words as it can before backtracking, and "last attend"
+        # alone satisfies the rest of the pattern via the optional
+        # "(?:last\s+)?" below it). Lazy makes it prefer one word first and
+        # only expand to two if the verb doesn't immediately follow --
+        # correctly handles both "Donna" and two-word names like "Sarah
+        # Mitchell" (bug found 2026-09-03 testing the new Telegram
+        # natural-language contact lookup).
+        r"when\s+(?:was|did)\s+(?:the\s+last\s+time\s+)?(\w+(?:\s+\w+)??)\s+"
+        r"(?:last\s+)?(?:come|came|attend(?:ed)?|showed?\s+up|was\s+(?:here|at\s+church))",
+        text,
+        re.IGNORECASE,
+    )
+    if m:
+        return m.group(1), "last_seen"
+    return None
+
+
+def _format_team_lookup_reply(person_name: str, field: str) -> str:
+    from jobs.people.lookup import lookup_member_details
+
+    hits = lookup_member_details(person_name)
+    if not hits:
+        return f'I couldn\'t find anyone matching "{person_name}".'
+    if len(hits) > 1:
+        names = ", ".join(h["name"] for h in hits)
+        return f"I found more than one match: {names}. Can you be more specific?"
+
+    m = hits[0]
+    if field == "contact":
+        parts = [p for p in (m.get("email"), m.get("phone")) if p]
+        return f"{m['name']}: " + (" | ".join(parts) if parts else "no contact info on file.")
+    if field == "email":
+        return f"{m['name']}'s email: {m.get('email') or 'not on file.'}"
+    if field == "phone":
+        return f"{m['name']}'s phone: {m.get('phone') or 'not on file.'}"
+    if field == "address":
+        return f"{m['name']} lives at: {m.get('address') or 'no address on file.'}"
+    if field == "last_seen":
+        seen = m.get("last_seen")
+        if not seen or seen == "1900-01-01":
+            return f"{m['name']} has no recorded attendance."
+        return f"{m['name']} was last seen on {seen}."
+    return f"{m['name']}: no data on file for that."
+
+
+# Sheet header abbreviation -> room key expected by jobs.gsheets.classroom_sync.ROOMS.
+_CLASSROOM_KEYWORDS = {
+    "nursery": "nursery",
+    "toddler": "toddlers",
+    "toddlers": "toddlers",
+    "pre-k": "prek",
+    "prek": "prek",
+    "pre k": "prek",
+    "elementary": "elementary",
+}
+
+
+def _extract_classroom_lookup(text: str) -> str | None:
+    """Recognize a classroom-attendance question ('elementary attendance',
+    'how many kids were in nursery') and return the room key (a key of
+    jobs.gsheets.classroom_sync.ROOMS), or None. Requires an attendance-ish
+    trigger word alongside the room name so ordinary mentions of a room
+    ("I love working in nursery") don't turn into a DB lookup. Always
+    answers for the most recently synced Sunday -- doesn't try to parse a
+    specific date out of the question."""
+    lowered = text.lower()
+    if not re.search(r"\battend|\bhow many\b|\bheadcount\b|\bcount\b|\bnumbers?\b", lowered):
+        return None
+    for kw, room in _CLASSROOM_KEYWORDS.items():
+        if re.search(rf"\b{re.escape(kw)}\b", lowered):
+            return room
+    return None
+
+
+_ROOM_LABELS = {"nursery": "Nursery", "toddlers": "Toddlers", "prek": "PreK", "elementary": "Elementary"}
+
+
+def _format_classroom_reply(room: str) -> str:
+    from jobs.gsheets.classroom_sync import latest_room_count
+
+    row = latest_room_count(room)
+    if not row:
+        return "I don't have any classroom attendance data synced yet."
+
+    parts = []
+    if row["kids"] is not None:
+        parts.append(f"{row['kids']} kid{'s' if row['kids'] != 1 else ''}")
+    if row["adults"] is not None:
+        parts.append(f"{row['adults']} worker{'s' if row['adults'] != 1 else ''}")
+    detail = " and ".join(parts) if parts else "no data"
+    return f"{_ROOM_LABELS[room]} on {row['date']}: {detail}."
+
+
+# "calendar/schedule/agenda" covers "what's on Bill's calendar today", "his
+# schedule tomorrow", etc.; "free/busy/available" needs "bill" nearby since
+# those words alone are too generic ("are you free to chat"). Per Bill's
+# 2026-09-01 decision, team members can see his calendar -- read-only, no
+# create/edit/cancel.
+_CALENDAR_TRIGGER_RE = re.compile(
+    r"\b(calendar|schedule|agenda)\b|\bbill\b.{0,20}\b(free|busy|available)\b|\b(free|busy|available)\b.{0,20}\bbill\b",
+    re.IGNORECASE,
+)
+
+
+def _extract_calendar_lookup(text: str) -> bool:
+    return bool(_CALENDAR_TRIGGER_RE.search(text))
+
+
+def _format_calendar_reply(text: str) -> str:
+    from jobs.gcal.calendar import run as calendar_run
+
+    try:
+        # calendar_run() does its own day-resolution (today/tomorrow/a
+        # weekday name) straight out of the raw message text. It's shared
+        # with Bill's own chat, where "Your calendar" is correct -- reworded
+        # to third person here since it'd otherwise read as if it were the
+        # team member's own calendar.
+        reply = calendar_run(text)
+        return reply.replace("Your calendar", "Dr. Bill's calendar", 1).replace(
+            "Nothing on your calendar", "Nothing on Dr. Bill's calendar", 1
+        )
+    except Exception as exc:
+        log.error("Team calendar lookup failed: %s", exc)
+        return "I couldn't reach the calendar right now — try again in a moment."
+
+
+# Keyword -> ("section", "metric_label") in engagement_sheet_metrics, or the
+# sentinel "top_pages" for the multi-row Top Page Views case. Covers every
+# section of the Catalyst Tracking Sheet (per Bill's 2026-09-01 "access all
+# available data from that sheet" follow-up to the original web-diagnostics
+# ask): E Mails/Website, Aquisitions, Top Page Views, Social Media, and
+# Catalyt App Engagement (sic on both -- matched as-is from the sheet, see
+# jobs/analytics/sheet_import.py). Checked longest-keyword-first so a
+# specific phrase ("new web users") wins over a shorter one it contains
+# ("web users").
+_WEB_METRIC_KEYWORDS: dict[str, tuple[str, str] | str] = {
+    "top page": "top_pages",
+    "top pages": "top_pages",
+    "most visited page": "top_pages",
+    "most viewed page": "top_pages",
+    "popular page": "top_pages",
+    "new web user": ("E Mails/Website", "New Web Users"),
+    "new visitor": ("E Mails/Website", "New Web Users"),
+    "active web user": ("E Mails/Website", "Active Web Users"),
+    "website traffic": ("E Mails/Website", "Active Web Users"),
+    "site traffic": ("E Mails/Website", "Active Web Users"),
+    "web user": ("E Mails/Website", "Active Web Users"),
+    "engagement time": ("E Mails/Website", "Avg Engagement Time (sec)"),
+    "time on site": ("E Mails/Website", "Avg Engagement Time (sec)"),
+    "event count": ("E Mails/Website", "Event Count"),
+    "website events": ("E Mails/Website", "Event Count"),
+    "email campaign": ("E Mails/Website", "Email Campaigns Sent"),
+    "emails opened": ("E Mails/Website", "Emails Opened"),
+    "email open": ("E Mails/Website", "Emails Opened"),
+    "email link": ("E Mails/Website", "Email Links Clicked"),
+    "email click": ("E Mails/Website", "Email Links Clicked"),
+    "total emails sent": ("E Mails/Website", "Total Emails Sent"),
+    "emails sent": ("E Mails/Website", "Total Emails Sent"),
+    "emails did we send": ("E Mails/Website", "Total Emails Sent"),
+    "direct link": ("Aquisitions", "Direct Link"),
+    "direct traffic": ("Aquisitions", "Direct Link"),
+    "organic search": ("Aquisitions", "Organic Search"),
+    "search traffic": ("Aquisitions", "Organic Search"),
+    "social referral": ("Aquisitions", "Social/Referrals"),
+    "referral traffic": ("Aquisitions", "Social/Referrals"),
+    "facebook post likes": ("Social Media", "Facebook Post Likes"),
+    "facebook likes": ("Social Media", "Facebook Post Likes"),
+    "likes on facebook": ("Social Media", "Facebook Post Likes"),
+    "facebook post shares": ("Social Media", "Facebook Post Shares"),
+    "facebook shares": ("Social Media", "Facebook Post Shares"),
+    "shares on facebook": ("Social Media", "Facebook Post Shares"),
+    "facebook followers": ("Social Media", "Facebook Followers"),
+    "total facebook posts": ("Social Media", "Total Facebook Posts"),
+    "instagram post likes": ("Social Media", "Instagram Post Likes"),
+    "instagram likes": ("Social Media", "Instagram Post Likes"),
+    "likes on instagram": ("Social Media", "Instagram Post Likes"),
+    "instagram post shares": ("Social Media", "Instagram Post Shares"),
+    "instagram shares": ("Social Media", "Instagram Post Shares"),
+    "shares on instagram": ("Social Media", "Instagram Post Shares"),
+    "instagram followers": ("Social Media", "Instagram Followers"),
+    "total instagram posts": ("Social Media", "Total Instagram Posts"),
+    "app downloads": ("Catalyt App Engagement", "App Downloads"),
+    "app impressions": ("Catalyt App Engagement", "App Impressions"),
+    "app launches": ("Catalyt App Engagement", "App Launches"),
+}
+_WEB_METRIC_KEYWORDS_BY_LENGTH = sorted(_WEB_METRIC_KEYWORDS, key=len, reverse=True)
+
+
+def _extract_web_metric_lookup(text: str):
+    lowered = text.lower()
+    for kw in _WEB_METRIC_KEYWORDS_BY_LENGTH:
+        if kw in lowered:
+            return _WEB_METRIC_KEYWORDS[kw]
+    return None
+
+
+def _format_web_metric_reply(route) -> str:
+    from jobs.analytics.sheet_import import latest_metric, latest_top_pages
+
+    if route == "top_pages":
+        pages = latest_top_pages()
+        if not pages:
+            return "I don't have any Top Page Views data synced yet."
+        month = pages[0]["month"][:7]
+        lines = [f"Top pages ({month}):"]
+        for i, p in enumerate(pages, start=1):
+            share = f"{p['value_numeric']*100:.0f}%" if p["value_numeric"] is not None else "?"
+            lines.append(f"{i}. {p['value_raw']} — {share}")
+        return "\n".join(lines)
+
+    section, metric_label = route
+    row = latest_metric(section, metric_label)
+    if not row:
+        return f"I don't have any {metric_label} data synced yet."
+    month = row["month"][:7]
+    # value_raw already carries a "%" for percentage metrics (sheet_import.py
+    # parses those into 0-1 floats in value_numeric but keeps the original
+    # "84.00%"-style text in value_raw) -- just show it as entered.
+    return f"{metric_label} for {month}: {row['value_raw']}"
+
+
+def _alert_unanswered_team_question(team_member_name: str, question: str, reply: str) -> None:
+    """Per Bill's 2026-09-01 decision: whenever team-chat can only answer a
+    question generically (TEAM_CHAT_SYSTEM's [NO_ACCESS] tag, stripped by
+    the time this is called), tell Bill so he can judge whether it's worth
+    building a real lookup for -- the same way the phone/address/
+    last-attended and classroom-attendance lookups above started as exactly
+    this kind of ask."""
+    from core.vacation import vacation_gate
+    import requests as _req
+
+    text = (
+        f"\U0001f914 {team_member_name} asked Watson something it could only answer generically:\n\n"
+        f"Q: {question}\n\n"
+        f"Watson's reply: {reply}\n\n"
+        "Worth coding a real lookup for this?"
+    )
+    if vacation_gate("normal", "bot._handle_team_chat", text):
+        return
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        return
+    try:
+        _req.post(
+            f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+            json={"chat_id": TELEGRAM_CHAT_ID, "text": text},
+            timeout=10,
+        )
+    except Exception as exc:
+        log.warning("Failed to alert Bill about an unanswered team question: %s", exc)
+
+
+async def compute_team_chat_reply(name: str, text: str) -> str | None:
+    """Pure (non-Telegram) core of the team-chat path -- shared by the real
+    Telegram handler below and the dashboard's `teamtest:` debug prefix
+    (jobs/dashboard/app.py) so Bill can exercise the exact leader-facing
+    logic without a second Telegram account. Returns None for blank input."""
+    text = _normalize_smart_quotes((text or "").strip())
+    if not text:
+        return None
+    _log_tg('in', text, recipient=name)
+
+    lookup = _extract_team_lookup(text)
+    classroom = _extract_classroom_lookup(text) if not lookup else None
+    calendar = _extract_calendar_lookup(text) if not lookup and not classroom else False
+    web_metric = _extract_web_metric_lookup(text) if not lookup and not classroom and not calendar else None
+    if lookup:
+        person_name, field = lookup
+        reply = await asyncio.to_thread(_format_team_lookup_reply, person_name, field)
+    elif classroom:
+        reply = await asyncio.to_thread(_format_classroom_reply, classroom)
+    elif calendar:
+        reply = await asyncio.to_thread(_format_calendar_reply, text)
+    elif web_metric:
+        reply = await asyncio.to_thread(_format_web_metric_reply, web_metric)
+    else:
+        # Per Bill's 2026-09-02 decisions: attendance, web-traffic, and
+        # contact-info questions should have NOTHING off limits for any
+        # onboarded leader (team member or deacon alike -- both land here
+        # via _handle_text_body), unlike everything else in this function
+        # above (which only answers phrasings it explicitly recognizes).
+        # jobs.analytics.data_chat runs a real read-only query instead of
+        # pattern-matching every possible wording -- only a genuinely
+        # off-topic question (on_topic=False) falls through to the generic
+        # decline-and-alert path below.
+        from jobs.analytics.data_chat import answer_data_question
+        on_topic, dc_reply = await asyncio.to_thread(answer_data_question, text, name)
+        if on_topic:
+            reply = dc_reply
+        else:
+            reply, declined = await asyncio.to_thread(_get_team_reply_sync, text)
+            if declined:
+                await asyncio.to_thread(_alert_unanswered_team_question, name, text, reply)
+
+    _log_tg('out', reply, recipient=name)
+    return reply
+
+
+async def _handle_team_chat(update: Update, name: str, text: str) -> None:
+    reply = await compute_team_chat_reply(name, text)
+    if reply is None:
+        return
+    await update.message.reply_text(reply)
+
+
+async def _try_congregation_data_lookup(text: str) -> str | None:
+    """Mirrors the leader-facing team-chat data path (compute_team_chat_reply,
+    ~line 2450) for Bill's own chat -- person/address/last-attended lookups,
+    classroom attendance, and web/engagement metric questions get a real
+    answer here instead of falling through to general chat, which has no DB
+    access and (per build_prompt's anti-hallucination guard) can only decline
+    with the canned "no record of recent activity" reply. Added 2026-09-03
+    after exactly that happened for "what was the attendance in the toddler
+    class last Sunday"; _extract_team_lookup added same day per Bill's
+    explicit ask -- useful phone/email/address/last-attended lookups while
+    away from his computer, phrased more loosely than the "phone/email/
+    contact/reach/who is" wording _ACTIONABLE_KEYWORDS already routes to the
+    classifier's contact_lookup intent (e.g. "where does X live" / "when did
+    X last attend" carry none of those keywords).
+
+    Deliberately does NOT mirror _extract_calendar_lookup: its third-person
+    "Dr. Bill's calendar" phrasing is built for team members asking about
+    him, not Bill asking about himself, and "calendar"/"schedule" are already
+    in _ACTIONABLE_KEYWORDS, routing to the classifier's calendar_* intents
+    before this function is ever called.
+
+    Returns None if the question isn't a congregation-data question at all --
+    caller falls through to general chat as before."""
+    lookup = _extract_team_lookup(text)
+    if lookup:
+        person_name, field = lookup
+        return await asyncio.to_thread(_format_team_lookup_reply, person_name, field)
+
+    classroom = _extract_classroom_lookup(text)
+    if classroom:
+        return await asyncio.to_thread(_format_classroom_reply, classroom)
+
+    web_metric = _extract_web_metric_lookup(text)
+    if web_metric:
+        return await asyncio.to_thread(_format_web_metric_reply, web_metric)
+
+    from jobs.analytics.data_chat import answer_data_question
+    on_topic, reply = await asyncio.to_thread(answer_data_question, text, "Bill")
+    return reply if on_topic else None
+
+
 async def _handle_general(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str) -> str:
     _possessive = re.search(r"(\w+)'s\s+(?:email|phone|number|contact)", text, re.IGNORECASE)
     if _possessive:
@@ -2066,6 +2618,12 @@ async def _handle_general(update: Update, context: ContextTypes.DEFAULT_TYPE, te
                 _lines.append(f"*{m['name']}* — {_contact}" if _contact else f"*{m['name']}*")
             await update.message.reply_text("\n".join(_lines), parse_mode="Markdown")
             return ""
+
+    _data_reply = await _try_congregation_data_lookup(text)
+    if _data_reply is not None:
+        await update.message.reply_text(_data_reply)
+        return _data_reply
+
     reply = await _get_general_reply(text)
     await update.message.reply_text(reply)
     return reply
@@ -2210,6 +2768,49 @@ async def handle_carrier_callback(update: Update, context: ContextTypes.DEFAULT_
         )
 
 
+async def handle_archive_classify_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Keep/Change buttons on a live 'send to watson' archive notification
+    (sent from jobs/devdispatch/api.py's _notify_archive_classification).
+    Change leaves the pending row open so a plain reply routes through
+    _route_tg_pending_reply's archive_classify branch."""
+    query = update.callback_query
+    await query.answer()
+
+    if not _is_authorized(update):
+        return
+
+    data = query.data
+    pending_id = int(data.split(":")[1])
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT id, payload FROM tg_pending_actions WHERE id=? AND status='pending'",
+            (pending_id,),
+        ).fetchone()
+
+    if not row:
+        await query.edit_message_text("⚠️ Action expired or already resolved.", reply_markup=None)
+        return
+
+    import json as _json
+    payload = _json.loads(row["payload"])
+
+    if data.startswith("arch_keep:"):
+        from jobs.telegram.pending import mark_done
+        mark_done(pending_id)
+        await query.edit_message_text(
+            f"✅ Kept — filed under *{payload['project']}*: _{payload['title']}_",
+            reply_markup=None, parse_mode="Markdown",
+        )
+        return
+
+    await query.edit_message_text(
+        f"Currently filed under *{payload['project']}*: _{payload['title']}_\n\n"
+        "Reply to this message with the project name to file it under "
+        "(an existing slug moves it there; a new name creates that project).",
+        reply_markup=None, parse_mode="Markdown",
+    )
+
+
 async def _route_tg_pending_reply(
     update: Update, context: ContextTypes.DEFAULT_TYPE, text: str, tg_pending: dict
 ) -> bool:
@@ -2254,6 +2855,24 @@ async def _route_tg_pending_reply(
         from jobs.pastoral_notes.handler import handle_notes_reply
         await handle_notes_reply(text)
         mark_done(pending_id)
+        return True
+
+    if action_type == "archive_classify":
+        archive_id = payload.get("archive_id")
+        new_project = text.strip()
+        if not new_project:
+            await update.message.reply_text("Send a project name to file this under.")
+            return True
+        from jobs.session_archives.storage import reclassify_archive
+        result = await asyncio.to_thread(reclassify_archive, archive_id, new_project)
+        if result.get("error"):
+            await update.message.reply_text(f"❌ {result['error']}")
+            return True
+        mark_done(pending_id)
+        note = "moved" if result.get("moved") else result.get("reason", "unchanged")
+        await update.message.reply_text(
+            f"✅ Filed under *{result['project']}* ({note}).", parse_mode="Markdown"
+        )
         return True
 
     if action_type == "curator_edit":
@@ -2333,41 +2952,6 @@ async def _route_tg_pending_reply(
             return True
         return False
 
-    if action_type == "gutenberg_select":
-        candidates = payload.get("candidates", [])
-        if text_lower in ("cancel", "no", "never mind"):
-            mark_cancelled(pending_id)
-            await update.message.reply_text("Cancelled.")
-            return True
-        try:
-            choice = int(text_lower)
-        except ValueError:
-            await update.message.reply_text(
-                f"Reply with a number 1-{len(candidates)} to select, or 'cancel' to stop."
-            )
-            return True
-        if choice < 1 or choice > len(candidates):
-            await update.message.reply_text(f"Pick a number between 1 and {len(candidates)}.")
-            return True
-        book = candidates[choice - 1]
-        await update.message.reply_text(f"Downloading and ingesting: {book['title']}...")
-        from jobs.research.gutenberg import download_and_ingest
-        result = await asyncio.to_thread(download_and_ingest, book["id"])
-        if not result["ok"]:
-            await update.message.reply_text(f"Ingestion failed: {result['error']}")
-            return True
-        if result["already_ingested"]:
-            await update.message.reply_text(
-                f"'{result['title']}' is already in the classics knowledge base."
-            )
-        else:
-            await update.message.reply_text(
-                f"✅ Added '{result['title']}' to the classics knowledge base — "
-                f"{result['chunks_added']} chunks."
-            )
-        mark_done(pending_id)
-        return True
-
     if action_type == "forward_medium_clarify":
         name = payload.get("name")
         mode = payload.get("mode")
@@ -2419,9 +3003,88 @@ async def _execute_pending(update: Update, context: ContextTypes.DEFAULT_TYPE, p
 
     if action_type not in (
         "block_time", "book_appointment", "calendar_busy", "task_done",
-        "reminder_create", "task_create",
+        "reminder_create", "task_create", "trading_variant_approve",
+        "trading_holdout_test_approve", "trading_batch_approve",
+        "trading_holdout_batch_approve",
     ):
         await update.message.reply_text("I don't know how to execute that action.")
+        return
+
+    if action_type == "trading_holdout_batch_approve":
+        strategy_ids = params["strategy_ids"]
+        try:
+            # Same atomic-claim + no-mid-flight-pending-row reasoning as
+            # trading_batch_approve below.
+            if not pending_module.confirm_pending(pending_id):
+                return
+            from jobs.trading.evaluate import run_holdout_batch, format_holdout_batch_report
+            results = await asyncio.to_thread(run_holdout_batch, strategy_ids)
+            await update.message.reply_text(format_holdout_batch_report(results))
+        except Exception as exc:
+            log.error("Trading holdout batch failed: %s", exc)
+            await update.message.reply_text(f"Error running holdout batch: {exc}")
+        return
+
+    if action_type == "trading_batch_approve":
+        n = params["n"]
+        try:
+            # Same atomic-claim reasoning as trading_variant_approve below —
+            # but unlike single-variant mode, batch mode never creates a new
+            # pending_actions row mid-flight (the whole batch is one call),
+            # so there's no freshly-minted row for a redundant routing-layer
+            # re-entry to latch onto even if one occurs. This is why batch
+            # mode should not be able to reproduce single-variant mode's
+            # duplicate-advance bug, though the bug's exact trigger in
+            # bot.py's overlapping routing layers is still not fully
+            # root-caused — worth real investigation if this resurfaces.
+            if not pending_module.confirm_pending(pending_id):
+                return
+            from jobs.trading.iteration_loop import run_batch_and_report
+            reply = await asyncio.to_thread(run_batch_and_report, n)
+            await update.message.reply_text(reply)
+        except Exception as exc:
+            log.error("Trading batch run failed: %s", exc)
+            await update.message.reply_text(f"Error running trading batch: {exc}")
+        return
+
+    if action_type == "trading_variant_approve":
+        family = params["family"]
+        try:
+            # confirm_pending() is now an atomic claim — bot.py has multiple
+            # overlapping routing layers that can independently re-enter this
+            # dispatcher for what a human sent as a single YES (confirmed
+            # live: a single reply walked an entire strategy grid to
+            # exhaustion, twice, via this exact mechanism). Only the call
+            # that actually flips this specific pending_id from 'pending' to
+            # 'confirmed' gets a non-None result back; any later/redundant
+            # re-entry for the same event is a no-op here, not another
+            # advance keyed off "whatever is now the latest pending row."
+            if not pending_module.confirm_pending(pending_id):
+                return
+            from jobs.trading.iteration_loop import propose_and_run_next
+            # Backtesting runs real CPU work — must not block the event loop,
+            # same rule as the Ollama-async convention elsewhere in this file.
+            reply = await asyncio.to_thread(propose_and_run_next, family, chat_id=update.effective_chat.id)
+            await update.message.reply_text(reply)
+        except Exception as exc:
+            log.error("Trading variant advance failed: %s", exc)
+            await update.message.reply_text(f"Error advancing trading iteration: {exc}")
+        return
+
+    if action_type == "trading_holdout_test_approve":
+        strategy_id = params["strategy_id"]
+        try:
+            # Same atomic-claim reasoning as trading_variant_approve above.
+            if not pending_module.confirm_pending(pending_id):
+                return
+            from jobs.trading.evaluate import run_holdout_test, format_holdout_result
+            # Same event-loop-blocking risk as trading_variant_approve above —
+            # this runs 3 real backtests (one per holdout window) synchronously.
+            result = await asyncio.to_thread(run_holdout_test, strategy_id)
+            await update.message.reply_text(format_holdout_result(result))
+        except Exception as exc:
+            log.error("Trading holdout test failed: %s", exc)
+            await update.message.reply_text(f"Error running holdout test: {exc}")
         return
 
     if action_type == "reminder_create":
@@ -2582,9 +3245,33 @@ async def handle_reject(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    payload = context.args[0] if context.args else ""
+
+    # Leader onboarding: a /start deep link carrying a live claim code has to
+    # work from a chat_id that isn't Bill's, so this check must run before
+    # (and bypass) the _is_authorized gate below -- every other case (no
+    # payload, garbage, or one of the reject_/share_/email_/savelater_
+    # payloads below) falls straight through unchanged, so a stranger
+    # sending /start still gets exactly today's silence.
+    if payload:
+        with get_connection() as conn:
+            claimant = conn.execute(
+                "SELECT id, name FROM people WHERE telegram_claim_code = ?", (payload,)
+            ).fetchone()
+            if claimant:
+                conn.execute(
+                    "UPDATE people SET telegram_chat_id = ?, telegram_claim_code = NULL "
+                    "WHERE id = ?",
+                    (str(update.effective_chat.id), claimant["id"]),
+                )
+        if claimant:
+            confirm_text = "You're connected to Watson, Dr. Bill's digital assistant."
+            await update.message.reply_text(confirm_text)
+            _log_tg('out', confirm_text, recipient=claimant["name"])
+            return
+
     if not _is_authorized(update):
         return
-    payload = context.args[0] if context.args else ""
     if payload.startswith("reject_") and payload[7:].isdigit():
         await _send_reject_keyboard(update, int(payload[7:]))
     elif payload.startswith("share_") and payload[6:].isdigit():
@@ -3660,6 +4347,40 @@ async def handle_adelphos_callback(update: Update, context: ContextTypes.DEFAULT
         await query.edit_message_text(f"{query.message.text}\n\n✅ Allowed to stay", reply_markup=None)
 
 
+async def handle_tool_deploy_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """tool_deploy_yes:<category>:<slug> / tool_deploy_no:<category>:<slug> —
+    wtsn.me public-tools first-deploy go-live confirm, sent by
+    jobs.tools.registry.request_first_deploy(). Button-based per Bill's
+    preference (2026-08-28), matching the Adelphos alert pattern above —
+    supersedes the earlier typed YES/NO pending_actions flow for this gate.
+    callback_data carries category:slug directly, so there's no separate
+    pending-state row to look up; the tap acts immediately and is idempotent
+    (checks current status before flipping).
+    """
+    query = update.callback_query
+    await query.answer()
+    if not _is_authorized(update):
+        return
+
+    from jobs.tools.registry import flip_live, get_tool
+
+    _, _, rest = query.data.partition(":")
+    category, _, slug = rest.partition(":")
+
+    if query.data.startswith("tool_deploy_yes:"):
+        tool = await asyncio.to_thread(get_tool, category, slug)
+        if not tool:
+            await query.edit_message_text("Tool not found.", reply_markup=None)
+            return
+        if tool["status"] != "live":
+            await asyncio.to_thread(flip_live, category, slug)
+        await query.edit_message_text(
+            f"{query.message.text}\n\n✅ Live: https://wtsn.me/{category}/{slug}", reply_markup=None
+        )
+    elif query.data.startswith("tool_deploy_no:"):
+        await query.edit_message_text(f"{query.message.text}\n\n🚫 Cancelled — stays draft.", reply_markup=None)
+
+
 async def handle_ask(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not _is_authorized(update):
         return
@@ -3938,6 +4659,33 @@ async def handle_benchmark_callback(update: Update, context: ContextTypes.DEFAUL
         await query.edit_message_text(f"❌ Error: {exc}", reply_markup=None)
 
 
+async def handle_web_benchmark_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle webbench_update: / webbench_ignore: button taps from
+    web_benchmark_check.py — distinct prefix from handle_benchmark_callback's
+    bench_update:/bench_ignore: so the two scans can't collide."""
+    query = update.callback_query
+    await query.answer()
+
+    if not _is_authorized(update):
+        return
+
+    from jobs.research.web_benchmark_check import apply_update, ignore_source
+
+    data = query.data  # e.g. "webbench_update:7" / "webbench_ignore:7"
+    action, id_str = data.split(":", 1)
+    source_id = int(id_str)
+
+    try:
+        result = apply_update(source_id) if action == "webbench_update" else ignore_source(source_id)
+        prefix = "✅" if result["ok"] else "❌"
+        await query.edit_message_text(
+            f"{query.message.text}\n\n{prefix} {result['msg']}", reply_markup=None
+        )
+    except Exception as exc:
+        log.error("web_benchmark callback failed (id=%d action=%s): %s", source_id, action, exc)
+        await query.edit_message_text(f"❌ Error: {exc}", reply_markup=None)
+
+
 async def handle_member_conflict_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle mc_same / mc_diff / mc_update_email / mc_keep_sep / mc_skip button taps."""
     query = update.callback_query
@@ -4136,112 +4884,6 @@ async def handle_batch_update_callback(update: Update, context: ContextTypes.DEF
         await query.edit_message_text("Cancelled.", reply_markup=None)
 
 
-# ── Dev Loop handlers ─────────────────────────────────────────────────────────
-
-async def _handle_devloop(update: Update, context: ContextTypes.DEFAULT_TYPE, description: str) -> None:
-    """Handle `devloop: <description>` — create new project and trigger loop."""
-    import re
-    import threading
-    from jobs.dev_loop.trigger import trigger_dev_loop
-
-    description = description.strip()
-    if not description:
-        await update.message.reply_text("Usage: devloop: <description of what to build>")
-        return
-
-    slug = re.sub(r"[^a-z0-9]+", "-", description.lower())[:32].strip("-")
-    title = description[:60]
-
-    await update.message.reply_text(
-        f"Dev Loop starting\n"
-        f"Slug: {slug}\n"
-        f"Sending to FMSPC…"
-    )
-
-    def _run():
-        result = trigger_dev_loop(slug=slug, title=title, input_type="description", input_text=description)
-        if not result["ok"]:
-            import requests as _rq
-            from core.vacation import vacation_gate
-            fail_text = f"Dev Loop failed to start: {result.get('error')}"
-            token = os.getenv("WATSON_BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
-            chat_id = os.getenv("WATSON_CHAT_ID") or os.getenv("TELEGRAM_CHAT_ID")
-            if token and chat_id and not vacation_gate("system_failure", "bot.bot._handle_devloop", fail_text):
-                try:
-                    _rq.post(
-                        f"https://api.telegram.org/bot{token}/sendMessage",
-                        json={"chat_id": chat_id, "text": fail_text},
-                        timeout=10,
-                    )
-                except Exception:
-                    pass
-
-    threading.Thread(target=_run, daemon=True).start()
-
-
-async def handle_devloop_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle devloop_keep:<slug> and devloop_stop:<slug> inline button callbacks."""
-    import threading
-    query = update.callback_query
-    await query.answer()
-
-    if not _is_authorized(update):
-        return
-
-    data = query.data or ""
-    if data.startswith("devloop_keep:"):
-        slug = data[len("devloop_keep:"):]
-        db_path = os.path.expanduser("~/watson/data/watson.db")
-        try:
-            import sqlite3 as _sq
-            with _sq.connect(db_path) as _c:
-                _c.row_factory = _sq.Row
-                row = _c.execute("SELECT * FROM dev_projects WHERE slug=?", (slug,)).fetchone()
-        except Exception:
-            row = None
-
-        if not row:
-            await query.edit_message_text(f"Project '{slug}' not found.", reply_markup=None)
-            return
-
-        if dict(row).get("status") != "paused":
-            await query.edit_message_text(f"Project '{slug}' is not paused.", reply_markup=None)
-            return
-
-        await query.edit_message_text(
-            f"Dev Loop — RESUMING\n{slug}\n\nExtending by 3 more iterations…",
-            reply_markup=None,
-        )
-
-        row_d = dict(row)
-        def _run():
-            from jobs.dev_loop.trigger import trigger_dev_loop
-            trigger_dev_loop(
-                slug=slug,
-                title=row_d["title"],
-                input_type=row_d["input_type"],
-                input_text=row_d["input_text"],
-                start_iteration=row_d["current_iteration"] + 1,
-                extend_by=3,
-            )
-        threading.Thread(target=_run, daemon=True).start()
-
-    elif data.startswith("devloop_stop:"):
-        slug = data[len("devloop_stop:"):]
-        db_path = os.path.expanduser("~/watson/data/watson.db")
-        try:
-            import sqlite3 as _sq
-            with _sq.connect(db_path) as _c:
-                _c.execute("UPDATE dev_projects SET status='stopped', updated_at=datetime('now') WHERE slug=?", (slug,))
-        except Exception as exc:
-            await query.edit_message_text(f"Failed to stop: {exc}", reply_markup=None)
-            return
-        await query.edit_message_text(
-            f"Dev Loop — STOPPED\n{slug}\n\nStopped. Review code on dashboard.",
-            reply_markup=None,
-        )
-
-
 async def handle_git_sync_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle gs_pull:/gs_skip: button taps from jobs/dev/git_sync.py's needs-decision alerts."""
     query = update.callback_query
@@ -4340,11 +4982,12 @@ def main():
     app.add_handler(CommandHandler("read",        handle_read))
     app.add_handler(CommandHandler("saved",       handle_saved))
     app.add_handler(CommandHandler("ask",         handle_ask))
-    app.add_handler(CallbackQueryHandler(handle_devloop_callback,         pattern=r"^devloop_"))
     app.add_handler(CallbackQueryHandler(handle_git_sync_callback,        pattern=r"^gs_"))
     app.add_handler(CallbackQueryHandler(handle_merge_conflict_callback,  pattern=r"^(merge_old_|merge_new_|skip_|different_)\d+$"))
     app.add_handler(CallbackQueryHandler(handle_adelphos_callback, pattern=r"^adelphos_(delete|confirmdelete|canceldelete|allow)_\d+$"))
+    app.add_handler(CallbackQueryHandler(handle_tool_deploy_callback, pattern=r"^tool_deploy_(yes|no):"))
     app.add_handler(CallbackQueryHandler(handle_benchmark_callback, pattern=r"^bench_(update|ignore):\d+$"))
+    app.add_handler(CallbackQueryHandler(handle_web_benchmark_callback, pattern=r"^webbench_(update|ignore):\d+$"))
     app.add_handler(CallbackQueryHandler(handle_member_conflict_callback, pattern=r"^mc_"))
     app.add_handler(CallbackQueryHandler(handle_batch_update_callback, pattern=r"^bu_"))
     app.add_handler(CallbackQueryHandler(handle_command_callback, pattern=r"^cmd_"))
@@ -4356,14 +4999,22 @@ def main():
     app.add_handler(CallbackQueryHandler(handle_meeting_pattern_callback, pattern=r"^mtp_(approve|reject):"))
     app.add_handler(CallbackQueryHandler(handle_cover_comp_callback, pattern=r"^cvr_(?:approve|regen|reject):"))
     app.add_handler(CallbackQueryHandler(handle_font_suggestion_callback, pattern=r"^fsg_(?:approve|reject):"))
+    app.add_handler(CallbackQueryHandler(handle_trip_callback, pattern=r"^trip_(?:approve|reject):"))
     app.add_handler(CallbackQueryHandler(handle_facebook_image_callback, pattern=r"^fb_img_(?:approve|regen|discard):"))
     app.add_handler(CallbackQueryHandler(handle_facebook_callback, pattern=r"^fb_"))
     # Specific prefix, registered ahead of any future broader "^camp" wildcard
     # (see fb_img_ vs fb_ above — a wildcard registered first would swallow this).
     app.add_handler(CallbackQueryHandler(handle_campaign_callback, pattern=r"^camp_approve:"))
     app.add_handler(CallbackQueryHandler(handle_privacy_callback, pattern=r"^priv_(approve|skip):"))
+    app.add_handler(CallbackQueryHandler(handle_privacy_candidate_callback, pattern=r"^pgcand_(flag|skip):"))
+    # More specific priv_captcha_ prefix, registered ahead of the plainer
+    # ^priv_(approve|skip): pattern above wouldn't actually collide here
+    # (captcha_ready/captcha_cancel don't match approve|skip), but matching
+    # the fb_img_ vs fb_ ordering convention regardless for anyone scanning this list.
+    app.add_handler(CallbackQueryHandler(handle_privacy_captcha_callback, pattern=r"^priv_captcha_(ready|cancel):"))
     app.add_handler(CallbackQueryHandler(handle_email_triage_callback, pattern=r"^et_"))
     app.add_handler(CallbackQueryHandler(handle_carrier_callback, pattern=r"^carrier_"))
+    app.add_handler(CallbackQueryHandler(handle_archive_classify_callback, pattern=r"^arch_(keep|chg):"))
     app.add_handler(CallbackQueryHandler(handle_email_callback, pattern=r"^email_"))
     app.add_handler(CallbackQueryHandler(handle_book_callback, pattern=r"^book_"))
     app.add_handler(CallbackQueryHandler(handle_menu_callback, pattern=r"^menu_"))

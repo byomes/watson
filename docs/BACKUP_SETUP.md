@@ -6,6 +6,20 @@ disaster-recovery replacement for OneDrive (`jobs/backup.py`, unchanged,
 still the offsite leg). Both legs run independently, full scope, from live
 source paths.
 
+**2026-08-22 — now also covers full recreate-from-scratch.** In addition to
+the DBs/config/data below, this leg backs up the full working tree of every
+actively-developed byomes repo on this box (`CODE_REPO_SOURCES` in
+`jobs/backup_local.py` — watson, wcky, watson-admin, watson-ui,
+watson-docs-sync, comms-desk, comms-assets, curator, bodyrec, fms),
+excluding regenerable directories (`node_modules`, `venv`/`.venv`, `.next`,
+`dist`, `build`, `__pycache__`). Because it's a real filesystem backup (not
+just `git push`), this captures uncommitted changes and unpushed
+commits/branches too — a dead Beelink no longer means losing anything that
+never made it to GitHub. `scripts/watson_recover.sh` (see `docs/RECOVERY.md`)
+restores this snapshot generically and re-runs each repo's install step
+(`pip install -r requirements.txt`, `npm install`) automatically — it has no
+hardcoded list of what's backed up, so it stays correct as this scope grows.
+
 The drive is `/mnt/family-storage` — an already-mounted 2TB HDD that also
 serves as family NAS storage. It is **not** dedicated to Watson. Watson's
 data lives in an isolated, permission-locked `watson/` subfolder

@@ -2,6 +2,7 @@ import chromadb
 from chromadb.utils import embedding_functions
 import requests
 import os
+import core.llm_log  # noqa: F401 -- installs Ollama call logging, see core/llm_log.py
 
 CHROMA_PATH = "/home/billyomes/watson/data/chroma"
 COLLECTION_NAME = "sermons"

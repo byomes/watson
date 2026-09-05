@@ -4,6 +4,9 @@ import re
 
 import requests
 
+from core.ollama_lock import BUSY_MESSAGE, ollama_busy
+import core.llm_log  # noqa: F401 -- installs Ollama call logging, see core/llm_log.py
+
 log = logging.getLogger(__name__)
 
 _OLLAMA_URL = "http://localhost:11434/api/generate"
@@ -21,6 +24,12 @@ Rules:
 - "what's my day" or "what's my schedule" or "what do I have" = calendar_query
 - "mark rest of day busy" or "I'm headed to [anywhere]" or "going to [anywhere]" = calendar_busy
 - "what's available" or "when am I free" or "availability" = calendar_availability
+- reflective, opinion-seeking, or advice questions ("what do you think about...", "any thoughts on...",
+  "how should I handle...", "what's your take on...") are ALWAYS general, even when they mention a
+  meeting, a day, a schedule, or something happening tomorrow/yesterday — mentioning a day or a meeting
+  is not the same as asking to check, book, or block the calendar. Only classify as a calendar_* intent
+  when the message is actually asking to check/change the calendar, not asking for an opinion about
+  something that happens to have a day attached to it.
 - "remind me" or "remind me later" or "set a reminder" = reminder_create
 - "add task" or "don't forget" = task_create
 - "what are my tasks" or "what's due" = task_list
@@ -61,12 +70,24 @@ Examples:
 "send an email to John" → {"intent": "general", "params": {}, "confidence": "HIGH"}
 "good morning Watson" → {"intent": "general", "params": {}, "confidence": "HIGH"}
 "hey, what's up" → {"intent": "general", "params": {}, "confidence": "HIGH"}
+"any thoughts on how to handle the deacon meeting tomorrow" → {"intent": "general", "params": {}, "confidence": "HIGH"}
+"what do you think about the sermon outline I sent yesterday" → {"intent": "general", "params": {}, "confidence": "HIGH"}
+"can you summarize what a good small group leader does" → {"intent": "general", "params": {}, "confidence": "HIGH"}
 
 Return ONLY the JSON object. No markdown. No explanation. No other text.
 """
 
 
 def classify(message_text: str, system_prompt: str = "") -> dict:
+    # bug_tracker #118/#121: don't race a contended, single-request-at-a-time
+    # Ollama queue and silently guess "general" on timeout — that's a
+    # hallucination wearing a latency costume. If a long job (audit.py,
+    # build.py, etc.) is holding the busy lock, say so honestly instead.
+    busy = ollama_busy()
+    if busy:
+        log.info("classify() skipped — Ollama busy with %s", busy.get("job"))
+        return {"intent": "busy", "params": {}, "confidence": "HIGH", "message": BUSY_MESSAGE}
+
     prompt = f"{_SYSTEM_PROMPT}\n\nMessage: {message_text}"
     payload: dict = {
         "model": _MODEL,

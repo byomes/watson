@@ -84,14 +84,20 @@ def _get_pending_drafts() -> list:
 
 
 def _get_due_drafts(target_date: str = None) -> list:
-    """Return drafts scheduled for today."""
+    """Return drafts scheduled for today or earlier.
+
+    <= rather than = so a slot missed by a down cron, a transient publish
+    failure, or any other skipped day still gets picked up and retried on
+    the next run instead of being silently stuck forever (bug_tracker #25:
+    draft #19 sat orphaned for 5+ weeks past its scheduled_date).
+    """
     today = target_date or date.today().isoformat()
     with _get_connection() as conn:
         return conn.execute(
             """SELECT id, title, slug, body, scheduled_date
                FROM blog_drafts
-               WHERE status = 'pending' AND scheduled_date = ?
-               ORDER BY id ASC""",
+               WHERE status = 'pending' AND scheduled_date <= ?
+               ORDER BY scheduled_date ASC, id ASC""",
             (today,),
         ).fetchall()
 

@@ -26,6 +26,7 @@ from urllib.parse import quote, urlparse
 import requests
 
 from jobs.research.web_search import search as serper_search
+import core.llm_log  # noqa: F401 -- installs Ollama call logging, see core/llm_log.py
 
 log = logging.getLogger(__name__)
 
@@ -222,9 +223,61 @@ _BOOK_PAGE_HINTS = {
 }
 
 
-def _looks_like_book_page(stype: str, url: str) -> bool:
+_STOPWORDS = {"the", "a", "an", "of", "and", "to", "in", "on", "for", "is", "with"}
+
+
+def _title_words(title: str) -> set[str]:
+    words = re.findall(r"[a-z0-9]+", title.lower())
+    return {w for w in words if w not in _STOPWORDS and len(w) > 2}
+
+
+def _significant_word_overlap(words: set[str], haystack: str) -> bool:
+    """True if at least half of `words` (a title's significant words — see
+    _title_words()) appear in `haystack` — loose enough to survive a source
+    dropping articles/punctuation from its own title text, strict enough to
+    reject a page/record about a different book entirely. Words is expected
+    to already be lowercased/filtered by _title_words(); haystack is
+    lowercased here since callers pass raw text. An empty `words` set can't
+    be checked, so it passes (nothing to contradict)."""
+    if not words:
+        return True
+    haystack = haystack.lower()
+    matched = sum(1 for w in words if w in haystack)
+    return matched >= max(1, len(words) // 2 + len(words) % 2)
+
+
+def _url_matches_title(url: str, title: str) -> bool:
+    """True if the URL's own path plausibly corresponds to this title, not
+    just some other book's page that happens to be book-page-shaped.
+
+    Real case confirmed 2026-09-04: researching "The Hating Game" (Sally
+    Thorne), SpicyBooks has no dedicated page for it — the site search
+    (site:spicybooks.org) only returned trope/spice-level listing pages
+    that merely *mention* it in a "related books" teaser, plus one genuine
+    book page: spicybooks.org/books/beach-read, Emily Henry's book, whose
+    own listing happens to feature The Hating Game as a related read.
+    _looks_like_book_page() only checked URL *shape* ("/books/" present),
+    never whether the URL was actually about the requested book — so that
+    unrelated real book page got selected as "the" SpicyBooks match, and
+    its Beach Read content got attached to The Hating Game's findings."""
+    return _significant_word_overlap(_title_words(title), urlparse(url).path)
+
+
+def _shape_matches_book_page(stype: str, url: str) -> bool:
+    """Pure URL-shape check — does this look like *some* book's dedicated
+    page for this source (vs. a domain root, tropes/category listing,
+    author page, etc.)? Says nothing about whether it's the *right* book —
+    see _url_matches_title() and _looks_like_book_page()."""
     hint = _BOOK_PAGE_HINTS.get(stype)
     return bool(hint) and hint in url
+
+
+def _looks_like_book_page(stype: str, url: str, title: str) -> bool:
+    """Shape *and* title match — this looks like the dedicated page for
+    THIS book specifically, not just a book-page-shaped URL for some other
+    book. Use this (not _shape_matches_book_page alone) when deciding
+    whether a URL should win as "the" source for a book."""
+    return _shape_matches_book_page(stype, url) and _url_matches_title(url, title)
 
 
 def _strip_html(html: str) -> str:
@@ -576,6 +629,14 @@ def _discover_trusted_sources(
         if not cat:
             continue
         name, stype, rank = cat
+        # A book-page-shaped URL for the WRONG book is worse evidence than a
+        # generic category/trope-listing page — it looks authoritative but
+        # its content is about a different book entirely (confirmed real
+        # case 2026-09-04: see _url_matches_title()'s docstring). Skip it
+        # outright rather than let it become "current" via first-seen below,
+        # which doesn't check title match at all.
+        if _shape_matches_book_page(stype, url) and not _url_matches_title(url, title):
+            continue
         current = best_per_category.get(stype)
         # Serper doesn't reliably rank a domain's book-specific page above its
         # homepage/category pages within one query — confirmed 2026-07-21: a
@@ -587,7 +648,7 @@ def _discover_trusted_sources(
         if (
             current is None
             or rank < current[2]
-            or (not _looks_like_book_page(stype, current[1]) and _looks_like_book_page(stype, url))
+            or (not _looks_like_book_page(stype, current[1], title) and _looks_like_book_page(stype, url, title))
         ):
             best_per_category[stype] = (name, url, rank)
 
@@ -643,28 +704,62 @@ def extract_author_from_titles(titles: list[str]) -> str | None:
 
 # ── Amazon / Goodreads: page count, KU, cover, description, series ─────────
 
+_AMAZON_PRODUCT_URL_RE = re.compile(r"/dp/[A-Z0-9]{10}")
+
+
+def _result_matches_title(result: dict, title: str) -> bool:
+    """Same defense as _url_matches_title() (see its docstring for the real
+    SpicyBooks case that motivated this), applied to a search result's own
+    title+snippet text instead of its URL. Needed here specifically because
+    Amazon URLs don't reliably embed the book's title at all — a genuine
+    product page can be a bare /dp/<ASIN> with no title text in the path —
+    so a URL-only check would false-negative on plenty of real matches. The
+    result's own title/snippet (from Serper) carries that signal instead."""
+    haystack = f"{result.get('title', '')} {result.get('snippet', '')}"
+    return _significant_word_overlap(_title_words(title), haystack)
+
+
 def find_amazon_listing(title: str, author: str | None) -> str | None:
+    """Returns the first result that's both a genuine product-page URL (has
+    a real /dp/<ASIN>, not a store/category/search/author page — those were
+    previously accepted outright since the old check was just "amazon.com
+    in url") and plausibly about the requested book (see
+    _result_matches_title()) — not just the first amazon.com URL of any
+    shape for any book."""
     who = f"{title} {author}" if author else title
     for r in serper_search(f"{who} amazon kindle", max_results=5, timeout=_STAGE_A_TIMEOUT):
         url = r.get("url", "")
-        if "amazon.com" in url:
-            return url
+        if "amazon.com" not in url:
+            continue
+        if not _AMAZON_PRODUCT_URL_RE.search(url):
+            continue
+        if not _result_matches_title(r, title):
+            continue
+        return url
     return None
 
 
 def find_goodreads_book_page(title: str, author: str | None) -> str | None:
     """The canonical /book/show/<id>-<slug> page (real og:image/og:description/series
     info) — distinct from search_spice_content's results, which are often review or
-    Q&A subpages that carry only generic site-branding og: tags."""
+    Q&A subpages that carry only generic site-branding og: tags. Also requires the
+    result plausibly be about the requested book (see _result_matches_title()) —
+    a genuinely-shaped book/show page can still be for a different book entirely."""
     who = f"{title} {author}" if author else title
     for r in serper_search(f"{who} goodreads", max_results=5, timeout=_STAGE_A_TIMEOUT):
         url = r.get("url", "")
-        if re.search(r"goodreads\.com/(en/)?book/show/\d+", url) and "/reviews" not in url:
-            return url
+        if not re.search(r"goodreads\.com/(en/)?book/show/\d+", url) or "/reviews" in url:
+            continue
+        if not _result_matches_title(r, title):
+            continue
+        return url
     return None
 
 
 _OPEN_LIBRARY_DESCRIPTION_CAP = 2000
+_OPEN_LIBRARY_CONNECT_TIMEOUT = 3  # see fetch_open_library_description() — bounds
+# the connect phase specifically, since a live reachable API shouldn't take
+# long to accept a TCP connection regardless of what the read side costs.
 
 # Open Library descriptions are community-editable wiki content and can carry
 # injected spam/promotional links — confirmed 2026-07-22: "Beach Read"'s
@@ -704,25 +799,71 @@ def fetch_open_library_description(title: str, author: str | None, timeout: int 
     title alone (confirmed for "The War of the Two Queens": empty-author
     request 500s, real request omitting the param returns a 1,151-char
     synopsis). See research_book_fast()'s retry-after-author-backfill for the
-    other half of this fix."""
+    other half of this fix.
+
+    Two sequential requests (search.json, then <work_key>.json) — `timeout`
+    is a budget for the WHOLE function, not each call independently. Fixed
+    2026-09-04: originally passed `timeout` to both calls unchanged, so a
+    slow-but-not-hung search.json (e.g. 2s) left the second call its own
+    full fresh `timeout` again, making the real worst case up to 2x the
+    caller's intended budget — confirmed live: this stage alone took 7.17s
+    against a nominal 5s Stage A per-source timeout (search.json ~2s, then
+    work_key.json timed out at its own full 5s). The second call now gets
+    whatever's left of the original budget, not a fresh one."""
+    _t_start = time.perf_counter()
     try:
         params: dict = {"title": title, "limit": 1}
         if author:
             params["author"] = author
+        # requests' `timeout=N` (a single scalar) applies separately to the
+        # connect phase AND the read phase — not a combined ceiling — so one
+        # call can itself take up to ~2x N in the worst case (confirmed live:
+        # search.json alone occasionally ran 9s+ against a nominal 5s
+        # budget). A short explicit connect timeout closes that gap: a live,
+        # reachable API shouldn't take long to accept the TCP connection,
+        # whatever the read side ends up costing.
         resp = requests.get(
             "https://openlibrary.org/search.json",
             params=params,
-            timeout=timeout,
+            timeout=(min(_OPEN_LIBRARY_CONNECT_TIMEOUT, timeout), timeout),
         )
         resp.raise_for_status()
         docs = resp.json().get("docs", [])
         if not docs:
             return None
-        work_key = docs[0].get("key")
+        doc = docs[0]
+        # docs[0] isn't necessarily the right book even with limit=1 — Open
+        # Library's own title search ranks by its own signals (edition
+        # count, popularity), not "closest title match": confirmed live
+        # 2026-09-04, an author-less "The Fine Print" search's own top-3
+        # included two entirely different books that merely share the
+        # title. When author is known the search API's own author= filter
+        # already disambiguates well; this check mainly protects the
+        # author=None path this function's own docstring says is common.
+        doc_title = doc.get("title", "")
+        doc_authors = " ".join(doc.get("author_name") or [])
+        if not _significant_word_overlap(_title_words(title), f"{doc_title} {doc_authors}"):
+            log.warning(
+                "Open Library description lookup for %r: top match %r looked like a different book, skipping",
+                title, doc_title,
+            )
+            return None
+        work_key = doc.get("key")
         if not work_key:
             return None
 
-        work_resp = requests.get(f"https://openlibrary.org{work_key}.json", timeout=timeout)
+        remaining = timeout - (time.perf_counter() - _t_start)
+        if remaining < 1:
+            log.warning(
+                "Open Library description lookup for %r: no time budget left "
+                "after search.json (%.2fs elapsed of %ss)", title, timeout - remaining, timeout,
+            )
+            return None
+
+        work_resp = requests.get(
+            f"https://openlibrary.org{work_key}.json",
+            timeout=(min(_OPEN_LIBRARY_CONNECT_TIMEOUT, remaining), remaining),
+        )
         work_resp.raise_for_status()
         desc = work_resp.json().get("description")
         if isinstance(desc, dict):
@@ -1369,9 +1510,13 @@ def _find_romance_io_finding(
         if not cat or cat[1] != "romance_io":
             continue
         name, stype, rank = cat
+        # Same wrong-book-page rejection as _discover_trusted_sources() —
+        # skip a book-page-shaped URL outright if it's for a different book.
+        if _shape_matches_book_page(stype, url) and not _url_matches_title(url, title):
+            continue
         # Same book-page preference as _discover_trusted_sources() — a bare
         # romance.io homepage/category URL shouldn't beat a real book page.
-        if best is None or (not _looks_like_book_page(stype, best[1]) and _looks_like_book_page(stype, url)):
+        if best is None or (not _looks_like_book_page(stype, best[1], title) and _looks_like_book_page(stype, url, title)):
             best = (name, url, rank)
 
     if best is None:

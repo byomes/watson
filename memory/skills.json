@@ -1,6 +1,26 @@
 {
   "skills": [
     {
+      "slug": "romantic_getaway",
+      "name": "Romantic Getaway Finder",
+      "description": "Propose a 3-day romantic getaway (flight + hotel) for Bill and Donna, delivered privately by Telegram DM for approve/reject. Never delivered to any group, Kaci, or Donna.",
+      "category": "Personal",
+      "triggers": [
+        "find us a romantic getaway",
+        "plan a romantic trip",
+        "romantic getaway",
+        "surprise us with a trip",
+        "trip:"
+      ],
+      "module": "jobs.trip.propose",
+      "function": "run",
+      "interfaces": [
+        "telegram",
+        "dashboard"
+      ],
+      "status": "ready"
+    },
+    {
       "slug": "bible_lookup",
       "name": "Bible Lookup",
       "description": "Look up any Bible passage in NIV, CSB, or NASB.",
@@ -187,6 +207,21 @@
       "function": "run",
       "interfaces": [
         "telegram"
+      ],
+      "status": "ready"
+    },
+    {
+      "slug": "kb_export_link",
+      "name": "KB Export Link",
+      "description": "Zip matching KB source files for a query and return a Tailscale-only, expiring, single-use download link.",
+      "category": "Research",
+      "triggers": [
+        "kb export link:"
+      ],
+      "module": "jobs.kb.export_link",
+      "function": "run",
+      "interfaces": [
+        "dashboard"
       ],
       "status": "ready"
     },
@@ -736,6 +771,33 @@
       "status": "disabled"
     },
     {
+      "slug": "calendar_query",
+      "name": "Calendar Query",
+      "description": "Show what's on your Google Calendar for today or a given day.",
+      "category": "Core",
+      "triggers": [
+        "what's on my calendar",
+        "whats on my calendar",
+        "check my calendar",
+        "my schedule",
+        "today's schedule",
+        "todays schedule",
+        "what's my day",
+        "whats my day",
+        "what's my schedule",
+        "whats my schedule",
+        "what do i have today",
+        "what do i have on"
+      ],
+      "module": "jobs.gcal.calendar",
+      "function": "run",
+      "interfaces": [
+        "telegram",
+        "dashboard"
+      ],
+      "status": "ready"
+    },
+    {
       "slug": "book_appointment",
       "name": "Book Appointment",
       "description": "Parses natural language to create a Google Calendar event, optionally drafting a confirmation email if a known contact is mentioned.",
@@ -827,7 +889,7 @@
     {
       "slug": "classics",
       "name": "Classics KB Search",
-      "description": "Query the 'gutenberg' ChromaDB collection (Project Gutenberg texts) with llama3.2:3b synopsis — kept separate from the sermons KB.",
+      "description": "Query the 'gutenberg' ChromaDB collection (Project Gutenberg texts) with llama3.2:3b synopsis \u2014 kept separate from the sermons KB.",
       "category": "Research",
       "triggers": [
         "classics:"
@@ -855,7 +917,103 @@
       ],
       "module": "jobs.skills.image_gen_skill",
       "function": "run",
-      "interfaces": ["telegram", "dashboard"],
+      "interfaces": [
+        "telegram",
+        "dashboard"
+      ],
+      "status": "ready"
+    },
+    {
+      "slug": "list_archives",
+      "name": "List Session Archives",
+      "description": "List recent Claude.ai session archives, optionally filtered by project.",
+      "category": "Archive",
+      "triggers": [
+        "list archives",
+        "list archives:",
+        "show my archives",
+        "recent archives"
+      ],
+      "module": "jobs.session_archives.storage",
+      "function": "list_archives",
+      "interfaces": [
+        "dashboard",
+        "telegram"
+      ],
+      "status": "ready"
+    },
+    {
+      "slug": "search_archives",
+      "name": "Search Session Archives",
+      "description": "Full-text search across archived Claude.ai session transcripts.",
+      "category": "Archive",
+      "triggers": [
+        "search archives:",
+        "search my archives",
+        "find in archives"
+      ],
+      "module": "jobs.session_archives.storage",
+      "function": "search_archives",
+      "interfaces": [
+        "dashboard",
+        "telegram"
+      ],
+      "status": "ready"
+    },
+    {
+      "slug": "get_archive",
+      "name": "Get Session Archive",
+      "description": "Retrieve a single archived session by id \u2014 full transcript and list of attached files, or one file's content if a filename is given.",
+      "category": "Archive",
+      "triggers": [
+        "get archive:",
+        "open archive:",
+        "show archive:"
+      ],
+      "module": "jobs.session_archives.storage",
+      "function": "get_archive",
+      "interfaces": [
+        "dashboard",
+        "telegram"
+      ],
+      "status": "ready"
+    },
+    {
+      "slug": "list_projects",
+      "name": "List Archive Projects",
+      "description": "List every project that has at least one session archive, with archive count and most recent date \u2014 how a cold session discovers what project slugs exist.",
+      "category": "Archive",
+      "triggers": [
+        "list projects",
+        "list archive projects",
+        "what projects do i have archived"
+      ],
+      "module": "jobs.session_archives.storage",
+      "function": "list_projects",
+      "interfaces": [
+        "dashboard",
+        "telegram"
+      ],
+      "status": "ready"
+    },
+    {
+      "slug": "get_project_summary",
+      "name": "Project Archive Summary",
+      "description": "Fast catch-up on a project: the rolling summary of every archived session for it, newest first \u2014 for questions like \"catch me up on Curator\" or \"what is the state of the Kit to Brevo migration\" without reading full transcripts.",
+      "category": "Archive",
+      "triggers": [
+        "project summary:",
+        "get project summary:",
+        "catch me up on",
+        "what is the state of",
+        "what's the state of"
+      ],
+      "module": "jobs.session_archives.storage",
+      "function": "get_project_summary",
+      "interfaces": [
+        "dashboard",
+        "telegram"
+      ],
       "status": "ready"
     }
   ]

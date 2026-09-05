@@ -7,4 +7,7 @@ rclone
 docker.io
 ffmpeg
 git
-tailscale
+cron
+curl
+ca-certificates
+zstd

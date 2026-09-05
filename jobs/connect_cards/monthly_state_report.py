@@ -15,6 +15,16 @@ LLM-narrative-synthesized, with rolling averages, seasonal caveats, and
 benchmark comparisons. This job is monthly and purely quantitative — no LLM
 call.
 
+"Wilmington Headcount — Historical Context" (added 2026-09-01, per Bill):
+this month's average weekly Wilmington headcount from wilmington_headcounts
+(jobs/gsheets/headcount_sync.py, sourced from the Catalyst Count Tracking
+Google Sheet, back to 2023) against this year's YTD average and the same
+calendar month's average across the past 3 years -- separate from the
+existing "Wilmington Headcount Gap" section above it, which measures
+connect-card tracking accuracy (a different question from "is this month
+high or low for us historically"). Averages whichever prior years actually
+have synced data rather than requiring all 3.
+
 Schema used (confirmed via .schema before build):
   attendance:     member_id, service_date, campus — one row per member per
                   Sunday attended. Duplicate (member_id, service_date) rows
@@ -65,6 +75,7 @@ import os
 import re
 from zoneinfo import ZoneInfo
 
+import requests
 from dotenv import load_dotenv
 
 from jobs.connect_cards.reports import _CSS, _wrap, _conn
@@ -73,6 +84,11 @@ from jobs.connect_cards.monthly_engagement_report import (
     _tracking_started_by, _earliest_service_date,
 )
 from jobs.email_job.brevo_send import send_email
+from core.ollama_context import size_num_ctx
+from core.ollama_lock import heavy_ollama_call
+from core.vacation import vacation_gate
+from config.settings import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+import core.llm_log  # noqa: F401 -- installs Ollama call logging, see core/llm_log.py
 
 load_dotenv(os.path.expanduser("~/watson/.env"))
 
@@ -86,6 +102,19 @@ log = logging.getLogger(__name__)
 NY = ZoneInfo("America/New_York")
 
 BILL_EMAIL = os.getenv("BILL_EMAIL", "")
+
+BENCHMARKS_DOC = os.path.expanduser("~/watson/memory/projects/benchmarks.md")
+OLLAMA_URL = "http://localhost:11434/api/generate"
+OLLAMA_MODEL = "qwen2.5:7b"
+# 600s + one retry + a warm-up ping fired before the DB work, same fix and
+# same reasoning as jobs/analytics/monthly_web_engagement_report.py's
+# INTERP_OLLAMA_TIMEOUT (see that file's comment) -- this model isn't kept
+# warm the way jobs/intent/keep_warm.py keeps gemma3:4b warm for live chat,
+# so a cold 4.7GB CPU load eats into the same budget as generation. Fixed
+# there 2026-09-01 after the old 240s timeout silently dropped that
+# report's interpretation section; using the proven value here from the
+# start rather than waiting to hit the same failure.
+OLLAMA_TIMEOUT = 600
 
 _ACTIVE_FILTER = "active = 1 AND (member_status IS NULL OR member_status = 'active')"
 _NON_ACTIVE_STATUSES = ("disconnected", "non_local", "snowbird")
@@ -318,6 +347,60 @@ def _gap_trend_direction(trend: list[tuple[str, float]]) -> str:
     return "Flat"
 
 
+def _headcount_values(conn, start: str, end: str) -> list[int]:
+    return [r[0] for r in conn.execute(
+        "SELECT headcount FROM wilmington_headcounts WHERE date BETWEEN ? AND ?", (start, end),
+    ).fetchall()]
+
+
+def _year_to_date_headcount_avg(conn, year: int, through_month: int) -> tuple[float, int] | None:
+    """Average weekly Wilmington headcount from Jan 1 through the end of
+    `through_month`, same year. None if nothing synced yet."""
+    _, end = _month_bounds(year, through_month)
+    values = _headcount_values(conn, f"{year}-01-01", end)
+    return (sum(values) / len(values), len(values)) if values else None
+
+
+def _three_year_same_month_headcount_avg(conn, year: int, month: int) -> tuple[float, int] | None:
+    """Average weekly Wilmington headcount for this same calendar month
+    across the previous 3 years. Averages whichever of those years actually
+    have synced data rather than requiring all 3 -- headcount_sync.py's
+    earliest tab is 2023, so a report for an early-year month may only have
+    1-2 prior years available yet. None if none of the 3 years have any."""
+    values: list[int] = []
+    years_with_data = 0
+    for offset in (1, 2, 3):
+        y = year - offset
+        start, end = _month_bounds(y, month)
+        year_values = _headcount_values(conn, start, end)
+        if year_values:
+            years_with_data += 1
+            values.extend(year_values)
+    return (sum(values) / len(values), years_with_data) if values else None
+
+
+def _headcount_historical_context(conn, year: int, month: int) -> dict | None:
+    """This month's average weekly Wilmington headcount against YTD (same
+    year) and the same-month average across the past 3 years -- per Bill's
+    2026-09-01 request to give elders multi-year context on the Sheet's
+    real headcount number, on top of the month-over-month gap-tracking
+    above. None if this month itself has no synced headcount data."""
+    start, end = _month_bounds(year, month)
+    this_month_values = _headcount_values(conn, start, end)
+    if not this_month_values:
+        return None
+    ytd = _year_to_date_headcount_avg(conn, year, month)
+    three_year = _three_year_same_month_headcount_avg(conn, year, month)
+    return {
+        "this_month_avg": sum(this_month_values) / len(this_month_values),
+        "weeks": len(this_month_values),
+        "ytd_avg": ytd[0] if ytd else None,
+        "ytd_weeks": ytd[1] if ytd else 0,
+        "three_year_avg": three_year[0] if three_year else None,
+        "three_year_years": three_year[1] if three_year else 0,
+    }
+
+
 # ── New people funnel ────────────────────────────────────────────────────────────
 
 def _first_time_visitor_count(conn, year: int, month: int) -> int:
@@ -373,9 +456,204 @@ def _follow_ups_table_has_data(conn) -> bool:
     return conn.execute("SELECT COUNT(*) FROM follow_ups").fetchone()[0] > 0
 
 
+# ── Elders' framing overview (Ollama synthesis) ─────────────────────────────────
+
+def _load_benchmarks_doc() -> str:
+    try:
+        with open(BENCHMARKS_DOC, "r", encoding="utf-8") as f:
+            return f.read()
+    except Exception as exc:
+        log.warning("benchmarks.md unavailable: %s", exc)
+        return ""
+
+
+def _condensed_state_text(
+    month_label: str, attended_count: int, active_count: int,
+    campus_snapshot: list[tuple[str, int]], non_active: list[tuple[str, int]],
+    headcount_gap: dict | None, six_month_gap: list[tuple[str, float]], gap_direction: str,
+    historical_context: dict | None, tiers: list[dict], movement: dict | None,
+    new_visitors: int, return_rate: tuple[int, int] | None, next_steps_count: int,
+    follow_ups_tracked: bool, six_month: list[tuple[str, float]],
+) -> str:
+    """Plain-text condensation of everything build_report() already computed,
+    fed to the Ollama prompt below -- built directly from the same data
+    dicts/lists used for the HTML sections rather than stripping HTML from
+    them, so there's one source of truth for the numbers and no HTML-artifact
+    risk in what the model reads."""
+    lines = [
+        f"MONTH: {month_label}",
+        f"Active members who attended at least once: {attended_count} of {active_count} active members.",
+    ]
+    if campus_snapshot:
+        lines.append("Campus breakdown: " + ", ".join(f"{name}: {count}" for name, count in campus_snapshot))
+    if non_active:
+        lines.append("Non-active (excluded from active count): " + ", ".join(f"{s}: {c}" for s, c in non_active))
+
+    if headcount_gap:
+        lines.append(
+            f"Wilmington headcount this month: {headcount_gap['actual']} across {headcount_gap['weeks']} "
+            f"synced Sunday(s), vs {headcount_gap['cards']} connect-card-derived attendance for those same "
+            f"Sundays -- gap {headcount_gap['gap']} ({headcount_gap['gap_pct']:.0f}%)."
+        )
+    if len(six_month_gap) >= 2:
+        lines.append(
+            f"Headcount gap trend, last {len(six_month_gap)} synced month(s): {gap_direction} -- "
+            + ", ".join(f"{label}: {pct:.0f}%" for label, pct in six_month_gap)
+        )
+
+    if historical_context:
+        hc = historical_context
+        lines.append(f"Average weekly Wilmington headcount this month: {hc['this_month_avg']:.0f}.")
+        if hc["ytd_avg"] is not None:
+            delta_pct = (hc["this_month_avg"] - hc["ytd_avg"]) / hc["ytd_avg"] * 100 if hc["ytd_avg"] else 0.0
+            lines.append(
+                f"Year-to-date average: {hc['ytd_avg']:.0f} ({hc['ytd_weeks']} Sundays) -- this month is "
+                f"{delta_pct:+.0f}% vs. YTD."
+            )
+        if hc["three_year_avg"] is not None:
+            delta_pct = (hc["this_month_avg"] - hc["three_year_avg"]) / hc["three_year_avg"] * 100 if hc["three_year_avg"] else 0.0
+            lines.append(
+                f"Same calendar month's average across the past {hc['three_year_years']} year(s): "
+                f"{hc['three_year_avg']:.0f} -- this month is {delta_pct:+.0f}% vs. that historical average."
+            )
+        else:
+            lines.append("No prior-year data yet for this calendar month -- no 3-year comparison available.")
+
+    lines.append(
+        "Engagement tiers: " + ", ".join(f"{_TIER_DISPLAY[t['label']]}: {t['count']} ({t['pct']:.0f}%)" for t in tiers)
+    )
+
+    if movement:
+        lines.append(
+            f"Tier movement vs. last month: {movement['up']} moved up a tier, {movement['down']} moved down, "
+            f"{len(movement['new_disengaged'])} newly disengaged after being partially or highly engaged last month."
+        )
+        if movement["new_members"]:
+            lines.append(f"{movement['new_members']} new active member(s) this month (excluded from movement comparison).")
+    else:
+        lines.append("Not enough history yet to compare tier movement to last month.")
+
+    lines.append(f"First-time visitors this month: {new_visitors}.")
+    if return_rate is not None:
+        returned, total = return_rate
+        pct = (returned / total * 100) if total else 0.0
+        lines.append(f"Of {total} first-time visitor(s) from last month, {returned} ({pct:.0f}%) have returned since.")
+
+    lines.append(f"Next-step requests logged this month: {next_steps_count}.")
+    if not follow_ups_tracked:
+        lines.append("No follow-up completion tracking data exists yet (follow_ups table has no records).")
+
+    if six_month:
+        lines.append(
+            "6-month trend, % of active membership Highly Engaged: "
+            + ", ".join(f"{label}: {pct:.0f}%" for label, pct in six_month)
+        )
+
+    return "\n".join(lines)
+
+
+def _warm_up_ollama() -> None:
+    """Best-effort head start on loading qwen2.5:7b, fired before the DB
+    work in build_report() below -- see OLLAMA_TIMEOUT's comment."""
+    try:
+        requests.post(OLLAMA_URL, json={"model": OLLAMA_MODEL, "prompt": "hi", "stream": False}, timeout=30)
+    except Exception as exc:
+        log.info("Ollama warm-up ping failed (non-fatal): %s", exc)
+
+
+def _ollama_synthesis(month_label: str, condensed: str, benchmarks_context: str) -> str | None:
+    prompt = (
+        "You are Watson, AI assistant to Dr. Bill Yomes, Senior Pastor of Catalyst Community Church "
+        "in Wilmington, DE, with both a Wilmington campus and an Online campus. Write the elders' "
+        f"framing overview for the Monthly State of the Church report for {month_label} -- the goal is "
+        "to help the elders read this month's numbers in context, not just see them cold.\n\n"
+        "Reference context -- national church attendance benchmarks and how to apply them (use this to "
+        "judge whether this month's local numbers reflect normal variance, a seasonal pattern, or an "
+        "actual trend for a congregation our size; never quote it verbatim):\n"
+        f"{benchmarks_context or '(no benchmark research logged yet -- proceed without it)'}\n\n"
+        "Write exactly one cohesive 3-4 paragraph pastoral synthesis, following these rules:\n"
+        "a. Anchor every specific claim to a number from THIS MONTH'S DATA below -- no generic "
+        "commentary without a figure behind it.\n"
+        "b. Only use words like 'trend', 'growth', or 'decline' if the data below shows 3 or more "
+        "consecutive months moving the same direction (see the headcount gap trend and 6-month "
+        "engagement trend figures). A single month above or below the YTD or 3-year average is a data "
+        "point, not a trend -- say so plainly if that's the case.\n"
+        "c. Use the YTD and 3-year same-month average comparisons below as the primary local historical "
+        "frame -- that's specifically what distinguishes 'is this month unusual for OUR church' from 'is "
+        "this month unusual nationally'. Address both explicitly, and don't conflate them.\n"
+        "d. If this month falls in a known seasonal window per the benchmarks context (summer, a major "
+        "holiday), lead with that before any other read on the numbers.\n"
+        "e. Report plainly. Only add interpretive language when it's grounded in the benchmarks context "
+        "or a real sustained local pattern above; otherwise describe, don't diagnose.\n"
+        "f. Comment on engagement tier health (the Highly/Partially/Not engaged/Disengaged distribution "
+        "and this month's movement) and note whether the disengaged group is worth pastoral attention, "
+        "without naming individuals -- names are already listed in the Tier Movement section below this "
+        "overview.\n\n"
+        f"THIS MONTH'S DATA:\n{condensed}\n\n"
+        "Do not include a summary paragraph at the end, a 'Watson's Read:' label, or any other label. "
+        "You must respond in English only. Begin writing now:"
+    )
+    for attempt in (1, 2):
+        try:
+            # bug_tracker #118/#121: runs monthly at 3am (see cron), inside this
+            # codebase's established quiet-hours cluster, but keep_warm.py's
+            # every-4-minute cadence has no time-of-day exception -- the busy
+            # lock still matters even here.
+            with heavy_ollama_call("connect_cards.monthly_state_report"):
+                resp = requests.post(
+                    OLLAMA_URL,
+                    json={
+                        "model": OLLAMA_MODEL,
+                        "prompt": prompt,
+                        "stream": False,
+                        # bug_tracker #118: same benchmarks-doc + condensed-data
+                        # pattern as jobs/connect_cards/state_of_church.py, richer
+                        # here (month-over-month history, tier movement) -- sized
+                        # with headroom so it doesn't silently start truncating
+                        # against Ollama's ~4096 default num_ctx.
+                        "options": {"num_ctx": size_num_ctx(prompt)},
+                    },
+                    timeout=OLLAMA_TIMEOUT,
+                )
+                resp.raise_for_status()
+                return resp.json().get("response", "").strip() or None
+        except Exception as exc:
+            log.warning("Ollama synthesis failed (attempt %d/2): %s", attempt, exc)
+    return None
+
+
+def _alert_synthesis_failed(month_label: str) -> None:
+    text = (
+        f"⚠️ Monthly State of the Church ({month_label}): the elders' framing overview failed to "
+        "generate after 2 attempts (Ollama timeout or error) -- the report still sent with the data "
+        "sections intact, just without the synthesis at the top. Check logs/monthly_state_report.log."
+    )
+    log.error(text)
+    if vacation_gate("system_failure", "jobs.connect_cards.monthly_state_report", text):
+        return
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        return
+    try:
+        requests.post(
+            f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+            json={"chat_id": TELEGRAM_CHAT_ID, "text": text},
+            timeout=10,
+        )
+    except Exception as exc:
+        log.warning("Failed to send synthesis-failure Telegram alert: %s", exc)
+
+
+def _render_synthesis_html(text: str) -> str:
+    paragraphs = [p.strip() for p in re.split(r"\n\s*\n", text.strip()) if p.strip()]
+    if not paragraphs:
+        paragraphs = [text.strip()]
+    return "".join(f'<p style="margin:0 0 10px">{p}</p>' for p in paragraphs)
+
+
 # ── Report builder ──────────────────────────────────────────────────────────────
 
 def build_report(year: int, month: int) -> tuple[str, str]:
+    _warm_up_ollama()
     with _conn() as conn:
         earliest = _earliest_service_date(conn)
         month_label = _month_label(year, month)
@@ -396,6 +674,7 @@ def build_report(year: int, month: int) -> tuple[str, str]:
         headcount_gap = _month_headcount_gap(conn, year, month)
         six_month_gap = _six_month_headcount_gap_trend(conn, year, month)
         gap_direction = _gap_trend_direction(six_month_gap)
+        historical_context = _headcount_historical_context(conn, year, month)
 
         new_visitors = _first_time_visitor_count(conn, year, month)
         return_rate = _return_rate(conn, year, month)
@@ -407,6 +686,25 @@ def build_report(year: int, month: int) -> tuple[str, str]:
 
     attended_count = sum(1 for c in cur_counts.values() if c >= 1)
 
+    condensed = _condensed_state_text(
+        month_label=month_label, attended_count=attended_count, active_count=active_count,
+        campus_snapshot=campus_snapshot, non_active=non_active,
+        headcount_gap=headcount_gap, six_month_gap=six_month_gap, gap_direction=gap_direction,
+        historical_context=historical_context, tiers=tiers, movement=movement,
+        new_visitors=new_visitors, return_rate=return_rate, next_steps_count=next_steps_count,
+        follow_ups_tracked=follow_ups_tracked, six_month=six_month,
+    )
+    synthesis = _ollama_synthesis(month_label, condensed, _load_benchmarks_doc())
+    if synthesis:
+        synthesis_html = _render_synthesis_html(synthesis)
+    else:
+        synthesis_html = (
+            "<p class='empty'>Framing overview unavailable this month — Ollama didn't respond in "
+            "time after two attempts. The data below is unaffected; Bill's been alerted to check "
+            "the logs.</p>"
+        )
+        _alert_synthesis_failed(month_label)
+
     body = (
         "<div style='text-align:center;margin:20px 0 28px'>"
         f"<div style='font-size:3em;font-weight:bold;color:#222'>{attended_count} "
@@ -416,7 +714,13 @@ def build_report(year: int, month: int) -> tuple[str, str]:
         "</div>"
     )
 
-    body += "<h2>Population Snapshot</h2>"
+    # Framing overview leads, ahead of the raw data -- same principle as
+    # jobs/analytics/monthly_web_engagement_report.py's 2026-09-01 reorder:
+    # give the elders a read on the numbers before the numbers themselves.
+    body += "<h2>Elders' Framing Overview</h2>" + synthesis_html
+    body += "<h2 style='margin-top:28px;padding-top:14px;border-top:2px solid #ddd'>The Data</h2>"
+
+    body += "<h3 style='margin:14px 0 4px'>Population Snapshot</h3>"
     if campus_snapshot:
         body += "<div style='margin:8px 0 16px'>" + "".join(
             f"<div class='stat-box'><div class='stat'>{count}</div>"
@@ -426,7 +730,7 @@ def build_report(year: int, month: int) -> tuple[str, str]:
     non_active_line = ", ".join(f"{status}: {count}" for status, count in non_active)
     body += f"<p style='color:#888;font-size:.9em'>Non-active (excluded above): {non_active_line}</p>"
 
-    body += "<h2>Wilmington Headcount Gap</h2>"
+    body += "<h3 style='margin:14px 0 4px'>Wilmington Headcount Gap</h3>"
     if headcount_gap is not None:
         body += (
             f"<p>Actual Wilmington headcount this month: <strong>{headcount_gap['actual']}</strong> "
@@ -448,8 +752,44 @@ def build_report(year: int, month: int) -> tuple[str, str]:
     else:
         body += "<p class='empty'>No headcount data synced yet this month.</p>"
 
+    body += "<h3 style='margin:14px 0 4px'>Wilmington Headcount — Historical Context</h3>"
+    if historical_context is not None:
+        hc = historical_context
+        parts = [
+            f"<p>Average weekly Wilmington headcount this month: "
+            f"<strong>{hc['this_month_avg']:.0f}</strong> (across {hc['weeks']} synced Sunday(s)).</p>"
+        ]
+        if hc["ytd_avg"] is not None:
+            delta = hc["this_month_avg"] - hc["ytd_avg"]
+            delta_pct = (delta / hc["ytd_avg"] * 100) if hc["ytd_avg"] else 0.0
+            parts.append(
+                f"<p>Vs. {year} year-to-date average (<strong>{hc['ytd_avg']:.0f}</strong>, "
+                f"{hc['ytd_weeks']} Sunday(s)): "
+                f"<strong>{'+' if delta >= 0 else ''}{delta:.0f}</strong> ({delta_pct:+.0f}%).</p>"
+            )
+        if hc["three_year_avg"] is not None:
+            delta = hc["this_month_avg"] - hc["three_year_avg"]
+            delta_pct = (delta / hc["three_year_avg"] * 100) if hc["three_year_avg"] else 0.0
+            years_note = (
+                f"{hc['three_year_years']} prior year(s)" if hc["three_year_years"] < 3
+                else "the past 3 years"
+            )
+            parts.append(
+                f"<p>Vs. {_month_label(year, month).split()[0]} average across {years_note} "
+                f"(<strong>{hc['three_year_avg']:.0f}</strong>): "
+                f"<strong>{'+' if delta >= 0 else ''}{delta:.0f}</strong> ({delta_pct:+.0f}%).</p>"
+            )
+        else:
+            parts.append(
+                "<p style='color:#888;font-size:.85em'>No prior-year data synced yet for this "
+                "calendar month — 3-year comparison unavailable.</p>"
+            )
+        body += "".join(parts)
+    else:
+        body += "<p class='empty'>No headcount data synced yet this month.</p>"
+
     body += (
-        "<h2>Engagement Tiers</h2>"
+        "<h3 style='margin:14px 0 4px'>Engagement Tiers</h3>"
         "<table><thead><tr><th>Tier</th><th>Members</th><th>% of Active</th></tr></thead><tbody>"
         + "".join(
             f"<tr><td>{_TIER_DISPLAY[t['label']]}</td><td>{t['count']} of {active_count}</td><td>{t['pct']:.0f}%</td></tr>"
@@ -458,7 +798,7 @@ def build_report(year: int, month: int) -> tuple[str, str]:
         + "</tbody></table>"
     )
 
-    body += "<h2>Tier Movement vs. Last Month</h2>"
+    body += "<h3 style='margin:14px 0 4px'>Tier Movement vs. Last Month</h3>"
     if movement is not None:
         new_disengaged = movement["new_disengaged"]
         body += (
@@ -482,7 +822,7 @@ def build_report(year: int, month: int) -> tuple[str, str]:
     else:
         body += "<p class='empty'>Not enough history yet to compare against last month.</p>"
 
-    body += "<h2>New People Funnel</h2>"
+    body += "<h3 style='margin:14px 0 4px'>New People Funnel</h3>"
     body += f"<p>First-time visitors this month: <strong>{new_visitors}</strong></p>"
     if return_rate is not None:
         returned, total = return_rate
@@ -494,7 +834,7 @@ def build_report(year: int, month: int) -> tuple[str, str]:
     else:
         body += "<p class='empty'>No first-time visitors last month to measure a return rate against.</p>"
 
-    body += "<h2>Follow-Up Completion</h2>"
+    body += "<h3 style='margin:14px 0 4px'>Follow-Up Completion</h3>"
     if follow_ups_tracked:
         body += f"<p>{next_steps_count} next-step request(s) logged in {month_label}.</p>"
     else:
@@ -506,7 +846,7 @@ def build_report(year: int, month: int) -> tuple[str, str]:
 
     if six_month:
         body += (
-            "<h2>6-Month Engagement Trend</h2>"
+            "<h3 style='margin:14px 0 4px'>6-Month Engagement Trend</h3>"
             f"<p style='color:#888;font-size:.85em'>% of active membership in the "
             f"{_TIER_DISPLAY['Highly engaged']} tier</p>"
             f"<table><thead><tr><th>Month</th><th>% {_TIER_DISPLAY['Highly engaged']}</th></tr></thead><tbody>"

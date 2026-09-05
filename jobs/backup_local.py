@@ -5,10 +5,21 @@ Fast/versioned local recovery leg — NOT the offsite disaster leg (that's
 jobs/backup.py / OneDrive). Runs independently, full scope, from live source
 paths.
 
-Backs up (consistency-safe snapshots for the four DBs): data/watson.db,
-data/congregation.db, data/donors.db, data/curator.db, data/chroma/,
-config/, .env, memory/, ~/.ssh, ~/.config/rclone/rclone.conf, a crontab
-snapshot
+Backs up:
+  - Consistency-safe snapshots of the four DBs: data/watson.db,
+    data/congregation.db, data/donors.db, data/curator.db
+  - The whole data/ tree (includes data/chroma), config/, .env, memory/,
+    kb/documents — full parity with the OneDrive leg's data coverage,
+    which this leg previously only partially matched (data/chroma only)
+  - ~/.ssh, ~/.config/rclone/rclone.conf, a crontab snapshot
+  - ~/.claude/projects (2026-08-30 addition) — Claude Code's own session
+    memory, not reconstructible from anything else on the box
+  - CODE_REPO_SOURCES: every actively-developed byomes repo on this box
+    (2026-08-22 addition) — full working trees, including uncommitted
+    changes and .git history, so the machine can be recreated from this
+    drive alone even if something was never pushed to GitHub. Excludes
+    node_modules/venv/.next/dist/build/__pycache__ (regenerate via a
+    normal install step on restore, not worth the backup size/time).
 
 ~/.ssh and rclone.conf are intentionally local-only (not part of the
 OneDrive leg, jobs/backup.py) — rclone.conf holds the credential to
@@ -47,12 +58,40 @@ RESTIC_PASSWORD = os.getenv("RESTIC_PASSWORD")
 DB_NAMES = ["watson.db", "congregation.db", "donors.db", "curator.db"]
 
 DIR_SOURCES = [
-    f"{WATSON_DIR}/data/chroma",
+    f"{WATSON_DIR}/data",
     f"{WATSON_DIR}/config",
     f"{WATSON_DIR}/.env",
     f"{WATSON_DIR}/memory",
+    f"{WATSON_DIR}/kb/documents",
     f"{HOME_DIR}/.ssh",
     f"{HOME_DIR}/.config/rclone/rclone.conf",
+    f"{HOME_DIR}/.claude/projects",
+]
+
+# Every actively-developed byomes repo on this box — added 2026-08-22 so a
+# dead Beelink doesn't mean losing anything that was never pushed to GitHub
+# (uncommitted work, unpushed commits/branches, local-only worktrees).
+# Deliberately excludes third-party clones (e.g. gutendex) and known-stale
+# artifacts (old git-filter-repo experiment dirs, aider-test).
+CODE_REPO_SOURCES = [
+    f"{HOME_DIR}/watson",
+    f"{HOME_DIR}/wcky",
+    f"{HOME_DIR}/watson-admin",
+    f"{HOME_DIR}/watson-ui",
+    f"{HOME_DIR}/watson-tools",
+    f"{HOME_DIR}/watson-docs-sync",
+    f"{HOME_DIR}/comms-desk",
+    f"{HOME_DIR}/comms-assets",
+    f"{HOME_DIR}/curator",
+    f"{HOME_DIR}/bodyrec",
+    f"{HOME_DIR}/fms",
+]
+
+# Regenerable via a normal install step on restore (npm/pip install, next
+# build) — excluded to keep the nightly backup fast and small. Matched by
+# restic against any path component, at any depth, in any repo above.
+CODE_EXCLUDES = [
+    "node_modules", "venv", ".venv", ".next", "dist", "build", "__pycache__",
 ]
 
 
@@ -152,11 +191,12 @@ def run_backup():
             db_paths.append(crontab_path)
             log("OK: crontab snapshot")
 
-        sources = db_paths + DIR_SOURCES
+        sources = db_paths + DIR_SOURCES + CODE_REPO_SOURCES
+        exclude_args = [arg for pattern in CODE_EXCLUDES for arg in ("--exclude", pattern)]
 
         log("Running restic backup...")
         result = run_with_retry(
-            ["restic", "-r", RESTIC_REPO, "backup"] + sources,
+            ["restic", "-r", RESTIC_REPO, "backup"] + exclude_args + sources,
             budget_seconds=RETRY_BUDGET_SECONDS,
             description="restic backup",
             log=log,

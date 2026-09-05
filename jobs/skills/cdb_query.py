@@ -5,6 +5,7 @@ from pathlib import Path
 from datetime import date, timedelta
 
 import requests
+import core.llm_log  # noqa: F401 -- installs Ollama call logging, see core/llm_log.py
 
 OLLAMA_URL  = "http://localhost:11434/api/generate"
 MODEL       = "qwen2.5-coder:7b"
@@ -12,7 +13,7 @@ CONG_DB     = Path(__file__).resolve().parents[2] / "data" / "congregation.db"
 MAX_ROWS    = 20
 
 _TABLES = [
-    "members", "connect_cards", "attendance", "follow_ups",
+    "members", "connect_cards", "attendance", "follow_ups", "deacon_notes",
     "prayer_requests", "next_steps", "duplicate_flags",
     "audit_exemptions", "member_conflicts",
 ]

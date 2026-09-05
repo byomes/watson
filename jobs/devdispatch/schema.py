@@ -5,7 +5,7 @@ MCP-Claude-Code-Dispatcher-Spec.md.
 """
 from core.database import get_connection
 
-ALLOWED_REPOS = ("watson", "wcky", "watson-admin", "watson-ui", "fms", "bodyrec")
+ALLOWED_REPOS = ("watson", "wcky", "watson-admin", "watson-ui", "fms", "bodyrec", "watson-tools")
 
 CREATE_JOBS = """
 CREATE TABLE IF NOT EXISTS claude_code_jobs (

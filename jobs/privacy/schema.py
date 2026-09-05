@@ -13,6 +13,7 @@ later out-of-band lookup by message id is needed, and that column sits
 unused on book_launch_sends for the same reason.
 """
 import json
+import sqlite3
 
 from core.database import get_connection
 
@@ -51,16 +52,48 @@ CREATE TABLE IF NOT EXISTS privacy_removals (
     matched_fields    TEXT,
     confidence_score  REAL NOT NULL,
     status            TEXT NOT NULL DEFAULT 'pending'
-                      CHECK(status IN ('pending','approved','submitted','failed','rejected')),
+                      CHECK(status IN ('pending','approved','submitted','unconfirmed','failed','rejected')),
     failure_reason    TEXT,
     submitted_at      TEXT,
     next_rescan_at    TEXT,
+    confirm_attempts  INTEGER NOT NULL DEFAULT 0,
     created_at        TEXT DEFAULT (datetime('now')),
     UNIQUE(person_id, broker_id, matched_url)
 );
 """
 
-ALL_TABLES = [CREATE_BROKERS, CREATE_FAMILY_PROFILES, CREATE_REMOVALS]
+CREATE_CANDIDATES = """
+CREATE TABLE IF NOT EXISTS privacy_broker_candidates (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    domain           TEXT NOT NULL UNIQUE,
+    example_url      TEXT NOT NULL,
+    example_snippet  TEXT,
+    example_person   TEXT,
+    match_count      INTEGER NOT NULL DEFAULT 1,
+    confidence       REAL,
+    status           TEXT NOT NULL DEFAULT 'new' CHECK(status IN ('new','flagged','dismissed')),
+    notified_at      TEXT,
+    first_seen_at    TEXT DEFAULT (datetime('now')),
+    last_seen_at     TEXT DEFAULT (datetime('now'))
+);
+"""
+
+# Coordination point between a long-running jobs/privacy/remove.py subprocess
+# (holds a browser open via jobs/privacy/captcha_assist.py, polls this row)
+# and bot.py's Telegram handler for the "Done, verify"/"Cancel" buttons
+# (writes to this row on a tap) -- same "SQLite as the shared coordination
+# point" pattern the rest of this package already uses (status columns,
+# confirm_attempts, etc.), not a new IPC mechanism.
+CREATE_CAPTCHA_WAITS = """
+CREATE TABLE IF NOT EXISTS privacy_captcha_waits (
+    removal_id  INTEGER PRIMARY KEY REFERENCES privacy_removals(id),
+    status      TEXT NOT NULL DEFAULT 'waiting' CHECK(status IN ('waiting','ready','cancelled')),
+    created_at  TEXT DEFAULT (datetime('now')),
+    resolved_at TEXT
+);
+"""
+
+ALL_TABLES = [CREATE_BROKERS, CREATE_FAMILY_PROFILES, CREATE_REMOVALS, CREATE_CANDIDATES, CREATE_CAPTCHA_WAITS]
 
 # Seed list — the 10 brokers from the spec, live-verified 2026-08-20 (Phase 2
 # of this build: a read-only recon pass per broker's real opt-out page — no
@@ -148,9 +181,16 @@ _SEED_BROKERS = [
             "email_field": "#input_7", "url_field": "#input_12",
             "state_field": "#input_21", "city_field": "#input_11_city", "zip_field": "#input_11_postal",
             "birth_year_field": "#input_15", "submit_button": "#input_2",
-            "note": "Selectors captured for a future manual/semi-manual path per spec "
-                    "— not usable for automated submission while required reCAPTCHA "
-                    "gates the actual submit.",
+            "captcha_assist": True,
+            "note": "Semi-manual path added 2026-09-05 (jobs/privacy/captcha_assist.py): Watson fills "
+                    "every field it has real data for (first/last/email/url/state/city/birth_year), then "
+                    "hands the live page to Bill over a Tailscale-only chrome://inspect mirror to solve "
+                    "the reCAPTCHA and click submit himself -- Watson never clicks submit here. "
+                    "zip_field is deliberately left unfilled: family_profiles has no zip column and "
+                    "nothing invents one; if MyLife's form requires it, that fails visibly in the mirror "
+                    "for Bill to see, not silently. No success_check captured yet -- stays "
+                    "status='unconfirmed' after a real submission until one is observed live and added "
+                    "here, same rule as every other unconfirmed broker.",
         }),
         active=0,
         notes=("CAPTCHA-gated per spec's explicit v1 exclusion rule (2026-08-20 Phase 2). Form itself "
@@ -158,7 +198,12 @@ _SEED_BROKERS = [
                "reCAPTCHA (name='recaptcha_visible') — not automatable in v1. "
                "Selectors saved above for a future manual/semi-manual path. "
                "membersupport@mylife.com is general support, not a confirmed "
-               "dedicated removal channel, so not used as an email fallback."),
+               "dedicated removal channel, so not used as an email fallback. UPDATE 2026-09-05: "
+               "jobs/privacy/captcha_assist.py (Option C) now exists to drive exactly this case -- "
+               "Watson fills the form and hands Bill a live interactive mirror for the CAPTCHA + submit "
+               "click. Kept active=0 pending one real, Bill-present test through that flow (needs a "
+               "human on the other end at the moment it runs, so it wasn't done unattended) -- flip to "
+               "active=1 once that test passes and a real success_check is captured."),
     ),
     dict(
         name="Radaris",
@@ -198,7 +243,15 @@ _SEED_BROKERS = [
                "CAPTCHA exclusion rule, same reason as MyLife/Nuwber — NOT a cannot-verify-success gap "
                "like Whitepages/Spokeo/PeopleConnect. If the reCAPTCHA is ever handled some other way "
                "(a semi-manual path per the spec's own suggestion), the selectors and success check "
-               "above are already known and verified."),
+               "above are already known and verified. UPDATE 2026-09-05: that semi-manual path now "
+               "exists (jobs/privacy/captcha_assist.py, Option C) and Radaris' step-14 success signal "
+               "is exactly the shape check_success() wants — but this broker is deliberately NOT wired "
+               "into it yet. Its own '_reference_only_not_wired_to_submit_wizard' flag above is still "
+               "true: the step-4 branch (name-search vs profile-URL, two different backend endpoints) "
+               "needs to collapse to one deterministic path (the profile-URL path, using matched_url, "
+               "always) before this fits _submit_wizard()'s linear model, and that collapse needs its "
+               "own live re-verification per that function's HARD PRECONDITION — not done this pass, "
+               "left for the next one rather than guessed at."),
     ),
     dict(
         name="Intelius",
@@ -208,13 +261,31 @@ _SEED_BROKERS = [
         form_selectors=json.dumps({
             "email_field": "input[name='login-email']", "consent_checkbox": "input[name='consent']",
             "submit_button": "form button[type='submit']",
+            "error_check": {"type": "text", "value": "Something went wrong"},
             "note": "PeopleConnect's shared suppression tool (also covers "
                     "TruthFinder/USSearch/InstantCheckmate) — Step 1 (email+consent) "
                     "only; verification-link continuation to further name/address "
                     "fields was not reached.",
         }),
         active=0,
-        notes=("BLOCKING DECISION -> defaulted inactive, re-investigated 2026-08-20 (project_backlog "
+        notes=("UPDATE 2026-09-05: briefly reactivated this pass, then reverted after a real, authorized "
+               "live submission (via USSearch, PeopleConnect's shared tool) proved the ORIGINAL "
+               "2026-08-20 assessment below wrong: that assessment was based on reading this page's own "
+               "static marketing copy (\"you will receive a verification email\"), never an actual "
+               "submission attempt. A real submission today shows a literal on-page \"Something went "
+               "wrong, please try again\" after the real POST to suppression-api.peopleconnect.us/v1/users "
+               "— confirmed via network monitoring that Cloudflare's invisible challenge-platform JS "
+               "(bot-management fingerprinting, no visible CAPTCHA) loads on this page, and the backend "
+               "rejects the automated request. No confirmation email ever arrived (checked Inbox/Spam/All "
+               "Mail directly). Same practical category as every other CAPTCHA-gated broker — just a "
+               "different, invisible mechanism instead of a visible challenge — not the 'cannot verify "
+               "without a real submission' gap this row previously described. jobs/privacy/confirm.py's "
+               "wiring stays unused for this broker until/unless that bot-management gate is addressed "
+               "some other way; form_selectors.error_check now stops _submit_form() from silently "
+               "reporting this as an unverified-but-maybe-real submission (see remove.py). Original "
+               "2026-08-20 finding kept below for history — was wrong on the specific 'no CAPTCHA' claim, "
+               "right that this needed real verification before trusting it.\n\n"
+               "BLOCKING DECISION -> defaulted inactive, re-investigated 2026-08-20 (project_backlog "
                "id=38, feature/privacy-guard-wizard). Re-confirmed directly from the page's own static "
                "copy (no submission needed): \"Upon submission of your email address you will receive a "
                "verification email with a link to proceed.\" Step 1's submit already sends a real email — "
@@ -249,12 +320,19 @@ _SEED_BROKERS = [
         form_selectors=json.dumps({
             "email_field": "input[name='login-email']", "consent_checkbox": "input[name='consent']",
             "submit_button": "form button[type='submit']",
+            "error_check": {"type": "text", "value": "Something went wrong"},
             "note": "PeopleConnect's shared suppression tool (also covers "
                     "Intelius/USSearch/InstantCheckmate) — Step 1 (email+consent) "
                     "only; further steps not reached.",
         }),
         active=0,
-        notes=("BLOCKING DECISION -> defaulted inactive, re-investigated 2026-08-20 (project_backlog "
+        notes=("UPDATE 2026-09-05: same corrected finding as Intelius (see that row's notes) — a real "
+               "live submission (via USSearch, the shared PeopleConnect tool) got a literal 'Something "
+               "went wrong' error from an invisible Cloudflare bot-management gate, not the clean email "
+               "flow the 2026-08-20 assessment assumed from page copy alone. Stays active=0. "
+               "form_selectors.error_check added so a future attempt fails loudly instead of silently "
+               "landing as unconfirmed. Original 2026-08-20 finding kept below for history.\n\n"
+               "BLOCKING DECISION -> defaulted inactive, re-investigated 2026-08-20 (project_backlog "
                "id=38). Same PeopleConnect suppression flow as Intelius — step 1's email submit already "
                "sends a real verification email (re-confirmed directly from the page's own copy, not "
                "guessed), so step 2+ and any genuine success signal are unreachable without triggering "
@@ -270,12 +348,28 @@ _SEED_BROKERS = [
         form_selectors=json.dumps({
             "email_field": "input[name='login-email']", "consent_checkbox": "input[name='consent']",
             "submit_button": "form button[type='submit']",
+            "error_check": {"type": "text", "value": "Something went wrong"},
             "note": "PeopleConnect's shared suppression tool (also covers "
                     "Intelius/TruthFinder/InstantCheckmate) — Step 1 (email+consent) "
                     "only; further steps not reached.",
         }),
         active=0,
-        notes=("BLOCKING DECISION -> defaulted inactive, re-investigated 2026-08-20 (project_backlog "
+        notes=("UPDATE 2026-09-05: this is the broker a real, authorized live submission was made against "
+               "this pass (removal id=6, Melanie, via jobs/privacy/remove.py, 2026-09-05 ~11:57 UTC), "
+               "attempting to finish what an earlier 2026-08-20 submission against this same broker left "
+               "'unconfirmed'. The real submission got a literal on-page 'Something went wrong, please "
+               "try again' — confirmed via network monitoring that this page loads Cloudflare's invisible "
+               "challenge-platform JS (bot-management fingerprinting, no visible CAPTCHA) and the real "
+               "POST to suppression-api.peopleconnect.us/v1/users gets rejected. No confirmation email "
+               "ever arrived (checked Inbox/Spam/All Mail directly, 15+ min). The 2026-08-20 assessment "
+               "below ('step 1's email submit already sends a real verification email') was based on the "
+               "page's own marketing copy, never an actual submission — today's real one shows that "
+               "assumption was wrong: this is CAPTCHA-gated in practice, just invisibly. removal id=6 "
+               "corrected to status='failed' with this real reason (see bug_tracker). Stays active=0. "
+               "form_selectors.error_check added so this failure mode is caught loudly going forward "
+               "instead of landing as an ambiguous 'unconfirmed'. Original 2026-08-20 finding kept below "
+               "for history.\n\n"
+               "BLOCKING DECISION -> defaulted inactive, re-investigated 2026-08-20 (project_backlog "
                "id=38). Same PeopleConnect suppression flow as Intelius — step 1's email submit already "
                "sends a real verification email (re-confirmed directly from the page's own copy, not "
                "guessed), so step 2+ and any genuine success signal are unreachable without triggering "
@@ -299,6 +393,37 @@ _SEED_BROKERS = [
 ]
 
 
+def _migrate_removals_status_check(conn) -> None:
+    """The fix/privacy-guard-unconfirmed-status merge (2026-08-21) added
+    'unconfirmed' to privacy_removals' status CHECK constraint in
+    CREATE_REMOVALS above, but CREATE TABLE IF NOT EXISTS never re-applies
+    a changed CHECK to a table that already exists -- SQLite has no ALTER
+    TABLE for constraints, only a full rebuild. Without this, the very
+    first _mark_unconfirmed() call (jobs/privacy/remove.py) or Privacy
+    Guard confirm.py attempt-tracking UPDATE would raise IntegrityError
+    instead of landing, silently breaking backlog id=37's fix. Detected via
+    sqlite_master.sql (not assumed), so the rebuild runs at most once, and
+    only after confirm_attempts has already been added (see the ALTER
+    TABLE ADD COLUMN above this call in create_tables) so the copy below
+    can rely on that column existing."""
+    row = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='privacy_removals'"
+    ).fetchone()
+    if row is None or "'unconfirmed'" in row[0]:
+        return  # table doesn't exist yet, or already has the fixed constraint
+    conn.execute("ALTER TABLE privacy_removals RENAME TO privacy_removals_old")
+    conn.execute(CREATE_REMOVALS)
+    conn.execute(
+        """INSERT INTO privacy_removals
+           (id, person_id, broker_id, matched_url, matched_fields, confidence_score,
+            status, failure_reason, submitted_at, next_rescan_at, confirm_attempts, created_at)
+           SELECT id, person_id, broker_id, matched_url, matched_fields, confidence_score,
+                  status, failure_reason, submitted_at, next_rescan_at, confirm_attempts, created_at
+           FROM privacy_removals_old"""
+    )
+    conn.execute("DROP TABLE privacy_removals_old")
+
+
 def seed_brokers(conn) -> None:
     for b in _SEED_BROKERS:
         conn.execute(
@@ -319,6 +444,25 @@ def create_tables(conn=None) -> None:
     try:
         for stmt in ALL_TABLES:
             conn.execute(stmt)
+        try:
+            conn.execute(
+                "ALTER TABLE privacy_removals ADD COLUMN confirm_attempts INTEGER NOT NULL DEFAULT 0"
+            )
+        except sqlite3.OperationalError:
+            pass  # column already exists (pre-2026-08-21 databases)
+        # jobs/privacy/email_ack.py (2026-09-05): a non-verifiable-shape reply
+        # from an opt_out_method='email' broker (e.g. BeenVerified) never
+        # auto-upgrades status -- it just records the reply for Bill to read,
+        # same "no silent pass" rule as everywhere else in this package.
+        for ddl in (
+            "ALTER TABLE privacy_removals ADD COLUMN ack_received_at TEXT",
+            "ALTER TABLE privacy_removals ADD COLUMN ack_snippet TEXT",
+        ):
+            try:
+                conn.execute(ddl)
+            except sqlite3.OperationalError:
+                pass  # column already exists
+        _migrate_removals_status_check(conn)
         seed_brokers(conn)
         conn.commit()
     finally:

@@ -13,7 +13,11 @@ from pathlib import Path
 import requests
 from dotenv import load_dotenv
 
+from core.claude_tier import call_claude
+from core.ollama_context import size_num_ctx
+from core.ollama_lock import heavy_ollama_call
 from core.vacation import vacation_gate
+import core.llm_log  # noqa: F401 -- installs Ollama call logging, see core/llm_log.py
 
 load_dotenv()
 
@@ -23,7 +27,15 @@ DATA_DIR = REPO / "data"
 AUDIT_FILE = DATA_DIR / "skill_audit.json"
 DB_PATH = Path(os.getenv("WATSON_DB", str(DATA_DIR / "watson.db")))
 OLLAMA_URL = "http://localhost:11434/api/generate"
-OLLAMA_MODEL = "qwen2.5:7b"
+# qwen3:8b, not qwen2.5:7b -- routed 2026-09-03 per model qualification testing.
+# PROVISIONAL: based on n=1 real-prompt comparison (post-bug#118-fix, one clean
+# run) -- see watson-review/context/2026-09-03-reasoning-comparison-skill-audit.md.
+# A second real audit run should be spot-checked against the fabrication-check
+# protocol (cross-reference every claimed gap against the actual skills.json)
+# before this is considered fully confirmed, not just provisionally routed.
+# think:false is a HARD requirement, not a default -- see jobs/memory/reflect.py's
+# matching comment; every qwen3:8b call site must set it.
+OLLAMA_MODEL = "qwen3:8b"
 
 log = logging.getLogger(__name__)
 
@@ -82,21 +94,131 @@ def _ensure_gaps_table(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
-def _call_ollama(prompt: str) -> str:
-    resp = requests.post(
-        OLLAMA_URL,
-        json={"model": OLLAMA_MODEL, "prompt": prompt, "stream": False},
-        timeout=120,
-    )
+# bug_tracker #118/#121: sending all ~43 skills (in full, verbose JSON) in one
+# ~9-10k token call took 734-975s real wall time, long enough to starve the
+# live intent classifier even with the busy lock honestly degrading it (the
+# lock fixes the WRONG-ANSWER risk; it doesn't shrink the actual blocking
+# window). Two changes here shrink that window directly:
+#   1. A compact "slug: description" skill format instead of the full
+#      verbose JSON (triggers/module/function/interfaces/status) — the bulk
+#      of the original prompt's size, most of it not needed for gap analysis.
+#   2. True batching across several small Ollama calls, chained via Ollama's
+#      `context` field so each later call only pays prefill for its own NEW
+#      content instead of re-processing everything seen so far (verified
+#      empirically 2026-09-03: a chained call with 38 new tokens took 4s vs.
+#      3043 fresh tokens taking 202s) — the final synthesis call ends up with
+#      full awareness of every skill across all batches without re-sending
+#      the skill list a second time.
+_BATCH_SIZE = 15
+
+
+def _compact_skill_line(skill: dict) -> str:
+    return f"- {skill.get('slug', '?')}: {skill.get('description', '')}"
+
+
+def _call_ollama_step(prompt: str, context: list | None, num_predict: int, num_ctx: int) -> tuple[str, list]:
+    """One step in a context-chained Ollama conversation. Returns (response_text, new_context)."""
+    payload = {
+        "model": OLLAMA_MODEL,
+        "prompt": prompt,
+        "stream": False,
+        "think": False,  # hard requirement for qwen3:8b -- see OLLAMA_MODEL comment
+        "options": {"num_predict": num_predict, "num_ctx": num_ctx},
+    }
+    if context is not None:
+        payload["context"] = context
+    resp = requests.post(OLLAMA_URL, json=payload, timeout=600)
     resp.raise_for_status()
-    return resp.json().get("response", "").strip()
+    data = resp.json()
+    return (data.get("response") or "").strip(), data.get("context")
+
+
+def _run_batched_capability_audit(
+    skills: list, projects: str, recent_sessions: str, research_excerpt: str
+) -> str:
+    batches = [skills[i:i + _BATCH_SIZE] for i in range(0, len(skills), _BATCH_SIZE)]
+
+    # num_ctx must cover the CUMULATIVE chain by its last call, not just one
+    # batch — sized off the compact skill index appearing TWICE (once across
+    # the batches, once again explicitly in the synthesis prompt — see that
+    # prompt's comment for why) + recent-activity content + per-call
+    # instruction overhead. Must stay the same value across every call in the
+    # chain (a differing num_ctx would force a model reload mid-chain,
+    # discarding the cached context).
+    full_compact_chars = sum(len(_compact_skill_line(s)) for s in skills)
+    est_total_chars = (full_compact_chars * 2) + len(projects) + len(recent_sessions) + len(research_excerpt) + 4000
+    chain_num_ctx = size_num_ctx("x" * est_total_chars)
+
+    context = None
+    for i, batch in enumerate(batches, 1):
+        batch_text = "\n".join(_compact_skill_line(s) for s in batch)
+        prompt = (
+            f"Batch {i} of {len(batches)} of Watson's current skills (a personal AI assistant "
+            "for a church pastor). Just read these — you'll see the rest, then be asked one "
+            "question at the end. Reply with just \"ok\".\n\n"
+            f"{batch_text}"
+        )
+        _, context = _call_ollama_step(prompt, context, num_predict=10, num_ctx=chain_num_ctx)
+
+    # Re-including the full compact index explicitly here (not just relying on
+    # the chained batch context) matters: a spot check found that recall
+    # through several turns of a chained conversation was NOT reliable enough
+    # on its own — the model proposed a "PDF read/write/manage" gap even
+    # though a `pdf` skill ("Read, extract, or manipulate PDF files") had
+    # already been shown in an earlier batch. A clean, freshly-presented list
+    # right before the decision is a real, well-justified check, not
+    # redundant repetition.
+    full_index = "\n".join(_compact_skill_line(s) for s in skills)
+    synthesis_prompt = (
+        "You've now seen Watson's full current skill list, batch by batch, above. Here it is again "
+        "in full, for reference:\n\n"
+        f"{full_index}\n\n"
+        "Here is real recent activity to ground your analysis:\n\n"
+        f"Active projects:\n{projects}\n\n"
+        f"Recent sessions:\n{recent_sessions}\n\n"
+        f"Recent research queries:\n{research_excerpt}\n\n"
+        "You are Watson's capability auditor. Using the full skill list above and this recent "
+        "activity, identify the top 3 capability gaps — things Bill has needed that Watson cannot "
+        "do, or things that would significantly improve Watson's usefulness. For each gap, provide: "
+        "gap name, why it matters, suggested job path, brief description of what to build.\n\n"
+        "Format response as a JSON array:\n"
+        '[{"gap": "name", "reason": "why it matters", "job_path": "jobs/category/skill_name.py", '
+        '"description": "what to build"}]\n\n'
+        "The job_path must be a NEW file that does not yet exist. "
+        "Use format jobs/category/descriptive_name.py. "
+        "Valid categories: monitoring, email, content, research, calendar, documents, ministry, misc. "
+        "Example valid paths: jobs/research/argument_mapper.py, jobs/content/sermon_outline.py, "
+        "jobs/ministry/theology_tester.py\n"
+        "Do NOT propose a gap that duplicates or is already covered by any skill in the full list "
+        "above — check carefully, a skill's stated capability may already cover it even if worded "
+        "differently. Do NOT reference existing Watson modules. Do NOT use dot-separated names.\n\n"
+        "Output ONLY the JSON array. No preamble, no explanation."
+    )
+    final_response, _ = _call_ollama_step(synthesis_prompt, context, num_predict=600, num_ctx=chain_num_ctx)
+    return final_response
+
+
+def _call_ollama_batched(skills: list, projects: str, recent_sessions: str, research_excerpt: str) -> str:
+    # bug_tracker #118/#121: whole chain wrapped in ONE lock — Ollama is
+    # occupied for the full batch+synthesis sequence, not just the last call.
+    with heavy_ollama_call("skillbuilder.audit"):
+        return _run_batched_capability_audit(skills, projects, recent_sessions, research_excerpt)
 
 
 # ── Capability gap audit (existing) ──────────────────────────────────────────
 
+def _load_skills_list(skills_json: str) -> list:
+    try:
+        data = json.loads(skills_json)
+        return data.get("skills", data) if isinstance(data, dict) else data
+    except Exception:
+        return []
+
+
 def run_audit() -> str:
     skills_file = MEMORY / "skills.json"
     skills_json = skills_file.read_text(encoding="utf-8") if skills_file.exists() else "[]"
+    skills_list = _load_skills_list(skills_json)
 
     index_path = MEMORY / "projects" / "_index.md"
     projects = index_path.read_text(encoding="utf-8")[:2000] if index_path.exists() else "(no projects)"
@@ -136,7 +258,9 @@ def run_audit() -> str:
     )
 
     try:
-        raw = _call_ollama(f"SYSTEM:\n{system}\n\nUSER:\n{user}")
+        raw = call_claude(system=system, user=user, job_name="skillbuilder.audit")
+        if not raw:
+            raw = _call_ollama_batched(skills_list, projects, recent_sessions, research_excerpt)
     except Exception as exc:
         log.error("Ollama audit call failed: %s", exc)
         _telegram(f"⚠️ Weekly audit failed: {exc}")

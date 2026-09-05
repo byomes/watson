@@ -13,7 +13,6 @@ import logging
 import os
 import sys
 import threading
-import uuid
 from datetime import datetime, timedelta
 from functools import wraps
 from pathlib import Path
@@ -192,6 +191,12 @@ def _seed_commitments(conn, reader_id: int) -> None:
 @arc_bp.route("/api/arc/apply", methods=["POST"])
 @_require_key
 def arc_apply():
+    """Current ARC round is not admitting new readers into manuscript access
+    (Bill's call, 2026-08-22) — new signups are recorded as 'waitlisted', with
+    no password/login_token/commitments seeded, and get a thank-you-and-wait
+    email instead of login credentials. Existing 'active' readers are
+    untouched and keep manuscript access through the already-scheduled close
+    date. See jobs/arc/send_signup_confirmation.py::send_waitlist_confirmation."""
     _ensure_table()
     data       = request.get_json(force=True)
     first_name = (data.get("firstName") or "").strip()
@@ -209,19 +214,13 @@ def arc_apply():
         if existing:
             return jsonify({"ok": True, "message": "already registered"}), 200
 
-        temp_password = generate_password()
-        pw_hash       = bcrypt.hashpw(temp_password.encode(), bcrypt.gensalt()).decode()
-        login_token   = str(uuid.uuid4())
-
         cursor = conn.execute(
             "INSERT INTO arc_readers "
-            "(first_name, last_name, email, agreed_to_commitments, login_token, password_hash, "
-            "plaintext_password_recovery) "
-            "VALUES (?, ?, ?, 1, ?, ?, ?)",
-            (first_name, last_name, email, login_token, pw_hash, temp_password),
+            "(first_name, last_name, email, agreed_to_commitments, status) "
+            "VALUES (?, ?, ?, 1, 'waitlisted')",
+            (first_name, last_name, email),
         )
         reader_id = cursor.lastrowid
-        _seed_commitments(conn, reader_id)
         conn.commit()
     except Exception as exc:
         log.error("ARC reader insert failed: %s", exc)
@@ -243,16 +242,16 @@ def arc_apply():
 
     def _send_confirmation():
         try:
-            from jobs.arc.send_signup_confirmation import send_signup_confirmation
-            send_signup_confirmation(email, first_name, temp_password)
+            from jobs.arc.send_signup_confirmation import send_waitlist_confirmation
+            send_waitlist_confirmation(email, first_name)
         except Exception as exc:
-            log.error("Signup confirmation email failed for %s: %s", email, exc)
+            log.error("Waitlist confirmation email failed for %s: %s", email, exc)
 
     threading.Thread(target=_send_confirmation, daemon=True).start()
 
     try:
         send_telegram(
-            f"📖 New ARC Reader\n\n"
+            f"📖 New ARC Waitlist Signup\n\n"
             f"Name: {first_name} {last_name}\n"
             f"Email: {email}\n"
             f"Book: The Wrong Jesus\n"
@@ -388,14 +387,12 @@ def resend_welcome(reader_id: int) -> bool:
     new_password = generate_password()
     set_reader_password(reader_id, new_password)
 
-    def _send():
-        try:
-            from jobs.arc.send_signup_confirmation import send_password_reset_email
-            send_password_reset_email(reader["email"], reader["first_name"], new_password)
-        except Exception as exc:
-            log.error("Password reset email failed for ARC reader %s: %s", reader["email"], exc)
-
-    threading.Thread(target=_send, daemon=True).start()
+    try:
+        from jobs.arc.send_signup_confirmation import send_password_reset_email
+        send_password_reset_email(reader["email"], reader["first_name"], new_password)
+    except Exception as exc:
+        log.error("Password reset email failed for ARC reader %s: %s", reader["email"], exc)
+        return False
     return True
 
 

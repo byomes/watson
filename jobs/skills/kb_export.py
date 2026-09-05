@@ -13,26 +13,28 @@ DOCUMENTS_DIR = BASE_DIR / "kb" / "documents"
 _PREFIX = "kb export:"
 
 
-def _extract_query(message: str) -> str:
+def extract_query(message: str, prefix: str = _PREFIX) -> str:
+    """Strip a leading trigger prefix (e.g. "kb export:") off a raw skill
+    message, if present. Also used by jobs.kb.export_link with its own
+    "kb export link:" prefix, since a message reaching a skill via the
+    router's keyword pre-check still has the trigger phrase attached."""
     msg = message.strip()
-    if msg.lower().startswith(_PREFIX):
-        msg = msg[len(_PREFIX):].strip()
+    if msg.lower().startswith(prefix):
+        msg = msg[len(prefix):].strip()
     return msg
 
 
-def run(message: str = None) -> dict:
+def search_and_zip(query: str) -> dict:
     """Search ChromaDB for query, zip matching source files.
+
+    Shared by kb_export.run() (Telegram, sends the zip as a raw attachment)
+    and jobs.kb.export_link.run() (dashboard/MCP, wraps the zip in an
+    expiring download link) — both need the exact same search-and-match
+    behavior, so it lives here once.
 
     Returns dict with keys: ok, zip_path, caption, query, error.
     Caller is responsible for deleting zip_path after use.
     """
-    if not message:
-        return {"ok": False, "error": "No message provided."}
-
-    query = _extract_query(message)
-    if not query:
-        return {"ok": False, "error": "What would you like to export from the knowledge base?"}
-
     try:
         from jobs.ask import search
         chunks = search(query)
@@ -82,3 +84,20 @@ def run(message: str = None) -> dict:
     caption = f"📦 KB Export: {query} — {len(matched)} file(s)"
     log.info("KB export: %d file(s) zipped for query '%s'", len(matched), query)
     return {"ok": True, "zip_path": tmp.name, "caption": caption, "query": query}
+
+
+def run(message: str = None) -> dict:
+    """Telegram-facing entry point: extract the query from the raw message,
+    then search_and_zip().
+
+    Returns dict with keys: ok, zip_path, caption, query, error.
+    Caller is responsible for deleting zip_path after use.
+    """
+    if not message:
+        return {"ok": False, "error": "No message provided."}
+
+    query = extract_query(message)
+    if not query:
+        return {"ok": False, "error": "What would you like to export from the knowledge base?"}
+
+    return search_and_zip(query)

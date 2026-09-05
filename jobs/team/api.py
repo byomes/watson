@@ -5,18 +5,37 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 
+import requests
 from dotenv import load_dotenv
 from flask import Blueprint, jsonify, request
+
+from core.vacation import vacation_gate
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 load_dotenv(BASE_DIR / ".env")
 
 WATSON_DB = BASE_DIR / "data" / "watson.db"
 CONG_DB   = BASE_DIR / "data" / "congregation.db"
+BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN") or os.getenv("WATSON_BOT_TOKEN", "")
+CHAT_ID   = os.getenv("TELEGRAM_CHAT_ID") or os.getenv("WATSON_CHAT_ID", "")
 
 log = logging.getLogger(__name__)
 
 team_bp = Blueprint("team", __name__, url_prefix="/api/team")
+
+
+def _send_telegram(text: str) -> None:
+    # Same pattern as jobs/team/reminders.py / pre_meeting.py's local helper.
+    if vacation_gate("normal", "jobs.team.api", text):
+        return
+    try:
+        requests.post(
+            f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+            json={"chat_id": CHAT_ID, "text": text},
+            timeout=10,
+        ).raise_for_status()
+    except Exception as exc:
+        log.warning("Telegram notification failed: %s", exc)
 
 
 def _db():
@@ -668,6 +687,16 @@ def process_transcript():
         conn.close()
         if not member:
             return jsonify({"error": "member not found"}), 404
+
+        # bug_tracker #118/#121: this can fall through to a long Ollama call
+        # (core.ollama_lock busy-lock, jobs/team/extractor.py) if the Claude
+        # tier is unavailable — the request just blocks silently otherwise.
+        # Same heads-up pattern as jobs/skillbuilder's build-trigger messages.
+        _send_telegram(
+            f"Processing the meeting transcript for {member['name']} now — this'll take a "
+            "few minutes if it falls back to the slower path. Other requests may be delayed "
+            "until it's done."
+        )
 
         result = _extract(member["name"], transcript, date)
         return jsonify(result)

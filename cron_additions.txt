@@ -12,3 +12,7 @@
 0 * * * * PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python -m jobs.campaigns.brevo_sync >> /home/billyomes/watson/logs/brevo_sync.log 2>&1
 */15 * * * * PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python /home/billyomes/watson/jobs/comms/facebook_dispatch.py >> /home/billyomes/watson/logs/comms.log 2>&1
 30 5 * * 1 PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python -m jobs.privacy.scan >> /home/billyomes/watson/logs/privacy_scan.log 2>&1
+0 4 1 * * PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python -m jobs.analytics.monthly_web_engagement_report >> /home/billyomes/watson/logs/monthly_web_engagement_report.log 2>&1
+15 6 * * 4 PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python /home/billyomes/watson/jobs/research/web_benchmark_check.py >> /home/billyomes/watson/logs/web_benchmark_check.log 2>&1
+---
+15 6 * * 3 PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python3 -m jobs.congregation.elder_shepherding_report >> /home/billyomes/watson/logs/elder_shepherding_report.log 2>&1

@@ -8,6 +8,7 @@ import json
 import logging
 import os
 import sys
+import time
 from functools import wraps
 from pathlib import Path
 
@@ -40,6 +41,41 @@ _EDIT_FIELDS = (
 _VALID_STATUSES = ("pending", "confirmed", "needs_review", "rejected")
 _VALID_SHELVES = ("want_to_read", "reading", "read")
 _VALID_SOURCE_TYPES = ("screenshot", "tiktok", "instagram", "youtube", "goodreads", "amazon", "chatgpt", "other")
+
+# Login lockout — in-memory, one global bucket (not per-username: login is
+# PIN-only now, no name submitted at all — see [[project_curator]], 2026-09-04
+# Bill+Mel merged into one shared "Adults" account specifically so a bare PIN
+# is unambiguous). Not IP-keyed either: this app sits behind several proxy
+# hops — watson-tools' rewrite, Vercel — making the true client IP unreliable
+# to extract. A single shared counter for a 2-account household is
+# proportionate: it can't distinguish "one person mistyping" from "someone
+# brute-forcing," but 6 attempts/15min across the whole login form is still a
+# real brake on guessing either 4-digit PIN. In-memory (not DB-backed) is
+# fine specifically because this Flask process is one long-running instance
+# on the Beelink, unlike Curator's Next.js API routes on Vercel, which don't
+# reliably share state across serverless invocations.
+_LOGIN_ATTEMPT_WINDOW_SECONDS = 15 * 60
+_LOGIN_MAX_ATTEMPTS = 6
+_LOGIN_LOCKOUT_KEY = "_global"
+_login_attempts: dict[str, list[float]] = {}
+
+
+def _login_locked_out(name_key: str = _LOGIN_LOCKOUT_KEY) -> int | None:
+    """Returns seconds until unlock if locked out, else None. Prunes old entries."""
+    now = time.time()
+    attempts = [t for t in _login_attempts.get(name_key, []) if now - t < _LOGIN_ATTEMPT_WINDOW_SECONDS]
+    _login_attempts[name_key] = attempts
+    if len(attempts) >= _LOGIN_MAX_ATTEMPTS:
+        return int(_LOGIN_ATTEMPT_WINDOW_SECONDS - (now - attempts[0]))
+    return None
+
+
+def _record_login_failure(name_key: str = _LOGIN_LOCKOUT_KEY) -> None:
+    _login_attempts.setdefault(name_key, []).append(time.time())
+
+
+def _clear_login_attempts(name_key: str = _LOGIN_LOCKOUT_KEY) -> None:
+    _login_attempts.pop(name_key, None)
 
 
 def _require_key(f):
@@ -179,22 +215,40 @@ def _reading_status_row_to_dict(row) -> dict:
 @curator_bp.route("/api/curator/auth/login", methods=["POST"])
 @_require_key
 def login():
+    """PIN-only login (2026-09-04) — no name submitted at all, so the PIN
+    itself has to identify the account. Tries the given PIN against every
+    user's bcrypt hash rather than looking one up by name first; this only
+    stays unambiguous because Bill and Mel were merged into one shared
+    "Adults" account specifically so no two accounts share a PIN (see
+    [[project_curator]]) — if a future account is ever added with a PIN
+    that collides with an existing one, this returns whichever row SQLite
+    happens to iterate to first, silently. Not guarded against here since
+    the household's onboarding process (a human picking PINs) is the actual
+    place that constraint has to hold."""
     data = request.get_json(force=True)
-    name     = (data.get("name") or "").strip()
-    password = data.get("password") or ""
+    pin = (data.get("pin") or "").strip()
 
-    if not (name and password):
-        return jsonify({"error": "name and password required"}), 400
+    if not pin:
+        return jsonify({"error": "PIN required"}), 400
+
+    retry_after = _login_locked_out()
+    if retry_after is not None:
+        return jsonify({
+            "error": f"Too many attempts. Try again in {max(1, retry_after // 60 + 1)} minute(s).",
+        }), 429
 
     conn = get_db()
     try:
-        row = conn.execute(
-            "SELECT id, name, password_hash FROM users WHERE name = ? COLLATE NOCASE",
-            (name,),
-        ).fetchone()
-        if not row or not bcrypt.checkpw(password.encode(), row["password_hash"].encode()):
-            return jsonify({"error": "invalid credentials"}), 401
-        return jsonify({"userId": row["id"], "name": row["name"]}), 200
+        rows = conn.execute("SELECT id, name, password_hash FROM users").fetchall()
+        match = next(
+            (r for r in rows if bcrypt.checkpw(pin.encode(), r["password_hash"].encode())),
+            None,
+        )
+        if not match:
+            _record_login_failure()
+            return jsonify({"error": "invalid PIN"}), 401
+        _clear_login_attempts()
+        return jsonify({"userId": match["id"], "name": match["name"]}), 200
     finally:
         conn.close()
 

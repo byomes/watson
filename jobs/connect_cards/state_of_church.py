@@ -24,8 +24,11 @@ from datetime import date, timedelta
 import requests
 from dotenv import load_dotenv
 
+from core.claude_tier import call_claude
+from core.ollama_context import size_num_ctx
 from jobs.connect_cards.utils import _display_name
 from jobs.email_job.brevo_send import send_email
+import core.llm_log  # noqa: F401 -- installs Ollama call logging, see core/llm_log.py
 
 load_dotenv(os.path.expanduser("~/watson/.env"))
 
@@ -295,10 +298,28 @@ def _ollama_synthesis(condensed: str, benchmarks_context: str) -> str | None:
         f"{condensed}\n\n"
         "You must respond in English only. Do not use any other language. Begin writing now:"
     )
+
+    claude_result = call_claude(
+        system="", user=prompt,
+        job_name="connect_cards.state_of_church", max_tokens=900,
+    )
+    if claude_result:
+        return claude_result
+
     try:
         resp = requests.post(
             OLLAMA_URL,
-            json={"model": OLLAMA_MODEL, "prompt": prompt, "stream": False},
+            json={
+                "model": OLLAMA_MODEL,
+                "prompt": prompt,
+                "stream": False,
+                # bug_tracker #118: this prompt runs ~2.4k tokens today (under
+                # Ollama's ~4096 default num_ctx, not currently truncating) but
+                # grows with the benchmarks doc (weekly research-log entries) and
+                # congregation size — sized with headroom so it doesn't silently
+                # start truncating the next time either grows.
+                "options": {"num_ctx": size_num_ctx(prompt)},
+            },
             timeout=OLLAMA_TIMEOUT,
         )
         resp.raise_for_status()

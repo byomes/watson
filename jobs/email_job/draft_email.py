@@ -12,6 +12,7 @@ import sqlite3
 from datetime import datetime
 from dotenv import load_dotenv
 from core.vacation import vacation_gate
+import core.llm_log  # noqa: F401 -- installs Ollama call logging, see core/llm_log.py
 load_dotenv(os.path.expanduser("~/watson/.env"))
 
 DB_PATH = os.path.expanduser("~/watson/data/watson.db")

@@ -38,6 +38,7 @@ from rapidfuzz import fuzz
 from config.settings import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 from jobs.email_job.brevo_send import send_email
 from core.vacation import vacation_gate
+import core.llm_log  # noqa: F401 -- installs Ollama call logging, see core/llm_log.py
 
 load_dotenv(os.path.expanduser("~/watson/.env"))
 
