@@ -1,11 +1,12 @@
 # Watson File Map
-*Generated: 2026-09-04*
+*Generated: 2026-09-05*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
 
 ```
 ~/watson/
+.crontab_add.txt
 .devdispatch/
   progress.json
 .env
@@ -4643,6 +4644,7 @@ jobs/
     security_monitor.py
   analytics/
     __init__.py
+    claude_spend_daily_report.py
     connect_card_rollup.py
     data_chat.py
     ga4_import.py
