@@ -150,3 +150,31 @@ this classification system existed):
 ```
 PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python -m jobs.session_archives.backfill_reclassify
 ```
+
+---
+
+# Beelink Resource Sampler + Weekly Utilization Report — Cron Entries
+
+Two jobs merged to main (2026-09-04) for the VPS-sizing estimate effort:
+`jobs/dev/resource_sampler.py` samples CPU/RAM/disk + job-busy-state every 5
+minutes into `resource_samples`; `jobs/dev/weekly_utilization_report.py`
+aggregates the past 7 days of those samples into a Telegram summary for
+Bill. Both scoped to the Beelink only — neither samples nor references
+FMSPC (see the FMSPC note under Hardware in WATSON_ARCHITECTURE.md).
+
+Add both to crontab (`crontab -e`):
+
+```
+*/5 * * * * PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python /home/billyomes/watson/jobs/dev/resource_sampler.py >> /home/billyomes/watson/logs/resource_sampler.log 2>&1
+
+0 9 * * 1 PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python /home/billyomes/watson/jobs/dev/weekly_utilization_report.py >> /home/billyomes/watson/logs/weekly_utilization_report.log 2>&1
+```
+
+The weekly report is scheduled Monday 9am, clear of Sunday 3pm
+`attendance_link_reminder.py`, Sunday 5pm `conflict_report.py`, Sunday 6pm
+`campaigns/weekly_digest.py`, and Monday 7am `skillbuilder/audit.py`. The
+report will log "No resource_samples in the past 7 days -- skipping" and
+send nothing until the sampler has been running for at least a few days —
+install the sampler first (or both at once, since a short gap is harmless).
+
+(Sampler: every 5 minutes. Report: weekly, Mondays 9am. Not yet installed.)
