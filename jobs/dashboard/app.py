@@ -3614,6 +3614,7 @@ def chat_stream():
     def _update_project_memory(slug, mem_path, current_mem, user_msg, reply):
         try:
             import requests as _mreq
+            from core.ollama_context import size_num_ctx
             prompt = (
                 "You are Watson, Dr. Bill's AI assistant. Based on this exchange, update the project memory file. "
                 "Return ONLY the updated markdown file contents, nothing else.\n\n"
@@ -3624,7 +3625,12 @@ def chat_stream():
             )
             _r = _mreq.post(
                 "http://localhost:11434/api/generate",
-                json={"model": "qwen2.5-coder:7b", "prompt": prompt, "stream": False},
+                json={
+                    "model": "qwen2.5-coder:7b",
+                    "prompt": prompt,
+                    "stream": False,
+                    "options": {"num_ctx": size_num_ctx(prompt)},
+                },
                 timeout=60,
             )
             _r.raise_for_status()
