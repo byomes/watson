@@ -3278,3 +3278,29 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 
 ### ~/watson-tools
 - 0f4da79 feat: rewrite /curator to Curator's own Vercel deployment
+
+---
+
+## Recent Changes — 2026-09-05
+
+### ~/watson
+- db00b06 docs: update architecture for connect-card retirement on wcky
+- 722e258 Privacy Guard: fix false-confidence gaps, add CAPTCHA-assist, notifier + observability improvements
+- 44c2e9a docs: architecture update 2026-09-05
+- 76c8872 docs: bugs/backlog export 2026-09-05
+- a8d9c4f docs: file map 2026-09-05
+- 27256e0 docs: regenerate FILE_MAP.md from live file tree (#58)
+- f4b39b7 Weekly Beelink utilization report for VPS-sizing estimate (#56)
+- 37192bf devdispatch: progress -> reporting (#55)
+- 08b08db feat(curator): merge Bill+Mel into shared Adults account, PIN-only login
+- 2b647b2 fix(curator): title-match verification for Amazon/Goodreads/Open Library
+- af892e3 fix(curator): wrong-book source pages + Open Library timeout doubling
+- 45579b3 perf: tighten worker idle-poll interval for faster search results
+
+### ~/wcky
+- fac5d37 fix: retire connect-card in favor of wtsn.me/cat/connect
+- 53b8af4 fix: block known spam phone number on connect-card intake
+- e4ba63a publish: Standing Up Before the Fix
+
+### ~/watson-tools
+- a654f6d fix: block known spam phone number on connect-card intake
