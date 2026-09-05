@@ -3250,3 +3250,25 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - ad41205 Shrink the deacon app home-screen icon so it isn't flush with the edges
 - a5b44b4 Add a light/dark theme toggle to the deacon app
 - ba9114f Add a follow-up form to the Notes tab and make the header a refresh button
+
+---
+
+## Recent Changes — 2026-09-05
+
+### ~/watson
+- 76c8872 docs: bugs/backlog export 2026-09-05
+- a8d9c4f docs: file map 2026-09-05
+- 27256e0 docs: regenerate FILE_MAP.md from live file tree (#58)
+- f4b39b7 Weekly Beelink utilization report for VPS-sizing estimate (#56)
+- 37192bf devdispatch: progress -> reporting (#55)
+- 08b08db feat(curator): merge Bill+Mel into shared Adults account, PIN-only login
+- 2b647b2 fix(curator): title-match verification for Amazon/Goodreads/Open Library
+- af892e3 fix(curator): wrong-book source pages + Open Library timeout doubling
+- 45579b3 perf: tighten worker idle-poll interval for faster search results
+- 1deb202 feat(curator): PIN auth + login lockout, companion to wtsn.me/curator move
+- 4f3d060 feat: Telegram confirm/change buttons on live session archive classification
+- d4b6d5a docs: regenerate Skills & Capabilities Catalog
+- 8a110e7 docs: architecture update 2026-09-04
+
+### ~/watson-tools
+- 0f4da79 feat: rewrite /curator to Curator's own Vercel deployment
