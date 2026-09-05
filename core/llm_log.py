@@ -70,6 +70,10 @@ def _bootstrap() -> None:
                 created_at        TEXT NOT NULL DEFAULT (datetime('now'))
             )
         """)
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_llm_call_log_created_at "
+            "ON llm_call_log(created_at)"
+        )
 
 
 _bootstrap()

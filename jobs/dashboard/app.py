@@ -125,6 +125,10 @@ def _bootstrap():
         c.execute("ALTER TABLE chat_messages ADD COLUMN source TEXT")
     except Exception:
         pass
+    c.execute(
+        "CREATE INDEX IF NOT EXISTS idx_chat_messages_session_created "
+        "ON chat_messages(session_id, created_at)"
+    )
     c.execute("""CREATE TABLE IF NOT EXISTS pastoral_notes (
         id          INTEGER PRIMARY KEY AUTOINCREMENT,
         person_name TEXT    NOT NULL,

@@ -317,6 +317,10 @@ def _ensure_chat_tables(conn) -> None:
     cols = {row[1] for row in conn.execute("PRAGMA table_info(chat_messages)").fetchall()}
     if "source" not in cols:
         conn.execute("ALTER TABLE chat_messages ADD COLUMN source TEXT")
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_chat_messages_session_created "
+        "ON chat_messages(session_id, created_at)"
+    )
 
 
 def _get_or_create_telegram_session() -> int:

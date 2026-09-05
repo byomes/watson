@@ -83,6 +83,14 @@ TABLES = {
     """,
 }
 
+# Added 2026-09-05 -- attendance had zero indexes despite member_id and
+# service_date both being filtered constantly (per-member lookups, date-range
+# scans, and the member_id+service_date duplicate-check on every intake).
+INDEXES = [
+    "CREATE INDEX IF NOT EXISTS idx_attendance_service_date ON attendance(service_date)",
+    "CREATE INDEX IF NOT EXISTS idx_attendance_member_id ON attendance(member_id)",
+]
+
 
 def init_db():
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -109,6 +117,9 @@ def init_db():
             print(f"  [exists]  {table_name}")
         else:
             print(f"  [created] {table_name}")
+
+    for ddl in INDEXES:
+        cursor.execute(ddl)
 
     # Idempotent column migrations
     member_cols = {row[1] for row in cursor.execute("PRAGMA table_info(members)").fetchall()}
