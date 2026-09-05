@@ -7,6 +7,7 @@ import base64
 import io
 import json
 import logging
+import os
 import re
 import time
 from urllib.parse import urlparse
@@ -25,6 +26,8 @@ log = logging.getLogger(__name__)
 _UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
 _VISION_MODEL = "qwen2.5vl"
 _MAX_IMAGE_DIM = 1024
+_GEMINI_VISION_MODEL = "gemini-flash-latest"
+_GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{_GEMINI_VISION_MODEL}:generateContent"
 
 _DOMAIN_TYPES = (
     ("tiktok.com", "tiktok"),
@@ -135,6 +138,71 @@ def _ocr_cover(image_bytes: bytes) -> dict:
     if author.upper() == "UNKNOWN":
         author = None
     return {"title": title, "author": author, "raw_text": raw}
+
+
+def identify_book_from_photo(image_bytes: bytes) -> dict:
+    """Identify a book from a photo via Gemini's own visual knowledge (2026-09-05) —
+    distinct from _ocr_cover() above, which reads printed title/author text off a
+    clean cover photo. This path is for photos where OCR doesn't apply or fails: a
+    damaged/foreign-edition cover with no legible English text, a spine-only shot, a
+    stack/shelf of books, etc. — Gemini is asked to recognize the book itself, the
+    same way asking a person "what book is this?" from a photo works even with no
+    readable text.
+
+    Not a live web reverse-image search — that would need Serper's /lens endpoint,
+    which only accepts a public image URL, and this app has no public image hosting
+    (rejected 2026-09-05 rather than stand up new infrastructure for it). Gemini
+    answers purely from what it has memorized about book covers, so it can miss
+    anything obscure or self-published it was never trained on. Same never-guess
+    contract as everywhere else in this file: {"confident": False} unless Gemini is
+    sure, and the caller (ingest_submission) treats that exactly like a failed OCR —
+    falls into the existing "couldn't identify a title" -> needs_review path, no new
+    fallback needed.
+
+    Uses GEMINI_API_KEY, not the similarly-named GOOGLE_AI_STUDIO_API_KEY also sitting
+    in .env — confirmed live 2026-09-05 against generativelanguage.googleapis.com:
+    GOOGLE_AI_STUDIO_API_KEY 401s (stale/wrong), GEMINI_API_KEY is the live one.
+
+    Key goes in the x-goog-api-key HEADER, deliberately not the URL's ?key= query
+    param the Gemini docs lead with — confirmed live 2026-09-05 that a transient 503
+    from Google made `requests` raise an exception whose message embeds the full
+    request URL, which would leak the key verbatim into this function's own log.error
+    call (and did, once, into a manual test's stdout, before this fix). The header
+    form authenticates identically with no such leak surface."""
+    prompt = (
+        "You identify books from photos of their cover, spine, or a shelf. You NEVER "
+        "guess -- if you don't recognize the specific book with high confidence, say "
+        "so. Identify the book in this photo. Return JSON exactly in this shape, no "
+        "other text, no markdown code fences: "
+        '{"confident": true or false, "title": "string or null", "author": "string or null"}'
+    )
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        return {"title": None, "author": None, "confident": False}
+    try:
+        b64 = _prepare_cover_image(image_bytes)
+        resp = requests.post(
+            _GEMINI_URL,
+            headers={"x-goog-api-key": api_key},
+            json={
+                "contents": [{"parts": [
+                    {"text": prompt},
+                    {"inline_data": {"mime_type": "image/jpeg", "data": b64}},
+                ]}],
+                "generationConfig": {"temperature": 0},
+            },
+            timeout=30,
+        )
+        resp.raise_for_status()
+        text = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+        parsed = parse_json(text)
+    except Exception as exc:
+        log.error("identify_book_from_photo failed: %s", exc)
+        return {"title": None, "author": None, "confident": False}
+
+    if not parsed or not parsed.get("confident") or not parsed.get("title"):
+        return {"title": None, "author": None, "confident": False}
+    return {"title": parsed["title"], "author": parsed.get("author"), "confident": True}
 
 
 def fetch_og_metadata(url: str) -> dict:
@@ -543,6 +611,7 @@ def ingest_submission(
     link: str | None = None,
     image_bytes: bytes | None = None,
     image_mimetype: str | None = None,
+    image_identify_method: str = "ocr",
     notify_telegram: bool = True,
     job_id=None,
 ) -> dict:
@@ -568,7 +637,13 @@ def ingest_submission(
 
     notify_telegram=False suppresses the per-book Approve/Edit/Reject message — used for
     batch items, where the batch-completion SMS is the "done" signal instead (avoids
-    spamming one Telegram message per book in a multi-book batch)."""
+    spamming one Telegram message per book in a multi-book batch).
+
+    image_identify_method: "ocr" (default, _ocr_cover — reads printed title/author text
+    off the photo) or "vision_id" (identify_book_from_photo — Gemini recognizes the
+    book itself, for the "Search by Photo" path where OCR doesn't apply). See
+    identify_book_from_photo's docstring for why these are two separate paths rather
+    than one."""
     source_type = "other"
     source_url = None
     raw_text = None
@@ -576,10 +651,16 @@ def ingest_submission(
     if image_bytes:
         source_type = "screenshot"
         if not title:
-            ocr = _ocr_cover(image_bytes)
-            title = title or ocr["title"]
-            author = author or ocr["author"]
-            raw_text = ocr["raw_text"]
+            if image_identify_method == "vision_id":
+                identified = identify_book_from_photo(image_bytes)
+                title = title or identified["title"]
+                author = author or identified["author"]
+                raw_text = f"Gemini photo identification: confident={identified['confident']}"
+            else:
+                ocr = _ocr_cover(image_bytes)
+                title = title or ocr["title"]
+                author = author or ocr["author"]
+                raw_text = ocr["raw_text"]
     elif link:
         source_type = _classify_link(link)
         source_url = link
@@ -605,6 +686,7 @@ def ingest_submission(
             "status": "needs_review", "book_id": book_id,
             "reason": "could not identify a book title",
             "title": "Unknown", "author": author or "Unknown", "findings": [],
+            "identified": False,
         }
 
     title = title_case(title)

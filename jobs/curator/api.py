@@ -681,6 +681,40 @@ def ingest():
     }), 202
 
 
+@curator_bp.route("/api/curator/ingest/photo-search", methods=["POST"])
+@_require_key
+def ingest_photo_search():
+    """Enqueue a "Search by Photo" submission: a photo of the book itself (cover, spine,
+    a shelf) that Gemini identifies from its own visual knowledge — see
+    jobs/curator/ingest.py's identify_book_from_photo() docstring for why this is a
+    separate path from the plain image-ingest route above (which OCRs printed text, and
+    is a poor fit for a photo with no legible title). Returns immediately with a
+    job_id — poll GET /api/curator/ingest/status/<job_id>, same as /api/curator/ingest."""
+    from jobs.curator.worker import enqueue_job
+
+    if "image" not in request.files:
+        return jsonify({"error": "must provide an image"}), 400
+
+    submitted_by = request.form.get("submitted_by", type=int)
+    f = request.files["image"]
+    image_bytes = f.read()
+    image_type = f.mimetype
+
+    job_id = enqueue_job(
+        input_type="photo_search",
+        image_bytes=image_bytes,
+        image_mimetype=image_type,
+        submitted_by=submitted_by,
+    )
+
+    return jsonify({
+        "job_id": job_id,
+        "batch_id": None,
+        "status": "researching",
+        "message": "Got it — identifying the book now, check Pending in a bit.",
+    }), 202
+
+
 @curator_bp.route("/api/curator/ingest/chatgpt", methods=["POST"])
 @_require_import_key
 def ingest_chatgpt():

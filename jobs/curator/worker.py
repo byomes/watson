@@ -163,11 +163,20 @@ def _process_job(job: dict) -> None:
 
 def _process_single(job: dict) -> None:
     """Stage A/B split (curator-spec.md Commit 3), plus the dedup-cache short-circuit
-    (Commit 6). Three outcomes for Stage A (ingest_submission):
+    (Commit 6). Four outcomes for Stage A (ingest_submission):
 
     - Dedup hit ("duplicate": True in the result, Commit 6): no research ran at all —
       straight to 'done', book_id set, Stage B skipped entirely (nothing to enrich;
       the existing book was already fully enriched on its own original submission).
+    - Unidentified ("identified": False in the result, added 2026-09-05 after a real
+      incident): Stage A couldn't pin down a title (failed OCR/vision-ID/link
+      extraction) and already created an "Unknown"/"Unknown" needs_review book —
+      straight to 'done', Stage B skipped entirely. Feeding "Unknown" into
+      run_stage_b_enrichment() as if it were a real title previously ran a live
+      romance.io search on the literal word "Unknown", which fuzzy-matched an
+      unrelated real book and attached its (also unrelated) "similar books" blurb to
+      the placeholder row as if it were a genuine, confident finding — see
+      identify_book_from_photo's Gemini-503 case that surfaced this.
     - Normal success: job marked 'partial' with book_id already set — the book row is
       fully visible to Mel at this point (same gating rule as always). Stage B
       (enrich_submission_stage_b) then fires immediately, in this same thread, with no
@@ -185,6 +194,7 @@ def _process_single(job: dict) -> None:
 
     stage_a_result = None
     is_duplicate = False
+    is_unidentified = False
     conn = get_db()
     try:
         try:
@@ -196,11 +206,13 @@ def _process_single(job: dict) -> None:
                 link=payload.get("link"),
                 image_bytes=job["image_blob"],
                 image_mimetype=job["image_mimetype"],
+                image_identify_method="vision_id" if job["input_type"] == "photo_search" else "ocr",
                 notify_telegram=not is_batch_item,
                 job_id=job["id"],
             )
             is_duplicate = bool(stage_a_result.get("duplicate"))
-            if is_duplicate:
+            is_unidentified = not stage_a_result.get("identified", True)
+            if is_duplicate or is_unidentified:
                 conn.execute(
                     "UPDATE ingest_jobs SET status='done', book_id=?, completed_at=datetime('now') "
                     "WHERE id=?",
@@ -223,7 +235,7 @@ def _process_single(job: dict) -> None:
     finally:
         conn.close()
 
-    if stage_a_result is not None and not is_duplicate:
+    if stage_a_result is not None and not is_duplicate and not is_unidentified:
         try:
             enrich_submission_stage_b(
                 stage_a_result.get("book_id"),
