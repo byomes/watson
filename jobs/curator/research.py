@@ -757,7 +757,7 @@ def find_goodreads_book_page(title: str, author: str | None) -> str | None:
 
 
 _OPEN_LIBRARY_DESCRIPTION_CAP = 2000
-_OPEN_LIBRARY_CONNECT_TIMEOUT = 3  # see fetch_open_library_description() — bounds
+_OPEN_LIBRARY_CONNECT_TIMEOUT = 3  # see fetch_open_library_details() — bounds
 # the connect phase specifically, since a live reachable API shouldn't take
 # long to accept a TCP connection regardless of what the read side costs.
 
@@ -778,23 +778,38 @@ def _strip_injected_links(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
-def fetch_open_library_description(title: str, author: str | None, timeout: int = 10) -> str | None:
+def fetch_open_library_details(title: str, author: str | None, timeout: int = 10) -> dict:
     """Open Library's public API (openlibrary.org, no key required, no
     bot-blocking risk — it's a real documented API, not a scrape) tried first
-    for the plot synopsis. Goodreads' og:description meta tag is frequently
-    pre-truncated to a short teaser by Goodreads itself (confirmed 2026-07-22
-    against real pages: 56 chars for multiple books, well under even our own
-    600-char cap, so the cap was never the cause). Confirmed live 2026-07-22:
-    "A Court of Thorns and Roses" returned a real 731-char synopsis this way.
-    Returns None if Open Library has no record — common for newer releases
-    (confirmed for "The Thirteenth Child", a 2024 book: zero results) — in
-    which case the caller falls back to the existing Goodreads-derived
-    description.
+    for the plot synopsis, and as a same-cost cover-image fallback. Goodreads'
+    og:description meta tag is frequently pre-truncated to a short teaser by
+    Goodreads itself (confirmed 2026-07-22 against real pages: 56 chars for
+    multiple books, well under even our own 600-char cap, so the cap was
+    never the cause). Confirmed live 2026-07-22: "A Court of Thorns and
+    Roses" returned a real 731-char synopsis this way.
+
+    Returns {"description": str|None, "cover_image_url": str|None} — never
+    raises, both keys are None if Open Library has no usable record (common
+    for newer releases: confirmed for "The Thirteenth Child", a 2024 book,
+    zero results), in which case the caller falls back to the
+    Amazon/Goodreads-derived fields.
+
+    Cover comes from `search.json`'s own `cover_i` field
+    (covers.openlibrary.org/b/id/{cover_i}-L.jpg) — no extra request, it's a
+    byproduct of the same call already made for the description. Added
+    2026-09-05 as a fallback for cover_image_url specifically because
+    Amazon/Goodreads' og:image scraping (the only other source, see Wave 2
+    below) is unreliable: Amazon bot-blocks most requests and Goodreads
+    rate-limits under load, so both can legitimately come back with no cover
+    at all. Deliberately still last-resort, not preferred: when Amazon/
+    Goodreads do get through, their og:image is the listing's actual cover
+    for the exact edition being shown; Open Library's `cover_i` can be a
+    different edition's scan.
 
     author=None must omit the `author` param entirely rather than send an
     empty string — confirmed 2026-07-22: `author=` (empty) makes Open
     Library's search API 500, which this function swallows and returns as a
-    plain "no record" None, silently dropping into the Goodreads-teaser
+    plain "no record" result, silently dropping into the Goodreads-teaser
     fallback even when Open Library actually has a full synopsis under the
     title alone (confirmed for "The War of the Two Queens": empty-author
     request 500s, real request omitting the param returns a 1,151-char
@@ -811,6 +826,7 @@ def fetch_open_library_description(title: str, author: str | None, timeout: int 
     work_key.json timed out at its own full 5s). The second call now gets
     whatever's left of the original budget, not a fresh one."""
     _t_start = time.perf_counter()
+    empty = {"description": None, "cover_image_url": None}
     try:
         params: dict = {"title": title, "limit": 1}
         if author:
@@ -830,7 +846,7 @@ def fetch_open_library_description(title: str, author: str | None, timeout: int 
         resp.raise_for_status()
         docs = resp.json().get("docs", [])
         if not docs:
-            return None
+            return dict(empty)
         doc = docs[0]
         # docs[0] isn't necessarily the right book even with limit=1 — Open
         # Library's own title search ranks by its own signals (edition
@@ -840,17 +856,23 @@ def fetch_open_library_description(title: str, author: str | None, timeout: int 
         # title. When author is known the search API's own author= filter
         # already disambiguates well; this check mainly protects the
         # author=None path this function's own docstring says is common.
+        # Also gates the cover below — a rejected top match's cover_i isn't
+        # trusted either.
         doc_title = doc.get("title", "")
         doc_authors = " ".join(doc.get("author_name") or [])
         if not _significant_word_overlap(_title_words(title), f"{doc_title} {doc_authors}"):
             log.warning(
-                "Open Library description lookup for %r: top match %r looked like a different book, skipping",
+                "Open Library lookup for %r: top match %r looked like a different book, skipping",
                 title, doc_title,
             )
-            return None
+            return dict(empty)
+
+        cover_i = doc.get("cover_i")
+        cover_image_url = f"https://covers.openlibrary.org/b/id/{cover_i}-L.jpg" if cover_i else None
+
         work_key = doc.get("key")
         if not work_key:
-            return None
+            return {"description": None, "cover_image_url": cover_image_url}
 
         remaining = timeout - (time.perf_counter() - _t_start)
         if remaining < 1:
@@ -858,7 +880,7 @@ def fetch_open_library_description(title: str, author: str | None, timeout: int 
                 "Open Library description lookup for %r: no time budget left "
                 "after search.json (%.2fs elapsed of %ss)", title, timeout - remaining, timeout,
             )
-            return None
+            return {"description": None, "cover_image_url": cover_image_url}
 
         work_resp = requests.get(
             f"https://openlibrary.org{work_key}.json",
@@ -869,12 +891,15 @@ def fetch_open_library_description(title: str, author: str | None, timeout: int 
         if isinstance(desc, dict):
             desc = desc.get("value")
         if not desc or not isinstance(desc, str):
-            return None
+            return {"description": None, "cover_image_url": cover_image_url}
         desc = _strip_injected_links(desc)
-        return desc[:_OPEN_LIBRARY_DESCRIPTION_CAP] or None
+        return {
+            "description": desc[:_OPEN_LIBRARY_DESCRIPTION_CAP] or None,
+            "cover_image_url": cover_image_url,
+        }
     except Exception as exc:
-        log.warning("Open Library description lookup failed for %r: %s", title, exc)
-        return None
+        log.warning("Open Library lookup failed for %r: %s", title, exc)
+        return dict(empty)
 
 
 # Amazon frequently returns a bot-block/"automated access" interstitial instead
@@ -1370,16 +1395,17 @@ def research_book_fast(title: str, author: str | None = None, job_id=None) -> di
         }
 
         # Open Library tried first (real API, no bot-blocking, often has a full
-        # synopsis) - the page-detail results below only fill this in as a
-        # fallback if Open Library had no record for this title (see
-        # fetch_open_library_description's docstring).
+        # synopsis) - the page-detail results below only fill description in as a
+        # fallback if Open Library had no record for this title, and only fill
+        # cover_image_url in as a fallback if Amazon/Goodreads' og:image scraping
+        # came back empty (see fetch_open_library_details's docstring).
         def _open_library():
             _t = time.perf_counter()
             try:
-                return fetch_open_library_description(title, author, timeout=_STAGE_A_TIMEOUT)
+                return fetch_open_library_details(title, author, timeout=_STAGE_A_TIMEOUT)
             finally:
-                _log_stage(job_id, "open_library_description", time.perf_counter() - _t, stage_durations)
-        description_future = pool.submit(_open_library)
+                _log_stage(job_id, "open_library_details", time.perf_counter() - _t, stage_durations)
+        open_library_future = pool.submit(_open_library)
 
         # Amazon first (page count / KU authoritative there), Goodreads as a fallback for
         # whatever Amazon's og: tags didn't have — same sources already being fetched, no
@@ -1408,7 +1434,8 @@ def research_book_fast(title: str, author: str | None = None, job_id=None) -> di
             if finding:
                 findings.append(finding)
 
-        description = description_future.result()
+        open_library_details = open_library_future.result()
+        description = open_library_details["description"]
 
         for source_type, future in page_detail_futures.items():
             try:
@@ -1430,6 +1457,12 @@ def research_book_fast(title: str, author: str | None = None, job_id=None) -> di
             series_total = series_total or details["series_total"]
             series_name = series_name or details.get("series_name")
 
+    # Last-resort cover fallback: only reached if Amazon/Goodreads' og:image
+    # scraping produced nothing (bot-blocked, rate-limited, or no URL found
+    # at all) — see fetch_open_library_details's docstring for why this
+    # ranks below them rather than above.
+    cover_image_url = cover_image_url or open_library_details["cover_image_url"]
+
     findings.sort(key=lambda f: f["rank"])
     findings = findings[:_MAX_DISPLAYED_FINDINGS]
 
@@ -1441,18 +1474,20 @@ def research_book_fast(title: str, author: str | None = None, job_id=None) -> di
 
     extracted_author = extract_author_from_titles(result_titles)
 
-    # Retry the Open Library synopsis lookup now that author-backfill has run:
-    # the call above only had whatever author the original caller supplied
-    # (often None for a quick "Title" add), and a title-only Open Library
-    # search is more likely to miss or match the wrong edition than one with
-    # the author attached. A backfilled author found here beats whatever
-    # shorter Goodreads-teaser description already filled in above.
+    # Retry the Open Library lookup now that author-backfill has run: the call
+    # above only had whatever author the original caller supplied (often None
+    # for a quick "Title" add), and a title-only Open Library search is more
+    # likely to miss or match the wrong edition than one with the author
+    # attached. A backfilled author found here beats whatever shorter
+    # Goodreads-teaser description already filled in above, and can supply a
+    # cover if nothing else did.
     if author is None and extracted_author:
         _t = time.perf_counter()
-        retried_description = fetch_open_library_description(title, extracted_author, timeout=_STAGE_A_TIMEOUT)
-        _log_stage(job_id, "open_library_description_retry", time.perf_counter() - _t, stage_durations)
-        if retried_description:
-            description = retried_description
+        retried_details = fetch_open_library_details(title, extracted_author, timeout=_STAGE_A_TIMEOUT)
+        _log_stage(job_id, "open_library_details_retry", time.perf_counter() - _t, stage_durations)
+        if retried_details["description"]:
+            description = retried_details["description"]
+        cover_image_url = cover_image_url or retried_details["cover_image_url"]
 
     total_duration = time.perf_counter() - _t_total
     stage_summary = " ".join(f"{name}={dur:.2f}s" for name, dur in stage_durations.items())
