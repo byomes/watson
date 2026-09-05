@@ -194,18 +194,6 @@ def _gb_add_kit_reminder(donor_name: str) -> None:
         )
 
 
-def _gb_get_kit_subscriber_id(email: str) -> int | None:
-    import requests as _req
-    r = _req.get(
-        "https://api.convertkit.com/v3/subscribers",
-        params={"api_secret": _KIT_API_SECRET, "email_address": email},
-        timeout=10,
-    )
-    r.raise_for_status()
-    subscribers = r.json().get("subscribers", [])
-    return subscribers[0]["id"] if subscribers else None
-
-
 def _gb_send_kit_email(to_email: str, subject: str, html_body: str) -> None:
     text_body = re.sub(r"<br\s*/?>", "\n", html_body)
     text_body = re.sub(r"</p>", "\n\n", text_body)

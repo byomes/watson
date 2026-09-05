@@ -41,9 +41,6 @@ JENNY_CHAT_ID   = os.getenv("JENNY_CHAT_ID")
 # Gemini
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-# Kit (ConvertKit)
-KIT_API_KEY = os.getenv("KIT_API_KEY")
-
 # Google Fonts Developer API — free, no paid tier. Used by jobs/book/font_finder.py
 # to fetch the webfonts catalog for the Cover Comp Idea Generator's "Suggest Fonts" action.
 GOOGLE_FONTS_API_KEY = os.getenv("GOOGLE_FONTS_API_KEY")
