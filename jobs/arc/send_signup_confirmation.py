@@ -24,11 +24,12 @@ log = logging.getLogger(__name__)
 # Sender intentionally watson@williamckyomes.com — Watson's identity is
 # under Dr. Bill's personal domain by design (2026-07-27). Not a stopgap;
 # do not revert to faithmakessense.com.
-_FROM_EMAIL    = "watson@williamckyomes.com"
-_FROM_NAME     = "Watson"
-_SUBJECT       = "Your ARC Team Login — Track Your Commitments"
-_RESET_SUBJECT = "Your ARC Login — New Password"
-_LOGIN_URL     = "https://williamckyomes.com/arc/login"
+_FROM_EMAIL       = "watson@williamckyomes.com"
+_FROM_NAME        = "Watson"
+_SUBJECT          = "Your ARC Team Login — Track Your Commitments"
+_RESET_SUBJECT    = "Your ARC Login — New Password"
+_WAITLIST_SUBJECT = "You're on the ARC List"
+_LOGIN_URL        = "https://williamckyomes.com/arc/login"
 
 
 def _send_email(to_email: str, subject: str, plain: str) -> None:
@@ -73,6 +74,22 @@ def send_signup_confirmation(to_email: str, first_name: str, temp_password: str)
         "AI-powered digital assistant · Office of Dr. Bill Yomes"
     )
     _send_email(to_email, _SUBJECT, plain)
+
+
+def send_waitlist_confirmation(to_email: str, first_name: str) -> None:
+    """Current ARC round isn't admitting new readers into manuscript access
+    (2026-08-22 — Bill's call, existing active readers keep access through
+    the already-scheduled close date, only new signups are affected). No
+    login is issued at all for a waitlisted signup — see arc_apply()."""
+    plain = (
+        f"Hi {first_name},\n\n"
+        "Thank you for joining the ARC team for The Wrong Jesus.\n\n"
+        "We're not opening manuscript access to new readers at the moment, but "
+        "we'll email you the moment the next ARC round is ready to go.\n\n"
+        "— Watson\n\n"
+        "AI-powered digital assistant · Office of Dr. Bill Yomes"
+    )
+    _send_email(to_email, _WAITLIST_SUBJECT, plain)
 
 
 def send_password_reset_email(to_email: str, first_name: str, new_password: str) -> None:

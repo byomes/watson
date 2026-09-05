@@ -114,19 +114,17 @@ async function renderHome() {
   setContent('<div class="loading">Loading&hellip;</div>');
   _homeTaskTab = 'catalyst';
 
-  const [pendingRes, calRes, openTasksRes, remindersRes, briefingRes, compTasksRes] = await Promise.allSettled([
+  const [pendingRes, calRes, openTasksRes, remindersRes, compTasksRes] = await Promise.allSettled([
     api('/api/pending'),
     api('/api/calendar/today'),
     api('/api/team/members/12/tasks?status=open&category=catalyst'),
     api('/api/reminders'),
-    api('/api/briefing'),
     api('/api/team/members/12/tasks?status=completed&category=catalyst'),
   ]);
 
   const pending   = pendingRes.status   === 'fulfilled' ? pendingRes.value   : [];
   const calEvents = calRes.status       === 'fulfilled' ? calRes.value       : [];
   const reminders = remindersRes.status === 'fulfilled' ? remindersRes.value : [];
-  const briefing  = briefingRes.status  === 'fulfilled' ? briefingRes.value  : [];
 
   const openTasks = openTasksRes.status === 'fulfilled' && Array.isArray(openTasksRes.value) ? openTasksRes.value : [];
   const compTasks = compTasksRes.status === 'fulfilled' && Array.isArray(compTasksRes.value) ? compTasksRes.value : [];
@@ -197,10 +195,6 @@ async function renderHome() {
       <div class="stat-card" style="cursor:pointer" onclick="switchTab('reminders')">
         <div class="stat-num">${Array.isArray(reminders) ? reminders.length : 0}</div>
         <div class="stat-lbl">Reminders</div>
-      </div>
-      <div class="stat-card" style="cursor:pointer" onclick="switchTab('briefing')">
-        <div class="stat-num">${Array.isArray(briefing) ? briefing.length : 0}</div>
-        <div class="stat-lbl">Briefing</div>
       </div>
     </div>`;
 
@@ -1045,6 +1039,42 @@ function thesisRows(items, nameKey) {
 let _thesisCountriesData = null;
 let _thesisMapInstance = null;
 
+function thesisCitationCard(c) {
+  const venue = c.venue ? esc(c.venue) : '';
+  const year = c.year ? ` (${c.year})` : '';
+  const meta = [c.authors ? esc(c.authors) : null, [venue, year].join('') || null]
+    .filter(Boolean).join(' — ');
+  const sources = (c.sources || '').split(',').map(s => s.trim()).filter(Boolean);
+  const badges = sources.map(s =>
+    `<span class="mth-cite-badge ${c.confidence === 'high' ? 'mth-cite-high' : ''}">${esc(s.replace('_', ' '))}</span>`
+  ).join('');
+  const titleHtml = c.url
+    ? `<a href="${esc(c.url)}" target="_blank" rel="noopener noreferrer">${esc(c.title || 'Untitled')}</a>`
+    : esc(c.title || 'Untitled');
+  return `
+    <div class="mth-cite-card">
+      <div class="mth-cite-title">${titleHtml}</div>
+      ${meta ? `<div class="mth-cite-meta">${meta}</div>` : ''}
+      <div class="mth-cite-badges">${badges}</div>
+    </div>`;
+}
+
+function thesisCitationsSection(citations, doi) {
+  const count = citations ? citations.length : 0;
+  const body = count
+    ? citations.map(thesisCitationCard).join('')
+    : '<div class="empty">No citations found yet — checked weekly.</div>';
+  const doiNote = doi
+    ? `<div class="mth-doi-watch">DOI on record: <b>${esc(doi)}</b></div>`
+    : '';
+  return `
+    <div class="mth-label-row">
+      <span class="mlabel">Citations${count ? ` (${count})` : ''}</span>
+    </div>
+    ${body}
+    ${doiNote}`;
+}
+
 async function moreLoadThesis() {
   const el = document.getElementById('msec-inner-thesis');
   if (!el) return;
@@ -1053,18 +1083,25 @@ async function moreLoadThesis() {
   _thesisTileLayer = null;
   _thesisGeoLayer  = null;
   try {
-    const [data, countries] = await Promise.all([
+    const [data, countries, citeData] = await Promise.all([
       api('/api/thesis-tracker/latest'),
       api('/api/thesis-tracker/countries'),
+      api('/api/thesis-tracker/citations'),
     ]);
     if (!data) {
       el.innerHTML = '<div class="empty">No data yet.</div>';
       return;
     }
     _thesisCountriesData = countries;
+    const citations = (citeData && citeData.citations) || [];
+    const doi = citeData && citeData.doi;
     el.innerHTML = `
       <div class="mth-updated">Last updated: <b>${esc(fmtGenerated(data.pulled_at) || data.pulled_at)}</b></div>
       <div class="mth-stats">
+        <div class="mth-stat">
+          <div class="mth-stat-num">${data.weekly_downloads ?? '—'}</div>
+          <div class="mth-stat-lbl">This Week</div>
+        </div>
         <div class="mth-stat">
           <div class="mth-stat-num">${data.total_downloads ?? '—'}</div>
           <div class="mth-stat-lbl">Downloads</div>
@@ -1076,6 +1113,10 @@ async function moreLoadThesis() {
         <div class="mth-stat">
           <div class="mth-stat-num">${data.total_countries ?? '—'}</div>
           <div class="mth-stat-lbl">Countries</div>
+        </div>
+        <div class="mth-stat">
+          <div class="mth-stat-num">${citations.length}</div>
+          <div class="mth-stat-lbl">Citations</div>
         </div>
       </div>
       <div class="mlabel" style="margin-top:0">Titles</div>
@@ -1092,7 +1133,8 @@ async function moreLoadThesis() {
         </div>
       </div>
       <div class="mlabel">Institutions</div>
-      ${thesisRows(data.institutions, 'institution')}`;
+      ${thesisRows(data.institutions, 'institution')}
+      ${thesisCitationsSection(citations, doi)}`;
   } catch {
     el.innerHTML = '<div class="empty">Could not load thesis tracker data.</div>';
   }
@@ -1409,16 +1451,8 @@ function renderMore() {
     </div>
     <div id="vacation-suppressed-list" style="display:none;padding:0 16px 12px"></div>
     <div class="mgrid">
-      <button class="mtile" id="mtile-briefing" onclick="switchTab('briefing')">
-        <span class="mtile-label">Briefing</span>
-        <span class="mtile-chev">›</span>
-      </button>
       <button class="mtile" id="mtile-skills" onclick="moreToggle('skills')">
         <span class="mtile-label">Skills</span>
-        <span class="mtile-chev">›</span>
-      </button>
-      <button class="mtile" id="mtile-reading" onclick="moreToggle('reading')">
-        <span class="mtile-label">Reading List</span>
         <span class="mtile-chev">›</span>
       </button>
       <button class="mtile" id="mtile-ministry" onclick="moreToggle('ministry')">
@@ -1435,10 +1469,6 @@ function renderMore() {
       </button>
       <button class="mtile" id="mtile-people" onclick="moreToggle('people')">
         <span class="mtile-label">Contacts</span>
-        <span class="mtile-chev">›</span>
-      </button>
-      <button class="mtile" id="mtile-meet-reviews" onclick="window.location.href='/meet/reviews'">
-        <span class="mtile-label">Meeting Reviews</span>
         <span class="mtile-chev">›</span>
       </button>
       <button class="mtile" id="mtile-publishing" onclick="moreToggle('publishing')">
@@ -1473,17 +1503,22 @@ function renderMore() {
         <span class="mtile-label">Email Activity</span>
         <span class="mtile-chev">›</span>
       </button>
-      <button class="mtile" id="mtile-dev-sandbox" onclick="moreToggle('dev-sandbox')">
-        <span class="mtile-label">Dev Sandbox</span>
+      <button class="mtile" id="mtile-telegram-log" onclick="moreToggle('telegram-log')">
+        <span class="mtile-label">Telegram Log</span>
+        <span class="mtile-chev">›</span>
+      </button>
+      <button class="mtile" id="mtile-privacy-guard" onclick="moreToggle('privacy-guard')">
+        <span class="mtile-label">Privacy Guard</span>
+        <span class="mtile-chev">›</span>
+      </button>
+      <button class="mtile" id="mtile-trading" onclick="window.location.href='/trading'">
+        <span class="mtile-label">Trading</span>
         <span class="mtile-chev">›</span>
       </button>
     </div>
     <div id="more-expand-area">
       <div class="msec-body" id="msec-body-skills">
         <div class="msec-inner" id="msec-inner-skills"></div>
-      </div>
-      <div class="msec-body" id="msec-body-reading">
-        <div class="msec-inner" id="msec-inner-reading"><div class="loading">Loading&hellip;</div></div>
       </div>
       <div class="msec-body" id="msec-body-ministry">
         <div class="msec-inner" id="msec-inner-ministry"><div class="loading">Loading&hellip;</div></div>
@@ -1519,8 +1554,11 @@ function renderMore() {
       <div class="msec-body" id="msec-body-email-activity">
         <div class="msec-inner" id="msec-inner-email-activity"></div>
       </div>
-      <div class="msec-body" id="msec-body-dev-sandbox">
-        <div class="msec-inner" id="msec-inner-dev-sandbox"></div>
+      <div class="msec-body" id="msec-body-telegram-log">
+        <div class="msec-inner" id="msec-inner-telegram-log"></div>
+      </div>
+      <div class="msec-body" id="msec-body-privacy-guard">
+        <div class="msec-inner" id="msec-inner-privacy-guard"></div>
       </div>
       <div class="msec-body" id="msec-body-covercomps">
         <div class="msec-inner" id="msec-inner-covercomps"></div>
@@ -1604,8 +1642,9 @@ function moreToggle(sec) {
     if (sec === 'leadmagnet') moreLoadLeadMagnet();
     if (sec === 'links')    moreLoadLinks();
     if (sec === 'email-activity') moreLoadEmailActivity();
+    if (sec === 'telegram-log') moreLoadTelegramLog();
+    if (sec === 'privacy-guard') moreLoadPrivacyGuard();
     if (sec === 'covercomps') coverCompsLoad();
-    if (sec === 'dev-sandbox') moreLoadDevSandbox();
   }
 }
 
@@ -1652,9 +1691,10 @@ function moreLoadMinistry() {
   if (!el) return;
   el.innerHTML = `
     <div class="mtabs">
-      <button class="mtab active" id="mmin-tab-pn"    onclick="moreMinTab('pn')">Pastoral Notes</button>
-      <button class="mtab"        id="mmin-tab-shep"  onclick="moreMinTab('shep')">Shepherding</button>
-      <button class="mtab"        id="mmin-tab-audit" onclick="moreMinTab('audit')">Audit</button>
+      <button class="mtab active" id="mmin-tab-pn"     onclick="moreMinTab('pn')">Pastoral Notes</button>
+      <button class="mtab"        id="mmin-tab-shep"   onclick="moreMinTab('shep')">Shepherding</button>
+      <button class="mtab"        id="mmin-tab-deacon" onclick="moreMinTab('deacon')">Deacon Reports</button>
+      <button class="mtab"        id="mmin-tab-audit"  onclick="moreMinTab('audit')">Audit</button>
     </div>
     <div id="mmin-body-pn">
       <button class="mbtn mbtn-sm" onclick="moreTogglePNForm()" style="margin-bottom:8px">+ New Note</button>
@@ -1678,15 +1718,22 @@ function moreLoadMinistry() {
       <button class="mbtn" onclick="moreRunShepReport()">Run Shepherding Report</button>
       <div id="mshep-result"></div>
     </div>
+    <div id="mmin-body-deacon" style="display:none">
+      <button class="mbtn" onclick="moreDeaconPreviewMaster()">Preview Master Shepherding Report</button>
+      <div class="mlabel">Individual Deacon Reports</div>
+      <div id="mdeacon-list"><div class="loading">Loading&hellip;</div></div>
+      <div id="mdeacon-preview"></div>
+    </div>
     <div id="mmin-body-audit" style="display:none">
       <button class="mbtn" onclick="moreRunAudit()">Run Congregation Audit</button>
       <div id="maudit-result"></div>
     </div>`;
   moreLoadPN('active');
+  moreLoadDeaconReports();
 }
 
 function moreMinTab(tab) {
-  ['pn', 'shep', 'audit'].forEach(t => {
+  ['pn', 'shep', 'deacon', 'audit'].forEach(t => {
     const body = document.getElementById(`mmin-body-${t}`);
     const btn  = document.getElementById(`mmin-tab-${t}`);
     if (body) body.style.display = t === tab ? '' : 'none';
@@ -1824,6 +1871,145 @@ async function moreShepEmail() {
     await api('/api/shepherding/email', { method: 'POST' });
     alert('Sent via email!');
   } catch { alert('Failed to send.'); }
+}
+
+// ── Deacon Reports ───────────────────────────────────────────────────────────
+// Every send requires a preview first, then an explicit confirm click — never
+// sent automatically.
+
+let _deaconReportsData = null;
+let _deaconPreviewTarget = null; // {type:'deacon',name,email} | {type:'master'} | {type:'unassigned'}
+
+async function moreLoadDeaconReports() {
+  const el = document.getElementById('mdeacon-list');
+  if (!el) return;
+  el.innerHTML = '<div class="loading">Loading&hellip;</div>';
+  try {
+    const data = await api('/api/deacon-reports/list');
+    _deaconReportsData = data.deacons || [];
+    if (!_deaconReportsData.length) {
+      el.innerHTML = '<div class="empty">No deacons on file.</div>';
+      return;
+    }
+    el.innerHTML = `
+      <div class="mshep-wrap"><table class="mshep-table">
+        <tr><th>List</th><th>People</th><th>Email</th><th></th></tr>
+        ${_deaconReportsData.map((d, i) => `
+          <tr>
+            <td><strong>${esc(d.label || d.name || 'Unassigned')}</strong></td>
+            <td>${d.count}</td>
+            <td>${d.email ? esc(d.email) : '<span style="color:var(--muted)">no email on file</span>'}</td>
+            <td style="white-space:nowrap">
+              <button class="mbtn mbtn-sm" onclick="moreDeaconPreviewByIndex(${i})">Preview</button>
+            </td>
+          </tr>`).join('')}
+      </table></div>`;
+  } catch {
+    el.innerHTML = '<div class="empty">Could not load deacon list.</div>';
+  }
+}
+
+function moreDeaconPreviewByIndex(idx) {
+  const d = (_deaconReportsData || [])[idx];
+  if (!d) return;
+  if (d.kind === 'unassigned') moreDeaconPreviewUnassigned();
+  else if (d.kind === 'pastor_list') moreDeaconPreviewPastorList();
+  else moreDeaconPreviewOne(d.name, d.email);
+}
+
+async function moreDeaconPreviewOne(name, email) {
+  _deaconPreviewTarget = { type: 'deacon', name, email };
+  const sendBtn = email
+    ? `<button class="mbtn mbtn-p" onclick="moreDeaconSend()">Send to ${esc(name)} (${esc(email)})</button>`
+    : `<div class="empty">No email on file for ${esc(name)} — cannot send.</div>`;
+  await moreDeaconRenderPreview(
+    `/api/deacon-reports/preview/${encodeURIComponent(name)}`,
+    `Deacon Report — ${name}`,
+    sendBtn,
+  );
+}
+
+async function moreDeaconPreviewUnassigned() {
+  _deaconPreviewTarget = { type: 'unassigned' };
+  await moreDeaconRenderPreview(
+    '/api/deacon-reports/preview-unassigned',
+    'Unassigned — Needs Deacon Assignment',
+    `<button class="mbtn mbtn-p" onclick="moreDeaconSend()">Send to Elders (elders@catalyst302.com)</button>`,
+  );
+}
+
+async function moreDeaconPreviewPastorList() {
+  _deaconPreviewTarget = { type: 'pastor_list' };
+  await moreDeaconRenderPreview(
+    '/api/deacon-reports/preview-pastor-list',
+    "Pastor Bill's List — Deacons & Families",
+    `<button class="mbtn mbtn-p" onclick="moreDeaconSend()">Send to Me</button>`,
+  );
+}
+
+async function moreDeaconPreviewMaster() {
+  _deaconPreviewTarget = { type: 'master' };
+  const sendControls = `
+    <div class="mform" style="margin-top:10px">
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px;margin-bottom:6px">
+        <input type="checkbox" id="mdeacon-master-bill"> Also send to me (Bill)
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px">
+        <input type="checkbox" id="mdeacon-master-elders"> Also send to elders@catalyst302.com
+      </label>
+      <button class="mbtn mbtn-p" style="margin-top:10px" onclick="moreDeaconSend()">Send Master Report to Jim Bouchat</button>
+    </div>`;
+  await moreDeaconRenderPreview(
+    '/api/deacon-reports/preview-master',
+    'Master Shepherding Report',
+    sendControls,
+  );
+}
+
+async function moreDeaconRenderPreview(url, title, sendControlsHtml) {
+  const el = document.getElementById('mdeacon-preview');
+  if (!el) return;
+  el.innerHTML = '<div class="loading">Generating preview&hellip;</div>';
+  try {
+    const data = await api(url);
+    el.innerHTML = `
+      <div class="mlabel" style="margin-top:12px">${esc(title)} — Preview (not sent yet)</div>
+      <div style="border:1px solid var(--border);border-radius:4px;padding:12px;max-height:480px;overflow:auto;background:#fff;color:#222">
+        ${data.html}
+      </div>
+      ${sendControlsHtml}
+      <div id="mdeacon-send-status" style="margin-top:8px;font-size:12px"></div>`;
+  } catch {
+    el.innerHTML = '<div class="empty">Could not generate preview.</div>';
+  }
+}
+
+async function moreDeaconSend() {
+  if (!_deaconPreviewTarget) return;
+  if (!confirm('Send this report now? This cannot be undone.')) return;
+  const statusEl = document.getElementById('mdeacon-send-status');
+  try {
+    let url;
+    const opts = { method: 'POST' };
+    if (_deaconPreviewTarget.type === 'deacon') {
+      url = `/api/deacon-reports/send/${encodeURIComponent(_deaconPreviewTarget.name)}`;
+    } else if (_deaconPreviewTarget.type === 'unassigned') {
+      url = '/api/deacon-reports/send-unassigned';
+    } else if (_deaconPreviewTarget.type === 'pastor_list') {
+      url = '/api/deacon-reports/send-pastor-list';
+    } else {
+      url = '/api/deacon-reports/send-master';
+      opts.headers = { 'Content-Type': 'application/json' };
+      opts.body = JSON.stringify({
+        also_bill:   !!document.getElementById('mdeacon-master-bill')?.checked,
+        also_elders: !!document.getElementById('mdeacon-master-elders')?.checked,
+      });
+    }
+    const data = await api(url, opts);
+    if (statusEl) statusEl.innerHTML = `<span style="color:var(--gold)">${esc(data.message || 'Sent.')}</span>`;
+  } catch {
+    if (statusEl) statusEl.innerHTML = `<span style="color:#ff6b6b">Failed to send.</span>`;
+  }
 }
 
 async function moreRunAudit() {
@@ -3587,109 +3773,212 @@ function _eaRenderTable() {
     </table></div>`;
 }
 
-// ── Dev Sandbox ──────────────────────────────────────────────────────────────
-// Interactive, sandboxed Claude Code sessions — NOT Dev Loop (that's the
-// separate 'dev' tile above, Ollama-driven/unattended). Terminal opens in a
-// new tab rather than an iframe embed: ttyd's xterm.js terminal needs full
-// control of the viewport for touch/virtual-keyboard handling, which a
-// same-page iframe on mobile Safari actively fights (nested-scroll context,
-// safe-area/viewport quirks). ttyd is also always used as a standalone page
-// upstream, never as an embed, so opening in a new tab is the
-// zero-surprise choice, not just the fallback.
+// ── Telegram Log (outbound only — Watson now sends to onboarded leaders, ──
+//    not just Bill; jobs/telegram/send_to_person.py) ────────────────────────
 
-let _dsxRepos = [];
+let _tlDays      = 7;
+let _tlRecipient = '';
+let _tlSearchTimer = null;
 
-async function moreLoadDevSandbox() {
-  const el = document.getElementById('msec-inner-dev-sandbox');
+async function moreLoadTelegramLog() {
+  const el = document.getElementById('msec-inner-telegram-log');
   if (!el) return;
   el.innerHTML = '<div class="loading">Loading&hellip;</div>';
-  try {
-    const [repos, sessions] = await Promise.all([
-      api('/api/dev-sandbox/repos'),
-      api('/api/dev-sandbox/status'),
-    ]);
-    _dsxRepos = repos;
-    _dsxRenderShell(sessions);
-  } catch (e) {
-    el.innerHTML = String(e.message).startsWith('401')
-      ? '<div class="empty">Log into <a href="/admin/login" style="color:var(--gold)">/admin</a> to use Dev Sandbox.</div>'
-      : '<div class="empty">Could not load Dev Sandbox.</div>';
-  }
+  _tlRenderShell();
+  await _tlFetch();
 }
 
-function _dsxRenderShell(sessions) {
-  const el = document.getElementById('msec-inner-dev-sandbox');
+function _tlRenderShell() {
+  const el = document.getElementById('msec-inner-telegram-log');
   if (!el) return;
   const selStyle = 'padding:7px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:12px;outline:none';
   el.innerHTML = `
-    <div style="display:flex;gap:8px;margin-bottom:10px">
-      <select id="dsx-repo" style="${selStyle};flex:1">
-        ${_dsxRepos.map(r => `<option value="${esc(r)}">${esc(r)}</option>`).join('')}
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+      <select id="mtl-days" style="${selStyle}" onchange="_tlOnDaysChange(this.value)">
+        <option value="1"${_tlDays===1?' selected':''}>24h</option>
+        <option value="7"${_tlDays===7?' selected':''}>7d</option>
+        <option value="30"${_tlDays===30?' selected':''}>30d</option>
       </select>
-      <button class="mbtn mbtn-p mbtn-sm" id="dsx-start-btn" onclick="_dsxStart()">Start Session</button>
+      <input id="mtl-search" type="text" placeholder="Search person&hellip;" value="${esc(_tlRecipient)}"
+        style="flex:1;min-width:140px;padding:7px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:12px;outline:none"
+        oninput="_tlOnSearchInput(this.value)">
     </div>
-    <span class="mth-pull-error" id="dsx-error"></span>
-    <div id="dsx-sessions"></div>`;
-  _dsxRenderSessions(sessions);
+    <div id="mtl-table-wrap"><div class="loading">Loading&hellip;</div></div>`;
 }
 
-function _dsxRenderSessions(sessions) {
-  const wrap = document.getElementById('dsx-sessions');
+function _tlOnDaysChange(v) {
+  _tlDays = parseInt(v, 10) || 7;
+  _tlFetch();
+}
+
+function _tlOnSearchInput(v) {
+  _tlRecipient = v.trim();
+  clearTimeout(_tlSearchTimer);
+  _tlSearchTimer = setTimeout(_tlFetch, 400);
+}
+
+async function _tlFetch() {
+  const wrap = document.getElementById('mtl-table-wrap');
+  if (wrap) wrap.innerHTML = '<div class="loading">Loading&hellip;</div>';
+  try {
+    const params = new URLSearchParams({ days: String(_tlDays) });
+    if (_tlRecipient) params.set('recipient', _tlRecipient);
+    const rows = await api(`/api/telegram-log?${params.toString()}`);
+    _tlRenderTable(Array.isArray(rows) ? rows : []);
+  } catch (e) {
+    if (!wrap) return;
+    wrap.innerHTML = String(e.message).startsWith('401')
+      ? '<div class="empty">Log into <a href="/admin/login" style="color:var(--gold)">/admin</a> to view the Telegram log.</div>'
+      : '<div class="empty">Could not load the Telegram log.</div>';
+  }
+}
+
+function _tlRenderTable(rows) {
+  const wrap = document.getElementById('mtl-table-wrap');
   if (!wrap) return;
-  if (!sessions.length) {
-    wrap.innerHTML = '<div class="empty">No sandbox sessions running.</div>';
+  if (!rows.length) {
+    wrap.innerHTML = '<div class="empty">No messages in this window.</div>';
     return;
   }
-  wrap.innerHTML = sessions.map(s => `
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 0;border-bottom:1px solid var(--border)">
-      <div>
-        <div style="font-size:13px;font-weight:600">${esc(s.repo)}</div>
-        <div style="font-size:11px;color:var(--muted)">started ${esc(s.created_at)}</div>
-      </div>
-      <div style="display:flex;gap:6px">
-        <button class="mbtn mbtn-p mbtn-sm" onclick="window.open('${esc(s.url)}', '_blank', 'noopener,noreferrer')">Open</button>
-        <button class="mbtn mbtn-d mbtn-sm" onclick="_dsxStop('${esc(s.id)}')">Stop</button>
-      </div>
-    </div>`).join('');
+  wrap.innerHTML = `
+    <div class="mshep-wrap"><table class="mshep-table">
+      <tr><th>Time</th><th></th><th>Person</th><th>Message</th></tr>
+      ${rows.map(r => `
+        <tr>
+          <td style="white-space:nowrap">${esc(fmtGenerated(r.created_at))}</td>
+          <td style="white-space:nowrap">${r.direction === 'in'
+            ? '<span title="Received" style="color:var(--gold)">&larr; in</span>'
+            : '<span title="Sent" style="color:var(--muted)">&rarr; out</span>'}</td>
+          <td>${esc(r.recipient)}</td>
+          <td>${esc(r.message)}</td>
+        </tr>`).join('')}
+    </table></div>`;
 }
 
-async function _dsxStart() {
-  const sel = document.getElementById('dsx-repo');
-  const btn = document.getElementById('dsx-start-btn');
-  const errEl = document.getElementById('dsx-error');
-  if (!sel || !sel.value) return;
-  errEl.textContent = '';
-  btn.disabled = true;
-  btn.textContent = 'Starting…';
+// ── Privacy Guard (read-only log — approve/skip stays Telegram-only) ────────
+
+const _PG_STATUSES = ['pending', 'approved', 'submitted', 'unconfirmed', 'failed', 'rejected'];
+let _pgAllRows = [];
+let _pgStatus  = '';  // '' = all
+
+async function moreLoadPrivacyGuard() {
+  const el = document.getElementById('msec-inner-privacy-guard');
+  if (!el) return;
+  el.innerHTML = '<div class="loading">Loading&hellip;</div>';
+  _pgRenderShell();
+  await _pgFetch();
+  await _pgFetchCandidates();
+}
+
+function _pgRenderShell() {
+  const el = document.getElementById('msec-inner-privacy-guard');
+  if (!el) return;
+  const selStyle = 'padding:7px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:12px;outline:none';
+  el.innerHTML = `
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+      <select id="mpg-status" style="${selStyle}" onchange="_pgOnStatusChange(this.value)">
+        <option value=""${_pgStatus===''?' selected':''}>All statuses</option>
+        ${_PG_STATUSES.map(s => `<option value="${s}"${_pgStatus===s?' selected':''}>${s[0].toUpperCase()}${s.slice(1)}</option>`).join('')}
+      </select>
+    </div>
+    <div id="mpg-table-wrap"><div class="loading">Loading&hellip;</div></div>
+    <div style="font-size:12px;font-weight:500;margin:16px 0 8px;color:var(--muted)">Candidate broker sites (from weekly discovery -- Investigate/Not relevant stays Telegram-only)</div>
+    <div id="mpg-cand-wrap"><div class="loading">Loading&hellip;</div></div>`;
+}
+
+function _pgOnStatusChange(v) {
+  _pgStatus = v;
+  _pgRenderTable();
+}
+
+async function _pgFetch() {
+  const wrap = document.getElementById('mpg-table-wrap');
+  if (wrap) wrap.innerHTML = '<div class="loading">Loading&hellip;</div>';
   try {
-    const result = await api('/api/dev-sandbox/start', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ repo: sel.value }),
-    });
-    window.open(result.url, '_blank', 'noopener,noreferrer');
-    const sessions = await api('/api/dev-sandbox/status');
-    _dsxRenderSessions(sessions);
+    const rows = await api('/api/privacy-removals');
+    _pgAllRows = Array.isArray(rows) ? rows : [];
+    _pgRenderTable();
   } catch (e) {
-    errEl.textContent = 'Failed to start session.';
-  } finally {
-    btn.disabled = false;
-    btn.textContent = 'Start Session';
+    if (!wrap) return;
+    wrap.innerHTML = String(e.message).startsWith('401')
+      ? '<div class="empty">Log into <a href="/admin/login" style="color:var(--gold)">/admin</a> to view Privacy Guard.</div>'
+      : '<div class="empty">Could not load Privacy Guard log.</div>';
   }
 }
 
-async function _dsxStop(id) {
-  try {
-    await api('/api/dev-sandbox/stop', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id }),
-    });
-    const sessions = await api('/api/dev-sandbox/status');
-    _dsxRenderSessions(sessions);
-  } catch (e) {
-    alert('Failed to stop session.');
+const _PG_STATUS_COLOR = { failed: 'var(--red)', rejected: 'var(--muted)', submitted: 'var(--gold)', unconfirmed: 'var(--warn)' };
+// unconfirmed = the opt-out click succeeded but this broker gives no way to
+// verify real completion (see remove.py's _mark_unconfirmed) — never render
+// it identically to a genuinely verified 'submitted' removal.
+const _PG_UNCONFIRMED_NOTE = 'Unconfirmed: submit click succeeded, but this broker has no verifiable success signal.';
+
+function _pgRenderTable() {
+  const wrap = document.getElementById('mpg-table-wrap');
+  if (!wrap) return;
+  const rows = _pgStatus ? _pgAllRows.filter(r => r.status === _pgStatus) : _pgAllRows;
+  if (!rows.length) {
+    wrap.innerHTML = '<div class="empty">No Privacy Guard matches yet.</div>';
+    return;
   }
+  wrap.innerHTML = `
+    <div class="mshep-wrap"><table class="mshep-table">
+      <tr><th>Found</th><th>Person</th><th>Broker</th><th>Status</th><th>Confidence</th><th>Matched URL</th><th>Submitted</th><th>Next Rescan</th></tr>
+      ${rows.map(r => `
+        <tr>
+          <td style="white-space:nowrap">${esc(fmtGenerated(r.created_at))}</td>
+          <td>${esc(r.person_name)}</td>
+          <td>${esc(r.broker_name)}</td>
+          <td>
+            <span style="${_PG_STATUS_COLOR[r.status] ? `color:${_PG_STATUS_COLOR[r.status]}` : ''}">${r.status === 'unconfirmed' ? '⚠ unconfirmed' : esc(r.status)}</span>
+            ${r.status === 'failed' && r.failure_reason ? `<div style="color:var(--muted);font-size:11px">${esc(r.failure_reason)}</div>` : ''}
+            ${r.status === 'unconfirmed' ? `<div style="color:var(--warn);font-size:11px">${esc(_PG_UNCONFIRMED_NOTE)}</div>` : ''}
+          </td>
+          <td>${r.confidence_score != null ? Math.round(r.confidence_score * 100) + '%' : ''}</td>
+          <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+            ${r.matched_url ? `<a href="${esc(r.matched_url)}" target="_blank" rel="noopener noreferrer" style="color:var(--gold)">${esc(r.matched_url)}</a>` : ''}
+          </td>
+          <td style="white-space:nowrap">${esc(fmtGenerated(r.submitted_at))}</td>
+          <td style="white-space:nowrap">${esc(fmtGenerated(r.next_rescan_at))}</td>
+        </tr>`).join('')}
+    </table></div>`;
+}
+
+const _PGCAND_STATUS_COLOR = { flagged: 'var(--gold)', dismissed: 'var(--muted)' };
+
+async function _pgFetchCandidates() {
+  const wrap = document.getElementById('mpg-cand-wrap');
+  if (wrap) wrap.innerHTML = '<div class="loading">Loading&hellip;</div>';
+  try {
+    const rows = await api('/api/privacy-broker-candidates');
+    _pgRenderCandidatesTable(Array.isArray(rows) ? rows : []);
+  } catch (e) {
+    if (!wrap) return;
+    wrap.innerHTML = String(e.message).startsWith('401')
+      ? '<div class="empty">Log into <a href="/admin/login" style="color:var(--gold)">/admin</a> to view candidates.</div>'
+      : '<div class="empty">Could not load candidate broker sites.</div>';
+  }
+}
+
+function _pgRenderCandidatesTable(rows) {
+  const wrap = document.getElementById('mpg-cand-wrap');
+  if (!wrap) return;
+  if (!rows.length) {
+    wrap.innerHTML = '<div class="empty">No candidate broker sites found yet.</div>';
+    return;
+  }
+  wrap.innerHTML = `
+    <div class="mshep-wrap"><table class="mshep-table">
+      <tr><th>First Seen</th><th>Domain</th><th>Status</th><th>Confidence</th><th>Found Via</th><th>Matches</th></tr>
+      ${rows.map(r => `
+        <tr>
+          <td style="white-space:nowrap">${esc(fmtGenerated(r.first_seen_at))}</td>
+          <td><a href="${esc(r.example_url)}" target="_blank" rel="noopener noreferrer" style="color:var(--gold)">${esc(r.domain)}</a></td>
+          <td><span style="${_PGCAND_STATUS_COLOR[r.status] ? `color:${_PGCAND_STATUS_COLOR[r.status]}` : ''}">${esc(r.status)}</span></td>
+          <td>${r.confidence != null ? Math.round(r.confidence * 100) + '%' : ''}</td>
+          <td>${esc(r.example_person)}</td>
+          <td>${esc(String(r.match_count))}</td>
+        </tr>`).join('')}
+    </table></div>`;
 }
 
 function moreToggleTheme(isLight) {
@@ -3884,7 +4173,7 @@ async function sendChatStream() {
     return;
   }
 
-  if (message.toLowerCase().startsWith('polish this:')) {
+  if (message.toLowerCase().startsWith('teamtest:')) {
     ta.value = '';
     ta.style.height = 'auto';
     ta.focus();
@@ -3892,16 +4181,17 @@ async function sendChatStream() {
     const msgs = document.getElementById('chat-messages');
     const statusEl = document.createElement('div');
     statusEl.className = 'cstatus';
-    statusEl.textContent = 'Polishing…';
+    statusEl.textContent = 'Asking as a team member…';
     if (msgs) { msgs.appendChild(statusEl); msgs.scrollTop = msgs.scrollHeight; }
     try {
-      const res = await api('/api/skills/polish', {
+      const question = message.slice(message.indexOf(':') + 1).trim();
+      const res = await api('/api/team-chat-test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: message }),
+        body: JSON.stringify({ text: question }),
       });
       if (statusEl.parentNode) statusEl.remove();
-      appendChatMsg('watson', res.result || '(no result)');
+      appendChatMsg('watson', res.reply || '(no result)');
     } catch (err) {
       if (statusEl.parentNode) statusEl.remove();
       appendChatMsg('watson', `Error: ${err.message}`);

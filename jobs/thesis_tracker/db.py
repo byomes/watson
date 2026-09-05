@@ -26,6 +26,13 @@ def init_db():
         except sqlite3.OperationalError as e:
             if "duplicate column name" not in str(e):
                 raise
+        try:
+            conn.execute(
+                "ALTER TABLE thesis_snapshots ADD COLUMN weekly_downloads INTEGER"
+            )
+        except sqlite3.OperationalError as e:
+            if "duplicate column name" not in str(e):
+                raise
         conn.execute("""
             CREATE TABLE IF NOT EXISTS thesis_titles (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -58,6 +65,28 @@ def init_db():
                 downloads INTEGER
             )
         """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS thesis_citations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                canonical_key TEXT NOT NULL UNIQUE,
+                sources TEXT NOT NULL,
+                confidence TEXT NOT NULL,
+                title TEXT,
+                authors TEXT,
+                venue TEXT,
+                year INTEGER,
+                doi TEXT,
+                url TEXT,
+                first_seen_at TEXT NOT NULL
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS thesis_doi_watch (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                doi TEXT NOT NULL,
+                found_at TEXT NOT NULL
+            )
+        """)
 
 
 def insert_snapshot(
@@ -74,16 +103,17 @@ def insert_snapshot(
     institutions: list[dict],
     referrers: list[dict],
     window_type: str = "rolling_30d",
+    weekly_downloads: int | None = None,
 ) -> int:
     """Insert one full snapshot (parent row + breakdown rows). Returns snapshot id."""
     with get_db() as conn:
         cur = conn.execute(
             """INSERT INTO thesis_snapshots
                (pulled_at, window_type, window_start, window_end, total_downloads, total_views,
-                total_countries, source_link, raw_json)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                total_countries, source_link, raw_json, weekly_downloads)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (pulled_at, window_type, window_start, window_end, total_downloads, total_views,
-             total_countries, source_link, raw_json),
+             total_countries, source_link, raw_json, weekly_downloads),
         )
         snapshot_id = cur.lastrowid
 
@@ -111,6 +141,15 @@ def insert_snapshot(
         return snapshot_id
 
 
+def get_latest_snapshot() -> dict | None:
+    """Most recent snapshot row (before any new insert), or None if this is the first pull."""
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT * FROM thesis_snapshots ORDER BY id DESC LIMIT 1"
+        ).fetchone()
+    return dict(row) if row else None
+
+
 def get_known_countries() -> set[str]:
     with get_db() as conn:
         rows = conn.execute("SELECT DISTINCT country FROM thesis_countries").fetchall()
@@ -121,3 +160,40 @@ def get_known_institutions() -> set[str]:
     with get_db() as conn:
         rows = conn.execute("SELECT DISTINCT institution FROM thesis_institutions").fetchall()
     return {row["institution"] for row in rows if row["institution"]}
+
+
+def get_known_citation_keys() -> set[str]:
+    with get_db() as conn:
+        rows = conn.execute("SELECT canonical_key FROM thesis_citations").fetchall()
+    return {row["canonical_key"] for row in rows}
+
+
+def insert_citations(citations: list[dict]) -> None:
+    """Insert new citation rows. Each dict: canonical_key, sources, confidence,
+    title, authors, venue, year, doi, url, first_seen_at."""
+    with get_db() as conn:
+        for c in citations:
+            conn.execute(
+                """INSERT OR IGNORE INTO thesis_citations
+                   (canonical_key, sources, confidence, title, authors, venue, year, doi, url, first_seen_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    c["canonical_key"], c["sources"], c["confidence"], c.get("title"),
+                    c.get("authors"), c.get("venue"), c.get("year"), c.get("doi"),
+                    c.get("url"), c["first_seen_at"],
+                ),
+            )
+
+
+def get_known_doi() -> str | None:
+    with get_db() as conn:
+        row = conn.execute("SELECT doi FROM thesis_doi_watch ORDER BY id DESC LIMIT 1").fetchone()
+    return row["doi"] if row else None
+
+
+def insert_doi_watch(doi: str, found_at: str) -> None:
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO thesis_doi_watch (doi, found_at) VALUES (?, ?)",
+            (doi, found_at),
+        )

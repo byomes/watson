@@ -205,6 +205,133 @@ identify one specific book."""
     return {"title": parsed["title"], "author": parsed.get("author"), "confident": True}
 
 
+def _normalize_for_verbatim(text: str) -> str:
+    """Fold only the cosmetic differences a model introduces when it *copies*
+    text — smart quotes/dashes/ellipses, case, and whitespace — so a genuinely
+    verbatim excerpt still matches its source even after the model round-tripped
+    the punctuation. Deliberately conservative: it never drops or reorders words,
+    so a paraphrase still fails the substring check this feeds."""
+    if not text:
+        return ""
+    t = text
+    for a, b in (
+        ("‘", "'"), ("’", "'"), ("“", '"'), ("”", '"'),
+        ("–", "-"), ("—", "-"), ("…", "..."),
+    ):
+        t = t.replace(a, b)
+    return re.sub(r"\s+", " ", t.strip().lower())
+
+
+def _extract_chatgpt_research(text: str) -> dict:
+    """LLM pass over a shared ChatGPT conversation in which someone researched a
+    single romance novel. Same never-guess contract as _extract_book_from_text(),
+    but pulls the whole research payload the ChatGPT import path needs.
+
+    Returns:
+        {"confident": bool, "title": str|None, "author": str|None,
+         "series": str|None,
+         "spice_findings": [{"excerpt": str, "rank": int}],
+         "kindle_unlimited": True|False|None}
+
+    The spice_findings excerpts MUST be ChatGPT's own sentences about spice
+    content, copied verbatim out of the conversation — this pass extracts them,
+    it does not re-summarize them in Watson's words. confident=false whenever the
+    conversation doesn't clearly identify one specific book (treated by the
+    caller as today's needs_review path)."""
+    empty = {
+        "confident": False, "title": None, "author": None, "series": None,
+        "spice_findings": [], "kindle_unlimited": None,
+    }
+    if not text or not text.strip():
+        return empty
+
+    system = (
+        "You read a ChatGPT conversation in which someone researched a single "
+        "romance novel — its title, author, series, whether it is on Kindle "
+        "Unlimited, and especially its spice/sexual-content level. You extract "
+        "that into JSON. You NEVER guess: if the conversation does not clearly "
+        "identify one specific book, set confident=false. For every "
+        "spice_findings excerpt you MUST copy ChatGPT's own sentences about the "
+        "book's spice/sexual content VERBATIM from the conversation — never "
+        "paraphrase, summarize, or write your own description. Return only valid "
+        "JSON, no other text."
+    )
+    prompt = f"""ChatGPT conversation:
+{text[:6000]}
+
+Return JSON exactly in this shape:
+{{
+  "confident": true or false,
+  "title": "string or null",
+  "author": "string or null",
+  "series": "string or null",
+  "spice_findings": [{{"excerpt": "a verbatim sentence ChatGPT wrote about the spice/sexual content", "rank": 1}}],
+  "kindle_unlimited": true or false or null
+}}
+
+Rules:
+- confident=false if the conversation is ambiguous, names multiple books, or doesn't clearly identify one specific book.
+- Each spice_findings excerpt must be copied word-for-word from the conversation above — never reworded.
+- Rank findings 1, 2, 3... with rank 1 being the most directly about the spice level.
+- kindle_unlimited: true only if the conversation clearly says it IS on Kindle Unlimited, false if it clearly says it is NOT, null if unstated or unclear."""
+
+    try:
+        raw = call_ollama(system, prompt, timeout=120, options={"num_ctx": 8192})
+        parsed = parse_json(raw)
+    except Exception as exc:
+        log.error("_extract_chatgpt_research Ollama call failed: %s", exc)
+        parsed = None
+
+    if not parsed or not parsed.get("confident") or not parsed.get("title"):
+        return empty
+
+    findings = []
+    for i, f in enumerate(parsed.get("spice_findings") or []):
+        if not isinstance(f, dict):
+            continue
+        excerpt = (f.get("excerpt") or "").strip()
+        if not excerpt:
+            continue
+        try:
+            rank = int(f.get("rank"))
+        except (TypeError, ValueError):
+            rank = i + 1
+        findings.append({"excerpt": excerpt, "rank": rank})
+
+    # Verbatim guard — Bill's hard constraint: the excerpts Mel sees must be
+    # ChatGPT's own words, not the 7B extractor's paraphrase. Prompt-instructing
+    # the model to copy word-for-word is NOT sufficient (qwen2.5:7b paraphrases
+    # some of the time regardless), so mechanically drop any excerpt that isn't
+    # actually present — modulo cosmetic punctuation/whitespace/case only — in the
+    # source paste. If this empties the list, the caller falls back to
+    # needs_review with the raw text preserved as a source, never a fabricated
+    # finding. Checked against the full `text`, not the 6000-char prompt window.
+    norm_source = _normalize_for_verbatim(text)
+    verified = []
+    for f in findings:
+        if _normalize_for_verbatim(f["excerpt"]) in norm_source:
+            verified.append(f)
+        else:
+            log.warning(
+                "chatgpt import: dropped non-verbatim excerpt (paraphrased by extractor): %r",
+                f["excerpt"][:120],
+            )
+    findings = verified
+
+    ku = parsed.get("kindle_unlimited")
+    if ku not in (True, False):
+        ku = None
+
+    return {
+        "confident": True,
+        "title": parsed["title"],
+        "author": parsed.get("author"),
+        "series": parsed.get("series"),
+        "spice_findings": findings,
+        "kindle_unlimited": ku,
+    }
+
+
 def extract_multiple_books_from_text(raw_text: str) -> dict:
     """LLM pass for a 'book haul'/wrap-up post that may mention several books. Never
     guesses — a title only makes it into confident_titles if it's clearly and
@@ -317,7 +444,11 @@ def _create_book(
     *, title: str, author: str, status: str, added_by, series=None, spice_rating=None,
     spice_notes="", page_count=None, kindle_unlimited=None,
     cover_image_url=None, description=None, series_number=None, series_total=None,
+    research_gaps=None,
 ) -> int:
+    # research_gaps: list[str] of "what we couldn't confirm" notes, or None. Stored as
+    # a JSON array in its own books column (never a spice_findings row — that table is
+    # verbatim attributed quotes only). NULL when nothing went unverified.
     # series_number is Phase 1's existing column; research's "series_position" (from
     # Amazon/Goodreads) fills the same slot — no separate column for the same concept.
     # kindle_unlimited is three-state (True/False/None=unknown) — coerce True/False to
@@ -328,16 +459,18 @@ def _create_book(
     # moved to Stage B's fetch_amazon_ku_status()), so this is NULL at creation time
     # until Stage B's own UPDATE sets both together once it actually checks.
     checked_at_sql = "datetime('now')" if kindle_unlimited is not None else "NULL"
+    research_gaps_json = json.dumps(research_gaps) if research_gaps else None
     conn = get_db()
     try:
         cur = conn.execute(
             "INSERT INTO books (title, author, series, series_number, series_total, "
             "spice_rating, spice_notes, page_count, kindle_unlimited, "
-            f"kindle_unlimited_checked_at, cover_image_url, description, status, added_by) "
-            f"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, {checked_at_sql}, ?, ?, ?, ?)",
+            f"kindle_unlimited_checked_at, cover_image_url, description, status, added_by, "
+            f"research_gaps) "
+            f"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, {checked_at_sql}, ?, ?, ?, ?, ?)",
             (title, author, series, series_number, series_total, spice_rating,
              spice_notes, page_count, ku_db_value,
-             cover_image_url, description, status, added_by),
+             cover_image_url, description, status, added_by, research_gaps_json),
         )
         conn.commit()
         return cur.lastrowid

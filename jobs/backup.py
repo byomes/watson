@@ -3,6 +3,7 @@
 Watson nightly backup to OneDrive via rclone.
 Backs up: data/ (the four core DBs snapshotted via sqlite3 .backup, not
 copied live), .env, config/, data/chroma/ (live vector index), kb/documents/,
+~/.claude/projects (Claude Code's own session memory, added 2026-08-30),
 a crontab snapshot
 
 Deliberately does NOT back up ~/.ssh or ~/.config/rclone/rclone.conf — those
@@ -17,25 +18,32 @@ from datetime import datetime
 import requests
 
 from config.settings import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+from core.retry import run_with_retry
 from core.vacation import vacation_gate
 
+# Retry budget shared by every retry-eligible subprocess op: ~10 min of real
+# elapsed time, exponential backoff 5s → 60s. See core/retry.py.
+RETRY_BUDGET_SECONDS = 600
+
 WATSON_DIR = "/home/billyomes/watson"
+HOME_DIR = os.path.expanduser("~")
 REMOTE = "Watson-Backup:Watson-Backup"
 LOG = f"{WATSON_DIR}/logs/backup.log"
 
 DB_NAMES = ["watson.db", "congregation.db", "donors.db", "curator.db"]
 
+# (source path, remote path under REMOTE)
 TARGETS = [
-    ("data", "data"),
-    ("config", "config"),
-    ("data/chroma", "chroma-live"),
-    ("kb/documents", "kb/documents"),
+    (f"{WATSON_DIR}/data", "data"),
+    (f"{WATSON_DIR}/config", "config"),
+    (f"{WATSON_DIR}/data/chroma", "chroma-live"),
+    (f"{WATSON_DIR}/kb/documents", "kb/documents"),
+    (f"{HOME_DIR}/.claude/projects", "claude-projects"),
 ]
 
 def log(msg):
     ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     line = f"[{ts}] {msg}"
-    print(line)
     with open(LOG, "a") as f:
         f.write(line + "\n")
 
@@ -55,17 +63,27 @@ def _backup_dbs(tmp_dir, errors):
         src = f"{WATSON_DIR}/data/{db_name}"
         dst = f"{tmp_dir}/{db_name}"
         log(f"Snapshotting {db_name}...")
-        result = subprocess.run(
-            ["sqlite3", src, f".backup {dst}"],
-            capture_output=True, text=True,
+        # Two complementary layers of lock resilience (bug_tracker #60): the
+        # passive `.timeout 30000` makes the sqlite3 CLI (default busy_timeout=0)
+        # wait up to 30s within one attempt for a concurrent writer's lock to
+        # clear, and run_with_retry re-invokes the whole command with backoff if
+        # a full 30s wait still ends in "database is locked", up to the ~10 min
+        # budget.
+        result = run_with_retry(
+            ["sqlite3", src, "-cmd", ".timeout 30000", f".backup {dst}"],
+            budget_seconds=RETRY_BUDGET_SECONDS,
+            description=f"sqlite3 .backup {db_name}",
+            log=log,
         )
         if result.returncode != 0:
             log(f"ERROR snapshotting {db_name}: {result.stderr}")
             errors.append(db_name)
             continue
-        upload = subprocess.run(
+        upload = run_with_retry(
             ["rclone", "copyto", dst, f"{REMOTE}/data/{db_name}"],
-            capture_output=True, text=True,
+            budget_seconds=RETRY_BUDGET_SECONDS,
+            description=f"rclone copyto {db_name}",
+            log=log,
         )
         if upload.returncode != 0:
             log(f"ERROR uploading {db_name}: {upload.stderr}")
@@ -88,9 +106,11 @@ def _backup_crontab(tmp_dir, errors):
         f.write(result.stdout)
 
     log("Backing up crontab...")
-    upload = subprocess.run(
+    upload = run_with_retry(
         ["rclone", "copyto", dst, f"{REMOTE}/crontab.txt"],
-        capture_output=True, text=True,
+        budget_seconds=RETRY_BUDGET_SECONDS,
+        description="rclone copyto crontab.txt",
+        log=log,
     )
     if upload.returncode != 0:
         log(f"ERROR uploading crontab: {upload.stderr}")
@@ -107,27 +127,33 @@ def run_backup():
         _backup_dbs(tmp_dir, errors)
         _backup_crontab(tmp_dir, errors)
 
-    for local, remote in TARGETS:
-        src = f"{WATSON_DIR}/{local}"
+    for src, remote in TARGETS:
         dst = f"{REMOTE}/{remote}"
-        log(f"Backing up {local}...")
+        log(f"Backing up {src}...")
         args = ["rclone", "copy", src, dst, "--stats-one-line"]
-        if local == "data":
+        if src == f"{WATSON_DIR}/data":
             # DBs are snapshotted separately via sqlite3 .backup above —
             # skip the live files here so we never upload a raw copy.
             for db_name in DB_NAMES:
                 args += ["--exclude", db_name]
-        result = subprocess.run(args, capture_output=True, text=True)
+        result = run_with_retry(
+            args,
+            budget_seconds=RETRY_BUDGET_SECONDS,
+            description=f"rclone copy {src}",
+            log=log,
+        )
         if result.returncode != 0:
-            log(f"ERROR on {local}: {result.stderr}")
-            errors.append(local)
+            log(f"ERROR on {src}: {result.stderr}")
+            errors.append(src)
         else:
-            log(f"OK: {local}")
+            log(f"OK: {src}")
 
     # Backup .env
-    result = subprocess.run(
+    result = run_with_retry(
         ["rclone", "copyto", f"{WATSON_DIR}/.env", f"{REMOTE}/.env"],
-        capture_output=True, text=True
+        budget_seconds=RETRY_BUDGET_SECONDS,
+        description="rclone copyto .env",
+        log=log,
     )
     if result.returncode != 0:
         log(f"ERROR on .env: {result.stderr}")

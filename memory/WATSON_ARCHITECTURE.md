@@ -33,7 +33,7 @@ Watson acts on Dr. Bill's behalf under his supervision. Always identified openly
 - **Ollama:** Bound to `0.0.0.0`. Models: `llama3.2:3b` (primary chat/intent), `qwen2.5-coder:7b` (Dev Loop, KB, structured reasoning), `qwen2.5:7b` (accuracy-sensitive background jobs — pastoral notes, email drafts, task/goal extraction, State of Church synthesis, skill/capability audits), `phi3:mini` (background tasks), `gemma3:1b` (fast/lightweight)
 - **External storage:**
   - `/mnt/external` — USB SSD, holds `OLLAMA_MODELS`. Existing, untouched by the backup build below.
-  - `/mnt/family-storage` — USB 2TB HDD (ext4, `sda1`), already mounted; added to Watson's use 2026-08-05. **Dual-purpose**: also serves as family NAS storage, not dedicated to Watson. Same power bar as the Beelink itself, so Watson's use of it is a **local/fast recovery tier, not an offsite/disaster-recovery leg** — a power event takes out both together. Watson's own data (backups for now, possibly other things later) is isolated under `/mnt/family-storage/watson/`, `chmod 700` and owned by `billyomes` only, so the family NAS side can't read or write into it regardless of how the share is configured. `jobs/backup_local.py` (restic, 2:30am) backs up to a repo at `/mnt/family-storage/watson/restic-repo`. OneDrive (`jobs/backup.py`, 3am) remains the actual offsite disaster leg, unchanged in scope/purpose — the two legs run independently, both full scope, neither chained off the other. One-time subfolder-creation/restic-init steps are manual (`docs/BACKUP_SETUP.md`), not automated by Claude Code.
+  - `/mnt/family-storage` — USB 2TB HDD (ext4, `sda1`), already mounted; added to Watson's use 2026-08-05. **Dual-purpose**: also serves as family NAS storage, not dedicated to Watson. Same power bar as the Beelink itself, so Watson's use of it is a **local/fast recovery tier, not an offsite/disaster-recovery leg** — a power event takes out both together. Watson's own data (backups for now, possibly other things later) is isolated under `/mnt/family-storage/watson/`, `chmod 700` and owned by `billyomes` only, so the family NAS side can't read or write into it regardless of how the share is configured. `jobs/backup_local.py` (restic, 2:30am) backs up to a repo at `/mnt/family-storage/watson/restic-repo`. OneDrive (`jobs/backup.py`, 3am) remains the actual offsite disaster leg, unchanged in scope/purpose — the two legs run independently, both full scope, neither chained off the other. One-time subfolder-creation/restic-init steps are manual (`docs/BACKUP_SETUP.md`), not automated by Claude Code. `scripts/watson_recover.sh` (see `docs/RECOVERY.md`) rebuilds Watson from this restic repo on a fresh machine — its restore step is scope-generic (mirrors whatever the backup actually contains under `$HOME`, no hardcoded per-directory list to drift out of sync), and as of 2026-08-30 it's tested end-to-end (all 14 steps, via a Docker sandbox — a plain container for the restore/dependency steps, a systemd-enabled one for the systemd/service-install steps). `deploy/apt-packages.txt` covers everything installable via plain `apt-get` (now including `cron`, `curl`, `ca-certificates`, `zstd`); Tailscale and Ollama are deliberately excluded from that list and installed via their own official installer scripts instead, since neither is in stock Ubuntu's apt repos. The systemd-install step names `watson-bot.service`/`watson-dashboard.service` explicitly rather than globbing `deploy/*.service`, since that directory also holds `gutendex.service` (a separate install, not covered by this script) and a stale, unused `people-server.service`.
 
 ### FMSPC — Windows Desktop (GPU Tasks Only)
 
@@ -138,6 +138,8 @@ Watson acts on Dr. Bill's behalf under his supervision. Always identified openly
 | Watson UI | `github.com/byomes/watson-ui` | `~/watson-ui` | Vercel auto on push |
 | FMS site | `github.com/byomes/fms` | `~/fms` (planned) | Vercel auto on push |
 | bodyrec | `github.com/byomes/bodyrec` | `~/bodyrec` | Vercel auto on push |
+| Watson Tools | `github.com/byomes/watson-tools` | `~/watson-tools` | Vercel auto on push |
+| Watson Review | `github.com/byomes/watson-review` | `~/watson-review` | Manual only — context drop-zone, not a mirror of `watson` (deliberately no shared git history) or a deploy target. Public repo. Files land in `context/` via `~/watson-review/send_context.sh <file>`, which prints a `raw.githubusercontent.com` URL to hand to Claude.ai. Manual/on-demand only, no cron. |
 
 **All web development happens on the Beelink.** Claude Code builds on the Beelink, commits, pushes to GitHub, Vercel deploys automatically.
 
@@ -160,6 +162,8 @@ Watson acts on Dr. Bill's behalf under his supervision. Always identified openly
 | `faithmakessense.com` | `byomes/fms` (planned) | FMS ministry site — rebuild pending |
 | `www.adelphosonline.com` | — | Moodle 5.0 theology school (`adelphosacademy.com` is a stale/wrong domain — do not build against it) |
 | `bodyrec.vercel.app` | `byomes/bodyrec` | Body composition tracker (bill/mel profiles), backed by Watson API |
+| `wtsn.me` | `byomes/watson-tools` | Public Watson tools — shared app, slug-based routes; nameserver-delegated to Vercel |
+| `www.wtsn.me` | `byomes/watson-tools` | Redirects (301, Vercel domain-level) to `wtsn.me` — not an independent surface |
 
 ---
 
@@ -182,14 +186,15 @@ Watson acts on Dr. Bill's behalf under his supervision. Always identified openly
 - `arc_readers`, `arc_reader_commitments`, `arc_reader_feedback`, `arc_sessions` — ARC reader signup, commitment tracking, manuscript feedback, sessions
 - `twj_readers`, `twj_feedback` — legacy TWJ reader accounts/feedback, migrated from Upstash KV; dashboard UI tab retired, data and routes intact
 - `login_challenges` — login vault challenge/response pairs (dashboard-only)
-- `dev_projects` — Dev Loop project tracking
 - `claude_code_jobs` — MCP Claude Code dispatcher job tracking (in progress)
+- `claude_tier_spend_log`, `claude_tier_budget_alerts` — `core/claude_tier.py`'s budget-capped Claude tier spend ledger and once-per-month budget-exhausted alert state (added 2026-09-03)
 - `memory_sessions` — persistent chat memory, injected into Ollama system prompt
 - `routing_corrections` — intent correction log; memory note prepended after 5+ in 30 days
 - `team_tasks`, `shared_notes`, `team_members` — leadership team management
 - `church_events` — special events log, feeds State of the Church report
 - `bug_tracker` — session bug log (open on discovery, resolved with commit_hash on fix); see Issues tab
 - `body_entries`, `body_settings` — bodyrec body composition tracker data
+- `public_tools` — wtsn.me public-tools registry: `slug` (unique), `title`, `tool_type` (`redirect`/`page`/`custom`), `target_url`, `body_text`, `status` (`draft`/`live`), `created_at`, `updated_at`, `first_deploy_confirmed_at` — see Public Tools (wtsn.me) below
 
 ### congregation.db Key Tables
 
@@ -218,12 +223,14 @@ Deploy pattern: `cd ~/watson && git pull && sudo systemctl restart watson-bot.se
 | Claude Code | `--dangerously-skip-permissions` on Beelink | File editing, building, committing |
 | `llama3.2:3b` | Beelink Ollama | Primary Watson chat (Telegram general-chat fallback), session summarization |
 | `gemma3:4b` | Beelink Ollama | Intent classification (Telegram only, `jobs/intent/classifier.py`) — swapped from `llama3.2:3b` 2026-07-17 (bug #20, `56d60dd`); `keep_alive=30m` plus `jobs/intent/keep_warm.py` cron (every 4 min) keep it resident |
-| `qwen2.5-coder:7b` | Beelink Ollama | Dev Loop, KB search, structured reasoning |
-| `qwen2.5:7b` | Beelink Ollama | Accuracy-sensitive background jobs: pastoral notes, meeting/note task+goal extraction, email drafts, State of Church synthesis, skill/capability audits, elder-review meeting summaries |
+| `qwen2.5-coder:7b` | Beelink Ollama | KB search, structured reasoning |
+| `qwen2.5:7b` | Beelink Ollama | Accuracy-sensitive background jobs: pastoral notes, meeting/note task+goal extraction, email drafts, State of Church synthesis, elder-review meeting summaries — first attempted via the Claude tier below, falls back here on no-key/budget-exhausted/error |
+| `qwen3:8b` (`think:false` required) | Beelink Ollama | Provisionally routed 2026-09-03 to exactly two jobs: `jobs/memory/reflect.py` (memory_consolidation) and `jobs/skillbuilder/audit.py` (skill_audit) — see the caveat note below. NOT routed anywhere else, including `state_of_church.py`. |
 | `phi3:mini` | Beelink Ollama | Background tasks |
 | `gemma3:1b` | Beelink Ollama | Fast/lightweight queries |
+| `claude-sonnet-5` (`core/claude_tier.py`) | Claude API, budget-capped | Opt-in first-choice tier (added 2026-09-03) for the 8 `qwen2.5:7b` jobs listed above — `$10/month` hard cap (`CLAUDE_MONTHLY_BUDGET_USD`), tracked in `claude_tier_spend_log`, falls back to Ollama on no-key/budget-exhausted/error. Uses `WATSON_CLAUDE_BUDGET_KEY`, a separate key from `ANTHROPIC_API_KEY` (see below) |
 
-**No Claude API calls in automated Watson jobs.** Ollama handles all automated inference.
+**Claude API calls in automated Watson jobs are now limited to the budget-capped tier above** (added 2026-09-03, superseding the prior "Ollama handles all automated inference" rule). `ANTHROPIC_API_KEY` itself remains unset — that name is read by several other, still-dormant Claude features (`jobs/dev/command_executor.py`, `jobs/dev/claude_debug.py`, `jobs/dev/build_pipeline.py`, `jobs/dev/claude_api_final_review.py`, `jobs/code_agent/agent.py`, `jobs/dashboard/app.py`, `jobs/skillbuilder/build.py`'s Tier 3) with no budget tracking of their own — deliberately not activated by this change.
 
 **Retired — `qwen2.5:14b` (FMSPC Ollama):** was listed here for "accuracy-sensitive"
 jobs, but FMSPC isn't always on, so those jobs actually ran `qwen2.5:14b` against
@@ -238,6 +245,42 @@ bump (2026-07-17) and a since-reverted `OLLAMA_NUM_PARALLEL=2` attempt
 no GPU) were both real fixes to *other* problems, not to this one. See the
 2026-08-06 update under the FMSPC note for the full test results — this is
 now a confirmed-closed result, not an open gap pending a retest.
+
+**`qwen3:8b` scope — read this before routing it to a new job.** This has
+been lost between sessions before with other models (see the `qwen2.5:14b`
+note above), so it's written here with the same weight:
+
+`qwen3:8b` (`think:false` required) is qualified for `memory_consolidation`
+and `skill_audit` only (as of 2026-09-03 qualification testing). It does
+NOT threaten classifier availability under mixed traffic — `gemma3:4b` was
+never evicted in either baseline or with-candidate 20-minute mixed-traffic
+test runs. However, adding it to the resident rotation roughly **doubles**
+reload churn among the other resident models (5→9 reload events,
+30.95s→61.57s total reload overhead over an identical 20-min schedule in
+testing) under `OLLAMA_MAX_LOADED_MODELS=3`. This is a latency cost, not a
+correctness one — but before routing `qwen3:8b` to any additional job,
+especially one that runs alongside live `llama3.2:3b`/`qwen2.5-coder:7b`/
+`qwen2.5:7b` traffic, weigh this per-job. Do not assume it's a free addition
+to the rotation the way the current smaller-model lineup is.
+
+`qwen2.5:7b` remains the default for pastoral-synthesis-shaped jobs (e.g.
+`state_of_church.py`) — both `qwen2.5:7b` and `qwen3:8b` failed a
+fabrication-check pass on this job type in testing (`qwen2.5:7b`: invented a
+number, called 2-of-3-weeks a "trend" against its own prompt's explicit
+rule; `qwen3:8b`: relabeled four raw head-counts as percentages,
+mischaracterized an above-range week as a seasonal dip). Neither model is
+trusted on this job type yet — this is an existing quality gap, not a
+regression introduced by the `qwen3:8b` routing above. Do not route either
+model to new pastoral-synthesis jobs without a fabrication-check pass first
+(cross-reference every factual claim in the output against the source data)
+— see testing methodology in
+`watson-review/context/2026-09-03-reasoning-comparison-state-of-church.md`
+if that file is still live.
+
+`skill_audit`'s routing above is provisional, based on an n=1 real-prompt
+comparison (post-bug#118-fix, one clean run) — a second real audit run
+should be spot-checked against the fabrication-check protocol before this
+is considered fully confirmed.
 
 ---
 
@@ -258,8 +301,9 @@ now a confirmed-closed result, not an open gap pending a retest.
 | Bible API | Scripture lookup | `api.scripture.api.bible` — NIV, CSB, NASB |
 | Serper.dev | Web search | Used in KB and research jobs |
 | Scribbl | Meet transcripts | Chrome extension → auto-emails transcript to `watson.wcky@gmail.com` post-call |
-| OneDrive | Nightly backup (offsite disaster leg) | rclone `Watson-Backup` remote, 3am cron — backs up data/ (the four core DBs snapshotted via `sqlite3 .backup`, not copied live), config/, `data/chroma/` (the live vector index — corrected 2026-08-05 from the orphaned `kb/chroma/`, remote path `chroma-live`), kb/documents/, .env |
+| OneDrive | Nightly backup (offsite disaster leg) | rclone `Watson-Backup` remote, 3am cron — backs up data/ (the four core DBs snapshotted via `sqlite3 .backup`, not copied live), config/, `data/chroma/` (the live vector index — corrected 2026-08-05 from the orphaned `kb/chroma/`, remote path `chroma-live`), kb/documents/, .env, `~/.claude/projects` (Claude Code's own session memory, remote path `claude-projects`, added 2026-08-30) |
 | FlareSolverr | Cloudflare JS challenge bypass | `localhost:8191`, persistent Docker container (`docker run -d --name=flaresolverr --restart unless-stopped`, not systemd). Used by `jobs/curator/research.py` for romance.io only (`_FLARESOLVERR_DOMAINS`) — resolves project_backlog id=18. `jobs/research/gutenberg.py` does NOT route through it — its `search()` already works via a self-hosted local Gutendex instance (`gutendex.service`, `127.0.0.1:8010`, since 2026-07-15) and `download_and_ingest()` downloads text directly from gutenberg.org; neither hits the Cloudflare-blocked public gutendex.com. That self-hosted catalog has its own staleness gap (no refresh job — see project_backlog, new item added 2026-07-22) unrelated to Cloudflare. |
+| iOS Shortcut → Curator | ChatGPT-research book import (Curator) | Added 2026-08-08. A family member researches a book in the ChatGPT app, copies ChatGPT's reply, and an iOS Shortcut POSTs the text to `POST /api/curator/ingest/chatgpt` — auth via `X-Watson-Key: CURATOR_IMPORT_KEY`, a **new key scoped to this one route only**, deliberately not `WRITING_ROOM_API_KEY`. Body `{research_text, submitted_by}` (only guard: `len < 30`). The worker's `chatgpt_text` branch extracts title/author/series/KU + **verbatim** spice findings via `qwen2.5:7b` and creates the book directly — no `research_book_fast()` / Stage B for this path (those still run for every other Curator ingest path). Share-**link** fetch was built first (`96f64a5`) then abandoned (`bd6a89a`): ChatGPT `/share/<uuid>` and `/s/t_...` links sit behind a login wall ("Log in to view this conversation") even after full JS render, so there's no publicly fetchable content — confirmed by a direct render test. That retired step left a reusable, out-of-process page renderer, `jobs/browser/render_page.py` (`225103b`) — subprocess-isolated per `jobs/browser/browser_service.py`'s guardrail, robots.txt enforced — in place for future use, no longer called by Curator. See project_curator memory for detail. |
 
 ---
 
@@ -273,17 +317,15 @@ now a confirmed-closed result, not an open gap pending a retest.
 | Job | Schedule | Purpose |
 |-----|----------|---------|
 | `jobs/scheduler.py` | Daily 10am | Publish blog drafts from `watson.db` |
-| `core/pipeline.py` | Daily 6am | Main content pipeline |
+| `core/pipeline.py` | **DISABLED 2026-08-23** | Content pipeline feeding the Briefing tab (Gemini fetch/score + `briefing.builder`) — Briefing/Reading List/Meeting Reviews tabs removed from dashboard as unused; cron line commented out in crontab, not deleted |
 | `jobs/facebook/facebook_post.py` | Every 15 min | Facebook post queue |
 | `jobs/email_job/draft_email.py` | Thu 7am | Weekly email draft |
 | `jobs/connect_cards/intake.py` | Every 30 min | Parse Subsplash connect cards from Gmail |
 | `jobs/connect_cards/email_reports.py --bill --prayer --kaci` | Mon 5am | Next steps/comments → Bill; prayer digest → Bill; prayer requests report → Kaci |
 | `jobs/connect_cards/email_reports.py --donna` | Tue 5am | Attendance → Donna |
 | `jobs/connect_cards/attendance_intake.py` | Every 30 min | Attendance intake |
-| `jobs/connect_cards/correction_handler.py` | Every 30 min | Attendance corrections |
-| `jobs/connect_cards/campus_classifier.py` | Mon 5:45am | Classify member campus from 8-week connect card history |
 | `jobs/connect_cards/missed_report.py` | Mon 6am | Missed report — 3 sections: Wilmington, Online, Hybrid — recipients: Bill, Donna, Kaci |
-| `jobs/connect_cards/shepherding_report.py` | Wed 6am | Pastoral care digest |
+| `jobs/congregation/shepherding_report_ready.py` | Wed 8:30am | Telegram nudge (Bill, Jim Bouchat, Bill Crook) linking to `wtsn.me/cat/shepherdingreport` — replaces `shepherding_report.py` (Wed 6am email) and `elder_shepherding_report.py` (Wed 6:15am Telegram counts), both retired 2026-09-02; their report-building functions stay in place since the wtsn.me page still imports from them |
 | `jobs/connect_cards/conflict_report.py` | Sun 5pm | Member conflict report with 3-button Telegram resolution |
 | `jobs/connect_cards/state_of_church.py` | Thu 4pm | State of the Church HTML email |
 | `jobs/email_intake.py` | Every min | Gmail polling + triage |
@@ -304,15 +346,17 @@ now a confirmed-closed result, not an open gap pending a retest.
 | `jobs/team/reminders.py --overdue` | Mon–Thu 10am | Overdue task reminders |
 | `jobs/team/reminders.py --unanswered` | Mon–Thu 10am | Unanswered comms reminders |
 | `jobs/team/note_task_scan.py` | Tue/Wed/Thu 7am | Extract tasks from shared notes → Donna approval email |
-| `jobs/backup.py` | Daily 3am | OneDrive backup via rclone (offsite disaster leg) |
-| `jobs/backup_local.py` | Daily 2:30am | Local restic backup to `/mnt/family-storage/watson/` (fast/versioned recovery leg, independent of OneDrive — see Hardware) |
-| `jobs/dev_loop/cleanup.py` | Mon 4am | Purge Dev Loop projects older than 7 days |
+| `jobs/backup.py` | Daily 3am | OneDrive backup via rclone (offsite disaster leg) — `data/`, `config/`, `data/chroma/`, `kb/documents/`, `.env`, `~/.claude/projects` (added 2026-08-30) |
+| `jobs/backup_local.py` | Daily 2:30am | Local restic backup to `/mnt/family-storage/watson/` (fast/versioned recovery leg, independent of OneDrive — see Hardware). Full scope: DB snapshots, `data/` (incl. chroma), `config/`, `.env`, `memory/`, `kb/documents/`, `~/.ssh`, `~/.config/rclone/rclone.conf`, `~/.claude/projects` (added 2026-08-30), a crontab snapshot, plus full working trees (code + uncommitted changes + `.git` history) of every actively-developed repo — `watson, wcky, watson-admin, watson-ui, watson-docs-sync, comms-desk, comms-assets, curator, bodyrec, fms` (added 2026-08-22) — excluding `node_modules/venv/.venv/.next/dist/build/__pycache__`. Retention: 14 daily/8 weekly/6 monthly (`restic forget --prune`) |
 | `jobs/dev/file_map.py` | Daily 2am | Auto-update FILE_MAP.md |
 | `jobs/dev/bugs_backlog_sync.py` | Daily 2am | Regenerate BUGS.md / DEV_PROJECTS.md from bug_tracker / project_backlog, push to byomes/watson-docs |
 | `jobs/dev/update_arch.py` | Daily 2am | Auto-update WATSON_ARCHITECTURE.md |
+| `jobs/dev/skills_catalog.py` | Daily 2:20am (+ triggered directly after every skillbuilder build) | Regenerate the Skills & Capabilities Catalog section of WATSON_ARCHITECTURE.md from skills.json, push to byomes/watson-docs |
 | `jobs/kb/sync_and_index.py` | Daily 2am | Git pull (ff-only) + same-day transcript sync (`kb/transcripts/` → `kb/documents/`) + incremental Chroma index + Telegram summary |
 | `jobs/campaigns/weekly_digest.py` | Sun 6pm | Book-launch campaign digest — Telegram summary of queued sends per active campaign, with Open Editor / Approve All buttons; also runnable on-demand (`--campaign-id` CLI flag) |
 | `jobs/campaigns/brevo_dispatcher.py` | Every 15 min | Book-launch campaign Brevo dispatcher — sends approved+due `book_launch_sends` rows (Facebook rows are instead queued into the existing `facebook_queue`/`facebook_post.py` pipeline at approval time, not handled here) |
+| `jobs/dev/resource_sampler.py` | Every 5 min | Samples CPU/RAM/disk + job-busy-state into `resource_samples`, feeding the weekly utilization report below — Beelink/Watson scope only, never FMSPC. **Not yet installed in crontab as of 2026-09-04** — see PR description for the exact line to add |
+| `jobs/dev/weekly_utilization_report.py` | Mon 9am | Weekly Telegram summary of the past 7 days of `resource_samples` (avg/peak CPU+RAM, busy-vs-idle %, disk growth, top jobs by estimated active time) so Bill can estimate equivalent VPS cost — deliberately reports raw numbers only, no tier/price recommendation. Clear of Sun 3pm `attendance_link_reminder.py`, Sun 5pm `conflict_report.py`, Sun 6pm `campaigns/weekly_digest.py`, and Mon 7am `skillbuilder/audit.py`. **Not yet installed in crontab as of 2026-09-04** — see PR description for the exact line to add |
 
 ### Other Jobs (Available)
 
@@ -321,8 +365,153 @@ now a confirmed-closed result, not an open gap pending a retest.
 - `jobs/writing_room/` — onboard.py, reset.py, api.py (Flask blueprint)
 - `jobs/kb/` — KB search, build, ingest, archive
 - `jobs/dev/` — Claude Code agent launcher, smoke tests, file map, arch update
-- `jobs/dev_loop/` — trigger.py, loop.py, deliver.py, cleanup.py
 - `jobs/meet/summarize.py` — Meet transcript summarization via Scribbl → Gmail → Watson
+- `jobs/trading/` — Paper-trading strategy pipeline (Alpaca paper API only) — see Paper-Trading Strategy Pipeline section below
+- `jobs/tools/` — wtsn.me public-tools registry (register/query/gate `public_tools` rows, `/api/tools/resolve/<slug>` blueprint) — no cron entry, purely dispatch/on-demand: tools are registered by a build step, gated live by Telegram confirm, never scheduled — see Public Tools (wtsn.me) below
+- `jobs/telegram/` — `seed_claim_codes.py` (one-off leader onboarding), `send_to_person.py` (generic per-person send), `pending.py`, `resend_last.py` — no cron entry, seeding is manual/one-off per leader — see Telegram Leader Onboarding above
+
+---
+
+## Skills & Capabilities Catalog
+
+> Auto-generated by `jobs/dev/skills_catalog.py` from `memory/skills.json` (each entry there has `slug`, `module`/`job_module`, `function`, `triggers`, `interfaces`, `status`) plus the `# doc:` comments on jobs/dashboard/app.py's `/api/terminal` prefix commands. Do not hand-edit this section -- edit skills.json or the relevant `# doc:` comment in app.py and re-run the job instead; a manual edit here will be overwritten on the next regeneration.
+
+**How to trigger a skill.** Talk to Watson via the Telegram bot (`@wckyWatsonbot`) or the dashboard chat tab (`https://watson.tail0243ff.ts.net`). Two ways to invoke:
+
+1. **Natural language** — say what you want in plain English close to the skill's description; `jobs/skillbuilder/router.py` matches known trigger phrases first (no LLM call, instant) and falls back to an LLM intent classifier (`gemma3:4b`) for anything else, so exact trigger wording usually isn't required.
+2. **Exact trigger phrase** — the phrases listed below always work and skip the classifier. Several skills use a colon-prefix form (`kb:`, `bible:`, `polish this:`) — the prefix must be exact and the text after it is passed straight through as the argument.
+
+A skill marked **disabled** below is registered but intentionally turned off — it will not fire even if its trigger phrase is used.
+
+### Core
+
+| Skill | Status | Interfaces | Trigger phrases | What it does |
+|---|---|---|---|---|
+| **Add Task** (`add_task`) | ready | telegram, dashboard | `add a task`, `new task`, `add task`, `create task`, `add to my tasks`, `task:`, `tasks:` | Add a task with optional due date and priority. |
+| **Bible Lookup** (`bible_lookup`) | ready | telegram, dashboard | `watson bible`, `what does the bible say`, `bible verse`, `look up verse`, `verse`, `passage` | Look up any Bible passage in NIV, CSB, or NASB. |
+| **Book Appointment** (`book_appointment`) | ready | telegram, dashboard | `book an appointment`, `set an appointment`, `schedule a meeting`, `add to my calendar`, `create an appointment`, `book a meeting`, `schedule an appointment` | Parses natural language to create a Google Calendar event, optionally drafting a confirmation email if a known contact is mentioned. |
+| **Calendar Query** (`calendar_query`) | ready | telegram, dashboard | `what's on my calendar`, `whats on my calendar`, `check my calendar`, `my schedule`, `today's schedule`, `todays schedule`, `what's my day`, `whats my day`, `what's my schedule`, `whats my schedule`, `what do i have today`, `what do i have on` | Show what's on your Google Calendar for today or a given day. |
+| **Clear Day / Push Appointments** (`clear_day`) | disabled | telegram, dashboard | `block out`, `clear the day`, `clear my day`, `push all`, `push my appointments`, `pastoral override` | Blocks out the rest of today or X hours, reschedules all affected appointments to next available slot, and notifies guests by email. |
+| **Contacts Lookup** (`contacts_lookup`) | ready | telegram, dashboard | `show all contacts`, `list contacts`, `contact search` | Search congregation and personal contacts by name. |
+| **Send Email** (`email_send`) | ready | telegram, dashboard | `send an email`, `draft an email`, `write an email to`, `compose an email` | Draft and send an email via Watson Gmail. |
+| **Logins** (`logins`) | ready | telegram | `what's my password for`, `my password for`, `login for`, `credentials for` | Look up saved login credentials by service name. |
+| **Pastoral Notes** (`pastoral_notes`) | ready | telegram | `pastoral note:`, `pastoral notes:` | Save a freeform pastoral note directly to the database. |
+| **Pastoral Search** (`pastoral_search`) | ready | telegram, dashboard | `pastoral search` | Returns a pastoral summary for a named member — campus, attendance, connect cards, prayer requests, and next steps from the last 3 weeks. |
+| **QR Code** (`qr_generate`) | ready | telegram, dashboard | `make a qr code`, `qr code for`, `generate a qr`, `create a qr` | Generate a QR code for any URL or text. |
+| **Time Check** (`time_check`) | ready | telegram, dashboard | `what time is it`, `current time`, `time check`, `tell me the time` | Check the current time in Eastern timezone. |
+
+### Research
+
+| Skill | Status | Interfaces | Trigger phrases | What it does |
+|---|---|---|---|---|
+| **Academic Search** (`academic_search`) | ready | telegram, dashboard | `search academic`, `find papers on`, `scholarly search`, `academic search` | Search academic sources and papers. |
+| **Classics KB Search** (`classics`) | ready | telegram, dashboard | `classics:` | Query the 'gutenberg' ChromaDB collection (Project Gutenberg texts) with llama3.2:3b synopsis — kept separate from the sermons KB. |
+| **Fetch URL** (`gemini_fetch`) | disabled | telegram, dashboard | `fetch this`, `read this url`, `scrape this`, `summarize this url`, `get this page` | Fetch a webpage and process it with Gemini. |
+| **Gutenberg Search** (`gutenberg`) | ready | telegram, dashboard | `gutenberg:` | Search Project Gutenberg via Gutendex, reply with a number to download and ingest into the separate 'gutenberg' ChromaDB collection. |
+| **Image Search** (`image_search`) | ready | telegram, dashboard | `find image`, `search image`, `find a photo`, `image of` | Search for images matching a query. |
+| **ISBN Lookup** (`isbn_lookup`) | ready | telegram, dashboard | `look up book`, `isbn`, `find book`, `book info` | Look up a book by ISBN or title. |
+| **KB Ask** (`kb`) | ready | telegram, dashboard | `kb:`, `search kb`, `search my notes`, `search my sermons`, `what have i said about`, `what did i preach on`, `find in my notes` | Query sermon transcripts and documents via ChromaDB. |
+| **KB Export** (`kb_export`) | ready | telegram | `kb export:` | Zip and send matching KB source files for a query via Telegram. |
+| **KB Export Link** (`kb_export_link`) | ready | dashboard | `kb export link:` | Zip matching KB source files for a query and return a Tailscale-only, expiring, single-use download link. |
+| **KB Search** (`kb_search`) | ready | telegram, dashboard | `kb:`, `search the kb:` | Search the ChromaDB sermons collection with llama3.2:3b synopsis. Reply 'email that to me' to send results to inbox. |
+| **News Search** (`news_search`) | ready | telegram, dashboard | `search news`, `latest news on`, `what's the news about`, `news about` | Search recent news on any topic. |
+| **Summarize** (`summarizer`) | ready | telegram, dashboard | `summarize`, `give me a summary`, `tldr`, `summarize this` | Summarize any text or article. |
+| **Web Search** (`web_search`) | ready | telegram, dashboard | `search the web`, `web search`, `google`, `look it up online` | Search the web via Serper.dev. |
+
+### Writing
+
+| Skill | Status | Interfaces | Trigger phrases | What it does |
+|---|---|---|---|---|
+| **Citation Manager** (`citation_manager`) | ready | telegram, dashboard | `format citation`, `cite this`, `create a citation`, `bibliography` | Format and manage citations. |
+| **Grammar Check** (`grammar_checker`) | ready | telegram, dashboard | `check grammar`, `grammar check`, `proofread`, `fix my grammar` | Check grammar and style of any text. |
+| **Polish Text** (`polish`) | ready | telegram, dashboard | `polish this:` | Polish text in the voice of Dr. William C.K. Yomes — pastoral-scholarly prose, first-person plural, Jesus pronouns capitalized. |
+| **Readability Check** (`readability`) | ready | telegram, dashboard | `check readability`, `readability score`, `how readable is` | Score the readability of any text. |
+| **Style Check** (`style_checker`) | ready | telegram, dashboard | `check style`, `style check`, `check my writing style` | Check writing style and tone. |
+
+### Documents
+
+| Skill | Status | Interfaces | Trigger phrases | What it does |
+|---|---|---|---|---|
+| **Document Converter** (`document_converter`) | ready | telegram, dashboard | `convert document`, `convert to pdf`, `convert to word`, `document converter` | Convert documents between formats. |
+| **Excel / Spreadsheet** (`excel`) | ready | telegram, dashboard | `create spreadsheet`, `open excel`, `read excel`, `xlsx` | Create or read Excel spreadsheets. |
+| **PDF Tools** (`pdf`) | ready | telegram, dashboard | `read pdf`, `extract pdf`, `open pdf`, `pdf` | Read, extract, or manipulate PDF files. |
+| **PowerPoint** (`powerpoint`) | ready | telegram, dashboard | `create presentation`, `make slides`, `powerpoint`, `pptx` | Create or read PowerPoint presentations. |
+| **Word Document** (`word`) | ready | telegram, dashboard | `create word doc`, `open word`, `word document`, `docx` | Create or edit Word documents. |
+
+### Design
+
+| Skill | Status | Interfaces | Trigger phrases | What it does |
+|---|---|---|---|---|
+| **Generate Image** (`image_gen`) | ready | telegram, dashboard | `generate image:`, `generate an image:`, `create an image:`, `make an image:`, `imagegen:`, `imgen:` | Generate an AI image from a text prompt and deliver it via Telegram. |
+| **Screenshot** (`screenshot`) | ready | telegram, dashboard | `screenshot`, `take a screenshot`, `capture page` | Take a screenshot of a webpage. |
+| **SVG Generator** (`svg_generator`) | ready | telegram, dashboard | `generate svg`, `create svg`, `make an icon`, `svg` | Generate SVG graphics and icons. |
+
+### Utilities
+
+| Skill | Status | Interfaces | Trigger phrases | What it does |
+|---|---|---|---|---|
+| **Chart Generator** (`chart_generator`) | ready | telegram, dashboard | `make a chart`, `generate chart`, `chart this data`, `create a graph` | Generate charts from data. |
+| **Dad Joke** (`dad_joke`) | ready | telegram, dashboard | `tell me a joke`, `dad joke`, `give me a joke` | Tell a random dad joke. |
+| **Data Analyzer** (`data_analyzer`) | ready | telegram, dashboard | `analyze data`, `data analysis`, `analyze this data` | Analyze data and generate insights. |
+| **Date Helper** (`date_helper`) | ready | telegram, dashboard | `how many days until`, `date calculator`, `days between`, `what day is` | Calculate dates, days between dates, countdowns. |
+| **Riddle** (`riddle`) | ready | telegram, dashboard | `tell me a riddle`, `riddle`, `give me a riddle` | Tell a random riddle. |
+
+### Watson Dev
+
+| Skill | Status | Interfaces | Trigger phrases | What it does |
+|---|---|---|---|---|
+| **Claude Debug** (`claude_debug`) | ready | telegram, dashboard | `debug:`, `diagnose this`, `watson debug`, `run diagnostics` | Diagnose a Watson problem using Claude API and Claude Code. |
+| **Command Executor** (`command_executor`) | ready | telegram, dashboard | `run command`, `shell command`, `terminal`, `bash` | Execute approved shell commands on Beelink. |
+| **Secrets Audit** (`secrets_audit`) | ready | telegram, dashboard | `audit secrets`, `check credentials`, `secrets audit` | Audit Watson environment variables and credentials. |
+| **Skill Audit** (`skill_audit`) | ready | telegram, dashboard | `audit skills`, `test my skills`, `run skill audit`, `which skills work`, `skill audit` | Run a full audit of all Watson skills and report which pass and which fail. |
+| **System Monitor** (`system_monitor`) | ready | telegram, dashboard | `system status`, `check system`, `how is watson doing`, `server status` | Check Beelink CPU, memory, and disk usage. |
+
+### Archive
+
+| Skill | Status | Interfaces | Trigger phrases | What it does |
+|---|---|---|---|---|
+| **Get Session Archive** (`get_archive`) | ready | dashboard, telegram | `get archive:`, `open archive:`, `show archive:` | Retrieve a single archived session by id — full transcript and list of attached files, or one file's content if a filename is given. |
+| **Project Archive Summary** (`get_project_summary`) | ready | dashboard, telegram | `project summary:`, `get project summary:`, `catch me up on`, `what is the state of`, `what's the state of` | Fast catch-up on a project: the rolling summary of every archived session for it, newest first — for questions like "catch me up on Curator" or "what is the state of the Kit to Brevo migration" without reading full transcripts. |
+| **List Session Archives** (`list_archives`) | ready | dashboard, telegram | `list archives`, `list archives:`, `show my archives`, `recent archives` | List recent Claude.ai session archives, optionally filtered by project. |
+| **List Archive Projects** (`list_projects`) | ready | dashboard, telegram | `list projects`, `list archive projects`, `what projects do i have archived` | List every project that has at least one session archive, with archive count and most recent date — how a cold session discovers what project slugs exist. |
+| **Search Session Archives** (`search_archives`) | ready | dashboard, telegram | `search archives:`, `search my archives`, `find in archives` | Full-text search across archived Claude.ai session transcripts. |
+
+### Personal
+
+| Skill | Status | Interfaces | Trigger phrases | What it does |
+|---|---|---|---|---|
+| **Romantic Getaway Finder** (`romantic_getaway`) | ready | telegram, dashboard | `find us a romantic getaway`, `plan a romantic trip`, `romantic getaway`, `surprise us with a trip`, `trip:` | Propose a 3-day romantic getaway (flight + hotel) for Bill and Donna, delivered privately by Telegram DM for approve/reject. Never delivered to any group, Kaci, or Donna. |
+
+### Direct commands (bypass the skill router)
+
+Parsed directly out of `jobs/dashboard/app.py`'s `/api/terminal` view (`terminal()`'s prefix/exact-match checks and its `_TERM_COMMANDS` dict) — they're not in `skills.json`, so this table can't come from that file the way the ones above do; each row's description instead comes from a `# doc: ...` comment on that line in app.py. A row that says *undocumented* means that comment is missing — add it in app.py, not here.
+
+Every prefix here also works typed directly in dashboard/Telegram chat, not just in the terminal, plus a few things too free-form for a prefix table: natural-language reminders (`remind me ...` / `remind me at <time> ...`) and calendar phrasing (see the calendar_query skill above).
+
+| Command | What it does |
+|---|---|
+| `cdb: <...>` | Query the congregation database in plain English (attendance, membership, campus, engagement trends). |
+| `wdb: <...>` | Query the leadership/team database (task status, stalled work, follow-ups, meeting notes). |
+| `web: <...>` | Web search (prefix form of the web_search skill). |
+| `imagegen: <...>` / `imgen: <...>` | Generate an AI image from a text prompt. |
+| `backlog: <...>` | Log an item to the project backlog. |
+| `xkb: <...>` | Search the sermons KB with expanded/deeper matching. |
+| `search the kb: <...>` / `kb: <...>` | Search the sermon-transcript ChromaDB knowledge base. |
+| `shepherding: <...>` | Pastoral shepherding report — critical care, at-risk, first-time visitors, no-next-step members. |
+| `state of church report` | Generate and email the full State of the Church HTML report (async — delivered by email). |
+| `system status` | CPU, memory, disk, and service health. |
+| `check logs` | Tail the watson-bot / watson-dashboard systemd journal. |
+| `disk usage` | Disk usage. |
+| `memory usage` | Memory usage. |
+| `git pull` | Pull latest changes into ~/watson. |
+| `restart watson bot` | Restart watson-bot.service (passwordless sudo scoped to exactly this command). |
+| `restart dashboard` | Restart watson-dashboard.service (passwordless sudo scoped to exactly this command). |
+| `count congregation members` | Row count from the congregation table. |
+| `count tasks` | Row count of active tasks. |
+| `count connect cards` | Row count from the connect_cards table. |
+| `watson audit skills` | Run the full skill_audit self-test and report pass/fail. |
+| `watson fix all failing skills` | Queue every skill_audit-failing skill for auto-fix. |
+| `conflict_check` | Run the member-conflict report in the background (results arrive via Telegram). |
 
 ---
 
@@ -337,17 +526,32 @@ now a confirmed-closed result, not an open gap pending a retest.
 
 All non-active statuses excluded from: missed report, shepherding report, State of the Church members-not-seen list.
 
+`jobs/connect_cards/correction_handler.py` (30-min cron, parsed Donna/Bill
+reply emails to the missed report and auto-set `active = 0` for anyone under
+a "Non-Active" heading) was **deleted 2026-08-31** — corrections and
+inactive-marking now go through `wtsn.me/cat/attendance` (Jim) instead of
+reply-email parsing. Same day: `missed_report.py`'s footer now points
+recipients at `https://wtsn.me/cat/attendance` instead of soliciting reply
+corrections, and `jobs/email_intake.py`'s `_is_missed_report_reply()`
+deferral (which left those replies unread waiting for
+`correction_handler.py`) was removed — such replies now fall through to
+normal handling instead of sitting unread indefinitely.
+
 ### Campus Classification (`campus_preference` column)
-Values: `Wilmington`, `Online`, `Hybrid`
+Values: `Wilmington`, `Online`, `Hybrid`, `Inactive`
 
-**Classifier logic** (`jobs/connect_cards/campus_classifier.py`, runs Mon 5:45am):
-1. Count Online vs Wilmington connect cards in last 56 days
-2. Both ≥ 2 → Hybrid
-3. Either ≥ 5 (not hybrid) → that campus
-4. Middle zone → whichever is higher; Wilmington tiebreak
-5. No cards in 8 weeks → Wilmington
+**Manually managed only** — as of 2026-08-31, campus is set by Jim (or any
+staff with access) via the `wtsn.me/cat/attendance` tool
+(`jobs/congregation/attendance_web.py`, `/api/cat/attendance/campus`), and via
+manual override in the dashboard Member Management panel. There is no
+automatic classifier.
 
-Manual override available in dashboard Member Management panel.
+`jobs/connect_cards/campus_classifier.py` (Mon 5:45am cron) was **deleted
+2026-08-31** — it unconditionally overwrote `campus_preference` for every
+active member each week from 8-week connect-card counts, with no awareness
+of `Inactive` (added 2026-08-30). It silently reverted 15 members that staff
+had just marked Inactive back to `Wilmington` on its very next run. See
+`bug_tracker` id 110 in `data/watson.db`.
 
 ### Missed Report Sections
 Three sections, each suppressed if empty: WILMINGTON CAMPUS / ONLINE CAMPUS / HYBRID CAMPUS
@@ -358,19 +562,68 @@ Dashboard trigger available: "Run Conflict Check" in More tab.
 
 ---
 
+## Telegram Leader Onboarding
+
+Lets Watson send Telegram messages to specific leaders beyond Bill —
+without opening group channels or broadcasting. Built 2026-08-30.
+Registration + generic send capability only; which recurring reports
+actually route to Telegram for a given leader is decided job-by-job,
+separately, once that leader is actually connected.
+
+**The bot is otherwise single-tenant.** Every handler in `bot/bot.py`
+guards on `_is_authorized(update)` — `update.effective_chat.id` matched
+against one hardcoded ID (Bill's, via `TELEGRAM_CHAT_ID`/`WATSON_CHAT_ID`).
+Onboarding a new person means getting their real chat_id written to
+`people.telegram_chat_id` from a `/start` message sent by *their* chat_id
+— which the gate would otherwise silently drop.
+
+- **Schema:** `people.telegram_claim_code` (nullable `TEXT`, uniqueness
+  enforced via a separate index rather than an inline `UNIQUE` — SQLite's
+  `ALTER TABLE ADD COLUMN` rejects that directly) —
+  `jobs/people/migrate_telegram_claim_code.py`. `people.telegram_chat_id`
+  already existed (populated for Bill only, otherwise unused by any code
+  path before this build) and is reused as-is.
+- **Seed a leader:** `python3 jobs/telegram/seed_claim_codes.py "Full Name"`
+  — looks up/creates the `people` row, generates an unguessable 8-char
+  `secrets`-based code, prints a deep link:
+  `https://t.me/wckyWatsonbot?start=<code>`. Not a scheduled job — run
+  manually, once per leader. Bill hand-delivers the link (text, email, in
+  person) — not automated.
+- **Claim flow (`handle_start` in `bot/bot.py`):** the claim-code check
+  runs *before*, and bypasses, the `_is_authorized` gate — the only
+  carve-out anywhere in the bot. If the `/start` payload exactly matches
+  a live `telegram_claim_code`, that row's `telegram_chat_id` is set to
+  the sender's chat_id, the code is cleared, and the bot replies
+  confirming the connection. Any other payload — empty, garbage, or one
+  of the existing `reject_`/`share_`/`email_`/`savelater_` payloads —
+  falls through unchanged to the normal gate, so a stranger sending a
+  bare `/start` still gets today's total silence, not a reply.
+- **Send helper:** `jobs/telegram/send_to_person.py` —
+  `send_to_person(person_id, message) -> bool`. Generic, one person per
+  call — no group/channel sends, no broadcast-all helper. Returns
+  `False` (and logs) if the person has no `telegram_chat_id` yet; never
+  falls back to Bill's own chat.
+
+**Status (2026-08-30):** built, migrated, and deployed
+(`watson-bot.service` restarted). Three claim codes seeded — Donna
+Redman, Jim Bouchat, Bill Crook — links generated but not yet confirmed
+delivered/claimed as of this writing. No existing report has been
+rewired to send via `send_to_person()` yet — deliberately deferred, to
+be picked job-by-job once a given leader is actually connected.
+
+---
+
 ## Dev Loop
 
-- Runs locally on Beelink via `subprocess.Popen` (non-blocking)
-- Script: `~/watson/jobs/dev_loop/loop.py`
-- Trigger: `jobs/dev_loop/trigger.py` — called from Telegram `devloop:` command (no dashboard UI trigger since 2026-07-01)
-- Ollama model: `qwen2.5-coder:7b` at `localhost:11434`
-- Test method: syntax check only (`python3 -m py_compile`) — not execution
-- Callback: `POST /api/dev-loop/callback` with `X-Watson-Key: WRITING_ROOM_API_KEY`
-- Dashboard: no UI tab as of 2026-07-01 (removed from More menu, TWJ/ARC consolidation) — `/api/dev-loop/*` routes still live, reachable directly, just no dashboard entry point
-- Logs: `~/watson/logs/devloop-{slug}.log`
-- Cleanup: `jobs/dev_loop/cleanup.py` — Monday 4am, purges projects older than 7 days
-- Stuck-running handling (`jobs/dev_loop/cleanup.py`): `auto_fail_stuck_running()` runs before the 7-day purge — checks `ps -eo args` for a live `loop.py --slug <slug>` process, and any `dev_projects` row still `'running'` past 2h with no matching process is auto-marked `'failed'` and reported via Telegram. Complements the pre-existing `flag_stuck_running()`, which is read-only and alerts at a 24h threshold without changing status.
-- Projects staged to `~/watson/dev/<slug>/` — never auto-committed to main
+**Removed 2026-09-03** — `jobs/dev_loop/` (autonomous Ollama-driven code
+generation, triggered via Telegram `devloop:`) is gone. Already ~fully
+dormant before removal: dashboard UI tab dropped 2026-07-01, the `devloop:`
+chat trigger itself removed 2026-09-02 (`3afff17`), `dev_projects` had 0
+rows. Superseded by **Dev Sandbox** (`jobs/dev/sandbox_session.py`,
+human-attended Claude Code in a container) and **Watson Dev Dispatch**
+(`jobs/devdispatch/`, `claude --bg` background Claude Code jobs on the
+Beelink, MCP-exposed) — both already live and unaffected by this removal.
+See Retired section below.
 
 ---
 
@@ -481,6 +734,42 @@ connector successfully authorized and connected as of 2026-08-04.
 - **Table:** `claude_code_jobs` (`watson.db`) — `id, spec_text, repo, branch,
   status [queued|running|done|failed|expired], pr_url, log_path, summary,
   cli_session_id, last_progress_step, merged_at, created_at, updated_at`.
+  (The live table also carries two now-unused columns, `sandbox_session_id`
+  and `terminal_url`, left in place from the reverted Dev Sandbox experiment
+  below — see the revert note. They're harmless/NULL and were kept rather than
+  dropped destructively on the live DB.)
+
+### Dev Sandbox integration + `get_job_output` — tried and reverted the same night (2026-08-08)
+
+On the night of 2026-08-07 two changes were built on top of the dispatcher and
+then **reverted the same night** — this note exists so a future session doesn't
+re-attempt the identical approach without knowing why it was rolled back:
+
+1. **Dev Sandbox integration** (PR #22, commit `96ec502`) — `dispatch_claude_code_job`
+   was rewired to launch the Claude Code session *inside* the Dev Sandbox
+   (Docker/tmux/ttyd) and return a live `terminal_url` + `sandbox_session_id`
+   instead of a headless background job.
+2. **`get_job_output`** (commit `ec235ab`) — a 4th read-only MCP tool for
+   diff/worktree/log inspection of a dispatched job.
+
+**Both reverted** via `git revert` of `96ec502` and `ec235ab` (2026-08-08).
+`dispatch_claude_code_job` is back to the headless `claude --bg` shape
+documented just below (no `terminal_url`/`sandbox_session_id` in its return),
+and the tool list is back to the three tools above.
+
+**Why reverted — real friction, not a whim:** the sandbox container had **no
+GitHub credentials inside it**, so a dispatched session running there couldn't
+push a branch or open a PR (the whole point of a dispatch job); and the
+sandbox image is deliberately **not headless** — it prompts for permission on
+each action (built for a human at the keyboard), so an unattended dispatched
+job just stalled waiting on prompts nobody was there to answer. Solve both of
+those (credentials in-container + a genuinely headless/auto-approve mode)
+before re-attempting this integration.
+
+**Not reverted / still live:** the manual **Dev Sandbox** feature itself
+(`jobs/dev/sandbox_session.py` + the dashboard More-tab "start a sandbox"
+button) is untouched and still works for human-attended use — only the
+`dispatch_claude_code_job` integration into it was rolled back.
 
 ### CLI invocation (the real shape, not the originally-guessed one)
 
@@ -614,6 +903,39 @@ client as of 2026-08-04, using this full root-proxy + OAuth stack.
   A **job that reports `failed` should not be assumed to have produced no
   usable work** — check GitHub for an open PR on the job's branch before
   discarding it, especially for any job predating this fix.
+- **Fixed 2026-08-24 — worktree branch deviation + stale local `main`
+  misreported real work as failed** (bug_tracker #95, jobs 36–38,
+  2026-08-16). Two distinct failure modes in `_finalize_completed_job()`,
+  found on top of both fixes above:
+  1. **Refspec mismatch (job 37).** The function assumed the worktree's
+     checked-out branch was literally named `_git_branch_for(branch_name)`
+     and ran `git push -u origin git_branch` (bare branch name, no local
+     ref). A dispatched session that ran its own `git checkout -b
+     <custom-name>` inside the worktree instead of committing on the
+     branch Claude Code created for `-w` left no local branch by the
+     expected name, so the push failed outright with "src refspec ...
+     does not match any."
+  2. **Stale local `main` (jobs 36 & 38).** Worktrees of the same repo
+     share refs, so the local `main` pointer inside a job's worktree does
+     not move when another job — running concurrently or moments earlier
+     in a different worktree of the same repo — merges a PR into `main`
+     via GitHub. The ahead-count check compared `HEAD` against that stale
+     local `main`, so it still reported the job's commits as "ahead" and
+     proceeded to push and open a PR, which then got a 422 "No commits
+     between main and `<branch>`" from GitHub once it compared against
+     the real, already-current `origin/main`.
+  **Fix:** `_finalize_completed_job()` now runs `git fetch origin main`
+  before the ahead-count check and compares `HEAD` against `origin/main`
+  (not local `main`) everywhere in the function; the push now uses an
+  explicit refspec, `git push -u origin HEAD:<git_branch>`, which lands
+  whatever `HEAD` actually contains under the expected remote branch name
+  regardless of what the local branch is actually called. `_open_pr()`'s
+  own bug #59 handling is untouched. Verified in a scratch git repo (not
+  just reasoned about): a worktree checked out on a mismatched branch name
+  pushed successfully under the expected remote name via the new refspec,
+  and a worktree with a deliberately stale local `main` (but a fetched
+  `origin/main` already containing the equivalent commit) correctly
+  reported "no changes" instead of attempting a push.
 
 ### Superseded prior art
 
@@ -625,6 +947,264 @@ enabled but has been failing every 60s on a Gmail 403/insufficient-scope
 error since inception; disabling it needs a sudo grant beyond the current
 restart-only scope (see Development Conventions), so it's flagged in
 `bug_tracker` (#55) rather than acted on directly.
+
+---
+
+## Session Archives (Claude.ai)
+
+Built 2026-08-25. Lets Bill say "send to watson" (or a close variant) at the
+end of any Claude.ai session and have the full transcript, plus any files
+created that session, archived durably on Watson — retrievable later by a
+future Claude.ai session with no memory of the original conversation.
+Separate, purpose-built capability — not an extension of the small ad-hoc
+`note:`/`list notes`/`search notes` skills, which still exist independently
+for quick one-off notes.
+
+**Write path — dedicated MCP tool, not the skill router.** `archive_session`
+is declared directly in `_TOOLS`/`_TOOL_IMPLS` in `jobs/devdispatch/api.py`,
+alongside `dispatch_claude_code_job` etc. — it needed its own tool schema
+because it takes structured params (a file array) that `run_watson_skill`'s
+single `message` string can't carry. Params: `transcript` (full verbatim
+text, required), `files` (array of `{filename, content_base64}`, required —
+empty array if none), `project` (required — no silent default; the caller
+must pass `general` explicitly if a session isn't tied to a specific
+project), `title` and `summary` (both written by Claude.ai itself, like
+`title` already was for other tools). Inherits the same auth gate
+(`X-Watson-Key` / bearer) as every other tool on `/mcp/devdispatch` — no new
+auth surface.
+
+**Read path — via `run_watson_skill`, same mechanism as `kb_search`.** Five
+new skills, registered in `memory/skills.json` and added to
+`_MCP_SKILL_ALLOWLIST`: `list_archives`, `search_archives`, `get_archive`,
+`list_projects`, `get_project_summary`. Each function's first parameter is
+named `message` so `router._run_skill` forwards the raw trigger-prefixed
+text directly. Deterministic trigger phrases added to `_SKILL_PRE_CHECKS` in
+`jobs/skillbuilder/router.py` (`list archives:`, `search archives:`, `get
+archive:`, `list projects`, `project summary:`) — matched before any LLM
+routing call, so these are never a judgment call. Looser natural phrasing
+("catch me up on X") falls through to the existing LLM semantic router, same
+as `kb_search` already relies on with no pre-check trigger of its own.
+
+- `get_archive: <id>` returns the full transcript + a list of attached
+  filenames (not their content — could be large/binary). `get_archive: <id>
+  <filename>` (id followed by a filename token, same skill) returns that one
+  file's base64 content instead — deliberate 2-call shape rather than a 4th
+  tool, since most retrieval only needs the transcript text.
+- `list_projects` returns every project slug with at least one archive, plus
+  archive count and most-recent `created_at` — how a cold session discovers
+  what project slugs even exist, instead of guessing.
+- `get_project_summary: <project>` reads
+  `data/session_archives/<project>/_summary.md` directly (capped at ~20KB
+  read, newest-entries-first so a cap only ever drops the oldest context) —
+  the fast catch-up layer, not a substitute for pulling full archives.
+
+**Storage:** `jobs/session_archives/` (`schema.py` + `storage.py`).
+Filesystem layout:
+```
+data/session_archives/<project-slug>/<timestamp>-<title-slug>/
+  transcript.md   — frontmatter (project, title, created_at, secrets_flagged[, secrets_patterns]) + the verbatim transcript
+  <files...>      — sanitized filenames, as submitted
+data/session_archives/<project-slug>/_summary.md   — rolling recap, newest entry prepended to the top after every archive_session call
+```
+Timestamp-first directory naming means no two archives can collide.
+Filenames are sanitized before ever touching the filesystem (path
+separators stripped, collapsed to a bare basename) — an incoming filename is
+untrusted input; a raw `../../etc/...`-shaped value must not be able to
+write outside the archive directory. Confirmed empirically during build: a
+test file submitted as `../../etc/evil` landed as `evil` inside the archive
+dir, not outside it.
+
+Mirrored into SQLite (`session_archives` table in `watson.db`, via the same
+`core.database.get_connection()` every other job uses) for fast listing and
+search — full transcript text stored in the DB row too, not just on disk.
+Search uses an FTS5 external-content virtual table
+(`session_archives_fts`, kept in sync by an explicit paired INSERT in
+`archive_session()`, not a trigger — there is exactly one write path, so a
+trigger would be unnecessary machinery); confirmed FTS5 is compiled into
+this box's Python 3.12 stdlib `sqlite3`. `search_archives` falls back to a
+plain `LIKE` query if FTS5 is ever unavailable (wrapped in try/except at
+both create-table and query time) — same call shape either way, so this is
+invisible to a caller.
+
+**Size caps** (decoded bytes): 8MB per file, 20MB total per archive
+(transcript + accepted files combined), 5MB hard cap on the transcript
+itself (an error, not a skip — the transcript is the core content, never
+optional). A file over its cap is rejected individually and reported back
+in `skipped_files` with a reason — never silently dropped.
+
+**Secret guard:** before writing, `transcript` (and any file that decodes as
+UTF-8 text) is scanned against a fixed set of regexes — AWS access keys,
+GitHub/Slack/Stripe tokens, PEM private-key headers, bearer tokens, and
+generic `api_key:`/`secret:`/`token:`/`password:`-shaped assignments. A hit
+never strips or blocks anything — it sets `secrets_flagged: true` +
+`secrets_patterns` in both the tool's response and `transcript.md`'s own
+frontmatter, so a cold future `get_archive` call still surfaces the warning
+even with no memory of why it was flagged.
+
+**Backup coverage — actually tested, not just read from the script.**
+`data/` (which now includes `data/session_archives/`) was already inside
+both of Watson's nightly backup legs with zero changes needed. Verified for
+real during this build: archived a test session (with a file, and a
+deliberately-injected fake secret to confirm the flag fires), ran
+`jobs/backup_local.py` (the local restic leg) manually, then `restic
+restore latest` to a scratch path and `diff -r`'d it against the live
+`data/session_archives/` tree — byte-identical. Only the local leg was
+exercised live (no test data pushed to the real OneDrive leg,
+`jobs/backup.py`, which backs up the same `data/` tree via a different
+mechanism); a live OneDrive round-trip hasn't been separately confirmed.
+Test archives and DB rows were deleted after verification — nothing left
+behind.
+
+**Not built:** no dashboard UI for browsing archives (retrieval is
+Claude.ai/Telegram/dashboard-chat only, via the skills above, or direct
+filesystem/`sqlite3` access); no edit/delete of an existing archive once
+written (append-only by design — the entire point is not losing data, so
+nothing removes it once archived); no binary-file secret scanning (only
+UTF-8-decodable file contents are scanned, same as the transcript).
+
+### Bulk account import + nightly ingest (added 2026-08-26)
+
+Beyond live "send to watson" archiving, the whole account can be pulled in
+via Claude.ai's own **Settings → Export data** feature (Anthropic's account
+data export, not the Claude API — produces a manifest JSON pointing at 4
+single-use download URLs: `light_metadata`, `projects`, `memories`,
+`conversations`). The download URLs sit behind Cloudflare bot protection —
+confirmed a bare `curl` from Watson gets a "Just a moment..." challenge page,
+not the file — so they must be opened in Bill's own logged-in browser; only
+the resulting zips travel to Watson (scp to `~/watson/incoming/claude_export/`
+over Tailscale). **Never recursively copy Bill's whole `OneDrive\Claude`
+folder** — that's his general legacy working directory (contains
+`SECRETS.md`, `credentials.json`, full repo checkouts with `node_modules`),
+not export-scoped; a `scp -r .` from the wrong directory pulled ~60k
+unrelated files including the master secrets store into `incoming/` on
+2026-08-26 (cleaned up, nothing left on Watson, originals on Bill's machine
+untouched — but don't repeat the mistake).
+
+The `conversations.json` inside the export has **no project field** —
+confirmed by checking all 992 entries' key sets in the first import — so
+which project a conversation belongs to has to be inferred, not read off the
+data. `jobs/session_archives/classify.py` does this with local embedding
+similarity (`all-MiniLM-L6-v2`, same model `jobs/skills/kb_search.py`
+already uses — no LLM call, no network) rather than an LLM classification
+call per conversation: embeds each named Claude.ai project's name+description
+as a reference vector, embeds each conversation's title+summary as a query,
+cosine-similarity match, `CLASSIFY_THRESHOLD = 0.40`. Calibration check:
+real matches scored ~0.69-0.70, an unrelated pair ~0.15 — clean separation.
+Blank-named Claude.ai projects (auto-grouped throwaway chats) are excluded as
+classification targets, not just low-confidence — they're not real writing
+projects. Anything that doesn't clear the threshold lands in
+`claude-account-import`, the catch-all for genuinely miscellaneous chats.
+
+**First import (2026-08-26):** all 992 conversations from the account,
+zero errors, 538 files recovered as real attachments (not just inline text —
+extracted from `artifacts` tool-use blocks with `command` in
+`create`/`rewrite`, and `create_file`/`file_create` tool-use blocks with
+`file_text`; `update`-command artifacts and other tool-created files aren't
+captured, just referenced in the transcript text), 65 conversations flagged
+for possible secrets (mostly real — Watson-development conversations that
+plausibly had live tokens pasted into them; not stripped, per the existing
+secret-guard design, so a review pass is still owed). This first batch
+landed entirely in `claude-account-import` since the classifier didn't exist
+yet — `jobs/session_archives/backfill_reclassify.py` (one-time, not cron;
+see below) sorts it retroactively once a fresh export is available again to
+reconstruct titles/summaries against.
+
+Rendering an export conversation into the (transcript, files, title,
+summary) shape `archive_session()` expects is shared logic
+(`jobs/session_archives/claude_export_render.py`) between the nightly
+importer and the backfill tool, so they can't drift into rendering the same
+format two different ways. Content-block types seen across the account:
+`text`, `tool_use`, `tool_result`, `thinking`, `voice_note`, `token_budget`
+(skipped — no real content). `attachments` on a message carry
+Anthropic's own `extracted_content` (plain text pulled from an uploaded
+PDF/doc) which gets folded into the transcript; bare `files` references
+(uuid + filename only, no bytes) are noted inline as unrecoverable from this
+export format.
+
+**Real bug found and fixed during the first bulk import:** `archive_session`
+built its directory name from `timestamp-title_slug` and did
+`mkdir(exist_ok=True)` — two archives landing in the same second with the
+same title (exactly what a fast bulk import produces) would silently share
+one directory, the second overwriting the first's `transcript.md`. Fixed by
+disambiguating with a `-1`/`-2`/... suffix, the same pattern already used for
+file-name collisions within one archive; verified with a same-second,
+same-title test before running the real 992-conversation batch. Commit
+`3dcecb9`.
+
+**`jobs/session_archives/claude_export_import.py`** — the nightly cron job
+(`45 1 * * *`, ahead of KB sync at 2am and local backup at 2:30am; see
+`memory/CRON.md`). Looks for `conversations-*.zip` in the drop folder (does
+nothing if absent — Bill only exports periodically, not nightly); if found,
+extracts, skips any conversation whose uuid is already in
+`session_archives.source_conversation_uuid` (repeat exports are full account
+snapshots, not deltas, so heavy overlap with what's already archived is
+expected every run), classifies and archives the rest, deletes the consumed
+zips, sends a Telegram summary — every run, even a plain "nothing new" ping,
+matching `jobs/kb/sync_and_index.py`'s convention so a quiet night reads as
+"checked, nothing to do" rather than looking identical to a dead cron job.
+Does **not** reclassify anything already sitting in the catch-all from a
+prior run — that churn-vs-value tradeoff belongs to a human decision, not a
+nightly job, which is why backfill is a separate manual tool.
+
+**`jobs/session_archives/backfill_reclassify.py`** — one-time, not cron.
+The 992-conversation first import predates `source_conversation_uuid`, so
+its rows can't be matched back to a source conversation by id — matches by
+exact title instead (`claude_export_render.build_title()` is deterministic,
+same conversation always produces the same title). Only touches 1:1 title
+matches — a title shared by more than one archived row or more than one
+export conversation is left alone and reported rather than guessed at,
+since a wrong reclassification is worse than staying unsorted. Run via
+`python3 -m jobs.session_archives.backfill_reclassify` after dropping a
+fresh `conversations-*.zip` + `projects-*.zip` pair.
+
+**Manual project refs** (`data/session_archives/_manual_project_refs.json`,
+via `classify.add_manual_project_ref()`) — hand-written classification
+targets that survive the auto cache being fully overwritten on every real
+export (`_project_refs.json`). Two uses: (1) a bucket for real, ongoing work
+that never happened inside a Claude.ai Project container — e.g. after the
+first backfill left ~370 conversations unsorted, ~185 of them turned out to
+be Watson development work (dashboard, bot, backups, congregation.db, etc.)
+done as plain chats, not inside a Project. (2) Enriching a *real* project's
+classification signal — Claude.ai project description fields are usually
+blank, so a real project's own text is often just its bare name, too weak a
+signal to reliably catch related chats. A manual ref sharing a real
+project's slug **overrides** that project's auto-derived text rather than
+being skipped (`classify._merge_manual()`), rather than existing as a
+separate duplicate bucket. Concretely: Bill's real "Development Project"
+(`development-project`) is where he plans Watson upgrades — the manual ref
+for that slug carries a full paragraph describing Watson's architecture,
+which is what actually caught those ~185 conversations; the original
+synthetic bucket idea was retired the same session once this came up.
+
+**`CLASSIFY_THRESHOLD` lowered from 0.40 to 0.30, permanently** — the first
+backfill at 0.40 left ~649 conversations unsorted, most genuinely
+classifiable; re-running at 0.30 moved 270 more with no visible false
+positives spot-checked at the low end (0.30-0.35 range). Kept as the real
+default in the code, not just a one-off override for that run.
+
+**Live `archive_session` now auto-classifies too, not just the nightly
+importer.** Originally, only the account-export pipeline ran the classifier
+— a live "send to watson" call always required Claude.ai to name a project,
+with no silent default. That fell apart once it was clear most of Bill's
+actual work (per the 992-conversation import) never happens inside a formal
+Claude.ai Project at all — Claude.ai usually can't know which of Bill's
+named projects a given live session belongs to either, so requiring it to
+state one was asking it to guess blind. Now: if `archive_session` is called
+with `project: "general"`, it runs the same classifier
+(`classify.load_project_refs_cache()` + `classify.classify()`) against the
+title/summary before accepting "general" as the real answer — same cached
+project refs, same 0.30 threshold, immediate at write time (no incoming-
+folder detour, no overnight wait — considered and rejected: the nightly
+importer only knows how to parse Anthropic's raw export JSON shape, not an
+already-rendered `archive_session` transcript, so literally routing
+`archive_session` through the same folder+cron pipeline would have meant
+faking that format for no real benefit). A project Claude.ai *does* name
+explicitly is never second-guessed — auto-classify only fires on the literal
+"general" fallback. Result carries `auto_classified: true/false` so it's
+visible which path a given archive took. Verified live: a clearly
+Watson-flavored session auto-landed in `development-project`; a deliberately
+weak/generic one correctly fell through to `general` rather than guessing
+wrong (score 0.27, under threshold) — both cleaned up as test data after.
 
 ---
 
@@ -670,6 +1250,102 @@ Private community hub for Writing Room Partners (invitation-only, earned via ARC
 
 ---
 
+## Public Tools (wtsn.me)
+
+`wtsn.me` — Watson's own public identity for stranger-facing tools (the Catalyst connect-card
+pattern, but for anything outside Bill's Tailscale network), deliberately separate from
+`williamckyomes.com`'s author/book-launch surface. One shared Next.js app/Vercel project,
+category/slug routes — same architecture as wcky's `/go/[slug]` branded-link redirector, not
+one repo/project/domain per tool. Real per-tool isolation (its own repo) stays available
+later if a specific tool ever needs it; nothing here defaults to that. Full investigation
+and build log: `notes/wtsn-me-public-tools-spec.md`.
+
+**Architecture:** Next.js frontend (`~/watson-tools`) → Watson API → `watson.db`
+**Watson API base:** `https://watson.tail0243ff.ts.net` (Tailscale Funnel)
+**Auth on `/api/tools/resolve/<category>/<slug>`:** none — public, unauthenticated, same shape
+as `jobs/links/api.py`'s `/api/links/resolve/<slug>`. Unlike bodyrec/Writing Room, this route is
+*meant* to be called by an anonymous public visitor's request (via the Vercel app), not just
+another Watson-authenticated service, so the `X-Watson-Key` shared-secret pattern doesn't
+apply here. It only ever returns a tool whose `status = 'live'` — a `draft` row 404s even if
+its category/slug is already known.
+**Watson job files:** `jobs/tools/schema.py`, `jobs/tools/registry.py`, `jobs/tools/api.py` —
+Flask blueprint, routes registered on dashboard app
+**Table:** `public_tools` — see watson.db Key Tables above
+
+**Categories:** tools group by area of life, Bill's choice per tool, not inferred — `cat/` for
+Catalyst, and `writing/`, `fms/`, `adelphos/` etc. as those get built out. `(category, slug)` is
+the real unique key (`UNIQUE (category, slug)` in the table), not slug alone.
+
+**Routing pattern (`~/watson-tools/src/app/[category]/[slug]/page.tsx`):** a dynamic catch-all
+route resolves against `/api/tools/resolve/<category>/<slug>` and renders per `tool_type` —
+`redirect` (server-side `redirect()` to `target_url`), `page` (renders `title` + `body_text`),
+or `custom` (a tool with real logic gets its own dedicated route file, e.g.
+`src/app/cat/connect/page.tsx`, which Next.js's router matches ahead of the `[category]/[slug]`
+catch-all).
+
+**`'custom'` tools are NOT gated for free — two real bugs found live confirmed this the hard
+way** (both during the `cat/connect` build, 2026-08-28, both caught by testing the actual
+public URL rather than trusting the code): (1) a `'custom'` tool's own page component never
+consulted `public_tools.status` on its own — the dynamic catch-all's automatic gating doesn't
+extend to a static route file. (2) Fixing the page alone was still not enough — the page's own
+gate does not protect its own API route; `cat/connect`'s form-submit endpoint was directly
+POST-able (and, briefly, with real Brevo credentials in place, would have actually sent email)
+regardless of draft status. **The fix, and the pattern every future `'custom'` tool must
+follow:** `~/watson-tools/src/lib/requireLiveTool.ts` exports `isToolLive(category, slug)` (raw
+boolean, fails closed) and `requireLiveTool(category, slug)` (page usage — calls Next's
+`notFound()` itself). A `'custom'` tool's page must `await requireLiveTool(...)` as its first
+line, marked `export const dynamic = 'force-dynamic'` so it's never statically prerendered
+against a status that can change at any moment; **any API route that tool posts to must
+separately call `isToolLive(...)` as its own first line** — the page check does not cover it.
+
+**First-deploy Telegram confirm gate:** a tool is registered `status = 'draft'` (invisible to
+the public resolve route) until `jobs/tools/registry.request_first_deploy()` sends a Telegram
+message with inline **✅ Go Live / ❌ Cancel** buttons and Bill taps one — `bot.py`'s
+`handle_tool_deploy_callback` (`callback_data` pattern `tool_deploy_(yes|no):<category>:<slug>`)
+acts on the tap directly and calls `flip_live()`. **Button-based, not the typed-YES/NO
+`pending_actions` mechanism** the six classifier-stage gated writes use (see Confirmation Gate
+below) — Bill's explicit preference (2026-08-28), matching the button pattern
+`jobs/adelphos/security_monitor.py`'s Delete/Allow alerts already established, rather than
+layering buttons onto the older mechanism. `callback_data` carries `category:slug` directly, so
+there's no separate pending-state row; the tap is idempotent (checks current status before
+flipping), so a duplicate prompt from a second `request_first_deploy()` call is just mildly
+noisy, never unsafe. Edits to an already-live tool don't re-trigger this; only the first flip
+from `draft` to `live` does.
+
+**DNS:** `wtsn.me`'s nameservers are delegated to Vercel (`ns1`/`ns2.vercel-dns.com`) — the
+one-time manual step that makes every future subdomain/record purely a Vercel API/dashboard
+action, no further Namecheap involvement. `www.wtsn.me` redirects to the apex at the Vercel
+domain level (301, not app code — see Web Properties above).
+
+**Credentials:** `VERCEL_API_TOKEN` in `.env` (Vercel REST API, project/domain management —
+did not exist before this build, see Credentials below). `WATSON_API_URL` is a **Vercel
+project env var on watson-tools**, not just a `.env` entry — it was initially only in
+`~/watson-tools/.env.example` and missing from the actual live Vercel project, which produced
+a real bug (an uncaught error inside the `[category]/[slug]` Server Component → `500` instead
+of the intended `404` for a draft tool) on the first live test. Worth checking for by name on
+any future Vercel project built the same way — an `.env.example` documents the shape, it
+doesn't provision anything. Vercel's `sensitive` env var type is **write-only** — its value
+can never be read back via API *or* dashboard, not even by Bill, and its **key name can't be
+renamed** either once set (confirmed live — a misnamed `Brevo_Api` var had to be deleted and
+re-added under the correct name, `BREVO_API_KEY_CONNECT_CARD`, rather than renamed in place).
+
+**Live tools:**
+- `cat/connect` — full copy of wcky's Catalyst connect card, same direct-to-Brevo mechanism
+  (confirmed by reading wcky's actual `route.ts` and its live Vercel project's env var names — not
+  assumed): `CONNECT_CARD_TO_BILL`, `CONNECT_CARD_TO_DONNA`, `CONNECT_CARD_TO_TYLER`,
+  `CONNECT_CARD_BCC` (set to `watson.wcky@gmail.com`, the real IMAP intake mailbox — not
+  `watson@williamckyomes.com`, which is send-only), and `BREVO_API_KEY_CONNECT_CARD`, all set fresh
+  on `watson-tools`' own Vercel project (wcky's values aren't copyable — `sensitive` type). Live as
+  of 2026-08-28. **This is now the only copy** — wcky's `williamckyomes.com/tools/connect-card`
+  (page, form, and API route) was retired 2026-09-05; that path now permanently redirects to
+  `wtsn.me/cat/connect` via wcky's `next.config.js`. `jobs/connect_cards/intake.py`'s Gmail-based
+  ingest into `congregation.db` needed no change — it matches on sender/subject, not origin domain,
+  and both copies send identical emails. A spam-phone blocklist (`BLOCKED_PHONE_DIGITS` in
+  `route.ts`) was added to this copy the same day, after a bot repeatedly resubmitted a fake
+  visitor through the wcky form — see [[project_congregation_db_spam]].
+
+---
+
 ## Book Launch Campaign System (`jobs/campaigns/`)
 
 Reusable, campaign-agnostic marketing automation for book launches — built out
@@ -693,6 +1369,37 @@ but nothing TWJ-specific is hardcoded in the job files themselves.
 **Telegram:** `handle_campaign_callback` in `bot.py`, pattern `^camp_approve:`, registered ahead of no colliding wildcard (there isn't one yet, but see the `fb_img_`-before-`fb_` precedent this follows).
 
 **Known gap:** Facebook rows never get synced back to `status='sent'` in `book_launch_sends` once `facebook_post.py` actually posts them — that job has zero awareness of this table by design (Step 3 of the build explicitly doesn't modify it). They stay at `status='approved'` after being queued. A future phase could add a small read-back reconciliation job if that visibility gap matters.
+
+---
+
+## Paper-Trading Strategy Pipeline (`jobs/trading/`)
+
+Built 2026-08-20. A strategy development pipeline against **Alpaca's paper API only** — `jobs/trading/alpaca_client.py` hard-codes `paper=True` and refuses to run at all unless `ALPACA_BASE_URL` still names `paper-api.alpaca.markets`, so a future `.env` credential swap can never silently point this job at a live account. Dashboard: `/trading` page, tile at the bottom of the More tab (not a new nav tab). DB: `data/trading.db`, separate from `watson.db`/`congregation.db`/`donors.db`/`curator.db`.
+
+**Data & holdout:** 10yr SPY daily bars (`daily_bars`). Three sealed holdout windows (`jobs/trading/HOLDOUT_WINDOWS.md`) — `crash_2020` (Feb–Apr 2020, 62 bars), `bear_2022` (full year, 251 bars), `calm_2017` (full year, 251 bars — verified against real data and swapped in for the originally-proposed 2019, which turned out not to actually be low-volatility). `training_data()`/`holdout_data()` (`jobs/trading/data.py`) split the exclusion at the SQL level — verified zero leakage. `holdout_data()` returns each window in isolation with **no pre-window lookback buffer** — a real, known limitation for long-lookback templates (see `time_series_momentum` below): `crash_2020`'s 62 bars can be shorter than a strategy's warmup requirement, producing a flat 0%-return "beat" of a falling benchmark for lack of data, not skill. Not fixed (would require touching the verified training/holdout boundary) — always check a holdout result's per-window breakdown, not just the aggregate pass/fail.
+
+**Risk limits** (`jobs/trading/risk.py`, hard-coded constants, not config): 2% max per position, 3% daily-loss halt (auto-clears next day), 15% drawdown full-stop (`resume_from_drawdown_stop()` is the only way it clears — manual, dashboard-only, never automatic).
+
+**Backtest engine** (`jobs/trading/backtest.py`): backtrader, `Cerebro(runonce=False)` (default `runonce=True` throws `IndexError` when an indicator's period exceeds the data length — real once short holdout windows meet large grid periods), $0 commission (matches Alpaca's real fee-free equities) + 5bps slippage. Every run logs return/max-drawdown/Sharpe/win-rate/SPY-buy-and-hold-benchmark/`rejected_orders` into `backtest_runs`. All four strategy templates share a `_TrackedStrategy` base class (`jobs/trading/strategies/templates.py`) that counts margin-rejected orders via `notify_order()` — added after a real bug (see below) where rejected orders produced a misleadingly clean 0%-return result.
+
+**Strategy templates** (`jobs/trading/strategies/templates.py`, deterministic parameter grids, no code generation — see Iteration Loop below for why): `ma_crossover`, `mean_reversion`, `momentum` (bare rate-of-change sign), `time_series_momentum` (vol-scaled, periodically-rebalanced, per Moskowitz/Ooi/Pedersen — the one template with a real, defensible result so far: verified via per-window signal tracing that it genuinely stayed in cash through the 2022 bear market and captured partial 2017 bull-market upside, not just a benchmark-gaming artifact).
+
+**Iteration loop** (`jobs/trading/iteration_loop.py`): "Watson proposes a strategy variant" is a deterministic walk across a fixed parameter grid on a vetted template — **never LLM-generated code**, a deliberate decision (Watson's automated jobs are Ollama-only anyway, and executing AI-generated code against a brokerage account, paper or not, is a real code-execution safety surface). Two modes, both gated by the existing Telegram pending-action approval mechanism (`jobs/gcal/pending.py`, action types `trading_variant_approve`/`trading_batch_approve`/`trading_holdout_test_approve`/`trading_holdout_batch_approve`, dispatched in `bot.py`'s `_execute_pending()`):
+- **Single-variant** (`propose_and_run_next`) — one Telegram YES per variant, maximally supervised.
+- **Batch** (`propose_batch`/`run_batch`/`run_batch_and_report`) — one YES covers up to N variants run back-to-back, results filtered by a selection criterion and reported as a summary. Added because single-variant mode's per-variant approval chaining turned out to have an unresolved race (see Known Bugs below); batch mode structurally avoids it by never creating a new pending row mid-flight.
+
+**Selection criteria** (`jobs/trading/evaluate.py`): `strategies_above_win_rate()` (>80% training win rate) structurally favors low-activity/mean-reversion-style strategies — a real, profitable trend-following strategy can have a win rate well under 50%. `strategies_above_sharpe()` ranks by Sharpe ratio instead, appropriate for `time_series_momentum` and other trend-following templates. Both use a correlated subquery pinned to each strategy's most recent training run (a strategy re-tested for correctness would otherwise return its id once per qualifying `backtest_runs` row).
+
+**Sealed holdout evaluation** (`jobs/trading/evaluate.py`): a strategy can be holdout-tested at most once, ever — `holdout_tests.strategy_id` is `UNIQUE` at the DB level (verified via a direct SQL bypass attempt raising `IntegrityError`), not just an app-level check. Pass bar: beat SPY buy-and-hold on ≥2 of 3 sealed windows AND no outright loss on any window. `run_holdout_test()` (single) / `run_holdout_batch()` (batch, one approval, ranked report) — both wrap each strategy's test independently so one failure can't abort the rest of a batch and lose every result computed so far. **Data-integrity note:** if a bug is ever found to have corrupted an already-sealed result (confirmed happened once — see Known Bugs), the correct fix is to delete that `holdout_tests` row and reset the strategy to `training_tested` for a legitimate re-test. This is a data-integrity correction (undoing a non-evaluation caused by a bug), not gaming the seal — the seal exists to stop repeated *real* peeking at the sealed windows, not to preserve known-broken results.
+
+**KB:** new `trading-strategies` ChromaDB collection (separate from `sermons`), ingested via the existing `jobs/build_kb.py::ingest_dir()` — no new ingestion mechanism. 16 documents, source-type tagged (article/case-study): QuantStart/QuantInsti fundamentals, LTCM/2010-Flash-Crash/Knight-Capital-2012 case studies, walk-forward optimization, fair-benchmark-comparison (names the exact benchmark-gaming pattern found live, below), time-series momentum, Donchian/Turtle breakout, volatility targeting, and a Sell-in-May seasonal anomaly filed as a cautionary case study. Deliberately excludes the four books in the original spec (Chan, Narang, Velu & Hardy, Johnson) — copyrighted, no legitimate source.
+
+**Results as of 2026-08-20:** 434 strategy variants trained, 136 run through the sealed holdout. Every `ma_crossover`/`mean_reversion`/`momentum` "pass" turned out to be benchmark-gaming — a near-zero-return, barely-trading strategy trivially beats a benchmark that fell, without real timing skill. `time_series_momentum` is the one template with a real, defensible result (see above), though still short of buy-and-hold overall — nothing here is ready for live paper forward-testing yet.
+
+**Known bugs found and fixed live during the build (don't reintroduce):**
+1. **Telegram routing precedence** — `bot.py`'s YES/NO handler checks a stale `capability_gaps` backlog *before* the generic `pending_actions` table; a 2.5-month-old stale gap ate a real YES meant for trading. Backlog cleared; the precedence issue itself remains (would recur if new gaps pile up).
+2. **The real duplicate-advance bug** — a single YES could cascade through an entire strategy grid instead of stopping after one. Root cause: `confirm_pending()` did an unconditional UPDATE regardless of prior status, and `bot.py` has ≥4 separate call sites that independently fetch "the latest pending row for this chat" — a redundant re-entry would find a freshly-created row and advance it too. Fixed by making `confirm_pending()` an atomic claim (`UPDATE ... WHERE status='pending'`, checked via rowcount) — all 7 existing call sites already discarded its return value, so this was backward-compatible. **Residual, deliberately unfixed gap:** closes trading's specific triggering mechanism, not the underlying issue for *other* pending-action types (calendar, tasks) — they've just never been slow enough to trigger it.
+3. **Silent margin rejection** — `time_series_momentum`'s position sizing capped at exactly 100% of portfolio value, leaving no room for next-bar price movement; backtrader silently rejected every order on margin, producing a flat 0% result indistinguishable from a genuine "no signal" case. Corrupted 6 already-sealed holdout results before being caught (by manually tracing per-window signal values, not trusting the aggregate pass/fail). Fixed (95% cap) and hardened with the `_TrackedStrategy`/`rejected_orders` tracking described above; the 6 corrupted rows were deleted and those strategies reset for a legitimate re-test.
 
 ---
 
@@ -842,9 +1549,19 @@ path at all. Everything else — including every `_DIRECTIVE_PREFIXES` colon-pre
 just via inconsistent syntax and duplicated code paths rather than a real gap.
 `contact_lookup` and `reminder_create` are independently reimplemented in dashboard's
 `/api/chat/stream`; `book_appointment` and `calendar_busy` exist as dedicated dashboard
-REST endpoints/UI rather than chat intents. `build:` (dashboard) and `devloop:`
-(Telegram) trigger the identical Dev Loop function under different spellings — a naming
-mismatch, not a gap.
+REST endpoints/UI rather than chat intents. (Historical note: `build:`/`devloop:` used
+to both trigger Dev Loop under different spellings — both prefixes and Dev Loop itself
+are gone as of 2026-09-03, see Retired section.)
+
+**Not in the table above — a different mechanism entirely, not just a different trigger.** The
+wtsn.me first-deploy gate (`jobs/tools/registry.request_first_deploy()`, see Public Tools
+(wtsn.me) below) is triggered proactively by a build step (registering a new tool), not by an
+incoming Telegram message being classified, so it was never one of the stage-5 classifier
+intents — but it also doesn't use `pending_actions`/`_execute_pending()` at all. It sends
+inline **Go Live / Cancel** buttons (`bot.py`'s `handle_tool_deploy_callback`), matching the
+button-based pattern `jobs/adelphos/security_monitor.py`'s Delete/Allow alerts already use,
+per Bill's explicit preference (2026-08-28) for buttons over typing a reply. Left out of the
+table above rather than forced in, for both reasons.
 
 ---
 
@@ -979,6 +1696,18 @@ Wired into both `bot.py` and `jobs/dev_loop/loop.py`.
   every pre-existing account when the `adelphos_new_accounts` table is empty. Full live end-to-end
   test passed 2026-08-01 (real throwaway account created, alerted, deleted via two real Telegram taps,
   confirmed gone from Moodle).
+- **Email-visibility fix (2026-08-07):** Alerts were showing "(not visible)" for the email on every
+  signup. Root cause was Moodle-side, not Watson: the `watson_users` role was missing the
+  `moodle/site:viewuseridentity` permission, so `core_user_get_users` silently omitted `email` for
+  every user except the calling account itself. Bill granted the permission in the Moodle admin UI;
+  email now flows correctly (confirmed 38/38 users via direct API test). Two code-hardening fixes
+  shipped alongside (`jobs/adelphos/security_monitor.py`, commits `fe45314` + `043b103`):
+  (1) the IP fallback text is now "(not exposed by Moodle API)" — `lastip` is absent from the
+  `core_user_get_users` response structure regardless of permissions, so signup IP is genuinely
+  unavailable by design, **not** a fixable privacy setting; (2) the old `deleted=0` API criteria was
+  a silently-ignored no-op (Moodle 5.0 rejects `deleted` as an unsupported search key and returns the
+  full roster anyway), so the monitor now pulls the full roster via a placeholder criteria and filters
+  deleted / suspended / system accounts (guest id 1, admin id 2) client-side in Python.
 - **Remaining course-development jobs (Priority 2, deferred, not started):** Lesson builder, quiz
   generator, course spec system, weekly monitoring digest, student stuck alert, course announcement
   emails, student welcome message.
@@ -1003,6 +1732,7 @@ WATSON_API_URL=https://watson.tail0243ff.ts.net
 MCP_DISPATCH_API_KEY=
 MCP_OAUTH_CLIENT_ID=
 MCP_OAUTH_CLIENT_SECRET=
+VERCEL_API_TOKEN=
 ```
 
 ---
@@ -1124,6 +1854,7 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - ~~Windows machine for web development~~ — all web dev now on Beelink
 - ~~Upstash KV in blog pipeline~~ — `ingest_drafts.py` retired, direct POST to Flask
 - ~~FMSPC SSH for Dev Loop~~ — moved to local Beelink execution
+- ~~Dev Loop (`jobs/dev_loop/`)~~ — Ollama-driven (`qwen2.5-coder:7b`) autonomous code generation, triggered via Telegram `devloop:`; removed 2026-09-03, superseded by Dev Sandbox (`jobs/dev/sandbox_session.py`) and Watson Dev Dispatch (`jobs/devdispatch/`) running real Claude Code on the Beelink instead. Was already ~fully dormant (dashboard UI removed 2026-07-01, `devloop:` chat trigger removed 2026-09-02, `dev_projects` had 0 rows at removal time). `dev_projects` table left in place (empty, no longer created/read by any code).
 - ~~iOS keyboard patch in dashboard chat~~ — attempted and reverted 7 times, permanently removed from build queue
 - ~~Build Pipeline (`jobs/dev/build_pipeline.py`)~~ — Claude API spec/review/approve flow triggered by bare `build <request>` / `approve` in Telegram; last ran 2026-06-15, superseded by Dev Loop. Bot triggers removed 2026-07-03. File left in place, unreferenced.
 - ~~`jobs/kb/archive_transcripts.py`~~ — retired 2026-07-20, superseded by `jobs/kb/sync_and_index.py`. Its 30-day-old-file threshold became unreachable once transcripts started moving to `kb/documents/` the same day they arrive. File left in place, unreferenced; cron entry removed.
@@ -1958,3 +2689,620 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - a486c35 feat: Dev Sandbox — interactive, sandboxed Claude Code sessions from dashboard
 - 1137ca1 docs: test and revert OLLAMA_NUM_PARALLEL=2 — CPU-only host makes it worse
 - f861c05 docs: architecture update 2026-08-06
+
+---
+
+## Recent Changes — 2026-08-08
+
+### ~/watson
+- 5adb686 docs: bugs/backlog export 2026-08-08
+- 9157d4f docs: file map 2026-08-08
+- 8b818c0 Merge pull request #23 from byomes/fix/remove-dev-sandbox-tile
+- a0b16f5 fix(dashboard): remove Dev Sandbox tile from More menu
+- 99d28de docs(adelphos): record email-visibility fix + IP/filtering hardening
+- 043b103 fix(adelphos): replace no-op deleted criteria with client-side filtering
+- fe45314 fix(adelphos): correct IP fallback text to "(not exposed by Moodle API)"
+- 9408355 docs: note Dev Sandbox dispatch integration + get_job_output reverted same night
+- 1118eef Revert "devdispatch: add read-only get_job_output MCP tool"
+- 07f3579 Revert "devdispatch: run dispatch_claude_code_job inside Dev Sandbox with live terminal_url (#22)"
+- 96ec502 devdispatch: run dispatch_claude_code_job inside Dev Sandbox with live terminal_url (#22)
+- 116c69b feat(audiobook): breath suppression + parameter-adjusting retry loop (#20)
+- ec235ab devdispatch: add read-only get_job_output MCP tool
+- d451c1f docs: architecture update 2026-08-07
+
+### ~/wcky
+- ab6f651 Merge pull request #3 from byomes/fix/blog-duplicate-category-labels
+- fb0411b fix(blog): de-duplicate category labels via shared getPostLabels helper
+
+---
+
+## Recent Changes — 2026-08-09
+
+### ~/watson
+- fb02611 docs: bugs/backlog export 2026-08-09
+- 2593ef8 docs: file map 2026-08-09
+- e86b582 feat(curator): validate submitted_by against users on ChatGPT import route
+- 3245bef fix(curator): preserve raw ChatGPT paste as needs_review on extraction failure
+- ef676d7 feat(curator): verify ChatGPT import findings are verbatim before storing
+- bd6a89a feat: Curator — switch ChatGPT import to direct pasted text
+- 96f64a5 feat: Curator — ChatGPT-research import path
+- 225103b feat: add out-of-process page renderer for browser jobs
+- 8996f87 Fix intermittent watson.db backup failure — add busy-timeout to snapshot
+- f92afa4 docs: architecture update 2026-08-08
+
+---
+
+## Recent Changes — 2026-08-10
+
+### ~/watson
+- 7b8dc22 docs: bugs/backlog export 2026-08-10
+- 57a7766 docs: file map 2026-08-10
+- c7260a6 fix(curator): normalize host for trusted-source categorization
+- c2fde1f feat(curator): add research_gaps column + JSON serialization
+- 8b93ce0 docs: architecture update 2026-08-09
+
+---
+
+## Recent Changes — 2026-08-11
+
+### ~/watson
+- 32e8524 docs: bugs/backlog export 2026-08-11
+- b127541 docs: file map 2026-08-11
+- 1ae6192 docs: architecture update 2026-08-10
+
+---
+
+## Recent Changes — 2026-08-12
+
+### ~/watson
+- b3e2542 docs: bugs/backlog export 2026-08-12
+- 7c9247b docs: file map 2026-08-12
+- 0fb794c docs: architecture update 2026-08-11
+
+---
+
+## Recent Changes — 2026-08-13
+
+### ~/watson
+- 926b229 docs: bugs/backlog export 2026-08-13
+- 045a245 docs: file map 2026-08-13
+- a0ee4e6 docs: architecture update 2026-08-12
+
+---
+
+## Recent Changes — 2026-08-14
+
+### ~/watson
+- a07734e docs: bugs/backlog export 2026-08-14
+- 2b08924 docs: file map 2026-08-14
+- 4220b79 Merge pull request #25 from byomes/feat/backup-retry-with-backoff
+- 359cbd6 Merge pull request #24 from byomes/fix/backup-local-sqlite-busy-timeout
+- c58c1e9 Retry backup subprocess ops with backoff instead of failing on first try
+- 962c5ac Fix intermittent restic-backup watson.db failure — add busy-timeout to snapshot
+- 7909200 docs: architecture update 2026-08-13
+
+---
+
+## Recent Changes — 2026-08-15
+
+### ~/watson
+- c38dd97 docs: bugs/backlog export 2026-08-15
+- f518f34 docs: file map 2026-08-15
+- 5d12ef7 Merge pull request #26 from byomes/arc-interest-endpoint
+- b37d959 Reuse the existing ARC Kit tag instead of a separate interest-signup tag
+- bae5227 Add lightweight ARC interest-signup endpoint for wcky /arc/preview
+- de25c90 docs: architecture update 2026-08-14
+
+### ~/wcky
+- a743e39 Promote reviewed /arc/preview content to the live /arc page
+- 87d08db Merge pull request #4 from byomes/arc-preview-page
+- f29854f chore: trigger fresh Preview deploy (WATSON_API_URL now set for Preview)
+- ff57d9b Add unlinked /arc/preview staging page for book-agnostic ARC explainer
+
+---
+
+## Recent Changes — 2026-08-16
+
+### ~/watson
+- dffbb2c docs: bugs/backlog export 2026-08-16
+- 4c7596e docs: file map 2026-08-16
+- e3d8e0c docs: architecture update 2026-08-15
+
+### ~/wcky
+- ff7ccfc Fix Dreamstone Chronicles intro line on /books
+- 9ee167a Reorder Theology & Apologetics section: The Wrong Jesus first
+- aa93170 Merge pull request #6 from byomes/merge-books-page
+- 39289d8 Merge /theology and /dreamstone into a single /books page
+- 88bef26 publish: The Inheritance Was Already Given
+
+---
+
+## Recent Changes — 2026-08-17
+
+### ~/watson
+- d0aa90b docs: bugs/backlog export 2026-08-17
+- 41bb144 docs: file map 2026-08-17
+- e5edb10 Add Comms Desk backend: auth, sends, holds, password reset
+- 5d0ce92 Add jobs/retreats — pastor-retreat discovery pipeline (Phase 03)
+- e3f035c docs: architecture update 2026-08-16
+
+### ~/wcky
+- eeaf7f3 Revert "Join the comms-desk microfrontends group, routing /comms/:path* to it"
+- ff3a691 Join the comms-desk microfrontends group, routing /comms/:path* to it
+- 1562bb9 Merge remote-tracking branch 'origin/main'
+- e286853 Add /retreats page (Phase 02)
+- 0e9560d Add retreats storage and API (Phase 01)
+
+---
+
+## Recent Changes — 2026-08-18
+
+### ~/watson
+- b12b063 docs: bugs/backlog export 2026-08-18
+- 8827099 docs: file map 2026-08-18
+- 1a221bd Expose a browser-loadable image_url for Comms Desk sends
+- 96befa8 Require admin approval before a Comms Desk email actually sends
+- 7470d49 Allow re-editing an already-edited Comms Desk send
+- 2e2e973 Add date+time scheduling to Comms Desk sends, and fix missing Facebook dispatch
+- 2f3d162 Add needs_image flag + shared image_intent path for Comms Desk
+- affe2bc kb: sync 1 transcript(s) to kb/documents (same-day)
+- 70731db docs: record Phase 1 review decisions in Kit→Brevo audit
+- 087f0c4 Let Comms Desk email sends target a live Brevo list or hand-picked contacts
+- b656645 docs: Kit → Brevo migration audit (Phase 1)
+- c125ba6 Point Comms Desk reset link at comms.williamckyomes.com
+- af0afc3 docs: architecture update 2026-08-17
+
+---
+
+## Recent Changes — 2026-08-19
+
+### ~/watson
+- aa15175 docs: bugs/backlog export 2026-08-19
+- 86e2ebb docs: file map 2026-08-19
+- 8155a64 Show all Comms Desk sends to every user, not just the author
+- a38baa0 Fix broken Comms Desk image preview: serve from Watson, not private GitHub repo
+- 8670c0d docs: architecture update 2026-08-18
+
+---
+
+## Recent Changes — 2026-08-20
+
+### ~/watson
+- 4290c5b docs: bugs/backlog export 2026-08-20
+- 13aaae2 docs: file map 2026-08-20
+- 995b769 Fix duplicate log lines in nightly OneDrive backup
+- 9fda9c1 docs: architecture update 2026-08-19
+
+---
+
+## Recent Changes — 2026-08-21
+
+### ~/watson
+- cc0e738 docs: bugs/backlog export 2026-08-21
+- 4caf86d docs: file map 2026-08-21
+- 28f1c47 docs: architecture — add Paper-Trading Strategy Pipeline section
+- cf6a1f1 fix(trading): strategy selectors return duplicate ids for re-run strategies (#49)
+- 519aaa4 fix(trading): position-sizing margin-rejection bug in time_series_momentum + order-rejection tracking for all templates (#48)
+- 4fe77dd feat(trading): Sharpe-ratio strategy selection for trend-following templates (#47)
+- d8cd372 feat(trading): time-series momentum template (Moskowitz/Ooi/Pedersen) (#46)
+- 337900d feat(trading): round 3 KB ingestion — real strategy concepts beyond the current templates (#45)
+- e13117d feat(trading): round 2 KB ingestion — walk-forward, fair benchmarking, mean-reversion theory (#44)
+- d7a72f7 feat(trading): third grid expansion round for a 200-variant batch (#43)
+- 5c4046f fix(trading): backtrader runonce=False + per-strategy error isolation in holdout batches (#42)
+- b51a8e0 feat(trading): holdout batch — one approval, ranks N candidates against sealed data (#41)
+- 9740e49 feat(trading): second grid expansion round for another 100-variant batch (#40)
+- fcb8d88 feat(trading): batch mode — one approval runs up to N variants, filtered by win rate (#39)
+- 6a2bf1b fix(trading): atomic pending-action claim closes the real duplicate-advance bug (#38)
+- 4f4f094 fix(trading): wrap blocking backtest calls in asyncio.to_thread — closes a duplicate-approval bug (#37)
+- 3f467e2 Trading: paper-trading strategy development pipeline (Alpaca paper only) (#36)
+- d62310b Merge pull request #35 from byomes/feature/web-engagement-benchmarks
+- 9ab04d8 Add Interpretation & Recommendations synthesis to web engagement report (Part C)
+- f7de543 Add 6-month trailing trend helper for web engagement report (Part B)
+- 39e1143 Add web engagement benchmarks research job (Part A)
+- 91f9db5 Monthly church web engagement report (Sheet + GA4 + connect cards) (#34)
+- 6177a8c Add Privacy Guard tile to dashboard More tab (#32)
+- 7618f14 Privacy Guard: multi-step wizard driver + broker investigation (#31)
+- be8665d Add Privacy Guard: family data-broker removal automation (#30)
+- 9b7cae9 docs: architecture update 2026-08-20
+
+---
+
+## Recent Changes — 2026-08-22
+
+### ~/watson
+- 9b72b9c docs: bugs/backlog export 2026-08-22
+- 2c8fd2e docs: file map 2026-08-22
+- 1a98b6c Add Privacy Guard email-confirmation polling (project_backlog id=37)
+- 773c517 docs: bugs/backlog export 2026-08-21
+- 0e2242a Merge branch 'fix/privacy-guard-unconfirmed-status'
+- 98367e7 Merge branch 'fix/privacy-guard-scan-locking-robots'
+- 709e954 docs: architecture update 2026-08-21
+
+---
+
+## Recent Changes — 2026-08-23
+
+### ~/watson
+- f900ea0 docs: bugs/backlog export 2026-08-23
+- 3f2c75e docs: file map 2026-08-23
+- a31ef64 Gitignore .env.bak.* / .env.bak-* patterns
+- f203e14 Back up all code repos + full data/ tree to the local restic leg
+- c977d20 Guard Writing Room resend-welcome/reset-password by partner status
+- bc64370 Guard ARC reset-password/resend-welcome against non-active readers
+- 00405f2 Pause ARC manuscript access for new signups
+- a1273d4 Move lead-magnet subscriber tagging from Kit to Brevo
+- d4f8607 docs: architecture update 2026-08-22
+
+### ~/wcky
+- 5599f06 Rewrite Wrong Jesus companion guide copy on /guides
+- b9bc94b Fix He Is Risen description on /guides and /books
+- a036501 Update ARC signup success message for waitlist flow
+- b01c93d Remove Start from main nav
+- a7577e5 Add /guides companion-guide hub page
+- 5aefd68 publish: Is This Genocide? Reading Joshua 6 Honestly
+
+---
+
+## Recent Changes — 2026-08-24
+
+### ~/watson
+- 9252e30 docs: bugs/backlog export 2026-08-24
+- 3fafb38 docs: file map 2026-08-24
+- c34918d Derive the direct-commands catalog table from app.py source, not a hand list
+- 1d805da docs: regenerate Skills & Capabilities Catalog
+- a455ae8 Auto-regenerate the Skills & Capabilities Catalog going forward
+- f6fbbb7 docs: regenerate Skills & Capabilities Catalog
+- f591510 docs: add Skills & Capabilities Catalog to WATSON_ARCHITECTURE.md
+- 256f0f5 Remove unused Briefing, Reading List, and Meeting Reviews tabs from dashboard
+- 0fc9934 Fix dashboard More-tab skill gaps found in skill audit
+- 5709440 Exempt Connect Card emails from the email-reply skill
+- 771866e docs: architecture update 2026-08-23
+
+---
+
+## Recent Changes — 2026-08-25
+
+### ~/watson
+- 0348812 docs: bugs/backlog export 2026-08-25
+- 31b13a0 docs: file map 2026-08-25
+- eb73a7a kb: sync 1 transcript(s) to kb/documents (same-day)
+- 298f3f8 kb: sync 1 transcript(s) to kb/documents (same-day)
+- a90d6d5 connect_cards: fix multi-line question/comment truncation (#54)
+- e6f674b router: forward query text under the skill fn's actual param name (#53)
+- 71e0592 Merge pull request #52 from byomes/worktree-kb-export-download-link
+- 9da8649 devdispatch: progress -> reporting complete, PR #51
+- 071dd86 devdispatch: progress -> reporting (kb-export-download-link)
+- 5626a71 kb: add GET /api/kb/export-link manual-trigger route for testing
+- 2135eaf kb: add Tailscale-only download-link export for Claude.ai/MCP
+- eb40d7c devdispatch: commit already-live run_watson_skill/list_watson_skills MCP tools
+- 7b1a1da devdispatch: fix stale-main false-422 and branch-mismatch push failure (bug #95) (#50)
+- 8823fac docs: architecture update 2026-08-24
+
+---
+
+## Recent Changes — 2026-08-26
+
+### ~/watson
+- 5f9f8ef docs: bugs/backlog export 2026-08-26
+- 59e18c7 Let manual project refs override a real project's classification signal
+- f80be20 docs: file map 2026-08-26
+- 606e809 Add nightly Claude.ai export ingest with project classification
+- 3dcecb9 Fix archive directory collision when two archives share a title in the same second
+- 61f98f2 Add Claude.ai session archive system (archive_session + retrieval skills)
+- 60708a1 fix: deacon reports show email + phone, drop address
+- b4b9609 feat: deacon shepherding reports + admin API
+- 797fb66 docs: regenerate Skills & Capabilities Catalog
+- aec6f09 docs: architecture update 2026-08-25
+
+---
+
+## Recent Changes — 2026-08-27
+
+### ~/watson
+- c5d7592 docs: bugs/backlog export 2026-08-27
+- 3d17f16 docs: file map 2026-08-27
+- add229f fix: retire drift-prone _summary.md, derive get_project_summary from DB rows
+- b94c562 feat: file staging, error codes, cross-project dup detection, reserved test slug
+- c90430e feat: structured archive-retrieval MCP tools, size warnings, supersede flag
+- 3b9235d fix: get_archive skill trigger required exact "get archive:" phrase
+- b5593e7 docs: regenerate Skills & Capabilities Catalog
+- f6900c9 docs: architecture update 2026-08-26
+
+---
+
+## Recent Changes — 2026-08-28
+
+### ~/watson
+- 278650a docs: file map 2026-08-28
+- c4751fd Add watson-tools to update_arch.py's tracked repos
+- 623dc4d wtsn.me first-deploy confirm: buttons, not typed YES/NO
+- 2ecbf88 Add category to public_tools: wtsn.me/<category>/<slug>, not flat slugs
+- 1d58749 Document wtsn.me public-tools build in WATSON_ARCHITECTURE.md
+- c38b7c6 Add wtsn.me public-tools registry: jobs/tools/, first-deploy Telegram gate
+- a2e4de8 docs: architecture update 2026-08-27
+- c5d7592 docs: bugs/backlog export 2026-08-27
+- 3d17f16 docs: file map 2026-08-27
+
+### ~/watson-tools
+- 7f7071b Fix: cat/connect's API route was unguarded, direct-POST-able while draft
+- 741eb17 Fix: cat/connect's draft gate was purely decorative, not enforced
+- bb45f45 Category routing (wtsn.me/<category>/<slug>) + Catalyst connect-card copy
+- cabe1c4 Scaffold watson-tools: Next.js 16 app for wtsn.me public tools
+
+---
+
+## Recent Changes — 2026-08-28
+
+### ~/watson
+- 00696b3 docs: bugs/backlog export 2026-08-28
+- 24f74b1 docs: bugs/backlog export 2026-08-28
+- 0951518 docs: architecture update 2026-08-28
+- 278650a docs: file map 2026-08-28
+- c4751fd Add watson-tools to update_arch.py's tracked repos
+- 623dc4d wtsn.me first-deploy confirm: buttons, not typed YES/NO
+- 2ecbf88 Add category to public_tools: wtsn.me/<category>/<slug>, not flat slugs
+- 1d58749 Document wtsn.me public-tools build in WATSON_ARCHITECTURE.md
+- c38b7c6 Add wtsn.me public-tools registry: jobs/tools/, first-deploy Telegram gate
+- a2e4de8 docs: architecture update 2026-08-27
+
+### ~/watson-tools
+- 7f7071b Fix: cat/connect's API route was unguarded, direct-POST-able while draft
+- 741eb17 Fix: cat/connect's draft gate was purely decorative, not enforced
+- bb45f45 Category routing (wtsn.me/<category>/<slug>) + Catalyst connect-card copy
+- cabe1c4 Scaffold watson-tools: Next.js 16 app for wtsn.me public tools
+
+---
+
+## Recent Changes — 2026-08-29
+
+### ~/watson
+- 75121e2 docs: bugs/backlog export 2026-08-29
+- 421d2af docs: file map 2026-08-29
+- bef91e6 Add romantic trip finder, plus other in-progress work already in the tree
+- b230a2f docs: architecture update 2026-08-28
+
+---
+
+## Recent Changes — 2026-08-30
+
+### ~/watson
+- 6de9e74 docs: bugs/backlog export 2026-08-30
+- a2d2560 docs: file map 2026-08-30
+- 9a62ce9 fix: add missing /api/thesis-tracker/citations route
+- 925887e feat: show weekly downloads on Thesis Tracker dashboard card
+- 3218f25 feat: add weekly downloads to thesis_tracker Telegram alert
+- 62915f6 docs: regenerate Skills & Capabilities Catalog
+- de8f879 docs: architecture update 2026-08-29
+
+### ~/watson-tools
+- a02287b Fix /ham redirect loop in the hamprep rewrite
+- 638cf51 Add rewrite for wtsn.me/ham -> hamprep exam prep app
+
+---
+
+## Recent Changes — 2026-08-31
+
+### ~/watson
+- ac05a1e docs: bugs/backlog export 2026-08-31
+- 1fe7059 docs: file map 2026-08-31
+- 12813d5 docs: architecture update — recovery script current state
+- c342d86 fix: stop watson_recover.sh sweeping unrelated .service files into place
+- ecd0478 fix: install Ollama separately + add curl/zstd, found by testing steps 12-13 for real
+- 8e7d2a9 fix: install Tailscale separately, found by testing watson_recover.sh with real systemd
+- 2a077ed fix: add missing cron package, found by testing watson_recover.sh for real
+- d38d533 fix: make watson_recover.sh restore backup scope generically, not by name
+- 265a8e9 fix: guard connect-card attendance insert against duplicates
+- 9c7bb10 docs: architecture update — backup job scope
+- 9989c74 backup: add ~/.claude/projects to both OneDrive and local restic legs
+- da2c30e Add Telegram Log tab: track outbound messages now that Watson sends to more than Bill
+- 5236b68 docs: document Telegram Leader Onboarding in architecture doc
+- e6f7b7f Add Telegram leader onboarding (claim-code /start flow)
+- 4f395b0 attendance_web: add Inactive as a campus designation
+- 022e790 attendance_web: sort by last name, not first
+- 46c02f4 Add wtsn.me/cat/duplicates staff tool: duplicate-member review
+- 720a966 Add wtsn.me/cat/attendance staff tool: present/absent toggles
+- 9cdca2e docs: architecture update 2026-08-30
+
+### ~/wcky
+- 9c2bb98 fix: revert connect-card auto-redirect to Subsplash giving page
+
+### ~/watson-tools
+- 6f65db4 attendance: add Inactive campus + Edit Campus mode
+- 099353b Add cat/duplicates page: staff duplicate-member review tool
+- 8be14c5 Add cat/attendance page: staff attendance toggle tool
+- 65afe11 fix: revert connect-card auto-redirect to Subsplash giving page
+
+---
+
+## Recent Changes — 2026-09-01
+
+### ~/watson
+- 5a72a2d docs: bugs/backlog export 2026-09-01
+- 870cc81 docs: file map 2026-09-01
+- 59a4a93 feat(congregation): add Elder Shepherding Report (Telegram, per-deacon-group)
+- b7d3469 kb: sync 1 transcript(s) to kb/documents (same-day)
+- 4c811f0 kb: sync 1 transcript(s) to kb/documents (same-day)
+- b98c2d1 deacons_web.py: add "Inactive" as a selectable deacon bucket
+- 3a548d5 Retire watson-people: remove deacon_admin_api.py backend
+- df8bed2 feat(connect_cards): add Bill Crook to Sunday attendance reminder
+- 046842d Add wtsn.me/cat/deacons backend: unified deacon roster tool
+- 74ced40 fix(connect_cards): recover spam-quarantined cards, dedupe Bill's reports
+- 6c937a9 missed_report.py: move to Tue 7am, add Sunday attendance-link Telegram reminder
+- c00164a docs: close out the correction_handler.py removal loose end
+- c6709e1 email_intake.py: drop the missed-report-reply deferral
+- 8c04d87 missed_report.py: direct corrections to wtsn.me/cat/attendance
+- 9a93fb8 Remove correction_handler.py — Jim's attendance tool now owns corrections
+- e54ab7f Drop campus_classifier.py references from batch_update note and architecture doc
+- ebe5de2 Remove campus_classifier.py — Jim now manages campus via attendance tool
+- 272a941 docs: architecture update 2026-08-31
+
+### ~/watson-tools
+- 5def608 cat/deacons: add second subtitle sentence pointing to the Open button
+- 08cda7e cat/deacons: update header and subtitle copy
+- dfbec96 DeaconBoard.tsx: add "Inactive" as a filter and per-card deacon option
+- 76058c8 Add /cat/deacons: unified deacon roster tool
+
+---
+
+## Recent Changes — 2026-09-02
+
+### ~/watson
+- 15743dc docs: bugs/backlog export 2026-09-02
+- bce8e3f docs: file map 2026-09-02
+- 6951c1d Add jobs/servantcare — wtsn.me/p/servantcare vacation-rental search tool
+- 64a048a monthly_web_engagement_report: add Kaci as a recipient
+- 2df7dc1 monthly_state_report: add Wilmington headcount YTD + 3-year comparison
+- 6ae25bc monthly_web_engagement_report: lead with interpretation, fix silent timeout
+- 85f3740 bot: extend team-chat sheet lookup to Social Media + App Engagement
+- 73c9338 bot: add team-chat web diagnostics lookup (Catalyst Tracking Sheet)
+- fdae52f bot: stop logging Bill's own chat to telegram_log (dashboard log tile)
+- e4e81b8 bot: add team-chat calendar access + alert-Bill-on-decline
+- a28ecf9 Add per-classroom attendance sync + team-chat lookup (Nursery/Toddlers/PreK/Elementary)
+- 30a2142 backup_local: add watson-tools to CODE_REPO_SOURCES
+- 9e25878 Clarify FMSPC status in CLAUDE.md; add weekly duplicate-member digest job
+- 9f97e51 Add follow-up history to Deacon Tool; expand Sunday attendance reminder; show in/out Telegram traffic
+- 3bb0e20 bot: add read-only phone/address/last-attended lookups to team chat
+- c824ecf elder_shepherding_report: rename Telegram header to Catalyst Shepherding Report
+- 9ebb37e bot: add limited Ollama chat for onboarded team_members
+- 41d0440 Rename Elder Shepherding Report to Catalyst Attendance Overview (display only)
+- e2ddd11 weekly_changes_report: narrow to identity/contact fields only
+- 648b7d0 Add weekly congregation.db changes report (review mode, no cron yet)
+- bfc5b52 papercards_web: replace previous-Sunday guess with Donna's own date
+- bdd4a46 Add /cat/papercards backend: manual connect-card entry for Donna
+- 90fd038 deacons_web: expose birthdate on the roster API
+- f14ed0d fix(dashboard): enable threaded Flask dev server
+- 7ad9d37 feat(congregation): expand Elder Shepherding Report to Jim Bouchat + Bill Crook
+- 7221f66 feat(congregation): named per-deacon-group web report for elders
+- 9ef4e9f docs: architecture update 2026-09-01
+
+### ~/watson-tools
+- 0d2375a Add wtsn.me/p/servantcare — ServantCare vacation-rental search
+- c63aff3 DeaconBoard: recolor Open/Done toggle to gray
+- 5795415 DeaconBoard: show follow-up note history per person
+- 8caae9f DeaconBoard: drop sort toggle, collapse unassigned/inactive by default
+- 83cf804 Rename 'Catalyst Deacons' heading to 'Catalyst Deacons Tool'
+- 3408aab Rename 'Catalyst Attendance Overview' to 'Catalyst Shepherding Report'
+- 08ed7a9 watsonFetch: resolve DNS via node:https.request, drop undici entirely
+- 7ce308c dns-test: add fallback-IP path test (forced-bad lookup, hardcoded IP)
+- 3762f96 dns-test: add a node:https.request-based lookup test
+- 455fcc5 Add isolated /api/debug/dns-test route for diagnosing the dispatcher crash
+- 58b8729 Revert "watsonFetch: resolve DNS over HTTPS instead of raw UDP"
+- 36c7358 watsonFetch: resolve DNS over HTTPS instead of raw UDP
+- 6dea31f Revert "watsonFetch: resolve DNS explicitly, don't trust Vercel's runtime resolver"
+- 0d04b89 watsonFetch: resolve DNS explicitly, don't trust Vercel's runtime resolver
+- 6a5a708 watsonFetch: force fresh connections and log resolve failures
+- a3378dc Rename Elder Shepherding Report to Catalyst Attendance Overview
+- d20b4fb requireLiveTool: retry isToolLive once before failing closed
+- 8d82d0d PaperCardForm: add a date field, drop the previous-Sunday default
+- d382842 Add /cat/papercards: paper connect-card entry form for Donna
+- 26d3a10 DeaconBoard: add editable Birthdate field
+- d05f7a1 DeaconBoard: show address as a maps/navigation link in collapsed card
+- 9b5847d cat/shepherdingreport: fix Collapse all crash
+- cec1347 cat/shepherdingreport: add Expand all / Collapse all buttons
+- 679b53b Add /cat/shepherdingreport: named elder shepherding view
+
+---
+
+## Recent Changes — 2026-09-03
+
+### ~/watson
+- d5234c3 docs: bugs/backlog export 2026-09-03
+- 9fad6c8 docs: file map 2026-09-03
+- 3afff17 Telegram intent-routing fix + consolidate directive prefixes; Micah Tasks push reminders; monthly state report elders' framing overview
+- 13f9b9e Split deacon-facing notes from private pastoral follow_ups
+- c3db246 deacons_web: allow editing a member's name via the Deacon Tool
+- 2190b00 data_chat/bot: fix deacon-group lookup, empty-result fallthrough, smart quotes
+- bef79bf bot: open-ended attendance/web-traffic/contact Q&A for all onboarded leaders
+- e70fb30 Update WATSON_ARCHITECTURE.md cron table for shepherding_report_ready
+- 38b31cd Add shepherding report ready notice, retire old shepherding cron jobs
+- 16314e0 docs: architecture update 2026-09-02
+
+### ~/watson-tools
+- 020104b Show the Catalyst logo in front of the app name, shorten home-screen title
+- faa27b7 Rename tabs, swap in a lamb icon, and make the tab bar taller
+- 3f3e8e6 Add Catalyst C logo as the Deacon App favicon and home-screen icon
+- 6120a90 Rename Deacon App to Catalyst Shepherding App
+- 0651205 Add a Notes tab and swap the shepherding icon to a sheep
+- c192329 Rename deacon follow-ups to deacon notes, matching new backend table
+- b56535c Restyle Deacon App as a mobile-style bottom tab bar
+- 68d70a7 Turn Deacon App into a tabbed single-page view
+- 27acd3a Add PIN-gated Deacon App launcher at /cat/deaconapp
+- 170aebf Point micah-tasks proxy at /m/task, not /task
+- 16bcf8b Proxy wtsn.me/task to the new micah-tasks app
+- e1aae6b deacons: make first/last name editable in a person's Open view
+
+---
+
+## Recent Changes — 2026-09-04
+
+### ~/watson
+- a6dda15 docs: bugs/backlog export 2026-09-04
+- e26b678 docs: file map 2026-09-04
+- 278edaf docs: qwen3:8b scope caveat in LLM Stack (reload churn, pastoral-synthesis gap)
+- b1db2c6 route skill_audit to qwen3:8b (think:false required) -- provisional
+- 1ed9220 route memory_consolidation to qwen3:8b (think:false required)
+- fab897f docs: note watson-review as context drop-zone in Repos & Paths
+- 7fb19e1 fix: Ollama busy-lock + batched audit.py, closes contention hallucination (bug #118/#119/#121)
+- b26a76f docs: add review diff for bug_tracker #118/#121 fix (pending approval)
+- 044b30a fix: size num_ctx for skillbuilder/router.py and state_of_church.py (bug #118)
+- 72ccc3d docs: fabrication-first judging protocol + two real target-job comparisons
+- ac54cab docs: qwen3:8b eviction/thrash test + reasoning comparison harness
+- 0f709fa docs: qwen3:8b/phi4:14b concurrency qualification test results
+- a5a5e9a Remove Dev Loop, add budget-capped Claude API tier
+- d16a99d Telegram: mirror team-chat's contact/classroom/web-metric lookups into Bill's own chat; drop Thinking ack
+- 13e9215 docs: regenerate Skills & Capabilities Catalog
+- d099d90 docs: architecture update 2026-09-03
+
+### ~/watson-tools
+- b233da4 Stop the deacon app footer from jumping during scroll
+- ad41205 Shrink the deacon app home-screen icon so it isn't flush with the edges
+- a5b44b4 Add a light/dark theme toggle to the deacon app
+- ba9114f Add a follow-up form to the Notes tab and make the header a refresh button
+
+---
+
+## Recent Changes — 2026-09-05
+
+### ~/watson
+- 76c8872 docs: bugs/backlog export 2026-09-05
+- a8d9c4f docs: file map 2026-09-05
+- 27256e0 docs: regenerate FILE_MAP.md from live file tree (#58)
+- f4b39b7 Weekly Beelink utilization report for VPS-sizing estimate (#56)
+- 37192bf devdispatch: progress -> reporting (#55)
+- 08b08db feat(curator): merge Bill+Mel into shared Adults account, PIN-only login
+- 2b647b2 fix(curator): title-match verification for Amazon/Goodreads/Open Library
+- af892e3 fix(curator): wrong-book source pages + Open Library timeout doubling
+- 45579b3 perf: tighten worker idle-poll interval for faster search results
+- 1deb202 feat(curator): PIN auth + login lockout, companion to wtsn.me/curator move
+- 4f3d060 feat: Telegram confirm/change buttons on live session archive classification
+- d4b6d5a docs: regenerate Skills & Capabilities Catalog
+- 8a110e7 docs: architecture update 2026-09-04
+
+### ~/watson-tools
+- 0f4da79 feat: rewrite /curator to Curator's own Vercel deployment
+
+---
+
+## Recent Changes — 2026-09-05
+
+### ~/watson
+- db00b06 docs: update architecture for connect-card retirement on wcky
+- 722e258 Privacy Guard: fix false-confidence gaps, add CAPTCHA-assist, notifier + observability improvements
+- 44c2e9a docs: architecture update 2026-09-05
+- 76c8872 docs: bugs/backlog export 2026-09-05
+- a8d9c4f docs: file map 2026-09-05
+- 27256e0 docs: regenerate FILE_MAP.md from live file tree (#58)
+- f4b39b7 Weekly Beelink utilization report for VPS-sizing estimate (#56)
+- 37192bf devdispatch: progress -> reporting (#55)
+- 08b08db feat(curator): merge Bill+Mel into shared Adults account, PIN-only login
+- 2b647b2 fix(curator): title-match verification for Amazon/Goodreads/Open Library
+- af892e3 fix(curator): wrong-book source pages + Open Library timeout doubling
+- 45579b3 perf: tighten worker idle-poll interval for faster search results
+
+### ~/wcky
+- fac5d37 fix: retire connect-card in favor of wtsn.me/cat/connect
+- 53b8af4 fix: block known spam phone number on connect-card intake
+- e4ba63a publish: Standing Up Before the Fix
+
+### ~/watson-tools
+- a654f6d fix: block known spam phone number on connect-card intake

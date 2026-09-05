@@ -29,6 +29,7 @@ from core.vacation import vacation_gate
 from jobs.sms.carrier_lookup import normalize_phone
 from jobs.team.inbound import is_forwarded_email, process_inbound
 import jobs.code_agent.agent as code_agent
+import core.llm_log  # noqa: F401 -- installs Ollama call logging, see core/llm_log.py
 
 load_dotenv(os.path.expanduser("~/watson/.env"))
 
@@ -48,22 +49,6 @@ OLLAMA_MODEL = "llama3.2:1b"
 TELEGRAM_CHAR_LIMIT = 4000
 
 CONG_DB = os.path.expanduser("~/watson/data/congregation.db")
-
-# Senders correction_handler.py is authorized to process "Re: Missed" replies from.
-# Bill's own address is both here and in WHITELIST below, so this check must run
-# first — otherwise email_intake's every-minute poll always wins the race against
-# correction_handler's 30-min cron and marks the reply SEEN before it can see it.
-_MISSED_REPLY_AUTHORIZED = {
-    e for e in [
-        os.getenv("DONNA_EMAIL", "").lower(),
-        os.getenv("BILL_CORRECTION_EMAIL", "").lower(),
-        os.getenv("REPORT_EMAIL", "").lower(),
-    ] if e
-}
-
-
-def _is_missed_report_reply(subject: str, addr: str) -> bool:
-    return subject.strip().lower().startswith("re: missed") and addr in _MISSED_REPLY_AUTHORIZED
 
 _CATEGORY_ICONS = {
     "congregation": "👥",
@@ -1019,12 +1004,6 @@ def run():
             mark_as_read(msg_id)
             continue
 
-        # Missed-report reply — owned by correction_handler.py's direct-match
-        # pipeline, not email_intake's Ollama-digest path. Leave unread.
-        if _is_missed_report_reply(subject, addr):
-            log.info("Deferring missed-report reply to correction_handler.py: %s", subject)
-            continue
-
         # Bill's own email — directive path (unchanged behavior)
         if addr in WHITELIST:
             _handle_bill_email(sender_raw, subject, body, received_at, msg_id)
@@ -1053,6 +1032,27 @@ def run():
                     result.get("tasks_created", 0),
                 )
                 continue
+
+        # Privacy Guard broker confirmation email (project_backlog id=37) —
+        # must be checked before the generic non-whitelist triage below, or
+        # Ollama triage / email_reply/reader.py's auto-draft (15-min cron,
+        # same inbox) would consume it first. See jobs/privacy/confirm.py.
+        from jobs.privacy.confirm import handle_privacy_confirmation
+        pg_result = handle_privacy_confirmation(msg_id, addr, subject, body)
+        if pg_result is not None:
+            if pg_result == "read":
+                mark_as_read(msg_id)
+            continue
+
+        # Privacy Guard email-method broker reply (e.g. BeenVerified) —
+        # notifier only, never auto-confirms (see jobs/privacy/email_ack.py's
+        # docstring). Same before-generic-triage ordering as confirm.py above.
+        from jobs.privacy.email_ack import handle_privacy_ack
+        pg_ack_result = handle_privacy_ack(msg_id, addr, subject, body)
+        if pg_ack_result is not None:
+            if pg_ack_result == "read":
+                mark_as_read(msg_id)
+            continue
 
         # All other email — triage and prompt Bill; never mark read here
         _handle_non_whitelist(

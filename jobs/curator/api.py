@@ -8,6 +8,7 @@ import json
 import logging
 import os
 import sys
+import time
 from functools import wraps
 from pathlib import Path
 
@@ -27,6 +28,11 @@ curator_bp = Blueprint("curator", __name__)
 # server-side proxy on this pattern).
 _API_KEY = lambda: os.getenv("WRITING_ROOM_API_KEY", "")
 
+# Separate, narrowly-scoped secret for the ChatGPT-research import route only —
+# deliberately NOT WRITING_ROOM_API_KEY, so the iOS Shortcut posting share links
+# carries a key scoped to just that one endpoint.
+_IMPORT_KEY = lambda: os.getenv("CURATOR_IMPORT_KEY", "")
+
 _EDIT_FIELDS = (
     "title", "author", "series", "series_number", "series_total", "page_count",
     "spice_rating", "spice_notes", "cover_image_url", "description",
@@ -34,7 +40,42 @@ _EDIT_FIELDS = (
 )
 _VALID_STATUSES = ("pending", "confirmed", "needs_review", "rejected")
 _VALID_SHELVES = ("want_to_read", "reading", "read")
-_VALID_SOURCE_TYPES = ("screenshot", "tiktok", "instagram", "youtube", "goodreads", "amazon", "other")
+_VALID_SOURCE_TYPES = ("screenshot", "tiktok", "instagram", "youtube", "goodreads", "amazon", "chatgpt", "other")
+
+# Login lockout — in-memory, one global bucket (not per-username: login is
+# PIN-only now, no name submitted at all — see [[project_curator]], 2026-09-04
+# Bill+Mel merged into one shared "Adults" account specifically so a bare PIN
+# is unambiguous). Not IP-keyed either: this app sits behind several proxy
+# hops — watson-tools' rewrite, Vercel — making the true client IP unreliable
+# to extract. A single shared counter for a 2-account household is
+# proportionate: it can't distinguish "one person mistyping" from "someone
+# brute-forcing," but 6 attempts/15min across the whole login form is still a
+# real brake on guessing either 4-digit PIN. In-memory (not DB-backed) is
+# fine specifically because this Flask process is one long-running instance
+# on the Beelink, unlike Curator's Next.js API routes on Vercel, which don't
+# reliably share state across serverless invocations.
+_LOGIN_ATTEMPT_WINDOW_SECONDS = 15 * 60
+_LOGIN_MAX_ATTEMPTS = 6
+_LOGIN_LOCKOUT_KEY = "_global"
+_login_attempts: dict[str, list[float]] = {}
+
+
+def _login_locked_out(name_key: str = _LOGIN_LOCKOUT_KEY) -> int | None:
+    """Returns seconds until unlock if locked out, else None. Prunes old entries."""
+    now = time.time()
+    attempts = [t for t in _login_attempts.get(name_key, []) if now - t < _LOGIN_ATTEMPT_WINDOW_SECONDS]
+    _login_attempts[name_key] = attempts
+    if len(attempts) >= _LOGIN_MAX_ATTEMPTS:
+        return int(_LOGIN_ATTEMPT_WINDOW_SECONDS - (now - attempts[0]))
+    return None
+
+
+def _record_login_failure(name_key: str = _LOGIN_LOCKOUT_KEY) -> None:
+    _login_attempts.setdefault(name_key, []).append(time.time())
+
+
+def _clear_login_attempts(name_key: str = _LOGIN_LOCKOUT_KEY) -> None:
+    _login_attempts.pop(name_key, None)
 
 
 def _require_key(f):
@@ -44,6 +85,31 @@ def _require_key(f):
             return jsonify({"error": "unauthorized"}), 401
         return f(*args, **kwargs)
     return wrapper
+
+
+def _require_import_key(f):
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        if request.headers.get("X-Watson-Key") != _IMPORT_KEY() or not _IMPORT_KEY():
+            return jsonify({"error": "unauthorized"}), 401
+        return f(*args, **kwargs)
+    return wrapper
+
+
+def _valid_user_id(user_id) -> int | None:
+    """Resolve a submitted_by value to a real Curator users.id, or None. Accepts an
+    int or a digit string (an iOS Shortcut may send either), so a valid submitter is
+    never rejected on a cosmetic type difference."""
+    try:
+        uid = int(user_id)
+    except (TypeError, ValueError):
+        return None
+    conn = get_db()
+    try:
+        row = conn.execute("SELECT id FROM users WHERE id = ?", (uid,)).fetchone()
+        return row["id"] if row else None
+    finally:
+        conn.close()
 
 
 def _book_row_to_dict(row, batch_info: dict | None = None) -> dict:
@@ -57,6 +123,10 @@ def _book_row_to_dict(row, batch_info: dict | None = None) -> dict:
         "page_count": row["page_count"],
         "spice_rating": row["spice_rating"],
         "spice_notes": row["spice_notes"],
+        # "What we couldn't confirm" — honesty-gap notes, parsed from the JSON array
+        # stored on books.research_gaps. Its own field, kept separate from findings so
+        # a gap notice is never mistaken for a real attributed source quote. [] = none.
+        "research_gaps": json.loads(row["research_gaps"]) if row["research_gaps"] else [],
         "cover_image_url": row["cover_image_url"],
         "description": row["description"],
         # Three-state: True/False/None (couldn't verify) — don't coerce with
@@ -145,22 +215,40 @@ def _reading_status_row_to_dict(row) -> dict:
 @curator_bp.route("/api/curator/auth/login", methods=["POST"])
 @_require_key
 def login():
+    """PIN-only login (2026-09-04) — no name submitted at all, so the PIN
+    itself has to identify the account. Tries the given PIN against every
+    user's bcrypt hash rather than looking one up by name first; this only
+    stays unambiguous because Bill and Mel were merged into one shared
+    "Adults" account specifically so no two accounts share a PIN (see
+    [[project_curator]]) — if a future account is ever added with a PIN
+    that collides with an existing one, this returns whichever row SQLite
+    happens to iterate to first, silently. Not guarded against here since
+    the household's onboarding process (a human picking PINs) is the actual
+    place that constraint has to hold."""
     data = request.get_json(force=True)
-    name     = (data.get("name") or "").strip()
-    password = data.get("password") or ""
+    pin = (data.get("pin") or "").strip()
 
-    if not (name and password):
-        return jsonify({"error": "name and password required"}), 400
+    if not pin:
+        return jsonify({"error": "PIN required"}), 400
+
+    retry_after = _login_locked_out()
+    if retry_after is not None:
+        return jsonify({
+            "error": f"Too many attempts. Try again in {max(1, retry_after // 60 + 1)} minute(s).",
+        }), 429
 
     conn = get_db()
     try:
-        row = conn.execute(
-            "SELECT id, name, password_hash FROM users WHERE name = ? COLLATE NOCASE",
-            (name,),
-        ).fetchone()
-        if not row or not bcrypt.checkpw(password.encode(), row["password_hash"].encode()):
-            return jsonify({"error": "invalid credentials"}), 401
-        return jsonify({"userId": row["id"], "name": row["name"]}), 200
+        rows = conn.execute("SELECT id, name, password_hash FROM users").fetchall()
+        match = next(
+            (r for r in rows if bcrypt.checkpw(pin.encode(), r["password_hash"].encode())),
+            None,
+        )
+        if not match:
+            _record_login_failure()
+            return jsonify({"error": "invalid PIN"}), 401
+        _clear_login_attempts()
+        return jsonify({"userId": match["id"], "name": match["name"]}), 200
     finally:
         conn.close()
 
@@ -176,6 +264,7 @@ def list_books():
     search            = request.args.get("search", "").strip()
     show_all          = request.args.get("show_all") in ("1", "true", "True")
     user_id           = request.args.get("user", type=int)
+    added_by          = request.args.get("added_by", type=int)  # submitter filter, independent of `user`
     read_filter       = request.args.get("read")  # "true"/"false" — per-user, requires `user`
 
     if spice_max is None and not show_all:
@@ -202,6 +291,12 @@ def list_books():
         clauses.append("(b.title LIKE ? OR b.author LIKE ? OR b.series LIKE ?)")
         like = f"%{search}%"
         params.extend([like, like, like])
+    # Independent submitter filter — b.added_by is its own column on books, not
+    # the reading_status join that `user` drives, so the two can be combined or
+    # used separately.
+    if added_by:
+        clauses.append("b.added_by = ?")
+        params.append(added_by)
     # No reading_status row (or one not on the 'read' shelf) counts as unread —
     # never guessed, just the absence of an explicit "read" mark for this user.
     if read_filter in ("1", "true", "True"):
@@ -583,6 +678,46 @@ def ingest():
         "batch_id": None,
         "status": "researching",
         "message": "Got it — researching now, check Pending in a bit.",
+    }), 202
+
+
+@curator_bp.route("/api/curator/ingest/chatgpt", methods=["POST"])
+@_require_import_key
+def ingest_chatgpt():
+    """Enqueue a ChatGPT-research import: the text of ChatGPT's response, copied
+    from the phone's clipboard and posted here via an iOS Shortcut. Gated by
+    CURATOR_IMPORT_KEY (not WRITING_ROOM_API_KEY). Returns immediately with a
+    job_id — the worker extracts the research and creates the book. Same response
+    shape as /api/curator/ingest."""
+    from jobs.curator.worker import enqueue_job
+
+    data = request.get_json(force=True) or {}
+    research_text = (data.get("research_text") or "").strip()
+
+    # Not a format check (there's no URL to validate anymore) — just a sanity
+    # guard against an accidental empty / near-empty clipboard paste.
+    if len(research_text) < 30:
+        return jsonify({"error": "research_text is empty or too short"}), 400
+
+    # Identity must resolve to a real Curator user: attributing the book to the
+    # family member who researched it is the whole point of this path. A missing or
+    # typo'd submitted_by (e.g. a misconfigured Shortcut) fails loudly here rather
+    # than silently orphaning the book or attributing it to a nonexistent user.
+    submitted_by = _valid_user_id(data.get("submitted_by"))
+    if submitted_by is None:
+        return jsonify({"error": "submitted_by must be a valid user id"}), 400
+
+    job_id = enqueue_job(
+        input_type="chatgpt_text",
+        input_raw=json.dumps({"research_text": research_text}),
+        submitted_by=submitted_by,
+    )
+
+    return jsonify({
+        "job_id": job_id,
+        "batch_id": None,
+        "status": "researching",
+        "message": "Got it — pulling the research now, check Pending in a bit.",
     }), 202
 
 

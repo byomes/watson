@@ -75,6 +75,41 @@ def create_tables(conn=None) -> None:
         if "image_path" not in cols:
             conn.execute("ALTER TABLE book_launch_sends ADD COLUMN image_path TEXT")
 
+        # recipient_mode / recipient_detail: Comms Desk email rows can target a
+        # live Brevo list or a hand-picked set of individual contacts, neither
+        # of which fits the existing `segment` CHECK (public/general/donor/arc).
+        # Rather than rebuild that constraint (SQLite can't ALTER a CHECK in
+        # place), these two nullable columns carry the real target and segment
+        # is left as a satisfying placeholder ('general') for such rows.
+        # recipient_mode: NULL/'segment' (use `segment` as before), 'brevo_list',
+        # or 'custom_emails'. recipient_detail: JSON — {"list_id", "list_name"}
+        # for brevo_list, {"emails": [{"email","name"}, ...]} for custom_emails.
+        # See jobs/campaigns/dispatch.py:resolve_recipients().
+        if "recipient_mode" not in cols:
+            conn.execute("ALTER TABLE book_launch_sends ADD COLUMN recipient_mode TEXT")
+        if "recipient_detail" not in cols:
+            conn.execute("ALTER TABLE book_launch_sends ADD COLUMN recipient_detail TEXT")
+
+        # needs_image: Facebook-only flag (0/1). Set when a row is created with
+        # image_intent='needs_manual' (Comms Desk composer or Claude.ai batch
+        # import) — a human still needs to attach a real photo. Comms Desk
+        # badges these on the calendar until AddImageModal clears the flag via
+        # the existing edit_send() PUT route.
+        if "needs_image" not in cols:
+            conn.execute("ALTER TABLE book_launch_sends ADD COLUMN needs_image INTEGER DEFAULT 0")
+
+        # admin_approved_at: temporary extra safety gate for Comms Desk email
+        # (platform='brevo', source='comms_desk') rows only — set only via
+        # jobs/comms/api.py's admin-only /approve-send route. Kaci/a volunteer
+        # marking a row 'ready' (status='approved') is no longer sufficient on
+        # its own to make an email eligible for the real Brevo send; see the
+        # gate in jobs/campaigns/dispatch.py:send_brevo_row(). Meant to be
+        # removed later once Watson's Comms Desk pipeline has earned trust —
+        # book-launch campaign Brevo rows (source != 'comms_desk') are
+        # unaffected and keep sending on 'approved' alone, same as always.
+        if "admin_approved_at" not in cols:
+            conn.execute("ALTER TABLE book_launch_sends ADD COLUMN admin_approved_at TEXT")
+
         conn.commit()
     finally:
         if owns_conn:

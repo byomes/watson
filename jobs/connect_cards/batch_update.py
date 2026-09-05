@@ -571,12 +571,6 @@ def format_preview(pending: dict) -> str:
         lines.append("Not found (excluded):")
         for n in payload["not_found"]:
             lines.append(f"  {n}")
-    if field == "campus_preference":
-        lines.append("")
-        lines.append(
-            "Note: campus_classifier.py (Mon 5:45am) may revert this based on "
-            "future connect-card history."
-        )
     return "\n".join(lines)
 
 

@@ -17,7 +17,10 @@ from jobs.curator import get_db, resolve_user_contact
 
 log = logging.getLogger(__name__)
 
-_POLL_INTERVAL = 1.5
+_POLL_INTERVAL = 0.5  # tightened 2026-09-04 — pure dead-time before an idle
+# worker notices a new job; up to 1.5s of it was eating into the <10s search
+# budget for no reason (SQLite poll query, negligible cost at this interval
+# for a single-worker, low-traffic app — see [[project_curator]]).
 _started = False
 
 
@@ -94,6 +97,11 @@ def get_job_status(job_id: int) -> dict | None:
                 book_dict["kindle_unlimited"] = (
                     None if book_dict["kindle_unlimited"] is None else bool(book_dict["kindle_unlimited"])
                 )
+                # research_gaps stored as a JSON array string; parse to a list so this
+                # polling endpoint emits the same shape as api.py's _book_row_to_dict.
+                book_dict["research_gaps"] = (
+                    json.loads(book_dict["research_gaps"]) if book_dict.get("research_gaps") else []
+                )
                 findings = conn.execute(
                     "SELECT * FROM spice_findings WHERE book_id = ? ORDER BY rank ASC",
                     (job["book_id"],),
@@ -147,6 +155,8 @@ def _claim_next_job() -> dict | None:
 def _process_job(job: dict) -> None:
     if job["input_type"] == "reel_link":
         _process_reel_link(job)
+    elif job["input_type"] == "chatgpt_text":
+        _process_chatgpt_text(job)
     else:
         _process_single(job)
 
@@ -294,6 +304,121 @@ def _process_reel_link(job: dict) -> None:
         conn.close()
 
     _maybe_complete_batch(job["batch_id"])
+
+
+# ── ChatGPT-research import ───────────────────────────────────────────────────
+#
+# A family member researches a book in the ChatGPT app, copies ChatGPT's response
+# text from the phone, and an iOS Shortcut posts that text to
+# /api/curator/ingest/chatgpt, which enqueues a 'chatgpt_text' job. Watson already
+# has the real research text handed to it — there is no link to fetch or render.
+# ChatGPT has already done the equivalent of both Stage A and Stage B
+# (identification + spice findings), so this path creates the book directly and
+# marks the job 'done' — no research_book_fast(), no Stage B.
+
+
+def _process_chatgpt_text(job: dict) -> None:
+    from jobs.curator.ingest import (
+        _add_source, _add_spice_findings, _attach_reading_status_if_missing,
+        _create_book, _derive_spice_notes, _extract_chatgpt_research,
+        _find_recent_duplicate, title_case,
+    )
+
+    payload = json.loads(job["input_raw"] or "{}")
+    research_text = payload.get("research_text") or ""
+
+    conn = get_db()
+    try:
+        try:
+            research = _extract_chatgpt_research(research_text)
+
+            # Couldn't confidently identify a book — same outcome as today's
+            # "could not identify a book" path (needs_review, no findings).
+            if not research["confident"] or not research.get("title"):
+                book_id = _create_book(
+                    title="Unknown", author="Unknown", status="needs_review",
+                    added_by=job["submitted_by"],
+                )
+                _add_source(book_id, "chatgpt", None, research_text)
+                conn.execute(
+                    "UPDATE ingest_jobs SET status='done', book_id=?, "
+                    "completed_at=datetime('now') WHERE id=?",
+                    (book_id, job["id"]),
+                )
+                conn.commit()
+                return
+
+            title = title_case(research["title"])
+            author = research.get("author") or "Unknown"
+            series = research.get("series")
+
+            duplicate = _find_recent_duplicate(title, author)
+            if duplicate is not None:
+                _attach_reading_status_if_missing(duplicate["id"], job["submitted_by"])
+                conn.execute(
+                    "UPDATE ingest_jobs SET status='done', book_id=?, "
+                    "completed_at=datetime('now') WHERE id=?",
+                    (duplicate["id"], job["id"]),
+                )
+                conn.commit()
+                return
+
+            findings = [
+                {"source_name": "ChatGPT", "source_type": "chatgpt", "rank": f["rank"],
+                 "excerpt": f["excerpt"], "url": None}
+                for f in research["spice_findings"]
+            ]
+            # Same visibility gate as ingest_submission(): real findings -> pending;
+            # a confident book with no spice sentences -> needs_review. spice_rating
+            # stays NULL (2026-07-22 decision — Mel reads the excerpt herself).
+            status = "pending" if findings else "needs_review"
+
+            book_id = _create_book(
+                title=title, author=author, series=series, status=status,
+                added_by=job["submitted_by"],
+                spice_notes=_derive_spice_notes(findings),
+                kindle_unlimited=research.get("kindle_unlimited"),
+            )
+            _add_source(book_id, "chatgpt", None, research_text)
+            _add_spice_findings(book_id, findings)
+
+            conn.execute(
+                "UPDATE ingest_jobs SET status='done', book_id=?, "
+                "completed_at=datetime('now') WHERE id=?",
+                (book_id, job["id"]),
+            )
+            conn.commit()
+        except Exception as exc:
+            log.error("chatgpt_text job %s failed: %s", job["id"], exc)
+            # Never lose a family member's paste: even when extraction blows up
+            # (Ollama down, timeout, malformed response), land the raw text as a
+            # needs_review book so it stays visible and salvageable in the app
+            # rather than being swallowed into ingest_jobs.input_raw where only a
+            # log dive would find it. This mirrors the low-confidence path above,
+            # which already preserves the raw text. Fall back to a plain 'failed'
+            # only if even this salvage write fails.
+            try:
+                book_id = _create_book(
+                    title="Unknown", author="Unknown", status="needs_review",
+                    added_by=job["submitted_by"],
+                )
+                _add_source(book_id, "chatgpt", None, research_text)
+                conn.execute(
+                    "UPDATE ingest_jobs SET status='done', book_id=?, error_message=?, "
+                    "completed_at=datetime('now') WHERE id=?",
+                    (book_id, str(exc), job["id"]),
+                )
+                conn.commit()
+            except Exception as exc2:
+                log.error("chatgpt_text job %s salvage also failed: %s", job["id"], exc2)
+                conn.execute(
+                    "UPDATE ingest_jobs SET status='failed', error_message=?, "
+                    "completed_at=datetime('now') WHERE id=?",
+                    (str(exc), job["id"]),
+                )
+                conn.commit()
+    finally:
+        conn.close()
 
 
 def _maybe_complete_batch(batch_id) -> None:

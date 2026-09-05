@@ -24,6 +24,7 @@ any other caller) cannot opt back into a real write/send for a campaign_id
 that isn't genuinely active — that gate lives in the two functions that do
 the actual dangerous work, not in caller discipline.
 """
+import json
 import logging
 import os
 import re
@@ -34,6 +35,7 @@ from dotenv import load_dotenv
 
 from core.database import get_connection
 from core.vacation import vacation_gate
+from jobs.campaigns.brevo_contacts import list_contacts as brevo_list_contacts
 from jobs.email_job.brevo_send import send_email
 
 load_dotenv(os.path.expanduser("~/watson/.env"))
@@ -141,6 +143,26 @@ def resolve_recipients(conn, campaign_id: str, segment: str, dry_run: bool = Fal
     raise ValueError(f"Unknown segment for recipient resolution: {segment!r}")
 
 
+def resolve_custom_recipients(row, dry_run: bool = False) -> list[dict]:
+    """Return [{"email", "name"}, ...] for a Comms Desk row whose
+    recipient_mode isn't the default 'segment' — a specific Brevo list
+    (looked up live, same as donor/arc: skipped entirely in dry_run since it's
+    a real network call to Brevo) or a hand-picked set of individual contacts
+    (no network call either way, just the JSON already stored on the row)."""
+    mode = row.get("recipient_mode")
+    detail = json.loads(row["recipient_detail"]) if row.get("recipient_detail") else {}
+
+    if mode == "brevo_list":
+        if dry_run:
+            return []
+        return brevo_list_contacts(list_id=detail["list_id"])
+
+    if mode == "custom_emails":
+        return [{"email": e["email"], "name": e.get("name") or ""} for e in detail.get("emails", [])]
+
+    raise ValueError(f"Unknown recipient_mode for recipient resolution: {mode!r}")
+
+
 # ── Facebook dispatch (queue-only — never posts directly) ──────────────────
 
 def _facebook_ordinal(conn, campaign_id: str, week_number: int, send_id: int) -> int:
@@ -171,7 +193,11 @@ def dispatch_facebook_row(conn, row, dry_run: bool = False) -> dict:
     title = f"{row['campaign_id']} Wk{row['week_number']} Post{ordinal}"
     link_m = _LINK_RE.search(row["body_text"] or "")
     url = link_m.group(0) if link_m else None
-    scheduled_time = f"{row['send_date']} 00:00:00"
+    # .get(): pre-existing book-launch campaign rows (and this function's own
+    # test fixtures) predate the send_time column — NULL/missing means "any
+    # time that day", same as before this column existed.
+    send_time = row.get("send_time")
+    scheduled_time = f"{row['send_date']} {send_time}:00" if send_time else f"{row['send_date']} 00:00:00"
     # .get() rather than row["image_path"]: callers (and the test isolation
     # fixtures) may pass a row dict from before this column existed — treat a
     # missing key the same as an explicit NULL rather than raising.
@@ -198,6 +224,15 @@ def dispatch_facebook_row(conn, row, dry_run: bool = False) -> dict:
 
 # ── Brevo dispatch (sends directly) ─────────────────────────────────────────
 
+_TAG_RE = re.compile(r"<[^>]+>")
+
+
+def _strip_html(html: str) -> str:
+    """Crude tag-stripped plain-text fallback for Brevo's required textContent
+    field, when the real content is Comms Desk's MJML-rendered HTML."""
+    return _TAG_RE.sub("", html or "").strip()
+
+
 def send_brevo_row(conn, row, dry_run: bool = False) -> dict:
     """Send one book_launch_sends Brevo row to every recipient in its segment,
     then mark the row sent. Never raises — one recipient failure doesn't abort
@@ -209,10 +244,33 @@ def send_brevo_row(conn, row, dry_run: bool = False) -> dict:
     dry_run=True (or a campaign_id that isn't a real active campaign, checked
     unconditionally below) never calls send_email() and never touches
     donors.db/arc_readers — it only reports what would have been sent, and
-    leaves the book_launch_sends row untouched."""
+    leaves the book_launch_sends row untouched.
+
+    Comms Desk email rows (source='comms_desk') carry one more independent
+    gate: admin_approved_at must be set (via jobs/comms/api.py's admin-only
+    /approve-send route) regardless of dry_run or status='approved' — a
+    volunteer marking a row 'ready' is not enough on its own. This check
+    lives here, not in any one caller, for the same reason
+    _is_real_active_campaign() does: every path that can trigger a real send
+    (the periodic brevo_dispatcher.py sweep, the dashboard/Telegram "Approve
+    All" flow) goes through this function, so gating it here is the only way
+    to make the rule unconditional. Temporary — meant to come out once
+    Watson's Comms Desk pipeline has earned trust; book-launch campaign rows
+    (source != 'comms_desk') are untouched by this and keep sending on
+    'approved' alone."""
     real_dry_run = dry_run or not _is_real_active_campaign(conn, row["campaign_id"])
 
-    recipients = resolve_recipients(conn, row["campaign_id"], row["segment"], dry_run=real_dry_run)
+    if row.get("source") == "comms_desk" and not row.get("admin_approved_at"):
+        log.info(
+            "Blocked send_id=%s: Comms Desk email awaiting admin approval", row["id"],
+        )
+        return {"dry_run": False, "blocked": "pending_admin_approval", "send_id": row["id"]}
+
+    recipient_mode = row.get("recipient_mode") or "segment"
+    if recipient_mode == "segment":
+        recipients = resolve_recipients(conn, row["campaign_id"], row["segment"], dry_run=real_dry_run)
+    else:
+        recipients = resolve_custom_recipients(row, dry_run=real_dry_run)
 
     if real_dry_run:
         label = row["subject"] or (row["body_text"] or "").splitlines()[0][:60]
@@ -226,6 +284,14 @@ def send_brevo_row(conn, row, dry_run: bool = False) -> dict:
             "succeeded": 0, "failed": [],
         }
 
+    # Comms Desk rows carry MJML-rendered HTML in body_text (see jobs/comms/) —
+    # sent as htmlContent, with a tag-stripped fallback for the required
+    # textContent field. Every other book-launch row's body_text is plain
+    # text written directly, unaffected by this branch.
+    is_html = row.get("source") == "comms_desk"
+    html_body = row["body_text"] if is_html else None
+    text_body = _strip_html(row["body_text"]) if is_html else row["body_text"]
+
     succeeded, failed = 0, []
     for recipient in recipients:
         try:
@@ -233,7 +299,8 @@ def send_brevo_row(conn, row, dry_run: bool = False) -> dict:
                 to_email=recipient["email"],
                 to_name=recipient["name"],
                 subject=row["subject"] or "",
-                text_body=row["body_text"],
+                text_body=text_body,
+                html_body=html_body,
             )
             if result["success"]:
                 succeeded += 1
@@ -250,8 +317,14 @@ def send_brevo_row(conn, row, dry_run: bool = False) -> dict:
     conn.commit()
 
     label = row["subject"] or (row["body_text"] or "").splitlines()[0][:60]
+    if recipient_mode == "brevo_list":
+        audience = json.loads(row["recipient_detail"])["list_name"]
+    elif recipient_mode == "custom_emails":
+        audience = "hand-picked"
+    else:
+        audience = row["segment"]
     summary_lines = [
-        f"Sent '{label}' to {len(recipients)} {row['segment']} contacts — "
+        f"Sent '{label}' to {len(recipients)} {audience} contacts — "
         f"{succeeded} succeeded, {len(failed)} failed."
     ]
     for email, error in failed[:10]:

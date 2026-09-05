@@ -20,8 +20,10 @@ from pathlib import Path
 import requests
 
 from config.settings import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+from core.claude_tier import call_claude
 from core.vacation import vacation_gate
 from jobs.pastoral_notes.db import get_db
+import core.llm_log  # noqa: F401 -- installs Ollama call logging, see core/llm_log.py
 
 log = logging.getLogger(__name__)
 
@@ -38,6 +40,35 @@ _NUMBERED_LINE_RE = re.compile(r'^(\d+):\s*(.+)$')
 # Tracks ambiguous matches waiting for yes/no confirmation.
 # Keyed by event_id → {"candidates": [...], "note_text": str}
 _pending_confirmations: dict[str, dict] = {}
+
+
+def save_freeform_note(message: str = None) -> str:
+    """Save a pastoral note directly -- no post-meeting context or person matching.
+
+    Registered as the pastoral_notes skill (memory/skills.json). Mirrors
+    bot.py's _handle_pastoral_note_direct, which has its own copy of this
+    logic and calls it directly rather than through the skill router --
+    this function exists so the skill registration itself is not pointed
+    at a nonexistent name.
+    """
+    text = (message or "").strip()
+    lower = text.lower()
+    for prefix in ("pastoral notes:", "pastoral note:"):
+        if lower.startswith(prefix):
+            text = text[len(prefix):].strip()
+            break
+    if not text:
+        return "Please include the note content after the prefix."
+    try:
+        with get_db() as conn:
+            conn.execute(
+                "INSERT INTO pastoral_notes (person_name, note, status, created_at) VALUES ('Direct Entry', ?, 'active', datetime('now', 'localtime'))",
+                (text,),
+            )
+        return "Pastoral note saved."
+    except Exception as exc:
+        log.error("Pastoral note save failed: %s", exc)
+        return f"Error saving pastoral note: {exc}"
 
 
 def _append_skip_keyword(title: str) -> None:
@@ -130,6 +161,11 @@ def _parse_numbered_reply(reply_text: str) -> list[tuple[int, str]] | None:
 
 def _ollama_generate(note_text: str) -> str:
     prompt = f"{_TASK_PROMPT}\n\nNotes: {note_text}"
+
+    claude_result = call_claude(system="", user=prompt, job_name="pastoral_notes.handler")
+    if claude_result:
+        return claude_result
+
     resp = requests.post(
         _OLLAMA_URL,
         json={"model": _OLLAMA_MODEL, "prompt": prompt, "stream": False},

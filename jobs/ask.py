@@ -4,6 +4,7 @@ from pathlib import Path
 import chromadb
 from chromadb.utils import embedding_functions
 import requests
+import core.llm_log  # noqa: F401 -- installs Ollama call logging, see core/llm_log.py
 
 log = logging.getLogger(__name__)
 BASE_DIR = Path(__file__).resolve().parent.parent

@@ -58,17 +58,26 @@ def _fetch_robots_parser(origin: str) -> RobotFileParser:
     5xx leaves `entries`/`default_entry` empty AND `last_checked` unset,
     and can_fetch() falls through to `if not self.last_checked: return
     False` — silently failing CLOSED on exactly the "can't be fetched at
-    all" case this function is supposed to fail open for. Setting
-    `allow_all = True` ourselves for any non-200 sidesteps that quirk
-    entirely: can_fetch() checks `allow_all` first, before touching
-    last_checked.
+    all" case. We take manual control of that decision instead of trusting
+    stdlib's per-status-family default.
 
     Sends DEFAULT_USER_AGENT explicitly rather than requests' own default —
     confirmed live 2026-07-22: en.wikipedia.org/robots.txt 403s under
     requests' default UA (python-requests/...) but returns a real 200 under
-    a desktop-browser UA. Using requests' default here would have silently
-    failed OPEN on a site that actually has real Disallow rules — the exact
-    opposite of what this function exists to prevent."""
+    a desktop-browser UA. Using requests' default here would have made a
+    genuinely-disallowed-looking response out of a site that's actually
+    fine under a normal browser UA.
+
+    Standing policy (bug_tracker: Privacy Guard scan fail-open robots.txt):
+    disallow/ambiguous cases default to NOT scanning, not to proceeding. A
+    404 is the one unambiguous "no restrictions" case — the Robots
+    Exclusion Protocol (RFC 9309 §2.3.1.3) says a missing robots.txt means
+    unrestricted access, so that alone still fails open. Every other
+    non-200 (403, 401, 429, 5xx, ...) and any fetch exception (timeout,
+    DNS failure, connection error, ...) is ambiguous — we can't tell
+    whether the site actually disallows us or is just temporarily
+    unreachable/misconfigured — so those fail CLOSED via disallow_all,
+    which RobotFileParser.can_fetch() checks before allow_all or entries."""
     rp = RobotFileParser()
     try:
         resp = requests.get(
@@ -76,27 +85,32 @@ def _fetch_robots_parser(origin: str) -> RobotFileParser:
         )
         if resp.status_code == 200:
             rp.parse(resp.text.splitlines())
+        elif resp.status_code == 404:
+            log.info("robots.txt at %s returned 404 (no file) — failing open", origin)
+            rp.allow_all = True
         else:
             log.warning(
-                "robots.txt at %s returned %s, failing open", origin, resp.status_code
+                "robots.txt at %s returned %s — ambiguous, failing CLOSED (skip)",
+                origin, resp.status_code,
             )
-            rp.allow_all = True
+            rp.disallow_all = True
     except Exception as exc:
-        log.warning("robots.txt fetch failed for %s, failing open: %s", origin, exc)
-        rp.allow_all = True
+        log.warning(
+            "robots.txt fetch failed for %s — ambiguous, failing CLOSED (skip): %s", origin, exc
+        )
+        rp.disallow_all = True
     return rp
 
 
 def _robots_allowed(url: str, user_agent: str = DEFAULT_USER_AGENT) -> bool:
     """Checks the target's robots.txt before we ever navigate there.
 
-    Fails OPEN (returns True) if robots.txt can't be fetched, or doesn't
-    return a real 200, for any reason — an unreachable/erroring robots.txt
-    is not the same as an explicit Disallow, and plenty of legitimate
-    third-party targets simply don't have one. An explicit Disallow rule is
-    what blocks a fetch here, not the absence or unavailability of the
-    file (see _fetch_robots_parser for why this can't just delegate to
-    RobotFileParser.read())."""
+    Fails OPEN only on the unambiguous case: a 404, meaning no robots.txt
+    file exists at all. Fails CLOSED (returns False) on anything else that
+    isn't a clean 200 — non-200/non-404 statuses and fetch exceptions are
+    ambiguous, not a confirmed "no restrictions," so per standing policy we
+    default to not scanning rather than proceeding (see _fetch_robots_parser
+    for why this can't just delegate to RobotFileParser.read())."""
     origin = f"{urlparse(url).scheme}://{urlparse(url).netloc}"
     rp = _robots_cache.get(origin)
     if rp is None:
@@ -111,14 +125,22 @@ def log_browser_failure(context: str, url: str, exc: Exception) -> None:
     directive writes to (title/repo only; status/discovered_at default in
     the schema itself)."""
     log.error("%s failed for %s: %s", context, url, exc)
+    conn = None
     try:
-        with get_connection() as conn:
-            conn.execute(
-                "INSERT INTO bug_tracker (title, description, repo) VALUES (?, ?, 'watson')",
-                (f"jobs.browser: {context} failed for {url}", str(exc)),
-            )
+        conn = get_connection()
+        conn.execute(
+            "INSERT INTO bug_tracker (title, description, repo) VALUES (?, ?, 'watson')",
+            (f"jobs.browser: {context} failed for {url}", str(exc)),
+        )
+        conn.commit()
     except Exception as db_exc:
         log.error("Failed to log browser failure to bug_tracker: %s", db_exc)
+    finally:
+        # `with get_connection() as conn` only commits/rolls back on exit —
+        # sqlite3.Connection's context manager never closes the connection,
+        # so the previous version leaked one file handle per failure logged.
+        if conn is not None:
+            conn.close()
 
 
 @asynccontextmanager
@@ -126,14 +148,24 @@ async def get_page(
     headless: bool = True,
     timeout_ms: int = DEFAULT_TIMEOUT_MS,
     user_agent: str = DEFAULT_USER_AGENT,
+    launch_args: list[str] | None = None,
 ):
     """Shared Chromium context manager for one-off browser jobs.
 
     headless must stay True on every production/automated path — non-headless
     is for local interactive debugging only and must never be wired into a
-    cron job, Telegram handler, or dashboard route."""
+    cron job, Telegram handler, or dashboard route.
+
+    launch_args is passed straight through to chromium.launch(args=...) --
+    added for jobs/privacy/captcha_assist.py, which needs
+    --remote-debugging-port/--remote-debugging-address to let a human mirror
+    a *headless* page's live view over chrome://inspect. This does not
+    change headless=True's default or the rule above; a caller opting into
+    remote debugging is still responsible for binding it to a private
+    interface only (see TAILSCALE_IP in jobs/dev/sandbox_session.py and
+    jobs/privacy/captcha_assist.py for the convention), never 0.0.0.0."""
     async with async_playwright() as pw:
-        browser = await pw.chromium.launch(headless=headless)
+        browser = await pw.chromium.launch(headless=headless, args=launch_args or [])
         page = await browser.new_page(user_agent=user_agent)
         page.set_default_timeout(timeout_ms)
         try:

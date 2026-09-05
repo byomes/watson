@@ -12,11 +12,12 @@ These are the source of truth. If anything in this file conflicts with them, the
 
 ## Quick orientation
 
-- **Primary server:** Beelink EQi12 (hostname `watson`, user `billyomes`). All development happens here via Claude Code — there is no separate PC codebase; the old `D:\OneDrive\Claude\agents\watson` path is retired.
+- **Primary server:** Beelink EQi12 (hostname `watson`, user `billyomes`). All development happens here via Claude Code.
+- **FMSPC (`D:\OneDrive\Claude\agents\watson`):** NOT retired — this is a hand-extracted, standalone copy of `jobs/{watcher,batch,transcribe,cleanup,generate}.py` (+ `core/vacation.py`, `core/database.py`, `config/settings.py`) that runs the Sermon Watcher/Batch pipeline on FMSPC's GPU (RTX 3070 Ti, Whisper transcription). It is NOT a git clone and is NOT auto-synced from this repo — changes to those files here must be manually re-copied to FMSPC, or they silently drift stale. Only Dev Loop's FMSPC SSH flow was retired (moved to local Beelink execution, 2026-07-16) — that is a different system and this line previously conflated the two. See the FMSPC section of `WATSON_ARCHITECTURE.md` and `D:\OneDrive\Claude\RESTORE_README.txt` on FMSPC.
 - **Primary interfaces:** Watson Dashboard (`https://watson.tail0243ff.ts.net`, port 5200, `watson-dashboard.service`) and Telegram (`@wckyWatsonbot`, `watson-bot.service`) — not Telegram alone.
 - **Repo:** `github.com/byomes/watson` → `~/watson`.
-- **Current major systems** (see WATSON_ARCHITECTURE.md for detail): ARC reader program, Writing Room partner community, Dev Loop (Ollama-driven code generation, triggered via Telegram `devloop:`), congregation/pastoral management, content pipeline, connect cards, Google Calendar integration.
-- **Retired:** Build Pipeline (`jobs/dev/build_pipeline.py`, Claude API spec/review/approve flow) — superseded by Dev Loop; bot.py triggers removed 2026-07-03.
+- **Current major systems** (see WATSON_ARCHITECTURE.md for detail): ARC reader program, Writing Room partner community, congregation/pastoral management, content pipeline, connect cards, Google Calendar integration. Code generation now happens via Dev Sandbox (`jobs/dev/sandbox_session.py`) and Watson Dev Dispatch (`jobs/devdispatch/`) — real Claude Code on the Beelink.
+- **Retired:** Build Pipeline (`jobs/dev/build_pipeline.py`, Claude API spec/review/approve flow) — superseded by Dev Loop; bot.py triggers removed 2026-07-03. Dev Loop (`jobs/dev_loop/`, Ollama-driven code generation via Telegram `devloop:`) — removed 2026-09-03, superseded by Dev Sandbox + Watson Dev Dispatch above.
 
 ## Conventions
 

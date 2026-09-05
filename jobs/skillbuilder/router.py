@@ -10,6 +10,10 @@ from pathlib import Path
 
 import requests
 
+from core.ollama_context import size_num_ctx
+from core.ollama_lock import BUSY_MESSAGE, ollama_busy
+import core.llm_log  # noqa: F401 -- installs Ollama call logging, see core/llm_log.py
+
 REPO = Path(__file__).resolve().parents[2]
 SKILLS_FILE = REPO / "memory" / "skills.json"
 OLLAMA_URL = "http://localhost:11434/api/generate"
@@ -75,6 +79,21 @@ _SKILL_PRE_CHECKS: dict[str, tuple] = {
     ),
     "kb_export": (
         "kb export:",
+    ),
+    "list_archives": (
+        "list archives", "list archives:",
+    ),
+    "search_archives": (
+        "search archives:",
+    ),
+    "get_archive": (
+        "get archive", "get archive:",
+    ),
+    "list_projects": (
+        "list projects", "list archive projects",
+    ),
+    "get_project_summary": (
+        "project summary:", "get project summary:",
     ),
     "gutenberg": (
         "gutenberg:",
@@ -308,6 +327,12 @@ def _load_skills(interface: str) -> list:
 
 
 def _ask_router(message: str, skills: list) -> str:
+    # bug_tracker #118/#121: don't race a contended, single-request-at-a-time
+    # Ollama queue and silently fall through to CHAT/general on timeout —
+    # say so honestly instead if a long job is holding the busy lock.
+    if ollama_busy():
+        return "BUSY"
+
     skills_json = json.dumps(skills, indent=2)
     prompt = (
         "SYSTEM: You are Watson's skill router. Given a user message and a list of "
@@ -340,7 +365,14 @@ def _ask_router(message: str, skills: list) -> str:
             "stream": False,
             # Response is always a short label (SKILL:<slug>, BUILD, CHAT,
             # etc.) — bounds worst-case generation time (bug #28).
-            "options": {"num_predict": 40},
+            # num_ctx: this prompt embeds the full skills list (~6-7k tokens for
+            # the current ~50 ready skills) and was running against Ollama's
+            # ~4096 default, silently truncating the SYSTEM instructions above
+            # it (bug_tracker #118). Does NOT address the separate 8s timeout
+            # below, which is very likely too short for a prompt this size
+            # regardless of num_ctx — logged as bug_tracker #119, not fixed here
+            # (out of scope for the num_ctx fix specifically).
+            "options": {"num_predict": 40, "num_ctx": size_num_ctx(prompt)},
         },
         timeout=8,
     )
@@ -358,6 +390,20 @@ def _run_skill(skill: dict, message: str = None) -> str:
         sig = inspect.signature(fn)
         if message is not None and "message" in sig.parameters:
             result = fn(message=message)
+        elif message is not None:
+            # Not every skill's entry point names its argument `message`
+            # (e.g. kb's ask(question, ...), kb_search's search_kb(query,
+            # ...)) — forward the text under whatever the function's own
+            # first required parameter is called instead of silently
+            # dropping it and calling fn() with no arguments (bug: MCP
+            # run_watson_skill calls into kb/kb_search via this path and
+            # raised "missing 1 required positional argument" for both).
+            required = [
+                p for p in sig.parameters.values()
+                if p.default is inspect.Parameter.empty
+                and p.kind in (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)
+            ]
+            result = fn(**{required[0].name: message}) if required else fn()
         else:
             result = fn()
     if isinstance(result, dict):
@@ -495,6 +541,9 @@ def _route(message: str, interface: str) -> dict:
     except Exception as exc:
         log.warning("Skill router LLM call failed: %s", exc)
         return {"action": "chat"}
+
+    if decision == "BUSY":
+        return {"action": "busy", "message": BUSY_MESSAGE}
 
     # If the LLM mistakenly returned CHAT for a build-phrased message, force BUILD.
     if decision == "CHAT" and any(

@@ -10,6 +10,7 @@ import requests
 from dotenv import load_dotenv
 
 from core.vacation import vacation_gate
+import core.llm_log  # noqa: F401 -- installs Ollama call logging, see core/llm_log.py
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 load_dotenv(BASE_DIR / ".env")

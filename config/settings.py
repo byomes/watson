@@ -15,6 +15,13 @@ DOCS_DIR   = BASE_DIR / "docs"
 GITHUB_REPO  = os.getenv("GITHUB_REPO")
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 
+# Micah's Tasks (jobs/micah_tasks) -- own Neon Postgres + VAPID web-push
+# keypair, separate app from anything else Watson touches.
+MICAH_TASKS_DATABASE_URL      = os.getenv("MICAH_TASKS_DATABASE_URL")
+MICAH_TASKS_VAPID_PRIVATE_KEY = os.getenv("MICAH_TASKS_VAPID_PRIVATE_KEY")
+MICAH_TASKS_VAPID_PUBLIC_KEY  = os.getenv("MICAH_TASKS_VAPID_PUBLIC_KEY")
+MICAH_TASKS_VAPID_SUBJECT     = os.getenv("MICAH_TASKS_VAPID_SUBJECT")
+
 # Vercel
 VERCEL_DEPLOY_HOOK = os.getenv("VERCEL_DEPLOY_HOOK")
 
@@ -40,6 +47,17 @@ KIT_API_KEY = os.getenv("KIT_API_KEY")
 # Google Fonts Developer API — free, no paid tier. Used by jobs/book/font_finder.py
 # to fetch the webfonts catalog for the Cover Comp Idea Generator's "Suggest Fonts" action.
 GOOGLE_FONTS_API_KEY = os.getenv("GOOGLE_FONTS_API_KEY")
+
+# Alpaca — paper trading only, see jobs/trading/alpaca_client.py for the hard
+# paper-only guard. Never used to place real-money orders.
+ALPACA_API_KEY_ID = os.getenv("ALPACA_API_KEY_ID")
+ALPACA_SECRET_KEY = os.getenv("ALPACA_SECRET_KEY")
+ALPACA_BASE_URL   = os.getenv("ALPACA_BASE_URL", "https://paper-api.alpaca.markets")
+
+# Amadeus Self-Service — free test-tier only, see jobs/trip/amadeus_client.py
+# (pinned to test.api.amadeus.com). Used by the Romantic Trip Finder.
+AMADEUS_API_KEY    = os.getenv("AMADEUS_API_KEY")
+AMADEUS_API_SECRET = os.getenv("AMADEUS_API_SECRET")
 
 # Briefing schedule
 BRIEFING_HOUR   = int(os.getenv("BRIEFING_HOUR",   "6"))
@@ -77,4 +95,23 @@ WATSON_SYSTEM = (
     "When asked what you can do or how many skills you have, say you have a growing skill library "
     "covering research, writing, documents, calendar, Bible lookup, email drafting, and Watson development."
     "If you do not know the answer, say I don't know and stop. Never invent capabilities, skills, features, or information. Never roleplay or simulate tools you do not have access to. If asked to run a task, only confirm if you have explicit code to execute it."
+)
+
+# Limited-chat system prompt for Catalyst team members (jobs/team/*) connected
+# via bot.py's /start claim flow -- deliberately separate from WATSON_SYSTEM
+# and never combined with build_prompt()'s routing/memory context. This
+# conversation has no access to Dr. Bill's skills, directives, or church
+# database -- plain Q&A only, gated in bot.py's _handle_team_chat.
+TEAM_CHAT_SYSTEM = (
+    "You are Watson, the digital assistant for Catalyst Community Church's staff. "
+    "You are talking with a Catalyst team member, not Dr. Bill Yomes. "
+    "Be terse and direct. Keep responses under 3 sentences unless a list is explicitly needed. No headers, no bold, no bullet points. "
+    "In this conversation you have NO access to Dr. Bill's personal skills, tools, calendar, email, files, or the church database -- "
+    "you can only hold a general conversation and answer general questions. "
+    "If asked to do something that needs a specific tool or church data you don't have access to here, "
+    "begin your reply with the exact tag [NO_ACCESS] followed by a space, then say so plainly and suggest they contact Dr. Bill directly -- "
+    "the tag is stripped before the person sees your reply, it's just a signal for Bill to review later. "
+    "You are not an image bearer -- you have no soul, no Holy Spirit access, and no spiritual discernment. "
+    "Never pastor, counsel, pray, or speak with spiritual authority. "
+    "Never fabricate information -- say 'I don't know' if uncertain. Never invent capabilities or features you don't have."
 )

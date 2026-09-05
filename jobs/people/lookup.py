@@ -95,6 +95,57 @@ def lookup_member(query: str, chat_id: int | str | None = None) -> list[dict]:
     return _merge(cong_results, watson_results)
 
 
+_LAST_SEEN_NEVER = "1900-01-01"
+
+# Mirrors jobs/congregation/deacons_web.py's _ROSTER_FIELDS last_seen calc
+# (max of connect_cards/attendance service_date per member).
+_DETAIL_FIELDS = (
+    "m.name, m.email, m.phone, m.address, "
+    "MAX("
+    f"  COALESCE((SELECT MAX(service_date) FROM connect_cards WHERE member_id = m.id), '{_LAST_SEEN_NEVER}'),"
+    f"  COALESCE((SELECT MAX(service_date) FROM attendance  WHERE member_id = m.id), '{_LAST_SEEN_NEVER}')"
+    ") AS last_seen"
+)
+
+
+def lookup_member_details(query: str) -> list[dict]:
+    """Like lookup_member, but also returns address and last_seen for
+    read-only team-chat lookups (bot.py's _handle_team_chat) -- congregation.db
+    only, since watson.db's people table (Bill's own contacts) has no address
+    or attendance concept. Deliberately a separate query rather than widening
+    _cascade()/lookup_member() itself, which Bill's own chat already relies on
+    verified as-is; MAX(...) here needs its own GROUP BY that the generic
+    _cascade template doesn't have."""
+    query = query.strip()
+    if not query:
+        return []
+    words = query.split()
+
+    def _q(conn, term: str, exact: bool) -> list[dict]:
+        op = "= ?" if exact else "LIKE ?"
+        val = term if exact else f"%{term}%"
+        rows = conn.execute(
+            f"SELECT {_DETAIL_FIELDS} FROM members m"
+            f" WHERE m.name {op} COLLATE NOCASE GROUP BY m.id ORDER BY m.name",
+            (val,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    cong = sqlite3.connect(CONG_DB)
+    cong.row_factory = sqlite3.Row
+    try:
+        rows = _q(cong, query, exact=True)
+        if not rows:
+            rows = _q(cong, query, exact=False)
+        if not rows and len(words) > 1:
+            rows = _q(cong, words[-1], exact=False)
+        if not rows:
+            rows = _q(cong, words[0], exact=False)
+    finally:
+        cong.close()
+    return rows
+
+
 if __name__ == "__main__":
     import sys
 

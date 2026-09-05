@@ -27,13 +27,16 @@ log = logging.getLogger(__name__)
 
 lead_magnet_bp = Blueprint("lead_magnet", __name__)
 
-_API_KEY          = lambda: os.getenv("WRITING_ROOM_API_KEY", "")
-_KIT_SECRET       = lambda: os.getenv("KIT_API_SECRET", "")
-_COMPANION_TAG_ID = lambda: os.getenv("KIT_COMPANION_TAG_ID", "")
+_API_KEY = lambda: os.getenv("WRITING_ROOM_API_KEY", "")
+
+_BREVO_BASE = "https://api.brevo.com/v3"
+_BREVO_LEAD_MAGNET_FOLDER_ID = lambda: int(os.getenv("BREVO_LEAD_MAGNET_FOLDER_ID", "1"))
+_LEAD_MAGNET_LIST_PREFIX = "Lead Magnet: "
 
 _SEED_MAGNETS = [
     # (slug, title, pdf_filename, kit_tag_id, active)
     ("wrong-jesus", "The Wrong Jesus", "wrong-jesus-companion-guide.pdf", None, 1),
+    ("he-is-risen", "He Is Risen", "he-is-risen-study-guide.pdf", None, 1),
 ]
 
 
@@ -90,25 +93,75 @@ def _ensure_table() -> None:
         conn.close()
 
 
-def _kit_tag_subscriber(tag_id: int, email: str, name: str) -> bool:
-    """Apply the given Kit tag to the subscriber via Kit v3. Returns True on success."""
-    secret = _KIT_SECRET()
-    if not secret:
-        log.warning("KIT_API_SECRET not set — skipping Kit tag for %s", email)
+def _brevo_headers() -> dict:
+    return {
+        "accept": "application/json",
+        "content-type": "application/json",
+        "api-key": os.getenv("BREVO_API_KEY", ""),
+    }
+
+
+def _get_or_create_brevo_list(slug: str) -> int | None:
+    """Resolve the "Lead Magnet: {slug}" Brevo list, creating it under
+    _BREVO_LEAD_MAGNET_FOLDER_ID if it doesn't exist yet — keeps the
+    reusable-template design (new book = new lead_magnets row, no new
+    code) intact on the Brevo side too."""
+    if not os.getenv("BREVO_API_KEY"):
+        log.warning("BREVO_API_KEY not set — skipping Brevo list for %s", slug)
+        return None
+    name = f"{_LEAD_MAGNET_LIST_PREFIX}{slug}"
+    try:
+        offset = 0
+        while True:
+            resp = requests.get(
+                f"{_BREVO_BASE}/contacts/lists", params={"limit": 50, "offset": offset},
+                headers=_brevo_headers(), timeout=10,
+            )
+            resp.raise_for_status()
+            lists = resp.json().get("lists", [])
+            for l in lists:
+                if l["name"] == name:
+                    return l["id"]
+            if len(lists) < 50:
+                break
+            offset += 50
+
+        resp = requests.post(
+            f"{_BREVO_BASE}/contacts/lists",
+            json={"name": name, "folderId": _BREVO_LEAD_MAGNET_FOLDER_ID()},
+            headers=_brevo_headers(), timeout=10,
+        )
+        resp.raise_for_status()
+        return resp.json()["id"]
+    except Exception as exc:
+        log.error("Brevo list resolve/create failed for %s: %s", slug, exc)
+        return None
+
+
+def _brevo_tag_subscriber(email: str, name: str, list_id: int | None) -> bool:
+    """Upsert the subscriber in Brevo: COMPANION_GUIDE_READER attribute
+    (cross-book segment) plus the book's lead-magnet list, if resolved.
+    Returns True on success."""
+    if not os.getenv("BREVO_API_KEY"):
+        log.warning("BREVO_API_KEY not set — skipping Brevo tag for %s", email)
         return False
     first_name = name.split()[0] if name else ""
+    attributes = {"COMPANION_GUIDE_READER": True}
+    if first_name:
+        attributes["FIRSTNAME"] = first_name
+    payload = {"email": email, "updateEnabled": True, "attributes": attributes}
+    if list_id is not None:
+        payload["listIds"] = [list_id]
     try:
         resp = requests.post(
-            f"https://api.convertkit.com/v3/tags/{tag_id}/subscribe",
-            json={"api_secret": secret, "first_name": first_name, "email": email},
-            timeout=10,
+            f"{_BREVO_BASE}/contacts", json=payload, headers=_brevo_headers(), timeout=10,
         )
-        if resp.ok:
+        if resp.status_code in (200, 201, 204):
             return True
-        log.warning("Kit tag apply failed (%s): %s", resp.status_code, resp.text[:200])
+        log.warning("Brevo contact upsert failed (%s): %s", resp.status_code, resp.text[:200])
         return False
     except Exception as exc:
-        log.error("Kit tag request error for %s: %s", email, exc)
+        log.error("Brevo contact upsert error for %s: %s", email, exc)
         return False
 
 
@@ -155,7 +208,7 @@ def lead_magnet_subscribe():
     conn = get_db()
     try:
         magnet = conn.execute(
-            "SELECT slug, title, pdf_filename, kit_tag_id, active FROM lead_magnets WHERE slug = ?",
+            "SELECT slug, title, pdf_filename, active FROM lead_magnets WHERE slug = ?",
             (slug,),
         ).fetchone()
         if not magnet or not magnet["active"]:
@@ -180,39 +233,20 @@ def lead_magnet_subscribe():
     finally:
         conn.close()
 
-    # Kit tagging is a "nice to have" — guarded against a NULL kit_tag_id
-    # (skips cleanly, logs, and never raises) and never allowed to block the
+    # Brevo tagging is a "nice to have" — never allowed to block the
     # confirmation email below, which is the reliable fallback path.
-    tagged = False
-    if magnet["kit_tag_id"]:
-        tagged = _kit_tag_subscriber(magnet["kit_tag_id"], email, name)
-        if tagged:
-            conn2 = get_db()
-            try:
-                conn2.execute(
-                    "UPDATE lead_magnet_signups SET kit_tag_applied = 1 WHERE id = ?",
-                    (signup_id,),
-                )
-                conn2.commit()
-            finally:
-                conn2.close()
-    else:
-        log.warning(
-            "Lead magnet %s has no kit_tag_id set — skipping Kit tag for %s", slug, email
-        )
-
-    # Shared cross-book segment tag — independent of the per-book tag above,
-    # so all lead-magnet signups can be queried/emailed as one segment later
-    # regardless of which book brought them in. Same NULL-guard pattern: skip
-    # cleanly and log if unset, never block the per-book tag call above or
-    # the confirmation email below.
-    companion_tag_id = _COMPANION_TAG_ID()
-    if companion_tag_id:
-        _kit_tag_subscriber(companion_tag_id, email, name)
-    else:
-        log.warning(
-            "KIT_COMPANION_TAG_ID not set — skipping companion-guide-reader tag for %s", email
-        )
+    list_id = _get_or_create_brevo_list(slug)
+    tagged = _brevo_tag_subscriber(email, name, list_id)
+    if tagged:
+        conn2 = get_db()
+        try:
+            conn2.execute(
+                "UPDATE lead_magnet_signups SET kit_tag_applied = 1 WHERE id = ?",
+                (signup_id,),
+            )
+            conn2.commit()
+        finally:
+            conn2.close()
 
     def _send_confirmation():
         try:
@@ -229,7 +263,7 @@ def lead_magnet_subscribe():
             f"Book: {magnet['title']}\n"
             f"Name: {name}\n"
             f"Email: {email}\n"
-            f"Kit tag: {'✅ applied' if tagged else '⚠️ not applied — check kit_tag_id/KIT_API_SECRET'}"
+            f"Brevo tag: {'✅ applied' if tagged else '⚠️ not applied — check BREVO_API_KEY'}"
         )
     except Exception as exc:
         log.error("Telegram notify failed for lead magnet signup %s: %s", email, exc)
