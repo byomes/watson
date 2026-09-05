@@ -1,0 +1,20 @@
+# Watson log rotation — jobs/*.py cron entries all append to logs/*.log via
+# shell `>>` redirection (short-lived processes, not a held-open file
+# handle); watson-bot.service/watson-dashboard.service log to journald
+# instead (see deploy/*.service), so nothing here needs copytruncate.
+#
+# Run via the watson user's own crontab (no root/systemd cron.d access):
+#   /usr/sbin/logrotate --state /home/billyomes/watson/data/.logrotate_state \
+#       /home/billyomes/watson/deploy/watson-logs.logrotate
+#
+# Added 2026-09-05 -- logs/ had grown to 291MB across 78 files with zero
+# rotation configured anywhere (2026-09-05 cleanup sweep finding).
+/home/billyomes/watson/logs/*.log {
+    weekly
+    rotate 8
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 644 billyomes billyomes
+}
