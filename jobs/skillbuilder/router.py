@@ -368,13 +368,17 @@ def _ask_router(message: str, skills: list) -> str:
             # num_ctx: this prompt embeds the full skills list (~6-7k tokens for
             # the current ~50 ready skills) and was running against Ollama's
             # ~4096 default, silently truncating the SYSTEM instructions above
-            # it (bug_tracker #118). Does NOT address the separate 8s timeout
-            # below, which is very likely too short for a prompt this size
-            # regardless of num_ctx — logged as bug_tracker #119, not fixed here
-            # (out of scope for the num_ctx fix specifically).
+            # it (bug_tracker #118).
             "options": {"num_predict": 40, "num_ctx": size_num_ctx(prompt)},
         },
-        timeout=8,
+        # bug_tracker #119: 8s was far too short for a real ~7800-token prompt
+        # (measured 2026-09-03, see memory/reasoning_comparisons/) even on the
+        # resident/warm gemma3:4b -- a timeout here silently falls through to
+        # CHAT/general with the wrong classification, not an honest failure.
+        # 60s matches classify()'s own established real-world timeout
+        # (jobs/intent/classifier.py) for a comparably-sized call on the same
+        # model, with real margin over the 8s floor that was actually hit.
+        timeout=60,
     )
     resp.raise_for_status()
     return resp.json().get("response", "").strip()
