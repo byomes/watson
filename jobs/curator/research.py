@@ -18,6 +18,7 @@ needs_review with no rating.
 """
 import json
 import logging
+import os
 import re
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -1019,6 +1020,115 @@ def fetch_open_library_details(title: str, author: str | None, timeout: int = 10
         return dict(empty)
 
 
+_GOOGLE_BOOKS_DESCRIPTION_CAP = 2000
+_GOOGLE_BOOKS_CONNECT_TIMEOUT = 3
+
+# Google Books' anonymous/keyless quota is exhausted platform-wide as of
+# 2026-09-05 (confirmed live: every keyless request returns a flat 429
+# RESOURCE_EXHAUSTED, quota_limit_value "0" — not a rate limit, a hard zero) —
+# a key is mandatory now, contrary to Google's own docs. GOOGLE_BOOKS_API_KEY
+# reuses the existing GOOGLE_FONTS_API_KEY value (Bill's choice, 2026-09-05):
+# it's an unrestricted key on the same GCP project, and now that Books API is
+# enabled there it authenticates fine for this too — no new credential
+# actually required. Kept as its own env var (not read from
+# GOOGLE_FONTS_API_KEY directly) so restricting the Fonts key to Fonts-only
+# later doesn't silently break this.
+_GOOGLE_BOOKS_URL = "https://www.googleapis.com/books/v1/volumes"
+
+
+def fetch_google_books_details(title: str, author: str | None, timeout: int = 10) -> dict:
+    """Google Books' public volumes API — a real, actively-maintained catalog
+    (unlike Open Library's community-wiki data) that covers new releases Open
+    Library often hasn't indexed yet (confirmed 2026-07-22 for a 2024 title,
+    see fetch_open_library_details's docstring) and isn't bot-blocked the way
+    Amazon is. Tried alongside Open Library in Wave 2, not instead of it —
+    Open Library's own synopsis is already well-tuned and stays preferred
+    where it has one; this fills the gaps.
+
+    Only description/cover_image_url/page_count are extracted. Series
+    position/total is deliberately NOT pulled from here: Google Books has no
+    documented, reliable series field for the general catalog (an
+    undocumented seriesInfo key exists on some Google-partnered volumes but
+    isn't consistently present), and guessing at series numbering from
+    title/subtitle text would violate this file's never-guess contract —
+    series data stays sourced only from Amazon's explicit "Book N of M" text
+    and Goodreads' "(Series, #N)" og:title pattern (see fetch_page_details()).
+
+    No _strip_injected_links() treatment here unlike Open Library's
+    description: Google Books' descriptions are editorially supplied
+    (publisher ONIX feeds / Google's own metadata), not community-editable
+    wiki content, so the spam-link-injection risk that motivated that
+    stripping doesn't apply.
+
+    Key goes in the X-goog-api-key HEADER, not the ?key= query param Google's
+    own docs lead with — confirmed live 2026-09-05 that a transient 503 from
+    Google made `requests` raise an exception whose message embeds the full
+    request URL, which leaked the key verbatim into this function's own
+    log.warning call (and did, once, into a manual test's output, before this
+    fix) — the identical vulnerability class already fixed for Gemini in
+    identify_book_from_photo(), reproduced here before being caught. The
+    header form authenticates identically (confirmed live) with no such leak
+    surface.
+
+    Returns {"description": str|None, "cover_image_url": str|None,
+    "page_count": int|None} — never raises; all three are None if
+    GOOGLE_BOOKS_API_KEY is unset, the request fails, no volume is found, or
+    the top match doesn't plausibly correspond to the requested title (same
+    _significant_word_overlap guard Open Library uses, for the same reason:
+    a bare title-only query can match an unrelated book that happens to share
+    it)."""
+    empty = {"description": None, "cover_image_url": None, "page_count": None}
+    api_key = os.getenv("GOOGLE_BOOKS_API_KEY")
+    if not api_key:
+        return dict(empty)
+    try:
+        query = f"intitle:{title}"
+        if author:
+            query += f"+inauthor:{author}"
+        resp = requests.get(
+            _GOOGLE_BOOKS_URL,
+            headers={"X-goog-api-key": api_key},
+            params={"q": query, "maxResults": 1},
+            timeout=(min(_GOOGLE_BOOKS_CONNECT_TIMEOUT, timeout), timeout),
+        )
+        resp.raise_for_status()
+        items = resp.json().get("items") or []
+        if not items:
+            return dict(empty)
+        info = items[0].get("volumeInfo", {})
+
+        doc_title = info.get("title", "")
+        doc_authors = " ".join(info.get("authors") or [])
+        if not _significant_word_overlap(_title_words(title), f"{doc_title} {doc_authors}"):
+            log.warning(
+                "Google Books lookup for %r: top match %r looked like a different book, skipping",
+                title, doc_title,
+            )
+            return dict(empty)
+
+        desc = info.get("description")
+        description = desc[:_GOOGLE_BOOKS_DESCRIPTION_CAP] if isinstance(desc, str) and desc else None
+
+        # https upgrade: Google Books' imageLinks come back as bare http://,
+        # which the app's own https pages would otherwise refuse to load as
+        # mixed content. Google serves the same image over https at the same
+        # path, so this is a safe scheme swap, not a guess.
+        thumbnail = (info.get("imageLinks") or {}).get("thumbnail")
+        cover_image_url = thumbnail.replace("http://", "https://", 1) if thumbnail else None
+
+        page_count = info.get("pageCount")
+        page_count = page_count if isinstance(page_count, int) else None
+
+        return {
+            "description": description,
+            "cover_image_url": cover_image_url,
+            "page_count": page_count,
+        }
+    except Exception as exc:
+        log.warning("Google Books lookup failed for %r: %s", title, exc)
+        return dict(empty)
+
+
 # Amazon frequently returns a bot-block/"automated access" interstitial instead
 # of the real listing (confirmed 2026-07-20 and repeatedly since, regardless of
 # User-Agent — HTTP 200, but a small boilerplate page, not the actual product
@@ -1524,6 +1634,18 @@ def research_book_fast(title: str, author: str | None = None, job_id=None) -> di
                 _log_stage(job_id, "open_library_details", time.perf_counter() - _t, stage_durations)
         open_library_future = pool.submit(_open_library)
 
+        # Google Books alongside Open Library, not instead of it — see
+        # fetch_google_books_details's docstring for why both run (Open
+        # Library's synopsis stays preferred where it has one; Google Books
+        # fills gaps, especially recent releases Open Library hasn't indexed).
+        def _google_books():
+            _t = time.perf_counter()
+            try:
+                return fetch_google_books_details(title, author, timeout=_STAGE_A_TIMEOUT)
+            finally:
+                _log_stage(job_id, "google_books_details", time.perf_counter() - _t, stage_durations)
+        google_books_future = pool.submit(_google_books)
+
         # Amazon first (page count / KU authoritative there), Goodreads as a fallback for
         # whatever Amazon's og: tags didn't have — same sources already being fetched, no
         # new source category. In practice Amazon frequently bot-blocks plain requests
@@ -1552,7 +1674,8 @@ def research_book_fast(title: str, author: str | None = None, job_id=None) -> di
                 findings.append(finding)
 
         open_library_details = open_library_future.result()
-        description = open_library_details["description"]
+        google_books_details = google_books_future.result()
+        description = open_library_details["description"] or google_books_details["description"]
 
         for source_type, future in page_detail_futures.items():
             try:
@@ -1574,10 +1697,18 @@ def research_book_fast(title: str, author: str | None = None, job_id=None) -> di
             series_total = series_total or details["series_total"]
             series_name = series_name or details.get("series_name")
 
-    # Last-resort cover fallback: only reached if Amazon/Goodreads' og:image
-    # scraping produced nothing (bot-blocked, rate-limited, or no URL found
-    # at all) — see fetch_open_library_details's docstring for why this
-    # ranks below them rather than above.
+    # Amazon frequently bot-blocks (~75% of the time, per fetch_page_details's
+    # docstring), leaving page_count empty more often than not — Google Books'
+    # pageCount field is a reliable structured fallback for exactly that gap.
+    page_count = page_count or google_books_details["page_count"]
+
+    # Cover precedence: Amazon/Goodreads' og:image (already applied above,
+    # when it gets through) is the listing's actual cover for the exact
+    # edition shown; Google Books next (a real published cover, just not
+    # necessarily this exact edition); Open Library last (see
+    # fetch_open_library_details's docstring — its cover_i can be a
+    # different edition's scan entirely).
+    cover_image_url = cover_image_url or google_books_details["cover_image_url"]
     cover_image_url = cover_image_url or open_library_details["cover_image_url"]
 
     findings.sort(key=lambda f: f["rank"])
@@ -1605,6 +1736,17 @@ def research_book_fast(title: str, author: str | None = None, job_id=None) -> di
         if retried_details["description"]:
             description = retried_details["description"]
         cover_image_url = cover_image_url or retried_details["cover_image_url"]
+
+        # Same author-backfill retry for Google Books, same reasoning: a
+        # title-only query is more likely to mismatch or miss than one with
+        # the now-known author attached.
+        _t = time.perf_counter()
+        retried_gbooks = fetch_google_books_details(title, extracted_author, timeout=_STAGE_A_TIMEOUT)
+        _log_stage(job_id, "google_books_details_retry", time.perf_counter() - _t, stage_durations)
+        if retried_gbooks["description"] and not description:
+            description = retried_gbooks["description"]
+        cover_image_url = cover_image_url or retried_gbooks["cover_image_url"]
+        page_count = page_count or retried_gbooks["page_count"]
 
     total_duration = time.perf_counter() - _t_total
     stage_summary = " ".join(f"{name}={dur:.2f}s" for name, dur in stage_durations.items())
