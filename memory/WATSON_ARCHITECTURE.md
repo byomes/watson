@@ -1328,13 +1328,19 @@ renamed** either once set (confirmed live — a misnamed `Brevo_Api` var had to 
 re-added under the correct name, `BREVO_API_KEY_CONNECT_CARD`, rather than renamed in place).
 
 **Live tools:**
-- `cat/connect` — full copy of wcky's Catalyst connect card (`williamckyomes.com/tools/connect-card`,
-  untouched, still live there too), same direct-to-Brevo mechanism (confirmed by reading wcky's
-  actual `route.ts` and its live Vercel project's env var names — not assumed): `CONNECT_CARD_TO_BILL`,
-  `CONNECT_CARD_TO_DONNA`, `CONNECT_CARD_TO_TYLER`, `CONNECT_CARD_BCC` (set to `watson.wcky@gmail.com`,
-  the real IMAP intake mailbox — not `watson@williamckyomes.com`, which is send-only), and
-  `BREVO_API_KEY_CONNECT_CARD`, all set fresh on `watson-tools`' own Vercel project (wcky's values
-  aren't copyable — `sensitive` type). Live as of 2026-08-28.
+- `cat/connect` — full copy of wcky's Catalyst connect card, same direct-to-Brevo mechanism
+  (confirmed by reading wcky's actual `route.ts` and its live Vercel project's env var names — not
+  assumed): `CONNECT_CARD_TO_BILL`, `CONNECT_CARD_TO_DONNA`, `CONNECT_CARD_TO_TYLER`,
+  `CONNECT_CARD_BCC` (set to `watson.wcky@gmail.com`, the real IMAP intake mailbox — not
+  `watson@williamckyomes.com`, which is send-only), and `BREVO_API_KEY_CONNECT_CARD`, all set fresh
+  on `watson-tools`' own Vercel project (wcky's values aren't copyable — `sensitive` type). Live as
+  of 2026-08-28. **This is now the only copy** — wcky's `williamckyomes.com/tools/connect-card`
+  (page, form, and API route) was retired 2026-09-05; that path now permanently redirects to
+  `wtsn.me/cat/connect` via wcky's `next.config.js`. `jobs/connect_cards/intake.py`'s Gmail-based
+  ingest into `congregation.db` needed no change — it matches on sender/subject, not origin domain,
+  and both copies send identical emails. A spam-phone blocklist (`BLOCKED_PHONE_DIGITS` in
+  `route.ts`) was added to this copy the same day, after a bot repeatedly resubmitted a fake
+  visitor through the wcky form — see [[project_congregation_db_spam]].
 
 ---
 
