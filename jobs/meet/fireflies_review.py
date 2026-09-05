@@ -38,6 +38,7 @@ from rapidfuzz import fuzz
 from config.settings import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 from jobs.email_job.brevo_send import send_email
 from core.vacation import vacation_gate
+from core.ollama_context import size_num_ctx
 import core.llm_log  # noqa: F401 -- installs Ollama call logging, see core/llm_log.py
 
 load_dotenv(os.path.expanduser("~/watson/.env"))
@@ -293,7 +294,12 @@ def _ollama_generate(prompt: str) -> str:
     # summarization rather than raising the timeout further.
     resp = requests.post(
         _OLLAMA_URL,
-        json={"model": _OLLAMA_MODEL, "prompt": prompt, "stream": False},
+        json={
+            "model": _OLLAMA_MODEL,
+            "prompt": prompt,
+            "stream": False,
+            "options": {"num_ctx": size_num_ctx(prompt)},
+        },
         timeout=300,
     )
     resp.raise_for_status()
