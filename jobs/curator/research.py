@@ -97,11 +97,26 @@ _STAGE_A_TIMEOUT = 5
 #     alive and just throttling. Left out for now, but worth retesting with
 #     slower request pacing rather than writing it off as confirmed-dead like
 #     the others.
+#
+# StoryGraph (app.thestorygraph.com) added 2026-09-05 — sits behind the same
+# Cloudflare JS challenge as romance.io (confirmed live: `cf-mitigated:
+# challenge` on a plain request), so it's routed through the same local
+# FlareSolverr container (see _FLARESOLVERR_DOMAINS). Its own crowd-submitted
+# "Content Warnings" page (a *separate* URL from the book page search results
+# return — see _fetch_finding's storygraph branch) tags books with a "Sexual
+# content" warning bucketed into Graphic/Moderate/Minor severity, each with
+# its own reader-vote count (confirmed live against Beach Read: Graphic 476,
+# Moderate 328, Minor 31 votes) — a genuinely large, structured sample size,
+# unlike romance.io's single aggregate "steam level". Ranked last (5) rather
+# than promoted above the existing four: it's unvalidated against real
+# production books so far, and this ranking means it only surfaces when one
+# of the four established sources comes back empty, never displaces them.
 _EXACT_DOMAINS = [
     ("commonsensemedia.org", "Common Sense Media", "commonsensemedia", 1),
     ("romance.io", "romance.io", "romance_io", 2),
     ("spicybooks.org", "SpicyBooks", "spicybooks", 3),
     ("thefaeshelf.com", "The Fae Shelf", "faeshelf", 4),
+    ("app.thestorygraph.com", "StoryGraph", "storygraph", 5),
 ]
 
 # Domains search_top_content_sites() actually queries. romance.io reactivated
@@ -220,7 +235,18 @@ _BOOK_PAGE_HINTS = {
     "spicybooks": "/books/",
     "faeshelf": "/book/",
     "romance_io": "/books/",
+    "storygraph": "/books/",
 }
+
+# StoryGraph's canonical book-page URL is a bare UUID path segment with no
+# title slug at all (confirmed live: /books/db3f238f-7066-42f7-9efd-ffc5e73d4f98
+# for "Beach Read", nothing resembling the title anywhere in the path) —
+# unlike every other trusted source here, whose URLs embed a title-derived
+# slug that _url_matches_title() can check. Same problem Amazon has (see
+# _result_matches_title()'s docstring), so sources in this set get their
+# title-match check from the search result's own title/snippet text instead
+# of the URL path.
+_TITLE_NOT_IN_URL_STYPES = {"storygraph"}
 
 
 _STOPWORDS = {"the", "a", "an", "of", "and", "to", "in", "on", "for", "is", "with"}
@@ -482,16 +508,84 @@ def _extract_faeshelf_excerpt(text: str) -> str | None:
     return rating or warnings
 
 
+# StoryGraph's /books/<id>/content_warnings page (confirmed 2026-09-05 against
+# 3 real pages, e.g. Beach Read) lists crowd-submitted warning tags under an
+# "Author-approved" section (usually "This book doesn't have any content
+# warnings submitted by the author yet!") and a separate "User-submitted"
+# section, itself split into three fixed severity buckets in this order:
+# Graphic, Moderate, Minor. Each bucket is a flat run of "<Tag> (<votes>)"
+# pairs, e.g. "Sexual content (476)" — no HTML structure separates one tag
+# from the next once stripped to plain text, so bucket boundaries come from
+# locating the three header words themselves. Each header is required to be
+# immediately followed by a "<word(s)> (<digits>)" shape before being trusted
+# as a real bucket boundary (not e.g. a stray occurrence of the word
+# "Minor" elsewhere on the page) — same defensive precedent as
+# _csm_header_positions() rejecting spurious header-text matches.
+_STORYGRAPH_SEVERITY_HEADERS = ("Graphic", "Moderate", "Minor")
+_STORYGRAPH_BUCKET_HEADER_RE = re.compile(r"\s+[^()]{2,60}\(\d+\)")
+_STORYGRAPH_SEXUAL_CONTENT_RE = re.compile(r"Sexual content\s*\((\d+)\)")
+
+
+def _storygraph_bucket_positions(text: str) -> list[tuple[int, str]]:
+    positions = []
+    for header in _STORYGRAPH_SEVERITY_HEADERS:
+        for m in re.finditer(re.escape(header), text):
+            if _STORYGRAPH_BUCKET_HEADER_RE.match(text, m.end()):
+                positions.append((m.start(), header))
+                break
+    positions.sort()
+    return positions
+
+
+def _extract_storygraph_excerpt(text: str) -> str | None:
+    """Pulls the "Sexual content" tag's reader-vote count out of whichever of
+    StoryGraph's three user-submitted severity buckets (Graphic/Moderate/
+    Minor) it appears in — StoryGraph's own tag name and vote counts,
+    verbatim, no paraphrasing, same as every other structured-rating source
+    here. Returns None only when there's no user-submitted content-warning
+    data on the page at all (nothing to report either way) — but if the
+    section exists and simply never mentions "Sexual content", that absence
+    is itself reported as a (weak) clean signal, the same never-guess-but-
+    still-informative treatment Common Sense Media's own no-word "no content"
+    case gets (see _csm_scale_estimate())."""
+    idx = text.find("User-submitted")
+    if idx == -1:
+        return None
+    section = text[idx:]
+
+    positions = _storygraph_bucket_positions(section)
+    if not positions:
+        return None
+
+    counts: dict[str, int] = {}
+    for i, (pos, header) in enumerate(positions):
+        end = positions[i + 1][0] if i + 1 < len(positions) else len(section)
+        m = _STORYGRAPH_SEXUAL_CONTENT_RE.search(section[pos:end])
+        if m:
+            counts[header] = int(m.group(1))
+
+    if not counts:
+        return (
+            "No readers have tagged 'Sexual content' as a content warning for "
+            "this book (other user-submitted content warnings exist)"
+        )
+
+    ordered = [h for h in _STORYGRAPH_SEVERITY_HEADERS if h in counts]
+    parts = ", ".join(f"{h} ({counts[h]} votes)" for h in ordered)
+    return f"User-submitted content warnings for 'Sexual content': {parts}"
+
+
 _FLARESOLVERR_URL = "http://localhost:8191/v1"
 _FLARESOLVERR_TIMEOUT_MS = 60000
 
 # Domains that sit behind a Cloudflare JS challenge plain `requests` can't
 # solve — routed through the local FlareSolverr container (localhost:8191,
 # docker run --name=flaresolverr, see project_backlog id=18) instead of a
-# direct fetch. romance.io is the first and, as of 2026-07-22, only entry.
-# commonsensemedia.org/spicybooks.org/thefaeshelf.com are unaffected — they
-# stay on the plain requests.get() path below.
-_FLARESOLVERR_DOMAINS = {"romance.io"}
+# direct fetch. romance.io was the first entry (2026-07-22); app.thestorygraph.com
+# added 2026-09-05 after confirming live it returns the identical `cf-mitigated:
+# challenge` header on a plain request. commonsensemedia.org/spicybooks.org/
+# thefaeshelf.com are unaffected — they stay on the plain requests.get() path below.
+_FLARESOLVERR_DOMAINS = {"romance.io", "app.thestorygraph.com"}
 
 
 def _flaresolverr_fetch_html(url: str) -> str | None:
@@ -621,6 +715,7 @@ def _discover_trusted_sources(
     all_results = search_top_content_sites(title, author, job_id=job_id, stage_durations=stage_durations)
 
     best_per_category: dict[str, tuple[str, str, int]] = {}
+    best_title_ok: dict[str, bool] = {}
     for r in all_results:
         url = r.get("url", "")
         if not url:
@@ -629,15 +724,25 @@ def _discover_trusted_sources(
         if not cat:
             continue
         name, stype, rank = cat
+        shape_ok = _shape_matches_book_page(stype, url)
+        # StoryGraph's URL carries no title slug to check at all (see
+        # _TITLE_NOT_IN_URL_STYPES) — fall back to the search result's own
+        # title/snippet text, same fix Amazon already needed for the same
+        # reason (_result_matches_title()).
+        title_ok = (
+            _result_matches_title(r, title) if stype in _TITLE_NOT_IN_URL_STYPES
+            else _url_matches_title(url, title)
+        )
         # A book-page-shaped URL for the WRONG book is worse evidence than a
         # generic category/trope-listing page — it looks authoritative but
         # its content is about a different book entirely (confirmed real
         # case 2026-09-04: see _url_matches_title()'s docstring). Skip it
         # outright rather than let it become "current" via first-seen below,
         # which doesn't check title match at all.
-        if _shape_matches_book_page(stype, url) and not _url_matches_title(url, title):
+        if shape_ok and not title_ok:
             continue
         current = best_per_category.get(stype)
+        current_title_ok = best_title_ok.get(stype, False)
         # Serper doesn't reliably rank a domain's book-specific page above its
         # homepage/category pages within one query — confirmed 2026-07-21: a
         # spicybooks.org query for "Beach Read" ranked the bare homepage
@@ -645,12 +750,14 @@ def _discover_trusted_sources(
         # page, and first-seen-wins alone would have picked the homepage.
         # Once a book-page-shaped URL is found for a category, don't let a
         # later non-book-page URL for the same category displace it.
+        looks_like_page = shape_ok and title_ok
         if (
             current is None
             or rank < current[2]
-            or (not _looks_like_book_page(stype, current[1], title) and _looks_like_book_page(stype, url, title))
+            or (not current_title_ok and looks_like_page)
         ):
             best_per_category[stype] = (name, url, rank)
+            best_title_ok[stype] = looks_like_page
 
     all_titles = [r.get("title", "") for r in all_results if r.get("title")]
     return best_per_category, all_titles
@@ -665,9 +772,17 @@ def _fetch_finding(
     caller just won't have a finding for this source. Same per-source
     extraction dispatch as before, unchanged — including the romance_io
     branch, kept here so Stage B (Commit 4) can call this same function for
-    romance.io without duplicating the extraction logic."""
+    romance.io without duplicating the extraction logic.
+
+    storygraph is fetched from a *different* URL than the one discovered/
+    passed in: search results land on the book's main page
+    (/books/<id>), but the content-warning breakdown lives on a separate
+    /books/<id>/content_warnings subpage (confirmed live 2026-09-05) — the
+    finding's stored url is the content_warnings page too, so clicking
+    through from the app lands somewhere with actual warning data on it."""
+    fetch_url = f"{url.rstrip('/')}/content_warnings" if stype == "storygraph" else url
     _t = time.perf_counter()
-    text = fetch_full_text(url, timeout=_STAGE_A_TIMEOUT)
+    text = fetch_full_text(fetch_url, timeout=_STAGE_A_TIMEOUT)
     _log_stage(job_id, f"fetch_{stype}", time.perf_counter() - _t, stage_durations)
     if not text:
         return None
@@ -679,11 +794,13 @@ def _fetch_finding(
         excerpt = _extract_commonsensemedia_excerpt(text)
     elif stype == "faeshelf":
         excerpt = _extract_faeshelf_excerpt(text) or _extract_relevant_excerpt(text)
+    elif stype == "storygraph":
+        excerpt = _extract_storygraph_excerpt(text)
     else:
         excerpt = _extract_relevant_excerpt(text)
     if not excerpt:
         return None
-    return {"source_name": name, "source_type": stype, "rank": rank, "excerpt": excerpt, "url": url}
+    return {"source_name": name, "source_type": stype, "rank": rank, "excerpt": excerpt, "url": fetch_url}
 
 
 def extract_author_from_titles(titles: list[str]) -> str | None:
