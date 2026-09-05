@@ -3,10 +3,13 @@ import shutil
 import sqlite3
 from datetime import datetime
 
+from core.db_backup import prune_old_backups
+
 DB = os.path.expanduser("~/watson/data/watson.db")
 
 backup_path = f"{DB}.bak-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
 shutil.copy2(DB, backup_path)
+prune_old_backups(DB)
 print(f"Backed up watson.db to {backup_path}")
 
 conn = sqlite3.connect(DB)

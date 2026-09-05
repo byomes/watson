@@ -1421,9 +1421,12 @@ def members_import_confirm_api():
     to_update = [r for r in parsed["rows"] if r["status"] == "to_update"]
     backup_created = False
     if to_update:
+        from core.db_backup import prune_old_backups
+
         ts = datetime.now().strftime("%Y%m%d-%H%M%S")
         backup_path = f"{CONG_DB}.bak-{ts}"
         shutil.copy2(CONG_DB, backup_path)
+        prune_old_backups(CONG_DB)
         backup_created = True
 
         c = sqlite3.connect(CONG_DB)
