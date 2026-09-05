@@ -1,6 +1,6 @@
 # Watson Bug Tracker
 _Auto-generated nightly from bug_tracker. Source of truth is the database — do not hand-edit this file, changes will be overwritten._
-Last generated: 2026-09-04 02:10
+Last generated: 2026-09-05 02:10
 
 ## Open (42)
 | ID | Title | Repo | Discovered |
@@ -82,5 +82,3 @@ Last generated: 2026-09-04 02:10
 | 62 | Curator ChatGPT import: verbatim-excerpt guarantee relied only on the LLM prompt | watson | 2026-08-08 21:18:52 | ef676d7 |
 | 61 | Curator ChatGPT import: hard extraction failure silently lost the pasted research text | watson | 2026-08-08 21:18:52 | 3245bef |
 | 60 | OneDrive backup: watson.db snapshot fails intermittently with SQLite 'database is locked' | watson | 2026-08-08 12:00:06 | 8996f873dd1e342cb5b4faed7f5d5eadd65cc205 |
-| 59 | devdispatch _open_pr collides with dispatched session's own PR, misreporting real work as failed | watson | 2026-08-06 04:29:27 | 4793ce6 |
-| 17 | Export CSV button downloads HTML instead of CSV | watson | 2026-08-06 04:29:27 | f50910d |
