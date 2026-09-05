@@ -177,4 +177,25 @@ report will log "No resource_samples in the past 7 days -- skipping" and
 send nothing until the sampler has been running for at least a few days —
 install the sampler first (or both at once, since a short gap is harmless).
 
-(Sampler: every 5 minutes. Report: weekly, Mondays 9am. Not yet installed.)
+(Sampler: every 5 minutes. Report: weekly, Mondays 9am. Installed 2026-09-05 — see PR #57.)
+
+---
+
+# File Export Links — Cron Entries
+
+`jobs/exports/` (added 2026-09-05, generalizes `jobs/kb/export_link.py`'s
+KB-zip download-link pattern to any file — see WATSON_ARCHITECTURE.md's
+"General File Export Links" section for the full design) needs a 30-minute
+sweep for expired/unclaimed links, same as KB's own cleanup job.
+
+While wiring this in, found `jobs/kb/export_link_cleanup.py`'s own cron
+entry — documented in its docstring since 2026-08-24 — had never actually
+been installed either. Both added together:
+
+```
+*/30 * * * * PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python /home/billyomes/watson/jobs/kb/export_link_cleanup.py >> /home/billyomes/watson/logs/kb_export_link_cleanup.log 2>&1
+
+*/30 * * * * PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python /home/billyomes/watson/jobs/exports/export_link_cleanup.py >> /home/billyomes/watson/logs/export_link_cleanup.log 2>&1
+```
+
+(Both every 30 minutes. Installed 2026-09-05.)

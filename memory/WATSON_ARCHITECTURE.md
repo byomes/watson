@@ -357,6 +357,8 @@ is considered fully confirmed.
 | `jobs/campaigns/brevo_dispatcher.py` | Every 15 min | Book-launch campaign Brevo dispatcher — sends approved+due `book_launch_sends` rows (Facebook rows are instead queued into the existing `facebook_queue`/`facebook_post.py` pipeline at approval time, not handled here) |
 | `jobs/dev/resource_sampler.py` | Every 5 min | Samples CPU/RAM/disk + job-busy-state into `resource_samples`, feeding the weekly utilization report below — Beelink/Watson scope only, never FMSPC. Installed in crontab 2026-09-05 (was pending as of 2026-09-04). |
 | `jobs/dev/weekly_utilization_report.py` | Mon 9am | Weekly Telegram summary of the past 7 days of `resource_samples` (avg/peak CPU+RAM, busy-vs-idle %, disk growth, top jobs by estimated active time) so Bill can estimate equivalent VPS cost — deliberately reports raw numbers only, no tier/price recommendation. Clear of Sun 3pm `attendance_link_reminder.py`, Sun 5pm `conflict_report.py`, Sun 6pm `campaigns/weekly_digest.py`, and Mon 7am `skillbuilder/audit.py`. Installed in crontab 2026-09-05 (was pending as of 2026-09-04). |
+| `jobs/kb/export_link_cleanup.py` | Every 30 min | Sweeps expired/unclaimed `kb_export_links` rows and their temp zips. Documented in the job's own docstring since 2026-08-24 but never actually installed in crontab — found and installed 2026-09-05 while adding the general export-link mechanism below (0 rows had accumulated by then, so no backlog to clean up, but would have grown unbounded from here). |
+| `jobs/exports/export_link_cleanup.py` | Every 30 min | Sweeps expired/unclaimed `file_export_links` rows and their staged files under `/tmp/watson_export_links/`. Added 2026-09-05 — see "General File Export Links" section below. |
 | `deploy/watson-logs.logrotate` (via `logrotate`) | Sun 4:15am | Rotates `logs/*.log` — weekly, 8-week retention, gzip compressed. State file `data/.logrotate_state`. Added 2026-09-05 cleanup sweep — `logs/` had grown to 291MB across 78 files with no rotation configured anywhere. Run imperatively via the watson user's own crontab (no root/systemd cron.d access needed since all target files and the state file are user-owned). |
 
 ### Other Jobs (Available)
@@ -1635,6 +1637,57 @@ Wired into both `bot.py` and `jobs/dev_loop/loop.py`.
 - **Transcription pipeline output:** `~/watson/kb/transcripts/`
 - **Transcription backlog:** 10 years of sermon audio on FMSPC — not yet processed
 - **Sync job:** `jobs/kb/sync_and_index.py` — daily 2am: `git pull --ff-only`, moves every file in `kb/transcripts/` to `kb/documents/` the same day it arrives, incrementally indexes new documents into Chroma, Telegram summary. Supersedes retired `jobs/kb/archive_transcripts.py` (see Retired / Decided Against).
+
+---
+
+## General File Export Links
+
+Added 2026-09-05 to solve a real gap hit that same session: no good way
+existed to hand an arbitrary Watson file to Claude.ai or Bill-on-another-
+device for review. `jobs/kb/export_link.py`'s KB-zip-only download-link
+pattern (built 2026-08-24) already solved this shape of problem; this
+generalizes it to any file. Full design rationale in the 2026-09-05
+`watson-review` proposal (`context/2026-09-05-file-export-link-proposal.md`).
+
+- **Files:** `jobs/exports/schema.py` (`file_export_links` table),
+  `jobs/exports/secret_scan.py` (pattern scan/redact), `jobs/exports/
+  export_link.py` (`create_export_link(file_path, expires_minutes=15,
+  caption=None)`), `jobs/exports/api.py` (`GET /export/download/<token>`
+  blueprint), `jobs/exports/export_link_cleanup.py` (cron, every 30 min).
+- **Mandatory sanitization, no opt-out:** every file is scanned for known
+  secret shapes (Google/Gemini API keys, Telegram bot tokens, Brevo API
+  keys, Facebook access tokens, PEM private key blocks, bearer tokens,
+  credentialed connection strings, JSON/`.env`-style secret fields) before
+  a link is ever issued, enforced inside `create_export_link()` itself —
+  not something a caller can skip. A match redacts a **copy** (the
+  original file on disk is never modified, read-modified, or deleted); if
+  redaction can't fully clean the content (checked via a re-scan of its
+  own output) the request is refused outright rather than falling back to
+  linking the original. Binary files are refused for the same reason —
+  they can't be safely text-scanned. Findings are logged as
+  `(pattern_name, line_number)` only, never the matched value.
+- **Size cap:** 100MB (`jobs/exports/export_link.py::_MAX_BYTES`).
+- **Reachability — corrects a wrong assumption in `jobs/kb/api.py`'s own
+  docstring:** both this and `kb_export_link`'s `/kb/download/<token>`
+  route are registered on the same Flask app as the MCP devdispatch
+  connector (port 5200), which Tailscale Funnel proxies **in full** to the
+  public internet (`tailscale funnel status`: `/ proxy http://
+  127.0.0.1:5200` — Funnel has no path-level filtering). `jobs/kb/api.py`
+  claims this route is "reachable only via Tailscale," which is not true
+  and was never true. Kept this way deliberately here (decided 2026-09-05,
+  "Option A") specifically so Claude.ai — which has no path onto the
+  tailnet at all — can fetch a link itself, not just Bill by hand. Security
+  is the token alone: `secrets.token_urlsafe(24)`, single-use, short
+  expiry — the same trust model already accepted for `kb_export_link` and
+  the MCP connector, now backed by the mandatory sanitization above.
+- **Kept separate from `kb_export_link`, not merged into it** — KB's
+  schema carries query/caption fields that don't generalize, and merging
+  would mean touching a live, working feature for no functional gain.
+- **Bonus fix, found while wiring this in:** `kb_export_link_cleanup.py`'s
+  cron entry was documented in its own docstring since 2026-08-24 but was
+  never actually installed in the live crontab — installed 2026-09-05 (see
+  Active Scheduled Jobs above). No backlog had accumulated (0 rows found),
+  but it would have grown unbounded from here.
 
 ---
 

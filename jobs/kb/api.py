@@ -24,10 +24,21 @@ chat, jobs/skillbuilder/router.py) and Claude.ai's run_watson_skill MCP tool
 
 GET /kb/download/<token> streams the resulting zip — unauthenticated by
 design, since the token itself (a secrets.token_urlsafe(24) URL path
-segment) is the credential, same shape as a signed download link. Safe
-because this route is reachable only via the Tailscale-only dashboard
-origin (watson.tail0243ff.ts.net), not the public Funnel path, and every
-token is single-use and expires in 15 minutes (jobs/kb/schema.py).
+segment) is the credential, same shape as a signed download link.
+
+CORRECTION (2026-09-05): this used to claim the route is "reachable only
+via Tailscale, not the public Funnel path" — that was never actually true.
+This blueprint is registered on the same Flask app/port (5200) as the MCP
+devdispatch connector, and Tailscale Funnel proxies ALL paths on that port
+to the public internet (`tailscale funnel status`; Funnel has no
+path-level filtering). This route has been publicly reachable at
+https://watson.tail0243ff.ts.net/kb/download/<token> the whole time.
+Security has only ever really been the token itself: single-use, expires
+in 15 minutes (jobs/kb/schema.py). See jobs/exports/export_link.py for the
+generalized version of this pattern (added 2026-09-05), which additionally
+mandates a secret-pattern scan/redaction before any link is issued — this
+KB-specific route does not have that safeguard, since it only ever
+serves KB source documents, not arbitrary files.
 """
 import logging
 import os

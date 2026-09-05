@@ -377,6 +377,11 @@ from jobs.kb.schema import create_tables as _kb_create_tables
 _kb_create_tables()
 app.register_blueprint(kb_bp)
 
+from jobs.exports.api import exports_bp
+from jobs.exports.schema import create_tables as _exports_create_tables
+_exports_create_tables()
+app.register_blueprint(exports_bp)
+
 from jobs.book.routes import book_bp
 from jobs.book.schema import create_tables as _book_create_tables
 _book_create_tables()
