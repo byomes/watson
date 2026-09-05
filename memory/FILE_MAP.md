@@ -57,6 +57,8 @@ core/
   claude_tier.py
   database.py
   fetcher.py
+  job_tracker.py
+  llm_log.py
   ollama_context.py
   ollama_lock.py
   pipeline.py
@@ -3978,6 +3980,15 @@ data/
         To-My-Muslim-Friends-MASTER-REBUILD.md
         To-My-Muslim-Friends-PUNCH-LIST.md
         transcript.md
+    trust-issues/
+      20260904-083459-merging-trust-issues-book-with-ai-and-ministry-fra/
+        merged-book-outline.txt
+        transcript.md
+      20260904-085736-trust-issues-field-research-fivefold-idolatry-wors/
+        transcript.md
+      20260904-090346-trust-issues-field-research-fivefold-idolatry-wors/
+        christian-ai-books-articles.md
+        transcript.md
     wcky-book-launch-project/
       20260826-013953-sending-giving-statements-in-tithely/
         transcript.md
@@ -4635,6 +4646,7 @@ jobs/
     connect_card_rollup.py
     data_chat.py
     ga4_import.py
+    llm_usage_report.py
     monthly_web_engagement_report.py
     schema.py
     sheet_import.py
@@ -4838,6 +4850,7 @@ jobs/
     hello_dashboard.py
     ollama_monitor.py
     performance_profiler.py
+    resource_sampler.py
     sandbox_session.py
     secrets_audit.py
     skill_tester.py
@@ -4847,6 +4860,7 @@ jobs/
     system_monitor.py
     test_runner.py
     update_arch.py
+    weekly_utilization_report.py
   devdispatch/
     __init__.py
     api.py
@@ -5761,6 +5775,7 @@ tests/
   ollama_parallel_test.py
 vercel.json
 watson.db
+watson_icon_deployment_kit.zip
 ```
 
 ## ~/wcky/
