@@ -3,6 +3,7 @@ import json
 from datetime import datetime, timedelta
 from jobs.people.api import congregation_search, people_list
 from jobs.telegram.pending import store_pending_action
+import core.llm_log  # noqa: F401 -- installs Ollama call logging, see core/llm_log.py
 
 def run(message: str) -> str:
     import requests

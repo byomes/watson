@@ -28,6 +28,7 @@ from core.claude_tier import call_claude
 from core.ollama_context import size_num_ctx
 from jobs.connect_cards.utils import _display_name
 from jobs.email_job.brevo_send import send_email
+import core.llm_log  # noqa: F401 -- installs Ollama call logging, see core/llm_log.py
 
 load_dotenv(os.path.expanduser("~/watson/.env"))
 

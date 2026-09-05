@@ -45,6 +45,7 @@ from datetime import datetime
 from pathlib import Path
 
 import requests
+import core.llm_log  # noqa: F401 -- installs Ollama call logging, see core/llm_log.py
 
 sys.path.insert(0, "/home/billyomes/watson")
 

@@ -26,6 +26,7 @@ from urllib.parse import quote, urlparse
 import requests
 
 from jobs.research.web_search import search as serper_search
+import core.llm_log  # noqa: F401 -- installs Ollama call logging, see core/llm_log.py
 
 log = logging.getLogger(__name__)
 

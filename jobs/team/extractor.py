@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 from core.claude_tier import call_claude
 from core.ollama_context import size_num_ctx
 from core.ollama_lock import heavy_ollama_call
+import core.llm_log  # noqa: F401 -- installs Ollama call logging, see core/llm_log.py
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 load_dotenv(BASE_DIR / ".env")
