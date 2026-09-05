@@ -148,14 +148,24 @@ async def get_page(
     headless: bool = True,
     timeout_ms: int = DEFAULT_TIMEOUT_MS,
     user_agent: str = DEFAULT_USER_AGENT,
+    launch_args: list[str] | None = None,
 ):
     """Shared Chromium context manager for one-off browser jobs.
 
     headless must stay True on every production/automated path — non-headless
     is for local interactive debugging only and must never be wired into a
-    cron job, Telegram handler, or dashboard route."""
+    cron job, Telegram handler, or dashboard route.
+
+    launch_args is passed straight through to chromium.launch(args=...) --
+    added for jobs/privacy/captcha_assist.py, which needs
+    --remote-debugging-port/--remote-debugging-address to let a human mirror
+    a *headless* page's live view over chrome://inspect. This does not
+    change headless=True's default or the rule above; a caller opting into
+    remote debugging is still responsible for binding it to a private
+    interface only (see TAILSCALE_IP in jobs/dev/sandbox_session.py and
+    jobs/privacy/captcha_assist.py for the convention), never 0.0.0.0."""
     async with async_playwright() as pw:
-        browser = await pw.chromium.launch(headless=headless)
+        browser = await pw.chromium.launch(headless=headless, args=launch_args or [])
         page = await browser.new_page(user_agent=user_agent)
         page.set_default_timeout(timeout_ms)
         try:

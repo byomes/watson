@@ -1044,6 +1044,16 @@ def run():
                 mark_as_read(msg_id)
             continue
 
+        # Privacy Guard email-method broker reply (e.g. BeenVerified) —
+        # notifier only, never auto-confirms (see jobs/privacy/email_ack.py's
+        # docstring). Same before-generic-triage ordering as confirm.py above.
+        from jobs.privacy.email_ack import handle_privacy_ack
+        pg_ack_result = handle_privacy_ack(msg_id, addr, subject, body)
+        if pg_ack_result is not None:
+            if pg_ack_result == "read":
+                mark_as_read(msg_id)
+            continue
+
         # All other email — triage and prompt Bill; never mark read here
         _handle_non_whitelist(
             msg_id=msg_id,

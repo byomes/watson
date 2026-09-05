@@ -191,7 +191,16 @@ def run() -> int:
         for person in people:
             person = dict(person)
             seen_this_person = set()
-            for result in _search_for_person(person):
+            results = _search_for_person(person)
+            # Raw signal, logged before any filtering -- the only way to tell
+            # "genuinely nothing new this week" apart from "silently broken"
+            # (denylist/known-domains ate everything, or Serper returned
+            # nothing at all) without re-reading this function's source.
+            log.info(
+                "discover: %s -> %d raw result(s): %s",
+                person["name"], len(results), [_domain(r.get("url", "")) for r in results],
+            )
+            for result in results:
                 url = result.get("url", "")
                 domain = _domain(url)
                 if not domain or domain in known_domains or domain in _PLATFORM_DENYLIST:

@@ -3867,6 +3867,7 @@ async function moreLoadPrivacyGuard() {
   el.innerHTML = '<div class="loading">Loading&hellip;</div>';
   _pgRenderShell();
   await _pgFetch();
+  await _pgFetchCandidates();
 }
 
 function _pgRenderShell() {
@@ -3880,7 +3881,9 @@ function _pgRenderShell() {
         ${_PG_STATUSES.map(s => `<option value="${s}"${_pgStatus===s?' selected':''}>${s[0].toUpperCase()}${s.slice(1)}</option>`).join('')}
       </select>
     </div>
-    <div id="mpg-table-wrap"><div class="loading">Loading&hellip;</div></div>`;
+    <div id="mpg-table-wrap"><div class="loading">Loading&hellip;</div></div>
+    <div style="font-size:12px;font-weight:500;margin:16px 0 8px;color:var(--muted)">Candidate broker sites (from weekly discovery -- Investigate/Not relevant stays Telegram-only)</div>
+    <div id="mpg-cand-wrap"><div class="loading">Loading&hellip;</div></div>`;
 }
 
 function _pgOnStatusChange(v) {
@@ -3936,6 +3939,44 @@ function _pgRenderTable() {
           </td>
           <td style="white-space:nowrap">${esc(fmtGenerated(r.submitted_at))}</td>
           <td style="white-space:nowrap">${esc(fmtGenerated(r.next_rescan_at))}</td>
+        </tr>`).join('')}
+    </table></div>`;
+}
+
+const _PGCAND_STATUS_COLOR = { flagged: 'var(--gold)', dismissed: 'var(--muted)' };
+
+async function _pgFetchCandidates() {
+  const wrap = document.getElementById('mpg-cand-wrap');
+  if (wrap) wrap.innerHTML = '<div class="loading">Loading&hellip;</div>';
+  try {
+    const rows = await api('/api/privacy-broker-candidates');
+    _pgRenderCandidatesTable(Array.isArray(rows) ? rows : []);
+  } catch (e) {
+    if (!wrap) return;
+    wrap.innerHTML = String(e.message).startsWith('401')
+      ? '<div class="empty">Log into <a href="/admin/login" style="color:var(--gold)">/admin</a> to view candidates.</div>'
+      : '<div class="empty">Could not load candidate broker sites.</div>';
+  }
+}
+
+function _pgRenderCandidatesTable(rows) {
+  const wrap = document.getElementById('mpg-cand-wrap');
+  if (!wrap) return;
+  if (!rows.length) {
+    wrap.innerHTML = '<div class="empty">No candidate broker sites found yet.</div>';
+    return;
+  }
+  wrap.innerHTML = `
+    <div class="mshep-wrap"><table class="mshep-table">
+      <tr><th>First Seen</th><th>Domain</th><th>Status</th><th>Confidence</th><th>Found Via</th><th>Matches</th></tr>
+      ${rows.map(r => `
+        <tr>
+          <td style="white-space:nowrap">${esc(fmtGenerated(r.first_seen_at))}</td>
+          <td><a href="${esc(r.example_url)}" target="_blank" rel="noopener noreferrer" style="color:var(--gold)">${esc(r.domain)}</a></td>
+          <td><span style="${_PGCAND_STATUS_COLOR[r.status] ? `color:${_PGCAND_STATUS_COLOR[r.status]}` : ''}">${esc(r.status)}</span></td>
+          <td>${r.confidence != null ? Math.round(r.confidence * 100) + '%' : ''}</td>
+          <td>${esc(r.example_person)}</td>
+          <td>${esc(String(r.match_count))}</td>
         </tr>`).join('')}
     </table></div>`;
 }

@@ -27,7 +27,18 @@ opt_out_method='email' (BeenVerified) is a separate case, out of scope for
 this pass: send_email()'s success just means Brevo accepted the send, not
 that the broker acted on it — arguably the same "we don't actually know"
 gap, but not the literal "click didn't throw" case this pass addresses.
-Still marked status='submitted' on send success, unchanged.
+Still marked status='submitted' on send success, unchanged. (2026-09-05:
+jobs/privacy/email_ack.py now notifies on an inbound reply for this case,
+but deliberately never auto-upgrades status from a free-text reply — see
+that module's docstring.)
+
+CAPTCHA-gated brokers (2026-09-05, project_backlog id=37/38's third path):
+_submit_form() and _submit_wizard() both check for
+form_selectors["captcha_assist"] before ever refusing/clicking blind on a
+CAPTCHA-gated final step — see jobs/privacy/captcha_assist.py. Bill solves
+the challenge himself over a Tailscale-only chrome://inspect mirror of the
+same (still headless=True) page, then taps a Telegram button; Watson never
+clicks the final submit itself on that path.
 """
 import argparse
 import asyncio
@@ -40,7 +51,7 @@ from pathlib import Path
 from core.database import get_connection
 from jobs.browser.browser_service import get_page, goto_safe, log_browser_failure
 from jobs.email_job.brevo_send import send_email
-from jobs.privacy import send_telegram
+from jobs.privacy import captcha_assist, send_telegram
 from jobs.privacy.verify import check_success
 
 log = logging.getLogger(__name__)
@@ -52,7 +63,7 @@ def _load_removal(removal_id: int) -> dict | None:
     conn = get_connection()
     try:
         row = conn.execute(
-            """SELECT r.*, p.name AS person_name,
+            """SELECT r.*, p.name AS person_name, p.birth_year AS person_birth_year,
                       b.name AS broker_name, b.opt_out_method, b.opt_out_target, b.form_selectors
                FROM privacy_removals r
                JOIN family_profiles p ON p.id = r.person_id
@@ -144,7 +155,15 @@ async def _submit_form(removal: dict, dry_run: bool = False):
     challenge_requests = []
     console_messages = []
 
-    async with get_page() as page:
+    # captcha_assist brokers (e.g. MyLife) need the remote-debugging port set
+    # at browser LAUNCH time, so this has to be decided before entering
+    # get_page()'s context — see captcha_assist.py's module docstring for
+    # why this is safe with headless=True unchanged.
+    assist = bool(selectors.get("captcha_assist")) and not dry_run
+    port = captcha_assist.pick_port() if assist else None
+    page_kwargs = {"launch_args": captcha_assist.launch_args(port)} if assist else {}
+
+    async with get_page(**page_kwargs) as page:
         if dry_run:
             page.on("request", lambda req: (
                 challenge_requests.append(req.url)
@@ -159,15 +178,43 @@ async def _submit_form(removal: dict, dry_run: bool = False):
         try:
             # Only the field shapes actually confirmed common across these
             # brokers' opt-out forms during Phase 2 verification are handled
-            # here (name / profile-URL / confirmation-email) — a broker
-            # whose form needs something else stays unverified (active=0)
-            # rather than this code guessing at unknown selectors.
+            # here (name / profile-URL / confirmation-email, plus the
+            # additional split-name/location/birth-year shape MyLife's form
+            # needs, added 2026-09-05 for captcha_assist) — a broker whose
+            # form needs something else stays unverified (active=0) rather
+            # than this code guessing at unknown selectors. zip is
+            # deliberately never filled: family_profiles has no zip column
+            # and nothing here invents one.
             if selectors.get("name_field"):
                 await page.fill(selectors["name_field"], removal["person_name"])
             if selectors.get("url_field"):
                 await page.fill(selectors["url_field"], removal["matched_url"] or "")
             if selectors.get("email_field"):
                 await page.fill(selectors["email_field"], os.getenv("WATSON_GMAIL_ADDRESS", ""))
+            if selectors.get("consent_checkbox"):
+                # force=True: PeopleConnect's styled checkbox has a <label>
+                # positioned on top of the real <input> (confirmed live
+                # 2026-09-05 -- Playwright's actionability check correctly
+                # flags the label as intercepting pointer events, since
+                # that's genuinely true of the DOM). The label's own `for`
+                # id is a per-request-random UUID, not a stable selector to
+                # click instead -- force=True dispatches the click directly
+                # on the real input, which is what the label would forward
+                # to anyway, without depending on that unstable id.
+                await page.check(selectors["consent_checkbox"], force=True)
+            parts = (removal["person_name"] or "").split()
+            first, last = (parts[0], parts[-1]) if len(parts) > 1 else (removal["person_name"], "")
+            if selectors.get("first_name_field"):
+                await page.fill(selectors["first_name_field"], first)
+            if selectors.get("last_name_field"):
+                await page.fill(selectors["last_name_field"], last)
+            matched = json.loads(removal["matched_fields"] or "{}")
+            if selectors.get("state_field") and matched.get("state"):
+                await page.fill(selectors["state_field"], matched["state"])
+            if selectors.get("city_field") and matched.get("city"):
+                await page.fill(selectors["city_field"], matched["city"])
+            if selectors.get("birth_year_field") and removal.get("person_birth_year"):
+                await page.fill(selectors["birth_year_field"], str(removal["person_birth_year"]))
 
             if dry_run:
                 # Give any async challenge JS (invisible reCAPTCHA fires on
@@ -190,8 +237,45 @@ async def _submit_form(removal: dict, dry_run: bool = False):
                     "screenshot": str(shot_path),
                 }
 
+            if assist:
+                # Everything's filled and the page is ready to solve+submit
+                # — hand off to Bill instead of clicking submit_button
+                # ourselves. See captcha_assist.py's module docstring.
+                ok2, reason, confirmed = await captcha_assist.wait_for_human(
+                    removal["id"], removal["person_name"], removal["broker_name"],
+                    port, selectors.get("success_check"),
+                )
+                if not ok2:
+                    return False, reason, False
+                return await captcha_assist.resolve_after_human(page, removal, selectors.get("success_check"))
+
             await page.click(submit_button)
             await page.wait_for_timeout(2000)
+
+            # error_check (2026-09-05, found live testing PeopleConnect's
+            # suppression tool): "the click didn't throw" can still mean the
+            # backend rejected the request -- confirmed live for USSearch,
+            # whose step-1 form shows a literal "Something went wrong,
+            # please try again" after a real POST to suppression-api.
+            # peopleconnect.us/v1/users gets rejected (Cloudflare's invisible
+            # challenge-platform JS loads on this page -- a bot-management
+            # gate with no visible CAPTCHA, same practical category as every
+            # other CAPTCHA-gated broker, just a different mechanism).
+            # error_check uses the exact same shape as success_check
+            # (verify.py's check_success) but inverted: a match here means a
+            # confirmed FAILURE, not a silent unconfirmed pass.
+            error_check = selectors.get("error_check")
+            if error_check:
+                is_error, _ = await check_success(page, error_check)
+                if is_error:
+                    shot_path = LOG_DIR / f"removal-{removal['id']}-{datetime.now():%Y%m%d%H%M%S}.png"
+                    try:
+                        await page.screenshot(path=str(shot_path))
+                    except Exception:
+                        pass
+                    # dry_run never reaches this line (it returns earlier),
+                    # so the plain tuple shape is always correct here.
+                    return False, f"broker showed a real error after submit (screenshot: {shot_path})", False
         except Exception as exc:
             shot_path = LOG_DIR / f"removal-{removal['id']}-{datetime.now():%Y%m%d%H%M%S}.png"
             try:
@@ -297,7 +381,14 @@ async def _submit_wizard(removal: dict, dry_run: bool = False):
     matched = json.loads(removal["matched_fields"] or "{}")
     step_log: list[str] = []
 
-    async with get_page() as page:
+    # Same reasoning as _submit_form(): a captcha_assist final step needs the
+    # remote-debugging port set at launch time, decided before entering
+    # get_page()'s context.
+    assist = bool(steps[-1].get("captcha_assist")) and not dry_run
+    port = captcha_assist.pick_port() if assist else None
+    page_kwargs = {"launch_args": captcha_assist.launch_args(port)} if assist else {}
+
+    async with get_page(**page_kwargs) as page:
         ok = await goto_safe(page, removal["opt_out_target"], wait_until="networkidle")
         if not ok:
             msg = "could not load opt-out page (robots.txt disallow or navigation failure)"
@@ -343,6 +434,21 @@ async def _submit_wizard(removal: dict, dry_run: bool = False):
                         "has_success_check": success_check is not None,
                         "screenshot": str(shot_path),
                     }
+
+                if assist:
+                    # Bill solves the CAPTCHA and clicks submit_button
+                    # himself over the mirror — same handoff as
+                    # _submit_form(), see captcha_assist.py's module
+                    # docstring. A missing success_check here is not a hard
+                    # refusal like the branch below: Bill's own real click
+                    # already happened, so this can only land as
+                    # ok=True/confirmed=False (unconfirmed), never a refusal.
+                    ok2, reason, confirmed = await captcha_assist.wait_for_human(
+                        removal["id"], removal["person_name"], removal["broker_name"], port, success_check,
+                    )
+                    if not ok2:
+                        return False, reason, False
+                    return await captcha_assist.resolve_after_human(page, removal, success_check)
 
                 if not success_check:
                     # Hard refusal, not a soft warning — same principle as

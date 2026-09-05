@@ -43,3 +43,24 @@ def privacy_removals():
         return jsonify([dict(row) for row in rows]), 200
     finally:
         conn.close()
+
+
+@privacy_guard_bp.route("/api/privacy-broker-candidates", methods=["GET"])
+@_require_admin_session
+def privacy_broker_candidates():
+    """Read-only, same shape as privacy_removals above -- candidates from
+    jobs/privacy/discover.py were Telegram-only until now (Investigate/Not
+    relevant taps via pgcand_flag/pgcand_skip in bot.py stay the only way to
+    act on one; this is a viewer, not a control surface, same rule as the
+    removals route)."""
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            """SELECT id, domain, example_url, example_snippet, example_person,
+                      match_count, confidence, status, first_seen_at, last_seen_at
+               FROM privacy_broker_candidates
+               ORDER BY last_seen_at DESC"""
+        ).fetchall()
+        return jsonify([dict(row) for row in rows]), 200
+    finally:
+        conn.close()

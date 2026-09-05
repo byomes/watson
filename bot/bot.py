@@ -845,6 +845,48 @@ async def handle_privacy_candidate_callback(update: Update, context: ContextType
         conn.close()
 
 
+async def handle_privacy_captcha_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """priv_captcha_ready:<removal_id> / priv_captcha_cancel:<removal_id> —
+    the resume signal for jobs/privacy/captcha_assist.py's Option C flow
+    (see that module's docstring). The waiting jobs/privacy/remove.py
+    subprocess holds its own browser page open and polls
+    privacy_captcha_waits; this handler's only job is to write the tap into
+    that row — same "SQLite as the shared coordination point" pattern as
+    everywhere else in jobs/privacy/*, no direct signaling to the waiting
+    subprocess needed."""
+    query = update.callback_query
+    await query.answer()
+
+    if not _is_authorized(update):
+        return
+
+    data = query.data or ""
+    action, _, id_str = data.partition(":")
+    try:
+        removal_id = int(id_str)
+    except ValueError:
+        return
+
+    new_status = "ready" if action == "priv_captcha_ready" else "cancelled"
+    conn = get_connection()
+    try:
+        cur = conn.execute(
+            """UPDATE privacy_captcha_waits SET status=?, resolved_at=datetime('now')
+               WHERE removal_id=? AND status='waiting'""",
+            (new_status, removal_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    note = (
+        "⏳ Verifying…" if cur.rowcount and new_status == "ready"
+        else "❌ Cancelled." if cur.rowcount
+        else "⚠️ Already resolved or timed out — nothing to do."
+    )
+    await query.edit_message_text(text=f"{query.message.text}\n\n{note}", reply_markup=None)
+
+
 # Worst-case stack inside this window (bug #29, all measured on this
 # CPU-only host): skill router's own 8s timeout, then classify()'s 55s
 # timeout, then a real shot at the general-chat fallback (measured up to
@@ -4965,6 +5007,11 @@ def main():
     app.add_handler(CallbackQueryHandler(handle_campaign_callback, pattern=r"^camp_approve:"))
     app.add_handler(CallbackQueryHandler(handle_privacy_callback, pattern=r"^priv_(approve|skip):"))
     app.add_handler(CallbackQueryHandler(handle_privacy_candidate_callback, pattern=r"^pgcand_(flag|skip):"))
+    # More specific priv_captcha_ prefix, registered ahead of the plainer
+    # ^priv_(approve|skip): pattern above wouldn't actually collide here
+    # (captcha_ready/captcha_cancel don't match approve|skip), but matching
+    # the fb_img_ vs fb_ ordering convention regardless for anyone scanning this list.
+    app.add_handler(CallbackQueryHandler(handle_privacy_captcha_callback, pattern=r"^priv_captcha_(ready|cancel):"))
     app.add_handler(CallbackQueryHandler(handle_email_triage_callback, pattern=r"^et_"))
     app.add_handler(CallbackQueryHandler(handle_carrier_callback, pattern=r"^carrier_"))
     app.add_handler(CallbackQueryHandler(handle_archive_classify_callback, pattern=r"^arch_(keep|chg):"))
