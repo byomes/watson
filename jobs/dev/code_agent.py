@@ -1,6 +1,7 @@
 import requests
 
 from jobs.email_job.gmail import send_email
+import core.llm_log  # noqa: F401 -- installs Ollama call logging, see core/llm_log.py
 
 _OLLAMA_URL = "http://localhost:11434/api/generate"
 _MODEL = "qwen2.5-coder:7b"

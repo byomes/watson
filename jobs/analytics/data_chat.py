@@ -50,6 +50,7 @@ from datetime import date, timedelta
 import requests
 
 from config.settings import DB_PATH as _WATSON_DB_PATH
+import core.llm_log  # noqa: F401 -- installs Ollama call logging, see core/llm_log.py
 
 log = logging.getLogger(__name__)
 

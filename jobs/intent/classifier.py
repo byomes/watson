@@ -5,6 +5,7 @@ import re
 import requests
 
 from core.ollama_lock import BUSY_MESSAGE, ollama_busy
+import core.llm_log  # noqa: F401 -- installs Ollama call logging, see core/llm_log.py
 
 log = logging.getLogger(__name__)
 

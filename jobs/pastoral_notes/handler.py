@@ -23,6 +23,7 @@ from config.settings import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 from core.claude_tier import call_claude
 from core.vacation import vacation_gate
 from jobs.pastoral_notes.db import get_db
+import core.llm_log  # noqa: F401 -- installs Ollama call logging, see core/llm_log.py
 
 log = logging.getLogger(__name__)
 

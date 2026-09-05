@@ -23,6 +23,7 @@ from pathlib import Path
 
 import requests
 from dotenv import load_dotenv
+import core.llm_log  # noqa: F401 -- installs Ollama call logging, see core/llm_log.py
 
 WATSON_ROOT = Path.home() / "watson"
 load_dotenv(WATSON_ROOT / ".env")

@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 
 from core.claude_tier import call_claude
 from jobs.email_job.brevo_send import send_email
+import core.llm_log  # noqa: F401 -- installs Ollama call logging, see core/llm_log.py
 
 load_dotenv()
 

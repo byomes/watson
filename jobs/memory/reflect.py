@@ -8,6 +8,7 @@ from pathlib import Path
 import requests
 
 from core.claude_tier import call_claude
+import core.llm_log  # noqa: F401 -- installs Ollama call logging, see core/llm_log.py
 
 REPO = Path(__file__).resolve().parents[2]
 MEMORY = REPO / "memory"

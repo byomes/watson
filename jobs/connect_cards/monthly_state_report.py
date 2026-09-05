@@ -88,6 +88,7 @@ from core.ollama_context import size_num_ctx
 from core.ollama_lock import heavy_ollama_call
 from core.vacation import vacation_gate
 from config.settings import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+import core.llm_log  # noqa: F401 -- installs Ollama call logging, see core/llm_log.py
 
 load_dotenv(os.path.expanduser("~/watson/.env"))
 

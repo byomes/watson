@@ -4210,6 +4210,7 @@ def cancel_appointment():
 import re as _re
 from datetime import date as _date
 from werkzeug.utils import secure_filename as _secure
+import core.llm_log  # noqa: F401 -- installs Ollama call logging, see core/llm_log.py
 
 
 def _parse_projects_index():

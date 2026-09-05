@@ -44,6 +44,7 @@ from jobs.intent.classifier import classify as _classify_intent
 from jobs.memory.prompt_builder import build_prompt
 from jobs.routing.directive_prefixes import telegram_prefixes as _telegram_prefixes, canonicalize as _canonicalize_prefix, telegram_help_text as _telegram_help_text
 from jobs.givebutter.templates import first_gift_email, repeat_gift_email
+import core.llm_log  # noqa: F401 -- installs Ollama call logging, see core/llm_log.py
 
 log = logging.getLogger(__name__)
 

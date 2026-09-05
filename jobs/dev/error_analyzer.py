@@ -6,6 +6,7 @@ import re
 from pathlib import Path
 
 import requests
+import core.llm_log  # noqa: F401 -- installs Ollama call logging, see core/llm_log.py
 
 log = logging.getLogger(__name__)
 REPO = Path(__file__).resolve().parents[2]

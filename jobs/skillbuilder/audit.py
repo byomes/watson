@@ -17,6 +17,7 @@ from core.claude_tier import call_claude
 from core.ollama_context import size_num_ctx
 from core.ollama_lock import heavy_ollama_call
 from core.vacation import vacation_gate
+import core.llm_log  # noqa: F401 -- installs Ollama call logging, see core/llm_log.py
 
 load_dotenv()
 
