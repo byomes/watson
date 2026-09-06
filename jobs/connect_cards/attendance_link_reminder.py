@@ -4,8 +4,8 @@ before missed_report.py runs Tuesday 7am.
 
 Sends a Telegram message asking for help logging attendance corrections,
 with the wtsn.me/cat/attendance link, to Jim Bouchat, Donna Redman, Bill
-Crook, Bill Yomes, Lucie Hale, Tara Mathena, and Tyler McCauley via
-jobs/telegram/send_to_person.py.
+Crook, Bill Yomes, Lucie Hale, Tara Mathena, Tyler McCauley, and Melanie
+Yomes via jobs/telegram/send_to_person.py.
 
 Usage:
   PYTHONPATH=/home/billyomes/watson python jobs/connect_cards/attendance_link_reminder.py
@@ -42,6 +42,7 @@ RECIPIENT_NAMES = (
     "Lucie Hale",
     "Tara Mathena",
     "Tyler McCauley",
+    "Melanie Yomes",
 )
 
 MESSAGE = (
