@@ -111,7 +111,7 @@ def _raw_rows() -> list:
     with _conn() as conn:
         return conn.execute(
             """
-            SELECT m.id, m.name, m.deacon,
+            SELECT m.id, m.name, m.deacon, m.email, m.phone,
                    MAX(
                      COALESCE((SELECT MAX(service_date) FROM connect_cards WHERE member_id = m.id), '1900-01-01'),
                      COALESCE((SELECT MAX(service_date) FROM attendance  WHERE member_id = m.id), '1900-01-01')
@@ -190,12 +190,15 @@ _BUCKET_ORDER = {"6wk": 0, "3-5wk": 1, "2wk": 2, None: 3}
 
 
 def build_deacon_group_names() -> list[dict]:
-    """[{name, members: [{name, bucket}, ...]}, ...] -- one row per real
-    deacon (same list_deacons() order as build_deacon_group_counts()), plus
-    a trailing Unassigned row. Every non-excluded member with attendance
+    """[{name, members: [{name, bucket, email, phone}, ...]}, ...] -- one row
+    per real deacon (same list_deacons() order as build_deacon_group_counts()),
+    plus a trailing Unassigned row. Every non-excluded member with attendance
     history appears exactly once, under `bucket` (None = no flag -- seen
     within the last 2 weeks, or an old first-timer that doesn't clear the
-    6+wk visit-count gate). Each group's members are pre-sorted
+    6+wk visit-count gate). `email`/`phone` are raw members.* values (None if
+    blank) -- power the call/text/email contact icons on
+    wtsn.me/cat/shepherdingreport; not used in the Telegram message. Each
+    group's members are pre-sorted
     worst-bucket-first, then by last name, so the page renders top to
     bottom with no client-side sort. Powers wtsn.me/cat/shepherdingreport
     -- kept separate from build_deacon_group_counts() because Telegram's
@@ -215,7 +218,12 @@ def build_deacon_group_names() -> list[dict]:
 
         days_since = (today - date.fromisoformat(r["last_seen"])).days
         bucket = _bucket(days_since, r["visit_count"])
-        target["members"].append({"name": r["name"], "bucket": bucket})
+        target["members"].append({
+            "name": r["name"],
+            "bucket": bucket,
+            "email": r["email"] or None,
+            "phone": r["phone"] or None,
+        })
 
     rows = [groups[d] for d in deacons]
     rows.append(unassigned)
