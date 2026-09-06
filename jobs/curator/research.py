@@ -27,7 +27,6 @@ from urllib.parse import quote, urlparse
 import requests
 
 from jobs.research.web_search import search as serper_search
-from core.claude_tier import call_claude
 import core.llm_log  # noqa: F401 -- installs Ollama call logging, see core/llm_log.py
 
 log = logging.getLogger(__name__)
@@ -177,10 +176,6 @@ _SPICYBOOKS_PATTERN = re.compile(
 
 
 def call_ollama(system: str, prompt: str, timeout: int = 90, options: dict | None = None) -> str:
-    claude_result = call_claude(system=system, user=prompt, job_name="curator.research")
-    if claude_result:
-        return claude_result
-
     payload = {"model": MODEL, "system": system, "prompt": prompt, "stream": False}
     if options:
         payload["options"] = options
