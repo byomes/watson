@@ -27,6 +27,7 @@ from urllib.parse import quote, urlparse
 import requests
 
 from jobs.research.web_search import search as serper_search
+from core.claude_tier import call_claude
 import core.llm_log  # noqa: F401 -- installs Ollama call logging, see core/llm_log.py
 
 log = logging.getLogger(__name__)
@@ -176,6 +177,10 @@ _SPICYBOOKS_PATTERN = re.compile(
 
 
 def call_ollama(system: str, prompt: str, timeout: int = 90, options: dict | None = None) -> str:
+    claude_result = call_claude(system=system, user=prompt, job_name="curator.research")
+    if claude_result:
+        return claude_result
+
     payload = {"model": MODEL, "system": system, "prompt": prompt, "stream": False}
     if options:
         payload["options"] = options
@@ -1102,8 +1107,12 @@ def fetch_google_books_details(title: str, author: str | None, timeout: int = 10
         thumbnail = (info.get("imageLinks") or {}).get("thumbnail")
         cover_image_url = thumbnail.replace("http://", "https://", 1) if thumbnail else None
 
+        # 0 is a real value Google Books returns for incomplete catalog entries
+        # (confirmed live 2026-09-06: a "Divine Rivals" collector's-edition
+        # record) -- not a legitimate page count for any real book, so it's
+        # treated the same as no data rather than passed through.
         page_count = info.get("pageCount")
-        page_count = page_count if isinstance(page_count, int) else None
+        page_count = page_count if isinstance(page_count, int) and page_count > 0 else None
 
         return {
             "description": description,
