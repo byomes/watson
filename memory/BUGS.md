@@ -1,17 +1,15 @@
 # Watson Bug Tracker
 _Auto-generated nightly from bug_tracker. Source of truth is the database — do not hand-edit this file, changes will be overwritten._
-Last generated: 2026-09-05 02:10
+Last generated: 2026-09-06 02:10
 
-## Open (42)
+## Open (36)
 | ID | Title | Repo | Discovered |
 |---|---|---|---|
-| 119 | skillbuilder/router.py LLM fallback has an 8s timeout, too short for its real ~6-8k token prompt | watson | 2026-09-03 22:31:39 |
-| 117 | reflect.py _load_messages can scramble transcript order on same-second timestamps | watson | 2026-09-03 18:57:34 |
+| 124 | Privacy Guard: _migrate_removals_status_check rebuild would drop ack_received_at/ack_snippet on a stale (pre-2026-08-21) DB | watson | 2026-09-05 11:59:21 |
+| 123 | jobs.browser: privacy.remove form submit failed for https://suppression.peopleconnect.us/?brand=USSearch | watson | 2026-09-05 11:56:51 |
 | 116 | Team-chat "when did X last attend" regex over-captures the word "last" into the person name | watson | 2026-09-03 10:36:34 |
 | 115 | Telegram: LOW-confidence general intent produced a pointless confirm prompt; write intents double-confirmed | watson | 2026-09-03 03:46:06 |
 | 114 | Telegram intent classifier misroutes reflective/advice questions into calendar actions | watson | 2026-09-03 03:46:06 |
-| 98 | connect_cards intake truncates multi-line question/comment field | watson | 2026-08-24 13:04:31 |
-| 97 | Dashboard SSE chat KB pre-check imports nonexistent kb_search.run | watson | 2026-08-24 12:44:22 |
 | 87 | jobs.browser: goto_safe failed for https://nuwber.com/search?name=mikhaela+molanders&state=de | watson | 2026-08-21 13:46:22 |
 | 86 | jobs.browser: goto_safe failed for https://nuwber.com/search?name=emily+yomes&state=de | watson | 2026-08-21 13:45:53 |
 | 85 | jobs.browser: goto_safe failed for https://www.mylife.com/emily-yomes/de | watson | 2026-08-21 13:45:33 |
@@ -36,12 +34,8 @@ Last generated: 2026-09-05 02:10
 | 64 | jobs.browser: goto_safe failed for https://radaris.com/page/how-to-remove | watson | 2026-08-20 12:41:52 |
 | 58 | missed_report.py cron path missing slash, silently failed weekly | watson | 2026-08-04 13:14:38 |
 | 55 | watson-codeagent.service is live but broken and undocumented | watson | 2026-08-04 02:27:18 |
-| 52 | jobs.skills.kb_search has no run() function but chat_stream imports it | watson | 2026-07-29 08:05:49 |
 | 46 | jobs.browser: goto_safe failed for https://this-domain-does-not-exist-watson-test-12345.invalid/ | watson | 2026-07-22 14:27:51 |
-| 45 | jobs.browser: goto_safe failed for https://this-domain-does-not-exist-watson-test-12345.invalid/ | watson | 2026-07-22 14:26:42 |
-| 44 | jobs.browser: goto_safe failed for https://this-domain-does-not-exist-watson-test-12345.invalid/ | watson | 2026-07-22 14:25:18 |
 | 40 | Backlog: dashboard chat has no durable session/history -- session_id never sent to /api/chat/stream by any caller | watson | 2026-07-18 15:34:53 |
-| 26 | Telegram wrap_up() passes string session_id, causes silent hallucinated writes to memory/relational.md while reporting false success | watson | 2026-07-17 22:05:53 |
 | 24 | Dashboard chat runs on Ollama by design (no ANTHROPIC_API_KEY) — stale claude-sonnet-4-6 model strings need updating if Claude is ever reactivated | watson | 2026-07-17 20:10:51 |
 | 23 | qwen2.5:14b concurrent-load risk unresolved — do not route to Beelink jobs without testing classify() contention first | watson | 2026-07-17 20:02:00 |
 | 22 | Ollama OLLAMA_MAX_LOADED_MODELS=1 forces single-model residency, causing classifier/general-chat model thrash | watson | 2026-07-17 17:36:22 |
@@ -51,6 +45,20 @@ Last generated: 2026-09-05 02:10
 ## Recently Resolved (last 30 days)
 | ID | Title | Repo | Resolved | Commit |
 |---|---|---|---|---|
+| 98 | connect_cards intake truncates multi-line question/comment field | watson | 2026-09-06 03:47:09 | a90d6d5 |
+| 97 | Dashboard SSE chat KB pre-check imports nonexistent kb_search.run | watson | 2026-09-06 03:47:09 | bef91e6 |
+| 52 | jobs.skills.kb_search has no run() function but chat_stream imports it | watson | 2026-09-06 03:47:09 | bef91e6 |
+| 26 | Telegram wrap_up() passes string session_id, causes silent hallucinated writes to memory/relational.md while reporting false success | watson | 2026-09-06 03:47:09 | ebe4616 |
+| 133 | Curator: wrong-book match when titles differ only by a negation word | watson | 2026-09-06 00:49:40 | cc032e7c228901d719cb748b11d67db84daba6fd |
+| 132 | Curator: page_count=0 rendered as literal 0 (React falsy-render gotcha) + Google Books pageCount:0 data bug | watson+curator | 2026-09-06 00:27:33 | watson:1ebe4c5+0359042, curator:92ee3ec |
+| 131 | Curator: extend book-page-only rule to CSM/SpicyBooks/FaeShelf/StoryGraph | watson | 2026-09-06 00:18:56 | ff7d7db |
+| 130 | Curator: romance.io fallback attached wrong-book content (While Raven incident) | watson | 2026-09-06 00:07:07 | 659b72e |
+| 129 | Curator: add Google Books metadata source + fix key-leak-in-log before it shipped | watson | 2026-09-05 23:35:36 | 909f7cb |
+| 128 | Curator: add StoryGraph as a 5th trusted spice-research source | watson | 2026-09-05 23:13:04 | a46f321 |
+| 127 | Curator Search-by-Photo: failed identification fed into live research, fabricating spice data | watson | 2026-09-05 22:55:11 | 72bc99f |
+| 126 | kb_export_link_cleanup.py cron entry documented but never installed | watson | 2026-09-05 21:52:20 | 997d748 |
+| 119 | skillbuilder/router.py LLM fallback has an 8s timeout, too short for its real ~6-8k token prompt | watson | 2026-09-05 21:51:11 | 9d86b36 |
+| 117 | reflect.py _load_messages can scramble transcript order on same-second timestamps | watson | 2026-09-05 21:51:11 | 2ac41c1 |
 | 118 | skill_audit run_audit() prompt likely exceeds model context window, silently dropping task instructions | watson | 2026-09-04 02:11:31 | 7fb19e1 |
 | 121 | Classifier hallucinates wrong intent under Ollama contention instead of degrading honestly | watson | 2026-09-04 02:10:55 | 7fb19e1 |
 | 113 | watson-tools dispatcher crashed intermittently on DNS resolution to the Watson backend | watson-tools | 2026-09-01 13:09:37 | 08ed7a9 |
