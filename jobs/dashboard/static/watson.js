@@ -1507,6 +1507,10 @@ function renderMore() {
         <span class="mtile-label">Telegram Log</span>
         <span class="mtile-chev">›</span>
       </button>
+      <button class="mtile" id="mtile-leader-usage" onclick="moreToggle('leader-usage')">
+        <span class="mtile-label">Leader Usage</span>
+        <span class="mtile-chev">›</span>
+      </button>
       <button class="mtile" id="mtile-privacy-guard" onclick="moreToggle('privacy-guard')">
         <span class="mtile-label">Privacy Guard</span>
         <span class="mtile-chev">›</span>
@@ -1556,6 +1560,9 @@ function renderMore() {
       </div>
       <div class="msec-body" id="msec-body-telegram-log">
         <div class="msec-inner" id="msec-inner-telegram-log"></div>
+      </div>
+      <div class="msec-body" id="msec-body-leader-usage">
+        <div class="msec-inner" id="msec-inner-leader-usage"></div>
       </div>
       <div class="msec-body" id="msec-body-privacy-guard">
         <div class="msec-inner" id="msec-inner-privacy-guard"></div>
@@ -1643,6 +1650,7 @@ function moreToggle(sec) {
     if (sec === 'links')    moreLoadLinks();
     if (sec === 'email-activity') moreLoadEmailActivity();
     if (sec === 'telegram-log') moreLoadTelegramLog();
+    if (sec === 'leader-usage') moreLoadLeaderUsage();
     if (sec === 'privacy-guard') moreLoadPrivacyGuard();
     if (sec === 'covercomps') coverCompsLoad();
   }
@@ -3771,6 +3779,37 @@ function _eaRenderTable() {
           <td>${esc(r.reason)}</td>
         </tr>`).join('')}
     </table></div>`;
+}
+
+// ── Leader Usage (jobs/telegram/leader_tool_usage.py — who's actually ──────
+//    using Telegram-based tools built for onboarded team members/deacons,
+//    identified by their linked telegram_chat_id, not IP) ───────────────────
+
+async function moreLoadLeaderUsage() {
+  const el = document.getElementById('msec-inner-leader-usage');
+  if (!el) return;
+  el.innerHTML = '<div class="loading">Loading&hellip;</div>';
+  try {
+    const rows = await api('/api/leader-tool-usage');
+    if (!rows.length) {
+      el.innerHTML = '<div class="empty">No onboarded leaders yet.</div>';
+      return;
+    }
+    el.innerHTML = `
+      <div class="mshep-wrap"><table class="mshep-table">
+        <tr><th>Leader</th><th>Uses</th><th>Last used</th></tr>
+        ${rows.map(r => `
+          <tr>
+            <td>${esc(r.name)}</td>
+            <td>${r.uses}</td>
+            <td style="white-space:nowrap">${r.last_used ? esc(fmtGenerated(r.last_used)) : '<span style="color:var(--muted)">never</span>'}</td>
+          </tr>`).join('')}
+      </table></div>`;
+  } catch (e) {
+    el.innerHTML = String(e.message).startsWith('401')
+      ? '<div class="empty">Log into <a href="/admin/login" style="color:var(--gold)">/admin</a> to view leader usage.</div>'
+      : '<div class="empty">Could not load leader usage.</div>';
+  }
 }
 
 // ── Telegram Log (outbound only — Watson now sends to onboarded leaders, ──

@@ -369,6 +369,9 @@ app.register_blueprint(email_activity_bp)
 from jobs.telegram.dashboard_api import telegram_log_bp
 app.register_blueprint(telegram_log_bp)
 
+from jobs.telegram.leader_tool_usage_api import leader_tool_usage_bp
+app.register_blueprint(leader_tool_usage_bp)
+
 from jobs.privacy.dashboard_api import privacy_guard_bp
 app.register_blueprint(privacy_guard_bp)
 

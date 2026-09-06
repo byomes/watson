@@ -38,3 +38,46 @@ def log_usage(conn: sqlite3.Connection, name: str, chat_id: str, tool: str) -> N
         (name, chat_id, tool),
     )
     conn.commit()
+
+
+def build_report() -> list[dict]:
+    """Every onboarded (telegram_chat_id set) team member / deacon, with
+    total uses and last-used timestamp. Leaders who've never used anything
+    still show up, with 0 uses / last_used=None -- that's the point, to
+    surface who isn't using what's been built for them."""
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    try:
+        ensure_schema(conn)
+
+        team_members = {
+            r["name"] for r in conn.execute(
+                "SELECT tm.name FROM team_members tm "
+                "JOIN people p ON p.name = tm.name COLLATE NOCASE "
+                "WHERE p.telegram_chat_id IS NOT NULL AND tm.active = 1"
+            )
+        }
+
+        from jobs.congregation.deacon_reports import list_deacons
+        deacon_names = set(list_deacons())
+        onboarded_deacons = {
+            r["name"] for r in conn.execute(
+                "SELECT name FROM people WHERE telegram_chat_id IS NOT NULL"
+            ) if r["name"] in deacon_names
+        }
+
+        names = sorted(team_members | onboarded_deacons)
+
+        report = []
+        for name in names:
+            row = conn.execute(
+                "SELECT COUNT(*) AS cnt, MAX(used_at) AS last_used "
+                "FROM leader_tool_usage WHERE name = ? COLLATE NOCASE",
+                (name,),
+            ).fetchone()
+            report.append({"name": name, "uses": row["cnt"], "last_used": row["last_used"]})
+
+        report.sort(key=lambda r: r["last_used"] or "", reverse=True)
+        return report
+    finally:
+        conn.close()
