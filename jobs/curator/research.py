@@ -252,9 +252,29 @@ _TITLE_NOT_IN_URL_STYPES = {"storygraph"}
 
 _STOPWORDS = {"the", "a", "an", "of", "and", "to", "in", "on", "for", "is", "with"}
 
+# Contraction fragments that negate a title's meaning outright — "doesn't",
+# "isn't", etc. Kept as their own set (not folded into _STOPWORDS) since
+# these are the opposite of ignorable: see _significant_word_overlap()'s
+# docstring.
+_NEGATION_WORDS = {
+    "not", "no", "never", "none", "without",
+    "dont", "doesnt", "didnt", "isnt", "wasnt", "arent", "werent",
+    "cant", "cannot", "wont", "couldnt", "shouldnt", "wouldnt",
+    "hasnt", "hadnt", "neednt",
+}
+
+
+def _normalize_for_matching(text: str) -> str:
+    """Lowercase and drop apostrophes so a contraction reads as one word
+    ("doesn't" -> "doesnt") instead of splitting on the punctuation into a
+    real fragment plus a bare, meaningless "t" that _title_words() then
+    discards as too short — which used to erase negation words like
+    "doesn't"/"isn't" from matching entirely."""
+    return text.lower().replace("’", "'").replace("'", "")
+
 
 def _title_words(title: str) -> set[str]:
-    words = re.findall(r"[a-z0-9]+", title.lower())
+    words = re.findall(r"[a-z0-9]+", _normalize_for_matching(title))
     return {w for w in words if w not in _STOPWORDS and len(w) > 2}
 
 
@@ -264,13 +284,25 @@ def _significant_word_overlap(words: set[str], haystack: str) -> bool:
     dropping articles/punctuation from its own title text, strict enough to
     reject a page/record about a different book entirely. Words is expected
     to already be lowercased/filtered by _title_words(); haystack is
-    lowercased here since callers pass raw text. An empty `words` set can't
-    be checked, so it passes (nothing to contradict)."""
+    normalized the same way here since callers pass raw text. An empty
+    `words` set can't be checked, so it passes (nothing to contradict).
+
+    A negation word (see _NEGATION_WORDS) in `words` must also appear in
+    `haystack`, full stop, regardless of the overall overlap score — real
+    case confirmed 2026-09-05: "I Hope This Doesn't Find You" (Ann Liang)
+    vs. her own companion novella "I Hope This Finds You" share every other
+    significant word ("hope", "this", "find"/"finds", "you"), clearing the
+    >=half threshold easily on that alone, and Curator described the wrong
+    (sequel) book under the photographed novel's cover as a result. Unlike
+    dropping an article or reordering words, dropping "doesn't" reverses a
+    title's meaning outright — it can't be just one vote among several."""
     if not words:
         return True
-    haystack = haystack.lower()
+    haystack = _normalize_for_matching(haystack)
     matched = sum(1 for w in words if w in haystack)
-    return matched >= max(1, len(words) // 2 + len(words) % 2)
+    if matched < max(1, len(words) // 2 + len(words) % 2):
+        return False
+    return all(w in haystack for w in words if w in _NEGATION_WORDS)
 
 
 def _url_matches_title(url: str, title: str) -> bool:
