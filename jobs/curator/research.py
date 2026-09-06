@@ -1788,7 +1788,40 @@ def _find_romance_io_finding(
     Returns a finding dict (same shape _fetch_finding() always returned) or
     None if no romance.io page was found or fetchable — same graceful-skip
     behavior as every other source, just running in the background now
-    instead of blocking Stage A."""
+    instead of blocking Stage A.
+
+    Unlike the other four trusted sources (_discover_trusted_sources(),
+    shared by CSM/SpicyBooks/FaeShelf/StoryGraph), this loop never falls
+    back to a non-book-page URL — confirmed live 2026-09-06 on a real
+    incident ("While Raven" by Stacey Marie Brown, book_id 1038): that
+    day's search turned up no genuine /books/ page at all, only the
+    author's /authors/<id>/<slug> listing page, which got accepted as a
+    last-resort fallback the same way SpicyBooks' tropes pages are. But
+    romance.io's author page has no per-book content at all — its body is
+    dominated by a facet/filter sidebar ("Time period Genre Relationship
+    ... glimpses and kisses behind closed doors open door explicit...")
+    whose own filter-label vocabulary happens to overlap _SPICE_KEYWORDS
+    almost completely, so _extract_relevant_excerpt() mistook pure site
+    chrome for a real finding and stored it as if it described the book.
+    SpicyBooks' tropes-page fallback is genuinely different: it still
+    lists real per-book spice ratings, just for a broader set than the
+    one searched for — romance.io's author page has no equivalent
+    degraded-but-real content, so there's no acceptable fallback here:
+    skip outright rather than ever accept a non-book-page URL.
+
+    Also strips a trailing "/similar" path segment off any accepted URL
+    (confirmed live the same day: romance.io's own "50 books like <title>"
+    recommendations page shares the book's own /books/<id>/<slug> prefix —
+    passing both the shape and title checks below — but its body is
+    dominated by OTHER books' ratings/descriptions, not the anchor book's;
+    White Raven's own page has no visible rating on its /similar variant at
+    all, so the keyword-window fallback would have attributed a completely
+    different book's "Steam rating: 4 of 5 ... open door" text to White
+    Raven had this not been caught). The bare URL (no /similar suffix) is
+    the book's own canonical page and reliably carries its own structured
+    rating — confirmed live: White Raven's canonical page correctly
+    extracts "3/5 - Open door" for itself, where the /similar variant
+    extracts an unrelated book's rating instead."""
     who = f"{title} {author}" if author else title
 
     _t = time.perf_counter()
@@ -1800,17 +1833,17 @@ def _find_romance_io_finding(
         url = r.get("url", "")
         if not url:
             continue
+        if url.endswith("/similar"):
+            url = url[: -len("/similar")]
         cat = _categorize_source(url)
         if not cat or cat[1] != "romance_io":
             continue
         name, stype, rank = cat
-        # Same wrong-book-page rejection as _discover_trusted_sources() —
-        # skip a book-page-shaped URL outright if it's for a different book.
-        if _shape_matches_book_page(stype, url) and not _url_matches_title(url, title):
+        if not _shape_matches_book_page(stype, url):
             continue
-        # Same book-page preference as _discover_trusted_sources() — a bare
-        # romance.io homepage/category URL shouldn't beat a real book page.
-        if best is None or (not _looks_like_book_page(stype, best[1], title) and _looks_like_book_page(stype, url, title)):
+        if not _url_matches_title(url, title):
+            continue
+        if best is None:
             best = (name, url, rank)
 
     if best is None:
