@@ -56,6 +56,16 @@ def _bootstrap() -> None:
                 alerted_at   TEXT NOT NULL DEFAULT (datetime('now'))
             )
         """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS system_settings (
+                key        TEXT PRIMARY KEY,
+                value      TEXT NOT NULL,
+                updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+            )
+        """)
+        conn.execute(
+            "INSERT OR IGNORE INTO system_settings (key, value) VALUES ('api_spending_enabled', 'on')"
+        )
 
 
 _bootstrap()
@@ -80,6 +90,44 @@ def _budget_usd() -> float:
         return float(os.getenv(_ENV_BUDGET, str(_DEFAULT_BUDGET_USD)))
     except ValueError:
         return _DEFAULT_BUDGET_USD
+
+
+def is_api_spending_enabled() -> bool:
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT value FROM system_settings WHERE key = 'api_spending_enabled'"
+        ).fetchone()
+    return not row or row["value"] != "off"
+
+
+def set_api_spending_enabled(on: bool) -> None:
+    with get_connection() as conn:
+        conn.execute(
+            """INSERT INTO system_settings (key, value, updated_at)
+               VALUES ('api_spending_enabled', ?, datetime('now'))
+               ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at""",
+            ("on" if on else "off",),
+        )
+
+
+def get_spend_log(limit: int = 50) -> list[dict]:
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT job_name, model, input_tokens, output_tokens, cost_usd, created_at "
+            "FROM claude_tier_spend_log ORDER BY id DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_month_summary() -> dict:
+    month = _current_month()
+    return {
+        "month": month,
+        "spend_usd": _month_spend_usd(month),
+        "budget_usd": _budget_usd(),
+        "enabled": is_api_spending_enabled(),
+    }
 
 
 def _log_spend(job_name: str, model: str, input_tokens: int, output_tokens: int, cost_usd: float) -> None:
@@ -132,6 +180,8 @@ def call_claude(
     job_name: str,
     model: str = _DEFAULT_MODEL,
     max_tokens: int = 2048,
+    image_b64: str | None = None,
+    image_media_type: str = "image/jpeg",
 ) -> str | None:
     """Try a budget-tracked Claude API call. Returns the response text on
     success, or None if the tier is inactive/exhausted/erroring — callers
@@ -139,7 +189,15 @@ def call_claude(
 
     Never raises. `system` may be "" for jobs whose existing Ollama call
     flattens system+user into one prompt string with no native split.
+
+    image_b64, if given, attaches a base64-encoded image alongside `user` as
+    a vision request (added 2026-09-06 for
+    jobs.curator.ingest.identify_book_from_photo) — every existing text-only
+    caller is unaffected since this defaults to None.
     """
+    if not is_api_spending_enabled():
+        return None
+
     api_key = os.getenv(_ENV_KEY)
     if not api_key:
         return None
@@ -157,10 +215,17 @@ def call_claude(
         kwargs = {}
         if system:
             kwargs["system"] = system
+        if image_b64:
+            content = [
+                {"type": "image", "source": {"type": "base64", "media_type": image_media_type, "data": image_b64}},
+                {"type": "text", "text": user},
+            ]
+        else:
+            content = user
         response = client.messages.create(
             model=model,
             max_tokens=max_tokens,
-            messages=[{"role": "user", "content": user}],
+            messages=[{"role": "user", "content": content}],
             **kwargs,
         )
     except Exception as exc:

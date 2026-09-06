@@ -15,6 +15,7 @@ from urllib.parse import urlparse
 import requests
 from PIL import Image, ImageOps
 
+from core.claude_tier import call_claude
 from jobs.curator import amazon_url_for, get_db
 from jobs.curator.research import (
     OLLAMA_URL, call_ollama, fetch_amazon_ku_status, parse_json, research_book_fast,
@@ -26,8 +27,7 @@ log = logging.getLogger(__name__)
 _UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
 _VISION_MODEL = "qwen2.5vl"
 _MAX_IMAGE_DIM = 1024
-_GEMINI_VISION_MODEL = "gemini-flash-latest"
-_GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{_GEMINI_VISION_MODEL}:generateContent"
+_CLAUDE_VISION_MODEL = "claude-haiku-4-5"
 
 _DOMAIN_TYPES = (
     ("tiktok.com", "tiktok"),
@@ -141,34 +141,35 @@ def _ocr_cover(image_bytes: bytes) -> dict:
 
 
 def identify_book_from_photo(image_bytes: bytes) -> dict:
-    """Identify a book from a photo via Gemini's own visual knowledge (2026-09-05) —
-    distinct from _ocr_cover() above, which reads printed title/author text off a
-    clean cover photo. This path is for photos where OCR doesn't apply or fails: a
+    """Identify a book from a photo via Claude's own visual knowledge — distinct
+    from _ocr_cover() above, which reads printed title/author text off a clean
+    cover photo. This path is for photos where OCR doesn't apply or fails: a
     damaged/foreign-edition cover with no legible English text, a spine-only shot, a
-    stack/shelf of books, etc. — Gemini is asked to recognize the book itself, the
+    stack/shelf of books, etc. — Claude is asked to recognize the book itself, the
     same way asking a person "what book is this?" from a photo works even with no
     readable text.
 
     Not a live web reverse-image search — that would need Serper's /lens endpoint,
     which only accepts a public image URL, and this app has no public image hosting
-    (rejected 2026-09-05 rather than stand up new infrastructure for it). Gemini
+    (rejected 2026-09-05 rather than stand up new infrastructure for it). Claude
     answers purely from what it has memorized about book covers, so it can miss
     anything obscure or self-published it was never trained on. Same never-guess
-    contract as everywhere else in this file: {"confident": False} unless Gemini is
+    contract as everywhere else in this file: {"confident": False} unless Claude is
     sure, and the caller (ingest_submission) treats that exactly like a failed OCR —
     falls into the existing "couldn't identify a title" -> needs_review path, no new
     fallback needed.
 
-    Uses GEMINI_API_KEY, not the similarly-named GOOGLE_AI_STUDIO_API_KEY also sitting
-    in .env — confirmed live 2026-09-05 against generativelanguage.googleapis.com:
-    GOOGLE_AI_STUDIO_API_KEY 401s (stale/wrong), GEMINI_API_KEY is the live one.
+    Switched from Gemini (gemini-flash-latest) to Claude Haiku 4.5 on 2026-09-06 —
+    Gemini's image-request quota (separate and much stricter than its text quota)
+    was getting exhausted same-day the feature shipped. This is a live accuracy
+    trial, not a proven replacement: Haiku's recall on obscure/self-published
+    covers (vs. mainstream/bestseller ones) is untested.
 
-    Key goes in the x-goog-api-key HEADER, deliberately not the URL's ?key= query
-    param the Gemini docs lead with — confirmed live 2026-09-05 that a transient 503
-    from Google made `requests` raise an exception whose message embeds the full
-    request URL, which would leak the key verbatim into this function's own log.error
-    call (and did, once, into a manual test's stdout, before this fix). The header
-    form authenticates identically with no such leak surface."""
+    Routed through core.claude_tier.call_claude() (WATSON_CLAUDE_BUDGET_KEY),
+    NOT a direct anthropic.Anthropic() client on ANTHROPIC_API_KEY — this
+    feature is one of the reasons that monthly budget tracking exists, so its
+    spend must show up in the same claude_tier_spend_log everything else does,
+    and it must respect the same monthly cap/kill-switch."""
     prompt = (
         "You identify books from photos of their cover, spine, or a shelf. You NEVER "
         "guess -- if you don't recognize the specific book with high confidence, say "
@@ -176,26 +177,17 @@ def identify_book_from_photo(image_bytes: bytes) -> dict:
         "other text, no markdown code fences: "
         '{"confident": true or false, "title": "string or null", "author": "string or null"}'
     )
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        return {"title": None, "author": None, "confident": False}
     try:
         b64 = _prepare_cover_image(image_bytes)
-        resp = requests.post(
-            _GEMINI_URL,
-            headers={"x-goog-api-key": api_key},
-            json={
-                "contents": [{"parts": [
-                    {"text": prompt},
-                    {"inline_data": {"mime_type": "image/jpeg", "data": b64}},
-                ]}],
-                "generationConfig": {"temperature": 0},
-            },
-            timeout=30,
+        text = call_claude(
+            system="",
+            user=prompt,
+            job_name="curator.identify_book_from_photo",
+            model=_CLAUDE_VISION_MODEL,
+            max_tokens=256,
+            image_b64=b64,
         )
-        resp.raise_for_status()
-        text = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
-        parsed = parse_json(text)
+        parsed = parse_json(text) if text else None
     except Exception as exc:
         log.error("identify_book_from_photo failed: %s", exc)
         return {"title": None, "author": None, "confident": False}
