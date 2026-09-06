@@ -68,3 +68,25 @@ jobs/audiobook/reports/*
 !jobs/audiobook/processed/.gitkeep
 !jobs/audiobook/samples/.gitkeep
 !jobs/audiobook/reports/.gitkeep
+
+# Runtime lock/state files
+data/*.lock
+data/.logrotate_state
+
+# SQLite write-ahead-log temp files (tied to already-ignored *.db files)
+data/*.db-shm
+data/*.db-wal
+*.db.bak_*
+
+# Caches, staging, and one-off backups — regenerated at runtime, not source
+data/adelphos/
+data/comms_assets_cache/
+data/cover_images/
+data/cron_backups/
+data/exports/
+data/font_cache/
+data/imports/
+incoming/
+
+# Deployment/build artifacts
+*.zip
