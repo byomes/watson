@@ -3500,10 +3500,20 @@ def chat_stream():
             yield _sse("✓ " + ws_result)
             yield "data: [DONE]\n\n"
         return _sse_response(_web_search_stream())
-    # 2. Conversational messages go straight to Ollama
-    elif _conv:
-        route_result = {"action": "chat"}
-    # 3. Everything else goes through the skill router
+    # 2. Everything else (including conversational messages) goes through the
+    # skill router. _conv is NOT special-cased into a direct-to-chat bypass
+    # here on purpose -- _route() itself already re-derives the identical
+    # conversational check internally, but only AFTER its own retry/audit/
+    # _SKILL_PRE_CHECKS/build/wrap-up/list-skills/skill-trigger checks. A
+    # short, trigger-phrase message like "polish this: hello" (under 8 words,
+    # no _ACTION_KEYWORDS hit) satisfies _is_conversational()'s short-message
+    # rule, so short-circuiting to {"action": "chat"} here -- before the
+    # router ever sees the message -- silently skipped the skill entirely and
+    # fell through to plain Ollama chat instead (found 2026-09-06, no prior
+    # bug_tracker entry). Routing every non-identity/non-factual message
+    # through _router.route() costs nothing extra for genuinely conversational
+    # messages -- it reaches the exact same {"action": "chat"} result via its
+    # own internal check -- while letting an actual trigger phrase win first.
     else:
         try:
             route_result = _router.route(message, "dashboard")
@@ -3813,18 +3823,19 @@ def siri():
             from jobs.time_check import run as _time_run
             return _reply(_time_run())
 
-        # Identity / factual / conversational routing
+        # Identity / factual routing; everything else (including
+        # conversational messages) goes through the skill router -- see the
+        # matching comment in chat_stream() above for why _is_conversational
+        # is not special-cased into a direct bypass here (it silently skips
+        # short skill-trigger phrases like "polish this: hello").
         _identity = _siri_router._is_identity_query(msg)
         _factual = _siri_router._is_factual_query(msg)
-        _conv = _siri_router._is_conversational(msg)
 
         if _identity:
             route_result = {"action": "chat"}
         elif _factual:
             from jobs.research.web_search import run as web_search_run
             return _reply("✓ " + web_search_run(msg))
-        elif _conv:
-            route_result = {"action": "chat"}
         else:
             try:
                 route_result = _siri_router.route(msg, "dashboard")
