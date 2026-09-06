@@ -11,6 +11,7 @@ import requests
 import sqlite3
 from datetime import datetime
 from dotenv import load_dotenv
+from core.claude_tier import call_claude
 from core.vacation import vacation_gate
 import core.llm_log  # noqa: F401 -- installs Ollama call logging, see core/llm_log.py
 load_dotenv(os.path.expanduser("~/watson/.env"))
@@ -59,16 +60,18 @@ def fetch_and_summarize(article):
         for tag in soup(["script", "style"]):
             tag.decompose()
         text = soup.get_text(separator=" ", strip=True)[:3000]
+        prompt = (
+            "Write 1-2 sentences summarizing this article for a Christian pastor's weekly email newsletter. "
+            f"Be concise and clear.\n\n{text}"
+        )
+
+        claude_result = call_claude(system="", user=prompt, job_name="email_job.draft_email", max_tokens=200)
+        if claude_result:
+            return claude_result
+
         result = requests.post(
             "http://localhost:11434/api/generate",
-            json={
-                "model": "qwen2.5:7b",
-                "prompt": (
-                    "Write 1-2 sentences summarizing this article for a Christian pastor's weekly email newsletter. "
-                    f"Be concise and clear.\n\n{text}"
-                ),
-                "stream": False,
-            },
+            json={"model": "qwen2.5:7b", "prompt": prompt, "stream": False},
             timeout=60,
         )
         result.raise_for_status()
@@ -82,17 +85,19 @@ def draft_intro(articles):
     """Draft an intro paragraph using Ollama. Falls back to hardcoded intro on error."""
     try:
         titles = ", ".join(a["title"] for a in articles if a.get("title"))
+        prompt = (
+            "Write a 2-3 sentence intro paragraph for a Christian pastor's weekly email newsletter. "
+            f"The articles this week cover: {titles}. "
+            "Keep it warm, pastoral, and brief."
+        )
+
+        claude_result = call_claude(system="", user=prompt, job_name="email_job.draft_email", max_tokens=200)
+        if claude_result:
+            return claude_result
+
         result = requests.post(
             "http://localhost:11434/api/generate",
-            json={
-                "model": "qwen2.5:7b",
-                "prompt": (
-                    "Write a 2-3 sentence intro paragraph for a Christian pastor's weekly email newsletter. "
-                    f"The articles this week cover: {titles}. "
-                    "Keep it warm, pastoral, and brief."
-                ),
-                "stream": False,
-            },
+            json={"model": "qwen2.5:7b", "prompt": prompt, "stream": False},
             timeout=60,
         )
         result.raise_for_status()

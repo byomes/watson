@@ -9,6 +9,11 @@
 
 ## Update Log
 *Newest entries on top. Each entry is additive — old entries are never deleted, only superseded in practice.*
+- **2026-09-03** — facebook.com: Weekly church attendance in the US has stabilized at approximately 26%, according to a 2025 study by the Pew Research Center.
+- **2026-09-03** — facebook.com: Around 52% of Protestant churches have experienced growth in worship service attendance over the last two years, from 2023-2025.
+- **2026-09-03** — research.lifeway.com: Pastor views report that church attendance is growing, but research shows that most unchurched newcomers are still not attending church services.
+- **2026-09-03** — research.lifeway.com: Slightly more than half of U.S. Protestant pastors report that their average weekly worship attendance is growing.
+- **2026-09-03** — research.lifeway.com: Slightly more than half of U.S. Protestant pastors report a slight increase in average worship service attendance, with 54% saying their attendance has grown since 2023.
 
 - **2026-07-16** — Initial compilation. See Sources.
 

@@ -4,6 +4,7 @@ import re
 
 import requests
 
+from core.claude_tier import call_claude
 from core.ollama_lock import BUSY_MESSAGE, ollama_busy
 import core.llm_log  # noqa: F401 -- installs Ollama call logging, see core/llm_log.py
 
@@ -78,7 +79,27 @@ Return ONLY the JSON object. No markdown. No explanation. No other text.
 """
 
 
+def _clean_json_text(raw: str) -> str:
+    raw = re.sub(r"```json|```", "", raw).strip()
+    raw = raw.strip().lstrip('`').rstrip('`')
+    if raw.startswith('json'):
+        raw = raw[4:].strip()
+    return raw
+
+
 def classify(message_text: str, system_prompt: str = "") -> dict:
+    prompt = f"{_SYSTEM_PROMPT}\n\nMessage: {message_text}"
+
+    claude_result = call_claude(
+        system=system_prompt, user=prompt,
+        job_name="intent.classifier", max_tokens=256,
+    )
+    if claude_result:
+        try:
+            return json.loads(_clean_json_text(claude_result))
+        except Exception as e:
+            log.warning("Claude classify output unparseable, falling back to Ollama: %s", e)
+
     # bug_tracker #118/#121: don't race a contended, single-request-at-a-time
     # Ollama queue and silently guess "general" on timeout — that's a
     # hallucination wearing a latency costume. If a long job (audit.py,
@@ -88,7 +109,6 @@ def classify(message_text: str, system_prompt: str = "") -> dict:
         log.info("classify() skipped — Ollama busy with %s", busy.get("job"))
         return {"intent": "busy", "params": {}, "confidence": "HIGH", "message": BUSY_MESSAGE}
 
-    prompt = f"{_SYSTEM_PROMPT}\n\nMessage: {message_text}"
     payload: dict = {
         "model": _MODEL,
         "prompt": prompt,
@@ -114,11 +134,7 @@ def classify(message_text: str, system_prompt: str = "") -> dict:
             timeout=55,
         )
         resp.raise_for_status()
-        raw = resp.json().get("response", "").strip()
-        raw = re.sub(r"```json|```", "", raw).strip()
-        raw = raw.strip().lstrip('`').rstrip('`')
-        if raw.startswith('json'):
-            raw = raw[4:].strip()
+        raw = _clean_json_text(resp.json().get("response", "").strip())
         return json.loads(raw)
     except requests.Timeout:
         log.warning("Ollama classify timed out")

@@ -82,6 +82,7 @@ from dotenv import load_dotenv
 from jobs.connect_cards.reports import _CSS
 from jobs.email_job.brevo_send import send_email
 from jobs.analytics import sheet_import, ga4_import, connect_card_rollup, trailing_trends
+from core.claude_tier import call_claude
 from core.database import get_connection
 from core.ollama_context import size_num_ctx
 from core.ollama_lock import heavy_ollama_call
@@ -584,6 +585,14 @@ def _ollama_interpretation(
         f"KNOWN ODDITIES / FLAGGED CAVEATS:\n{oddities_text}\n\n"
         "You must respond in English only. Do not use any other language. Begin writing now:"
     )
+
+    claude_result = call_claude(
+        system="", user=prompt,
+        job_name="analytics.monthly_web_engagement_report", max_tokens=2048,
+    )
+    if claude_result:
+        return claude_result
+
     for attempt in (1, 2):
         try:
             # bug_tracker #118/#121: runs monthly at 4am (see cron), inside this

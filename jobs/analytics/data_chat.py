@@ -50,6 +50,7 @@ from datetime import date, timedelta
 import requests
 
 from config.settings import DB_PATH as _WATSON_DB_PATH
+from core.claude_tier import call_claude
 import core.llm_log  # noqa: F401 -- installs Ollama call logging, see core/llm_log.py
 
 log = logging.getLogger(__name__)
@@ -212,25 +213,30 @@ def _generate(question: str, asker_name: str, allow_contact_info: bool) -> tuple
         contact_example=_CONTACT_ALLOWED_EXAMPLE if allow_contact_info else _CONTACT_BLOCKED_EXAMPLE,
     )
     resolved_question = _resolve_first_person(question, asker_name)
-    try:
-        resp = requests.post(
-            OLLAMA_URL,
-            json={
-                "model": MODEL,
-                "messages": [
-                    {"role": "system", "content": system},
-                    {"role": "user", "content": resolved_question},
-                ],
-                "stream": False,
-                "options": {"temperature": 0},
-            },
-            timeout=90,
-        )
-        resp.raise_for_status()
-        content = resp.json()["message"]["content"].strip()
-    except Exception as exc:
-        log.error("data_chat: generation call failed: %s", exc)
-        return None, None
+
+    claude_result = call_claude(system=system, user=resolved_question, job_name="analytics.data_chat")
+    if claude_result:
+        content = claude_result
+    else:
+        try:
+            resp = requests.post(
+                OLLAMA_URL,
+                json={
+                    "model": MODEL,
+                    "messages": [
+                        {"role": "system", "content": system},
+                        {"role": "user", "content": resolved_question},
+                    ],
+                    "stream": False,
+                    "options": {"temperature": 0},
+                },
+                timeout=90,
+            )
+            resp.raise_for_status()
+            content = resp.json()["message"]["content"].strip()
+        except Exception as exc:
+            log.error("data_chat: generation call failed: %s", exc)
+            return None, None
 
     dmatch = _DOMAIN_RE.search(content)
     if not dmatch:

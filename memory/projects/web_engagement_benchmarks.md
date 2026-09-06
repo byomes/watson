@@ -19,6 +19,10 @@ land first.
 
 ## Update Log
 *Newest entries on top. Each entry is additive — old entries are never deleted, only superseded in practice.*
+- **2026-09-03** — brandoncaples.com: Nonprofits have a high email open rate of 40.04% and click rate of 3.27%, with mission alignment and recurring stewardship contributing to its effectiveness.
+- **2026-09-03** — benchmarkemail.com: Pastor, tracking open rates in your church's email communications is a crucial metric to gauge engagement, as it indicates the percentage of recipients who actually opened your emails.
+- **2026-09-03** — facebook.com: Nonprofit email open rates typically range from 19-25% on average, with a higher rate of 68% for welcome emails.
+- **2026-09-03** — facebook.com: On social media, churches and nonprofits tend to have low engagement rates on platforms like Instagram (2.47%), LinkedIn (2.26%), Facebook (1.61%), and Twitter (average not specified).
 - **2026-08-27** — mailtrack.email: Nonprofit organizations can expect an average open rate of 46.49% for emails sent via Gmail, slightly higher than the overall industry average.
 - **2026-08-27** — emaillistvalidation.com: Non-profit organizations tend to have higher email open rates than ecommerce companies, with an average of 52.38% compared to ecommerce's 32.67%.
 - **2026-08-27** — dialmycalls.com: The open rate of SMS marketing is significantly higher than email, with a 70-point difference, and the return on investment (ROI) can range from $21 to $71 per dollar spent. Opt-out rates are also relatively low when messaging is well-managed, below 3.5% per send.
