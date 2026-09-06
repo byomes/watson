@@ -443,15 +443,31 @@ def _normalize_for_dedup(text: str | None) -> str:
 
 def _find_recent_duplicate(title: str, author: str) -> dict | None:
     """Title-level dedup cache (Commit 6, curator-spec.md). A normalized
-    (lowercased, whitespace-collapsed) title+author match against an
-    existing, non-rejected book created within the last
-    _DEDUP_STALENESS_DAYS wins outright — the caller (ingest_submission())
-    skips the whole research pipeline for a repeat submission entirely
-    (<1s instead of a full Stage A pass). A match older than the staleness
-    window is treated as a miss and re-researched normally, so a genuinely
-    stale entry doesn't get served forever — same reasoning as the existing
-    weekly KU-refresh job (jobs/curator/refresh_ku.py): data needs periodic
-    reconfirmation, not permanent trust.
+    (lowercased, whitespace-collapsed) title match against an existing,
+    non-rejected book created within the last _DEDUP_STALENESS_DAYS wins
+    outright — the caller (ingest_submission()) skips the whole research
+    pipeline for a repeat submission entirely (<1s instead of a full Stage A
+    pass). A match older than the staleness window is treated as a miss and
+    re-researched normally, so a genuinely stale entry doesn't get served
+    forever — same reasoning as the existing weekly KU-refresh job
+    (jobs/curator/refresh_ku.py): data needs periodic reconfirmation, not
+    permanent trust.
+
+    Author is checked too, but "unknown" (no author supplied/confirmed on
+    either side) is a wildcard rather than a strict comparison — this call
+    happens *before* Stage A's author backfill runs (see ingest_submission()),
+    so a plain resubmission of a title with no author always compares as
+    author="unknown" against whatever the first submission's research already
+    backfilled onto the stored row (e.g. "unknown" vs "Zoraida Córdova").
+    Requiring an exact match there meant the cache almost never hit for the
+    common "type/paste a bare title" flow once the first pass had filled in a
+    real author — confirmed live 2026-09-05 (curator.db book ids 1033/1034):
+    the same Amazon ASIN, resubmitted 41s apart with no author given either
+    time, got two separate book rows instead of one, because the first row's
+    author had already been backfilled by the time the second submission's
+    dedup check ran. Both sides having a real, non-"unknown" author still
+    requires them to match, so two genuinely different books that happen to
+    share a title are not conflated.
 
     Compared in Python rather than via SQL string functions (only TRIM/LOWER
     are built into SQLite, not general whitespace-collapsing) — the books
@@ -474,10 +490,10 @@ def _find_recent_duplicate(title: str, author: str) -> dict | None:
         conn.close()
 
     for row in rows:
-        if (
-            _normalize_for_dedup(row["title"]) == norm_title
-            and _normalize_for_dedup(row["author"]) == norm_author
-        ):
+        if _normalize_for_dedup(row["title"]) != norm_title:
+            continue
+        row_author = _normalize_for_dedup(row["author"])
+        if norm_author in ("", "unknown") or row_author in ("", "unknown") or norm_author == row_author:
             return dict(row)
     return None
 
@@ -807,7 +823,7 @@ def enrich_submission_stage_b(
         if amazon_url:
             _t = time.perf_counter()
             try:
-                ku_result = fetch_amazon_ku_status(amazon_url, title, author)
+                ku_result = fetch_amazon_ku_status(amazon_url, title)
             except Exception as exc:
                 log.error("Stage B KU check failed for book_id=%s: %s", book_id, exc)
             log.info(

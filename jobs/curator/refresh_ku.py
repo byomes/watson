@@ -1,8 +1,15 @@
 """jobs/curator/refresh_ku.py — weekly Kindle Unlimited status refresh.
 
-Cron: Sunday 5am. Re-checks the Amazon listing for every confirmed-KU book;
-flips kindle_unlimited off silently (no Telegram alert — low stakes) if the
-badge is gone. Never alerts, never guesses a rating.
+Cron: Sunday 5am. Re-checks the Amazon listing for every confirmed-KU book
+(flips kindle_unlimited off silently — no Telegram alert, low stakes — if the
+badge is gone) *and* every book still stuck at "unknown" (NULL), since an
+unknown status never gets a second chance any other way: Stage B's ingest-time
+check (jobs/curator/ingest.py's enrich_submission_stage_b()) only runs once,
+so a blocked FlareSolverr fetch, a not-yet-discovered Amazon source, or a
+transient miss leaves it NULL forever without this weekly retry (added
+2026-09-06 — confirmed live several books were sitting at permanently unknown
+KU status with no path back to a real answer). Never alerts, never guesses a
+rating.
 """
 import logging
 import sys
@@ -18,10 +25,11 @@ log = logging.getLogger(__name__)
 
 def run() -> dict:
     conn = get_db()
-    checked = flipped = skipped = 0
+    checked = flipped = resolved = skipped = 0
     try:
         books = conn.execute(
-            "SELECT id, title, author FROM books WHERE kindle_unlimited = 1 AND status != 'rejected'"
+            "SELECT id, title, author, kindle_unlimited FROM books "
+            "WHERE (kindle_unlimited = 1 OR kindle_unlimited IS NULL) AND status != 'rejected'"
         ).fetchall()
 
         for book in books:
@@ -45,7 +53,7 @@ def run() -> dict:
             # bot-blocked ~75% of the time, and even when it got through, its bare
             # "kindle unlimited" text search was a false positive on every real page
             # tested (the phrase is in Amazon's site nav regardless of enrollment).
-            details = fetch_amazon_ku_status(url, book["title"], book["author"])
+            details = fetch_amazon_ku_status(url, book["title"])
             if not details["fetched"]:
                 skipped += 1
                 continue
@@ -55,21 +63,34 @@ def run() -> dict:
                 "UPDATE books SET kindle_unlimited_checked_at = datetime('now') WHERE id = ?",
                 (book["id"],),
             )
-            # Explicit `is False`, not `not details[...]` — fetch_amazon_ku_status()
-            # returns None (not False) when it couldn't verify at all, same
-            # three-state contract fetch_page_details() had. `not None` is True in
-            # Python, so the old falsy check would have incorrectly flipped a book
-            # off KU every time this job merely couldn't verify, instead of only
-            # when it confirmed the book is genuinely no longer KU-eligible.
-            if details["kindle_unlimited"] is False:
-                conn.execute("UPDATE books SET kindle_unlimited = 0 WHERE id = ?", (book["id"],))
-                flipped += 1
+            # Explicit `is False`/`is not None`, not truthiness — fetch_amazon_ku_status()
+            # returns None (not False) when it couldn't verify at all, same three-state
+            # contract fetch_page_details() had. `not None` is True in Python, so a bare
+            # falsy check would incorrectly flip a book off KU every time this job merely
+            # couldn't verify, instead of only when it confirmed the change.
+            if book["kindle_unlimited"] == 1:
+                # Previously confirmed on KU: only ever flip off on a confirmed absence,
+                # never re-confirm a True back to True (no-op) and never touch it on a
+                # None (couldn't verify this time, leave the existing confirmed value alone).
+                if details["kindle_unlimited"] is False:
+                    conn.execute("UPDATE books SET kindle_unlimited = 0 WHERE id = ?", (book["id"],))
+                    flipped += 1
+            else:
+                # Previously unknown (NULL) — added 2026-09-06: an unknown status had no
+                # other path back to a real answer (Stage B's ingest-time check only runs
+                # once), so give it the same weekly retry confirmed-True books already get.
+                if details["kindle_unlimited"] is not None:
+                    conn.execute(
+                        "UPDATE books SET kindle_unlimited = ? WHERE id = ?",
+                        (int(details["kindle_unlimited"]), book["id"]),
+                    )
+                    resolved += 1
 
         conn.commit()
     finally:
         conn.close()
 
-    result = {"checked": checked, "flipped_off": flipped, "skipped": skipped}
+    result = {"checked": checked, "flipped_off": flipped, "resolved_unknown": resolved, "skipped": skipped}
     log.info("refresh_ku complete: %s", result)
     return result
 

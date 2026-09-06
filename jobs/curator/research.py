@@ -27,6 +27,7 @@ from urllib.parse import quote, urlparse
 import requests
 
 from jobs.research.web_search import search as serper_search
+from core.claude_tier import call_claude
 import core.llm_log  # noqa: F401 -- installs Ollama call logging, see core/llm_log.py
 
 log = logging.getLogger(__name__)
@@ -176,6 +177,10 @@ _SPICYBOOKS_PATTERN = re.compile(
 
 
 def call_ollama(system: str, prompt: str, timeout: int = 90, options: dict | None = None) -> str:
+    claude_result = call_claude(system=system, user=prompt, job_name="curator.research")
+    if claude_result:
+        return claude_result
+
     payload = {"model": MODEL, "system": system, "prompt": prompt, "stream": False}
     if options:
         payload["options"] = options
@@ -1189,7 +1194,7 @@ def _extract_asin(amazon_url: str) -> str | None:
     return m.group(1) if m else None
 
 
-def fetch_amazon_ku_status(amazon_url: str, title: str, author: str | None) -> dict:
+def fetch_amazon_ku_status(amazon_url: str, title: str) -> dict:
     """Stage B-only Kindle Unlimited check, routed through the same local
     FlareSolverr container romance.io already uses (_flaresolverr_fetch_html) —
     Amazon bot-blocks a direct requests.get ~75% of the time regardless of
@@ -1197,10 +1202,21 @@ def fetch_amazon_ku_status(amazon_url: str, title: str, author: str | None) -> d
     FlareSolverr already solves for romance.io's Cloudflare challenge.
 
     Searches Amazon's Kindle Store with the "Kindle Unlimited Eligible" filter
-    applied for this exact title+author, then checks whether this book's own
-    ASIN (parsed from the already-discovered amazon_url) shows up as a genuine
+    applied for this title, then checks whether this book's own ASIN (parsed
+    from the already-discovered amazon_url) shows up as a genuine
     search-result row — see the comment above _KU_ELIGIBLE_FILTER for why this
     replaced a product-page text/badge search.
+
+    Deliberately title-only, no author in the query (dropped 2026-09-06,
+    curator-spec.md's original 8/8 validation used title+author, but that
+    author comes from Curator's own, sometimes-wrong, extraction/attribution
+    step — confirmed live 2026-09-05, curator.db book ids 1033/1034: the
+    identical ASIN, checked 41s apart, came back "not on KU" then "on KU"
+    because the first check's attributed author was wrong and excluded the
+    real product from that title+author search entirely. The exact ASIN
+    match already disambiguates the result with or without an author term in
+    the query, so an author that might be wrong can only ever hurt, never
+    help, here.
 
     Returns {"kindle_unlimited": bool|None, "fetched": bool}. fetched=False
     means FlareSolverr itself failed, returned a block page, or amazon_url
@@ -1212,7 +1228,7 @@ def fetch_amazon_ku_status(amazon_url: str, title: str, author: str | None) -> d
     if not asin:
         return {"kindle_unlimited": None, "fetched": False}
 
-    query = quote(f"{title} {author}" if author else title)
+    query = quote(title)
     search_url = f"https://www.amazon.com/s?k={query}&i=digital-text&{_KU_ELIGIBLE_FILTER}"
     html = _flaresolverr_fetch_html(search_url)
     if not html or _is_amazon_block_page(html):
