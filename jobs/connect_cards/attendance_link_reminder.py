@@ -2,9 +2,10 @@
 Attendance link reminder — Sunday 3pm nudge to add human corrections
 before missed_report.py runs Tuesday 7am.
 
-Sends a Telegram message with the wtsn.me/cat/attendance link to Jim
-Bouchat, Donna Redman, Bill Crook, Bill Yomes, Lucie Hale, Tara Mathena,
-and Tyler McCauley via jobs/telegram/send_to_person.py.
+Sends a Telegram message asking for help logging attendance corrections,
+with the wtsn.me/cat/attendance link, to Jim Bouchat, Donna Redman, Bill
+Crook, Bill Yomes, Lucie Hale, Tara Mathena, and Tyler McCauley via
+jobs/telegram/send_to_person.py.
 
 Usage:
   PYTHONPATH=/home/billyomes/watson python jobs/connect_cards/attendance_link_reminder.py
@@ -44,9 +45,10 @@ RECIPIENT_NAMES = (
 )
 
 MESSAGE = (
-    "\U0001F4CB Sunday attendance check-in\n\n"
-    "Add today's corrections at https://wtsn.me/cat/attendance before "
-    "Tuesday 7am -- that's when the Missed report goes out."
+    "\U0001F64F Could you help us log attendance correctly?\n\n"
+    "Please check https://wtsn.me/cat/attendance and add any corrections "
+    "for people you saw today. Thanks for helping us keep the records "
+    "accurate! - Watson"
 )
 
 
