@@ -4775,6 +4775,99 @@ async def handle_member_conflict_callback(update: Update, context: ContextTypes.
         conn.close()
 
 
+# ── Congregation duplicate-member review (dupf_ ...) ─────────────────────────
+
+def _format_dup_flag_message(flag_id: int):
+    """Build (text, keyboard) for one pending jobs.congregation.duplicate_review
+    candidate pair. Recommends keeping whichever record has more linked
+    history (ties favor the lower/older id)."""
+    from jobs.congregation.duplicate_review import _conn, _member_summary
+
+    with _conn() as conn:
+        flag = conn.execute(
+            "SELECT id, member_id_a, member_id_b, reason, status FROM duplicate_flags WHERE id = ?",
+            (flag_id,),
+        ).fetchone()
+        if not flag:
+            return "Duplicate flag not found.", None
+        a = _member_summary(conn, flag["member_id_a"])
+        b = _member_summary(conn, flag["member_id_b"])
+
+    if flag["status"] != "pending" or a.get("deleted") or b.get("deleted"):
+        return "This one's already resolved.", None
+
+    if (a["history_count"], -a["id"]) >= (b["history_count"], -b["id"]):
+        keep, other = a, b
+    else:
+        keep, other = b, a
+
+    def _line(m):
+        extra = m["email"] or m["phone"] or ""
+        return f"<b>{m['name']}</b> — id {m['id']}, {m['history_count']} history records" + (f", {extra}" if extra else "")
+
+    text = (
+        f"\U0001F50E <b>Possible duplicate</b> (matched on {flag['reason']})\n\n"
+        f"{_line(keep)}\n{_line(other)}\n\n"
+        "What should Watson do?"
+    )
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton(f"✅ Merge, keep {keep['name']}", callback_data=f"dupf_merge:{flag_id}:{keep['id']}:{other['id']}")],
+        [InlineKeyboardButton(f"🔗 Merge + save alias, keep {keep['name']}", callback_data=f"dupf_alias:{flag_id}:{keep['id']}:{other['id']}")],
+        [InlineKeyboardButton(f"🔄 Merge, keep {other['name']} instead", callback_data=f"dupf_merge:{flag_id}:{other['id']}:{keep['id']}")],
+        [
+            InlineKeyboardButton("🙅 Separate people", callback_data=f"dupf_sep:{flag_id}"),
+            InlineKeyboardButton("⏭ Skip for now", callback_data=f"dupf_skip:{flag_id}"),
+        ],
+    ])
+    return text, keyboard
+
+
+async def handle_dup_flag_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle dupf_merge / dupf_alias / dupf_sep / dupf_skip taps from the
+    congregation duplicate-member review flow (jobs/congregation/duplicate_review.py).
+
+    dupf_alias merges AND records the merged-away name in member_aliases
+    against the kept id, so the same name showing up again at connect-card
+    intake resolves to the kept record instead of spawning a new duplicate."""
+    query = update.callback_query
+    await query.answer()
+
+    if not _is_authorized(update):
+        return
+
+    from jobs.congregation.duplicate_review import _conn, merge_members
+
+    parts = query.data.split(":")
+    action = parts[0]
+
+    if action == "dupf_sep":
+        flag_id = int(parts[1])
+        with _conn() as conn:
+            conn.execute("UPDATE duplicate_flags SET status = 'dismissed' WHERE id = ?", (flag_id,))
+            conn.commit()
+        await query.edit_message_text("🙅 Marked as two different people.", reply_markup=None)
+        return
+
+    if action == "dupf_skip":
+        await query.edit_message_text(
+            "⏭ Skipped — still pending review at wtsn.me/cat/duplicates.", reply_markup=None
+        )
+        return
+
+    flag_id, keep_id, merge_id = int(parts[1]), int(parts[2]), int(parts[3])
+    add_alias = action == "dupf_alias"
+    try:
+        with _conn() as conn:
+            result = merge_members(conn, keep_id, merge_id, add_alias=add_alias)
+            conn.execute("UPDATE duplicate_flags SET status = 'merged' WHERE id = ?", (flag_id,))
+            conn.commit()
+        alias_note = " (name saved as an alias so it won't create a new duplicate next time)" if add_alias else ""
+        await query.edit_message_text(f"✅ Merged — kept {result['name']}{alias_note}.", reply_markup=None)
+    except Exception as exc:
+        log.error("dup_flag merge failed (flag=%s action=%s): %s", flag_id, action, exc)
+        await query.edit_message_text(f"❌ Error: {exc}", reply_markup=None)
+
+
 # ── Batch member update (cdb: mark ...) ──────────────────────────────────────
 
 def _batch_update_message(pending_id: int):
@@ -4981,6 +5074,7 @@ def main():
     app.add_handler(CallbackQueryHandler(handle_benchmark_callback, pattern=r"^bench_(update|ignore):\d+$"))
     app.add_handler(CallbackQueryHandler(handle_web_benchmark_callback, pattern=r"^webbench_(update|ignore):\d+$"))
     app.add_handler(CallbackQueryHandler(handle_member_conflict_callback, pattern=r"^mc_"))
+    app.add_handler(CallbackQueryHandler(handle_dup_flag_callback, pattern=r"^dupf_(merge|alias|sep|skip):"))
     app.add_handler(CallbackQueryHandler(handle_batch_update_callback, pattern=r"^bu_"))
     app.add_handler(CallbackQueryHandler(handle_command_callback, pattern=r"^cmd_"))
     app.add_handler(CallbackQueryHandler(handle_vault_callback,   pattern=r"^vault_"))

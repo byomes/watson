@@ -150,11 +150,23 @@ def scan_for_duplicates() -> int:
         return inserted
 
 
-def merge_members(conn: sqlite3.Connection, keep_id: int, merge_id: int, final_name: str | None = None) -> dict:
+def merge_members(
+    conn: sqlite3.Connection,
+    keep_id: int,
+    merge_id: int,
+    final_name: str | None = None,
+    add_alias: bool = False,
+) -> dict:
     """Reassigns merge_id's history onto keep_id, fills blank contact fields
     on keep_id from merge_id, then deletes the merge_id member row. Does not
     touch status/member_status/partnership_status -- those are a judgment
-    call the reviewer makes separately, not inferred here."""
+    call the reviewer makes separately, not inferred here.
+
+    add_alias=True also records merge_id's pre-merge name in member_aliases
+    against keep_id, so a future connect card submitted under that name
+    (the exact scenario that created this duplicate) resolves straight to
+    keep_id at intake instead of spawning another duplicate row -- see
+    jobs/connect_cards/batch_update.py's alias lookup."""
     if keep_id == merge_id:
         raise ValueError("keep_id and merge_id must differ")
 
@@ -162,6 +174,12 @@ def merge_members(conn: sqlite3.Connection, keep_id: int, merge_id: int, final_n
     merge = conn.execute("SELECT * FROM members WHERE id = ?", (merge_id,)).fetchone()
     if not keep or not merge:
         raise ValueError("both members must exist")
+
+    if add_alias and merge["name"]:
+        conn.execute(
+            "INSERT INTO member_aliases (member_id, alias) VALUES (?, ?)",
+            (keep_id, merge["name"]),
+        )
 
     for table in _LINKED_TABLES:
         conn.execute(f"UPDATE {table} SET member_id = ? WHERE member_id = ?", (keep_id, merge_id))
@@ -268,13 +286,14 @@ def merge_route():
     keep_id = data.get("keep_id")
     merge_id = data.get("merge_id")
     final_name = data.get("name")
+    add_alias = bool(data.get("add_alias", False))
 
     if not all(isinstance(v, int) for v in (flag_id, keep_id, merge_id)):
         return jsonify({"error": "flag_id, keep_id, merge_id (ints) are required"}), 400
 
     with _conn() as conn:
         try:
-            result = merge_members(conn, keep_id, merge_id, final_name)
+            result = merge_members(conn, keep_id, merge_id, final_name, add_alias=add_alias)
         except ValueError as exc:
             return jsonify({"error": str(exc)}), 400
         conn.execute("UPDATE duplicate_flags SET status = 'merged' WHERE id = ?", (flag_id,))
