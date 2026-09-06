@@ -22,6 +22,7 @@ from jobs.people.api import congregation_list, people_create, people_delete, peo
 from jobs.routing.directive_prefixes import DIRECTIVE_PREFIXES
 from config.settings import WATSON_SYSTEM
 from core.vacation import is_vacation_mode, set_vacation_mode, vacation_gate
+from core.claude_tier import is_api_spending_enabled, set_api_spending_enabled, get_spend_log, get_month_summary
 
 
 DB = os.path.expanduser("~/watson/data/watson.db")
@@ -571,6 +572,27 @@ def vacation_mode_api():
         "vacation_mode": is_vacation_mode(),
         "suppressed_count": count_row["n"] if count_row else 0,
         "recent": [dict(r) for r in recent],
+    })
+
+
+@app.route("/api/settings/api-spending", methods=["GET", "PATCH"])
+def api_spending_settings():
+    if request.method == "PATCH":
+        data = request.get_json(force=True) or {}
+        if "enabled" not in data:
+            return jsonify({"error": "enabled is required"}), 400
+        set_api_spending_enabled(bool(data["enabled"]))
+    return jsonify(get_month_summary())
+
+
+@app.route("/api/claude-tier/log", methods=["GET"])
+def claude_tier_log():
+    if not session.get("admin_logged_in"):
+        return jsonify({"error": "unauthorized"}), 401
+    limit = request.args.get("limit", 50, type=int)
+    return jsonify({
+        "summary": get_month_summary(),
+        "log": get_spend_log(limit),
     })
 
 

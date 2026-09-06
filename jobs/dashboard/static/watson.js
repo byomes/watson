@@ -1467,24 +1467,16 @@ function renderMore() {
         <span class="mtile-label">Members</span>
         <span class="mtile-chev">›</span>
       </button>
-      <button class="mtile" id="mtile-people" onclick="moreToggle('people')">
-        <span class="mtile-label">Contacts</span>
-        <span class="mtile-chev">›</span>
-      </button>
       <button class="mtile" id="mtile-publishing" onclick="moreToggle('publishing')">
         <span class="mtile-label">Publishing</span>
-        <span class="mtile-chev">›</span>
-      </button>
-      <button class="mtile" id="mtile-leadmagnet" onclick="moreToggle('leadmagnet')">
-        <span class="mtile-label">Lead Magnet</span>
         <span class="mtile-chev">›</span>
       </button>
       <button class="mtile" id="mtile-thesis" onclick="moreToggle('thesis')">
         <span class="mtile-label">Thesis Tracker</span>
         <span class="mtile-chev">›</span>
       </button>
-      <button class="mtile" id="mtile-dev" onclick="moreToggle('dev')">
-        <span class="mtile-label">Dev</span>
+      <button class="mtile" id="mtile-api" onclick="moreToggle('api')">
+        <span class="mtile-label">API</span>
         <span class="mtile-chev">›</span>
       </button>
       <button class="mtile" id="mtile-logins" onclick="openLogins()">
@@ -1533,14 +1525,8 @@ function renderMore() {
       <div class="msec-body" id="msec-body-members">
         <div class="msec-inner" id="msec-inner-members"></div>
       </div>
-      <div class="msec-body" id="msec-body-people">
-        <div class="msec-inner" id="msec-inner-people"></div>
-      </div>
       <div class="msec-body" id="msec-body-publishing">
         <div class="msec-inner" id="msec-inner-publishing"><div class="loading">Loading&hellip;</div></div>
-      </div>
-      <div class="msec-body" id="msec-body-leadmagnet">
-        <div class="msec-inner" id="msec-inner-leadmagnet"><div class="loading">Loading&hellip;</div></div>
       </div>
       <div class="msec-body" id="msec-body-thesis">
         <div class="mth-pull-row">
@@ -1549,8 +1535,8 @@ function renderMore() {
         </div>
         <div class="msec-inner" id="msec-inner-thesis"><div class="loading">Loading&hellip;</div></div>
       </div>
-      <div class="msec-body" id="msec-body-dev">
-        <div class="msec-inner" id="msec-inner-dev"></div>
+      <div class="msec-body" id="msec-body-api">
+        <div class="msec-inner" id="msec-inner-api"><div class="loading">Loading&hellip;</div></div>
       </div>
       <div class="msec-body" id="msec-body-links">
         <div class="msec-inner" id="msec-inner-links"></div>
@@ -1642,17 +1628,75 @@ function moreToggle(sec) {
     if (sec === 'reading')  moreLoadReading();
     if (sec === 'events')   moreLoadEvents();
     if (sec === 'members')  moreLoadMembers();
-    if (sec === 'people')   moreLoadPeople();
     if (sec === 'publishing') publishingLoad();
     if (sec === 'thesis')   moreLoadThesis();
-    if (sec === 'dev')      devLoad();
-    if (sec === 'leadmagnet') moreLoadLeadMagnet();
+    if (sec === 'api')      moreLoadApiSpending();
     if (sec === 'links')    moreLoadLinks();
     if (sec === 'email-activity') moreLoadEmailActivity();
     if (sec === 'telegram-log') moreLoadTelegramLog();
     if (sec === 'leader-usage') moreLoadLeaderUsage();
     if (sec === 'privacy-guard') moreLoadPrivacyGuard();
     if (sec === 'covercomps') coverCompsLoad();
+  }
+}
+
+// ── API (Claude tier spend) ─────────────────────────────────────────────────
+
+async function moreLoadApiSpending() {
+  const el = document.getElementById('msec-inner-api');
+  if (!el) return;
+  el.innerHTML = '<div class="loading">Loading&hellip;</div>';
+  try {
+    const data = await api('/api/claude-tier/log?limit=50');
+    _renderApiSpending(data.summary, data.log || []);
+  } catch (e) {
+    el.innerHTML = String(e.message).startsWith('401')
+      ? '<div class="empty">Log into <a href="/admin/login" style="color:var(--gold)">/admin</a> to view API spending.</div>'
+      : '<div class="empty">Could not load API spending.</div>';
+  }
+}
+
+function _renderApiSpending(summary, log) {
+  const el = document.getElementById('msec-inner-api');
+  if (!el) return;
+  const s = summary || { spend_usd: 0, budget_usd: 0, enabled: true, month: '' };
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:0 0 12px">
+      <div style="display:flex;flex-direction:column;gap:2px">
+        <span style="font-size:13px;font-weight:500">API Spending</span>
+        <span style="font-size:11px;color:var(--muted)">$${s.spend_usd.toFixed(2)} of $${s.budget_usd.toFixed(2)} this month</span>
+      </div>
+      <label class="mswitch">
+        <input type="checkbox" id="api-spending-chk" onchange="moreToggleApiSpending(this.checked)" ${s.enabled ? 'checked' : ''}>
+        <span class="mswitch-track"></span>
+        <span class="mswitch-thumb"></span>
+      </label>
+    </div>
+    <div class="mshep-wrap">${log.length ? `<table class="mshep-table">
+      <tr><th>Time</th><th>Job</th><th>Model</th><th>Tokens</th><th>Cost</th></tr>
+      ${log.map(r => `
+        <tr>
+          <td style="white-space:nowrap">${esc(fmtGenerated(r.created_at))}</td>
+          <td>${esc(r.job_name)}</td>
+          <td>${esc(r.model)}</td>
+          <td style="white-space:nowrap">${r.input_tokens}→${r.output_tokens}</td>
+          <td style="white-space:nowrap">$${r.cost_usd.toFixed(4)}</td>
+        </tr>`).join('')}
+    </table>` : '<div class="empty">No API calls logged yet.</div>'}</div>`;
+}
+
+async function moreToggleApiSpending(isOn) {
+  try {
+    const data = await api('/api/settings/api-spending', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: isOn }),
+    });
+    const chk = document.getElementById('api-spending-chk');
+    if (chk) chk.checked = !!data.enabled;
+  } catch {
+    alert('Failed to update API spending setting.');
+    moreLoadApiSpending();
   }
 }
 
