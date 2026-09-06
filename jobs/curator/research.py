@@ -283,10 +283,10 @@ def _url_matches_title(url: str, title: str) -> bool:
     that merely *mention* it in a "related books" teaser, plus one genuine
     book page: spicybooks.org/books/beach-read, Emily Henry's book, whose
     own listing happens to feature The Hating Game as a related read.
-    _looks_like_book_page() only checked URL *shape* ("/books/" present),
-    never whether the URL was actually about the requested book — so that
-    unrelated real book page got selected as "the" SpicyBooks match, and
-    its Beach Read content got attached to The Hating Game's findings."""
+    The old shape-only check ("/books/" present) never verified the URL was
+    actually about the requested book — so that unrelated real book page got
+    selected as "the" SpicyBooks match, and its Beach Read content got
+    attached to The Hating Game's findings."""
     return _significant_word_overlap(_title_words(title), urlparse(url).path)
 
 
@@ -294,17 +294,9 @@ def _shape_matches_book_page(stype: str, url: str) -> bool:
     """Pure URL-shape check — does this look like *some* book's dedicated
     page for this source (vs. a domain root, tropes/category listing,
     author page, etc.)? Says nothing about whether it's the *right* book —
-    see _url_matches_title() and _looks_like_book_page()."""
+    see _url_matches_title()."""
     hint = _BOOK_PAGE_HINTS.get(stype)
     return bool(hint) and hint in url
-
-
-def _looks_like_book_page(stype: str, url: str, title: str) -> bool:
-    """Shape *and* title match — this looks like the dedicated page for
-    THIS book specifically, not just a book-page-shaped URL for some other
-    book. Use this (not _shape_matches_book_page alone) when deciding
-    whether a URL should win as "the" source for a book."""
-    return _shape_matches_book_page(stype, url) and _url_matches_title(url, title)
 
 
 def _strip_html(html: str) -> str:
@@ -709,14 +701,28 @@ def _discover_trusted_sources(
 
     Returns (best_per_category, all_result_titles): best_per_category maps
     source_type -> (source_name, url, rank), one entry per trusted domain
-    that turned up a book-page-shaped result; all_result_titles is every
-    search-result title seen, for author extraction. Same categorization
-    logic as before, unchanged — including romance.io, whose URL (if found)
-    is discovered here but deliberately not fetched until Stage B (Commit 4)."""
+    that turned up a genuine book-page-shaped, title-matching result;
+    all_result_titles is every search-result title seen, for author
+    extraction. Including romance.io, whose URL (if found) is discovered
+    here but deliberately not fetched until Stage B (Commit 4).
+
+    Never accepts a non-book-page URL as a fallback (hardened 2026-09-06
+    after two real incidents, same treatment _find_romance_io_finding()
+    already got): a category/tropes/author listing page either has no real
+    per-book content at all (The Fae Shelf's author-page prose describes an
+    author's overall pattern, not necessarily the specific book queried) or
+    mixes multiple books' data together in a way a keyword-window extraction
+    can misattribute (SpicyBooks' tropes pages — confirmed live: querying
+    "Powerless" pulled up Fourth Wing's rating first, since it happened to
+    be the first book listed on that trope's page). No book-page-shaped,
+    title-matching URL -> no finding for that source, same never-guess
+    contract as everywhere else in this file. This does cost some real
+    coverage where a listing-page fallback happened to work by luck (Fourth
+    Wing's own SpicyBooks hit, e.g.) — accepted deliberately, since every
+    book here already gets checked against up to four other sources."""
     all_results = search_top_content_sites(title, author, job_id=job_id, stage_durations=stage_durations)
 
     best_per_category: dict[str, tuple[str, str, int]] = {}
-    best_title_ok: dict[str, bool] = {}
     for r in all_results:
         url = r.get("url", "")
         if not url:
@@ -725,7 +731,8 @@ def _discover_trusted_sources(
         if not cat:
             continue
         name, stype, rank = cat
-        shape_ok = _shape_matches_book_page(stype, url)
+        if not _shape_matches_book_page(stype, url):
+            continue
         # StoryGraph's URL carries no title slug to check at all (see
         # _TITLE_NOT_IN_URL_STYPES) — fall back to the search result's own
         # title/snippet text, same fix Amazon already needed for the same
@@ -734,31 +741,10 @@ def _discover_trusted_sources(
             _result_matches_title(r, title) if stype in _TITLE_NOT_IN_URL_STYPES
             else _url_matches_title(url, title)
         )
-        # A book-page-shaped URL for the WRONG book is worse evidence than a
-        # generic category/trope-listing page — it looks authoritative but
-        # its content is about a different book entirely (confirmed real
-        # case 2026-09-04: see _url_matches_title()'s docstring). Skip it
-        # outright rather than let it become "current" via first-seen below,
-        # which doesn't check title match at all.
-        if shape_ok and not title_ok:
+        if not title_ok:
             continue
-        current = best_per_category.get(stype)
-        current_title_ok = best_title_ok.get(stype, False)
-        # Serper doesn't reliably rank a domain's book-specific page above its
-        # homepage/category pages within one query — confirmed 2026-07-21: a
-        # spicybooks.org query for "Beach Read" ranked the bare homepage
-        # (spicybooks.org/) above the real spicybooks.org/books/beach-read
-        # page, and first-seen-wins alone would have picked the homepage.
-        # Once a book-page-shaped URL is found for a category, don't let a
-        # later non-book-page URL for the same category displace it.
-        looks_like_page = shape_ok and title_ok
-        if (
-            current is None
-            or rank < current[2]
-            or (not current_title_ok and looks_like_page)
-        ):
+        if stype not in best_per_category:
             best_per_category[stype] = (name, url, rank)
-            best_title_ok[stype] = looks_like_page
 
     all_titles = [r.get("title", "") for r in all_results if r.get("title")]
     return best_per_category, all_titles
