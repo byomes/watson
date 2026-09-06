@@ -3360,3 +3360,57 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 
 ### ~/watson-tools
 - a654f6d fix: block known spam phone number on connect-card intake
+
+---
+
+## Recent Changes — 2026-09-06
+
+### ~/watson
+- 21d7557 docs: bugs/backlog export 2026-09-06
+- 0cb939b docs: file map 2026-09-06
+- 998dbb2 dashboard: don't bypass skill router for short conversational-shaped messages
+- 1c2e68e connect_cards: add one-off spam recheck for 2026-09-08
+- fa4ebaa feat(curator): route Search-by-Photo through the budget-capped Claude tier
+- 9d7437c feat(dev): weekly cron minute-offset rebalancer
+- cc032e7 fix(curator): reject wrong-book matches that differ only by a negation word
+- 0359042 revert: accidentally committed unrelated call_claude change in 1ebe4c5
+- 1ebe4c5 fix(curator): Google Books' pageCount:0 leaked through as a real page count
+- ff7d7db fix(curator): apply romance.io's book-page-only rule to all four other sources
+- 659b72e fix(curator): romance.io fallback attaches wrong-book content
+- 909f7cb feat(curator): add Google Books as a metadata source (description/cover/page_count)
+- a46f321 feat(curator): add StoryGraph as a trusted spice-research source
+- 72bc99f feat: Search by Photo (Gemini vision ID) + fix bogus Stage B research on unidentified books
+- 997d748 exports: general file-export-link mechanism (jobs/exports/)
+- 4472bf8 deps: pin gensim/sumy, correcting a stale "dead file" premise
+- eeccb71 kit: delete 3 confirmed-dead Kit artifacts (Phase 4, partial)
+- d9b436a db: prune ad-hoc .bak-* snapshots, add retention going forward
+- dd7f036 congregation: archive 5 completed one-time migration scripts
+- 4cd1231 dev: remove duplicate "fix style.py" (literal space), keep fix_style.py
+- f93db49 db: add missing indexes on chat_messages, llm_call_log, attendance
+- 2ac41c1 memory: fix bug #117 -- nondeterministic reflect.py message ordering
+- 9d86b36 skillbuilder: fix bug #119 -- router.py 8s timeout too short
+- 354fd4e ops: add weekly logrotate for logs/*.log, 8-week retention
+- f157a42 meet: size num_ctx on fireflies_review Ollama call
+- b58c96d dashboard: size num_ctx on project-memory Ollama call
+- 3791089 devdispatch: auto-remove worktrees on job completion/merge
+- ad45f7b Merge branch 'main' of https://github.com/byomes/watson
+- 559dd72 Recon: church engagement data sources (Google Sheet + GA4) (#33)
+- 11b6ebd Diagnosis: restic backup watson.db lock failure (2026-08-07) (#19)
+- 9fd913a Remove 5 dead files from jobs/misc/
+- 0df7522 Merge branch 'main' of https://github.com/byomes/watson
+- c6e9af4 docs: track cron entries for resource_sampler + weekly_utilization_report (#57)
+- 5bbc79d feat(curator): Open Library cover-image fallback
+- d774b2f docs: architecture update 2026-09-05
+- db00b06 docs: update architecture for connect-card retirement on wcky
+- 722e258 Privacy Guard: fix false-confidence gaps, add CAPTCHA-assist, notifier + observability improvements
+- 44c2e9a docs: architecture update 2026-09-05
+
+### ~/wcky
+- fac5d37 fix: retire connect-card in favor of wtsn.me/cat/connect
+- 53b8af4 fix: block known spam phone number on connect-card intake
+- e4ba63a publish: Standing Up Before the Fix
+
+### ~/watson-tools
+- 508a782 fix: add honeypot + fill-time check to cat/connect spam filter
+- 652819a docs: fix stale comment referencing retired wcky connect-card form
+- a654f6d fix: block known spam phone number on connect-card intake
