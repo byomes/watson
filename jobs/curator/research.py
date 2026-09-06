@@ -1184,9 +1184,15 @@ def _is_amazon_block_page(html: str) -> bool:
 # region/cache variance, not a fluke — reproduced 3x). Searching with Amazon's own
 # "Kindle Unlimited Eligible" filter and checking whether this exact ASIN appears
 # as a genuine search-result row scored 8/8, including a second independent
-# re-check on the two hardest cases, so that's the mechanism here instead of a
-# product-page fetch.
+# re-check on the two hardest cases, so that became the sole mechanism at the
+# time (see fetch_amazon_ku_status()) — until 2026-09-06, when both checks were
+# combined (see below): the search-only approach's own failure mode (a bad query
+# term excluding the real result — confirmed live via the wrong-author incident,
+# ids 1033/1034) and the product-page badge's failure mode (rendering variance)
+# are independent of each other, so cross-checking both closes each one's gap
+# without reintroducing the other's.
 _KU_ELIGIBLE_FILTER = "rh=n%3A133140011%2Cp_n_feature_nineteen_browse-bin%3A9045887011"
+_KU_BADGE_MARKER = "a-icon-kindle-unlimited"
 
 
 def _extract_asin(amazon_url: str) -> str | None:
@@ -1194,47 +1200,95 @@ def _extract_asin(amazon_url: str) -> str | None:
     return m.group(1) if m else None
 
 
-def fetch_amazon_ku_status(amazon_url: str, title: str) -> dict:
-    """Stage B-only Kindle Unlimited check, routed through the same local
-    FlareSolverr container romance.io already uses (_flaresolverr_fetch_html) —
-    Amazon bot-blocks a direct requests.get ~75% of the time regardless of
-    User-Agent (confirmed 2026-07-20 through 2026-07-23), same block
-    FlareSolverr already solves for romance.io's Cloudflare challenge.
+def _check_ku_via_product_page(amazon_url: str) -> bool | None:
+    """First of the two independent KU signals fetch_amazon_ku_status() combines:
+    the ASIN's own product page, via FlareSolverr (same bot-block as the search
+    path below). Returns True (buybox KU badge found), False (real page fetched,
+    badge absent), or None (blocked/failed — couldn't verify via this method).
 
-    Searches Amazon's Kindle Store with the "Kindle Unlimited Eligible" filter
+    This alone scored 7/8 in the original 2026-07-23 validation (see the comment
+    above _KU_ELIGIBLE_FILTER) — Amazon's buybox badge doesn't always render for
+    a confirmed-enrolled book (session/region/cache variance, reproduced 3x on
+    the same page) — so a False here isn't trusted alone; see
+    fetch_amazon_ku_status()."""
+    html = _flaresolverr_fetch_html(amazon_url)
+    if not html or _is_amazon_block_page(html):
+        return None
+    return _KU_BADGE_MARKER in html
+
+
+def _check_ku_via_search(amazon_url: str, title: str) -> bool | None:
+    """Second of the two independent KU signals fetch_amazon_ku_status() combines:
+    searches Amazon's Kindle Store with the "Kindle Unlimited Eligible" filter
     applied for this title, then checks whether this book's own ASIN (parsed
-    from the already-discovered amazon_url) shows up as a genuine
-    search-result row — see the comment above _KU_ELIGIBLE_FILTER for why this
-    replaced a product-page text/badge search.
+    from the already-discovered amazon_url) shows up as a genuine search-result
+    row. Returns True/False/None with the same meaning as
+    _check_ku_via_product_page().
 
-    Deliberately title-only, no author in the query (dropped 2026-09-06,
-    curator-spec.md's original 8/8 validation used title+author, but that
-    author comes from Curator's own, sometimes-wrong, extraction/attribution
-    step — confirmed live 2026-09-05, curator.db book ids 1033/1034: the
-    identical ASIN, checked 41s apart, came back "not on KU" then "on KU"
-    because the first check's attributed author was wrong and excluded the
-    real product from that title+author search entirely. The exact ASIN
-    match already disambiguates the result with or without an author term in
-    the query, so an author that might be wrong can only ever hurt, never
-    help, here.
-
-    Returns {"kindle_unlimited": bool|None, "fetched": bool}. fetched=False
-    means FlareSolverr itself failed, returned a block page, or amazon_url
-    didn't contain a parseable ASIN — couldn't verify either way, never
-    guessed. A successful, non-blocked search fetch always yields a
-    definitive present/absent answer for this specific ASIN, so
-    fetched=True never pairs with kindle_unlimited=None here."""
+    Deliberately title-only, no author in the query (dropped 2026-09-06 — the
+    original 8/8 validation used title+author, but that author comes from
+    Curator's own, sometimes-wrong, extraction/attribution step. Confirmed live
+    2026-09-05, curator.db book ids 1033/1034: the identical ASIN, checked 41s
+    apart, came back False then True because the first check's wrong attributed
+    author excluded the real product from that title+author search entirely.
+    The exact-ASIN match already disambiguates the result with or without an
+    author term in the query, so an author that might be wrong can only ever
+    hurt, never help, here."""
     asin = _extract_asin(amazon_url)
     if not asin:
-        return {"kindle_unlimited": None, "fetched": False}
-
+        return None
     query = quote(title)
     search_url = f"https://www.amazon.com/s?k={query}&i=digital-text&{_KU_ELIGIBLE_FILTER}"
     html = _flaresolverr_fetch_html(search_url)
     if not html or _is_amazon_block_page(html):
+        return None
+    return f'data-asin="{asin}"' in html
+
+
+def fetch_amazon_ku_status(amazon_url: str, title: str) -> dict:
+    """Stage B-only Kindle Unlimited check, routed through the same local
+    FlareSolverr container romance.io already uses — Amazon bot-blocks a direct
+    requests.get ~75% of the time regardless of User-Agent (confirmed
+    2026-07-20 through 2026-07-23), same block FlareSolverr already solves for
+    romance.io's Cloudflare challenge.
+
+    Combines two independent signals (added 2026-09-06 — see the comment above
+    _KU_ELIGIBLE_FILTER for why one alone isn't enough): the product page's own
+    buybox badge (_check_ku_via_product_page(), can false-negative on rendering
+    variance) and the KU-eligible-filtered search for this exact ASIN
+    (_check_ku_via_search(), can false-negative on a bad query — no longer
+    author-dependent, but Amazon's own search ranking could still, in
+    principle, not surface a given ASIN on page 1). Neither method has a
+    plausible false-*positive* mode (a wrong badge render, or a different
+    book's ASIN happening to match), so a True from either is trusted
+    immediately, short-circuiting the second fetch when the product page
+    already answered True. A confirmed False requires *both* methods to
+    independently agree the book isn't there; if one says False and the other
+    couldn't verify (blocked), that's treated as inconclusive rather than
+    False, since the point of cross-checking is to not trust a single flaky
+    signal.
+
+    Returns {"kindle_unlimited": bool|None, "fetched": bool}. fetched=False
+    means neither method could produce a confirmed answer (both blocked, ASIN
+    unparseable from amazon_url, or a mixed False/None with no corroborating
+    True) — couldn't verify either way, never guessed. fetched=True always
+    pairs with a definitive True/False, never None."""
+    asin = _extract_asin(amazon_url)
+    if not asin:
         return {"kindle_unlimited": None, "fetched": False}
 
-    return {"kindle_unlimited": f'data-asin="{asin}"' in html, "fetched": True}
+    page_result = _check_ku_via_product_page(amazon_url)
+    if page_result is True:
+        return {"kindle_unlimited": True, "fetched": True}
+
+    search_result = _check_ku_via_search(amazon_url, title)
+    if search_result is True:
+        return {"kindle_unlimited": True, "fetched": True}
+
+    if page_result is False and search_result is False:
+        return {"kindle_unlimited": False, "fetched": True}
+
+    return {"kindle_unlimited": None, "fetched": False}
 
 
 def fetch_page_details(url: str, timeout: int = 10) -> dict:

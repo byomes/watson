@@ -47,12 +47,12 @@ def run() -> dict:
                 log.warning("refresh_ku: no Amazon URL for book %s (%s)", book["id"], book["title"])
                 continue
 
-            # fetch_amazon_ku_status() (2026-07-23): routes through FlareSolverr and
-            # checks Amazon's own "Kindle Unlimited Eligible" search filter for this
-            # ASIN, rather than fetch_page_details()'s direct requests.get — that got
-            # bot-blocked ~75% of the time, and even when it got through, its bare
-            # "kindle unlimited" text search was a false positive on every real page
-            # tested (the phrase is in Amazon's site nav regardless of enrollment).
+            # fetch_amazon_ku_status() (2026-07-23, cross-checked against the product
+            # page's own badge since 2026-09-06): routes through FlareSolverr rather
+            # than fetch_page_details()'s direct requests.get — that got bot-blocked
+            # ~75% of the time, and even when it got through, its bare "kindle
+            # unlimited" text search was a false positive on every real page tested
+            # (the phrase is in Amazon's site nav regardless of enrollment).
             details = fetch_amazon_ku_status(url, book["title"])
             if not details["fetched"]:
                 skipped += 1
