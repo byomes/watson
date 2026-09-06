@@ -945,6 +945,9 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
         _chat_id = str(update.effective_chat.id)
         _leader_name = _team_member_name_for_chat(_chat_id) or _deacon_name_for_chat(_chat_id)
         if _leader_name:
+            from jobs.telegram.leader_tool_usage import log_usage as _log_leader_tool_usage
+            with get_connection() as _lc:
+                _log_leader_tool_usage(_lc, _leader_name, _chat_id, "team_chat")
             await _handle_team_chat(update, _leader_name, update.message.text or "")
         return
 
