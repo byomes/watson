@@ -34,7 +34,6 @@ venv/
 # Editor/OS artifacts
 .env~
 config/settings.py.save
-udo journalctl -u watson-bot.service -n 50
 
 # Local env overrides (never commit secrets)
 .env.local
