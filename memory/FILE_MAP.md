@@ -1,12 +1,11 @@
 # Watson File Map
-*Generated: 2026-09-05*
+*Generated: 2026-09-06*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
 
 ```
 ~/watson/
-.crontab_add.txt
 .devdispatch/
   progress.json
 .env
@@ -22,7 +21,6 @@
   v/
     cache/
       nodeids
-.schema engagement_sheet_metrics
 .vercel/
   README.txt
   project.json
@@ -57,6 +55,7 @@ core/
   __init__.py
   claude_tier.py
   database.py
+  db_backup.py
   fetcher.py
   job_tracker.py
   llm_log.py
@@ -76,6 +75,7 @@ data/
   .devdispatch_poller.lock
   .gitkeep
   .kb_sync.lock
+  .logrotate_state
   adelphos/
     shells/
       raw/
@@ -97,22 +97,14 @@ data/
     66e0844b7fab4e0a8bb386db8504deac.png
     9eca6f54ecff491dbed2470fd0b3d196.png
   congregation.db
-  congregation.db.bak-20260712-200522
-  congregation.db.bak-20260714-091212
-  congregation.db.bak-20260715-115821
-  congregation.db.bak-20260715-124007
-  congregation.db.bak-20260716-101416
-  congregation.db.bak-20260716-111858
-  congregation.db.bak-20260824-090356
-  congregation.db.bak-20260824-102211
   cover_images/
     cover_1.jpg
     cover_10.jpg
     cover_6.jpg
     cover_8.jpg
+  cron_backups/
+    crontab_20260905-223718.txt
   curator.db
-  curator.db.bak-20260721-212433
-  curator.db.bak-20260721-223148
   donors.db
   exports/
     kit_export_20260817-184426.json
@@ -4596,9 +4588,6 @@ data/
   skill_audit.json
   trading.db
   watson.db
-  watson.db.bak-20260714-103753
-  watson.db.bak-20260714-133329
-  watson.db.bak-20260723-101149
 deploy/
   .gitkeep
   apt-packages.txt
@@ -4615,9 +4604,11 @@ deploy/
   start_people_server.sh
   watson-bot.service
   watson-dashboard.service
+  watson-logs.logrotate
 dev/
   vtg_probe.py
 diagnostics/
+  restic-backup-watson-db-lock-2026-08-07.md
   wilmington-headcount-gap-2026-08-04.md
 docs/
   .gitkeep
@@ -4748,11 +4739,12 @@ jobs/
     import_deacon_directory.py
     init_db.py
     member_match.py
-    migrate_deacon_directory.py
-    migrate_deacon_notes.py
-    migrate_inactive_deacon.py
-    migrate_leadership_roles.py
-    migrate_reparse.py
+    migrations_archive/
+      migrate_deacon_directory.py
+      migrate_deacon_notes.py
+      migrate_inactive_deacon.py
+      migrate_leadership_roles.py
+      migrate_reparse.py
     papercards_web.py
     shepherding_report_ready.py
     weekly_changes_report.py
@@ -4775,6 +4767,7 @@ jobs/
     report_menu.py
     reports.py
     shepherding_report.py
+    spam_recheck_2026_09_08.py
     state_of_church.py
     test_data/
       donna_565_reply_raw.txt
@@ -4839,12 +4832,12 @@ jobs/
     code_editor.py
     code_quality.py
     command_executor.py
+    cron_stagger.py
     dependency_manager.py
     dependency_scanner.py
     docs_sync.py
     error_analyzer.py
     file_map.py
-    fix style.py
     fix_style.py
     git_sync.py
     git_tools.py
@@ -4893,6 +4886,13 @@ jobs/
   email_send/
     __init__.py
     send.py
+  exports/
+    __init__.py
+    api.py
+    export_link.py
+    export_link_cleanup.py
+    schema.py
+    secret_scan.py
   facebook/
     __init__.py
     facebook_post.py
@@ -4986,12 +4986,7 @@ jobs/
     kit_tag_diff.py
   misc/
     __init__.py
-    both_read_pdf.py
-    here_link_book.py
-    im_trying_file.py
     riddle.py
-    tells_many_days.py
-    update_your_own.py
   monitoring/
     __init__.py
     log_watch.py
@@ -5015,9 +5010,12 @@ jobs/
   privacy/
     __init__.py
     add_family_member.py
+    captcha_assist.py
     confirm.py
     dashboard_api.py
     discover.py
+    email_ack.py
+    peoplefinders_reminder.py
     remove.py
     scan.py
     schema.py
@@ -5714,6 +5712,7 @@ memory/
     telegram.md
   commands.json
   core.md
+  engagement_data_recon_2026-08-20.md
   kit_brevo_audit.md
   model_benchmark_20260715.md
   model_benchmark_20260903.md
@@ -5847,6 +5846,9 @@ content/
     2026-08-25-rahab-and-the-allegiance-that-saves.md
     2026-08-27-when-one-sin-belongs-to-everyone.md
     2026-08-29-the-danger-of-yesterday-s-victory.md
+    2026-09-01-holy-or-devoted-to-destruction.md
+    2026-09-03-what-we-bury-under-the-tent.md
+    2026-09-05-standing-up-before-the-fix.md
     the-flashlight-of-your-focus.md
     where-your-treasure-is.md
 db/
@@ -5900,8 +5902,6 @@ src/
           route.ts
         login/
           route.ts
-      connect-card/
-        route.ts
       ingest/
         route.ts
       lead-magnet/
@@ -6102,11 +6102,6 @@ src/
       opengraph-image.tsx
       page.tsx
       twitter-image.tsx
-    tools/
-      connect-card/
-        ConnectCardForm.tsx
-        layout.tsx
-        page.tsx
     twitter-image.tsx
     twj/
       TWJPressKitClient.tsx
