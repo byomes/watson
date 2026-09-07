@@ -61,11 +61,10 @@ html, body {
   border-radius: 8px;
   flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
-  font-family: Georgia, serif;
-  font-size: 22px; font-weight: 700;
-  color: #ffffff; line-height: 1;
   text-decoration: none;
+  padding: 5px; box-sizing: border-box;
 }
+#hdr-mark img { width: 100%; height: 100%; object-fit: contain; display: block; }
 #hdr-text { flex: 1; min-width: 0; }
 #hdr-title { font-size: 14px; font-weight: 600; color: var(--gold); letter-spacing: .05em; }
 #hdr-sub { font-size: 11px; color: var(--muted); margin-top: 1px; }
@@ -425,7 +424,7 @@ html, body {
 
 <!-- Header -->
 <header id="hdr">
-  <a id="hdr-mark" href="/team" style="text-decoration:none">W</a>
+  <a id="hdr-mark" href="/team" style="text-decoration:none"><img src="/static/favicon-watson.png" alt="Watson"></a>
   <div id="hdr-text">
     <div id="hdr-title">WATSON</div>
     

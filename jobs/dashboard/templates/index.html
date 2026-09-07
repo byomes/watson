@@ -63,10 +63,10 @@ html, body {
   border-radius: 8px;
   flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
-  font-family: Georgia, serif;
-  font-size: 22px; font-weight: 700;
-  color: #ffffff; line-height: 1;
+  padding: 5px;
+  box-sizing: border-box;
 }
+#hdr-mark img { width: 100%; height: 100%; object-fit: contain; display: block; }
 
 #hdr-text { flex: 1; min-width: 0; }
 #hdr-title { font-size: 14px; font-weight: 600; color: var(--gold); letter-spacing: .05em; }
@@ -892,7 +892,7 @@ html, body {
 <body>
 
 <header id="hdr">
-  <div id="hdr-mark">W</div>
+  <div id="hdr-mark"><img src="/static/favicon-watson.png" alt="Watson"></div>
   <div id="hdr-text">
     <div id="hdr-title">WATSON</div>
     
