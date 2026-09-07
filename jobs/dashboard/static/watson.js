@@ -1511,6 +1511,10 @@ function renderMore() {
         <span class="mtile-label">Trading</span>
         <span class="mtile-chev">›</span>
       </button>
+      <button class="mtile" id="mtile-location" onclick="window.location.href='/location'">
+        <span class="mtile-label">Location</span>
+        <span class="mtile-chev">›</span>
+      </button>
     </div>
     <div id="more-expand-area">
       <div class="msec-body" id="msec-body-skills">
