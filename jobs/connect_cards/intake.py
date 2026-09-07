@@ -287,15 +287,28 @@ def _parse_html(html: str) -> dict | None:
     prayer_vals = get("pray for you")
     prayer_parts = []
     for v in prayer_vals:
+        # Legacy form layout embedded the leadership-only opt-in as a value
+        # under the same "pray for you" question -- kept for old submissions,
+        # but the current wcky form asks it as its own separate question
+        # (see leadership_vals below), so this branch no longer fires on
+        # current traffic.
         if "restrict my request to leadership only" in v.lower():
             fields["prayer_leadership_only"] = True
         else:
             prayer_parts.append(v)
     fields["prayer_request"] = " ".join(prayer_parts).strip() or None
 
+    # Current form's dedicated "Restrict to leadership only?" question. Both
+    # flags must be set from this signal -- prayer_leadership_only was
+    # previously left False here, so prayer_requests.leadership_only was
+    # always written 0 even when this answered "Yes" (connect_cards.
+    # prayer_request_public was still correct, which is why the two columns
+    # drifted out of sync -- see Sheryl/Joe Graves' and Gretchen S.'s
+    # 2026-09-06 cards, both born from this gap).
     leadership_vals = get("leadership only")
     if any(v.strip() for v in leadership_vals):
         fields["prayer_request_public"] = 0
+        fields["prayer_leadership_only"] = True
 
     return fields
 
