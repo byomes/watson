@@ -190,15 +190,20 @@ _BUCKET_ORDER = {"6wk": 0, "3-5wk": 1, "2wk": 2, None: 3}
 
 
 def build_deacon_group_names() -> list[dict]:
-    """[{name, members: [{name, bucket, email, phone}, ...]}, ...] -- one row
-    per real deacon (same list_deacons() order as build_deacon_group_counts()),
-    plus a trailing Unassigned row. Every non-excluded member with attendance
-    history appears exactly once, under `bucket` (None = no flag -- seen
-    within the last 2 weeks, or an old first-timer that doesn't clear the
-    6+wk visit-count gate). `email`/`phone` are raw members.* values (None if
-    blank) -- power the call/text/email contact icons on
-    wtsn.me/cat/shepherdingreport; not used in the Telegram message. Each
-    group's members are pre-sorted
+    """[{name, members: [{id, name, bucket, days_since, last_seen, email,
+    phone}, ...]}, ...] -- one row per real deacon (same list_deacons() order
+    as build_deacon_group_counts()), plus a trailing Unassigned row. Every
+    non-excluded member with attendance history appears exactly once, under
+    `bucket` (None = no flag -- seen within the last 2 weeks, or an old
+    first-timer that doesn't clear the 6+wk visit-count gate). `id` and
+    `last_seen` (raw ISO date) power the "update last seen" date-picker on
+    wtsn.me/cat/shepherdingreport (see elder_shepherding_report_web.py's
+    set_last_seen route); `days_since` is the exact day count the coarse
+    `bucket` is derived from, shown as a precise week count in that same UI
+    instead of the bucket's range label. `email`/`phone` are raw members.*
+    values (None if blank) -- power the call/text/email contact icons.
+    None of these four are used in the Telegram message. Each group's
+    members are pre-sorted
     worst-bucket-first, then by last name, so the page renders top to
     bottom with no client-side sort. Powers wtsn.me/cat/shepherdingreport
     -- kept separate from build_deacon_group_counts() because Telegram's
@@ -219,8 +224,11 @@ def build_deacon_group_names() -> list[dict]:
         days_since = (today - date.fromisoformat(r["last_seen"])).days
         bucket = _bucket(days_since, r["visit_count"])
         target["members"].append({
+            "id": r["id"],
             "name": r["name"],
             "bucket": bucket,
+            "days_since": days_since,
+            "last_seen": r["last_seen"],
             "email": r["email"] or None,
             "phone": r["phone"] or None,
         })
