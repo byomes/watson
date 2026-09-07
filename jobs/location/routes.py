@@ -11,10 +11,12 @@ phone's OwnTracks client, not the browser) — the page's own fetch calls hit
 these session-gated endpoints instead, so the API key never ends up in
 page source.
 """
+import csv
+import io
 import sys
 from pathlib import Path
 
-from flask import Blueprint, jsonify, render_template_string, request
+from flask import Blueprint, Response, jsonify, render_template_string, request
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
@@ -40,6 +42,15 @@ _PAGE_TEMPLATE = """
     .ranges button.active { background: #c9a84c; border-color: #c9a84c; color: #000; font-weight: 600; }
     #map { height: 480px; border-radius: 8px; border: 1px solid #eee; }
     .empty { color: #999; font-style: italic; padding: 12px 0; }
+    h2 { font-size: 15px; margin: 26px 0 10px; color: #444; }
+    .export-row { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+    .export-row label { display: flex; flex-direction: column; font-size: 11px; color: #666; gap: 4px; }
+    .export-row input { padding: 6px 8px; border: 1px solid #ccc; border-radius: 6px; font-size: 13px; font-family: inherit; }
+    .export-row button { padding: 7px 16px; border-radius: 6px; border: 1px solid #c9a84c; background: #c9a84c; color: #000; font-weight: 600; cursor: pointer; font-size: 13px; }
+    #log-wrap { max-height: 420px; overflow-y: auto; border: 1px solid #eee; border-radius: 8px; }
+    #log-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    #log-table th { position: sticky; top: 0; background: #f7f7f7; text-align: left; padding: 6px 10px; border-bottom: 1px solid #eee; color: #666; font-size: 11px; text-transform: uppercase; }
+    #log-table td { padding: 5px 10px; border-bottom: 1px solid #f2f2f2; }
   </style>
 </head>
 <body>
@@ -57,6 +68,21 @@ _PAGE_TEMPLATE = """
   </div>
 
   <div id="map"></div>
+
+  <h2>Export</h2>
+  <div class="export-row">
+    <label>From <input type="datetime-local" id="export-start"></label>
+    <label>To <input type="datetime-local" id="export-end"></label>
+    <button onclick="doExport()">Export CSV</button>
+  </div>
+
+  <h2>Past week log</h2>
+  <div id="log-wrap">
+    <table id="log-table">
+      <thead><tr><th>Time</th><th>Lat</th><th>Lon</th><th>Acc (m)</th><th>Batt</th></tr></thead>
+      <tbody id="log-body"><tr><td colspan="5" class="empty">Loading&hellip;</td></tr></tbody>
+    </table>
+  </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
@@ -111,7 +137,60 @@ _PAGE_TEMPLATE = """
         ` &middot; battery ${last.batt ?? '?'}%`;
     }
 
+    function fmtLocal(iso) {
+      const d = new Date(iso.replace(' ', 'T') + 'Z');
+      return d.toLocaleString();
+    }
+
+    function pad(n) { return String(n).padStart(2, '0'); }
+
+    function toLocalInputValue(d) {
+      return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) +
+        'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+    }
+
+    function toSqlUtc(dtLocalValue) {
+      const d = new Date(dtLocalValue);
+      return d.toISOString().slice(0, 19).replace('T', ' ');
+    }
+
+    function doExport() {
+      const startVal = document.getElementById('export-start').value;
+      const endVal = document.getElementById('export-end').value;
+      const params = new URLSearchParams();
+      if (startVal) params.set('start', toSqlUtc(startVal));
+      if (endVal) params.set('end', toSqlUtc(endVal));
+      window.location.href = '/location/api/export?' + params.toString();
+    }
+
+    async function loadLog() {
+      const res = await fetch('/location/api/history?hours=168&limit=5000');
+      const points = await res.json();
+      const body = document.getElementById('log-body');
+      if (!points.length) {
+        body.innerHTML = '<tr><td colspan="5" class="empty">No pings in the past week.</td></tr>';
+        return;
+      }
+      body.innerHTML = points.slice().reverse().map(p => `
+        <tr>
+          <td>${fmtLocal(p.received_at)}</td>
+          <td>${p.lat.toFixed(5)}</td>
+          <td>${p.lon.toFixed(5)}</td>
+          <td>${p.acc ?? '?'}</td>
+          <td>${p.batt ?? '?'}</td>
+        </tr>
+      `).join('');
+    }
+
+    (function initExportDefaults() {
+      const now = new Date();
+      const weekAgo = new Date(now.getTime() - 7 * 24 * 3600 * 1000);
+      document.getElementById('export-start').value = toLocalInputValue(weekAgo);
+      document.getElementById('export-end').value = toLocalInputValue(now);
+    })();
+
     loadRange(24, document.querySelector('.ranges button.active'));
+    loadLog();
   </script>
 </body>
 </html>
@@ -169,3 +248,48 @@ def location_api_history_web():
         ]), 200
     finally:
         conn.close()
+
+
+@location_web_bp.route("/location/api/export")
+def location_api_export():
+    from jobs.dashboard.app import _admin_required
+    redir = _admin_required()
+    if redir:
+        return jsonify({"error": "unauthorized"}), 401
+
+    # Both are UTC "YYYY-MM-DD HH:MM:SS" strings — the page's JS converts the
+    # browser's local datetime-local inputs to this format before sending,
+    # matching how received_at is stored (SQLite datetime('now') is UTC).
+    start = request.args.get("start", "")
+    end = request.args.get("end", "")
+
+    query = "SELECT received_at, lat, lon, acc, alt, vel, batt, tid FROM location_pings WHERE 1=1"
+    params = []
+    if start:
+        query += " AND received_at >= ?"
+        params.append(start)
+    if end:
+        query += " AND received_at <= ?"
+        params.append(end)
+    query += " ORDER BY id ASC LIMIT 50000"
+
+    conn = get_db()
+    try:
+        rows = conn.execute(query, params).fetchall()
+    finally:
+        conn.close()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["received_at_utc", "lat", "lon", "accuracy_m", "altitude_m", "speed", "battery_pct", "tid"])
+    for r in rows:
+        writer.writerow([r["received_at"], r["lat"], r["lon"], r["acc"], r["alt"], r["vel"], r["batt"], r["tid"]])
+
+    tag = lambda v, fallback: v.replace(" ", "_").replace(":", "") if v else fallback
+    filename = f"watson_location_{tag(start, 'start')}_{tag(end, 'end')}.csv"
+
+    return Response(
+        output.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
