@@ -9,11 +9,18 @@ for the per-deacon EMAIL reports, which are scoped and remain unchanged.
 
 Auth: X-Watson-Key matching DEACONS_API_KEY (a DEDICATED key, not
 DEACON_ADMIN_API_KEY or any other consumer's, per this codebase's
-one-key-per-external-consumer convention). Like every other /cat/ tool,
-there is no per-user login here (built 2026-08-31) -- the shared key gates
-the whole tool, matching wtsn.me/cat/attendance and wtsn.me/cat/duplicates.
-Per-deacon identity (needed for scoped Telegram alerts, not for this
-roster) is deferred to a later build, once alerting is actually built.
+one-key-per-external-consumer convention). Like every other /cat/ tool, X-Watson-Key still gates this blueprint's
+routes at the service level (matching wtsn.me/cat/attendance and
+wtsn.me/cat/duplicates) -- unified roster access is unchanged.
+
+Per-deacon identity (2026-09-07) sits on top of that, one layer up: the
+Next.js app (deaconAuth.ts) now gates human login with a PIN checked
+against the deacon_pins table via /api/cat/deacons/verify_pin below, and
+attaches the logged-in deacon's name to deacon_notes.author_deacon so
+notes are attributable. Every deacon currently shares one PIN (1303) --
+verify_pin can return multiple matching names for one PIN, which the
+frontend resolves with a "who are you?" picker -- until Bill hands out
+individual PINs via jobs/congregation/set_deacon_pin.py.
 
 Because there is no per-user login, leadership-only prayer requests
 (prayer_requests.leadership_only = 1) are deliberately NEVER returned by
@@ -41,6 +48,8 @@ Mount on the Watson dashboard app:
 """
 import os
 from functools import wraps
+from hashlib import scrypt
+from hmac import compare_digest
 
 from flask import Blueprint, jsonify, request
 
@@ -76,6 +85,22 @@ _UPDATABLE_FIELDS = {"name", "deacon", "deacon_status", "email", "phone", "addre
 # is meant to set someone to "Inactive" (or move them back off it), so only
 # the three truly-reserved bucket labels are blocked from being PATCHed.
 _BLOCKED_DEACON_VALUES = EXCLUDED_DEACON_VALUES - {"Inactive"}
+
+_PIN_SCRYPT_PARAMS = dict(n=16384, r=8, p=1, dklen=32)
+
+
+def _check_pin(pin: str, stored_hash: str) -> bool:
+    """stored_hash is `salt_hex:digest_hex`, matching the format written by
+    migrate_deacon_pins.py / set_deacon_pin.py."""
+    salt, _, expected_hex = stored_hash.partition(":")
+    if not salt or not expected_hex:
+        return False
+    try:
+        expected = bytes.fromhex(expected_hex)
+    except ValueError:
+        return False
+    candidate = scrypt(pin.encode(), salt=salt.encode(), **_PIN_SCRYPT_PARAMS)
+    return compare_digest(candidate, expected)
 
 
 def _attach_shepherding_info(conn, people: list[dict]) -> None:
@@ -113,12 +138,17 @@ def _attach_shepherding_info(conn, people: list[dict]) -> None:
 
     notes_by_member: dict = {}
     for dn in conn.execute(
-        f"SELECT member_id, note, status, created_at FROM deacon_notes "
+        f"SELECT member_id, note, status, created_at, author_deacon FROM deacon_notes "
         f"WHERE member_id IN ({placeholders}) ORDER BY created_at DESC",
         member_ids,
     ):
         notes_by_member.setdefault(dn["member_id"], []).append(
-            {"note": dn["note"], "status": dn["status"], "created_at": dn["created_at"]}
+            {
+                "note": dn["note"],
+                "status": dn["status"],
+                "created_at": dn["created_at"],
+                "author_deacon": dn["author_deacon"],
+            }
         )
 
     for p in people:
@@ -154,6 +184,25 @@ def get_roster():
 @_require_key
 def get_deacon_list():
     return jsonify(list_deacons()), 200
+
+
+@deacons_web_bp.route("/api/cat/deacons/verify_pin", methods=["POST"])
+@_require_key
+def verify_pin():
+    """Returns every deacon_name whose stored PIN matches. Normally exactly
+    one (once individual PINs are in), but can be more than one during the
+    interim shared-PIN period -- the frontend disambiguates with a
+    name picker when that happens. Never 401s on a wrong PIN -- an empty
+    matches list IS the "wrong PIN" answer, since this route only ever
+    checks digits, not who's asking."""
+    data = request.get_json(force=True) or {}
+    pin = (data.get("pin") or "").strip()
+    matches = []
+    if pin:
+        with _conn() as conn:
+            rows = conn.execute("SELECT deacon_name, pin_hash FROM deacon_pins").fetchall()
+        matches = [row["deacon_name"] for row in rows if _check_pin(pin, row["pin_hash"])]
+    return jsonify({"matches": matches}), 200
 
 
 @deacons_web_bp.route("/api/cat/deacons/member/<int:member_id>", methods=["PATCH"])
@@ -205,6 +254,7 @@ def update_member(member_id):
 def add_deacon_note(member_id):
     data = request.get_json(force=True) or {}
     note = (data.get("note") or "").strip()
+    author_deacon = (data.get("author_deacon") or "").strip() or None
     if not note:
         return jsonify({"error": "note is required"}), 400
 
@@ -213,12 +263,13 @@ def add_deacon_note(member_id):
         if not existing:
             return jsonify({"error": "not found"}), 404
         conn.execute(
-            "INSERT INTO deacon_notes (member_id, note, status) VALUES (?, ?, 'open')",
-            (member_id, note),
+            "INSERT INTO deacon_notes (member_id, note, status, author_deacon) VALUES (?, ?, 'open', ?)",
+            (member_id, note, author_deacon),
         )
         conn.commit()
         row = conn.execute(
-            "SELECT id, member_id, note, status, created_at FROM deacon_notes WHERE id = last_insert_rowid()"
+            "SELECT id, member_id, note, status, created_at, author_deacon FROM deacon_notes "
+            "WHERE id = last_insert_rowid()"
         ).fetchone()
 
     return jsonify(dict(row)), 201
