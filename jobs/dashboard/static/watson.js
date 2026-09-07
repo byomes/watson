@@ -2269,20 +2269,23 @@ async function moreLoadEvents() {
       html += events.map(ev => {
         let dateRange = ev.start_date;
         if (ev.end_date && ev.end_date !== ev.start_date) dateRange += ' – ' + ev.end_date;
+        const hasDetail = ev.description || ev.attendance_notes || ev.registration_count > 0;
         return `
           <div class="mpn-card" id="mevt-card-${ev.id}">
             <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
               <div style="flex:1;min-width:0">
-                <div style="font-size:13px;font-weight:600">${esc(ev.event_name)}</div>
+                <div style="font-size:13px;font-weight:600">${esc(ev.event_name)}${ev.tracking_active ? '' : ' <span style="font-size:10px;color:var(--text-muted);font-weight:400">(closed)</span>'}</div>
                 <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--text-muted);margin-top:2px">${esc(dateRange)}</div>
                 ${ev.file_count ? `<div style="font-size:11px;color:var(--text-muted);margin-top:2px">${ev.file_count} file${ev.file_count !== 1 ? 's' : ''}</div>` : ''}
+                ${ev.registration_count > 0 ? `<div style="font-size:11px;color:var(--gold);margin-top:2px">${ev.registration_count} registration${ev.registration_count !== 1 ? 's' : ''} · ${ev.total_tickets} ${ev.total_tickets === 1 ? 'person' : 'people'}</div>` : ''}
               </div>
               <button class="mbtn mbtn-sm mbtn-d" onclick="moreDeleteEvent(${ev.id})" style="flex-shrink:0">Delete</button>
             </div>
-            ${ev.description || ev.attendance_notes ? `
+            ${hasDetail ? `
             <div id="mevt-detail-${ev.id}" style="display:none;margin-top:8px;border-top:1px solid var(--border);padding-top:8px">
               ${ev.description      ? `<div style="font-size:12px;color:var(--text);margin-bottom:4px">${esc(ev.description)}</div>` : ''}
               ${ev.attendance_notes ? `<div style="font-size:12px;color:var(--muted)">${esc(ev.attendance_notes)}</div>`             : ''}
+              ${ev.registration_count > 0 ? `<div id="mevt-regs-${ev.id}" style="margin-top:6px"><div class="loading" style="font-size:11px">Loading registrants&hellip;</div></div>` : ''}
             </div>
             <div onclick="moreToggleEventDetail(${ev.id})" style="font-size:11px;font-family:'DM Mono',monospace;color:var(--gold);cursor:pointer;margin-top:6px;-webkit-tap-highlight-color:transparent" id="mevt-tog-${ev.id}">+ Details</div>` : ''}
           </div>`;
@@ -2651,13 +2654,35 @@ async function devReopenBug(id) {
   }
 }
 
-function moreToggleEventDetail(id) {
+async function moreToggleEventDetail(id) {
   const detail = document.getElementById(`mevt-detail-${id}`);
   const tog    = document.getElementById(`mevt-tog-${id}`);
   if (!detail) return;
   const isOpen = detail.style.display !== 'none';
   detail.style.display = isOpen ? 'none' : 'block';
   if (tog) tog.textContent = isOpen ? '+ Details' : '– Details';
+
+  const regsEl = document.getElementById(`mevt-regs-${id}`);
+  if (!isOpen && regsEl && regsEl.dataset.loaded !== '1') {
+    regsEl.dataset.loaded = '1';
+    try {
+      const regs = await api(`/api/events/${id}/registrations`);
+      if (!Array.isArray(regs) || !regs.length) {
+        regsEl.innerHTML = '<div class="empty" style="font-size:11px">No registrants yet.</div>';
+      } else {
+        regsEl.innerHTML = regs.map(r => {
+          const name = `${r.first_name || ''} ${r.last_name || ''}`.trim() || r.email || '(unnamed)';
+          const bits = [];
+          if (r.num_tickets > 1) bits.push(`${r.num_tickets} tickets`);
+          if (r.ticket_type) bits.push(esc(r.ticket_type));
+          if (r.email) bits.push(esc(r.email));
+          return `<div style="font-size:11px;color:var(--text);padding:3px 0;border-bottom:1px solid var(--border)">${esc(name)}${bits.length ? ` <span style="color:var(--text-muted)">— ${bits.join(', ')}</span>` : ''}</div>`;
+        }).join('');
+      }
+    } catch {
+      regsEl.innerHTML = '<div class="empty" style="font-size:11px">Could not load registrants.</div>';
+    }
+  }
 }
 
 function moreShowEventForm() {

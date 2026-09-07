@@ -3501,6 +3501,50 @@ async def handle_email_triage_callback(update: Update, context: ContextTypes.DEF
         await query.edit_message_text(msg, reply_markup=None)
 
 
+async def handle_event_new_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """evnew_yes/evnew_no — same pending-action pattern as
+    handle_email_triage_callback above, for jobs/events/signup_detect.py's
+    'start tracking this as a new event?' prompt."""
+    query = update.callback_query
+    await query.answer()
+
+    if not _is_authorized(update):
+        return
+
+    data = query.data
+    if data.startswith("evnew_yes:"):
+        pending_id = int(data[len("evnew_yes:"):])
+    elif data.startswith("evnew_no:"):
+        pending_id = int(data[len("evnew_no:"):])
+    else:
+        return
+
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT id, type, payload FROM tg_pending_actions WHERE id=? AND status='pending'",
+            (pending_id,),
+        ).fetchone()
+
+    if not row:
+        await query.edit_message_text("⚠️ Action expired or already resolved.", reply_markup=None)
+        return
+
+    import json as _json
+    payload = _json.loads(row["payload"])
+
+    import asyncio
+    if data.startswith("evnew_yes:"):
+        from jobs.events.signup_detect import handle_event_new_yes
+        msg = await asyncio.to_thread(handle_event_new_yes, payload)
+    else:
+        from jobs.events.signup_detect import handle_event_new_no
+        msg = await asyncio.to_thread(handle_event_new_no, payload)
+
+    with get_connection() as conn:
+        conn.execute("UPDATE tg_pending_actions SET status='done' WHERE id=?", (pending_id,))
+    await query.edit_message_text(msg, reply_markup=None)
+
+
 async def handle_command_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
 
@@ -5102,6 +5146,7 @@ def main():
     # the fb_img_ vs fb_ ordering convention regardless for anyone scanning this list.
     app.add_handler(CallbackQueryHandler(handle_privacy_captcha_callback, pattern=r"^priv_captcha_(ready|cancel):"))
     app.add_handler(CallbackQueryHandler(handle_email_triage_callback, pattern=r"^et_"))
+    app.add_handler(CallbackQueryHandler(handle_event_new_callback, pattern=r"^evnew_(yes|no):"))
     app.add_handler(CallbackQueryHandler(handle_carrier_callback, pattern=r"^carrier_"))
     app.add_handler(CallbackQueryHandler(handle_archive_classify_callback, pattern=r"^arch_(keep|chg):"))
     app.add_handler(CallbackQueryHandler(handle_email_callback, pattern=r"^email_"))

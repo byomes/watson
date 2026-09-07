@@ -1,5 +1,5 @@
-"""jobs/analytics/data_chat.py — open-ended attendance / web-traffic / contact
-Q&A for the Telegram team-chat path in bot/bot.py.
+"""jobs/analytics/data_chat.py — open-ended attendance / web-traffic / event-
+signup / contact Q&A for the Telegram team-chat path in bot/bot.py.
 
 Per Bill's 2026-09-02 decisions: (1) attendance and web-traffic questions
 should have NOTHING off limits for team-chat users — not just the phrasings
@@ -7,8 +7,9 @@ anticipated in advance elsewhere in bot.py; (2) since only key Catalyst
 leaders get Watson access at all, don't distinguish staff/elders/deacons —
 every onboarded leader gets the same full access, including contact info,
 via allow_contact_info (bot.py always passes True; the parameter exists so
-a narrower future caller isn't required to reintroduce the plumbing). Two
-domains, two separate SQLite files (never joined in one query):
+a narrower future caller isn't required to reintroduce the plumbing). Three
+domains, two separate SQLite files (attendance's file never joined with the
+other two in one query):
 
   attendance — data/congregation.db: attendance, classroom_attendance,
                members (name/deacon/status/campus columns always; email/
@@ -17,6 +18,10 @@ domains, two separate SQLite files (never joined in one query):
                Bill's 2026-09-02 explicit call, those can hold prayer-
                request/pastoral content well beyond plain contact info.
   web        — data/watson.db: engagement_sheet_metrics only.
+  events     — data/watson.db: church_events, event_registrations (added
+               2026-09-06 for event signup tracking — see jobs/events/).
+               No contact-info gate; registrant email/phone is always
+               queryable, unlike members' contact columns above.
 
 Reuses jobs.skills.cdb_query's battle-tested pattern-match layer (Bill's own
 `cdb:` skill) as a free, LLM-free fast path for the common attendance
@@ -61,11 +66,12 @@ WATSON_DB_PATH = str(_WATSON_DB_PATH)
 OLLAMA_URL = "http://localhost:11434/api/chat"
 MODEL = "qwen2.5-coder:7b"  # same model jobs/skills/cdb_query.py uses for SQL
 
-_DB_PATH = {"attendance": CONGREGATION_DB_PATH, "web": WATSON_DB_PATH}
+_DB_PATH = {"attendance": CONGREGATION_DB_PATH, "web": WATSON_DB_PATH, "events": WATSON_DB_PATH}
 
 _ALLOWED_TABLES = {
     "attendance": {"attendance", "classroom_attendance", "members"},
     "web": {"engagement_sheet_metrics"},
+    "events": {"church_events", "event_registrations"},
 }
 
 # Per Bill's 2026-09-02 follow-ups ("only key leaders get Watson access, we
@@ -109,15 +115,25 @@ engagement_sheet_metrics(tab TEXT, section TEXT, metric_label TEXT, month TEXT, 
   --   'Top Page Views': metric_label is 'Top Page 1'..'Top Page 5', value_raw is the page name, value_numeric is its share (0-1)
 """.strip()
 
+_EVENTS_SCHEMA = """
+church_events(id INTEGER, event_name TEXT, start_date TEXT, end_date TEXT, description TEXT, tracking_active INTEGER)
+  -- one row per church event (picnic, retreat, class, etc). tracking_active=1 means Watson is still auto-attaching new signups to it.
+event_registrations(id INTEGER, event_id INTEGER, first_name TEXT, last_name TEXT, email TEXT, phone TEXT, ticket_type TEXT, num_tickets INTEGER, submitted_at TEXT, source TEXT)
+  -- one row per person/registration for an event. num_tickets is how many people that single registration covers -- SUM(num_tickets), not COUNT(*), for "how many people are coming".
+  -- join event_registrations.event_id = church_events.id for a specific event's signups. source is 'csv_import', 'email', or 'manual'.
+""".strip()
+
 _SYSTEM_TEMPLATE = """You are a SQL query generator for a church's internal Telegram assistant. \
-Decide whether the question falls into the ATTENDANCE domain or the WEB domain, or neither. ATTENDANCE \
-covers not just worship-service/classroom attendance counts but ANY question about a member's own record \
-in the members table below -- contact info, birthdate, their deacon/group, status -- since that table lives \
-in the same domain. WEB covers social-media/website traffic metrics. If it's one of those two, write ONE \
-single-line read-only SQLite SELECT statement that answers it exactly, using ONLY the tables and columns \
-listed below -- never invent a table or column, never write anything but SELECT. If the question has no \
-month/date range and asks for a current or total count ("how many X do we have", "what's our X"), use the \
-single most recent row (ORDER BY month DESC LIMIT 1 for web metrics) rather than every historical row. \
+Decide whether the question falls into the ATTENDANCE domain, the WEB domain, the EVENTS domain, or none. \
+ATTENDANCE covers not just worship-service/classroom attendance counts but ANY question about a member's own \
+record in the members table below -- contact info, birthdate, their deacon/group, status -- since that table \
+lives in the same domain. WEB covers social-media/website traffic metrics. EVENTS covers signups/registrations/\
+RSVPs/tickets for a specific church event (picnic, retreat, class, etc) -- who's registered, headcounts, ticket \
+counts, contact info for a registrant. If it's one of those three, write ONE single-line read-only SQLite \
+SELECT statement that answers it exactly, using ONLY the tables and columns listed below -- never invent a \
+table or column, never write anything but SELECT. If the question has no month/date range and asks for a \
+current or total count ("how many X do we have", "what's our X"), use the single most recent row (ORDER BY \
+month DESC LIMIT 1 for web metrics) rather than every historical row. \
 When matching a person's name (members.name or members.deacon), NEVER use exact equality (=) -- the asker's \
 spelling may drop punctuation, get plural/typo'd, or vary in case. Use `LIKE '%Full Name%'` with the WHOLE \
 name as given (first and last together, case-insensitive by default in SQLite, punctuation/trailing letters \
@@ -125,7 +141,9 @@ just fall outside the %...% wildcard) so "bill crooks" or "Bill Crook's" still m
 "Bill Crook" -- do NOT reduce the match to just the last name, since spouses/relatives sharing a surname \
 (e.g. "Tara Mathena" and "Dino Mathena") would then wrongly match each other too. Whenever a query matches a \
 person this way, always SELECT their name column alongside whatever was asked for, so an unexpected multi-\
-match is still attributable to a specific person rather than an unlabeled list of values.
+match is still attributable to a specific person rather than an unlabeled list of values. The same LIKE rule \
+applies to church_events.event_name -- match on whatever partial name the asker used ("the picnic" -> \
+event_name LIKE '%picnic%').
 Today's date is {today}.
 
 ATTENDANCE tables (file: congregation.db):
@@ -134,8 +152,11 @@ ATTENDANCE tables (file: congregation.db):
 WEB tables (file: watson.db -- a different file, never mixed with attendance tables in one query):
 {web_schema}
 
+EVENTS tables (file: watson.db -- never mixed with attendance/congregation.db tables in one query):
+{events_schema}
+
 Reply with EXACTLY this format and nothing else:
-DOMAIN: attendance|web|none
+DOMAIN: attendance|web|events|none
 SQL: <single-line SELECT -- omit this line entirely if DOMAIN is none>
 
 Q: what is the average attendance for the last four weeks?
@@ -157,6 +178,14 @@ SQL: SELECT COUNT(*) FROM attendance WHERE member_id IN (SELECT id FROM members 
 Q: who is in bill crooks deacon group?
 DOMAIN: attendance
 SQL: SELECT name FROM members WHERE deacon LIKE '%Bill Crook%'
+
+Q: how many people have signed up for the picnic?
+DOMAIN: events
+SQL: SELECT SUM(r.num_tickets) FROM event_registrations r JOIN church_events e ON e.id = r.event_id WHERE e.event_name LIKE '%picnic%'
+
+Q: who's registered for the picnic so far?
+DOMAIN: events
+SQL: SELECT r.first_name, r.last_name, r.num_tickets FROM event_registrations r JOIN church_events e ON e.id = r.event_id WHERE e.event_name LIKE '%picnic%'
 {contact_example}"""
 
 _CONTACT_ALLOWED_EXAMPLE = """
@@ -193,7 +222,7 @@ def _resolve_first_person(question: str, asker_name: str) -> str:
     return q
 
 
-_DOMAIN_RE = re.compile(r"DOMAIN:\s*(attendance|web|none)", re.IGNORECASE)
+_DOMAIN_RE = re.compile(r"DOMAIN:\s*(attendance|web|events|none)", re.IGNORECASE)
 _SQL_RE = re.compile(r"SQL:\s*(.+)", re.IGNORECASE | re.DOTALL)
 _FORBIDDEN_SQL_RE = re.compile(
     r";|--|/\*|\b(insert|update|delete|drop|alter|attach|detach|pragma|create|replace|vacuum|reindex)\b",
@@ -210,6 +239,7 @@ def _generate(question: str, asker_name: str, allow_contact_info: bool) -> tuple
         today=date.today().isoformat(),
         attendance_schema=_attendance_schema(allow_contact_info),
         web_schema=_WEB_SCHEMA,
+        events_schema=_EVENTS_SCHEMA,
         contact_example=_CONTACT_ALLOWED_EXAMPLE if allow_contact_info else _CONTACT_BLOCKED_EXAMPLE,
     )
     resolved_question = _resolve_first_person(question, asker_name)

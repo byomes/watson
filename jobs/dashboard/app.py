@@ -265,6 +265,9 @@ def _bootstrap():
 
 _bootstrap()
 
+from jobs.events.schema import create_tables as _events_create_tables
+_events_create_tables()
+
 
 def _bootstrap_congregation():
     """Add member_status columns to congregation.db members table."""
@@ -2297,13 +2300,28 @@ def pastoral_notes_delete(note_id):
 def events_list():
     rows = _db().execute("""
         SELECT e.id, e.event_name, e.start_date, e.end_date,
-               e.description, e.attendance_notes, e.created_at,
-               COUNT(f.id) as file_count
+               e.description, e.attendance_notes, e.created_at, e.tracking_active,
+               COUNT(DISTINCT f.id) as file_count,
+               COUNT(DISTINCT r.id) as registration_count,
+               COALESCE(SUM(r.num_tickets), 0) as total_tickets
         FROM church_events e
         LEFT JOIN church_event_files f ON f.event_id = e.id
+        LEFT JOIN event_registrations r ON r.event_id = e.id
         GROUP BY e.id
         ORDER BY e.start_date DESC
     """).fetchall()
+    return jsonify([dict(r) for r in rows])
+
+
+@app.route("/api/events/<int:event_id>/registrations")
+def events_registrations_list(event_id):
+    rows = _db().execute("""
+        SELECT id, first_name, last_name, email, phone, ticket_type,
+               ticket_price, num_tickets, extra_fields, member_id, source, submitted_at
+        FROM event_registrations
+        WHERE event_id = ?
+        ORDER BY submitted_at DESC, id DESC
+    """, (event_id,)).fetchall()
     return jsonify([dict(r) for r in rows])
 
 

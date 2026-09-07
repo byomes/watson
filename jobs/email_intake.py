@@ -1054,6 +1054,17 @@ def run():
                 mark_as_read(msg_id)
             continue
 
+        # Event signup notification (SignUpGenius/Church Center/etc.) — auto-
+        # attaches to an actively-tracked church_events row, or asks Bill via
+        # Telegram whether to start tracking a new event. Same before-
+        # generic-triage ordering as the Privacy Guard checks above.
+        from jobs.events.signup_detect import handle_event_signup_email
+        event_result = handle_event_signup_email(msg_id, addr, subject, body, received_at)
+        if event_result is not None:
+            if event_result == "read":
+                mark_as_read(msg_id)
+            continue
+
         # All other email — triage and prompt Bill; never mark read here
         _handle_non_whitelist(
             msg_id=msg_id,
