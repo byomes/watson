@@ -303,6 +303,11 @@ from jobs.bodyrec import bootstrap_db as _bodyrec_bootstrap
 _bodyrec_bootstrap()
 app.register_blueprint(bodyrec_bp)
 
+from jobs.location.api import location_bp
+from jobs.location import bootstrap_db as _location_bootstrap
+_location_bootstrap()
+app.register_blueprint(location_bp)
+
 from jobs.arc.api import arc_bp
 app.register_blueprint(arc_bp)
 
