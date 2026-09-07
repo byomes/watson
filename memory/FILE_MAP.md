@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-09-06*
+*Generated: 2026-09-07*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -97,6 +97,9 @@ data/
     66e0844b7fab4e0a8bb386db8504deac.png
     9eca6f54ecff491dbed2470fd0b3d196.png
   congregation.db
+  congregation.db-shm
+  congregation.db-wal
+  congregation.db.bak_before_orphan_delete_20260906_070048
   cover_images/
     cover_1.jpg
     cover_10.jpg
@@ -4588,6 +4591,8 @@ data/
   skill_audit.json
   trading.db
   watson.db
+  watson.db-shm
+  watson.db-wal
 deploy/
   .gitkeep
   apt-packages.txt
@@ -4886,6 +4891,12 @@ jobs/
   email_send/
     __init__.py
     send.py
+  events/
+    __init__.py
+    import_csv.py
+    matching.py
+    schema.py
+    signup_detect.py
   exports/
     __init__.py
     api.py
@@ -5122,6 +5133,9 @@ jobs/
   telegram/
     __init__.py
     dashboard_api.py
+    leader_tool_usage.py
+    leader_tool_usage_api.py
+    leader_tool_usage_report.py
     migrate_recipient.py
     pending.py
     resend_last.py
@@ -6458,6 +6472,9 @@ src/
         papercards/
           submit/
             route.ts
+        shepherdingreport/
+          lastseen/
+            route.ts
       p/
         servantcare/
           listing/
@@ -6497,7 +6514,10 @@ src/
         PaperCardForm.tsx
         page.tsx
       shepherdingreport/
+        AutoThemeShell.tsx
         GroupList.tsx
+        apple-icon.jpg
+        icon.jpg
         page.tsx
     globals.css
     layout.tsx
@@ -6513,6 +6533,7 @@ src/
     deaconTheme.ts
     requireLiveTool.ts
     shepherdingReport.ts
+    useAutoTheme.ts
     validation.ts
     watson.ts
   proxy.ts
