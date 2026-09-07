@@ -3414,3 +3414,44 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - 508a782 fix: add honeypot + fill-time check to cat/connect spam filter
 - 652819a docs: fix stale comment referencing retired wcky connect-card form
 - a654f6d fix: block known spam phone number on connect-card intake
+
+---
+
+## Recent Changes — 2026-09-07
+
+### ~/watson
+- 176f6cf docs: bugs/backlog export 2026-09-07
+- 4070ecd docs: file map 2026-09-07
+- e43e418 fix: stop connect-card spam from reappearing after DB cleanup
+- c5c085a Fix Bill's own chat routing "who is signed up for X" to real web search
+- 58d04f4 Fix event-signup detection ordering and naturalize list-style Q&A answers
+- 6fd15bd Add event registration tracking (church picnic + future events)
+- fbd6b8c Add last-seen correction endpoint and exact day counts to shepherding report
+- 5c67310 Add email/phone to elder shepherding report's per-member data
+- c1ed1d6 gitignore: remove stray accidental-paste line
+- 38726c6 gitignore: cover lock files, WAL temp files, caches, and backups
+- 27ed073 Route remaining generation call sites through the budget-capped Claude tier
+- 9eca21d Wire budget-capped Claude API tier settings into dashboard
+- 3df7eec Add Leader Usage tile to dashboard More page
+- 0ad48eb Track team-chat usage for onboarded leaders (Telegram only)
+- e7b77a7 Add Telegram review flow for congregation duplicate-member candidates
+- 4f48286 Add Melanie Yomes to Sunday attendance link reminder recipients
+- 7a5b2a9 feat: cross-check both KU signals before trusting a "not on KU" result
+- 736c992 fix: KU status flakiness and duplicate-book creation in Curator
+- 4934a6d Reword Sunday attendance reminder as a help request with Watson sign-off
+- 77f8881 docs: architecture update 2026-09-06
+
+### ~/watson-tools
+- 4b8987b Add last-seen date picker instruction to deacon app's shepherding tab
+- da5863e Add instruction to shepherding report: tap a weeks badge to update last seen
+- 179c463 Label the weeks-since-last-seen totals, make each member's count editable
+- f680faa Fix body background never actually going dark anywhere on the site
+- 4ab5c87 Fix Safari address bar not tracking dark mode: use static theme-color, not JS
+- 5e04ad5 Make the shepherding report an installable iOS web app (fixed light status bar)
+- be22232 Follow system dark mode on the shepherding report, including phone chrome
+- 2dc040f Increase row height, icon size, and icon spacing on shepherding report
+- 8ce5069 Add call/text/email contact icons to shepherding report members
+- 8166da6 fix: hide connect card form entirely during success/redirect
+- dff5dae fix: restore giving-page redirect on connect card, with confirmation
+- 269ffeb Apply deacon app's dark mode class to <html> so it covers the whole screen
+- 50809fa fix: keep connect-card header on a single line on phones
