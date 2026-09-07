@@ -49,6 +49,7 @@ _PAGE_TEMPLATE = """
   </style>
 </head>
 <body>
+  <a href="/" style="display:inline-block;margin-bottom:14px;font-size:12px;color:#888;text-decoration:none">&larr; Dashboard</a>
   <h1>Trading</h1>
   <p class="note">Paper-trading strategy development pipeline (Alpaca paper account only —
     the Alpaca app/login remains ground truth for the account itself; this page shows

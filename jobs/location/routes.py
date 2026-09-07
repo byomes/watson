@@ -54,6 +54,7 @@ _PAGE_TEMPLATE = """
   </style>
 </head>
 <body>
+  <a href="/" style="display:inline-block;margin-bottom:14px;font-size:12px;color:#888;text-decoration:none">&larr; Dashboard</a>
   <h1>Location</h1>
   <p class="note">Phone location history, logged via OwnTracks.</p>
 
