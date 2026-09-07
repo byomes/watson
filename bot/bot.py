@@ -1594,6 +1594,21 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
     if getattr(_router, '_is_factual_query', None) and _router._is_factual_query(text_clean):
+        # "who is signed up for the picnic" / "who is in bill crook's deacon
+        # group" both contain "who", which _is_factual_query treats as a
+        # web-search trigger -- but a question data_chat can actually answer
+        # from our own congregation/events data should never go out to a real
+        # web search instead (bug: picnic registrant list came back as
+        # unrelated internet signup-sheet pages). Try the same congregation/
+        # events data lookup _handle_general uses below; only fall through to
+        # a real web search when it returns None (genuinely off-topic).
+        _cong_reply = await _try_congregation_data_lookup(text_clean)
+        if _cong_reply is not None:
+            await update.message.reply_text(_cong_reply)
+            _log_telegram_exchange(text_clean, _cong_reply)
+            log.info("DEBUG pre-check: factual query -> congregation/events data lookup")
+            return
+
         from jobs.research.web_search import run as web_search_run
         ws_result = await asyncio.to_thread(web_search_run, text_clean)
         reply = "✓ " + ws_result
