@@ -15,8 +15,17 @@ Funnel, so this route needs its own gate regardless of the Funnel.
 Data model note: `attendance` rows are the only signal for "present" -- there
 is no separate absent record. Presence is keyed by (member_id, service_date)
 only (matching jobs/connect_cards/attendance_intake.py's _attendance_exists),
-not by campus, so a Hybrid member toggled present under either campus section
-shows present under both.
+not by campus.
+
+get_state() (2026-09-07): returns one flat `members` list, sorted by last
+name, no Wilmington/Online split -- leaders correcting attendance don't need
+to think about campus, they're just checking off who was there. The `inactive`
+list (campus_preference == 'Inactive') stays separate, same as before, since
+that's a deliberate "keep out of the way during weekly attendance-taking"
+grouping, not a campus split. `campus` is still required on the `attendance`
+row itself (NOT NULL) -- toggle() still takes it, and the frontend derives it
+from the member's own campus_preference (Online if set to Online, Wilmington
+otherwise, folding Hybrid to Wilmington) instead of asking the leader to pick.
 """
 import os
 import sqlite3
@@ -91,7 +100,7 @@ def get_state():
             )
         }
 
-    wilmington, online, inactive = [], [], []
+    active, inactive = [], []
     for m in members:
         pref = m["campus_preference"]
         # Unset/unrecognized values default to Wilmington, same as the
@@ -104,19 +113,12 @@ def get_state():
             "present": m["id"] in present_ids,
             "campus_preference": resolved_pref,
         }
-        if resolved_pref == "Inactive":
-            inactive.append(entry)
-        else:
-            if resolved_pref in ("Wilmington", "Hybrid"):
-                wilmington.append(entry)
-            if resolved_pref in ("Online", "Hybrid"):
-                online.append(entry)
+        (inactive if resolved_pref == "Inactive" else active).append(entry)
 
     return jsonify({
         "service_date": service_date,
         "recent_sundays": _recent_sundays(_RECENT_SUNDAYS_COUNT),
-        "wilmington": wilmington,
-        "online": online,
+        "members": active,
         "inactive": inactive,
     }), 200
 
