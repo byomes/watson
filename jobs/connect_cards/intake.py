@@ -34,6 +34,7 @@ import email.utils
 import imaplib
 import logging
 import os
+import re
 import sqlite3
 from datetime import datetime, timedelta
 
@@ -95,6 +96,20 @@ NEXT_STEP_SUBSTRINGS = [
     ("join a ministry team",     "ministry_team"),
 ]
 
+# Known spam identity that has repeatedly hit the connect-card form --
+# mirrors BLOCKED_PHONE_DIGITS in watson-tools' src/app/api/cat/connect/
+# route.ts. That check runs at form-submission time and stops a bot's POST
+# from ever becoming an email; it does nothing for an email that already
+# exists in Gmail (e.g. sent before the fix went live), which is why this
+# job needs its own copy of the same block list.
+BLOCKED_PHONE_DIGITS = {"8006696607"}
+BLOCKED_EMAILS = {"ziecr@aol.com"}
+
+
+def _normalize_phone_digits(value: str) -> str:
+    return re.sub(r"\D", "", value or "")
+
+
 def _migrate_columns() -> None:
     """Add parsed columns to connect_cards if not present, and create member_conflicts table."""
     conn = sqlite3.connect(DB_PATH)
@@ -114,6 +129,30 @@ def _migrate_columns() -> None:
                 detected_at TEXT DEFAULT (datetime('now')),
                 resolved_at TEXT
             )
+        """)
+        # Tracks every connect-card email this job has ever handled, keyed
+        # by Message-ID, independent of whether the member/card/attendance
+        # rows it produced still exist. Deleting spam out of congregation.db
+        # must not make this job forget it already saw that email --
+        # otherwise the same still-sitting-in-Gmail message looks "new"
+        # again on the next poll and gets reinserted (root cause of
+        # "Alluverr Alluvert" reappearing 2026-09-06 after being deleted
+        # that same morning -- see project_congregation_db_spam memory).
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS processed_connect_card_emails (
+                email_id     TEXT PRIMARY KEY,
+                outcome      TEXT NOT NULL,
+                processed_at TEXT DEFAULT (datetime('now'))
+            )
+        """)
+        # Backfill from connect_cards.email_id so already-ingested emails
+        # aren't treated as unseen just because this table is new -- without
+        # this, every email ever inserted would look unprocessed on the
+        # first run after deploy and get reinserted as a duplicate member.
+        conn.execute("""
+            INSERT OR IGNORE INTO processed_connect_card_emails (email_id, outcome)
+            SELECT email_id, 'inserted' FROM connect_cards
+            WHERE email_id IS NOT NULL AND email_id != ''
         """)
         existing = {row[1] for row in conn.execute("PRAGMA table_info(connect_cards)").fetchall()}
         for col, defn in [
@@ -397,6 +436,19 @@ def _process_email(msg, dry_run: bool, conn: sqlite3.Connection) -> bool:
         log.info("Skipped (sender/subject mismatch): from=%r subject=%r", from_addr, subject)
         return False
 
+    email_id = msg.get("Message-ID", "").strip()
+
+    # Checked against processed_connect_card_emails, not connect_cards, so
+    # that deleting a spam row later doesn't make this email look unseen
+    # again on the next poll (see module docstring in _migrate_columns).
+    if email_id:
+        already = conn.execute(
+            "SELECT 1 FROM processed_connect_card_emails WHERE email_id = ?", (email_id,)
+        ).fetchone()
+        if already:
+            log.info("Skipped (already processed): email_id=%r", email_id)
+            return False
+
     html = _get_html_part(msg)
     if not html:
         log.warning("Skipped (no HTML part): subject=%r", subject)
@@ -406,24 +458,28 @@ def _process_email(msg, dry_run: bool, conn: sqlite3.Connection) -> bool:
         log.warning("Skipped (parse failed): subject=%r", subject)
         return False
 
-    email_id = msg.get("Message-ID", "").strip()
-
-    if email_id:
-        existing = conn.execute(
-            "SELECT id FROM connect_cards WHERE email_id = ?", (email_id,)
-        ).fetchone()
-        if existing:
-            log.info("Skipped (duplicate): email_id=%r", email_id)
-            return False
-
     try:
         received_dt = email.utils.parsedate_to_datetime(msg.get("Date", ""))
     except Exception:
         received_dt = datetime.utcnow()
     svc_date = _service_date(received_dt)
 
-    name       = f"{fields['first_name']} {fields['last_name']}".strip()
-    email_addr = (fields.get("email") or "").strip()
+    name         = f"{fields['first_name']} {fields['last_name']}".strip()
+    email_addr   = (fields.get("email") or "").strip()
+    phone_digits = _normalize_phone_digits(fields.get("phone") or "")
+
+    if phone_digits in BLOCKED_PHONE_DIGITS or email_addr.lower() in BLOCKED_EMAILS:
+        log.warning(
+            "Blocked known-spam submission: name=%r email=%r phone=%r email_id=%r",
+            name, email_addr, fields.get("phone"), email_id,
+        )
+        if email_id and not dry_run:
+            conn.execute(
+                "INSERT OR IGNORE INTO processed_connect_card_emails (email_id, outcome) VALUES (?, 'blocked_spam')",
+                (email_id,),
+            )
+            conn.commit()
+        return False
 
     log.info(
         "Processing: name=%r campus=%r service_date=%s first_visit=%s email=%r",
@@ -505,6 +561,12 @@ def _process_email(msg, dry_run: bool, conn: sqlite3.Connection) -> bool:
         conn.execute(
             "INSERT INTO follow_ups (member_id, card_id, note) VALUES (?, ?, ?)",
             (member_id, card_id, "First-time visitor"),
+        )
+
+    if email_id:
+        conn.execute(
+            "INSERT OR IGNORE INTO processed_connect_card_emails (email_id, outcome) VALUES (?, 'inserted')",
+            (email_id,),
         )
 
     conn.commit()
