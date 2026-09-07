@@ -1,10 +1,14 @@
 # Watson Bug Tracker
 _Auto-generated nightly from bug_tracker. Source of truth is the database — do not hand-edit this file, changes will be overwritten._
-Last generated: 2026-09-06 02:10
+Last generated: 2026-09-07 02:10
 
-## Open (36)
+## Open (40)
 | ID | Title | Repo | Discovered |
 |---|---|---|---|
+| 137 | jobs.browser: goto_safe failed for https://www.beenverified.com/people/emily-yomes/de/ | watson | 2026-09-06 09:31:03 |
+| 136 | jobs.browser: goto_safe failed for https://www.beenverified.com/people/micah-yomes/de/ | watson | 2026-09-06 09:30:47 |
+| 135 | jobs.browser: goto_safe failed for https://www.beenverified.com/people/melanie-yomes/de/ | watson | 2026-09-06 09:30:32 |
+| 134 | jobs.browser: goto_safe failed for https://www.beenverified.com/people/william-yomes/de/ | watson | 2026-09-06 09:30:17 |
 | 124 | Privacy Guard: _migrate_removals_status_check rebuild would drop ack_received_at/ack_snippet on a stale (pre-2026-08-21) DB | watson | 2026-09-05 11:59:21 |
 | 123 | jobs.browser: privacy.remove form submit failed for https://suppression.peopleconnect.us/?brand=USSearch | watson | 2026-09-05 11:56:51 |
 | 116 | Team-chat "when did X last attend" regex over-captures the word "last" into the person name | watson | 2026-09-03 10:36:34 |
