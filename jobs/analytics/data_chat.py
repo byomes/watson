@@ -143,7 +143,11 @@ just fall outside the %...% wildcard) so "bill crooks" or "Bill Crook's" still m
 person this way, always SELECT their name column alongside whatever was asked for, so an unexpected multi-\
 match is still attributable to a specific person rather than an unlabeled list of values. The same LIKE rule \
 applies to church_events.event_name -- match on whatever partial name the asker used ("the picnic" -> \
-event_name LIKE '%picnic%').
+event_name LIKE '%picnic%'). When the answer is a LIST OF PEOPLE (e.g. "who's registered", "who signed up", \
+"who is in X's group"), do NOT return separate raw columns like first_name/last_name/num_tickets side by side \
+-- concatenate them with SQL string concatenation into ONE readable text column instead (e.g. \
+`first_name || ' ' || last_name || CASE WHEN num_tickets > 1 THEN ' (' || num_tickets || ' tickets)' ELSE '' END`), \
+so each row reads as a single natural line rather than a raw field dump.
 Today's date is {today}.
 
 ATTENDANCE tables (file: congregation.db):
@@ -185,7 +189,7 @@ SQL: SELECT SUM(r.num_tickets) FROM event_registrations r JOIN church_events e O
 
 Q: who's registered for the picnic so far?
 DOMAIN: events
-SQL: SELECT r.first_name, r.last_name, r.num_tickets FROM event_registrations r JOIN church_events e ON e.id = r.event_id WHERE e.event_name LIKE '%picnic%'
+SQL: SELECT r.first_name || ' ' || r.last_name || CASE WHEN r.num_tickets > 1 THEN ' (' || r.num_tickets || ' tickets)' ELSE '' END AS registrant FROM event_registrations r JOIN church_events e ON e.id = r.event_id WHERE e.event_name LIKE '%picnic%'
 {contact_example}"""
 
 _CONTACT_ALLOWED_EXAMPLE = """
@@ -337,7 +341,16 @@ def _format_rows(rows: list[dict]) -> str:
         return str(_fmt_value(next(iter(rows[0].values()))))
     if len(rows) == 1:
         return ", ".join(f"{k}: {_fmt_value(v)}" for k, v in rows[0].items())
-    lines = [", ".join(f"{k}: {_fmt_value(v)}" for k, v in r.items()) for r in rows[:25]]
+    # A list-style answer (multiple rows) where every row is a single column
+    # reads far more naturally as one bare value per line than a repeated
+    # "column_name: value" — the column name is self-evident once for a
+    # whole list, and the system prompt already steers the model to
+    # concatenate multi-field "list of people" answers (name, count, etc.)
+    # into one such column rather than returning them split out raw.
+    if all(len(r) == 1 for r in rows):
+        lines = [str(_fmt_value(next(iter(r.values())))) for r in rows[:25]]
+    else:
+        lines = [", ".join(f"{k}: {_fmt_value(v)}" for k, v in r.items()) for r in rows[:25]]
     if len(rows) > 25:
         lines.append(f"... and {len(rows) - 25} more rows.")
     return "\n".join(lines)

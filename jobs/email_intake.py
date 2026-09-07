@@ -988,6 +988,20 @@ def run():
             mark_as_read(msg_id)
             continue
 
+        # Event signup notification (Subsplash, same platform that forwards
+        # connect cards via snappages.com below — a picnic/event registration
+        # notification may share that sender domain, so this MUST run before
+        # the snappages.com skip-guard or it would be silently marked read
+        # and never seen). Cheap keyword prefilter inside means this is a
+        # near-zero-cost no-op for every email that isn't signup-shaped,
+        # including ordinary connect card submissions.
+        from jobs.events.signup_detect import handle_event_signup_email
+        event_result = handle_event_signup_email(msg_id, addr, subject, body, received_at)
+        if event_result is not None:
+            if event_result == "read":
+                mark_as_read(msg_id)
+            continue
+
         if "snappages.com" in addr:
             log.info("Skipping connect card email from %s", sender_raw)
             mark_as_read(msg_id)
@@ -1051,17 +1065,6 @@ def run():
         pg_ack_result = handle_privacy_ack(msg_id, addr, subject, body)
         if pg_ack_result is not None:
             if pg_ack_result == "read":
-                mark_as_read(msg_id)
-            continue
-
-        # Event signup notification (SignUpGenius/Church Center/etc.) — auto-
-        # attaches to an actively-tracked church_events row, or asks Bill via
-        # Telegram whether to start tracking a new event. Same before-
-        # generic-triage ordering as the Privacy Guard checks above.
-        from jobs.events.signup_detect import handle_event_signup_email
-        event_result = handle_event_signup_email(msg_id, addr, subject, body, received_at)
-        if event_result is not None:
-            if event_result == "read":
                 mark_as_read(msg_id)
             continue
 
