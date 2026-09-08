@@ -96,6 +96,20 @@ _PAGE_TEMPLATE = """
     let line = null;
     let marker = null;
 
+    async function loadZones() {
+      const res = await fetch('/location/api/zones');
+      const zones = await res.json();
+      zones.forEach(z => {
+        L.circle([z.center_lat, z.center_lon], {
+          radius: z.radius_m,
+          color: '#5b8def',
+          weight: 1.5,
+          fillColor: '#5b8def',
+          fillOpacity: 0.08,
+        }).addTo(map).bindPopup(z.name);
+      });
+    }
+
     function fmtAgo(iso) {
       const then = new Date(iso.replace(' ', 'T') + 'Z');
       const mins = Math.round((Date.now() - then.getTime()) / 60000);
@@ -190,6 +204,7 @@ _PAGE_TEMPLATE = """
       document.getElementById('export-end').value = toLocalInputValue(now);
     })();
 
+    loadZones();
     loadRange(24, document.querySelector('.ranges button.active'));
     loadLog();
   </script>
@@ -245,6 +260,24 @@ def location_api_history_web():
                 "batt": r["batt"],
                 "received_at": r["received_at"],
             }
+            for r in rows
+        ]), 200
+    finally:
+        conn.close()
+
+
+@location_web_bp.route("/location/api/zones")
+def location_api_zones_web():
+    from jobs.dashboard.app import _admin_required
+    redir = _admin_required()
+    if redir:
+        return jsonify({"error": "unauthorized"}), 401
+
+    conn = get_db()
+    try:
+        rows = conn.execute("SELECT name, center_lat, center_lon, radius_m FROM location_zones").fetchall()
+        return jsonify([
+            {"name": r["name"], "center_lat": r["center_lat"], "center_lon": r["center_lon"], "radius_m": r["radius_m"]}
             for r in rows
         ]), 200
     finally:
