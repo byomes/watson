@@ -3455,3 +3455,47 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - dff5dae fix: restore giving-page redirect on connect card, with confirmation
 - 269ffeb Apply deacon app's dark mode class to <html> so it covers the whole screen
 - 50809fa fix: keep connect-card header on a single line on phones
+
+---
+
+## Recent Changes — 2026-09-08
+
+### ~/watson
+- 718525a docs: bugs/backlog export 2026-09-08
+- 6ff7783 docs: file map 2026-09-08
+- 129fd72 Add back-to-dashboard link on /location and /trading
+- 483d018 Add date-range export and a past-week log table to the location page
+- 2949fcd Add location map view to the Watson dashboard
+- 2490fce Add phone location tracking (OwnTracks HTTP -> Watson DB)
+- 79254fd Add per-deacon PIN login backing (deacon_pins table + verify_pin route)
+- 1c416d3 Truncate header title instead of letting it overlap the nav pill on narrow screens
+- ff9be08 Crop tab favicon to zero margin for maximum size
+- ab98a7d Crop the tab favicon even tighter for a bigger icon
+- a163e5d Use a tighter-cropped favicon so the tab/bookmark icon reads bigger
+- 0952fcb Enlarge Watson logo in header corner and browser tab favicon
+- f4d060e Strip blue background from Watson logo, leaving solid white icon on transparent bg
+- b2af3c0 Replace header W mark with new Watson logo across dashboard pages
+- 03dfcf9 kb: sync 1 transcript(s) to kb/documents (same-day)
+- 4134f29 dashboard: switch favicon to new Watson icon (envelope + quill)
+- 52145b1 intake: fix leadership-only prayer requests writing leadership_only=0
+- 5ec8a94 attendance: drop Wilmington/Online split, return one last-name-sorted list
+- 1e3d13e docs: architecture update 2026-09-07
+
+### ~/watson-admin
+- d987a1a Update favicon to new Watson icon (envelope + quill)
+
+### ~/watson-ui
+- d3a877e Update favicon to new Watson icon (envelope + quill)
+
+### ~/watson-tools
+- 52f1526 Add per-deacon PIN login and note attribution to Deacon App
+- 7b7860a Fix: Current-status members' last-seen badge did not open date picker
+- 1e8761e homepage: add transparent-navy Watson glyph above the wtsn.me title
+- 00e665e Add new Watson icon (envelope + quill) as the wtsn.me root favicon
+- fbf288b connect: move autofill diagnostics out of the card email, into server logs
+- a9eab38 connect: capture browser/device diagnostics for autofill troubleshooting
+- 9e306c1 shepherdingreport: restore Current/At Risk/Critical labels above boxes
+- 098a08b shepherdingreport: relabel summary boxes to "Missed <2wks/3-5wks/6+wks"
+- 850b605 deaconapp: match shepherdingreport's labeled/colon-separated summary boxes
+- 800512d shepherdingreport: label the three summary boxes, add colon before count
+- 0895192 attendance: single last-name-sorted list, no Wilmington/Online split
