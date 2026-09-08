@@ -26,6 +26,7 @@ from urllib.parse import quote, urlparse
 
 import requests
 
+from jobs.curator import get_db as _curator_db, user_name as _curator_user_name
 from jobs.research.web_search import search as serper_search
 from core.claude_tier import call_claude
 import core.llm_log  # noqa: F401 -- installs Ollama call logging, see core/llm_log.py
@@ -176,8 +177,28 @@ _SPICYBOOKS_PATTERN = re.compile(
 )
 
 
-def call_ollama(system: str, prompt: str, timeout: int = 90, options: dict | None = None) -> str:
-    claude_result = call_claude(system=system, user=prompt, job_name="curator.research", person="Curator app")
+def _person_for_job_id(job_id) -> str:
+    """Resolves an ingest_jobs.id back to the Curator account ("Adults" or
+    "Kids") that submitted it, for Claude API spend attribution (see
+    core.claude_tier and jobs.curator.user_name). Falls back to a generic
+    label when job_id is missing or the row/submitter can't be found."""
+    if not job_id:
+        return "Curator app"
+    try:
+        with _curator_db() as conn:
+            row = conn.execute(
+                "SELECT submitted_by FROM ingest_jobs WHERE id = ?", (job_id,)
+            ).fetchone()
+        return (row and _curator_user_name(row["submitted_by"])) or "Curator app"
+    except Exception:
+        return "Curator app"
+
+
+def call_ollama(
+    system: str, prompt: str, timeout: int = 90, options: dict | None = None,
+    person: str = "Curator app",
+) -> str:
+    claude_result = call_claude(system=system, user=prompt, job_name="curator.research", person=person)
     if claude_result:
         return claude_result
 
@@ -1440,7 +1461,7 @@ def _try_reconcile_csm_spicybooks(findings: list[dict]) -> dict | None:
     return {"confident": True, "spice_rating": round(sb_est), "reason": ""}
 
 
-def judge_spice_rating(title: str, author: str | None, findings: list[dict]) -> dict:
+def judge_spice_rating(title: str, author: str | None, findings: list[dict], job_id=None) -> dict:
     """Ollama weighs the extracted findings to produce a 0-5 spice_rating — the
     one place Watson's own judgment enters, and only the number, never wording
     shown to the user (that's always the findings' own excerpts). Refuses
@@ -1564,7 +1585,7 @@ Return JSON exactly in this shape:
         # identical input — e.g. "Icebreaker" flipped between confident=true
         # and confident=false across repeated identical calls. temperature=0
         # eliminated that: 3/3 identical results across 4 re-tested books.
-        raw = call_ollama(system, prompt, options={"temperature": 0})
+        raw = call_ollama(system, prompt, options={"temperature": 0}, person=_person_for_job_id(job_id))
         parsed = parse_json(raw)
     except Exception as exc:
         log.error("judge_spice_rating Ollama call failed: %s", exc)
@@ -1985,7 +2006,7 @@ def run_stage_b_enrichment(
         all_findings = all_findings[:_MAX_DISPLAYED_FINDINGS]
 
     _t = time.perf_counter()
-    rating_result = judge_spice_rating(title, author, all_findings)
+    rating_result = judge_spice_rating(title, author, all_findings, job_id=job_id)
     _log_stage(job_id, "judge_spice_rating", time.perf_counter() - _t, stage_durations)
 
     stage_summary = " ".join(f"{name}={dur:.2f}s" for name, dur in stage_durations.items())

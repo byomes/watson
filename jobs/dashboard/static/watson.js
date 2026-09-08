@@ -1775,7 +1775,7 @@ function _renderApiSpending(summary, log) {
         <tr>
           <td style="white-space:nowrap">${esc(fmtGenerated(r.created_at))}</td>
           <td>${esc(r.job_label || r.job_name)}</td>
-          <td>${esc(r.person || 'Watson (automated)')}</td>
+          <td>${esc(r.person || 'Bill Yomes')}</td>
           <td style="white-space:nowrap">$${r.cost_usd.toFixed(4)}</td>
         </tr>`).join('')}
     </table>` : '<div class="empty">No API calls logged yet.</div>'}</div>`;

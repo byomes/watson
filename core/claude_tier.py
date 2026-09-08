@@ -28,7 +28,7 @@ _ENV_KEY = "WATSON_CLAUDE_BUDGET_KEY"
 _ENV_BUDGET = "CLAUDE_MONTHLY_BUDGET_USD"
 _DEFAULT_BUDGET_USD = 10.00
 _DEFAULT_MODEL = "claude-sonnet-5"
-_DEFAULT_PERSON = "Watson (automated)"
+_DEFAULT_PERSON = "Bill Yomes"  # every default caller below is Bill's own scheduled/background automation
 
 # job_name -> plain-English description, shown in the dashboard's API Spending
 # table instead of the raw dotted module.function name.
@@ -77,6 +77,25 @@ def _bootstrap() -> None:
             )
         except Exception:
             pass  # column already exists
+        # One-time cleanup: rows logged under the old, unhelpful "Watson
+        # (automated)" default (2026-09-08) get re-attributed -- to Bill for
+        # every job that's genuinely his own automation, same as the new
+        # default (see _DEFAULT_PERSON above). analytics.data_chat is the
+        # one exception: those calls are Team Chat leaders (Bill C, Jim,
+        # etc.) asking questions, NEVER Bill himself (his own Telegram
+        # messages never reach that code path -- see bot.py's
+        # _is_authorized gate), but the real asker wasn't recorded before
+        # this column existed, so backfilling those as "Bill Yomes" would
+        # misattribute someone else's questions to him.
+        conn.execute(
+            "UPDATE claude_tier_spend_log SET person = ? "
+            "WHERE person = 'Watson (automated)' AND job_name != 'analytics.data_chat'",
+            (_DEFAULT_PERSON,),
+        )
+        conn.execute(
+            "UPDATE claude_tier_spend_log SET person = 'Unknown (asked before per-person tracking)' "
+            "WHERE person = 'Watson (automated)' AND job_name = 'analytics.data_chat'"
+        )
         conn.execute("""
             CREATE TABLE IF NOT EXISTS claude_tier_budget_alerts (
                 month        TEXT PRIMARY KEY,   -- 'YYYY-MM'
@@ -227,9 +246,11 @@ def call_claude(
     caller is unaffected since this defaults to None.
 
     person: who to attribute this call's spend to in the dashboard's API
-    Spending log (e.g. a Team Chat asker's name). Defaults to "Watson
-    (automated)" for jobs with no single human driving the individual call
-    (scheduled reports, background pipelines).
+    Spending log -- a Team Chat asker's name, a Curator account ("Adults"/
+    "Kids"), etc. Defaults to "Bill Yomes": every job that doesn't pass an
+    explicit person is one of Bill's own scheduled/background jobs (a
+    newsletter draft, a session wrap-up, a monthly report...), not some
+    separate non-human "Watson" actor -- it's still spend on his behalf.
     """
     if not is_api_spending_enabled():
         return None

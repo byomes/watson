@@ -16,7 +16,7 @@ import requests
 from PIL import Image, ImageOps
 
 from core.claude_tier import call_claude
-from jobs.curator import amazon_url_for, get_db
+from jobs.curator import amazon_url_for, get_db, user_name
 from jobs.curator.research import (
     OLLAMA_URL, call_ollama, fetch_amazon_ku_status, parse_json, research_book_fast,
     run_stage_b_enrichment,
@@ -140,7 +140,7 @@ def _ocr_cover(image_bytes: bytes) -> dict:
     return {"title": title, "author": author, "raw_text": raw}
 
 
-def identify_book_from_photo(image_bytes: bytes) -> dict:
+def identify_book_from_photo(image_bytes: bytes, submitted_by=None) -> dict:
     """Identify a book from a photo via Claude's own visual knowledge — distinct
     from _ocr_cover() above, which reads printed title/author text off a clean
     cover photo. This path is for photos where OCR doesn't apply or fails: a
@@ -186,7 +186,7 @@ def identify_book_from_photo(image_bytes: bytes) -> dict:
             model=_CLAUDE_VISION_MODEL,
             max_tokens=256,
             image_b64=b64,
-            person="Curator app",
+            person=user_name(submitted_by) or "Curator app",
         )
         parsed = parse_json(text) if text else None
     except Exception as exc:
@@ -661,7 +661,7 @@ def ingest_submission(
         source_type = "screenshot"
         if not title:
             if image_identify_method == "vision_id":
-                identified = identify_book_from_photo(image_bytes)
+                identified = identify_book_from_photo(image_bytes, submitted_by=submitted_by)
                 title = title or identified["title"]
                 author = author or identified["author"]
                 raw_text = f"Gemini photo identification: confident={identified['confident']}"

@@ -39,6 +39,19 @@ def get_db() -> sqlite3.Connection:
     return conn
 
 
+def user_name(user_id) -> str | None:
+    """users.name for a Curator account id ("Adults" or "Kids" -- see
+    _CONTACT_NAME_MAP above re: Bill/Mel sharing one "Adults" login), or
+    None if user_id is missing/unknown. Used to attribute Claude API spend
+    (core.claude_tier) to the account that actually triggered the call,
+    for the dashboard's API Spending table."""
+    if not user_id:
+        return None
+    with get_db() as conn:
+        row = conn.execute("SELECT name FROM users WHERE id = ?", (user_id,)).fetchone()
+    return row["name"] if row else None
+
+
 def amazon_url_for(conn: sqlite3.Connection, book_id: int) -> str | None:
     """Most recent Amazon book_source URL for a book, or None if it never had
     one (no listing found, or the book predates this lookup). Shared by
