@@ -324,7 +324,6 @@ is considered fully confirmed.
 | `jobs/connect_cards/email_reports.py --bill --prayer --kaci` | Mon 5am | Next steps/comments → Bill; prayer digest → Bill; prayer requests report → Kaci |
 | `jobs/connect_cards/email_reports.py --donna` | Tue 5am | Attendance → Donna |
 | `jobs/connect_cards/attendance_intake.py` | Every 30 min | Attendance intake |
-| `jobs/connect_cards/missed_report.py` | Mon 6am | Missed report — 3 sections: Wilmington, Online, Hybrid — recipients: Bill, Donna, Kaci |
 | `jobs/congregation/shepherding_report_ready.py` | Wed 8:30am | Telegram nudge (Bill, Jim Bouchat, Bill Crook) linking to `wtsn.me/cat/shepherdingreport` — replaces `shepherding_report.py` (Wed 6am email) and `elder_shepherding_report.py` (Wed 6:15am Telegram counts), both retired 2026-09-02; their report-building functions stay in place since the wtsn.me page still imports from them |
 | `jobs/connect_cards/conflict_report.py` | Sun 5pm | Member conflict report with 3-button Telegram resolution |
 | `jobs/connect_cards/state_of_church.py` | Thu 4pm | State of the Church HTML email |
@@ -1912,6 +1911,7 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - ~~iOS keyboard patch in dashboard chat~~ — attempted and reverted 7 times, permanently removed from build queue
 - ~~Build Pipeline (`jobs/dev/build_pipeline.py`)~~ — Claude API spec/review/approve flow triggered by bare `build <request>` / `approve` in Telegram; last ran 2026-06-15, superseded by Dev Loop. Bot triggers removed 2026-07-03. File left in place, unreferenced.
 - ~~`jobs/kb/archive_transcripts.py`~~ — retired 2026-07-20, superseded by `jobs/kb/sync_and_index.py`. Its 30-day-old-file threshold became unreachable once transcripts started moving to `kb/documents/` the same day they arrive. File left in place, unreferenced; cron entry removed.
+- ~~`jobs/connect_cards/missed_report.py`~~ — Tue 7am email (Bill, Donna, Kaci) of who missed that Sunday; retired 2026-09-08 at Bill's request after he called it "the old attendance system" on receiving one, superseded by the live `wtsn.me/cat/attendance` tool and the Wed shepherding-report-ready Telegram nudge. File left in place, unreferenced; cron entry removed.
 
 ---
 
