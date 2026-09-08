@@ -8,6 +8,12 @@ birthdate on file at all, so Bill C / Jim can chase that info down --
 per Bill's 2026-09-08 request, this is a nudge to fill data gaps, not a
 diff against some separate list they keep elsewhere.
 
+The upcoming-birthdays section is whole-roster (everyone sees the same
+list). The missing-birthdate section is scoped to each recipient's own
+deacon group (members.deacon, matching deacon_reports.py's grouping) --
+per Bill's 2026-09-08 follow-up, each deacon should only be nudged about
+their own people, not the entire congregation's gaps.
+
 Scope: members.active = 1 AND member_status = 'active'. No shepherding/
 attendance-history gate like deacon_reports.py's at-risk sections -- a
 birthday list is for the whole active roster, not just engaged members.
@@ -36,7 +42,7 @@ from jobs.telegram.send_to_person import send_to_person
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger(__name__)
 
-RECIPIENT_PERSON_IDS = [78, 254]  # Bill Crook, Jim Bouchat
+RECIPIENTS = [(78, "Bill Crook"), (254, "Jim Bouchat")]  # (people.id, members.deacon)
 
 
 def _next_month() -> tuple[int, int]:
@@ -71,7 +77,7 @@ def _birthdays_for_month(month: int) -> list[tuple[int, str, int]]:
     return result
 
 
-def _missing_birthdates() -> list[str]:
+def _missing_birthdates(deacon_name: str) -> list[str]:
     with _conn() as conn:
         rows = conn.execute(
             """
@@ -79,19 +85,21 @@ def _missing_birthdates() -> list[str]:
             FROM members
             WHERE active = 1
               AND member_status = 'active'
+              AND deacon = ?
               AND (birthdate IS NULL OR birthdate = '')
             ORDER BY name
-            """
+            """,
+            (deacon_name,),
         ).fetchall()
     return [row["name"] for row in rows]
 
 
-def build_message() -> str:
+def build_message(deacon_name: str) -> str:
     year, month = _next_month()
     month_name = calendar.month_name[month]
 
     birthdays = _birthdays_for_month(month)
-    missing = _missing_birthdates()
+    missing = _missing_birthdates(deacon_name)
 
     lines = [f"🎂 Birthdays in {month_name} {year}"]
     if birthdays:
@@ -101,11 +109,11 @@ def build_message() -> str:
         lines.append("(none on file)")
 
     lines.append("")
-    lines.append(f"Missing birthdate on file ({len(missing)}):")
+    lines.append(f"Missing birthdate on file in your group ({len(missing)}):")
     if missing:
         lines.append(", ".join(missing))
     else:
-        lines.append("(none — every active member has a birthdate on file)")
+        lines.append("(none — everyone in your group has a birthdate on file)")
 
     lines.append("")
     lines.append("- Watson")
@@ -113,8 +121,8 @@ def build_message() -> str:
 
 
 def main():
-    message = build_message()
-    for person_id in RECIPIENT_PERSON_IDS:
+    for person_id, deacon_name in RECIPIENTS:
+        message = build_message(deacon_name)
         ok = send_to_person(person_id, message)
         if not ok:
             log.error("birthday_report: failed to send to person_id=%s", person_id)
