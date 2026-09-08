@@ -56,7 +56,7 @@ Transcript:
 
 
 def _call_ollama(system: str, prompt: str, timeout: int = 120) -> str:
-    claude_result = call_claude(system=system, user=prompt, job_name="team.extractor")
+    claude_result = call_claude(system=system, user=prompt, job_name="team.extractor", person="Bill Yomes")
     if claude_result:
         return claude_result
 

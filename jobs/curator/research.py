@@ -177,7 +177,7 @@ _SPICYBOOKS_PATTERN = re.compile(
 
 
 def call_ollama(system: str, prompt: str, timeout: int = 90, options: dict | None = None) -> str:
-    claude_result = call_claude(system=system, user=prompt, job_name="curator.research")
+    claude_result = call_claude(system=system, user=prompt, job_name="curator.research", person="Curator app")
     if claude_result:
         return claude_result
 

@@ -28,6 +28,27 @@ _ENV_KEY = "WATSON_CLAUDE_BUDGET_KEY"
 _ENV_BUDGET = "CLAUDE_MONTHLY_BUDGET_USD"
 _DEFAULT_BUDGET_USD = 10.00
 _DEFAULT_MODEL = "claude-sonnet-5"
+_DEFAULT_PERSON = "Watson (automated)"
+
+# job_name -> plain-English description, shown in the dashboard's API Spending
+# table instead of the raw dotted module.function name.
+JOB_LABELS = {
+    "email_job.draft_email": "Weekly newsletter drafting",
+    "team.extractor": "Meeting notes extraction",
+    "analytics.data_chat": "Team chat Q&A",
+    "memory.wrap_up": "Dev session wrap-up",
+    "connect_cards.state_of_church": "State of the Church report",
+    "intent.classifier": "Telegram message understanding",
+    "email_reply.drafter": "Email reply drafting",
+    "curator.research": "Curator book research",
+    "curator.identify_book_from_photo": "Curator book photo ID",
+    "analytics.monthly_web_engagement_report": "Monthly web engagement report",
+    "memory.reflect": "Dev session reflection",
+    "email_send.send": "Sending an email",
+    "skillbuilder.audit": "Weekly skill gap audit",
+    "skillbuilder.acquire": "Acquiring a new skill",
+    "pastoral_notes.handler": "Pastoral notes processing",
+}
 
 # $ per 1M tokens (input, output) — only the models this tier is expected to use.
 _PRICING = {
@@ -50,6 +71,12 @@ def _bootstrap() -> None:
                 created_at     TEXT NOT NULL DEFAULT (datetime('now'))
             )
         """)
+        try:
+            conn.execute(
+                f"ALTER TABLE claude_tier_spend_log ADD COLUMN person TEXT NOT NULL DEFAULT '{_DEFAULT_PERSON}'"
+            )
+        except Exception:
+            pass  # column already exists
         conn.execute("""
             CREATE TABLE IF NOT EXISTS claude_tier_budget_alerts (
                 month        TEXT PRIMARY KEY,   -- 'YYYY-MM'
@@ -113,11 +140,14 @@ def set_api_spending_enabled(on: bool) -> None:
 def get_spend_log(limit: int = 50) -> list[dict]:
     with get_connection() as conn:
         rows = conn.execute(
-            "SELECT job_name, model, input_tokens, output_tokens, cost_usd, created_at "
+            "SELECT job_name, model, input_tokens, output_tokens, cost_usd, created_at, person "
             "FROM claude_tier_spend_log ORDER BY id DESC LIMIT ?",
             (limit,),
         ).fetchall()
-    return [dict(r) for r in rows]
+    result = [dict(r) for r in rows]
+    for r in result:
+        r["job_label"] = JOB_LABELS.get(r["job_name"], r["job_name"])
+    return result
 
 
 def get_month_summary() -> dict:
@@ -130,12 +160,12 @@ def get_month_summary() -> dict:
     }
 
 
-def _log_spend(job_name: str, model: str, input_tokens: int, output_tokens: int, cost_usd: float) -> None:
+def _log_spend(job_name: str, model: str, input_tokens: int, output_tokens: int, cost_usd: float, person: str) -> None:
     with get_connection() as conn:
         conn.execute(
             "INSERT INTO claude_tier_spend_log "
-            "(job_name, model, input_tokens, output_tokens, cost_usd) VALUES (?, ?, ?, ?, ?)",
-            (job_name, model, input_tokens, output_tokens, cost_usd),
+            "(job_name, model, input_tokens, output_tokens, cost_usd, person) VALUES (?, ?, ?, ?, ?, ?)",
+            (job_name, model, input_tokens, output_tokens, cost_usd, person),
         )
 
 
@@ -182,6 +212,7 @@ def call_claude(
     max_tokens: int = 2048,
     image_b64: str | None = None,
     image_media_type: str = "image/jpeg",
+    person: str = _DEFAULT_PERSON,
 ) -> str | None:
     """Try a budget-tracked Claude API call. Returns the response text on
     success, or None if the tier is inactive/exhausted/erroring — callers
@@ -194,6 +225,11 @@ def call_claude(
     a vision request (added 2026-09-06 for
     jobs.curator.ingest.identify_book_from_photo) — every existing text-only
     caller is unaffected since this defaults to None.
+
+    person: who to attribute this call's spend to in the dashboard's API
+    Spending log (e.g. a Team Chat asker's name). Defaults to "Watson
+    (automated)" for jobs with no single human driving the individual call
+    (scheduled reports, background pipelines).
     """
     if not is_api_spending_enabled():
         return None
@@ -242,7 +278,7 @@ def call_claude(
     cost = (in_tok * price_in + out_tok * price_out) / 1_000_000
 
     try:
-        _log_spend(job_name, model, in_tok, out_tok, cost)
+        _log_spend(job_name, model, in_tok, out_tok, cost, person)
     except Exception as exc:
         log.warning("claude_tier: failed to log spend for job=%s: %s", job_name, exc)
 

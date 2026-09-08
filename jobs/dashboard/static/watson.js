@@ -1770,13 +1770,12 @@ function _renderApiSpending(summary, log) {
       </label>
     </div>
     <div class="mshep-wrap">${log.length ? `<table class="mshep-table">
-      <tr><th>Time</th><th>Job</th><th>Model</th><th>Tokens</th><th>Cost</th></tr>
+      <tr><th>Time</th><th>Job</th><th>Initiated By</th><th>Cost</th></tr>
       ${log.map(r => `
         <tr>
           <td style="white-space:nowrap">${esc(fmtGenerated(r.created_at))}</td>
-          <td>${esc(r.job_name)}</td>
-          <td>${esc(r.model)}</td>
-          <td style="white-space:nowrap">${r.input_tokens}→${r.output_tokens}</td>
+          <td>${esc(r.job_label || r.job_name)}</td>
+          <td>${esc(r.person || 'Watson (automated)')}</td>
           <td style="white-space:nowrap">$${r.cost_usd.toFixed(4)}</td>
         </tr>`).join('')}
     </table>` : '<div class="empty">No API calls logged yet.</div>'}</div>`;

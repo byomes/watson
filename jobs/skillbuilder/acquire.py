@@ -150,7 +150,7 @@ def search_for_skill(capability_description: str) -> dict:
             "beautifulsoup4, pillow, pandas, pydantic."
         )
         try:
-            raw = call_claude(system=system, user=call_user, job_name="skillbuilder.acquire")
+            raw = call_claude(system=system, user=call_user, job_name="skillbuilder.acquire", person="Bill Yomes")
             if not raw:
                 resp = requests.post(
                     OLLAMA_URL,

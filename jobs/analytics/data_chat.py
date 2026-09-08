@@ -306,7 +306,10 @@ def _generate(question: str, asker_name: str, allow_contact_info: bool) -> tuple
     )
     resolved_question = _resolve_first_person(question, asker_name)
 
-    claude_result = call_claude(system=system, user=resolved_question, job_name="analytics.data_chat")
+    claude_result = call_claude(
+        system=system, user=resolved_question, job_name="analytics.data_chat",
+        person=asker_name,
+    )
     if claude_result:
         content = claude_result
     else:

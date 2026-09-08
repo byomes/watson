@@ -28,7 +28,7 @@ def _extract_fields(message: str) -> dict:
         'Return JSON only: {"to": "", "subject": "", "body": ""}\n\n'
         f'Message: {message}'
     )
-    raw = call_claude(system="", user=prompt, job_name="email_send.send")
+    raw = call_claude(system="", user=prompt, job_name="email_send.send", person="Bill Yomes")
     if not raw:
         resp = requests.post(
             OLLAMA_URL,
