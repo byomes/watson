@@ -45,7 +45,7 @@ def _build_search_url(pattern: str, first: str, last: str, state: str) -> str:
     return pattern.format(first=first.lower(), last=last.lower(), state=(state or "").lower())
 
 
-def _build_warmup_url(pattern: str, first: str, last: str) -> str:
+def _build_warmup_url(pattern: str, first: str, last: str) -> str | None:
     """Confirmed live 2026-09-08: BeenVerified 404s a cold direct fetch of
     the {state}-filtered results URL unless the same browser session
     already visited the un-filtered {first}-{last} search page first — and
@@ -54,8 +54,21 @@ def _build_warmup_url(pattern: str, first: str, last: str) -> str:
     instead of failing fast (this is what actually triggered the "every
     broker fetch failed" alert, not a real broker-side outage). Visiting
     this state-less URL first in the same page warms the session cookies
-    the state-filtered page needs."""
+    the state-filtered page needs.
+
+    Only handles the "/{state}/" or trailing "/{state}" path-segment shape
+    (BeenVerified's, and the other currently-active-eligible brokers' —
+    see privacy_brokers seed data). Checked live 2026-09-08 against all 10
+    seed brokers: TruthFinder embeds it as "-{state}/" (no slash before)
+    and Nuwber as a "?state={state}" query param, neither of which this
+    strips, so the .format() below would raise KeyError if given either
+    pattern — return None instead of guessing, so callers skip the warmup
+    hop rather than crash. Both are currently active=0 (blocked on their
+    opt-out submission flow, unrelated to this), so this can't fire today,
+    but would the moment either got reactivated as-is."""
     base_pattern = pattern.replace("/{state}/", "/").replace("/{state}", "")
+    if "{state}" in base_pattern:
+        return None
     return base_pattern.format(first=first.lower(), last=last.lower())
 
 
@@ -134,7 +147,7 @@ async def _fetch_listings_for(person: dict, broker: dict) -> list[dict] | None:
     url = _build_search_url(broker["search_url_pattern"], first, last, primary_state)
     warmup_url = _build_warmup_url(broker["search_url_pattern"], first, last)
     async with get_page() as page:
-        if warmup_url != url:
+        if warmup_url and warmup_url != url:
             await goto_safe(page, warmup_url, wait_until="domcontentloaded")
         ok = await goto_safe(page, url, wait_until="networkidle")
         if not ok:
