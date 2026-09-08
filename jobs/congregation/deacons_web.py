@@ -138,12 +138,13 @@ def _attach_shepherding_info(conn, people: list[dict]) -> None:
 
     notes_by_member: dict = {}
     for dn in conn.execute(
-        f"SELECT member_id, note, status, created_at, author_deacon FROM deacon_notes "
+        f"SELECT id, member_id, note, status, created_at, author_deacon FROM deacon_notes "
         f"WHERE member_id IN ({placeholders}) ORDER BY created_at DESC",
         member_ids,
     ):
         notes_by_member.setdefault(dn["member_id"], []).append(
             {
+                "id": dn["id"],
                 "note": dn["note"],
                 "status": dn["status"],
                 "created_at": dn["created_at"],
@@ -273,3 +274,46 @@ def add_deacon_note(member_id):
         ).fetchone()
 
     return jsonify(dict(row)), 201
+
+
+@deacons_web_bp.route("/api/cat/deacons/member/<int:member_id>/note/<int:note_id>", methods=["PATCH"])
+@_require_key
+def edit_deacon_note(member_id, note_id):
+    """Per Bill's 2026-09-08 request: any deacon-app user can edit any
+    deacon note, same "unified roster, not scoped to their own people"
+    philosophy as the rest of this blueprint (see module docstring) --
+    deacons cover for each other, and notes aren't ownership-locked."""
+    data = request.get_json(force=True) or {}
+    note = (data.get("note") or "").strip()
+    if not note:
+        return jsonify({"error": "note is required"}), 400
+
+    with _conn() as conn:
+        existing = conn.execute(
+            "SELECT id FROM deacon_notes WHERE id = ? AND member_id = ?", (note_id, member_id)
+        ).fetchone()
+        if not existing:
+            return jsonify({"error": "not found"}), 404
+        conn.execute("UPDATE deacon_notes SET note = ? WHERE id = ?", (note, note_id))
+        conn.commit()
+        row = conn.execute(
+            "SELECT id, member_id, note, status, created_at, author_deacon FROM deacon_notes WHERE id = ?",
+            (note_id,),
+        ).fetchone()
+
+    return jsonify(dict(row)), 200
+
+
+@deacons_web_bp.route("/api/cat/deacons/member/<int:member_id>/note/<int:note_id>", methods=["DELETE"])
+@_require_key
+def delete_deacon_note(member_id, note_id):
+    with _conn() as conn:
+        existing = conn.execute(
+            "SELECT id FROM deacon_notes WHERE id = ? AND member_id = ?", (note_id, member_id)
+        ).fetchone()
+        if not existing:
+            return jsonify({"error": "not found"}), 404
+        conn.execute("DELETE FROM deacon_notes WHERE id = ?", (note_id,))
+        conn.commit()
+
+    return jsonify({"ok": True}), 200
