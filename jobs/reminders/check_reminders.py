@@ -28,7 +28,7 @@ def main():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     due = conn.execute(
-        "SELECT * FROM reminders WHERE due_datetime <= datetime('now') AND status = 'active'"
+        "SELECT * FROM reminders WHERE due_datetime != '' AND due_datetime <= datetime('now') AND status = 'active'"
     ).fetchall()
     for r in due:
         try:

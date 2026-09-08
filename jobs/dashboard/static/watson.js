@@ -932,25 +932,34 @@ async function briefingAction(id, action, btnEl) {
 // ─── Reminders page ───────────────────────────────────────────────────────────
 
 function _reminderSubLabel(r) {
+  const parts = [];
   if (r.due_datetime) {
     // Stored as UTC "YYYY-MM-DD HH:MM:SS" (see addReminder() below) --
     // force UTC parsing so it round-trips to the right local time
     // regardless of browser date-string parsing quirks.
     const d = new Date(r.due_datetime.replace(' ', 'T') + 'Z');
-    if (!isNaN(d)) {
-      return d.toLocaleString('en-US', {
-        weekday: 'short', month: 'short', day: 'numeric',
-        hour: 'numeric', minute: '2-digit',
-      });
-    }
+    parts.push(!isNaN(d) ? d.toLocaleString('en-US', {
+      weekday: 'short', month: 'short', day: 'numeric',
+      hour: 'numeric', minute: '2-digit',
+    }) : (r.reminder_time || r.due_datetime));
+  } else if (r.reminder_time) {
+    parts.push(r.reminder_time);
   }
-  return r.reminder_time || r.due_datetime || '';
+  if (r.location_zone) parts.push('at ' + r.location_zone);
+  return parts.join(' · ');
 }
 
 async function renderReminders() {
   setContent('<div class="loading">Loading&hellip;</div>');
   try {
     const reminders = await api('/api/reminders');
+    let zoneOptions = '<option value="">No location trigger</option>';
+    try {
+      const zones = await api('/location/api/zones');
+      if (Array.isArray(zones)) {
+        zoneOptions += zones.map(z => `<option value="${esc(z.name)}">${esc(z.name)}</option>`).join('');
+      }
+    } catch { /* location tracking may not be set up -- form still works with time-only */ }
     const formHtml = `
       <input id="reminder-inp-title" type="text" placeholder="Remind me to…"
         style="display:block;width:100%;margin-bottom:8px;padding:9px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:14px;outline:none;box-sizing:border-box"
@@ -958,6 +967,9 @@ async function renderReminders() {
       <input id="reminder-inp-due" type="datetime-local"
         style="display:block;width:100%;margin-bottom:8px;padding:9px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:14px;outline:none;box-sizing:border-box;color-scheme:dark"
         onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--border)'">
+      <select id="reminder-inp-zone"
+        style="display:block;width:100%;margin-bottom:8px;padding:9px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:14px;outline:none;box-sizing:border-box"
+        onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--border)'">${zoneOptions}</select>
       <div style="display:flex;justify-content:flex-end;margin-bottom:4px">
         <button id="reminder-add-btn" onclick="addReminder()"
           style="padding:7px 16px;background:var(--gold);color:#0f0f0f;border:none;border-radius:var(--r-btn);font-weight:600;font-family:inherit;font-size:13px;cursor:pointer;-webkit-tap-highlight-color:transparent">Add reminder</button>
@@ -990,10 +1002,12 @@ async function renderReminders() {
 async function addReminder() {
   const titleInp = document.getElementById('reminder-inp-title');
   const dueInp   = document.getElementById('reminder-inp-due');
+  const zoneInp  = document.getElementById('reminder-inp-zone');
   const addBtn   = document.getElementById('reminder-add-btn');
   const warnEl   = document.getElementById('reminder-warning');
   const title    = (titleInp?.value || '').trim();
   const dueLocal = dueInp?.value || '';
+  const location_zone = zoneInp?.value || '';
 
   const warn = (msg) => {
     if (!warnEl) return;
@@ -1003,25 +1017,30 @@ async function addReminder() {
   };
 
   if (!title) { titleInp?.focus(); return; }
-  if (!dueLocal) { warn('Pick a date and time.'); return; }
+  if (!dueLocal && !location_zone) { warn('Pick a time and/or a location.'); return; }
 
-  const dueDate = new Date(dueLocal);
-  if (isNaN(dueDate)) { warn('Invalid date/time.'); return; }
-  // Convert the datetime-local (browser-local wall clock) value to the UTC
-  // "YYYY-MM-DD HH:MM:SS" form _reminderSubLabel() above expects, and that
-  // jobs/reminders/check_reminders.py's `due_datetime <= datetime('now')`
-  // cron can compare directly against SQLite's own UTC datetime('now').
-  const due_datetime = dueDate.toISOString().slice(0, 19).replace('T', ' ');
+  const body = { title };
+  if (location_zone) body.location_zone = location_zone;
+  if (dueLocal) {
+    const dueDate = new Date(dueLocal);
+    if (isNaN(dueDate)) { warn('Invalid date/time.'); return; }
+    // Convert the datetime-local (browser-local wall clock) value to the UTC
+    // "YYYY-MM-DD HH:MM:SS" form _reminderSubLabel() above expects, and that
+    // jobs/reminders/check_reminders.py's `due_datetime <= datetime('now')`
+    // cron can compare directly against SQLite's own UTC datetime('now').
+    body.due_datetime = dueDate.toISOString().slice(0, 19).replace('T', ' ');
+  }
 
   if (addBtn) { addBtn.disabled = true; addBtn.textContent = '…'; }
   try {
     await api('/api/reminders', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, due_datetime }),
+      body: JSON.stringify(body),
     });
     if (titleInp) titleInp.value = '';
     if (dueInp) dueInp.value = '';
+    if (zoneInp) zoneInp.value = '';
     await renderReminders();
   } catch {
     warn('Failed to save reminder.');

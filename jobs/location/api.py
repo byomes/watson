@@ -76,25 +76,34 @@ def _zone_for(conn, lat, lon):
     return best[0] if best else None
 
 
-def _notify_zone_change(zone_from, zone_to):
-    if zone_to and not zone_from:
-        text = f"\U0001F4CD Arrived at {zone_to}"
-    elif zone_from and not zone_to:
-        text = f"\U0001F4CD Left {zone_from}"
-    elif zone_from and zone_to:
-        text = f"\U0001F4CD Left {zone_from}, arrived at {zone_to}"
-    else:
+def _fire_location_reminders(conn, zone_to):
+    """Fire (Telegram + mark 'fired') any active dashboard reminder whose
+    location_zone matches the zone just entered. No-op on leaving a zone or
+    when nothing has a location trigger set for it -- Bill asked (2026-09-08)
+    to drop the old blanket "Arrived at X / Left X" notice on every crossing
+    in favor of only the reminders he explicitly asks for."""
+    if not zone_to:
         return
-    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+    rows = conn.execute(
+        "SELECT id, title FROM reminders WHERE status = 'active' AND location_zone = ?",
+        (zone_to,),
+    ).fetchall()
+    if not rows or not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         return
-    try:
-        requests.post(
-            f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
-            json={"chat_id": TELEGRAM_CHAT_ID, "text": f"{text}\n\n - Watson"},
-            timeout=10,
-        )
-    except Exception as exc:
-        log.error("location zone notify failed: %s", exc)
+    for r in rows:
+        try:
+            requests.post(
+                f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+                json={"chat_id": TELEGRAM_CHAT_ID, "text": f"\U0001F4CD Reminder ({zone_to}): {r['title']}\n\n - Watson"},
+                timeout=10,
+            )
+            conn.execute(
+                "UPDATE reminders SET status = 'fired', updated_at = datetime('now') WHERE id = ?",
+                (r["id"],),
+            )
+        except Exception as exc:
+            log.error("location reminder fire failed id=%s: %s", r["id"], exc)
+    conn.commit()
 
 
 def _row_to_dict(row) -> dict:
@@ -159,7 +168,7 @@ def ingest():
                 (data.get("tst"), zone_from, zone_to, lat, lon),
             )
             conn.commit()
-            _notify_zone_change(zone_from, zone_to)
+            _fire_location_reminders(conn, zone_to)
     except Exception as exc:
         log.error("location ingest failed: %s", exc)
     finally:

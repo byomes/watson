@@ -91,6 +91,10 @@ def _bootstrap():
         c.execute("ALTER TABLE reminders ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0")
     except Exception:
         pass
+    try:
+        c.execute("ALTER TABLE reminders ADD COLUMN location_zone TEXT")
+    except Exception:
+        pass
     c.execute("""CREATE TABLE IF NOT EXISTS reading_list (
         id          INTEGER PRIMARY KEY AUTOINCREMENT,
         title       TEXT    NOT NULL,
@@ -2112,24 +2116,29 @@ def reminders_list():
 
 @app.route("/api/reminders", methods=["POST"])
 def reminders_create():
-    """due_datetime must be a real UTC timestamp ("YYYY-MM-DD HH:MM:SS")
-    comparable to SQLite's own datetime('now') -- jobs/reminders/check_reminders.py's
-    per-minute cron fires (via Telegram) on `due_datetime <= datetime('now')`.
-    Previously this endpoint always stamped 'now' here regardless of what
-    the caller wanted, since no dashboard UI ever collected a real due time
-    -- per Bill's 2026-09-08 request, the new Add Reminder form on the
-    Reminders tab sends a real one so it actually fires at the chosen time,
-    the same way Telegram-created reminders already do."""
+    """due_datetime, when given, must be a real UTC timestamp
+    ("YYYY-MM-DD HH:MM:SS") comparable to SQLite's own datetime('now') --
+    jobs/reminders/check_reminders.py's per-minute cron fires (via Telegram)
+    on `due_datetime != '' AND due_datetime <= datetime('now')`.
+
+    location_zone, when given, must match a jobs.location `location_zones.name`
+    -- jobs/location/api.py fires (via Telegram) any active reminder whose
+    location_zone matches the zone just entered. A reminder may set either,
+    or both (whichever trigger happens first fires it and marks it 'fired').
+    """
     data = request.get_json(force=True)
     title = (data.get("title") or "").strip()
     due_datetime = (data.get("due_datetime") or "").strip()
-    if not title or not due_datetime:
-        return jsonify({"error": "title and due_datetime are required"}), 400
+    location_zone = (data.get("location_zone") or "").strip() or None
+    if not title:
+        return jsonify({"error": "title is required"}), 400
+    if not due_datetime and not location_zone:
+        return jsonify({"error": "due_datetime or location_zone is required"}), 400
     reminder_time = (data.get("reminder_time") or "").strip() or None
     cur = _db().execute(
-        "INSERT INTO reminders (title, due_datetime, reminder_time, status, created_at, updated_at) "
-        "VALUES (?, ?, ?, 'active', datetime('now'), datetime('now'))",
-        (title, due_datetime, reminder_time),
+        "INSERT INTO reminders (title, due_datetime, reminder_time, location_zone, status, created_at, updated_at) "
+        "VALUES (?, ?, ?, ?, 'active', datetime('now'), datetime('now'))",
+        (title, due_datetime, reminder_time, location_zone),
     )
     _db().commit()
     row = _db().execute("SELECT * FROM reminders WHERE id = ?", (cur.lastrowid,)).fetchone()
@@ -2139,7 +2148,7 @@ def reminders_create():
 @app.route("/api/reminders/<int:reminder_id>", methods=["PATCH"])
 def reminders_update(reminder_id):
     data = request.get_json(force=True)
-    allowed = {"title", "status", "reminder_time", "sort_order"}
+    allowed = {"title", "status", "reminder_time", "sort_order", "due_datetime", "location_zone"}
     fields = {k: v for k, v in data.items() if k in allowed}
     if not fields:
         return jsonify({"error": "nothing to update"}), 400
