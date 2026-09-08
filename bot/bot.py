@@ -1521,7 +1521,6 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for slug, triggers in _SKILL_PRE_CHECKS.items():
         if any(trigger in msg_lower_check for trigger in triggers):
             if slug == "skip_all":
-                from core.database import get_connection
                 with get_connection() as _conn:
                     _conn.execute(
                         "UPDATE tg_pending_actions SET status='cancelled' "
