@@ -102,7 +102,10 @@ def _attendance_schema(allow_contact_info: bool) -> str:
         "  -- Never look up X's own row and reuse ITS deacon value instead -- deacons/elders themselves are tagged with a\n"
         "  -- leadership bucket there (e.g. 'Elders & Deacons'), shared by every deacon/elder and their spouse, not their own\n"
         "  -- name -- reusing it returns that whole leadership bucket, a wrong and unrelated group, not the person's shepherded members.\n"
-        "  -- join attendance.member_id = members.id for a specific person's or group's attendance."
+        "  -- join attendance.member_id = members.id for a specific person's or group's attendance.\n"
+        "  -- partnership_status is a category, one of exactly 'Partner', 'Guest', 'Regular Attender' -- to filter\n"
+        "  -- to just partners use partnership_status = 'Partner', NEVER partnership_status IS NOT NULL (that matches\n"
+        "  -- everyone, since the column is always populated with one of the three values above)."
     )
 
 _WEB_SCHEMA = """
@@ -182,6 +185,10 @@ SQL: SELECT COUNT(*) FROM attendance WHERE member_id IN (SELECT id FROM members 
 Q: who is in bill crooks deacon group?
 DOMAIN: attendance
 SQL: SELECT name FROM members WHERE deacon LIKE '%Bill Crook%'
+
+Q: which partners haven't been assigned to a deacon yet?
+DOMAIN: attendance
+SQL: SELECT name FROM members WHERE partnership_status = 'Partner' AND (deacon IS NULL OR deacon = '')
 
 Q: how many people have signed up for the picnic?
 DOMAIN: events
