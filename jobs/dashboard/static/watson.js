@@ -6,10 +6,6 @@ let _pendingOpenIdx = null;
 let _pendingNoteTypes = {};
 let _homeTaskTab = 'catalyst';
 let _notesType = 'pastoral';
-let chatHistory = [];
-let chatMemoryContext = '';
-let chatIdleTimer = null;
-let lastKbResult = null;
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
@@ -104,7 +100,6 @@ function switchTab(page) {
     case 'briefing':  renderBriefing();  break;
     case 'reminders': renderReminders(); break;
     case 'more':      renderMore();      break;
-    case 'chat':      renderChat();      break;
   }
 }
 
@@ -693,6 +688,10 @@ async function renderNotes() {
       <textarea id="notes-inp-text" rows="3" placeholder="Add a note…"
         style="display:block;width:100%;margin-bottom:8px;padding:9px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:14px;outline:none;resize:none;box-sizing:border-box"
         onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--border)'"></textarea>
+      <label id="notes-share-label" style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);margin-bottom:8px;cursor:pointer">
+        <input type="checkbox" id="notes-share-chk" style="cursor:pointer">
+        Also add as a deacon note
+      </label>
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
         <div style="display:flex;border:1px solid var(--border);border-radius:var(--r-btn);overflow:hidden;flex:1">
           <button id="notes-type-pastoral" onclick="setNotesType('pastoral')"
@@ -726,6 +725,8 @@ function setNotesType(type) {
   }
   if (nameInp)   nameInp.style.display   = type === 'pastoral'   ? 'block' : 'none';
   if (leaderSel) leaderSel.style.display = type === 'leadership' ? 'block' : 'none';
+  const shareLabel = document.getElementById('notes-share-label');
+  if (shareLabel) shareLabel.style.display = type === 'pastoral' ? 'flex' : 'none';
 }
 
 async function addNote() {
@@ -785,16 +786,27 @@ async function addNote() {
 
   // Pastoral note
   const person_name = (nameInp?.value || '').trim();
+  const shareChk    = document.getElementById('notes-share-chk');
+  const share       = !!shareChk?.checked;
   if (addBtn) { addBtn.disabled = true; addBtn.textContent = '…'; }
   try {
     const res = await api('/api/pastoral-notes', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ person_name, note }),
+      body: JSON.stringify({ person_name, note, share }),
     });
     const savedNote = { id: res.id, person_name, note, created_at: new Date().toLocaleString() };
     if (nameInp) nameInp.value = '';
     if (textInp) textInp.value = '';
+    if (shareChk) shareChk.checked = false;
+    if (share && !res.shared) {
+      const warnEl = document.getElementById('notes-warning');
+      if (warnEl) {
+        warnEl.textContent = 'Note saved, but could not share as a deacon note — no matching congregation member found.';
+        warnEl.style.display = 'block';
+        setTimeout(() => { warnEl.style.display = 'none'; warnEl.textContent = ''; }, 4000);
+      }
+    }
     if (savedNote.id) {
       const list = document.getElementById('notes-list');
       if (list) {
@@ -919,17 +931,46 @@ async function briefingAction(id, action, btnEl) {
 
 // ─── Reminders page ───────────────────────────────────────────────────────────
 
+function _reminderSubLabel(r) {
+  if (r.due_datetime) {
+    // Stored as UTC "YYYY-MM-DD HH:MM:SS" (see addReminder() below) --
+    // force UTC parsing so it round-trips to the right local time
+    // regardless of browser date-string parsing quirks.
+    const d = new Date(r.due_datetime.replace(' ', 'T') + 'Z');
+    if (!isNaN(d)) {
+      return d.toLocaleString('en-US', {
+        weekday: 'short', month: 'short', day: 'numeric',
+        hour: 'numeric', minute: '2-digit',
+      });
+    }
+  }
+  return r.reminder_time || r.due_datetime || '';
+}
+
 async function renderReminders() {
   setContent('<div class="loading">Loading&hellip;</div>');
   try {
     const reminders = await api('/api/reminders');
+    const formHtml = `
+      <input id="reminder-inp-title" type="text" placeholder="Remind me to…"
+        style="display:block;width:100%;margin-bottom:8px;padding:9px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:14px;outline:none;box-sizing:border-box"
+        onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--border)'">
+      <input id="reminder-inp-due" type="datetime-local"
+        style="display:block;width:100%;margin-bottom:8px;padding:9px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:14px;outline:none;box-sizing:border-box;color-scheme:dark"
+        onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--border)'">
+      <div style="display:flex;justify-content:flex-end;margin-bottom:4px">
+        <button id="reminder-add-btn" onclick="addReminder()"
+          style="padding:7px 16px;background:var(--gold);color:#0f0f0f;border:none;border-radius:var(--r-btn);font-weight:600;font-family:inherit;font-size:13px;cursor:pointer;-webkit-tap-highlight-color:transparent">Add reminder</button>
+      </div>
+      <div id="reminder-warning" style="display:none;font-size:11px;font-family:'DM Mono',monospace;color:var(--red);margin-bottom:8px"></div>`;
+
     if (!Array.isArray(reminders) || !reminders.length) {
-      setContent('<div class="empty">No active reminders.</div>');
+      setContent(formHtml + '<div class="empty">No active reminders.</div>');
       return;
     }
-    let html = '';
+    let html = '<div id="reminder-list">';
     reminders.forEach(r => {
-      const sub = r.reminder_time || r.due_datetime || '';
+      const sub = _reminderSubLabel(r);
       html += `
         <div class="task-card" id="reminder-row-${r.id}">
           <div class="task-check" onclick="completeReminder(${r.id},this)"></div>
@@ -939,9 +980,53 @@ async function renderReminders() {
           </div>
         </div>`;
     });
-    setContent(html);
+    html += '</div>';
+    setContent(formHtml + html);
   } catch {
     setContent('<div class="empty">Could not load reminders.</div>');
+  }
+}
+
+async function addReminder() {
+  const titleInp = document.getElementById('reminder-inp-title');
+  const dueInp   = document.getElementById('reminder-inp-due');
+  const addBtn   = document.getElementById('reminder-add-btn');
+  const warnEl   = document.getElementById('reminder-warning');
+  const title    = (titleInp?.value || '').trim();
+  const dueLocal = dueInp?.value || '';
+
+  const warn = (msg) => {
+    if (!warnEl) return;
+    warnEl.textContent = msg;
+    warnEl.style.display = 'block';
+    setTimeout(() => { warnEl.style.display = 'none'; warnEl.textContent = ''; }, 3000);
+  };
+
+  if (!title) { titleInp?.focus(); return; }
+  if (!dueLocal) { warn('Pick a date and time.'); return; }
+
+  const dueDate = new Date(dueLocal);
+  if (isNaN(dueDate)) { warn('Invalid date/time.'); return; }
+  // Convert the datetime-local (browser-local wall clock) value to the UTC
+  // "YYYY-MM-DD HH:MM:SS" form _reminderSubLabel() above expects, and that
+  // jobs/reminders/check_reminders.py's `due_datetime <= datetime('now')`
+  // cron can compare directly against SQLite's own UTC datetime('now').
+  const due_datetime = dueDate.toISOString().slice(0, 19).replace('T', ' ');
+
+  if (addBtn) { addBtn.disabled = true; addBtn.textContent = '…'; }
+  try {
+    await api('/api/reminders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, due_datetime }),
+    });
+    if (titleInp) titleInp.value = '';
+    if (dueInp) dueInp.value = '';
+    await renderReminders();
+  } catch {
+    warn('Failed to save reminder.');
+  } finally {
+    if (addBtn) { addBtn.disabled = false; addBtn.textContent = 'Add reminder'; }
   }
 }
 
@@ -1406,9 +1491,6 @@ let _moreSecLoaded    = {};
 let _moreShepData     = null;
 let _moreAuditData    = null;
 let _morePNTab        = 'active';
-let _moreAllSkills    = [];
-let _moreSkillCat     = 'All';
-let _moreSkillQuery   = '';
 let _moreAllMembers    = [];
 let _memberPage        = 0;
 let _memberCurrentList = null;
@@ -1451,10 +1533,6 @@ function renderMore() {
     </div>
     <div id="vacation-suppressed-list" style="display:none;padding:0 16px 12px"></div>
     <div class="mgrid">
-      <button class="mtile" id="mtile-skills" onclick="moreToggle('skills')">
-        <span class="mtile-label">Skills</span>
-        <span class="mtile-chev">›</span>
-      </button>
       <button class="mtile" id="mtile-ministry" onclick="moreToggle('ministry')">
         <span class="mtile-label">Ministry</span>
         <span class="mtile-chev">›</span>
@@ -1517,9 +1595,6 @@ function renderMore() {
       </button>
     </div>
     <div id="more-expand-area">
-      <div class="msec-body" id="msec-body-skills">
-        <div class="msec-inner" id="msec-inner-skills"></div>
-      </div>
       <div class="msec-body" id="msec-body-ministry">
         <div class="msec-inner" id="msec-inner-ministry"><div class="loading">Loading&hellip;</div></div>
       </div>
@@ -1627,7 +1702,6 @@ function moreToggle(sec) {
   if (tile) tile.classList.toggle('active', isOpen);
   if (isOpen && !_moreSecLoaded[sec]) {
     _moreSecLoaded[sec] = true;
-    if (sec === 'skills')   moreLoadSkills();
     if (sec === 'ministry') moreLoadMinistry();
     if (sec === 'reading')  moreLoadReading();
     if (sec === 'events')   moreLoadEvents();
@@ -2152,109 +2226,6 @@ async function moreApplyCorrections() {
     await api('/api/congregation/audit/apply', { method: 'POST' });
     moreRunAudit();
   } catch { alert('Failed to apply corrections.'); }
-}
-
-// ── Commands ──────────────────────────────────────────────────────────────────
-
-async function moreLoadSkills() {
-  const el = document.getElementById('msec-inner-skills');
-  if (!el) return;
-  _moreSkillCat   = 'All';
-  _moreSkillQuery = '';
-  el.innerHTML = `
-    <input class="msrch" type="search" placeholder="Search commands&hellip;" oninput="moreSkillSearch(this.value)">
-    <div style="font-size:11px;color:var(--muted);text-align:center;margin-bottom:8px">Tap a command to load it into the chat tab.</div>
-    <div id="more-skill-pills" class="mpills"></div>
-    <div id="more-skill-list"><div class="loading">Loading&hellip;</div></div>`;
-  try {
-    const commands = await api('/api/commands');
-    _moreAllSkills = Array.isArray(commands) ? commands : [];
-    const cats = [...new Set(_moreAllSkills.map(s => s.category || 'General'))].sort();
-    moreRenderSkillPills(['All', ...cats]);
-    moreRenderSkills(_moreAllSkills);
-  } catch {
-    const listEl = document.getElementById('more-skill-list');
-    if (listEl) listEl.innerHTML = '<div class="empty">Could not load commands.</div>';
-  }
-}
-
-function moreSetSkillTab(tab) { moreSetSkillCat(tab); }
-
-function moreRenderSkillPills(cats) {
-  const el = document.getElementById('more-skill-pills');
-  if (!el) return;
-  el.innerHTML = cats.map(c =>
-    `<button class="mpill${c === _moreSkillCat ? ' active' : ''}" onclick="moreSetSkillCat('${esc(c)}')">${esc(c)}</button>`
-  ).join('');
-}
-
-function moreSetSkillCat(cat) {
-  _moreSkillCat = cat;
-  document.querySelectorAll('.mpill').forEach(p => {
-    p.classList.toggle('active', p.textContent === cat);
-  });
-  moreApplySkillFilter();
-}
-
-function moreSkillSearch(q) {
-  _moreSkillQuery = q.toLowerCase();
-  moreApplySkillFilter();
-}
-
-function moreApplySkillFilter() {
-  let cmds = _moreAllSkills;
-  if (_moreSkillCat && _moreSkillCat !== 'All') {
-    cmds = cmds.filter(s => (s.category || 'General') === _moreSkillCat);
-  }
-  if (_moreSkillQuery) {
-    cmds = cmds.filter(s =>
-      (s.name || '').toLowerCase().includes(_moreSkillQuery) ||
-      (s.description || '').toLowerCase().includes(_moreSkillQuery) ||
-      (s.command || '').toLowerCase().includes(_moreSkillQuery)
-    );
-  }
-  moreRenderSkills(cmds);
-}
-
-function moreRenderSkills(cmds) {
-  const el = document.getElementById('more-skill-list');
-  if (!el) return;
-  if (!cmds.length) {
-    el.innerHTML = '<div class="empty">No commands found.</div>';
-    return;
-  }
-  el.innerHTML = cmds.map(s => `
-    <button type="button" class="skill-card" data-cmd="${esc(s.command || '')}" data-req="${s.requires_input ? 'true' : 'false'}" onclick="launchCommand(this.dataset.cmd, this.dataset.req === 'true')"
-      style="display:block;width:100%;cursor:pointer;-webkit-tap-highlight-color:transparent;font:inherit;color:var(--text);text-align:left;-webkit-appearance:none;appearance:none">
-      <div style="font-size:13px;font-weight:500">${esc(s.name || '')}</div>
-      <div style="font-size:11px;color:var(--muted);margin-top:2px">${esc(s.description || '')}</div>
-    </button>`).join('');
-}
-
-async function launchCommand(command, requiresInput) {
-  switchTab('chat');
-  if (requiresInput) {
-    const ta = document.getElementById('chat-textarea');
-    if (ta) {
-      ta.value = command;
-      ta.dispatchEvent(new Event('input'));
-      setTimeout(() => ta.focus(), 50);
-    }
-    return;
-  }
-  appendChatMsg('user', command);
-  const bubble = appendChatMsg('watson', '…');
-  try {
-    const res = await fetch('/api/terminal', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ command }),
-    });
-    const data = await res.json();
-    if (bubble) bubble.textContent = data.output || '(no output)';
-  } catch (err) {
-    if (bubble) bubble.textContent = `Error: ${err.message}`;
-  }
 }
 
 // ── Events ───────────────────────────────────────────────────────────────────
@@ -4100,308 +4071,6 @@ function moreToggleTheme(isLight) {
   updateThesisMapTheme(isLight);
 }
 
-// ─── Chat tab ─────────────────────────────────────────────────────────────────
-
-async function renderChat() {
-  document.getElementById('chat-overlay').classList.add('active');
-  const msgs = document.getElementById('chat-messages');
-  if (msgs) msgs.scrollTop = msgs.scrollHeight;
-  const ta = document.getElementById('chat-textarea');
-  if (ta) ta.focus();
-  loadDirectivePrefixes(); // fire-and-forget, dedupes via sel.dataset.loaded
-  try {
-    const res = await fetch('/api/memory/recent');
-    const summaries = await res.json();
-    if (Array.isArray(summaries) && summaries.length) {
-      chatMemoryContext = 'WATSON MEMORY — RECENT SESSIONS:\n' +
-        summaries.map((s, i) => `[${i + 1}] ${s}`).join('\n') +
-        '\n\nUse this context to maintain continuity with Dr. Bill across conversations.';
-    } else {
-      chatMemoryContext = '';
-    }
-  } catch { chatMemoryContext = ''; }
-}
-
-function closeChat() {
-  if (chatIdleTimer) { clearTimeout(chatIdleTimer); chatIdleTimer = null; }
-  if (chatHistory.length >= 2) _summarizeChat(); // fire-and-forget
-  chatHistory = [];
-  const msgs = document.getElementById('chat-messages');
-  if (msgs) msgs.innerHTML = '';
-  chatMemoryContext = '';
-  document.getElementById('chat-overlay').classList.remove('active');
-  switchTab('home');
-}
-
-async function _summarizeChat() {
-  try {
-    await fetch('/api/chat/summarize', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ history: chatHistory }),
-    });
-  } catch {}
-}
-
-function renderWithImages(text) {
-  function esc(s) {
-    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-  }
-  const imgPat = /https?:\/\/\S+\.(?:jpg|jpeg|png|webp|gif)(?:\?\S*)?|https?:\/\/(?:images\.unsplash\.com|unsplash\.com)\/\S+/gi;
-  let out = '', last = 0, m;
-  while ((m = imgPat.exec(text)) !== null) {
-    out += esc(text.slice(last, m.index));
-    out += `<img src="${esc(m[0])}" alt="" loading="lazy" style="max-width:100%;border-radius:4px;display:block;margin-top:6px">`;
-    last = m.index + m[0].length;
-  }
-  out += esc(text.slice(last));
-  return out;
-}
-
-// Populated from /api/directives (jobs/routing/directive_prefixes.py) on
-// first chat open — see loadDirectivePrefixes(). Never hardcode this list;
-// it drifted from the registry twice before (2026-07-29).
-let _DIRECTIVE_PREFIXES = [];
-
-async function loadDirectivePrefixes() {
-  const sel = document.getElementById('chat-directive-sel');
-  if (!sel || sel.dataset.loaded) return;
-  try {
-    const prefixes = await api('/api/directives');
-    if (!Array.isArray(prefixes)) return;
-    _DIRECTIVE_PREFIXES = prefixes;
-    for (const p of prefixes) {
-      const opt = document.createElement('option');
-      opt.value = p;
-      opt.textContent = p;
-      sel.appendChild(opt);
-    }
-    sel.dataset.loaded = '1';
-  } catch {}
-}
-
-function applyDirective(prefix) {
-  const ta  = document.getElementById('chat-textarea');
-  const sel = document.getElementById('chat-directive-sel');
-  if (!ta) return;
-  let val = ta.value;
-  // Strip any existing directive prefix
-  for (const d of _DIRECTIVE_PREFIXES) {
-    if (val.toLowerCase().startsWith(d)) {
-      val = val.slice(d.length).trimStart();
-      break;
-    }
-  }
-  if (prefix) {
-    ta.value = prefix + ' ' + val;
-  } else {
-    ta.value = val;
-  }
-  // Reset dropdown to default so same directive can be reselected
-  if (sel) sel.value = '';
-  ta.focus();
-  ta.selectionStart = ta.selectionEnd = ta.value.length;
-  // Trigger auto-resize
-  ta.style.height = 'auto';
-  ta.style.height = Math.min(ta.scrollHeight, 120) + 'px';
-}
-
-function appendChatMsg(role, content) {
-  const msgs = document.getElementById('chat-messages');
-  if (!msgs) return;
-  const div = document.createElement('div');
-  div.className = `cmsg cmsg-${role}`;
-  const bubble = document.createElement('div');
-  bubble.className = 'cmsg-bubble';
-  bubble.textContent = content;
-  div.appendChild(bubble);
-  msgs.appendChild(div);
-  msgs.scrollTop = msgs.scrollHeight;
-  return bubble;
-}
-
-async function sendChatStream() {
-  const ta = document.getElementById('chat-textarea');
-  if (!ta) return;
-  const message = ta.value.trim();
-  if (!message) return;
-
-  if (message.toLowerCase() === 'email that to me' && lastKbResult) {
-    ta.value = '';
-    ta.style.height = 'auto';
-    ta.focus();
-    appendChatMsg('user', message);
-    const msgs = document.getElementById('chat-messages');
-    const statusEl = document.createElement('div');
-    statusEl.className = 'cstatus';
-    statusEl.textContent = 'Sending to your inbox…';
-    if (msgs) { msgs.appendChild(statusEl); msgs.scrollTop = msgs.scrollHeight; }
-    try {
-      await api('/api/skills/kb/email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(lastKbResult),
-      });
-      if (statusEl.parentNode) statusEl.remove();
-      appendChatMsg('watson', 'Sent to your inbox.');
-      lastKbResult = null;
-    } catch (err) {
-      if (statusEl.parentNode) statusEl.remove();
-      appendChatMsg('watson', `Error: ${err.message}`);
-    }
-    return;
-  }
-
-  const _msgLower = message.toLowerCase();
-  if (_msgLower.startsWith('kb:') || _msgLower.startsWith('search the kb:')) {
-    ta.value = '';
-    ta.style.height = 'auto';
-    ta.focus();
-    appendChatMsg('user', message);
-    const msgs = document.getElementById('chat-messages');
-    const statusEl = document.createElement('div');
-    statusEl.className = 'cstatus';
-    statusEl.textContent = 'Searching knowledge base…';
-    if (msgs) { msgs.appendChild(statusEl); msgs.scrollTop = msgs.scrollHeight; }
-    try {
-      const res = await api('/api/skills/kb', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: message }),
-      });
-      if (statusEl.parentNode) statusEl.remove();
-      appendChatMsg('watson', res.result || '(no result)');
-      const resultText = res.result || '';
-      const parts = resultText.split('\n\nSources:');
-      const synopsis = parts[0] || '';
-      const sources = (parts[1] || '').split('\n')
-        .map(l => l.replace(/^•\s*/, '').trim())
-        .filter(l => l && !l.startsWith('Reply'));
-      lastKbResult = { query: res.query || '', synopsis, sources };
-    } catch (err) {
-      if (statusEl.parentNode) statusEl.remove();
-      appendChatMsg('watson', `Error: ${err.message}`);
-    }
-    return;
-  }
-
-  if (message.toLowerCase().startsWith('teamtest:')) {
-    ta.value = '';
-    ta.style.height = 'auto';
-    ta.focus();
-    appendChatMsg('user', message);
-    const msgs = document.getElementById('chat-messages');
-    const statusEl = document.createElement('div');
-    statusEl.className = 'cstatus';
-    statusEl.textContent = 'Asking as a team member…';
-    if (msgs) { msgs.appendChild(statusEl); msgs.scrollTop = msgs.scrollHeight; }
-    try {
-      const question = message.slice(message.indexOf(':') + 1).trim();
-      const res = await api('/api/team-chat-test', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: question }),
-      });
-      if (statusEl.parentNode) statusEl.remove();
-      appendChatMsg('watson', res.reply || '(no result)');
-    } catch (err) {
-      if (statusEl.parentNode) statusEl.remove();
-      appendChatMsg('watson', `Error: ${err.message}`);
-    }
-    return;
-  }
-
-  ta.value = '';
-  ta.style.height = 'auto';
-  ta.focus();
-
-  appendChatMsg('user', message);
-  chatHistory.push({ role: 'user', content: message });
-
-  if (chatIdleTimer) clearTimeout(chatIdleTimer);
-  chatIdleTimer = setTimeout(async () => {
-    if (chatHistory.length >= 2) await _summarizeChat();
-    chatIdleTimer = null;
-  }, 30 * 60 * 1000);
-
-  const msgs = document.getElementById('chat-messages');
-  const statusEl = document.createElement('div');
-  statusEl.className = 'cstatus';
-  statusEl.textContent = 'Watson is thinking…';
-  if (msgs) { msgs.appendChild(statusEl); msgs.scrollTop = msgs.scrollHeight; }
-
-  const watsonDiv = document.createElement('div');
-  watsonDiv.className = 'cmsg cmsg-watson';
-  const bubble = document.createElement('div');
-  bubble.className = 'cmsg-bubble';
-  watsonDiv.appendChild(bubble);
-
-  let fullReply = '';
-  let bubbleAdded = false;
-
-  try {
-    const resp = await fetch('/api/chat/stream', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message, history: chatHistory.slice(0, -1), memory_context: chatMemoryContext }),
-    });
-
-    const reader = resp.body.getReader();
-    const decoder = new TextDecoder();
-    let buf = '';
-    let done = false;
-
-    while (!done) {
-      const { done: streamDone, value } = await reader.read();
-      if (streamDone) break;
-      buf += decoder.decode(value, { stream: true });
-      const events = buf.split('\n\n');
-      buf = events.pop();
-
-      for (const event of events) {
-        const dataLines = event.split('\n')
-          .filter(l => l.startsWith('data: '))
-          .map(l => l.slice(6));
-        if (!dataLines.length) continue;
-
-        const first = dataLines[0];
-        if (first === '[DONE]') { done = true; break; }
-        if (first.startsWith('[ERROR]')) {
-          if (statusEl.parentNode) statusEl.remove();
-          statusEl.textContent = first.slice(7).trim() || 'Error from Watson';
-          if (msgs) { msgs.appendChild(statusEl); msgs.scrollTop = msgs.scrollHeight; }
-          done = true; break;
-        }
-        if (first.startsWith('[CONFIRM_EMAIL]') || first.startsWith('[QR_IMAGE]')) continue;
-
-        try {
-          const json = JSON.parse(first);
-          if (json.type === 'status') {
-            statusEl.textContent = json.text;
-            continue;
-          }
-        } catch {}
-
-        const token = dataLines.join('\n');
-        if (!bubbleAdded) {
-          bubbleAdded = true;
-          if (statusEl.parentNode) statusEl.remove();
-          if (msgs) msgs.appendChild(watsonDiv);
-        }
-        fullReply += token;
-        bubble.innerHTML = renderWithImages(fullReply);
-        if (msgs) msgs.scrollTop = msgs.scrollHeight;
-      }
-    }
-  } catch (err) {
-    if (statusEl.parentNode) statusEl.remove();
-    appendChatMsg('watson', `Error: ${err.message}`);
-  }
-
-  if (fullReply) chatHistory.push({ role: 'assistant', content: fullReply });
-  if (msgs) msgs.scrollTop = msgs.scrollHeight;
-}
-
 // ─── Init ─────────────────────────────────────────────────────────────────────
 
 function _syncNavHeight() {
@@ -4431,34 +4100,6 @@ document.addEventListener('DOMContentLoaded', () => {
   fetch('/api/settings/vacation-mode').then(r => r.json()).then(d => updateVacationBanner(d.vacation_mode)).catch(() => {});
   const wMark = document.getElementById('hdr-mark');
   if (wMark) wMark.addEventListener('click', () => location.reload(true));
-
-  const chatTa = document.getElementById('chat-textarea');
-  if (chatTa) {
-    chatTa.addEventListener('keydown', e => {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        sendChatStream();
-      }
-    });
-    chatTa.addEventListener('input', () => {
-      chatTa.style.height = 'auto';
-      chatTa.style.height = Math.min(chatTa.scrollHeight, 120) + 'px';
-    });
-  }
-  // iOS keyboard: keep chat input visible when keyboard opens
-  if (window.visualViewport) {
-    const chatTab = document.getElementById('tab-chat');
-    const NAV_HEIGHT = 60;
-    function onViewportResize() {
-      if (!chatTab) return;
-      const vv = window.visualViewport;
-      const bottomOffset = window.innerHeight - vv.height - vv.offsetTop;
-      const keyboardHeight = Math.max(0, bottomOffset);
-      chatTab.style.bottom = (keyboardHeight + NAV_HEIGHT) + 'px';
-    }
-    window.visualViewport.addEventListener('resize', onViewportResize);
-    window.visualViewport.addEventListener('scroll', onViewportResize);
-  }
 
   switchTab('home');
 });

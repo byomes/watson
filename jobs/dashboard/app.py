@@ -2112,15 +2112,24 @@ def reminders_list():
 
 @app.route("/api/reminders", methods=["POST"])
 def reminders_create():
+    """due_datetime must be a real UTC timestamp ("YYYY-MM-DD HH:MM:SS")
+    comparable to SQLite's own datetime('now') -- jobs/reminders/check_reminders.py's
+    per-minute cron fires (via Telegram) on `due_datetime <= datetime('now')`.
+    Previously this endpoint always stamped 'now' here regardless of what
+    the caller wanted, since no dashboard UI ever collected a real due time
+    -- per Bill's 2026-09-08 request, the new Add Reminder form on the
+    Reminders tab sends a real one so it actually fires at the chosen time,
+    the same way Telegram-created reminders already do."""
     data = request.get_json(force=True)
     title = (data.get("title") or "").strip()
-    if not title:
-        return jsonify({"error": "title required"}), 400
+    due_datetime = (data.get("due_datetime") or "").strip()
+    if not title or not due_datetime:
+        return jsonify({"error": "title and due_datetime are required"}), 400
     reminder_time = (data.get("reminder_time") or "").strip() or None
     cur = _db().execute(
         "INSERT INTO reminders (title, due_datetime, reminder_time, status, created_at, updated_at) "
-        "VALUES (?, datetime('now'), ?, 'active', datetime('now'), datetime('now'))",
-        (title, reminder_time),
+        "VALUES (?, ?, ?, 'active', datetime('now'), datetime('now'))",
+        (title, due_datetime, reminder_time),
     )
     _db().commit()
     row = _db().execute("SELECT * FROM reminders WHERE id = ?", (cur.lastrowid,)).fetchone()
@@ -2272,9 +2281,16 @@ def pastoral_notes_list():
 
 @app.route("/api/pastoral-notes", methods=["POST"])
 def pastoral_notes_create():
+    """Per Bill's 2026-09-08 request, mirrors the Telegram post-appointment
+    "share:" prefix (jobs/pastoral_notes/handler.py) as an explicit `share`
+    flag here: the note always saves privately first, and `share: true`
+    additionally copies it into deacon_notes once person_name resolves to
+    exactly one active congregation member. `shared` in the response tells
+    the frontend whether that resolution actually succeeded."""
     data = request.get_json()
     person_name = (data.get("person_name") or "").strip()
     note = (data.get("note") or "").strip()
+    share = bool(data.get("share"))
     if not person_name or not note:
         return jsonify({"error": "person_name and note are required"}), 400
     cur = _db().execute(
@@ -2282,7 +2298,11 @@ def pastoral_notes_create():
         (person_name, note)
     )
     _db().commit()
-    return jsonify({"id": cur.lastrowid, "ok": True})
+    shared = False
+    if share:
+        from jobs.pastoral_notes.handler import _share_as_deacon_note
+        shared = _share_as_deacon_note(person_name, note)
+    return jsonify({"id": cur.lastrowid, "ok": True, "shared": shared})
 
 
 @app.route("/api/pastoral-notes/<int:note_id>/archive", methods=["POST"])
@@ -2780,56 +2800,6 @@ def memory_recent():
         "SELECT summary FROM memory_sessions ORDER BY created_at DESC LIMIT 10"
     ).fetchall()
     return jsonify([r["summary"] for r in rows])
-
-
-@app.route("/api/chat/summarize", methods=["POST"])
-def chat_summarize():
-    import requests as _sreq
-    data = request.get_json(force=True) or {}
-    history = data.get("history") or []
-    msgs = [m for m in history if m.get("role") in ("user", "assistant") and m.get("content")]
-    if len(msgs) < 2:
-        return jsonify({"ok": True, "skipped": True})
-    convo = "\n".join(f"{m['role'].title()}: {m['content']}" for m in msgs)
-    prompt = (
-        "Summarize this conversation in 3-5 sentences. Focus on topics discussed, decisions made, "
-        "tasks mentioned, and anything Dr. Bill said about himself, his ministry, or his plans. "
-        "Be specific and factual. No preamble. "
-        "Important: The person in this conversation is Dr. William C.K. Yomes. Use his full name accurately. Do not substitute or confuse him with any other person.\n\n" + convo
-    )
-    try:
-        resp = _sreq.post(
-            "http://localhost:11434/api/generate",
-            json={"model": "llama3.2:3b", "prompt": prompt, "stream": False},
-            timeout=60,
-        )
-        resp.raise_for_status()
-        summary = (resp.json().get("response") or "").strip()
-    except Exception as exc:
-        log.error("chat summarize failed: %s", exc)
-        return jsonify({"ok": False, "error": str(exc)}), 500
-    if summary:
-        _db().execute("INSERT INTO memory_sessions (summary) VALUES (?)", (summary,))
-        _db().commit()
-    return jsonify({"ok": True})
-
-
-@app.route("/api/team-chat-test", methods=["POST"])
-def team_chat_test():
-    """Debug-only mirror of the leader Telegram team-chat path (bot.py's
-    `_handle_team_chat` / data_chat.py), invoked via the dashboard chat's
-    `teamtest:` prefix -- lets Bill exercise exactly what an onboarded
-    leader would get back without a second Telegram account. Runs as the
-    synthetic 'Test Person' team_members identity, not as Bill himself."""
-    import asyncio as _asyncio
-    from bot.bot import compute_team_chat_reply
-
-    data = request.get_json(force=True) or {}
-    text = (data.get("text") or "").strip()
-    if not text:
-        return jsonify({"error": "text is required"}), 400
-    reply = _asyncio.run(compute_team_chat_reply("Test Person", text))
-    return jsonify({"reply": reply or "(no reply — that question is out of scope for team chat)"})
 
 
 # ── Chat Streaming API ────────────────────────────────────────────────────────
