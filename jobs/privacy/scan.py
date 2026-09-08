@@ -45,6 +45,20 @@ def _build_search_url(pattern: str, first: str, last: str, state: str) -> str:
     return pattern.format(first=first.lower(), last=last.lower(), state=(state or "").lower())
 
 
+def _build_warmup_url(pattern: str, first: str, last: str) -> str:
+    """Confirmed live 2026-09-08: BeenVerified 404s a cold direct fetch of
+    the {state}-filtered results URL unless the same browser session
+    already visited the un-filtered {first}-{last} search page first — and
+    that 404 error page's ad/tracker scripts never let Playwright's
+    networkidle wait resolve, so goto_safe times out at DEFAULT_TIMEOUT_MS
+    instead of failing fast (this is what actually triggered the "every
+    broker fetch failed" alert, not a real broker-side outage). Visiting
+    this state-less URL first in the same page warms the session cookies
+    the state-filtered page needs."""
+    base_pattern = pattern.replace("/{state}/", "/").replace("/{state}", "")
+    return base_pattern.format(first=first.lower(), last=last.lower())
+
+
 def _find_listing_candidates(html: str, page_url: str, full_name: str) -> list[dict]:
     """Broker-agnostic heuristic: unlike the opt-out FORM (which gets real,
     live-verified CSS selectors per broker in privacy_brokers.form_selectors
@@ -118,7 +132,10 @@ async def _fetch_listings_for(person: dict, broker: dict) -> list[dict] | None:
     cities = json.loads(person["cities"]) if isinstance(person["cities"], str) else person["cities"]
     primary_state = (cities[0].get("state") if cities else "") or ""
     url = _build_search_url(broker["search_url_pattern"], first, last, primary_state)
+    warmup_url = _build_warmup_url(broker["search_url_pattern"], first, last)
     async with get_page() as page:
+        if warmup_url != url:
+            await goto_safe(page, warmup_url, wait_until="domcontentloaded")
         ok = await goto_safe(page, url, wait_until="networkidle")
         if not ok:
             return None
