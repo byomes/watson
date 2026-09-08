@@ -74,8 +74,8 @@ def _format_transcript(messages: list[dict]) -> str:
     return "\n".join(lines)
 
 
-def _call_ollama_chat(system: str, user: str) -> str:
-    claude_result = call_claude(system=system, user=user, job_name="memory.reflect")
+def _call_ollama_chat(system: str, user: str, trigger: str = "") -> str:
+    claude_result = call_claude(system=system, user=user, job_name="memory.reflect", message=trigger)
     if claude_result:
         return claude_result
 
@@ -126,7 +126,7 @@ def reflect(session_id, project_slug: str = None) -> str | None:
     )
 
     try:
-        summary = _call_ollama_chat(system, transcript)
+        summary = _call_ollama_chat(system, transcript, trigger=f"Session reflection: {project_slug or 'general'}")
     except Exception as exc:
         log.error("reflect: Ollama failed: %s", exc)
         return None

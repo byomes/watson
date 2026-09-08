@@ -27,7 +27,10 @@ def draft_reply(email: dict) -> str:
         f"{email['body']}"
     )
     try:
-        claude_result = call_claude(system=SYSTEM_PROMPT, user=prompt, job_name="email_reply.drafter")
+        claude_result = call_claude(
+            system=SYSTEM_PROMPT, user=prompt, job_name="email_reply.drafter",
+            message=f"Reply to \"{email['subject']}\" from {email['sender_name']}",
+        )
         if claude_result:
             return claude_result
 

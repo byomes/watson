@@ -55,8 +55,11 @@ Transcript:
     return system, prompt
 
 
-def _call_ollama(system: str, prompt: str, timeout: int = 120) -> str:
-    claude_result = call_claude(system=system, user=prompt, job_name="team.extractor", person="Bill Yomes")
+def _call_ollama(system: str, prompt: str, timeout: int = 120, trigger: str = "") -> str:
+    claude_result = call_claude(
+        system=system, user=prompt, job_name="team.extractor",
+        person="Bill Yomes", message=trigger,
+    )
     if claude_result:
         return claude_result
 
@@ -98,9 +101,10 @@ def _parse_json(raw: str) -> dict | None:
 
 def process_transcript(member_name: str, transcript: str, date_str: str) -> dict:
     system, prompt = _build_prompt(member_name, transcript, date_str)
+    trigger = f"Meeting transcript: {member_name} ({date_str})"
 
     try:
-        raw = _call_ollama(system, prompt)
+        raw = _call_ollama(system, prompt, trigger=trigger)
         result = _parse_json(raw)
         if result:
             return result
@@ -118,7 +122,7 @@ def process_transcript(member_name: str, transcript: str, date_str: str) -> dict
         f"Transcript:\n{transcript}"
     )
     try:
-        raw = _call_ollama(strict_system, strict_prompt, timeout=90)
+        raw = _call_ollama(strict_system, strict_prompt, timeout=90, trigger=trigger)
         result = _parse_json(raw)
         if result:
             return result

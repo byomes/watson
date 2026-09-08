@@ -258,7 +258,10 @@ def run_audit() -> str:
     )
 
     try:
-        raw = call_claude(system=system, user=user, job_name="skillbuilder.audit")
+        raw = call_claude(
+            system=system, user=user, job_name="skillbuilder.audit",
+            message="(weekly automated skill gap audit)",
+        )
         if not raw:
             raw = _call_ollama_batched(skills_list, projects, recent_sessions, research_excerpt)
     except Exception as exc:

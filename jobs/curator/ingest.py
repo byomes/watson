@@ -187,6 +187,7 @@ def identify_book_from_photo(image_bytes: bytes, submitted_by=None) -> dict:
             max_tokens=256,
             image_b64=b64,
             person=user_name(submitted_by) or "Curator app",
+            message="(book cover/shelf photo submitted for identification)",
         )
         parsed = parse_json(text) if text else None
     except Exception as exc:

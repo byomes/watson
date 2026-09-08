@@ -302,6 +302,7 @@ def _ollama_synthesis(condensed: str, benchmarks_context: str) -> str | None:
     claude_result = call_claude(
         system="", user=prompt,
         job_name="connect_cards.state_of_church", max_tokens=900,
+        message="(scheduled State of the Church report)",
     )
     if claude_result:
         return claude_result

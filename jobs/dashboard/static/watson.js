@@ -1781,14 +1781,19 @@ function _renderApiSpending(summary, log) {
       </label>
     </div>
     <div class="mshep-wrap">${log.length ? `<table class="mshep-table">
-      <tr><th>Time</th><th>Job</th><th>Initiated By</th><th>Cost</th></tr>
-      ${log.map(r => `
+      <tr><th>Time</th><th>Job</th><th>Initiated By</th><th>Message</th><th>Cost</th></tr>
+      ${log.map(r => {
+        const msg = (r.trigger_message || '').trim();
+        const short = msg.length > 60 ? msg.slice(0, 60) + '…' : msg;
+        return `
         <tr>
           <td style="white-space:nowrap">${esc(fmtGenerated(r.created_at))}</td>
           <td>${esc(r.job_label || r.job_name)}</td>
           <td>${esc(r.person || 'Bill Yomes')}</td>
+          <td title="${esc(msg)}">${msg ? esc(short) : '<span style="color:var(--muted)">—</span>'}</td>
           <td style="white-space:nowrap">$${r.cost_usd.toFixed(4)}</td>
-        </tr>`).join('')}
+        </tr>`;
+      }).join('')}
     </table>` : '<div class="empty">No API calls logged yet.</div>'}</div>`;
 }
 

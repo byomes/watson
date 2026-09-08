@@ -65,7 +65,10 @@ def fetch_and_summarize(article):
             f"Be concise and clear.\n\n{text}"
         )
 
-        claude_result = call_claude(system="", user=prompt, job_name="email_job.draft_email", max_tokens=200)
+        claude_result = call_claude(
+            system="", user=prompt, job_name="email_job.draft_email", max_tokens=200,
+            message=f"Summarize article: {article.get('title') or article.get('url')}",
+        )
         if claude_result:
             return claude_result
 
@@ -91,7 +94,10 @@ def draft_intro(articles):
             "Keep it warm, pastoral, and brief."
         )
 
-        claude_result = call_claude(system="", user=prompt, job_name="email_job.draft_email", max_tokens=200)
+        claude_result = call_claude(
+            system="", user=prompt, job_name="email_job.draft_email", max_tokens=200,
+            message="Newsletter intro paragraph",
+        )
         if claude_result:
             return claude_result
 

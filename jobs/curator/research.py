@@ -196,9 +196,12 @@ def _person_for_job_id(job_id) -> str:
 
 def call_ollama(
     system: str, prompt: str, timeout: int = 90, options: dict | None = None,
-    person: str = "Curator app",
+    person: str = "Curator app", trigger: str = "",
 ) -> str:
-    claude_result = call_claude(system=system, user=prompt, job_name="curator.research", person=person)
+    claude_result = call_claude(
+        system=system, user=prompt, job_name="curator.research",
+        person=person, message=trigger,
+    )
     if claude_result:
         return claude_result
 
@@ -1585,7 +1588,10 @@ Return JSON exactly in this shape:
         # identical input — e.g. "Icebreaker" flipped between confident=true
         # and confident=false across repeated identical calls. temperature=0
         # eliminated that: 3/3 identical results across 4 re-tested books.
-        raw = call_ollama(system, prompt, options={"temperature": 0}, person=_person_for_job_id(job_id))
+        raw = call_ollama(
+            system, prompt, options={"temperature": 0}, person=_person_for_job_id(job_id),
+            trigger=f"{title} by {author}" if author else title,
+        )
         parsed = parse_json(raw)
     except Exception as exc:
         log.error("judge_spice_rating Ollama call failed: %s", exc)

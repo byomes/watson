@@ -93,7 +93,7 @@ def classify(message_text: str, system_prompt: str = "") -> dict:
     claude_result = call_claude(
         system=system_prompt, user=prompt,
         job_name="intent.classifier", max_tokens=256,
-        person="Bill Yomes",
+        person="Bill Yomes", message=message_text,
     )
     if claude_result:
         try:

@@ -214,7 +214,10 @@ def _parse_numbered_reply(reply_text: str) -> list[tuple[int, str]] | None:
 def _ollama_generate(note_text: str) -> str:
     prompt = f"{_TASK_PROMPT}\n\nNotes: {note_text}"
 
-    claude_result = call_claude(system="", user=prompt, job_name="pastoral_notes.handler", person="Bill Yomes")
+    claude_result = call_claude(
+        system="", user=prompt, job_name="pastoral_notes.handler",
+        person="Bill Yomes", message=note_text,
+    )
     if claude_result:
         return claude_result
 

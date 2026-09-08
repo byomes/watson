@@ -589,6 +589,7 @@ def _ollama_interpretation(
     claude_result = call_claude(
         system="", user=prompt,
         job_name="analytics.monthly_web_engagement_report", max_tokens=2048,
+        message="(scheduled monthly web engagement report)",
     )
     if claude_result:
         return claude_result

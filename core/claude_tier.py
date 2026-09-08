@@ -29,6 +29,7 @@ _ENV_BUDGET = "CLAUDE_MONTHLY_BUDGET_USD"
 _DEFAULT_BUDGET_USD = 10.00
 _DEFAULT_MODEL = "claude-sonnet-5"
 _DEFAULT_PERSON = "Bill Yomes"  # every default caller below is Bill's own scheduled/background automation
+_MAX_MESSAGE_LEN = 500  # trigger_message is a "what caused this call" hint, not a transcript archive
 
 # job_name -> plain-English description, shown in the dashboard's API Spending
 # table instead of the raw dotted module.function name.
@@ -74,6 +75,12 @@ def _bootstrap() -> None:
         try:
             conn.execute(
                 f"ALTER TABLE claude_tier_spend_log ADD COLUMN person TEXT NOT NULL DEFAULT '{_DEFAULT_PERSON}'"
+            )
+        except Exception:
+            pass  # column already exists
+        try:
+            conn.execute(
+                "ALTER TABLE claude_tier_spend_log ADD COLUMN trigger_message TEXT NOT NULL DEFAULT ''"
             )
         except Exception:
             pass  # column already exists
@@ -159,7 +166,7 @@ def set_api_spending_enabled(on: bool) -> None:
 def get_spend_log(limit: int = 50) -> list[dict]:
     with get_connection() as conn:
         rows = conn.execute(
-            "SELECT job_name, model, input_tokens, output_tokens, cost_usd, created_at, person "
+            "SELECT job_name, model, input_tokens, output_tokens, cost_usd, created_at, person, trigger_message "
             "FROM claude_tier_spend_log ORDER BY id DESC LIMIT ?",
             (limit,),
         ).fetchall()
@@ -179,12 +186,16 @@ def get_month_summary() -> dict:
     }
 
 
-def _log_spend(job_name: str, model: str, input_tokens: int, output_tokens: int, cost_usd: float, person: str) -> None:
+def _log_spend(
+    job_name: str, model: str, input_tokens: int, output_tokens: int, cost_usd: float,
+    person: str, trigger_message: str,
+) -> None:
     with get_connection() as conn:
         conn.execute(
             "INSERT INTO claude_tier_spend_log "
-            "(job_name, model, input_tokens, output_tokens, cost_usd, person) VALUES (?, ?, ?, ?, ?, ?)",
-            (job_name, model, input_tokens, output_tokens, cost_usd, person),
+            "(job_name, model, input_tokens, output_tokens, cost_usd, person, trigger_message) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (job_name, model, input_tokens, output_tokens, cost_usd, person, trigger_message),
         )
 
 
@@ -232,6 +243,7 @@ def call_claude(
     image_b64: str | None = None,
     image_media_type: str = "image/jpeg",
     person: str = _DEFAULT_PERSON,
+    message: str = "",
 ) -> str | None:
     """Try a budget-tracked Claude API call. Returns the response text on
     success, or None if the tier is inactive/exhausted/erroring — callers
@@ -251,6 +263,15 @@ def call_claude(
     explicit person is one of Bill's own scheduled/background jobs (a
     newsletter draft, a session wrap-up, a monthly report...), not some
     separate non-human "Watson" actor -- it's still spend on his behalf.
+
+    message: short, human-readable description of what actually triggered
+    this specific call (a Team Chat question, a Telegram command, a book
+    title...), shown in the dashboard's API Spending log so Bill can see
+    which real messages are driving spend and which aren't. Distinct from
+    `user`/`system` -- those are the full constructed prompt (instructions,
+    schema, embedded context), often unreadable or too long to show as-is.
+    Truncated to _MAX_MESSAGE_LEN; "" for calls with no single discrete
+    triggering message (a scheduled report, a batch job).
     """
     if not is_api_spending_enabled():
         return None
@@ -298,8 +319,12 @@ def call_claude(
     out_tok = response.usage.output_tokens
     cost = (in_tok * price_in + out_tok * price_out) / 1_000_000
 
+    trigger_message = (message or "").strip()
+    if len(trigger_message) > _MAX_MESSAGE_LEN:
+        trigger_message = trigger_message[:_MAX_MESSAGE_LEN].rstrip() + "…"
+
     try:
-        _log_spend(job_name, model, in_tok, out_tok, cost, person)
+        _log_spend(job_name, model, in_tok, out_tok, cost, person, trigger_message)
     except Exception as exc:
         log.warning("claude_tier: failed to log spend for job=%s: %s", job_name, exc)
 

@@ -55,8 +55,8 @@ def _format_transcript(messages: list[dict]) -> str:
     return "\n".join(lines)
 
 
-def _call_ollama(prompt: str) -> str:
-    claude_result = call_claude(system="", user=prompt, job_name="memory.wrap_up")
+def _call_ollama(prompt: str, trigger: str = "") -> str:
+    claude_result = call_claude(system="", user=prompt, job_name="memory.wrap_up", message=trigger)
     if claude_result:
         return claude_result
 
@@ -152,7 +152,7 @@ def wrap_up(session_id=None, project_slug: str = None) -> str:
     )
 
     try:
-        summary = _call_ollama(prompt)
+        summary = _call_ollama(prompt, trigger=f"Session wrap-up: {project_slug or 'general'}")
     except Exception as exc:
         log.error("wrap_up: Ollama failed: %s", exc)
         summary = "(summary generation failed)"
