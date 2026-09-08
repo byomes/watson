@@ -234,6 +234,41 @@ def _maybe_send_exhausted_alert(month: str, spend: float, budget: float) -> None
         pass
 
 
+def _notify_claude_call(job_name: str, person: str, trigger_message: str, cost_usd: float) -> None:
+    """Per Bill's 2026-09-08 ask: a live Telegram ping every time Watson
+    actually calls Claude for help, on top of the dashboard's API Spending
+    log -- so he can catch a job or person leaning on the budget more than
+    expected in real time rather than only noticing later. Fires on every
+    successful call, deliberately not batched/throttled since that's what
+    was asked for; if it turns out too noisy in practice, scope it down
+    (e.g. skip Bill's own scheduled jobs and only alert for Team Chat
+    callers) rather than dropping it outright."""
+    label = JOB_LABELS.get(job_name, job_name)
+    lines = ["\U0001f916 Watson called Claude for help", "", f"Job: {label}", f"By: {person}"]
+    if trigger_message:
+        lines.append(f'Re: "{trigger_message}"')
+    lines.append(f"Cost: ${cost_usd:.4f}")
+    lines.append("")
+    lines.append("- Watson")
+    text = "\n".join(lines)
+
+    if vacation_gate("normal", "core.claude_tier", text):
+        return
+    token = os.getenv("WATSON_BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
+    chat_id = os.getenv("WATSON_CHAT_ID") or os.getenv("TELEGRAM_CHAT_ID")
+    if not token or not chat_id:
+        return
+    import requests as _rq
+    try:
+        _rq.post(
+            f"https://api.telegram.org/bot{token}/sendMessage",
+            json={"chat_id": chat_id, "text": text},
+            timeout=10,
+        )
+    except Exception:
+        pass
+
+
 def call_claude(
     system: str,
     user: str,
@@ -327,6 +362,11 @@ def call_claude(
         _log_spend(job_name, model, in_tok, out_tok, cost, person, trigger_message)
     except Exception as exc:
         log.warning("claude_tier: failed to log spend for job=%s: %s", job_name, exc)
+
+    try:
+        _notify_claude_call(job_name, person, trigger_message, cost)
+    except Exception as exc:
+        log.warning("claude_tier: failed to send call notification for job=%s: %s", job_name, exc)
 
     new_total = spend + cost
     if new_total >= budget:
