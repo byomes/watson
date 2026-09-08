@@ -100,7 +100,7 @@ _LAST_SEEN_NEVER = "1900-01-01"
 # Mirrors jobs/congregation/deacons_web.py's _ROSTER_FIELDS last_seen calc
 # (max of connect_cards/attendance service_date per member).
 _DETAIL_FIELDS = (
-    "m.name, m.email, m.phone, m.address, "
+    "m.name, m.email, m.phone, m.address, m.birthdate, "
     "MAX("
     f"  COALESCE((SELECT MAX(service_date) FROM connect_cards WHERE member_id = m.id), '{_LAST_SEEN_NEVER}'),"
     f"  COALESCE((SELECT MAX(service_date) FROM attendance  WHERE member_id = m.id), '{_LAST_SEEN_NEVER}')"

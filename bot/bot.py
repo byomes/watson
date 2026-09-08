@@ -2249,21 +2249,64 @@ def _get_team_reply_sync(text: str) -> tuple[str, bool]:
         return "I'm having trouble thinking right now. Try again in a moment.", False
 
 
-_TEAM_LOOKUP_FIELD_WORDS = {"email": "email", "phone": "phone", "number": "phone", "contact": "contact", "address": "address"}
+_TEAM_LOOKUP_FIELD_WORDS = {
+    "email": "email", "e-mail": "email",
+    "phone": "phone", "number": "phone", "cell": "phone", "cell phone": "phone",
+    "mobile": "phone", "mobile number": "phone",
+    "contact": "contact", "contact info": "contact", "contact information": "contact",
+    "address": "address", "home address": "address",
+    "birthday": "birthday", "birthdate": "birthday", "date of birth": "birthday",
+}
+# Longest-phrase-first so "cell phone" wins over the bare "phone" alternative
+# it contains, same reasoning as _WEB_METRIC_KEYWORDS_BY_LENGTH below.
+_TEAM_LOOKUP_FIELD_ALTS = "|".join(re.escape(k) for k in sorted(_TEAM_LOOKUP_FIELD_WORDS, key=len, reverse=True))
+
+# The name-capture groups below allow up to 2 words so two-word names work,
+# but that same slack lets a leading question word get swept in as if it
+# were part of a one-word name -- "what IS Donna's email" (no contraction,
+# so the "what's" apostrophe guard below doesn't help) or "tell me Donna's
+# phone number" both capture "is Donna"/"me Donna" instead of "Donna" (bug
+# found 2026-09-08 extending this function). Stripped here rather than
+# trying to make the regex itself smart enough to know which of its (up to)
+# two captured words is the real name -- same fix as the deacon-group
+# lookup in jobs/skills/cdb_query.py.
+_TEAM_LOOKUP_LEADING_STOPWORDS = {
+    "what", "whats", "who", "whos", "when", "where", "is", "are", "was",
+    "can", "could", "you", "please", "tell", "me", "give", "the", "a", "an",
+}
+
+
+def _strip_team_lookup_stopwords(name: str) -> str:
+    words = name.split()
+    while words and words[0].lower().strip("'") in _TEAM_LOOKUP_LEADING_STOPWORDS:
+        words.pop(0)
+    return " ".join(words)
 
 
 def _extract_team_lookup(text: str) -> tuple[str, str] | None:
-    """Recognize a read-only phone/email/address/last-attended question and
-    return (person_name, field), or None to fall through to Ollama chat.
-    Regex-based on purpose, matching Bill's own '_possessive' pattern in
-    _handle_general -- not general NLU, just the phrasings Bill asked for."""
+    """Recognize a read-only phone/email/address/birthday/last-attended
+    question and return (person_name, field), or None to fall through to
+    Ollama chat. Regex-based on purpose, matching Bill's own '_possessive'
+    pattern in _handle_general -- not general NLU, just the phrasings Bill
+    asked for (plus every synonym found actually being asked in practice,
+    e.g. Donna's 2026-09-08 "birthdays in October" -- see _MONTH_NAMES-style
+    handling in jobs/skills/cdb_query.py for the month-wide version of that
+    same question)."""
     # (?<!') guards against "what's X's email" -- without it, the leading
     # "what's" contraction's own trailing "s" greedily wins the match first
     # (captures "s X" instead of "X"), since re.search takes the leftmost
     # successful match and stops there.
-    m = re.search(r"(?<!')(\w+(?:\s+\w+)?)'s\s+(email|phone|number|contact|address)", text, re.IGNORECASE)
+    m = re.search(rf"(?<!')(\w+(?:\s+\w+)?)'s\s+({_TEAM_LOOKUP_FIELD_ALTS})\b", text, re.IGNORECASE)
     if m:
-        return m.group(1), _TEAM_LOOKUP_FIELD_WORDS[m.group(2).lower()]
+        name = _strip_team_lookup_stopwords(m.group(1))
+        if name:
+            return name, _TEAM_LOOKUP_FIELD_WORDS[m.group(2).lower()]
+    # Non-possessive phrasing: "phone number for X", "what's the email for X".
+    m = re.search(rf"({_TEAM_LOOKUP_FIELD_ALTS})\s+for\s+(\w+(?:\s+\w+)?)\b", text, re.IGNORECASE)
+    if m:
+        name = _strip_team_lookup_stopwords(m.group(2))
+        if name:
+            return name, _TEAM_LOOKUP_FIELD_WORDS[m.group(1).lower()]
     m = re.search(r"where\s+does\s+(\w+(?:\s+\w+)?)\s+live", text, re.IGNORECASE)
     if m:
         return m.group(1), "address"
@@ -2307,6 +2350,8 @@ def _format_team_lookup_reply(person_name: str, field: str) -> str:
         return f"{m['name']}'s phone: {m.get('phone') or 'not on file.'}"
     if field == "address":
         return f"{m['name']} lives at: {m.get('address') or 'no address on file.'}"
+    if field == "birthday":
+        return f"{m['name']}'s birthday: {m.get('birthdate') or 'not on file.'}"
     if field == "last_seen":
         seen = m.get("last_seen")
         if not seen or seen == "1900-01-01":
@@ -2369,7 +2414,9 @@ def _format_classroom_reply(room: str) -> str:
 # 2026-09-01 decision, team members can see his calendar -- read-only, no
 # create/edit/cancel.
 _CALENDAR_TRIGGER_RE = re.compile(
-    r"\b(calendar|schedule|agenda)\b|\bbill\b.{0,20}\b(free|busy|available)\b|\b(free|busy|available)\b.{0,20}\bbill\b",
+    r"\b(calendar|schedule|agenda|meeting|meetings|appointment|appointments)\b"
+    r"|\bbill\b.{0,20}\b(free|busy|available|booked|open\s+slot)\b"
+    r"|\b(free|busy|available|booked|open\s+slot)\b.{0,20}\bbill\b",
     re.IGNORECASE,
 )
 
@@ -2413,9 +2460,11 @@ _WEB_METRIC_KEYWORDS: dict[str, tuple[str, str] | str] = {
     "popular page": "top_pages",
     "new web user": ("E Mails/Website", "New Web Users"),
     "new visitor": ("E Mails/Website", "New Web Users"),
+    "new users": ("E Mails/Website", "New Web Users"),
     "active web user": ("E Mails/Website", "Active Web Users"),
     "website traffic": ("E Mails/Website", "Active Web Users"),
     "site traffic": ("E Mails/Website", "Active Web Users"),
+    "website visitors": ("E Mails/Website", "Active Web Users"),
     "web user": ("E Mails/Website", "Active Web Users"),
     "engagement time": ("E Mails/Website", "Avg Engagement Time (sec)"),
     "time on site": ("E Mails/Website", "Avg Engagement Time (sec)"),
@@ -2424,8 +2473,10 @@ _WEB_METRIC_KEYWORDS: dict[str, tuple[str, str] | str] = {
     "email campaign": ("E Mails/Website", "Email Campaigns Sent"),
     "emails opened": ("E Mails/Website", "Emails Opened"),
     "email open": ("E Mails/Website", "Emails Opened"),
+    "email opens": ("E Mails/Website", "Emails Opened"),
     "email link": ("E Mails/Website", "Email Links Clicked"),
     "email click": ("E Mails/Website", "Email Links Clicked"),
+    "email clicks": ("E Mails/Website", "Email Links Clicked"),
     "total emails sent": ("E Mails/Website", "Total Emails Sent"),
     "emails sent": ("E Mails/Website", "Total Emails Sent"),
     "emails did we send": ("E Mails/Website", "Total Emails Sent"),
@@ -2452,8 +2503,11 @@ _WEB_METRIC_KEYWORDS: dict[str, tuple[str, str] | str] = {
     "instagram followers": ("Social Media", "Instagram Followers"),
     "total instagram posts": ("Social Media", "Total Instagram Posts"),
     "app downloads": ("Catalyt App Engagement", "App Downloads"),
+    "app download": ("Catalyt App Engagement", "App Downloads"),
     "app impressions": ("Catalyt App Engagement", "App Impressions"),
+    "app impression": ("Catalyt App Engagement", "App Impressions"),
     "app launches": ("Catalyt App Engagement", "App Launches"),
+    "app launch": ("Catalyt App Engagement", "App Launches"),
 }
 _WEB_METRIC_KEYWORDS_BY_LENGTH = sorted(_WEB_METRIC_KEYWORDS, key=len, reverse=True)
 

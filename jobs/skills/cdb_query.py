@@ -66,6 +66,14 @@ def _format_rows(rows: list[sqlite3.Row], description) -> str:
     return result
 
 
+_MONTH_NAMES = {
+    "january": 1, "jan": 1, "february": 2, "feb": 2, "march": 3, "mar": 3,
+    "april": 4, "apr": 4, "may": 5, "june": 6, "jun": 6, "july": 7, "jul": 7,
+    "august": 8, "aug": 8, "september": 9, "sept": 9, "sep": 9,
+    "october": 10, "oct": 10, "november": 11, "nov": 11, "december": 12, "dec": 12,
+}
+
+
 def _last_sunday() -> str:
     today = date.today()
     days_since_saturday = (today.weekday() - 5) % 7
@@ -113,7 +121,7 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
     # Check order: slipping → hybrid → missed_count → missed → trend → count → attended
 
     # SLIPPING AWAY / NEEDS SHEPHERDING
-    if any(w in q for w in ['slipping', 'falling off', 'not coming', 'stopped coming', 'needs attention', 'shepherding', 'missing recently', 'fading', 'drifting']):
+    if any(w in q for w in ['slipping', 'falling off', 'not coming', 'stopped coming', 'needs attention', 'shepherding', 'missing recently', 'fading', 'drifting', 'losing touch', 'falling away', 'at risk of leaving']):
         w5  = weeks[4]  if len(weeks) > 4  else weeks[-1]
         w12 = weeks[11] if len(weeks) > 11 else weeks[-1]
         w4  = weeks[3]  if len(weeks) > 3  else weeks[-1]
@@ -139,7 +147,7 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
         )
 
     # HOW MANY MISSED (count)
-    if any(w in q for w in ["how many missed", "how many didn't", "how many were absent", "how many did not"]):
+    if any(w in q for w in ["how many missed", "how many didn't", "how many were absent", "how many did not", "how many were missing", "miss count"]):
         return (
             f"SELECT COUNT(DISTINCT m.id) as missed_count FROM members m "
             f"WHERE m.active = 1 AND m.name NOT LIKE '%CAMPUS%' AND m.name NOT LIKE '%SYSTEM%' AND m.name NOT LIKE '%TEST%' AND m.id NOT IN ("
@@ -147,7 +155,7 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
         )
 
     # WHO MISSED
-    if any(w in q for w in ["who missed", "who didn't attend", "who wasn't there", "who was absent", "who didn't come", "who did not attend", "who did not come", "absent"]):
+    if any(w in q for w in ["who missed", "who didn't attend", "who wasn't there", "who was absent", "who didn't come", "who did not attend", "who did not come", "absent", "who no-showed", "no shows", "didn't make it"]):
         return (
             f"SELECT m.name FROM members m "
             f"WHERE m.active = 1 AND m.name NOT LIKE '%CAMPUS%' AND m.name NOT LIKE '%SYSTEM%' AND m.name NOT LIKE '%TEST%' AND m.id NOT IN ("
@@ -156,7 +164,7 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
         )
 
     # ATTENDANCE TREND
-    if any(w in q for w in ['trend', 'trending', 'attendance over', 'attendance by week', 'weekly attendance', 'how has attendance', 'campus breakdown']):
+    if any(w in q for w in ['trend', 'trending', 'attendance over', 'attendance by week', 'weekly attendance', 'how has attendance', 'campus breakdown', 'attendance history', 'attendance pattern']):
         w8 = weeks[7] if len(weeks) > 7 else weeks[-1]
         return (
             f"SELECT a.service_date, "
@@ -167,7 +175,7 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
         )
 
     # HOW MANY ATTENDED (count)
-    if any(w in q for w in ['how many attended', 'how many came', 'total attendance', 'attendance count', 'number who attended']):
+    if any(w in q for w in ['how many attended', 'how many came', 'total attendance', 'attendance count', 'number who attended', 'sunday attendance', 'service attendance', 'how many showed up', 'how many people were there']):
         if campus:
             return f"SELECT COUNT(DISTINCT a.member_id) as total FROM attendance a WHERE a.campus = '{campus}' AND {a_date}"
         else:
@@ -177,7 +185,7 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
             )
 
     # WHO ATTENDED
-    if any(w in q for w in ['who attended', 'who came', 'who was there', 'who showed up', 'list attendance']):
+    if any(w in q for w in ['who attended', 'who came', 'who was there', 'who showed up', 'list attendance', 'attendee list', 'who was in service', 'who was at church']):
         if campus:
             return (
                 f"SELECT DISTINCT m.name FROM attendance a "
@@ -193,7 +201,8 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
 
     # MEMBERS NOT SEEN RECENTLY
     if any(w in q for w in ['not seen', "haven't seen", 'not attended', 'not been', 'missing for',
-                             'inactive', 'not come in', "haven't attended", "haven't come"]):
+                             'inactive', 'not come in', "haven't attended", "haven't come",
+                             "haven't shown up", 'off the radar']):
         if '2 week' in q or 'two week' in q or '14 day' in q:
             days = 14
         elif '60 day' in q:
@@ -215,7 +224,7 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
 
     # FIRST-TIME VISITORS (checked before new-members to catch "first time visitor" specifically)
     if any(w in q for w in ['first time visitor', 'first-time visitor', 'visitors this',
-                             'new visitor', 'guests']):
+                             'new visitor', 'guests', 'newcomers']):
         today = date.today()
         cutoff = today.replace(day=1).strftime('%Y-%m-%d') if 'this month' in q else (today - timedelta(days=14)).strftime('%Y-%m-%d')
         return (
@@ -229,7 +238,8 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
     # NEW MEMBERS / RECENT JOINS
     if any(w in q for w in ['new member', 'new people', 'new person', 'joined',
                              'recently joined', 'added this', 'new this month', 'new this week',
-                             'new last month', 'first visit', 'first time', 'first-time']):
+                             'new last month', 'first visit', 'first time', 'first-time',
+                             'newest members', 'recent additions', 'who joined recently']):
         today = date.today()
         if 'this week' in q:
             start = today - timedelta(days=today.weekday())
@@ -257,12 +267,60 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
                 f"ORDER BY created_at DESC"
             )
 
+    # DEACON GROUP MEMBERSHIP -- checked before MEMBER LOOKUP BY NAME below,
+    # whose 'who is' trigger would otherwise swallow "who is in X's deacon
+    # group" as a (wrong, always-empty) direct name search instead of a
+    # group lookup, silently falling through to an LLM call every time.
+    # members.deacon holds the free-text name of the deacon shepherding
+    # that member -- "X's (deacon) group" means WHERE deacon LIKE '%X%'
+    # directly (see jobs/analytics/data_chat.py's schema comment, same rule).
+    _deacon_m = re.search(r"(\w+(?:\s+\w+)?)'s\s+(?:deacon\s+)?group\b", q)
+    if not _deacon_m:
+        _deacon_m = re.search(r"who\s+does\s+(\w+(?:\s+\w+)?)\s+shepherd", q)
+    if _deacon_m:
+        # The optional second-word group above can greedily pull in a
+        # leading preposition ("members OF kaci's group" -> "of kaci")
+        # since it doesn't know which of the (up to) two captured words is
+        # actually part of the name -- drop any leading stopword instead of
+        # trying to make the regex itself smarter about it.
+        _deacon_words = [w for w in _deacon_m.group(1).strip().split()]
+        _deacon_stopwords = ('of', 'in', 'the', 'a', 'is', 'for', 'list', 'show', 'me', 'give', 'display', 'tell')
+        while _deacon_words and _deacon_words[0].lower() in _deacon_stopwords:
+            _deacon_words.pop(0)
+        deacon_name = " ".join(_deacon_words)
+        if deacon_name:
+            return (
+                f"SELECT name FROM members "
+                f"WHERE deacon LIKE '%{deacon_name}%' AND active = 1 "
+                f"AND name NOT LIKE '%CAMPUS%' AND name NOT LIKE '%SYSTEM%' AND name NOT LIKE '%TEST%' "
+                f"ORDER BY name"
+            )
+
+    # BIRTHDAYS -- a month-wide list ("birthdays in October", "who has a
+    # birthday this month"), distinct from a single person's own birthday
+    # (that's bot.py's _extract_team_lookup "X's birthday" fast path instead).
+    if 'birthday' in q or 'birthdate' in q or 'born in' in q:
+        month_num = None
+        for _name, _num in _MONTH_NAMES.items():
+            if _name in q:
+                month_num = _num
+                break
+        if month_num is None and any(w in q for w in ['this month', 'coming up', 'upcoming']):
+            month_num = date.today().month
+        if month_num:
+            return (
+                f"SELECT name, birthdate FROM members "
+                f"WHERE active = 1 AND name NOT LIKE '%CAMPUS%' AND name NOT LIKE '%SYSTEM%' AND name NOT LIKE '%TEST%' "
+                f"AND birthdate IS NOT NULL AND CAST(strftime('%m', birthdate) AS INTEGER) = {month_num} "
+                f"ORDER BY CAST(strftime('%d', birthdate) AS INTEGER)"
+            )
+
     # MEMBER LOOKUP BY NAME
     if any(w in q for w in ['look up', 'find member', 'search for', 'who is', 'tell me about',
-                             'get info on', 'member info']):
+                             'get info on', 'member info', 'pull up', 'details on', 'info for']):
         name = q
         for trigger in ['tell me about', 'get info on', 'find member', 'member info',
-                        'search for', 'look up', 'who is']:
+                        'search for', 'look up', 'who is', 'pull up', 'details on', 'info for']:
             if trigger in name:
                 name = name.replace(trigger, '', 1).strip()
                 break
@@ -280,7 +338,8 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
 
     # PRAYER REQUESTS
     if any(w in q for w in ['prayer request', 'prayer list', 'who needs prayer',
-                             'prayer wall', 'praying for']):
+                             'prayer wall', 'praying for', 'prayer needs',
+                             "who's asking for prayer", 'who is asking for prayer']):
         today = date.today()
         if 'this week' in q or 'last week' in q or '7 day' in q:
             cutoff = (today - timedelta(days=7)).strftime('%Y-%m-%d')
@@ -301,7 +360,7 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
 
     # FOLLOW-UPS
     if any(w in q for w in ['follow up', 'follow-up', 'needs follow', 'who to follow',
-                             'follow up list']):
+                             'follow up list', 'who needs a follow up', 'pending follow ups']):
         return (
             f"SELECT m.name, f.note, f.created_at, f.status "
             f"FROM follow_ups f "
@@ -326,7 +385,8 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
 
     # ACTIVE MEMBERS COUNT OR LIST
     if any(w in q for w in ['how many members', 'how many active', 'total members', 'member count',
-                             'list all members', 'all active members', 'active members']):
+                             'list all members', 'all active members', 'active members',
+                             'membership count', 'roster', 'how many people do we have']):
         if any(w in q for w in ['how many', 'total', 'count']):
             return "SELECT COUNT(*) as total FROM members WHERE active = 1"
         return "SELECT name, email, campus_preference FROM members WHERE active = 1 AND name NOT LIKE '%CAMPUS%' AND name NOT LIKE '%SYSTEM%' AND name NOT LIKE '%TEST%' ORDER BY name"
