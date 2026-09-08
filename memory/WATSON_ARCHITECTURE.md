@@ -1911,7 +1911,7 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - ~~iOS keyboard patch in dashboard chat~~ — attempted and reverted 7 times, permanently removed from build queue
 - ~~Build Pipeline (`jobs/dev/build_pipeline.py`)~~ — Claude API spec/review/approve flow triggered by bare `build <request>` / `approve` in Telegram; last ran 2026-06-15, superseded by Dev Loop. Bot triggers removed 2026-07-03. File left in place, unreferenced.
 - ~~`jobs/kb/archive_transcripts.py`~~ — retired 2026-07-20, superseded by `jobs/kb/sync_and_index.py`. Its 30-day-old-file threshold became unreachable once transcripts started moving to `kb/documents/` the same day they arrive. File left in place, unreferenced; cron entry removed.
-- ~~`jobs/connect_cards/missed_report.py`~~ — Tue 7am email (Bill, Donna, Kaci) of who missed that Sunday; retired 2026-09-08 at Bill's request after he called it "the old attendance system" on receiving one, superseded by the live `wtsn.me/cat/attendance` tool and the Wed shepherding-report-ready Telegram nudge. File left in place, unreferenced; cron entry removed.
+- ~~`jobs/connect_cards/missed_report.py`~~ — Tue 7am email (Bill, Donna, Kaci) of who missed that Sunday; retired 2026-09-08 at Bill's request after he called it "the old attendance system" on receiving one, superseded by the live `wtsn.me/cat/attendance` tool and the Wed shepherding-report-ready Telegram nudge. Cron entry removed same day; file itself deleted (`02a8855`) after confirming no remaining code imported or called it.
 
 ---
 
