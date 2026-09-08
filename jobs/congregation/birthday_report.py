@@ -8,11 +8,14 @@ birthdate on file at all, so Bill C / Jim can chase that info down --
 per Bill's 2026-09-08 request, this is a nudge to fill data gaps, not a
 diff against some separate list they keep elsewhere.
 
-The upcoming-birthdays section is whole-roster (everyone sees the same
-list). The missing-birthdate section is scoped to each recipient's own
-deacon group (members.deacon, matching deacon_reports.py's grouping) --
-per Bill's 2026-09-08 follow-up, each deacon should only be nudged about
-their own people, not the entire congregation's gaps.
+Both the upcoming-birthdays and missing-birthdate sections are scoped to
+each recipient's own deacon group (members.deacon, matching
+deacon_reports.py's grouping) -- per Bill's 2026-09-08 follow-up, a deacon
+should only be nudged about their own people by default. The full,
+unscoped congregation-wide list is available via all_birthdays_message()
+for on-demand use (e.g. someone explicitly asking for all of a given
+month's birthdays) -- not wired to a bot command as of 2026-09-08, just
+callable.
 
 Scope: members.active = 1 AND member_status = 'active'. No shepherding/
 attendance-history gate like deacon_reports.py's at-risk sections -- a
@@ -52,22 +55,25 @@ def _next_month() -> tuple[int, int]:
     return today.year, today.month + 1
 
 
-def _birthdays_for_month(month: int) -> list[tuple[int, str, int]]:
+def _birthdays_for_month(month: int, deacon_name: str | None = None) -> list[tuple[int, str, int]]:
     mm = f"{month:02d}"
+    query = """
+        SELECT name, birthdate
+        FROM members
+        WHERE active = 1
+          AND member_status = 'active'
+          AND birthdate IS NOT NULL
+          AND birthdate != ''
+          AND substr(birthdate, 6, 2) = ?
+    """
+    params = [mm]
+    if deacon_name is not None:
+        query += " AND deacon = ?"
+        params.append(deacon_name)
+    query += " ORDER BY substr(birthdate, 9, 2)"
+
     with _conn() as conn:
-        rows = conn.execute(
-            """
-            SELECT name, birthdate
-            FROM members
-            WHERE active = 1
-              AND member_status = 'active'
-              AND birthdate IS NOT NULL
-              AND birthdate != ''
-              AND substr(birthdate, 6, 2) = ?
-            ORDER BY substr(birthdate, 9, 2)
-            """,
-            (mm,),
-        ).fetchall()
+        rows = conn.execute(query, params).fetchall()
 
     result = []
     for row in rows:
@@ -94,19 +100,24 @@ def _missing_birthdates(deacon_name: str) -> list[str]:
     return [row["name"] for row in rows]
 
 
+def _format_birthday_lines(birthdays: list[tuple[int, str, int]], month: int, year: int) -> list[str]:
+    if not birthdays:
+        return ["(none on file)"]
+    return [
+        f"{month:02d}/{day:02d} — {name} (turning {year - birth_year})"
+        for day, name, birth_year in birthdays
+    ]
+
+
 def build_message(deacon_name: str) -> str:
     year, month = _next_month()
     month_name = calendar.month_name[month]
 
-    birthdays = _birthdays_for_month(month)
+    birthdays = _birthdays_for_month(month, deacon_name)
     missing = _missing_birthdates(deacon_name)
 
-    lines = [f"🎂 Birthdays in {month_name} {year}"]
-    if birthdays:
-        for day, name, birth_year in birthdays:
-            lines.append(f"{month:02d}/{day:02d} — {name} (turning {year - birth_year})")
-    else:
-        lines.append("(none on file)")
+    lines = [f"🎂 Birthdays in {month_name} {year} — your group"]
+    lines.extend(_format_birthday_lines(birthdays, month, year))
 
     lines.append("")
     lines.append(f"Missing birthdate on file in your group ({len(missing)}):")
@@ -115,6 +126,25 @@ def build_message(deacon_name: str) -> str:
     else:
         lines.append("(none — everyone in your group has a birthdate on file)")
 
+    lines.append("")
+    lines.append("- Watson")
+    return "\n".join(lines)
+
+
+def all_birthdays_message(month: int | None = None, year: int | None = None) -> str:
+    """Whole-congregation birthday list for a month, unscoped by deacon group.
+
+    For on-demand use when someone explicitly asks for all of a given
+    month's birthdays, rather than just their own deacon group.
+    """
+    if month is None or year is None:
+        year, month = _next_month()
+    month_name = calendar.month_name[month]
+
+    birthdays = _birthdays_for_month(month)
+
+    lines = [f"🎂 All birthdays in {month_name} {year}"]
+    lines.extend(_format_birthday_lines(birthdays, month, year))
     lines.append("")
     lines.append("- Watson")
     return "\n".join(lines)
