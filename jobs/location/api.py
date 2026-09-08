@@ -13,16 +13,19 @@ header, same pattern as jobs/bodyrec/api.py.
 """
 import json
 import logging
+import math
 import os
 import secrets as secrets_mod
 import sys
 from functools import wraps
 from pathlib import Path
 
+import requests
 from flask import Blueprint, jsonify, request
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from config.settings import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 from jobs.location import get_db
 
 log = logging.getLogger(__name__)
@@ -52,6 +55,46 @@ def _require_key(f):
             return jsonify({"error": "unauthorized"}), 401
         return f(*args, **kwargs)
     return wrapper
+
+
+def _haversine_m(lat1, lon1, lat2, lon2):
+    r = 6371000
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlambda = math.radians(lon2 - lon1)
+    a = math.sin(dphi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2) ** 2
+    return 2 * r * math.asin(math.sqrt(a))
+
+
+def _zone_for(conn, lat, lon):
+    """Name of the smallest-radius defined zone containing (lat, lon), or None."""
+    best = None
+    for z in conn.execute("SELECT name, center_lat, center_lon, radius_m FROM location_zones"):
+        if _haversine_m(lat, lon, z["center_lat"], z["center_lon"]) <= z["radius_m"]:
+            if best is None or z["radius_m"] < best[1]:
+                best = (z["name"], z["radius_m"])
+    return best[0] if best else None
+
+
+def _notify_zone_change(zone_from, zone_to):
+    if zone_to and not zone_from:
+        text = f"\U0001F4CD Arrived at {zone_to}"
+    elif zone_from and not zone_to:
+        text = f"\U0001F4CD Left {zone_from}"
+    elif zone_from and zone_to:
+        text = f"\U0001F4CD Left {zone_from}, arrived at {zone_to}"
+    else:
+        return
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        return
+    try:
+        requests.post(
+            f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+            json={"chat_id": TELEGRAM_CHAT_ID, "text": f"{text}\n\n - Watson"},
+            timeout=10,
+        )
+    except Exception as exc:
+        log.error("location zone notify failed: %s", exc)
 
 
 def _row_to_dict(row) -> dict:
@@ -86,6 +129,10 @@ def ingest():
 
     conn = get_db()
     try:
+        prev = conn.execute(
+            "SELECT lat, lon FROM location_pings ORDER BY id DESC LIMIT 1"
+        ).fetchone()
+
         conn.execute(
             "INSERT INTO location_pings (tid, tst, lat, lon, acc, alt, vel, batt, conn_type, raw_json) "
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -103,6 +150,16 @@ def ingest():
             ),
         )
         conn.commit()
+
+        zone_from = _zone_for(conn, prev["lat"], prev["lon"]) if prev else None
+        zone_to = _zone_for(conn, lat, lon)
+        if zone_to != zone_from:
+            conn.execute(
+                "INSERT INTO location_events (tst, zone_from, zone_to, lat, lon) VALUES (?, ?, ?, ?, ?)",
+                (data.get("tst"), zone_from, zone_to, lat, lon),
+            )
+            conn.commit()
+            _notify_zone_change(zone_from, zone_to)
     except Exception as exc:
         log.error("location ingest failed: %s", exc)
     finally:
