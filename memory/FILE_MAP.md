@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-09-07*
+*Generated: 2026-09-08*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -97,8 +97,6 @@ data/
     66e0844b7fab4e0a8bb386db8504deac.png
     9eca6f54ecff491dbed2470fd0b3d196.png
   congregation.db
-  congregation.db-shm
-  congregation.db-wal
   congregation.db.bak_before_orphan_delete_20260906_070048
   cover_images/
     cover_1.jpg
@@ -3985,6 +3983,13 @@ data/
       20260904-090346-trust-issues-field-research-fivefold-idolatry-wors/
         christian-ai-books-articles.md
         transcript.md
+      20260907-111352-ai-amp-faith-ideas-from-a-conversation-with-mom-ar/
+        transcript.md
+      20260908-000640-pivot-to-general-audience-everyday-ai-book-outline/
+        everyday-ai-chapter-outline-draft.txt
+        sermon-series-outline-draft.txt
+        transcript.md
+        trust-issues-outline-draft.txt
     wcky-book-launch-project/
       20260826-013953-sending-giving-statements-in-tithely/
         transcript.md
@@ -4744,6 +4749,7 @@ jobs/
     import_deacon_directory.py
     init_db.py
     member_match.py
+    migrate_deacon_pins.py
     migrations_archive/
       migrate_deacon_directory.py
       migrate_deacon_notes.py
@@ -4751,6 +4757,7 @@ jobs/
       migrate_leadership_roles.py
       migrate_reparse.py
     papercards_web.py
+    set_deacon_pin.py
     shepherding_report_ready.py
     weekly_changes_report.py
   connect_cards/
@@ -4802,6 +4809,9 @@ jobs/
       exports/
         twj-manuscript-c9541b5bc112b520e429ac83bbadb106.md
       favicon-w.svg
+      favicon-watson-tab.png
+      favicon-watson.png
+      favicon.ico
       favicon.svg
       style.css
       team.js
@@ -4960,6 +4970,10 @@ jobs/
   llm/
     __init__.py
     compare_reasoning.py
+  location/
+    __init__.py
+    api.py
+    routes.py
   marketing/
     __init__.py
     seo_tools.py
@@ -6434,6 +6448,7 @@ package.json
 postcss.config.mjs
 public/
   catalyst-c-logo.jpg
+  watson-icon-navy.png
 src/
   app/
     [category]/
@@ -6484,6 +6499,7 @@ src/
             route.ts
           states/
             route.ts
+    apple-icon.png
     cat/
       attendance/
         AttendanceBoard.tsx
@@ -6520,6 +6536,7 @@ src/
         icon.jpg
         page.tsx
     globals.css
+    icon.png
     layout.tsx
     not-found.tsx
     p/
