@@ -2334,6 +2334,7 @@ function devLoad() {
     <div class="mtabs">
       <button class="mtab${_devTab === 'dev'  ? ' active' : ''}" onclick="devSetTab('dev')">Dev</button>
       <button class="mtab${_devTab === 'bugs' ? ' active' : ''}" onclick="devSetTab('bugs')">Bugs</button>
+      <button class="mtab${_devTab === 'cost' ? ' active' : ''}" onclick="devSetTab('cost')">Cost</button>
     </div>
     <div id="dev-tab-body"><div class="loading">Loading&hellip;</div></div>`;
   devSetTab(_devTab, true);
@@ -2345,12 +2346,110 @@ function devSetTab(tab, isInitial) {
   _devExpandedBacklogId = null;
   if (!isInitial) {
     document.querySelectorAll('#msec-inner-dev .mtab').forEach(b => b.classList.remove('active'));
-    const idx = { dev: 0, bugs: 1 }[tab];
+    const idx = { dev: 0, bugs: 1, cost: 2 }[tab];
     const btn = document.querySelectorAll('#msec-inner-dev .mtab')[idx];
     if (btn) btn.classList.add('active');
   }
   if (tab === 'dev')  devLoadBacklog();
   if (tab === 'bugs') devLoadBugs();
+  if (tab === 'cost') devLoadCost();
+}
+
+// ── Cost sub-tab (resource_samples -> Hetzner VPS estimate) ────────────────
+// See jobs/dev/vps_cost_estimate.py for the sizing/pricing logic and its
+// caveats (headroom assumptions, shared-vCPU != physical-thread speed for
+// Watson's CPU-bound Ollama inference, pricing snapshot date).
+
+async function devLoadCost() {
+  const el = document.getElementById('dev-tab-body');
+  if (!el) return;
+  el.innerHTML = '<div class="loading">Loading&hellip;</div>';
+  try {
+    const data = await api('/api/dev/vps-cost-estimate');
+    _devRenderCost(data);
+  } catch {
+    el.innerHTML = '<div class="empty">Could not load cost estimate.</div>';
+  }
+}
+
+function _devPlanCard(title, plan) {
+  if (!plan) {
+    return `<div class="mpn-card"><div style="font-size:13px;font-weight:600">${esc(title)}</div><div style="font-size:12px;color:var(--muted);margin-top:2px">No plan in the pricing table covers this — would need a bigger tier or an attached volume.</div></div>`;
+  }
+  return `
+    <div class="mpn-card">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+        <div>
+          <div style="font-size:13px;font-weight:600">${esc(title)}</div>
+          <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--text-muted);margin-top:2px">Hetzner ${esc(plan.name)} (${esc(plan.series)}) — ${plan.vcpu} vCPU / ${plan.ram_gb}GB / ${plan.disk_gb}GB</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-size:15px;font-weight:700;color:var(--gold)">$${plan.monthly_usd.toFixed(2)}<span style="font-size:11px;font-weight:400;color:var(--muted)">/mo</span></div>
+          <div style="font-size:11px;color:var(--muted)">$${plan.daily_usd.toFixed(2)}/day</div>
+        </div>
+      </div>
+    </div>`;
+}
+
+function _devRenderCost(data) {
+  const el = document.getElementById('dev-tab-body');
+  if (!el) return;
+
+  if (!data || data.available === false) {
+    el.innerHTML = `<div class="empty">${esc((data && data.reason) || 'No usage data yet.')}</div>`;
+    return;
+  }
+
+  const u = data.usage, r = data.required;
+  const dailyRows = (data.daily || []).slice().reverse();
+
+  let html = `
+    <div class="mlabel" style="margin-top:0">If Watson ran on a VPS instead</div>
+    ${_devPlanCard('Sized to actual usage', data.recommended_plan)}
+    ${_devPlanCard('Matched to Beelink’s full specs', data.beelink_match_plan)}
+    <div class="mth-stats">
+      <div class="mth-stat">
+        <div class="mth-stat-num">${u.avg_cpu_percent}%</div>
+        <div class="mth-stat-lbl">Avg CPU</div>
+      </div>
+      <div class="mth-stat">
+        <div class="mth-stat-num">${u.peak_cpu_percent}%</div>
+        <div class="mth-stat-lbl">Peak CPU</div>
+      </div>
+      <div class="mth-stat">
+        <div class="mth-stat-num">${u.avg_mem_gb}G</div>
+        <div class="mth-stat-lbl">Avg RAM</div>
+      </div>
+      <div class="mth-stat">
+        <div class="mth-stat-num">${u.peak_mem_gb}G</div>
+        <div class="mth-stat-lbl">Peak RAM</div>
+      </div>
+      <div class="mth-stat">
+        <div class="mth-stat-num">${u.disk_used_gb}G</div>
+        <div class="mth-stat-lbl">Disk Used</div>
+      </div>
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin:6px 2px 12px">
+      Over the last ${data.sizing_window_days} days (${data.sample_count} samples, ~${data.data_span_hours}h of data).
+      Sized with ${Math.round((data.headroom.cpu - 1) * 100)}% CPU / ${Math.round((data.headroom.mem - 1) * 100)}% RAM / ${Math.round((data.headroom.disk - 1) * 100)}% disk headroom above observed peaks.
+      Pricing snapshot ${esc(data.pricing_asof)} (Hetzner, EU region, excl. VAT/IPv4) at ${data.eur_usd_rate} USD/EUR — verify before budgeting.
+      A shared vCPU is not the same speed as this box's physical cores — Watson's Ollama inference is CPU-bound with no GPU, so a plan sized by core <i>count</i> doesn't guarantee matching speed.
+    </div>
+    <div class="mlabel">Daily</div>`;
+
+  html += dailyRows.length
+    ? dailyRows.map(d => `
+        <div class="mpn-card" style="padding:8px 12px">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px">
+            <div style="font-family:'DM Mono',monospace;color:var(--text-muted)">${esc(d.day)}</div>
+            <div>CPU ${d.avg_cpu.toFixed(1)}% avg / ${d.peak_cpu.toFixed(1)}% peak</div>
+            <div>RAM ${d.avg_mem.toFixed(1)}G avg / ${d.peak_mem.toFixed(1)}G peak</div>
+            <div>Disk ${d.disk_used.toFixed(1)}G</div>
+          </div>
+        </div>`).join('')
+    : '<div class="empty">No daily rows yet.</div>';
+
+  el.innerHTML = html;
 }
 
 function _devTruncate(text, maxLen) {

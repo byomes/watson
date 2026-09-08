@@ -2513,6 +2513,12 @@ def bugs_delete(bug_id):
     return jsonify({"ok": True})
 
 
+@app.route("/api/dev/vps-cost-estimate")
+def dev_vps_cost_estimate():
+    from jobs.dev.vps_cost_estimate import build_estimate
+    return jsonify(build_estimate())
+
+
 @app.route("/api/project-backlog")
 def project_backlog_list():
     rows = _db().execute("""
