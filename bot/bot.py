@@ -2236,12 +2236,18 @@ def _resolve_deacon_name(query: str, sender_name: str) -> str | None:
     """Match a free-typed deacon name against the real roster
     (deacon_reports.list_deacons()) -- exact (case-insensitive) first, then
     unique substring (so "Ray" or "Williams" resolves to "Ray Williams").
-    "me"/"myself"/"my list" resolves to the sender's own name."""
+    "me"/"myself"/"my list" resolves to the sender's own name, but only if
+    the sender is actually a deacon: Dr. Bill can now reach this too (his
+    own chat, added 2026-09-08), and he is NOT one of the 7 real deacons
+    (he's the "P Bill Yomes" bucket, excluded from list_deacons()) -- without
+    this check, "assign X to me" from his chat would silently write the
+    literal string "Bill Yomes" into members.deacon as if it were a real,
+    selectable deacon (deacons_web.py's free-text write has no enum guard)."""
     q = query.strip().lower()
-    if q in ("me", "myself", "my list"):
-        return sender_name
     from jobs.congregation.deacon_reports import list_deacons
     deacons = list_deacons()
+    if q in ("me", "myself", "my list"):
+        return sender_name if sender_name in deacons else None
     for d in deacons:
         if d.lower() == q:
             return d
@@ -2760,6 +2766,16 @@ async def _try_congregation_data_lookup(text: str) -> str | None:
 
 
 async def _handle_general(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str) -> str:
+    # Deacon reassignment via chat, extended to Dr. Bill's own chat 2026-09-08
+    # (previously Bill Crook/Jim Bouchat only, via _DEACON_ASSIGN_ALLOWLIST in
+    # _handle_text_body -- this is the parallel wiring for the one chat that
+    # skips that whole branch entirely). No allowlist check needed here: this
+    # function is only ever reached from Bill's own authorized chat.
+    _assign = _extract_deacon_assign(text)
+    if _assign:
+        await _handle_deacon_assign(update, "Bill Yomes", *_assign)
+        return ""
+
     _possessive = re.search(r"(\w+)'s\s+(?:email|phone|number|contact)", text, re.IGNORECASE)
     if _possessive:
         from jobs.people.lookup import lookup_member
