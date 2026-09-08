@@ -49,6 +49,7 @@ JOB_LABELS = {
     "skillbuilder.audit": "Weekly skill gap audit",
     "skillbuilder.acquire": "Acquiring a new skill",
     "pastoral_notes.handler": "Pastoral notes processing",
+    "analytics.fast_path_suggestions": "Weekly fast-path suggestion review",
 }
 
 # $ per 1M tokens (input, output) — only the models this tier is expected to use.

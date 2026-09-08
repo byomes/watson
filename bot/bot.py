@@ -2551,9 +2551,15 @@ def _alert_unanswered_team_question(team_member_name: str, question: str, reply:
     the time this is called), tell Bill so he can judge whether it's worth
     building a real lookup for -- the same way the phone/address/
     last-attended and classroom-attendance lookups above started as exactly
-    this kind of ask."""
+    this kind of ask. Also logs the question to jobs.analytics.
+    unanswered_questions (added 2026-09-08) so the weekly fast-path review
+    job (jobs/analytics/fast_path_suggestions.py) has a standing record to
+    mine for repeat shapes, not just this one live ping."""
     from core.vacation import vacation_gate
+    from jobs.analytics.unanswered_questions import log_unanswered
     import requests as _req
+
+    log_unanswered(team_member_name, question, reply)
 
     text = (
         f"\U0001f914 {team_member_name} asked Watson something it could only answer generically:\n\n"
@@ -5153,6 +5159,147 @@ async def handle_git_sync_callback(update: Update, context: ContextTypes.DEFAULT
     await query.edit_message_text(f"✅ {repo_name} synced and pushed", reply_markup=None)
 
 
+async def handle_fast_path_suggestion_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle fps_approve:/fps_reject: button taps from jobs/analytics/
+    fast_path_suggestions.py's weekly digest.
+
+    Two shapes of suggestion, both stored in fast_path_suggestions (see
+    that module's docstring):
+      - target_id set: a safe one-line phrase addition to an existing
+        jobs/skills/cdb_query.py category. Approve auto-applies it via
+        jobs.analytics.fast_path_patcher, commits, and restarts both
+        services to pick it up.
+      - target_id NULL: doesn't fit any existing category. Approve just
+        marks it 'approved' (queued for a real coding session) -- no code
+        change, no restart.
+
+    The bot's own restart (unlike the dashboard's) has to be fire-and-
+    forget (subprocess.Popen, never awaited/`.wait()`d): `systemctl
+    restart` sends SIGTERM to this very process and BLOCKS until it exits
+    before starting the new one, so if this handler waited synchronously
+    for that command to finish, it would deadlock -- we can't exit while
+    blocked waiting on a command that's waiting on us to exit. Popen just
+    launches it and returns immediately, letting the async app's own
+    signal handling take it from there (confirmed graceful ~2s stop/start
+    in the journal for every restart this session)."""
+    query = update.callback_query
+    await query.answer()
+
+    if not _is_authorized(update):
+        return
+
+    data = query.data or ""
+    if data.startswith("fps_approve:"):
+        action = "approve"
+        suggestion_id = int(data[len("fps_approve:"):])
+    elif data.startswith("fps_reject:"):
+        action = "reject"
+        suggestion_id = int(data[len("fps_reject:"):])
+    else:
+        return
+
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT id, target_id, target_label, new_phrase FROM fast_path_suggestions "
+            "WHERE id=? AND status='pending'",
+            (suggestion_id,),
+        ).fetchone()
+
+    if not row:
+        await query.edit_message_text("⚠️ Suggestion expired or already resolved.", reply_markup=None)
+        return
+
+    if action == "reject":
+        with get_connection() as conn:
+            conn.execute(
+                "UPDATE fast_path_suggestions SET status='rejected', resolved_at=datetime('now') WHERE id=?",
+                (suggestion_id,),
+            )
+        await query.edit_message_text("❌ Rejected — left as-is.", reply_markup=None)
+        return
+
+    target_id = row["target_id"]
+    new_phrase = row["new_phrase"]
+
+    if not target_id or not new_phrase:
+        with get_connection() as conn:
+            conn.execute(
+                "UPDATE fast_path_suggestions SET status='approved', resolved_at=datetime('now') WHERE id=?",
+                (suggestion_id,),
+            )
+        await query.edit_message_text(
+            "\U0001f4dd Noted — I'll bring this to our next coding session.", reply_markup=None,
+        )
+        return
+
+    from jobs.analytics.fast_path_patcher import append_cdb_phrase
+
+    ok, detail = await asyncio.to_thread(append_cdb_phrase, target_id, new_phrase)
+
+    if not ok:
+        with get_connection() as conn:
+            conn.execute(
+                "UPDATE fast_path_suggestions SET status='failed', applied_detail=?, resolved_at=datetime('now') WHERE id=?",
+                (detail, suggestion_id),
+            )
+        await query.edit_message_text(
+            f"⚠️ Couldn't apply automatically ({detail}). Flagging for a coding session instead.",
+            reply_markup=None,
+        )
+        return
+
+    import subprocess
+
+    repo_root = str(Path(__file__).resolve().parents[1])
+
+    def _commit() -> str:
+        subprocess.run(
+            ["git", "add", "jobs/skills/cdb_query.py"], cwd=repo_root, check=True,
+        )
+        msg = (
+            f'Add "{new_phrase}" fast-path phrase to {row["target_label"]}\n\n'
+            f"Approved via Telegram by Bill Yomes.\n\n"
+            f"Co-Authored-By: Watson <noreply@watson.local>"
+        )
+        result = subprocess.run(
+            ["git", "commit", "-m", msg], cwd=repo_root, capture_output=True, text=True,
+        )
+        if result.returncode != 0:
+            return ""
+        rev = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"], cwd=repo_root, capture_output=True, text=True,
+        )
+        return rev.stdout.strip()
+
+    commit_hash = await asyncio.to_thread(_commit)
+
+    with get_connection() as conn:
+        conn.execute(
+            "UPDATE fast_path_suggestions SET status='applied', applied_detail=?, resolved_at=datetime('now') WHERE id=?",
+            (commit_hash or "committed (hash unavailable)", suggestion_id),
+        )
+
+    await query.edit_message_text(
+        f'✅ Applied — Watson now recognizes "{new_phrase}" for {row["target_label"]}. '
+        f"Restarting to pick it up...",
+        reply_markup=None,
+    )
+
+    try:
+        subprocess.run(
+            ["sudo", "-n", "/usr/bin/systemctl", "restart", "watson-dashboard.service"],
+            timeout=15,
+        )
+    except Exception as exc:
+        log.warning("fast_path_suggestions: dashboard restart failed: %s", exc)
+
+    try:
+        # Fire-and-forget -- see docstring above for why this can't be awaited.
+        subprocess.Popen(["sudo", "-n", "/usr/bin/systemctl", "restart", "watson-bot.service"])
+    except Exception as exc:
+        log.warning("fast_path_suggestions: bot restart failed to launch: %s", exc)
+
+
 def main():
     if not TELEGRAM_BOT_TOKEN:
         raise RuntimeError("TELEGRAM_BOT_TOKEN is not set in .env")
@@ -5183,6 +5330,7 @@ def main():
     app.add_handler(CommandHandler("saved",       handle_saved))
     app.add_handler(CommandHandler("ask",         handle_ask))
     app.add_handler(CallbackQueryHandler(handle_git_sync_callback,        pattern=r"^gs_"))
+    app.add_handler(CallbackQueryHandler(handle_fast_path_suggestion_callback, pattern=r"^fps_"))
     app.add_handler(CallbackQueryHandler(handle_merge_conflict_callback,  pattern=r"^(merge_old_|merge_new_|skip_|different_)\d+$"))
     app.add_handler(CallbackQueryHandler(handle_adelphos_callback, pattern=r"^adelphos_(delete|confirmdelete|canceldelete|allow)_\d+$"))
     app.add_handler(CallbackQueryHandler(handle_tool_deploy_callback, pattern=r"^tool_deploy_(yes|no):"))
