@@ -1,5 +1,6 @@
 """jobs/analytics/data_chat.py — open-ended attendance / web-traffic / event-
-signup / contact Q&A for the Telegram team-chat path in bot/bot.py.
+signup / contact / pastoral-care Q&A for the Telegram team-chat path in
+bot/bot.py.
 
 Per Bill's 2026-09-02 decisions: (1) attendance and web-traffic questions
 should have NOTHING off limits for team-chat users — not just the phrasings
@@ -14,14 +15,34 @@ other two in one query):
   attendance — data/congregation.db: attendance, classroom_attendance,
                members (name/deacon/status/campus columns always; email/
                phone/address/birthdate included only when allow_contact_info
-               is True). notes/status_note stay locked regardless -- per
-               Bill's 2026-09-02 explicit call, those can hold prayer-
-               request/pastoral content well beyond plain contact info.
+               is True); deacon_notes, next_steps, follow_ups,
+               deacon_visible_prayer_requests, deacon_visible_connect_cards
+               (added 2026-09-08 per Bill's decision that deacons/leaders
+               should see everything in congregation.db except his own
+               private pastoral notes -- see below). notes/status_note stay
+               locked regardless -- per Bill's 2026-09-02 explicit call,
+               those can hold prayer-request/pastoral content well beyond
+               plain contact info.
   web        — data/watson.db: engagement_sheet_metrics only.
   events     — data/watson.db: church_events, event_registrations (added
                2026-09-06 for event signup tracking — see jobs/events/).
                No contact-info gate; registrant email/phone is always
                queryable, unlike members' contact columns above.
+
+Two privacy tiers stay off limits regardless of the 2026-09-08 widening
+above, deliberately not conflated:
+  - Bill's own pastoral_notes (jobs/pastoral_notes/) live in watson.db, a
+    different file the attendance domain never opens -- structurally
+    unreachable here, not just column-blocked. His per-note choice to
+    "share:" a copy into deacon_notes (see jobs/pastoral_notes/handler.py)
+    is the only way that content ever reaches this domain.
+  - A prayer request a submitter flagged leadership-only
+    (prayer_requests.leadership_only=1 / connect_cards.prayer_request_public=0)
+    is a member-set privacy choice, not Bill's -- the deacon_visible_*
+    views (jobs/congregation/migrate_deacon_visible_views.py) exclude those
+    rows/columns at the SQL level, and the raw prayer_requests/connect_cards
+    tables stay off the whitelist entirely so a generated query can't
+    route around the view by accident.
 
 Reuses jobs.skills.cdb_query's battle-tested pattern-match layer (Bill's own
 `cdb:` skill) as a free, LLM-free fast path for the common attendance
@@ -69,7 +90,11 @@ MODEL = "qwen2.5-coder:7b"  # same model jobs/skills/cdb_query.py uses for SQL
 _DB_PATH = {"attendance": CONGREGATION_DB_PATH, "web": WATSON_DB_PATH, "events": WATSON_DB_PATH}
 
 _ALLOWED_TABLES = {
-    "attendance": {"attendance", "classroom_attendance", "members"},
+    "attendance": {
+        "attendance", "classroom_attendance", "members",
+        "deacon_notes", "next_steps", "follow_ups",
+        "deacon_visible_prayer_requests", "deacon_visible_connect_cards",
+    },
     "web": {"engagement_sheet_metrics"},
     "events": {"church_events", "event_registrations"},
 }
@@ -105,7 +130,19 @@ def _attendance_schema(allow_contact_info: bool) -> str:
         "  -- join attendance.member_id = members.id for a specific person's or group's attendance.\n"
         "  -- partnership_status is a category, one of exactly 'Partner', 'Guest', 'Regular Attender' -- to filter\n"
         "  -- to just partners use partnership_status = 'Partner', NEVER partnership_status IS NOT NULL (that matches\n"
-        "  -- everyone, since the column is always populated with one of the three values above)."
+        "  -- everyone, since the column is always populated with one of the three values above).\n"
+        "deacon_notes(member_id INTEGER, note TEXT, status TEXT, created_at TEXT, author_deacon TEXT)\n"
+        "  -- a deacon's own logged follow-up note about a member. status is 'open' or resolved/closed. join member_id = members.id.\n"
+        "next_steps(member_id INTEGER, step TEXT, date TEXT)\n"
+        "  -- a next-step/action item recorded for a member (e.g. from a connect card). join member_id = members.id.\n"
+        "follow_ups(member_id INTEGER, note TEXT, status TEXT, created_at TEXT)\n"
+        "  -- a general follow-up task tied to a member, separate from deacon_notes. status is 'open' or resolved/closed. join member_id = members.id.\n"
+        "deacon_visible_prayer_requests(member_id INTEGER, request_text TEXT, date TEXT, created_at TEXT)\n"
+        "  -- a member's prayer request. Use this view, NEVER the raw prayer_requests table (not queryable -- it also holds requests\n"
+        "  -- the submitter marked leadership-only, which this view already excludes). join member_id = members.id.\n"
+        "deacon_visible_connect_cards(member_id INTEGER, service_date TEXT, campus TEXT, questions_comments TEXT, next_steps TEXT, is_first_visit INTEGER, prayer_request TEXT)\n"
+        "  -- a submitted connect card. Use this view, NEVER the raw connect_cards table (not queryable -- its prayer_request column\n"
+        "  -- can hold non-public content this view already nulls out). is_first_visit=1 means it was that person's first visit. join member_id = members.id."
     )
 
 _WEB_SCHEMA = """
@@ -130,7 +167,9 @@ _SYSTEM_TEMPLATE = """You are a SQL query generator for a church's internal Tele
 Decide whether the question falls into the ATTENDANCE domain, the WEB domain, the EVENTS domain, or none. \
 ATTENDANCE covers not just worship-service/classroom attendance counts but ANY question about a member's own \
 record in the members table below -- contact info, birthdate, their deacon/group, status -- since that table \
-lives in the same domain. WEB covers social-media/website traffic metrics. EVENTS covers signups/registrations/\
+lives in the same domain, AND ANY pastoral/care question about a member: deacon notes logged about them, their \
+prayer requests, next steps, or follow-ups, or what they wrote on a connect card. WEB covers social-media/website \
+traffic metrics. EVENTS covers signups/registrations/\
 RSVPs/tickets for a specific church event (picnic, retreat, class, etc) -- who's registered, headcounts, ticket \
 counts, contact info for a registrant. If it's one of those three, write ONE single-line read-only SQLite \
 SELECT statement that answers it exactly, using ONLY the tables and columns listed below -- never invent a \
@@ -189,6 +228,18 @@ SQL: SELECT name FROM members WHERE deacon LIKE '%Bill Crook%'
 Q: which partners haven't been assigned to a deacon yet?
 DOMAIN: attendance
 SQL: SELECT name FROM members WHERE partnership_status = 'Partner' AND (deacon IS NULL OR deacon = '')
+
+Q: what deacon notes have been logged about Barry Balderson?
+DOMAIN: attendance
+SQL: SELECT dn.note, dn.status, dn.author_deacon, dn.created_at FROM deacon_notes dn JOIN members m ON m.id = dn.member_id WHERE m.name LIKE '%Barry Balderson%' ORDER BY dn.created_at DESC
+
+Q: what are the open prayer requests for Jim Bouchat's group?
+DOMAIN: attendance
+SQL: SELECT m.name, pr.request_text, pr.date FROM deacon_visible_prayer_requests pr JOIN members m ON m.id = pr.member_id WHERE m.deacon LIKE '%Jim Bouchat%' ORDER BY pr.date DESC
+
+Q: are there any open follow-ups for my group?
+DOMAIN: attendance
+SQL: SELECT m.name, f.note FROM follow_ups f JOIN members m ON m.id = f.member_id WHERE m.deacon LIKE '%Bill Crook%' AND f.status = 'open'
 
 Q: how many people have signed up for the picnic?
 DOMAIN: events

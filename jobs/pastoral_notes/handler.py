@@ -8,6 +8,13 @@ confirmation.
 
 Supports both single-item replies ("skip" / free text) and consolidated
 numbered replies ("1: skip\n2: Met with Dave, notes here").
+
+A note is private (pastoral_notes, watson.db) by default. Leading the note
+text with "share:" (e.g. "share: Barry had surgery, prayed with him") also
+copies it into deacon_notes (congregation.db) once the person is resolved
+to a congregation member, so it's visible the same way any deacon's own
+logged note is -- added 2026-09-08 per Bill's request to be able to choose,
+per note, whether it stays his own or gets shared with deacons.
 """
 
 import asyncio
@@ -22,6 +29,7 @@ import requests
 from config.settings import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 from core.claude_tier import call_claude
 from core.vacation import vacation_gate
+from jobs.connect_cards.reports import _conn as _congregation_conn
 from jobs.pastoral_notes.db import get_db
 import core.llm_log  # noqa: F401 -- installs Ollama call logging, see core/llm_log.py
 
@@ -36,6 +44,50 @@ _TASK_PROMPT = (
     "If no tasks found, return an empty array."
 )
 _NUMBERED_LINE_RE = re.compile(r'^(\d+):\s*(.+)$')
+
+# Per Bill's 2026-09-08 decision: a pastoral note is private (pastoral_notes,
+# watson.db) by default -- Bill's own working notes, never exposed to
+# data_chat's deacon Q&A. Leading this marker on the note text also copies
+# it into deacon_notes (congregation.db), attributed to "Pastor Bill Yomes"
+# (his own members.name), so it becomes visible to deacons the same way any
+# other deacon's own logged note is. The private pastoral_notes copy is
+# still saved either way -- sharing adds a copy, it doesn't replace it.
+_SHARE_PREFIX_RE = re.compile(r'^share:\s*', re.IGNORECASE)
+_DEACON_NOTE_AUTHOR = "Pastor Bill Yomes"
+
+
+def _extract_share_flag(text: str) -> tuple[str, bool]:
+    m = _SHARE_PREFIX_RE.match(text)
+    if not m:
+        return text, False
+    return text[m.end():].strip(), True
+
+
+def _find_member_id_by_name(name: str) -> int | None:
+    """Exact, case-insensitive match against active congregation members.
+
+    Returns None (rather than guessing) on zero or multiple matches --
+    pastoral_notes' people table and congregation.db's members table are
+    separate registries with no shared key, so name is all we have."""
+    with _congregation_conn() as conn:
+        rows = conn.execute(
+            "SELECT id FROM members WHERE name = ? COLLATE NOCASE AND active = 1",
+            (name,),
+        ).fetchall()
+    return rows[0]["id"] if len(rows) == 1 else None
+
+
+def _share_as_deacon_note(person_name: str, note_text: str) -> bool:
+    member_id = _find_member_id_by_name(person_name)
+    if member_id is None:
+        return False
+    with _congregation_conn() as conn:
+        conn.execute(
+            "INSERT INTO deacon_notes (member_id, note, status, author_deacon) VALUES (?, ?, 'open', ?)",
+            (member_id, note_text, _DEACON_NOTE_AUTHOR),
+        )
+        conn.commit()
+    return True
 
 # Tracks ambiguous matches waiting for yes/no confirmation.
 # Keyed by event_id → {"candidates": [...], "note_text": str}
@@ -216,7 +268,7 @@ async def _maybe_extract_tasks(note_text: str, appointment_title: str) -> None:
     log.info("Saved %d task(s) from notes for %s.", len(tasks), appointment_title)
 
 
-async def _process_note_text(row: dict, note_text: str) -> None:
+async def _process_note_text(row: dict, note_text: str, share: bool = False) -> None:
     """Fuzzy-match, store, and extract tasks for a single note."""
     pending_id = row["id"]
     event_id = row["event_id"]
@@ -230,7 +282,14 @@ async def _process_note_text(row: dict, note_text: str) -> None:
         person = matches[0]
         _store_note(event_id, appointment_title, appointment_time, note_text, person["id"])
         _mark_complete(pending_id)
-        await _send_telegram(f"Note stored and linked to {person['name']}.")
+        reply = f"Note stored and linked to {person['name']}."
+        if share:
+            reply += (
+                " Also shared as a deacon note."
+                if _share_as_deacon_note(person["name"], note_text)
+                else " Could not share as a deacon note — no matching congregation member found."
+            )
+        await _send_telegram(reply)
 
     elif len(matches) > 1:
         top = matches[0]
@@ -240,6 +299,7 @@ async def _process_note_text(row: dict, note_text: str) -> None:
             "pending_id": pending_id,
             "appointment_title": appointment_title,
             "appointment_time": appointment_time,
+            "share": share,
         }
         await _send_telegram(f"Is this about {top['name']}? Reply yes or no.")
         return  # Don't extract tasks yet — wait for confirmation
@@ -247,7 +307,10 @@ async def _process_note_text(row: dict, note_text: str) -> None:
     else:
         _store_note(event_id, appointment_title, appointment_time, note_text, None)
         _mark_complete(pending_id)
-        await _send_telegram("Note stored.")
+        reply = "Note stored."
+        if share:
+            reply += " Could not share as a deacon note — no person matched for this note."
+        await _send_telegram(reply)
 
     await _maybe_extract_tasks(note_text, appointment_title)
 
@@ -268,7 +331,8 @@ async def _handle_numbered_reply(parsed: list[tuple[int, str]]) -> None:
         if text.lower() == "skip":
             _mark_dismissed(row["id"])
         else:
-            await _process_note_text(row, text)
+            text, share = _extract_share_flag(text)
+            await _process_note_text(row, text, share=share)
 
 
 async def handle_confirmation_reply(reply_text: str, event_id: str) -> bool:
@@ -289,16 +353,27 @@ async def handle_confirmation_reply(reply_text: str, event_id: str) -> bool:
     pending_id = ctx["pending_id"]
     appointment_title = ctx["appointment_title"]
     appointment_time = ctx["appointment_time"]
+    share = ctx.get("share", False)
 
     if lower == "yes" and candidates:
         person = candidates[0]
         _store_note(event_id, appointment_title, appointment_time, note_text, person["id"])
         _mark_complete(pending_id)
-        await _send_telegram(f"Note stored and linked to {person['name']}.")
+        reply = f"Note stored and linked to {person['name']}."
+        if share:
+            reply += (
+                " Also shared as a deacon note."
+                if _share_as_deacon_note(person["name"], note_text)
+                else " Could not share as a deacon note — no matching congregation member found."
+            )
+        await _send_telegram(reply)
     else:
         _store_note(event_id, appointment_title, appointment_time, note_text, None)
         _mark_complete(pending_id)
-        await _send_telegram("Note stored.")
+        reply = "Note stored."
+        if share:
+            reply += " Could not share as a deacon note — no person matched for this note."
+        await _send_telegram(reply)
 
     await _maybe_extract_tasks(note_text, appointment_title)
     return True
@@ -342,4 +417,5 @@ async def handle_notes_reply(reply_text: str) -> None:
         await _send_telegram(f'Got it — I\'ll never ask for notes on "{appointment_title}" again.')
         return
 
-    await _process_note_text(dict(pending), reply_text)
+    reply_text, share = _extract_share_flag(reply_text)
+    await _process_note_text(dict(pending), reply_text, share=share)
