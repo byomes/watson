@@ -1,10 +1,14 @@
 # Watson Bug Tracker
 _Auto-generated nightly from bug_tracker. Source of truth is the database — do not hand-edit this file, changes will be overwritten._
-Last generated: 2026-09-07 02:10
+Last generated: 2026-09-08 02:10
 
-## Open (40)
+## Open (44)
 | ID | Title | Repo | Discovered |
 |---|---|---|---|
+| 141 | jobs.browser: goto_safe failed for https://www.beenverified.com/people/mikhaela-molanders/de/ | watson | 2026-09-07 09:31:05 |
+| 140 | jobs.browser: goto_safe failed for https://www.beenverified.com/people/emily-yomes/de/ | watson | 2026-09-07 09:30:50 |
+| 139 | jobs.browser: goto_safe failed for https://www.beenverified.com/people/micah-yomes/de/ | watson | 2026-09-07 09:30:34 |
+| 138 | jobs.browser: goto_safe failed for https://www.beenverified.com/people/melanie-yomes/de/ | watson | 2026-09-07 09:30:19 |
 | 137 | jobs.browser: goto_safe failed for https://www.beenverified.com/people/emily-yomes/de/ | watson | 2026-09-06 09:31:03 |
 | 136 | jobs.browser: goto_safe failed for https://www.beenverified.com/people/micah-yomes/de/ | watson | 2026-09-06 09:30:47 |
 | 135 | jobs.browser: goto_safe failed for https://www.beenverified.com/people/melanie-yomes/de/ | watson | 2026-09-06 09:30:32 |
@@ -49,6 +53,7 @@ Last generated: 2026-09-07 02:10
 ## Recently Resolved (last 30 days)
 | ID | Title | Repo | Resolved | Commit |
 |---|---|---|---|---|
+| 142 | Leadership-only prayer requests written as leadership_only=0 | watson | 2026-09-07 13:17:20 | 52145b1 |
 | 98 | connect_cards intake truncates multi-line question/comment field | watson | 2026-09-06 03:47:09 | a90d6d5 |
 | 97 | Dashboard SSE chat KB pre-check imports nonexistent kb_search.run | watson | 2026-09-06 03:47:09 | bef91e6 |
 | 52 | jobs.skills.kb_search has no run() function but chat_stream imports it | watson | 2026-09-06 03:47:09 | bef91e6 |
@@ -91,6 +96,3 @@ Last generated: 2026-09-07 02:10
 | 75 | Privacy Guard scan: goto_safe() fails OPEN on robots.txt 403/non-200 instead of fail-closed | watson | 2026-08-21 13:52:28 | 98367e7 |
 | 74 | Privacy Guard scan: bug_tracker logging fails with "database is locked" mid-run | watson | 2026-08-21 13:52:28 | 98367e7 |
 | 63 | Comms Desk Facebook posts never dispatched | watson | 2026-08-17 19:41:44 | cd04825 |
-| 62 | Curator ChatGPT import: verbatim-excerpt guarantee relied only on the LLM prompt | watson | 2026-08-08 21:18:52 | ef676d7 |
-| 61 | Curator ChatGPT import: hard extraction failure silently lost the pasted research text | watson | 2026-08-08 21:18:52 | 3245bef |
-| 60 | OneDrive backup: watson.db snapshot fails intermittently with SQLite 'database is locked' | watson | 2026-08-08 12:00:06 | 8996f873dd1e342cb5b4faed7f5d5eadd65cc205 |
