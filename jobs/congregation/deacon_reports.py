@@ -98,6 +98,15 @@ def list_deacons() -> list[str]:
     return sorted(names)
 
 
+def assign_member_to_deacon(member_id: int, deacon_name: str) -> None:
+    """Set members.deacon for one member -- same free-text write as
+    deacons_web.py's PATCH /api/cat/deacons/member/<id>, called directly
+    (no HTTP round trip) from bot.py's Telegram deacon-assign path since
+    both run on the same box with direct DB access."""
+    with _conn() as conn:
+        conn.execute("UPDATE members SET deacon = ? WHERE id = ?", (deacon_name, member_id))
+
+
 def deacon_email(deacon_name: str) -> str | None:
     """Look up a deacon's own email via their member record (deacons are members too)."""
     lookup_name = DEACON_NAME_ALIASES.get(deacon_name, deacon_name)

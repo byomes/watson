@@ -146,6 +146,43 @@ def lookup_member_details(query: str) -> list[dict]:
     return rows
 
 
+def lookup_member_for_assign(query: str) -> list[dict]:
+    """Like lookup_member_details, but returns id + current deacon instead
+    of address/last_seen -- for bot.py's Telegram deacon-assign path, which
+    needs the member's id to write and the prior deacon to report the
+    change. congregation.db only, same exact->partial->last-word->first-word
+    cascade as lookup_member_details (kept separate rather than widened for
+    the same reason that function is: different columns, no aggregation)."""
+    query = query.strip()
+    if not query:
+        return []
+    words = query.split()
+
+    def _q(conn, term: str, exact: bool) -> list[dict]:
+        op = "= ?" if exact else "LIKE ?"
+        val = term if exact else f"%{term}%"
+        rows = conn.execute(
+            "SELECT id, name, deacon FROM members"
+            f" WHERE name {op} COLLATE NOCASE ORDER BY name",
+            (val,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    cong = sqlite3.connect(CONG_DB)
+    cong.row_factory = sqlite3.Row
+    try:
+        rows = _q(cong, query, exact=True)
+        if not rows:
+            rows = _q(cong, query, exact=False)
+        if not rows and len(words) > 1:
+            rows = _q(cong, words[-1], exact=False)
+        if not rows:
+            rows = _q(cong, words[0], exact=False)
+    finally:
+        cong.close()
+    return rows
+
+
 if __name__ == "__main__":
     import sys
 

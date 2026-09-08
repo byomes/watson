@@ -945,10 +945,20 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
         _chat_id = str(update.effective_chat.id)
         _leader_name = _team_member_name_for_chat(_chat_id) or _deacon_name_for_chat(_chat_id)
         if _leader_name:
+            _assign = (
+                _extract_deacon_assign(update.message.text or "")
+                if _leader_name in _DEACON_ASSIGN_ALLOWLIST
+                else None
+            )
             from jobs.telegram.leader_tool_usage import log_usage as _log_leader_tool_usage
             with get_connection() as _lc:
-                _log_leader_tool_usage(_lc, _leader_name, _chat_id, "team_chat")
-            await _handle_team_chat(update, _leader_name, update.message.text or "")
+                _log_leader_tool_usage(
+                    _lc, _leader_name, _chat_id, "deacon_assign" if _assign else "team_chat"
+                )
+            if _assign:
+                await _handle_deacon_assign(update, _leader_name, *_assign)
+            else:
+                await _handle_team_chat(update, _leader_name, update.message.text or "")
         return
 
     text = update.message.text or ""
@@ -2193,6 +2203,80 @@ def _deacon_name_for_chat(chat_id: str) -> str | None:
         return None
     from jobs.congregation.deacon_reports import list_deacons
     return row["name"] if row["name"] in set(list_deacons()) else None
+
+
+# Per Bill's 2026-09-08 explicit request: unlike every other team/deacon
+# chat capability (which per the 2026-09-02 decision above has no access
+# difference between team_members and deacons), the ability to REASSIGN a
+# member to a deacon is deliberately restricted to just these two people --
+# hardcoded rather than e.g. "any onboarded deacon" or "Jim, since he's the
+# elder over shepherding" because Bill named these two specifically.
+_DEACON_ASSIGN_ALLOWLIST = frozenset({"Bill Crook", "Jim Bouchat"})
+
+
+def _extract_deacon_assign(text: str) -> tuple[str, str] | None:
+    """Recognize "assign/reassign/move/put <person> to/with <deacon>" and
+    return (person_query, deacon_query), or None to fall through to the
+    normal team-chat reply. Only ever called for senders in
+    _DEACON_ASSIGN_ALLOWLIST, so a rare false-positive match (unlikely
+    phrasing overlap) just fails lookup rather than touching anything."""
+    m = re.search(
+        r"(?:assign|reassign|move|put)\s+(.+?)\s+(?:to|with)\s+(.+?)(?:'s\s+list)?[.!]?$",
+        text.strip(),
+        re.IGNORECASE,
+    )
+    if not m:
+        return None
+    person = m.group(1).strip(" .,")
+    deacon = m.group(2).strip(" .,")
+    return (person, deacon) if person and deacon else None
+
+
+def _resolve_deacon_name(query: str, sender_name: str) -> str | None:
+    """Match a free-typed deacon name against the real roster
+    (deacon_reports.list_deacons()) -- exact (case-insensitive) first, then
+    unique substring (so "Ray" or "Williams" resolves to "Ray Williams").
+    "me"/"myself"/"my list" resolves to the sender's own name."""
+    q = query.strip().lower()
+    if q in ("me", "myself", "my list"):
+        return sender_name
+    from jobs.congregation.deacon_reports import list_deacons
+    deacons = list_deacons()
+    for d in deacons:
+        if d.lower() == q:
+            return d
+    matches = [d for d in deacons if q in d.lower()]
+    return matches[0] if len(matches) == 1 else None
+
+
+def _compute_deacon_assign_reply(sender_name: str, person_query: str, deacon_query: str) -> str:
+    from jobs.congregation.deacon_reports import list_deacons
+
+    resolved_deacon = _resolve_deacon_name(deacon_query, sender_name)
+    if not resolved_deacon:
+        return (
+            f'I don\'t recognize "{deacon_query}" as a deacon. '
+            f"Current deacons: {', '.join(list_deacons())}."
+        )
+
+    from jobs.people.lookup import lookup_member_for_assign
+    hits = lookup_member_for_assign(person_query)
+    if not hits:
+        return f'I couldn\'t find anyone matching "{person_query}".'
+    if len(hits) > 1:
+        names = ", ".join(h["name"] for h in hits)
+        return f"I found more than one match: {names}. Can you be more specific?"
+
+    member = hits[0]
+    from jobs.congregation.deacon_reports import assign_member_to_deacon
+    assign_member_to_deacon(member["id"], resolved_deacon)
+    prior = member.get("deacon") or "Unassigned"
+    return f"Done — {member['name']} moved from {prior} to {resolved_deacon}."
+
+
+async def _handle_deacon_assign(update: Update, sender_name: str, person_query: str, deacon_query: str) -> None:
+    reply = await asyncio.to_thread(_compute_deacon_assign_reply, sender_name, person_query, deacon_query)
+    await update.message.reply_text(reply)
 
 
 # Tolerant of the model dropping the brackets or using a space instead of
