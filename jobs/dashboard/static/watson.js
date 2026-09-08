@@ -48,7 +48,18 @@ function fmtCalTime(iso) {
 function fmtGenerated(iso) {
   if (!iso) return '';
   try {
-    return new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+    // SQLite's datetime('now') stores UTC as a bare "YYYY-MM-DD HH:MM:SS"
+    // string with no timezone marker -- new Date() on that non-standard
+    // format silently falls back to parsing it as LOCAL time, so it was
+    // rendering raw UTC clock numbers as if they were already local (see
+    // the same fix already applied to reminder due_datetime above). Force
+    // UTC parsing only for that bare shape; anything already carrying a
+    // timezone marker (T.../Z/+00:00) is left untouched.
+    let s = iso;
+    if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(s)) {
+      s = s.replace(' ', 'T') + 'Z';
+    }
+    return new Date(s).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
   } catch { return iso; }
 }
 
