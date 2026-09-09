@@ -1,42 +1,63 @@
 """jobs/house_calls/log_house_call.py — log a funeral home house call from a text.
 
-Bill texts Watson something like "house call: Smith" whenever he's called
-out for the funeral home. This logs the family's last name with today's
-date, so jobs/house_calls/monthly_report.py can email his boss the list once
-a month for pay.
+Bill texts Watson naturally — "Watson, I just finished a house call for John
+Smith. Please log the date and time for the record." — or with the terser
+"house call: Smith" shorthand. Either way this logs the name with the
+current date/time and the flat $100 rate, so
+jobs/house_calls/monthly_report.py can email Jim the list once a month for
+pay.
 """
 import re
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
-from jobs.house_calls.db import add_house_call, count_unreported, init_db
+from jobs.house_calls.db import RATE_PER_CALL, add_house_call, count_unreported, init_db, unreported_total
 
-_PREFIX_RE = re.compile(
-    r'^(?:log\s+(?:a\s+)?house\s+call|house\s+calls?)\s*(?:for|to)?\s*[:\s]+',
+NY = ZoneInfo("America/New_York")
+
+# Shorthand: "house call: Smith" / "log a house call: Smith" — name is
+# everything after the colon/dash, up to the next sentence break.
+_COLON_RE = re.compile(
+    r'house\s+calls?\s*[:\-]\s*(?P<name>.+?)(?=[.!?,]|$)',
+    re.IGNORECASE,
+)
+
+# Natural language: "... a house call for John Smith. Please log ..." — name
+# is whatever follows "for" near the "house call" mention, up to the next
+# sentence break or a trailing clause word.
+_FOR_RE = re.compile(
+    r'house\s+calls?\b.{0,20}?\bfor\b\s+(?:the\s+)?(?P<name>.+?)'
+    r'(?=\s+family\b|[.!?,]|\s+please\b|\s+so\b|\s+which\b|\s+is\b|\s+was\b|$)',
     re.IGNORECASE,
 )
 
 
 def _extract_family_name(text: str) -> str:
-    name = _PREFIX_RE.sub("", text).strip()
+    m = _COLON_RE.search(text) or _FOR_RE.search(text)
+    name = m.group("name") if m else ""
     name = re.sub(r'^the\s+', '', name, flags=re.IGNORECASE)
     name = re.sub(r'\s+family\s*$', '', name, flags=re.IGNORECASE)
-    return name.strip(" ,.;:").strip()
+    return re.sub(r'\s+', ' ', name).strip(" ,.;:!?").strip()
 
 
 def run(message: str = None) -> str:
     if not message:
-        return "Whose family was the house call for?"
+        return "Whose house call was that? (e.g. \"house call: Smith\")"
 
     family_last_name = _extract_family_name(message)
     if not family_last_name:
-        return "Couldn't find a family name in that — try \"house call: Smith\"."
+        return "Couldn't find a name in that — try \"house call: Smith\"."
 
     init_db()
-    add_house_call(family_last_name)
+    now = datetime.now(NY)
+    add_house_call(family_last_name, called_at=now.strftime("%Y-%m-%d %H:%M"))
     pending = count_unreported()
+    total = unreported_total()
 
+    when = now.strftime("%-I:%M %p on %b %-d")
     return (
-        f"House call logged: {family_last_name}. "
-        f"{pending} logged, not yet reported to your boss."
+        f"House call logged: {family_last_name} at {when} (${RATE_PER_CALL:.0f}). "
+        f"{pending} logged (${total:.0f} total), not yet reported to Jim."
     )
 
 

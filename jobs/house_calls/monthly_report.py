@@ -1,7 +1,7 @@
 """
-Monthly house-call report — emails Bill's funeral home boss every
-not-yet-reported house call so Bill can be paid, then marks those rows
-reported.
+Monthly house-call report — emails Jim (Bill's funeral home boss) every
+not-yet-reported house call, with the date/time and amount owed, then marks
+those rows reported.
 
 Reports by "unreported", not by calendar month — a call logged late still
 gets included next run instead of silently missed, and marking reported_at
@@ -40,6 +40,7 @@ log = logging.getLogger(__name__)
 
 NY = ZoneInfo("America/New_York")
 
+BOSS_NAME = "Jim"
 BOSS_EMAIL = os.getenv("FUNERAL_HOME_BOSS_EMAIL", "")
 PREVIEW_EMAIL = "pastorbill@catalyst302.com"
 
@@ -61,34 +62,45 @@ def _telegram(text: str) -> None:
         log.warning("Telegram notify failed: %s", exc)
 
 
-def _date_label(iso_date: str) -> str:
-    return datetime.strptime(iso_date, "%Y-%m-%d").strftime("%b %-d, %Y")
+def _when_label(called_at: str) -> str:
+    return datetime.strptime(called_at, "%Y-%m-%d %H:%M").strftime("%b %-d, %Y %-I:%M %p")
 
 
 def build_report(rows) -> tuple[str, str, str]:
     """Return (subject, text_body, html_body) for the pending house calls."""
     today = datetime.now(NY).strftime("%B %Y")
     subject = f"House Calls — {today}"
+    total = sum(r["amount"] for r in rows)
 
-    lines = [f"{_date_label(r['call_date'])} — {r['family_last_name']}" for r in rows]
+    lines = [
+        f"{_when_label(r['called_at'])} — {r['family_last_name']} — ${r['amount']:.2f}"
+        for r in rows
+    ]
     text_body = (
+        f"Hi {BOSS_NAME},\n\n"
         f"House calls to bill for, as of today ({datetime.now(NY).strftime('%B %-d, %Y')}):\n\n"
         + "\n".join(lines)
-        + f"\n\nTotal: {len(rows)}"
+        + f"\n\nTotal: {len(rows)} calls, ${total:.2f}\n\nThanks,\nBill"
     )
 
     rows_html = "".join(
-        f"<tr><td>{_date_label(r['call_date'])}</td><td>{r['family_last_name']}</td></tr>"
+        f"<tr><td>{_when_label(r['called_at'])}</td><td>{r['family_last_name']}</td>"
+        f"<td>${r['amount']:.2f}</td></tr>"
         for r in rows
     )
     html_body = (
         "<html><body style='font-family:Georgia,serif;color:#222'>"
+        f"<p>Hi {BOSS_NAME},</p>"
         f"<h2 style='border-bottom:2px solid #333;padding-bottom:8px'>House Calls — {today}</h2>"
         "<table style='width:100%;border-collapse:collapse;font-size:.95em'>"
-        "<thead><tr><th style='text-align:left;border-bottom:2px solid #ddd;padding:6px 8px'>Date</th>"
-        "<th style='text-align:left;border-bottom:2px solid #ddd;padding:6px 8px'>Family</th></tr></thead>"
+        "<thead><tr>"
+        "<th style='text-align:left;border-bottom:2px solid #ddd;padding:6px 8px'>Date/Time</th>"
+        "<th style='text-align:left;border-bottom:2px solid #ddd;padding:6px 8px'>Family</th>"
+        "<th style='text-align:left;border-bottom:2px solid #ddd;padding:6px 8px'>Amount</th>"
+        "</tr></thead>"
         f"<tbody>{rows_html}</tbody></table>"
-        f"<p style='margin-top:16px'><strong>Total: {len(rows)}</strong></p>"
+        f"<p style='margin-top:16px'><strong>Total: {len(rows)} calls, ${total:.2f}</strong></p>"
+        "<p>Thanks,<br>Bill</p>"
         "</body></html>"
     )
     return subject, text_body, html_body
@@ -112,17 +124,18 @@ def send_report(dry_run: bool = False, to_override: str | None = None) -> None:
 
     to = to_override or BOSS_EMAIL
     if not to:
+        total = sum(r["amount"] for r in rows)
         names = ", ".join(r["family_last_name"] for r in rows)
         _telegram(
-            f"House call report is ready ({len(rows)} calls: {names}) but "
-            "FUNERAL_HOME_BOSS_EMAIL isn't set in .env yet — add his email "
+            f"House call report is ready ({len(rows)} calls, ${total:.2f}: {names}) but "
+            "FUNERAL_HOME_BOSS_EMAIL isn't set in .env yet — send me Jim's email "
             "and I'll send it next run. Nothing has been marked reported. - Watson"
         )
         log.warning("FUNERAL_HOME_BOSS_EMAIL not set — report not sent, rows left unreported.")
         return
 
     result = send_email(
-        to_email=to, to_name="", subject=subject,
+        to_email=to, to_name=BOSS_NAME, subject=subject,
         text_body=text_body, html_body=html_body, include_signature=False,
     )
     if not result["success"]:
@@ -130,9 +143,10 @@ def send_report(dry_run: bool = False, to_override: str | None = None) -> None:
         raise RuntimeError(f"Brevo send to {to} failed: {result['error']}")
 
     mark_reported([r["id"] for r in rows])
+    total = sum(r["amount"] for r in rows)
     names = ", ".join(r["family_last_name"] for r in rows)
-    log.info("Sent %r to %s (%d calls)", subject, to, len(rows))
-    _telegram(f"Sent house call report to {to}: {len(rows)} calls — {names}. - Watson")
+    log.info("Sent %r to %s (%d calls, $%.2f)", subject, to, len(rows), total)
+    _telegram(f"Sent house call report to {to}: {len(rows)} calls, ${total:.2f} — {names}. - Watson")
 
 
 if __name__ == "__main__":
