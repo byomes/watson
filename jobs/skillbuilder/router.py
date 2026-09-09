@@ -129,6 +129,9 @@ _SKILL_PRE_CHECKS: dict[str, tuple] = {
         "what's my day", "whats my day", "what's my schedule", "whats my schedule",
         "what do i have today", "what do i have on",
     ),
+    "log_house_call": (
+        "house call:", "house call for", "log house call", "log a house call",
+    ),
 }
 
 # Matched against msg_lower BEFORE the LLM call — returns run_audit immediately, no fallthrough

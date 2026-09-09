@@ -1015,6 +1015,25 @@
         "telegram"
       ],
       "status": "ready"
+    },
+    {
+      "slug": "log_house_call",
+      "name": "Log House Call",
+      "description": "Log a funeral home house call by family last name for Bill's monthly pay report.",
+      "category": "Personal",
+      "triggers": [
+        "house call:",
+        "house call for",
+        "log house call",
+        "log a house call"
+      ],
+      "module": "jobs.house_calls.log_house_call",
+      "function": "run",
+      "interfaces": [
+        "telegram",
+        "dashboard"
+      ],
+      "status": "ready"
     }
   ]
 }
