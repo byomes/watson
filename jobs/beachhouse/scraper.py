@@ -22,6 +22,7 @@ Run standalone:
     PYTHONPATH=/home/billyomes/watson python3 -m jobs.beachhouse.scraper
 Safe to re-run — upserts by (source, source_id).
 """
+import html
 import logging
 import re
 import time
@@ -114,20 +115,21 @@ def _first(pattern: re.Pattern, text: str) -> str | None:
     return m.group(1).strip() if m else None
 
 
-def parse_listing(html: str) -> dict | None:
+def parse_listing(page_html: str) -> dict | None:
     """Extracts fields from a fetched detail page's title/meta/body text.
     Returns None if bedroom count (the one field every hard filter depends
     on) can't be found at all -- everything else degrades gracefully to
     None/False rather than dropping the candidate."""
-    title = _first(_TITLE_RE, html)
+    title = _first(_TITLE_RE, page_html)
     if not title:
         return None
-    desc = _first(_DESC_RE, html) or ""
+    title = html.unescape(title)
+    desc = html.unescape(_first(_DESC_RE, page_html) or "")
     # bounded scan -- these platforms ship 500KB-1.5MB pages; the summary
     # facts (bed/bath/sleeps/amenities) always appear well within the first
     # slice of rendered body text in practice (confirmed live against both
     # vrbo.com and airbnb.com detail pages, 2026-09-09)
-    haystack = f"{title} {desc} {html[:300000]}"
+    haystack = f"{title} {desc} {page_html[:300000]}"
 
     bedrooms = _first(_BEDROOM_RE, haystack)
     if bedrooms is None:
@@ -146,7 +148,7 @@ def parse_listing(html: str) -> dict | None:
         "max_sleeps": int(sleeps) if sleeps else None,
         "has_pool": bool(_POOL_RE.search(haystack)),
         "oceanfront": bool(_OCEANFRONT_RE.search(haystack)),
-        "primary_image_url": _first(_IMAGE_RE, html),
+        "primary_image_url": _first(_IMAGE_RE, page_html),
     }
 
 
@@ -183,12 +185,12 @@ def run() -> dict:
     kept, unparseable, failed = 0, 0, 0
     for i, (state, source, url) in enumerate(candidates, 1):
         log.info("[%d/%d] %s %s", i, len(candidates), source, url)
-        html = _fetch(url)
+        page_html = _fetch(url)
         time.sleep(_POLITE_DELAY)
-        if not html:
+        if not page_html:
             failed += 1
             continue
-        fields = parse_listing(html)
+        fields = parse_listing(page_html)
         if not fields:
             unparseable += 1
             continue
