@@ -1,10 +1,14 @@
 """jobs/beachhouse — Getaway Search: finds vacation-rental candidates for
-Bill's family across three uses -- Beach (VA-FL Atlantic reunion houses),
-Mountain (cabins within ~12hrs of Wilmington DE), and Romance (secluded
-couples getaways in the same driving radius) -- surfaced at
-wtsn.me/p/beachhouse as tabs for Bill and Melanie to browse/narrow. Kept
-the original module name/URL from the Beach-only version rather than
-renaming, since the tool and its slug were already live.
+Bill's family across four uses -- Beach (VA-FL Atlantic reunion houses),
+Mountain (cabins within ~12hrs of Wilmington DE), Romance (secluded couples
+getaways in the same driving radius), and Flash (curated same-week hotel
+deal pages within ~2.5hrs, for a genuinely spur-of-the-moment single night)
+-- surfaced at wtsn.me/p/beachhouse as tabs for Bill and Melanie to
+browse/narrow. Kept the original module name/URL from the Beach-only
+version rather than renaming, since the tool and its slug were already
+live. Flash is structurally different (see FLASH_REGIONS/flash_scraper.py
+below) -- a deal isn't a rental with bedrooms/bathrooms, so it isn't part
+of CATEGORIES/AMENITY_FIELDS and has its own small schema/table/API.
 
 No vacation-rental platform (VRBO, Airbnb, ...) offers a public search API,
 and their own search UIs disallow scraping in robots.txt (VRBO: `Disallow:
@@ -206,3 +210,28 @@ CATEGORIES = {
         "default_min_bathrooms": 1,
     },
 }
+
+# Flash deals (jobs/beachhouse/flash_scraper.py, separate from the
+# rental-shaped CATEGORIES above) -- Travelzoo's curated hotel deal pages,
+# for a genuinely spur-of-the-moment single night out. Close by on purpose:
+# a one-night trip isn't worth a multi-hour drive, so this is a short list
+# of towns within roughly 2.5hrs of Wilmington DE, not the 12hr radius
+# Mountain/Romance use. Unlike VRBO/Airbnb, Travelzoo's deal pages carry
+# real static price/discount data (schema.org microdata + a predictable
+# "$<price>-<headline>" page title) -- confirmed live 2026-09-09 -- so
+# price here is scraped, not manual. Groupon's getaway deal pages looked
+# promising too (robots.txt allows them) but return HTTP 403 to a plain
+# fetch (bot-blocked) -- skipped rather than fought.
+FLASH_REGIONS = [
+    _region("Brandywine Valley PA hotel deal", "Brandywine Valley", 0.5),
+    _region("Philadelphia PA hotel deal", "Philadelphia", 0.5),
+    _region("Lancaster PA hotel deal", "Lancaster", 1.5),
+    _region("New Hope Bucks County PA hotel deal", "New Hope", 1.5),
+    _region("Rehoboth Beach DE hotel deal", "Rehoboth Beach", 1.5),
+    _region("Baltimore MD hotel deal", "Baltimore", 1.5),
+    _region("Annapolis MD hotel deal", "Annapolis", 2),
+    _region("St Michaels Chesapeake Bay MD hotel deal", "St. Michaels", 2),
+    _region("Cape May NJ hotel deal", "Cape May", 2),
+    _region("Hershey PA hotel deal", "Hershey", 2),
+    _region("New York City hotel deal", "New York City", 2.5),
+]

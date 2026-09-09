@@ -13,11 +13,12 @@ Airbnb's own CDN via primary_image_url, never downloaded/re-hosted (see
 jobs/beachhouse/schema.py's module docstring for why).
 """
 import os
+import re
 from functools import wraps
 
 from flask import Blueprint, jsonify, request
 
-from jobs.beachhouse import AMENITY_FIELDS, CATEGORIES
+from jobs.beachhouse import AMENITY_FIELDS, CATEGORIES, FLASH_REGIONS
 from jobs.beachhouse.schema import get_connection
 
 beachhouse_web_bp = Blueprint("beachhouse_web", __name__)
@@ -238,3 +239,117 @@ def set_price_note(listing_id: int):
             "SELECT price_low, price_high, price_note FROM bh_listings WHERE id = ?", (listing_id,)
         ).fetchone()
     return jsonify({"id": listing_id, **dict(row)}), 200
+
+
+# ── Flash deals (Travelzoo) -- separate, simpler shape, see schema.py ──────
+
+def _deal_to_summary(row: dict) -> dict:
+    return {
+        "id": row["id"],
+        "source": row["source"],
+        "name": row["name"],
+        "city": row["city"],
+        "state": row["state"],
+        "town": row["town"],
+        "drive_hours": row["drive_hours"],
+        "price_per_night": row["price_per_night"],
+        "discount_text": row["discount_text"],
+        "source_url": row["source_url"],
+        "primary_image_url": row["primary_image_url"],
+        "review_status": row["review_status"],
+    }
+
+
+@beachhouse_web_bp.route("/api/p/beachhouse/deals/towns", methods=["GET"])
+@_require_key
+def list_deal_towns():
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT town, COUNT(*) AS n FROM bh_deals GROUP BY town ORDER BY town"
+        ).fetchall()
+    counts = {r["town"]: r["n"] for r in rows}
+    # always list every configured town, even ones with 0 results yet
+    return jsonify([
+        {"town": r["town"], "drive_hours": r["drive_hours"], "count": counts.get(r["town"], 0)}
+        for r in FLASH_REGIONS
+    ]), 200
+
+
+@beachhouse_web_bp.route("/api/p/beachhouse/deals/search", methods=["GET"])
+@_require_key
+def search_deals():
+    towns = [t.strip() for t in request.args.get("towns", "").split(",") if t.strip()]
+    review_status = request.args.get("review_status", "").strip()
+    max_price = request.args.get("max_price", "").strip()
+    min_discount = request.args.get("min_discount", "").strip()
+    q = request.args.get("q", "").strip()
+
+    clauses = []
+    params: list = []
+    if towns:
+        clauses.append(f"town IN ({', '.join(['?'] * len(towns))})")
+        params.extend(towns)
+    if review_status in _VALID_STATUSES:
+        clauses.append("review_status = ?")
+        params.append(review_status)
+    else:
+        clauses.append("review_status != 'dismissed'")
+    if max_price:
+        try:
+            clauses.append("price_per_night <= ?")
+            params.append(float(max_price))
+        except ValueError:
+            pass
+    # min_discount is applied in Python below (discount_text is free text
+    # like "38%-65% off" -- no clean SQL comparison), not here.
+    if q:
+        clauses.append("(name LIKE ? OR city LIKE ? OR town LIKE ? OR description LIKE ?)")
+        like = f"%{q}%"
+        params.extend([like, like, like, like])
+
+    where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+    with get_connection() as conn:
+        rows = conn.execute(
+            f"SELECT * FROM bh_deals {where} ORDER BY review_status = 'saved' DESC, price_per_night ASC",
+            params,
+        ).fetchall()
+
+    results = [_deal_to_summary(dict(r)) for r in rows]
+    if min_discount:
+        try:
+            floor = float(min_discount)
+            def _max_pct(text: str | None) -> float:
+                if not text:
+                    return -1
+                nums = [float(n) for n in re.findall(r"\d+(?:\.\d+)?", text)]
+                return max(nums) if nums else -1
+            results = [r for r in results if _max_pct(r["discount_text"]) >= floor]
+        except ValueError:
+            pass
+    return jsonify(results), 200
+
+
+@beachhouse_web_bp.route("/api/p/beachhouse/deals/<int:deal_id>", methods=["GET"])
+@_require_key
+def get_deal(deal_id: int):
+    with get_connection() as conn:
+        row = conn.execute("SELECT * FROM bh_deals WHERE id = ?", (deal_id,)).fetchone()
+    if not row:
+        return jsonify({"error": "not found"}), 404
+    return jsonify(_deal_to_summary(dict(row)) | {"description": row["description"]}), 200
+
+
+@beachhouse_web_bp.route("/api/p/beachhouse/deals/<int:deal_id>/status", methods=["POST"])
+@_require_key
+def set_deal_status(deal_id: int):
+    body = request.get_json(silent=True) or {}
+    status = (body.get("review_status") or "").strip()
+    if status not in _VALID_STATUSES:
+        return jsonify({"error": f"review_status must be one of {_VALID_STATUSES}"}), 400
+    with get_connection() as conn:
+        cur = conn.execute(
+            "UPDATE bh_deals SET review_status = ? WHERE id = ?", (status, deal_id)
+        )
+        if cur.rowcount == 0:
+            return jsonify({"error": "not found"}), 404
+    return jsonify({"id": deal_id, "review_status": status}), 200

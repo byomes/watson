@@ -30,6 +30,12 @@ uniqueness key, not just a plain column -- the same physical property can
 legitimately be discovered under more than one tab (a secluded cabin with
 a hot tub is a Mountain AND a Romance candidate), and each tab needs its
 own row so review_status/price_note can differ per use.
+
+bh_deals (added 2026-09-09, see __init__.py's FLASH_REGIONS) is a separate,
+simpler table for the Flash tab -- Travelzoo hotel deal pages, not rentals,
+so no bedrooms/bathrooms/amenities. Unlike bh_listings, price_per_night and
+discount_text ARE scraped automatically (Travelzoo's deal pages carry real
+static price/discount data), not manual entry.
 """
 import os
 import sqlite3
@@ -69,7 +75,31 @@ CREATE TABLE IF NOT EXISTS bh_listings (
 )
 """
 
+CREATE_BH_DEALS = """
+CREATE TABLE IF NOT EXISTS bh_deals (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    source              TEXT NOT NULL CHECK (source IN ('travelzoo')),
+    source_id           TEXT NOT NULL,
+    source_url          TEXT NOT NULL UNIQUE,
+    name                TEXT NOT NULL,
+    city                TEXT,
+    state               TEXT,
+    town                TEXT,
+    drive_hours         REAL,
+    price_per_night     REAL,
+    discount_text       TEXT,
+    description         TEXT,
+    primary_image_url   TEXT,
+    review_status       TEXT NOT NULL DEFAULT 'new'
+                        CHECK (review_status IN ('new', 'saved', 'dismissed')),
+    discovered_at       TEXT NOT NULL DEFAULT (datetime('now')),
+    last_seen_at        TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE (source, source_id)
+)
+"""
+
 CREATE_INDEX_STATE = "CREATE INDEX IF NOT EXISTS idx_bh_listings_state ON bh_listings(category, state)"
+CREATE_INDEX_DEALS_TOWN = "CREATE INDEX IF NOT EXISTS idx_bh_deals_town ON bh_deals(town)"
 
 _NEW_AMENITY_COLS = ["hot_tub", "fireplace", "mountain_view", "secluded"]
 _NEW_SIMPLE_COLS = {"price_low": "REAL", "price_high": "REAL", "drive_hours": "REAL"}
@@ -127,6 +157,9 @@ def create_tables():
                 conn.execute(f"ALTER TABLE bh_listings ADD COLUMN {col} {sqltype}")
 
         conn.execute(CREATE_INDEX_STATE)
+
+        conn.execute(CREATE_BH_DEALS)
+        conn.execute(CREATE_INDEX_DEALS_TOWN)
 
 
 if __name__ == "__main__":
