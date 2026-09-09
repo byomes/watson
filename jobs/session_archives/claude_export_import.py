@@ -16,9 +16,10 @@ downloads the resulting zips, and scp's them to DROP_DIR. This job:
   4. Deletes the consumed zips + scratch extraction dir — the content is now
      durably in data/session_archives/, covered by both backup legs, so the
      raw export has no reason to linger.
-  5. Telegram summary every run, even a no-op one (matches jobs/kb/
-     sync_and_index.py's "nothing new" ping) — a silent night should look
-     different from a broken cron job, not identical to it.
+  5. Telegram summary on any run that finds a zip to process (imported,
+     empty export, or extraction error) — but silent on a no-op night
+     (empty drop folder), since this path is now a manual stopgap behind
+     the live archive_session MCP tool, not a nightly-expected sync.
 
 Does NOT reclassify anything already sitting in FALLBACK_PROJECT from a prior
 run — that's jobs/session_archives/backfill_reclassify.py, a manual tool, on
@@ -107,7 +108,6 @@ def run() -> dict:
     conv_zips = sorted(DROP_DIR.glob("conversations-*.zip")) if DROP_DIR.is_dir() else []
     if not conv_zips:
         _log("No conversations-*.zip in drop folder — nothing to do.")
-        _send_telegram("📥 Claude export sync: nothing new.")
         return {"status": "nothing_to_do"}
 
     proj_zips = sorted(DROP_DIR.glob("projects-*.zip"))
