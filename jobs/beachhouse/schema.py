@@ -8,11 +8,16 @@ listings come from VRBO/Airbnb. Photos stay hotlinked straight from their
 own CDN URLs (primary_image_url) rather than downloaded and re-hosted, to
 avoid copying and redistributing another platform's listing photos.
 
-price_note is manual, free-text, editable from the wtsn.me card -- there is
-no automated per-date price lookup (VRBO puts a bot-detection challenge on
-its pricing step, confirmed live 2026-09-09; see jobs/beachhouse/__init__.py).
-Bill or Melanie can jot down what they see on the real listing (e.g. "peak
-~$9200/wk, May ~$5400/wk") after checking dates themselves.
+price_low/price_high (dollars per week) and price_note are all manual,
+editable from the wtsn.me card -- there is no automated per-date price
+lookup (VRBO puts a bot-detection challenge on its pricing step, confirmed
+live 2026-09-09; see jobs/beachhouse/__init__.py). Bill or Melanie fill
+these in after checking the real listing themselves: price_low/price_high
+drive the search UI's max-price filter, price_note is free text for extra
+color (e.g. "checked May 10-17"). A listing with no price_low yet is
+"unpriced," not "$0" -- the search API's max-price filter treats NULL as
+unknown, not as passing or failing the budget, and lets the caller choose
+whether to include unpriced listings at all (see beachhouse_web.py).
 
 category (added 2026-09-09, see __init__.py's CATEGORIES) is part of the
 uniqueness key, not just a plain column -- the same physical property can
@@ -46,6 +51,8 @@ CREATE TABLE IF NOT EXISTS bh_listings (
     secluded            INTEGER NOT NULL DEFAULT 0,
     description         TEXT,
     primary_image_url   TEXT,
+    price_low           REAL,
+    price_high          REAL,
     price_note          TEXT,
     review_status       TEXT NOT NULL DEFAULT 'new'
                         CHECK (review_status IN ('new', 'saved', 'dismissed')),
@@ -58,6 +65,7 @@ CREATE TABLE IF NOT EXISTS bh_listings (
 CREATE_INDEX_STATE = "CREATE INDEX IF NOT EXISTS idx_bh_listings_state ON bh_listings(category, state)"
 
 _NEW_AMENITY_COLS = ["hot_tub", "fireplace", "mountain_view", "secluded"]
+_NEW_PRICE_COLS = {"price_low": "REAL", "price_high": "REAL"}
 
 
 def get_connection() -> sqlite3.Connection:
@@ -102,10 +110,14 @@ def create_tables():
             existing_cols.add("price_note")
         if "category" not in existing_cols:
             _migrate_to_categories(conn)
-        else:
-            for col in _NEW_AMENITY_COLS:
-                if col not in existing_cols:
-                    conn.execute(f"ALTER TABLE bh_listings ADD COLUMN {col} INTEGER NOT NULL DEFAULT 0")
+            existing_cols = {row[1] for row in conn.execute("PRAGMA table_info(bh_listings)").fetchall()}
+
+        for col in _NEW_AMENITY_COLS:
+            if col not in existing_cols:
+                conn.execute(f"ALTER TABLE bh_listings ADD COLUMN {col} INTEGER NOT NULL DEFAULT 0")
+        for col, sqltype in _NEW_PRICE_COLS.items():
+            if col not in existing_cols:
+                conn.execute(f"ALTER TABLE bh_listings ADD COLUMN {col} {sqltype}")
 
         conn.execute(CREATE_INDEX_STATE)
 

@@ -53,6 +53,8 @@ def _row_to_summary(row: dict) -> dict:
         **{a: bool(row[a]) for a in AMENITY_FIELDS},
         "source_url": row["source_url"],
         "primary_image_url": row["primary_image_url"],
+        "price_low": row["price_low"],
+        "price_high": row["price_high"],
         "price_note": row["price_note"],
         "review_status": row["review_status"],
     }
@@ -103,6 +105,8 @@ def search():
     min_bedrooms = request.args.get("min_bedrooms", "").strip()
     max_bedrooms = request.args.get("max_bedrooms", "").strip()
     min_bathrooms = request.args.get("min_bathrooms", "").strip()
+    max_price = request.args.get("max_price", "").strip()
+    include_unpriced = request.args.get("include_unpriced", "1").strip() != "0"
     q = request.args.get("q", "").strip()
 
     clauses = ["category = ?"]
@@ -137,6 +141,20 @@ def search():
     for amenity in AMENITY_FIELDS:
         if request.args.get(f"amenity_{amenity}", "").strip() == "1":
             clauses.append(f"{amenity} = 1")
+    if max_price:
+        try:
+            max_price_val = float(max_price)
+            # price_low is "the cheapest rate Bill/Melanie actually found" --
+            # exclude a listing only once its own floor is over budget.
+            # NULL means "not priced yet," which is unknown, not "$0" --
+            # include_unpriced decides whether unknowns show up at all.
+            if include_unpriced:
+                clauses.append("(price_low IS NULL OR price_low <= ?)")
+            else:
+                clauses.append("(price_low IS NOT NULL AND price_low <= ?)")
+            params.append(max_price_val)
+        except ValueError:
+            pass
     if q:
         clauses.append("(name LIKE ? OR city LIKE ? OR description LIKE ?)")
         like = f"%{q}%"
@@ -182,13 +200,40 @@ def set_status(listing_id: int):
 def set_price_note(listing_id: int):
     """Manual price entry -- see jobs/beachhouse/schema.py's docstring for
     why this isn't automated (VRBO gates its pricing step behind a
-    bot-detection challenge)."""
+    bot-detection challenge). price_low/price_high are $/week and drive the
+    search UI's max-price filter; price_note is free text for extra color.
+    Any field omitted from the body is left unchanged, not cleared -- send
+    an explicit null to clear one on purpose."""
     body = request.get_json(silent=True) or {}
-    price_note = (body.get("price_note") or "").strip()[:500]
+    updates: list[str] = []
+    params: list = []
+
+    if "price_note" in body:
+        note = (body.get("price_note") or "").strip()[:500]
+        updates.append("price_note = ?")
+        params.append(note or None)
+    for field in ("price_low", "price_high"):
+        if field in body:
+            raw = body.get(field)
+            if raw in (None, ""):
+                updates.append(f"{field} = ?")
+                params.append(None)
+            else:
+                try:
+                    updates.append(f"{field} = ?")
+                    params.append(float(raw))
+                except (TypeError, ValueError):
+                    return jsonify({"error": f"{field} must be a number"}), 400
+
+    if not updates:
+        return jsonify({"error": "nothing to update"}), 400
+
+    params.append(listing_id)
     with get_connection() as conn:
-        cur = conn.execute(
-            "UPDATE bh_listings SET price_note = ? WHERE id = ?", (price_note or None, listing_id)
-        )
+        cur = conn.execute(f"UPDATE bh_listings SET {', '.join(updates)} WHERE id = ?", params)
         if cur.rowcount == 0:
             return jsonify({"error": "not found"}), 404
-    return jsonify({"id": listing_id, "price_note": price_note or None}), 200
+        row = conn.execute(
+            "SELECT price_low, price_high, price_note FROM bh_listings WHERE id = ?", (listing_id,)
+        ).fetchone()
+    return jsonify({"id": listing_id, **dict(row)}), 200
