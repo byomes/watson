@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-09-08*
+*Generated: 2026-09-09*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -3990,6 +3990,8 @@ data/
         sermon-series-outline-draft.txt
         transcript.md
         trust-issues-outline-draft.txt
+      20260908-141410-sermon-series-retired-direct-to-manuscript-pivot-c/
+        transcript.md
     wcky-book-launch-project/
       20260826-013953-sending-giving-statements-in-tithely/
         transcript.md
@@ -4648,12 +4650,15 @@ jobs/
     claude_spend_daily_report.py
     connect_card_rollup.py
     data_chat.py
+    fast_path_patcher.py
+    fast_path_suggestions.py
     ga4_import.py
     llm_usage_report.py
     monthly_web_engagement_report.py
     schema.py
     sheet_import.py
     trailing_trends.py
+    unanswered_questions.py
   arc/
     __init__.py
     api.py
@@ -4740,6 +4745,7 @@ jobs/
     __init__.py
     attendance_web.py
     batch_intake.py
+    birthday_report.py
     deacon_reports.py
     deacons_web.py
     duplicate_review.py
@@ -4750,6 +4756,7 @@ jobs/
     init_db.py
     member_match.py
     migrate_deacon_pins.py
+    migrate_deacon_visible_views.py
     migrations_archive/
       migrate_deacon_directory.py
       migrate_deacon_notes.py
@@ -4772,7 +4779,6 @@ jobs/
     find_malformed_names.py
     intake.py
     migrate_prayer_leadership.py
-    missed_report.py
     monthly_engagement_report.py
     monthly_state_report.py
     pastoral_reports.py
@@ -4805,6 +4811,7 @@ jobs/
     migrate_sessions.py
     publishing_routes.py
     static/
+      apple-touch-icon.png
       countries.geojson
       exports/
         twj-manuscript-c9541b5bc112b520e429ac83bbadb106.md
@@ -4870,6 +4877,7 @@ jobs/
     system_monitor.py
     test_runner.py
     update_arch.py
+    vps_cost_estimate.py
     weekly_utilization_report.py
   devdispatch/
     __init__.py
@@ -6471,6 +6479,8 @@ src/
           member/
             [id]/
               note/
+                [noteId]/
+                  route.ts
                 route.ts
               route.ts
           roster/
