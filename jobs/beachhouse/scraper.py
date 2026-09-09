@@ -10,16 +10,17 @@ resulting listing URLs get fetched directly — robots.txt-checked per URL
 regardless (jobs.retreats.discover.robots_allowed), same standing policy
 as jobs/retreats and jobs/servantcare.
 
-Every fetched candidate is re-verified against the hard filters
-(MIN_BEDROOMS/MIN_BATHROOMS/pool/oceanfront) from the actual page content —
-the search snippet alone is never trusted, since Google's title/snippet
-text is user-facing marketing copy, not verified structured data.
+Every candidate with a parseable bedroom count gets stored, with its real
+bedrooms/bathrooms/pool/oceanfront values from the actual page content —
+the search snippet alone is never trusted for those values, since Google's
+title/snippet text is user-facing marketing copy, not verified structured
+data. There is no hard accept/reject filter here on purpose: Donna sets
+her own real thresholds from the wtsn.me search UI at query time, against
+whatever this module has stored.
 
 Run standalone:
     PYTHONPATH=/home/billyomes/watson python3 -m jobs.beachhouse.scraper
-Safe to re-run — upserts by (source, source_id); a listing that no longer
-clears the filter bar on a later run is simply not re-touched (last_seen_at
-stays at its last successful match), never deleted here.
+Safe to re-run — upserts by (source, source_id).
 """
 import logging
 import re
@@ -27,7 +28,7 @@ import time
 
 import requests
 
-from jobs.beachhouse import MIN_BATHROOMS, MIN_BEDROOMS, REGIONS, SOURCES
+from jobs.beachhouse import REGIONS, SOURCES
 from jobs.beachhouse.schema import create_tables, get_connection
 from jobs.research.web_search import search
 from jobs.retreats.discover import robots_allowed
@@ -149,16 +150,6 @@ def parse_listing(html: str) -> dict | None:
     }
 
 
-def _passes_filters(fields: dict) -> bool:
-    if fields["bedrooms"] < MIN_BEDROOMS:
-        return False
-    if fields["bathrooms"] is not None and fields["bathrooms"] < MIN_BATHROOMS:
-        return False
-    if not fields["has_pool"] or not fields["oceanfront"]:
-        return False
-    return True
-
-
 def _upsert(source: str, source_id: str, url: str, state: str, fields: dict) -> None:
     with get_connection() as conn:
         conn.execute(
@@ -187,9 +178,9 @@ def _upsert(source: str, source_id: str, url: str, state: str, fields: dict) -> 
 def run() -> dict:
     create_tables()
     candidates = discover_candidate_urls()
-    log.info("discovered %d unique candidate URLs across VA/NC/SC", len(candidates))
+    log.info("discovered %d unique candidate URLs across VA/NC/SC/GA/FL", len(candidates))
 
-    kept, rejected, failed = 0, 0, 0
+    kept, unparseable, failed = 0, 0, 0
     for i, (state, source, url) in enumerate(candidates, 1):
         log.info("[%d/%d] %s %s", i, len(candidates), source, url)
         html = _fetch(url)
@@ -198,15 +189,15 @@ def run() -> dict:
             failed += 1
             continue
         fields = parse_listing(html)
-        if not fields or not _passes_filters(fields):
-            rejected += 1
+        if not fields:
+            unparseable += 1
             continue
         sid = _source_id(source, url)
         _upsert(source, sid, url, state, fields)
         kept += 1
 
-    log.info("done: %d kept, %d rejected, %d failed", kept, rejected, failed)
-    return {"kept": kept, "rejected": rejected, "failed": failed}
+    log.info("done: %d kept, %d unparseable, %d failed", kept, unparseable, failed)
+    return {"kept": kept, "unparseable": unparseable, "failed": failed}
 
 
 if __name__ == "__main__":

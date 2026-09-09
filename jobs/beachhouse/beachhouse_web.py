@@ -44,8 +44,11 @@ def _row_to_summary(row: dict) -> dict:
         "bedrooms": row["bedrooms"],
         "bathrooms": row["bathrooms"],
         "max_sleeps": row["max_sleeps"],
+        "has_pool": bool(row["has_pool"]),
+        "oceanfront": bool(row["oceanfront"]),
         "source_url": row["source_url"],
         "primary_image_url": row["primary_image_url"],
+        "price_note": row["price_note"],
         "review_status": row["review_status"],
     }
 
@@ -63,17 +66,22 @@ def list_states():
 @beachhouse_web_bp.route("/api/p/beachhouse/search", methods=["GET"])
 @_require_key
 def search():
-    state = request.args.get("state", "").strip()
+    # states: comma-separated, e.g. "Virginia,North Carolina" -- lets Donna
+    # pick any combination rather than one state at a time.
+    states = [s.strip() for s in request.args.get("states", "").split(",") if s.strip()]
     source = request.args.get("source", "").strip()
     review_status = request.args.get("review_status", "").strip()
     min_bedrooms = request.args.get("min_bedrooms", "").strip()
+    min_bathrooms = request.args.get("min_bathrooms", "").strip()
+    pool_required = request.args.get("pool_required", "").strip() == "1"
+    oceanfront_required = request.args.get("oceanfront_required", "").strip() == "1"
     q = request.args.get("q", "").strip()
 
     clauses = []
     params: list = []
-    if state:
-        clauses.append("state = ?")
-        params.append(state)
+    if states:
+        clauses.append(f"state IN ({', '.join(['?'] * len(states))})")
+        params.extend(states)
     if source in ("vrbo", "airbnb"):
         clauses.append("source = ?")
         params.append(source)
@@ -87,6 +95,16 @@ def search():
     if min_bedrooms.isdigit():
         clauses.append("bedrooms >= ?")
         params.append(int(min_bedrooms))
+    if min_bathrooms:
+        try:
+            clauses.append("bathrooms >= ?")
+            params.append(float(min_bathrooms))
+        except ValueError:
+            pass
+    if pool_required:
+        clauses.append("has_pool = 1")
+    if oceanfront_required:
+        clauses.append("oceanfront = 1")
     if q:
         clauses.append("(name LIKE ? OR city LIKE ? OR description LIKE ?)")
         like = f"%{q}%"
@@ -125,3 +143,20 @@ def set_status(listing_id: int):
         if cur.rowcount == 0:
             return jsonify({"error": "not found"}), 404
     return jsonify({"id": listing_id, "review_status": status}), 200
+
+
+@beachhouse_web_bp.route("/api/p/beachhouse/listing/<int:listing_id>/price", methods=["POST"])
+@_require_key
+def set_price_note(listing_id: int):
+    """Manual price entry -- see jobs/beachhouse/schema.py's docstring for
+    why this isn't automated (VRBO gates its pricing step behind a
+    bot-detection challenge)."""
+    body = request.get_json(silent=True) or {}
+    price_note = (body.get("price_note") or "").strip()[:500]
+    with get_connection() as conn:
+        cur = conn.execute(
+            "UPDATE bh_listings SET price_note = ? WHERE id = ?", (price_note or None, listing_id)
+        )
+        if cur.rowcount == 0:
+            return jsonify({"error": "not found"}), 404
+    return jsonify({"id": listing_id, "price_note": price_note or None}), 200
