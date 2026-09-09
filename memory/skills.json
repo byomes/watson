@@ -1019,13 +1019,17 @@
     {
       "slug": "log_house_call",
       "name": "Log House Call",
-      "description": "Log a funeral home house call by family last name for Bill's monthly pay report.",
+      "description": "Log a funeral home house call (aka home removal) by name for Bill's monthly pay report to Jim.",
       "category": "Personal",
       "triggers": [
         "house call:",
         "house call for",
         "log house call",
-        "log a house call"
+        "log a house call",
+        "home removal:",
+        "home removal for",
+        "log home removal",
+        "log a home removal"
       ],
       "module": "jobs.house_calls.log_house_call",
       "function": "run",

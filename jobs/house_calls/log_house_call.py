@@ -2,10 +2,11 @@
 
 Bill texts Watson naturally — "Watson, I just finished a house call for John
 Smith. Please log the date and time for the record." — or with the terser
-"house call: Smith" shorthand. Either way this logs the name with the
-current date/time and the flat $100 rate, so
-jobs/house_calls/monthly_report.py can email Jim the list once a month for
-pay.
+"house call: Smith" shorthand. "Home removal" is the same job, industry term
+for the same thing, and works identically everywhere "house call" does.
+Either way this logs the name with the current date/time and the flat $100
+rate, so jobs/house_calls/monthly_report.py can email Jim the list once a
+month for pay.
 """
 import re
 from datetime import datetime
@@ -15,18 +16,21 @@ from jobs.house_calls.db import RATE_PER_CALL, add_house_call, count_unreported,
 
 NY = ZoneInfo("America/New_York")
 
-# Shorthand: "house call: Smith" / "log a house call: Smith" — name is
+# "house call" and "home removal" are interchangeable terms for the same job.
+_TERM = r'(?:house\s+calls?|home\s+removals?)'
+
+# Shorthand: "house call: Smith" / "home removal: Smith" — name is
 # everything after the colon/dash, up to the next sentence break.
 _COLON_RE = re.compile(
-    r'house\s+calls?\s*[:\-]\s*(?P<name>.+?)(?=[.!?,]|$)',
+    rf'{_TERM}\s*[:\-]\s*(?P<name>.+?)(?=[.!?,]|$)',
     re.IGNORECASE,
 )
 
 # Natural language: "... a house call for John Smith. Please log ..." — name
-# is whatever follows "for" near the "house call" mention, up to the next
-# sentence break or a trailing clause word.
+# is whatever follows "for" near the "house call"/"home removal" mention, up
+# to the next sentence break or a trailing clause word.
 _FOR_RE = re.compile(
-    r'house\s+calls?\b.{0,20}?\bfor\b\s+(?:the\s+)?(?P<name>.+?)'
+    rf'{_TERM}\b.{{0,20}}?\bfor\b\s+(?:the\s+)?(?P<name>.+?)'
     r'(?=\s+family\b|[.!?,]|\s+please\b|\s+so\b|\s+which\b|\s+is\b|\s+was\b|$)',
     re.IGNORECASE,
 )

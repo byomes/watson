@@ -131,6 +131,7 @@ _SKILL_PRE_CHECKS: dict[str, tuple] = {
     ),
     "log_house_call": (
         "house call:", "house call for", "log house call", "log a house call",
+        "home removal:", "home removal for", "log home removal", "log a home removal",
     ),
 }
 
