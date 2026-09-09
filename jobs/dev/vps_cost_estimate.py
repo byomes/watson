@@ -318,6 +318,23 @@ def build_estimate(sizing_window_days: int = 7, daily_rows_days: int = 14) -> di
     required_ram_gb = round(peak_mem_gb * MEM_HEADROOM, 1)
     required_disk_gb = round(disk_used_gb * DISK_HEADROOM, 1)
 
+    # Per-day "what this would have cost on a VPS" -- same sizing/headroom
+    # logic as the overall estimate above, but sized off each day's own
+    # peak instead of the whole window's. This is the number Bill actually
+    # wants to see day to day: what the Beelink saved him vs. renting.
+    daily_with_cost = []
+    cumulative_savings_usd = 0.0
+    for row in daily_rows:
+        d = dict(row)
+        day_vcpu = max(1, math.ceil((d["peak_cpu"] / 100) * total_cores * CPU_HEADROOM))
+        day_ram_gb = round(d["peak_mem"] * MEM_HEADROOM, 1)
+        day_disk_gb = round(d["disk_used"] * DISK_HEADROOM, 1)
+        day_agg = _aggregate(providers, day_vcpu, day_ram_gb, day_disk_gb)
+        d["estimated_vps_daily_usd"] = day_agg["average_daily_usd"]
+        if day_agg["average_daily_usd"] is not None:
+            cumulative_savings_usd += day_agg["average_daily_usd"]
+        daily_with_cost.append(d)
+
     return {
         "available": True,
         "sizing_window_days": sizing_window_days,
@@ -338,7 +355,12 @@ def build_estimate(sizing_window_days: int = 7, daily_rows_days: int = 14) -> di
         },
         "recommended": _aggregate(providers, required_vcpu, required_ram_gb, required_disk_gb),
         "beelink_match": _aggregate(providers, total_cores, BEELINK_RAM_GB, required_disk_gb),
-        "daily": [dict(r) for r in daily_rows],
+        "daily": daily_with_cost,
+        "savings_to_date": {
+            "total_usd": round(cumulative_savings_usd, 2),
+            "since": daily_rows[0]["day"] if daily_rows else None,
+            "days_counted": len(daily_with_cost),
+        },
         "eur_usd_rate": eur_usd_rate,
         "headroom": {"cpu": CPU_HEADROOM, "mem": MEM_HEADROOM, "disk": DISK_HEADROOM},
     }

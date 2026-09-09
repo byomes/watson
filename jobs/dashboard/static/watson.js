@@ -2431,8 +2431,20 @@ function _devRenderCost(data) {
 
   const u = data.usage, r = data.required;
   const dailyRows = (data.daily || []).slice().reverse();
+  const savings = data.savings_to_date;
 
-  let html = `
+  let html = '';
+
+  if (savings && savings.total_usd != null) {
+    html += `
+      <div class="mpn-card" style="text-align:center;padding:14px 12px">
+        <div style="font-size:11px;color:var(--muted);letter-spacing:.02em">RUNNING ON THE BEELINK HAS SAVED YOU</div>
+        <div style="font-size:28px;font-weight:700;color:var(--green);margin-top:2px">$${savings.total_usd.toFixed(2)}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">since ${esc(String(savings.since || '').slice(0, 10))} (${savings.days_counted} day${savings.days_counted === 1 ? '' : 's'} of data) — vs. the cheapest covering plan, averaged across providers</div>
+      </div>`;
+  }
+
+  html += `
     <div class="mlabel" style="margin-top:0">If Watson ran on a VPS instead — averaged across providers</div>
     ${_devPlanCard('Sized to actual usage', data.recommended)}
     ${_devPlanCard('Matched to Beelink’s full specs', data.beelink_match)}
@@ -2464,7 +2476,7 @@ function _devRenderCost(data) {
       Vultr and Linode are fetched live from their public pricing APIs (cached up to 24h); Hetzner and DigitalOcean are dated research snapshots (see the badge next to each row) since neither exposes pricing without an account. EUR→USD at ${data.eur_usd_rate}, excl. VAT/tax at all providers.
       A shared vCPU is not the same speed as this box's physical cores — Watson's Ollama inference is CPU-bound with no GPU, so a plan sized by core <i>count</i> doesn't guarantee matching speed.
     </div>
-    <div class="mlabel">Daily</div>`;
+    <div class="mlabel">Daily savings log</div>`;
 
   html += dailyRows.length
     ? dailyRows.map(d => `
@@ -2474,6 +2486,7 @@ function _devRenderCost(data) {
             <div>CPU ${d.avg_cpu.toFixed(1)}% avg / ${d.peak_cpu.toFixed(1)}% peak</div>
             <div>RAM ${d.avg_mem.toFixed(1)}G avg / ${d.peak_mem.toFixed(1)}G peak</div>
             <div>Disk ${d.disk_used.toFixed(1)}G</div>
+            <div style="font-weight:600;color:var(--green)">${d.estimated_vps_daily_usd != null ? '+$' + d.estimated_vps_daily_usd.toFixed(2) : '—'}</div>
           </div>
         </div>`).join('')
     : '<div class="empty">No daily rows yet.</div>';
