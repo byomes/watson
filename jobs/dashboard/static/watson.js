@@ -1627,6 +1627,10 @@ function renderMore() {
         <span class="mtile-label">Location</span>
         <span class="mtile-chev">›</span>
       </button>
+      <button class="mtile" id="mtile-savings" onclick="moreToggle('savings')">
+        <span class="mtile-label">Savings</span>
+        <span class="mtile-chev">›</span>
+      </button>
     </div>
     <div id="more-expand-area">
       <div class="msec-body" id="msec-body-ministry">
@@ -1668,6 +1672,9 @@ function renderMore() {
       </div>
       <div class="msec-body" id="msec-body-covercomps">
         <div class="msec-inner" id="msec-inner-covercomps"></div>
+      </div>
+      <div class="msec-body" id="msec-body-savings">
+        <div class="msec-inner" id="msec-inner-savings"><div class="loading">Loading&hellip;</div></div>
       </div>
     </div>`);
   moreLoadVacationStatus();
@@ -1749,6 +1756,7 @@ function moreToggle(sec) {
     if (sec === 'leader-usage') moreLoadLeaderUsage();
     if (sec === 'privacy-guard') moreLoadPrivacyGuard();
     if (sec === 'covercomps') coverCompsLoad();
+    if (sec === 'savings') savingsLoad();
   }
 }
 
@@ -2309,6 +2317,67 @@ async function moreLoadEvents() {
     const inner = document.getElementById('msec-inner-events');
     if (inner) inner.innerHTML = '<div class="empty">Could not load events.</div>';
   }
+}
+
+// ── Savings (what the Beelink saves vs. a VPS) ──────────────────────────────
+// Same data source as Dev > Cost (jobs/dev/vps_cost_estimate.py) but its own
+// More-page tile: just the dollar story (today / this month / all-time) and
+// the full daily log, no provider/sizing internals.
+
+async function savingsLoad() {
+  const el = document.getElementById('msec-inner-savings');
+  if (!el) return;
+  el.innerHTML = '<div class="loading">Loading&hellip;</div>';
+  try {
+    const data = await api('/api/dev/vps-cost-estimate');
+    _savingsRender(data);
+  } catch {
+    el.innerHTML = '<div class="empty">Could not load savings.</div>';
+  }
+}
+
+function _savingsRender(data) {
+  const el = document.getElementById('msec-inner-savings');
+  if (!el) return;
+
+  if (!data || data.available === false) {
+    el.innerHTML = `<div class="empty">${esc((data && data.reason) || 'No usage data yet.')}</div>`;
+    return;
+  }
+
+  const s = data.savings_to_date || {};
+  const fmt = v => v == null ? '—' : '$' + v.toFixed(2);
+  const dailyRows = (data.daily || []).slice().reverse();
+
+  let html = `
+    <div class="mth-stats">
+      <div class="mth-stat">
+        <div class="mth-stat-num">${fmt(s.today_usd)}</div>
+        <div class="mth-stat-lbl">Today</div>
+      </div>
+      <div class="mth-stat">
+        <div class="mth-stat-num">${fmt(s.this_month_usd)}</div>
+        <div class="mth-stat-lbl">This Month</div>
+      </div>
+      <div class="mth-stat">
+        <div class="mth-stat-num">${fmt(s.total_usd)}</div>
+        <div class="mth-stat-lbl">All-Time</div>
+      </div>
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin:6px 2px 12px">
+      Since ${esc(String(s.since || '').slice(0, 10))} (${s.days_counted || 0} day${s.days_counted === 1 ? '' : 's'} of data) — estimated cost of the cheapest VPS plan covering that day's actual usage, averaged across Vultr, Linode, Hetzner, and DigitalOcean.
+    </div>
+    <div class="mlabel" style="margin-top:0">Daily log</div>`;
+
+  html += dailyRows.length
+    ? dailyRows.map(d => `
+        <div class="mpn-card" style="padding:8px 12px;display:flex;align-items:center;justify-content:space-between;gap:8px">
+          <div style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text-muted)">${esc(d.day)}</div>
+          <div style="font-size:14px;font-weight:700;color:var(--green)">${d.estimated_vps_daily_usd != null ? '+$' + d.estimated_vps_daily_usd.toFixed(2) : '—'}</div>
+        </div>`).join('')
+    : '<div class="empty">No daily rows yet.</div>';
+
+  el.innerHTML = html;
 }
 
 // ── Dev (project_backlog / bug_tracker) ─────────────────────────────────────

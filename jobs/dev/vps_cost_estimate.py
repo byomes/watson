@@ -244,22 +244,45 @@ def _fetch_samples(conn, window_days: int):
     ).fetchall()
 
 
-def _fetch_daily_rows(conn, days: int):
+def _fetch_daily_rows(conn, days: int | None):
+    """days=None returns the full history -- one row/day, so this stays cheap
+    for as long as resource_sampler.py keeps running."""
+    where = "WHERE sampled_at >= datetime('now', ?)" if days is not None else ""
+    params = (f"-{days} days",) if days is not None else ()
     return conn.execute(
-        """SELECT date(sampled_at) AS day,
+        f"""SELECT date(sampled_at) AS day,
                   AVG(cpu_percent) AS avg_cpu, MAX(cpu_percent) AS peak_cpu,
                   AVG(mem_used_gb) AS avg_mem, MAX(mem_used_gb) AS peak_mem,
                   MAX(mem_total_gb) AS mem_total,
                   MAX(disk_used_gb) AS disk_used
            FROM resource_samples
-           WHERE sampled_at >= datetime('now', ?)
+           {where}
            GROUP BY day
            ORDER BY day ASC""",
-        (f"-{days} days",),
+        params,
     ).fetchall()
 
 
-def build_estimate(sizing_window_days: int = 7, daily_rows_days: int = 14) -> dict:
+def _savings_summary(daily_with_cost: list[dict], cumulative_savings_usd: float, daily_rows) -> dict:
+    today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    month_str = today_str[:7]
+    today_usd = next(
+        (d["estimated_vps_daily_usd"] for d in daily_with_cost if d["day"] == today_str), None
+    )
+    month_usd = round(sum(
+        d["estimated_vps_daily_usd"] for d in daily_with_cost
+        if d["day"].startswith(month_str) and d["estimated_vps_daily_usd"] is not None
+    ), 2)
+    return {
+        "today_usd": today_usd,
+        "this_month_usd": month_usd,
+        "total_usd": round(cumulative_savings_usd, 2),
+        "since": daily_rows[0]["day"] if daily_rows else None,
+        "days_counted": len(daily_with_cost),
+    }
+
+
+def build_estimate(sizing_window_days: int = 7, daily_rows_days: int | None = None) -> dict:
     with get_connection() as conn:
         samples = _fetch_samples(conn, sizing_window_days)
         daily_rows = _fetch_daily_rows(conn, daily_rows_days)
@@ -356,11 +379,7 @@ def build_estimate(sizing_window_days: int = 7, daily_rows_days: int = 14) -> di
         "recommended": _aggregate(providers, required_vcpu, required_ram_gb, required_disk_gb),
         "beelink_match": _aggregate(providers, total_cores, BEELINK_RAM_GB, required_disk_gb),
         "daily": daily_with_cost,
-        "savings_to_date": {
-            "total_usd": round(cumulative_savings_usd, 2),
-            "since": daily_rows[0]["day"] if daily_rows else None,
-            "days_counted": len(daily_with_cost),
-        },
+        "savings_to_date": _savings_summary(daily_with_cost, cumulative_savings_usd, daily_rows),
         "eur_usd_rate": eur_usd_rate,
         "headroom": {"cpu": CPU_HEADROOM, "mem": MEM_HEADROOM, "disk": DISK_HEADROOM},
     }
