@@ -56,6 +56,12 @@ ALPACA_BASE_URL   = os.getenv("ALPACA_BASE_URL", "https://paper-api.alpaca.marke
 AMADEUS_API_KEY    = os.getenv("AMADEUS_API_KEY")
 AMADEUS_API_SECRET = os.getenv("AMADEUS_API_SECRET")
 
+# Hetzner Cloud — read-only API token for jobs/dev/vps_cost_estimate.py's
+# live pricing lookup (dashboard Dev > Cost tab). No servers are created or
+# managed; this token only needs the "Read" permission in the Hetzner
+# console (Project > Security > API Tokens).
+HETZNER_API_TOKEN = os.getenv("HETZNER_API_TOKEN")
+
 # Briefing schedule
 BRIEFING_HOUR   = int(os.getenv("BRIEFING_HOUR",   "6"))
 

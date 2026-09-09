@@ -85,6 +85,7 @@ data/cron_backups/
 data/exports/
 data/font_cache/
 data/imports/
+data/dev/hetzner_pricing_cache.json
 incoming/
 
 # Deployment/build artifacts

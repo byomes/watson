@@ -2403,8 +2403,18 @@ function _devRenderCost(data) {
   const u = data.usage, r = data.required;
   const dailyRows = (data.daily || []).slice().reverse();
 
+  const sourceMeta = {
+    'live':              { label: 'Live pricing',       color: '#4caf50' },
+    'cached':            { label: 'Cached pricing',      color: '#8a8a8a' },
+    'cached-stale':      { label: 'Stale cached pricing', color: '#d99a2b' },
+    'fallback-snapshot': { label: 'Fallback snapshot — not live', color: '#c0392b' },
+  }[data.pricing_source] || { label: data.pricing_source || 'unknown source', color: '#8a8a8a' };
+
   let html = `
-    <div class="mlabel" style="margin-top:0">If Watson ran on a VPS instead</div>
+    <div class="mlabel" style="margin-top:0;display:flex;align-items:center;justify-content:space-between;gap:8px">
+      <span>If Watson ran on a VPS instead</span>
+      <span style="font-size:10px;font-weight:600;color:${sourceMeta.color};border:1px solid ${sourceMeta.color};border-radius:10px;padding:1px 8px">${esc(sourceMeta.label)}</span>
+    </div>
     ${_devPlanCard('Sized to actual usage', data.recommended_plan)}
     ${_devPlanCard('Matched to Beelink’s full specs', data.beelink_match_plan)}
     <div class="mth-stats">
@@ -2432,7 +2442,7 @@ function _devRenderCost(data) {
     <div style="font-size:11px;color:var(--muted);margin:6px 2px 12px">
       Over the last ${data.sizing_window_days} days (${data.sample_count} samples, ~${data.data_span_hours}h of data).
       Sized with ${Math.round((data.headroom.cpu - 1) * 100)}% CPU / ${Math.round((data.headroom.mem - 1) * 100)}% RAM / ${Math.round((data.headroom.disk - 1) * 100)}% disk headroom above observed peaks.
-      Pricing snapshot ${esc(data.pricing_asof)} (Hetzner, EU region, excl. VAT/IPv4) at ${data.eur_usd_rate} USD/EUR — verify before budgeting.
+      Pricing as of ${esc(data.pricing_asof)} (Hetzner, EU region, excl. VAT/IPv4) at ${data.eur_usd_rate} USD/EUR — both fetched live from Hetzner's API and a free FX API, cached up to 24h.
       A shared vCPU is not the same speed as this box's physical cores — Watson's Ollama inference is CPU-bound with no GPU, so a plan sized by core <i>count</i> doesn't guarantee matching speed.
     </div>
     <div class="mlabel">Daily</div>`;

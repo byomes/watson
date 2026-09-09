@@ -11,12 +11,23 @@ happens now that resource_samples has real data to estimate from.
 Feeds the dashboard's Dev > Cost sub-tab (GET /api/dev/vps-cost-estimate).
 Read-only, on-demand -- no cron entry, no new sampling.
 
-Pricing snapshot: Hetzner Cloud, Germany/Finland region, as of 2026-09-08
-(post the April/June 2026 CPX/CCX price increases -- CPX in particular
-roughly doubled that round, so CX is now the cheap tier, not CPX). Prices
-are NOT fetched live -- re-verify against hetzner.com/cloud before treating
-this as a firm budget number, and update HETZNER_PLANS/HETZNER_PRICING_ASOF
-if they've changed again. Excludes VAT and the ~EUR0.50/mo IPv4 addon.
+Pricing is fetched LIVE from the Hetzner Cloud API (GET /v1/server_types,
+Bearer token in HETZNER_API_TOKEN -- config/settings.py, .env). That API
+requires a token even for read-only pricing lookups; the token needs only
+the "Read" permission in the Hetzner console (Project > Security > API
+Tokens) -- no servers are ever created. EUR/USD is likewise fetched live
+(api.frankfurter.app, no key required, ECB reference rates).
+
+Live pricing is cached to data/dev/hetzner_pricing_cache.json for
+PRICING_CACHE_TTL_HOURS to avoid hitting both APIs on every dashboard
+load. If a live fetch fails (no token yet, network issue, Hetzner API
+down), it falls back to the on-disk cache regardless of age, and only
+falls back to FALLBACK_PLANS (a hardcoded 2026-09-08 snapshot) if there
+has never been a successful live fetch. The response always reports
+"pricing_source" (live / cached / cached-stale / fallback-snapshot) so
+the dashboard can show which one it's looking at -- never silently pass
+off a stale or fallback number as current. Excludes VAT and the
+~EUR0.50/mo IPv4 addon.
 
 Two numbers are reported, not one:
   - "recommended" -- cheapest plan covering actually-observed peak usage
@@ -35,22 +46,42 @@ physical i5-1235U thread -- matching vCPU *count* does not guarantee
 matching Ollama latency. This module sizes for capacity, not for
 guaranteed inference speed.
 """
+import json
+import logging
 import math
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import psutil
+import requests
 
+from config.settings import HETZNER_API_TOKEN
 from core.database import get_connection
 
-HETZNER_PRICING_ASOF = "2026-09-08"
-EUR_TO_USD = 1.16  # spot rate 2026-09-08; re-check before relying on this
+log = logging.getLogger(__name__)
 
-# Sorted ascending by monthly_eur so recommend_plan() can return the first
-# fit. CX = cost-optimized (cheapest shared vCPU tier post the 2026 CPX
-# price hikes); CPX = regular-performance shared vCPU; CCX = dedicated
-# vCPU. All three included so a fit is found even for unusually high
-# CPU/RAM/disk requirements.
-HETZNER_PLANS = [
+WATSON_DIR = Path(__file__).resolve().parents[2]
+PRICING_CACHE_PATH = WATSON_DIR / "data" / "dev" / "hetzner_pricing_cache.json"
+PRICING_CACHE_TTL_HOURS = 24
+
+HETZNER_API_URL = "https://api.hetzner.cloud/v1/server_types"
+EXCHANGE_RATE_URL = "https://api.frankfurter.app/latest?from=EUR&to=USD"
+# Nuremberg -- matches the "Germany/Finland region" scope of the original
+# manual snapshot this replaced. Falls back to whatever location a plan
+# actually lists if nbg1 isn't offered for it.
+PREFERRED_LOCATION = "nbg1"
+
+# Only shared/dedicated x86 vCPU families are a fair comparison for
+# Watson's workload -- CAX (ARM/Ampere) is excluded since Ollama's CPU
+# path here isn't validated on ARM, and the Beelink itself is x86.
+SERIES_BY_PREFIX = {"CX": "cost-optimized", "CPX": "regular-performance", "CCX": "dedicated-vcpu"}
+
+# Last-resort fallback, used only if there has NEVER been a successful live
+# fetch (no cache on disk either) -- e.g. HETZNER_API_TOKEN isn't set yet.
+# Snapshot taken 2026-09-08, post the April/June 2026 CPX/CCX price
+# increases. Kept small and always labeled "fallback-snapshot" in the
+# response so it's never mistaken for a live number.
+FALLBACK_PLANS = [
     {"name": "CX23", "series": "cost-optimized", "vcpu": 2,  "ram_gb": 4,   "disk_gb": 40,  "monthly_eur": 5.49},
     {"name": "CX33", "series": "cost-optimized", "vcpu": 4,  "ram_gb": 8,   "disk_gb": 80,  "monthly_eur": 8.49},
     {"name": "CPX22", "series": "regular-performance", "vcpu": 2,  "ram_gb": 4,   "disk_gb": 80,  "monthly_eur": 19.49},
@@ -65,7 +96,8 @@ HETZNER_PLANS = [
     {"name": "CCX33", "series": "dedicated-vcpu", "vcpu": 8,  "ram_gb": 32,  "disk_gb": 240, "monthly_eur": 138.49},
     {"name": "CCX43", "series": "dedicated-vcpu", "vcpu": 16, "ram_gb": 64,  "disk_gb": 360, "monthly_eur": 275.99},
 ]
-HETZNER_PLANS.sort(key=lambda p: p["monthly_eur"])
+FALLBACK_EUR_TO_USD = 1.16
+FALLBACK_ASOF = "2026-09-08"
 
 CPU_HEADROOM = 1.3   # 30% above observed peak core-equivalents
 MEM_HEADROOM = 1.2   # 20% above observed peak RAM
@@ -74,10 +106,117 @@ DISK_HEADROOM = 1.3  # 30% above current disk used
 BEELINK_RAM_GB = 32  # from WATSON_ARCHITECTURE.md Hardware section; static, doesn't change week to week
 
 
-def _cost(plan: dict | None) -> dict | None:
+def _fetch_live_eur_usd_rate() -> float | None:
+    try:
+        resp = requests.get(EXCHANGE_RATE_URL, timeout=10)
+        resp.raise_for_status()
+        return float(resp.json()["rates"]["USD"])
+    except Exception as exc:
+        log.warning("live EUR/USD rate fetch failed: %s", exc)
+        return None
+
+
+def _fetch_live_plans() -> list[dict]:
+    if not HETZNER_API_TOKEN:
+        raise RuntimeError("HETZNER_API_TOKEN not set -- see config/settings.py")
+
+    resp = requests.get(
+        HETZNER_API_URL,
+        headers={"Authorization": f"Bearer {HETZNER_API_TOKEN}"},
+        timeout=15,
+    )
+    resp.raise_for_status()
+    server_types = resp.json()["server_types"]
+
+    plans = []
+    for st in server_types:
+        name = st["name"].upper()
+        prefix = next((p for p in SERIES_BY_PREFIX if name.startswith(p)), None)
+        if prefix is None:
+            continue  # CAX (ARM) and anything outside CX/CPX/CCX
+        if st.get("architecture", "x86") != "x86":
+            continue
+        if st.get("deprecated") or st.get("deprecation") is not None:
+            continue  # being retired -- don't recommend it
+
+        prices = st.get("prices") or []
+        price = next((p for p in prices if p.get("location") == PREFERRED_LOCATION), None)
+        if price is None and prices:
+            price = prices[0]
+        if price is None:
+            continue
+
+        monthly = price["price_monthly"]
+        plans.append({
+            "name": name,
+            "series": SERIES_BY_PREFIX[prefix],
+            "vcpu": st["cores"],
+            "ram_gb": st["memory"],
+            "disk_gb": st["disk"],
+            "_monthly_native": float(monthly["net"]),
+            "_native_currency": monthly.get("currency", "EUR"),
+            "location": price.get("location", PREFERRED_LOCATION),
+        })
+
+    if not plans:
+        raise RuntimeError("Hetzner API returned no matching x86 CX/CPX/CCX plans")
+
+    return plans
+
+
+def _normalize_to_eur(plans: list[dict], eur_usd_rate: float) -> list[dict]:
+    out = []
+    for p in plans:
+        native, currency = p.pop("_monthly_native"), p.pop("_native_currency")
+        monthly_eur = native if currency == "EUR" else round(native / eur_usd_rate, 2)
+        out.append({**p, "monthly_eur": monthly_eur})
+    out.sort(key=lambda p: p["monthly_eur"])
+    return out
+
+
+def _load_cache() -> dict | None:
+    try:
+        with open(PRICING_CACHE_PATH) as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return None
+
+
+def _save_cache(plans: list[dict], eur_usd_rate: float, fetched_at: str) -> None:
+    PRICING_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with open(PRICING_CACHE_PATH, "w") as f:
+        json.dump({"plans": plans, "eur_usd_rate": eur_usd_rate, "fetched_at": fetched_at}, f, indent=2)
+
+
+def _get_pricing() -> tuple[list[dict], float, str, str]:
+    """Returns (plans, eur_usd_rate, pricing_asof, source).
+
+    source is one of "live", "cached", "cached-stale", "fallback-snapshot".
+    """
+    cache = _load_cache()
+    if cache:
+        cached_at = datetime.fromisoformat(cache["fetched_at"])
+        if datetime.now(timezone.utc) - cached_at < timedelta(hours=PRICING_CACHE_TTL_HOURS):
+            return cache["plans"], cache["eur_usd_rate"], cache["fetched_at"], "cached"
+
+    try:
+        raw_plans = _fetch_live_plans()
+        eur_usd_rate = _fetch_live_eur_usd_rate() or (cache["eur_usd_rate"] if cache else FALLBACK_EUR_TO_USD)
+        plans = _normalize_to_eur(raw_plans, eur_usd_rate)
+        fetched_at = datetime.now(timezone.utc).isoformat()
+        _save_cache(plans, eur_usd_rate, fetched_at)
+        return plans, eur_usd_rate, fetched_at, "live"
+    except Exception as exc:
+        log.warning("live Hetzner pricing fetch failed, falling back: %s", exc)
+        if cache:
+            return cache["plans"], cache["eur_usd_rate"], cache["fetched_at"], "cached-stale"
+        return FALLBACK_PLANS, FALLBACK_EUR_TO_USD, FALLBACK_ASOF, "fallback-snapshot"
+
+
+def _cost(plan: dict | None, eur_usd_rate: float) -> dict | None:
     if plan is None:
         return None
-    monthly_usd = round(plan["monthly_eur"] * EUR_TO_USD, 2)
+    monthly_usd = round(plan["monthly_eur"] * eur_usd_rate, 2)
     return {
         **plan,
         "monthly_usd": monthly_usd,
@@ -86,8 +225,8 @@ def _cost(plan: dict | None) -> dict | None:
     }
 
 
-def recommend_plan(required_vcpu: int, required_ram_gb: float, required_disk_gb: float) -> dict | None:
-    for plan in HETZNER_PLANS:
+def recommend_plan(plans: list[dict], required_vcpu: int, required_ram_gb: float, required_disk_gb: float) -> dict | None:
+    for plan in plans:
         if (plan["vcpu"] >= required_vcpu
                 and plan["ram_gb"] >= required_ram_gb
                 and plan["disk_gb"] >= required_disk_gb):
@@ -132,6 +271,8 @@ def build_estimate(sizing_window_days: int = 7, daily_rows_days: int = 14) -> di
                       "runs every 5 min; check crontab / logs/resource_sampler.log.",
         }
 
+    plans, eur_usd_rate, pricing_asof, pricing_source = _get_pricing()
+
     n = len(samples)
     peak_cpu_percent = max(s["cpu_percent"] for s in samples)
     avg_cpu_percent = sum(s["cpu_percent"] for s in samples) / n
@@ -153,8 +294,8 @@ def build_estimate(sizing_window_days: int = 7, daily_rows_days: int = 14) -> di
     required_ram_gb = round(peak_mem_gb * MEM_HEADROOM, 1)
     required_disk_gb = round(disk_used_gb * DISK_HEADROOM, 1)
 
-    recommended = recommend_plan(required_vcpu, required_ram_gb, required_disk_gb)
-    beelink_match = recommend_plan(total_cores, BEELINK_RAM_GB, required_disk_gb)
+    recommended = recommend_plan(plans, required_vcpu, required_ram_gb, required_disk_gb)
+    beelink_match = recommend_plan(plans, total_cores, BEELINK_RAM_GB, required_disk_gb)
 
     return {
         "available": True,
@@ -174,15 +315,16 @@ def build_estimate(sizing_window_days: int = 7, daily_rows_days: int = 14) -> di
             "ram_gb": required_ram_gb,
             "disk_gb": required_disk_gb,
         },
-        "recommended_plan": _cost(recommended),
-        "beelink_match_plan": _cost(beelink_match),
+        "recommended_plan": _cost(recommended, eur_usd_rate),
+        "beelink_match_plan": _cost(beelink_match, eur_usd_rate),
         "daily": [dict(r) for r in daily_rows],
-        "pricing_asof": HETZNER_PRICING_ASOF,
-        "eur_usd_rate": EUR_TO_USD,
+        "pricing_asof": pricing_asof,
+        "pricing_source": pricing_source,
+        "eur_usd_rate": eur_usd_rate,
         "headroom": {"cpu": CPU_HEADROOM, "mem": MEM_HEADROOM, "disk": DISK_HEADROOM},
     }
 
 
 if __name__ == "__main__":
-    import json
-    print(json.dumps(build_estimate(), indent=2, default=str))
+    import json as _json
+    print(_json.dumps(build_estimate(), indent=2, default=str))
