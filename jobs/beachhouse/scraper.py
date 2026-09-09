@@ -80,25 +80,26 @@ def _source_id(source: str, url: str) -> str | None:
     return m.group(1) if m else None
 
 
-def discover_candidate_urls(category: str) -> list[tuple[str, str, str]]:
+def discover_candidate_urls(category: str) -> list[tuple[str, str, float, str, str]]:
     """Runs one Serper query per (state region, source) for the given
-    category. Returns a deduped list of (state, source, url) tuples --
-    state comes from which region query surfaced the URL, not parsed from
-    the page, since that's known and reliable up front."""
+    category. Returns a deduped list of (state, town, drive_hours, source,
+    url) tuples -- state/town/drive_hours all come from which region query
+    surfaced the URL (see __init__.py's CATEGORIES), not parsed from the
+    page, since that's known and reliable up front."""
     cfg = CATEGORIES[category]
     seen: set[tuple[str, str]] = set()
-    candidates: list[tuple[str, str, str]] = []
+    candidates: list[tuple[str, str, float, str, str]] = []
     for state, regions in cfg["regions"].items():
         for region in regions:
             for src in SOURCES:
-                query = f"site:{src}.com {region} {cfg['query_terms']}"
+                query = f"site:{src}.com {region['query']} {cfg['query_terms']}"
                 for r in search(query, max_results=10):
                     url = r.get("url", "")
                     sid = _source_id(src, url)
                     if not sid or (src, sid) in seen:
                         continue
                     seen.add((src, sid))
-                    candidates.append((state, src, url))
+                    candidates.append((state, region["town"], region["drive_hours"], src, url))
     return candidates
 
 
@@ -164,7 +165,10 @@ def parse_listing(page_html: str) -> dict | None:
     return fields
 
 
-def _upsert(category: str, source: str, source_id: str, url: str, state: str, fields: dict) -> None:
+def _upsert(
+    category: str, source: str, source_id: str, url: str, state: str,
+    drive_hours: float, fields: dict,
+) -> None:
     amenity_cols = ", ".join(AMENITY_FIELDS)
     amenity_qs = ", ".join("?" * len(AMENITY_FIELDS))
     amenity_updates = ", ".join(f"{a}=excluded.{a}" for a in AMENITY_FIELDS)
@@ -174,11 +178,12 @@ def _upsert(category: str, source: str, source_id: str, url: str, state: str, fi
         conn.execute(
             f"""INSERT INTO bh_listings (
                 category, source, source_id, source_url, name, city, state,
-                bedrooms, bathrooms, max_sleeps, {amenity_cols}, description,
+                drive_hours, bedrooms, bathrooms, max_sleeps, {amenity_cols}, description,
                 primary_image_url, discovered_at, last_seen_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, {amenity_qs}, ?, ?, datetime('now'), datetime('now'))
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, {amenity_qs}, ?, ?, datetime('now'), datetime('now'))
             ON CONFLICT(source, source_id, category) DO UPDATE SET
                 name=excluded.name, city=excluded.city, state=excluded.state,
+                drive_hours=excluded.drive_hours,
                 bedrooms=excluded.bedrooms, bathrooms=excluded.bathrooms,
                 max_sleeps=excluded.max_sleeps, {amenity_updates},
                 description=excluded.description,
@@ -187,7 +192,7 @@ def _upsert(category: str, source: str, source_id: str, url: str, state: str, fi
             """,
             [
                 category, source, source_id, url, fields["name"], fields["city"], state,
-                fields["bedrooms"], fields["bathrooms"], fields["max_sleeps"],
+                drive_hours, fields["bedrooms"], fields["bathrooms"], fields["max_sleeps"],
                 *amenity_values, fields["description"], fields["primary_image_url"],
             ],
         )
@@ -198,7 +203,7 @@ def run_category(category: str) -> dict:
     log.info("[%s] discovered %d unique candidate URLs", category, len(candidates))
 
     kept, unparseable, failed = 0, 0, 0
-    for i, (state, source, url) in enumerate(candidates, 1):
+    for i, (state, town, drive_hours, source, url) in enumerate(candidates, 1):
         log.info("[%s][%d/%d] %s %s", category, i, len(candidates), source, url)
         page_html = _fetch(url)
         time.sleep(_POLITE_DELAY)
@@ -209,8 +214,12 @@ def run_category(category: str) -> dict:
         if not fields:
             unparseable += 1
             continue
+        # prefer the town actually named on the listing page; fall back to
+        # the region's own town label when the page didn't say (see
+        # __init__.py's CATEGORIES) so `city` is basically never blank
+        fields["city"] = fields["city"] or town
         sid = _source_id(source, url)
-        _upsert(category, source, sid, url, state, fields)
+        _upsert(category, source, sid, url, state, drive_hours, fields)
         kept += 1
 
     log.info("[%s] done: %d kept, %d unparseable, %d failed", category, kept, unparseable, failed)

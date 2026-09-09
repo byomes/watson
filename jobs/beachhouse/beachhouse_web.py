@@ -47,6 +47,7 @@ def _row_to_summary(row: dict) -> dict:
         "name": row["name"],
         "city": row["city"],
         "state": row["state"],
+        "drive_hours": row["drive_hours"],
         "bedrooms": row["bedrooms"],
         "bathrooms": row["bathrooms"],
         "max_sleeps": row["max_sleeps"],

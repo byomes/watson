@@ -19,6 +19,12 @@ color (e.g. "checked May 10-17"). A listing with no price_low yet is
 unknown, not as passing or failing the budget, and lets the caller choose
 whether to include unpriced listings at all (see beachhouse_web.py).
 
+drive_hours is an approximate one-way drive time from Bill's home
+(Wilmington, DE), rounded to the nearest 0.5h -- looked up per-region at
+scrape time from __init__.py's CATEGORIES regions (each region entry
+carries its own town/drive_hours), not computed live. city falls back to
+that region's town name when the listing page itself doesn't state one.
+
 category (added 2026-09-09, see __init__.py's CATEGORIES) is part of the
 uniqueness key, not just a plain column -- the same physical property can
 legitimately be discovered under more than one tab (a secluded cabin with
@@ -54,6 +60,7 @@ CREATE TABLE IF NOT EXISTS bh_listings (
     price_low           REAL,
     price_high          REAL,
     price_note          TEXT,
+    drive_hours         REAL,
     review_status       TEXT NOT NULL DEFAULT 'new'
                         CHECK (review_status IN ('new', 'saved', 'dismissed')),
     discovered_at       TEXT NOT NULL DEFAULT (datetime('now')),
@@ -65,7 +72,7 @@ CREATE TABLE IF NOT EXISTS bh_listings (
 CREATE_INDEX_STATE = "CREATE INDEX IF NOT EXISTS idx_bh_listings_state ON bh_listings(category, state)"
 
 _NEW_AMENITY_COLS = ["hot_tub", "fireplace", "mountain_view", "secluded"]
-_NEW_PRICE_COLS = {"price_low": "REAL", "price_high": "REAL"}
+_NEW_SIMPLE_COLS = {"price_low": "REAL", "price_high": "REAL", "drive_hours": "REAL"}
 
 
 def get_connection() -> sqlite3.Connection:
@@ -115,7 +122,7 @@ def create_tables():
         for col in _NEW_AMENITY_COLS:
             if col not in existing_cols:
                 conn.execute(f"ALTER TABLE bh_listings ADD COLUMN {col} INTEGER NOT NULL DEFAULT 0")
-        for col, sqltype in _NEW_PRICE_COLS.items():
+        for col, sqltype in _NEW_SIMPLE_COLS.items():
             if col not in existing_cols:
                 conn.execute(f"ALTER TABLE bh_listings ADD COLUMN {col} {sqltype}")
 
