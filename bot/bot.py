@@ -945,20 +945,27 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
         _chat_id = str(update.effective_chat.id)
         _leader_name = _team_member_name_for_chat(_chat_id) or _deacon_name_for_chat(_chat_id)
         if _leader_name:
-            _assign = (
-                _extract_deacon_assign(update.message.text or "")
-                if _leader_name in _DEACON_ASSIGN_ALLOWLIST
-                else None
+            _msg_text = update.message.text or ""
+            _is_assigner = _leader_name in _DEACON_ASSIGN_ALLOWLIST
+            _assign = _extract_deacon_assign(_msg_text) if _is_assigner else None
+            _assign_incomplete = (
+                bool(_assign is None and _is_assigner and _DEACON_ASSIGN_INCOMPLETE_RE.match(_msg_text.strip()))
             )
             from jobs.telegram.leader_tool_usage import log_usage as _log_leader_tool_usage
             with get_connection() as _lc:
                 _log_leader_tool_usage(
-                    _lc, _leader_name, _chat_id, "deacon_assign" if _assign else "team_chat"
+                    _lc, _leader_name, _chat_id,
+                    "deacon_assign" if _assign else ("deacon_assign_incomplete" if _assign_incomplete else "team_chat"),
                 )
             if _assign:
                 await _handle_deacon_assign(update, _leader_name, *_assign)
+            elif _assign_incomplete:
+                await update.message.reply_text(
+                    "Who would you like to assign, and to which deacon? "
+                    "Try something like \"assign Emily Taylor to Bill Crook\"."
+                )
             else:
-                await _handle_team_chat(update, _leader_name, update.message.text or "")
+                await _handle_team_chat(update, _leader_name, _msg_text)
         return
 
     text = update.message.text or ""
@@ -2214,14 +2221,32 @@ def _deacon_name_for_chat(chat_id: str) -> str | None:
 _DEACON_ASSIGN_ALLOWLIST = frozenset({"Bill Crook", "Jim Bouchat"})
 
 
+_DEACON_ASSIGN_VERBS = r"assign|reassign|move|put|add"
+
+# Anchored at the start of the message (unlike _extract_deacon_assign's
+# re.search below) -- used only to catch an assign-shaped message that's
+# missing its person ("Assign to Ray Williams", a real Jim Bouchat message
+# 2026-09-09 -- presumably a follow-up referring back to an earlier message
+# Watson has no memory of) so the caller can ask him to restate it with a
+# name, instead of falling through to the Claude-backed team-chat path and
+# spending an API call on a question that was never answerable either way.
+_DEACON_ASSIGN_INCOMPLETE_RE = re.compile(rf"^(?:{_DEACON_ASSIGN_VERBS})\b", re.IGNORECASE)
+
+
 def _extract_deacon_assign(text: str) -> tuple[str, str] | None:
-    """Recognize "assign/reassign/move/put <person> to/with <deacon>" and
+    """Recognize "assign/reassign/move/put/add <person> to/with <deacon>" and
     return (person_query, deacon_query), or None to fall through to the
     normal team-chat reply. Only ever called for senders in
     _DEACON_ASSIGN_ALLOWLIST, so a rare false-positive match (unlikely
-    phrasing overlap) just fails lookup rather than touching anything."""
+    phrasing overlap) just fails lookup rather than touching anything.
+
+    "add" joined the verb list 2026-09-09: Jim Bouchat's real phrasing
+    ("Can you add Emily Taylor to Bill crook") used it and previously fell
+    all the way through to jobs.analytics.data_chat's Claude-first
+    read-only Q&A path, which paid for an API call and then correctly
+    refused (it only ever generates SELECTs) -- worst of both worlds."""
     m = re.search(
-        r"(?:assign|reassign|move|put)\s+(.+?)\s+(?:to|with)\s+(.+?)(?:'s\s+list)?[.!]?$",
+        rf"(?:{_DEACON_ASSIGN_VERBS})\s+(.+?)\s+(?:to|with)\s+(.+?)(?:'s\s+list)?[.!]?$",
         text.strip(),
         re.IGNORECASE,
     )
