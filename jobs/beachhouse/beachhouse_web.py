@@ -109,6 +109,7 @@ def search():
     min_bathrooms = request.args.get("min_bathrooms", "").strip()
     max_price = request.args.get("max_price", "").strip()
     include_unpriced = request.args.get("include_unpriced", "1").strip() != "0"
+    sort = request.args.get("sort", "").strip()
     q = request.args.get("q", "").strip()
 
     clauses = ["category = ?"]
@@ -162,10 +163,23 @@ def search():
         like = f"%{q}%"
         params.extend([like, like, like])
 
+    # saved candidates stay pinned to the top regardless of sort -- that's a
+    # separate triage state, not something a distance/price sort should
+    # bury. "drive_hours IS NULL" sorts before the boolean flip so unrated
+    # distance (not yet backfilled) always lands after real values, in
+    # both directions, without relying on SQLite-version-specific NULLS
+    # LAST syntax.
+    if sort == "drive_asc":
+        order_by = "review_status = 'saved' DESC, drive_hours IS NULL, drive_hours ASC"
+    elif sort == "drive_desc":
+        order_by = "review_status = 'saved' DESC, drive_hours IS NULL, drive_hours DESC"
+    else:
+        order_by = "review_status = 'saved' DESC, state, city, bedrooms DESC"
+
     where = f"WHERE {' AND '.join(clauses)}"
     with get_connection() as conn:
         rows = conn.execute(
-            f"SELECT * FROM bh_listings {where} ORDER BY review_status = 'saved' DESC, state, city, bedrooms DESC",
+            f"SELECT * FROM bh_listings {where} ORDER BY {order_by}",
             params,
         ).fetchall()
     return jsonify([_row_to_summary(dict(r)) for r in rows]), 200
@@ -282,6 +296,7 @@ def search_deals():
     review_status = request.args.get("review_status", "").strip()
     max_price = request.args.get("max_price", "").strip()
     min_discount = request.args.get("min_discount", "").strip()
+    sort = request.args.get("sort", "").strip()
     q = request.args.get("q", "").strip()
 
     clauses = []
@@ -307,10 +322,17 @@ def search_deals():
         like = f"%{q}%"
         params.extend([like, like, like, like])
 
+    if sort == "drive_asc":
+        order_by = "review_status = 'saved' DESC, drive_hours IS NULL, drive_hours ASC"
+    elif sort == "drive_desc":
+        order_by = "review_status = 'saved' DESC, drive_hours IS NULL, drive_hours DESC"
+    else:
+        order_by = "review_status = 'saved' DESC, price_per_night ASC"
+
     where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
     with get_connection() as conn:
         rows = conn.execute(
-            f"SELECT * FROM bh_deals {where} ORDER BY review_status = 'saved' DESC, price_per_night ASC",
+            f"SELECT * FROM bh_deals {where} ORDER BY {order_by}",
             params,
         ).fetchall()
 
