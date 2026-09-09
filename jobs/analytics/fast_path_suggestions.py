@@ -1,13 +1,25 @@
-"""jobs/analytics/fast_path_suggestions.py — weekly review of Team Chat
-questions Watson couldn't answer (jobs/analytics/unanswered_questions.py),
-looking for repeat shapes that could become a new LLM-free fast-path
-phrase instead of costing an API call every time they're asked again.
+"""jobs/analytics/fast_path_suggestions.py — nightly review of Team Chat
+questions Watson had to hand off to an LLM (jobs/analytics/
+unanswered_questions.py), looking for repeat shapes that could become a
+new LLM-free fast-path phrase instead of costing an API call every time
+they're asked again.
 
 Built 2026-09-08 per Bill's ask, right after the deacon-group/birthday
 fast-path additions and the "who called Claude" Telegram alert -- this
-closes the loop: log what Watson couldn't answer -> once a week, look for
-patterns -> propose a concrete addition -> Bill approves/rejects over
-Telegram with one tap.
+closes the loop: log what Watson couldn't answer -> review -> propose a
+concrete addition -> Bill approves/rejects over Telegram with one tap.
+
+Widened to nightly + broadened 2026-09-09 per Bill's ask, prompted by Jim
+Bouchat's Team Chat use for organizing the deacons generating a steady
+stream of "Watson called Claude for help" pings: run() now starts by
+calling unanswered_questions.sync_claude_answered_questions(), which pulls
+in every successfully-answered-but-Claude-billed jobs.analytics.data_chat
+question (not just the genuinely-unanswered ones this job originally
+reviewed) -- see that function's docstring for why that was most of the
+real spend. The goal, per Bill: Watson should get better from every call,
+preferably without spending more API calls to do it (this review step
+itself still costs one call/run, same as before) -- but instilling a new
+learned pattern is worth the occasional API call.
 
 Two kinds of suggestion, both sent to Telegram with Approve/Reject
 buttons, handled differently by bot.py's handle_fast_path_suggestion_
@@ -23,11 +35,12 @@ callback on Approve:
     risky automated edit; Reject dismisses it.
 
 One Claude/Ollama call per run (job_name="analytics.fast_path_suggestions")
--- a single weekly call analyzing a batch is a rounding error against the
+-- a single nightly call analyzing a batch is a rounding error against the
 very API spend this whole feature exists to reduce.
 
-Cron (Monday 7:30am, after skillbuilder.audit at 7:00am):
-  30 7 * * 1 PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python \
+Cron (nightly 2:25am, in the existing quiet-hours cluster after
+skills_catalog at 2:20am, before backup at 3:00am):
+  25 2 * * * PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python \
     -m jobs.analytics.fast_path_suggestions \
     >> /home/billyomes/watson/logs/fast_path_suggestions.log 2>&1
 """
@@ -45,7 +58,7 @@ from core.database import get_connection
 from core.job_tracker import track_job
 from core.vacation import vacation_gate
 from jobs.analytics.fast_path_patcher import CDB_CATEGORY_TARGETS, CDB_CATEGORY_LABELS
-from jobs.analytics.unanswered_questions import get_open_since, mark_reviewed
+from jobs.analytics.unanswered_questions import get_open_since, mark_reviewed, sync_claude_answered_questions
 import core.llm_log  # noqa: F401 -- installs Ollama call logging, see core/llm_log.py
 
 load_dotenv(os.path.expanduser("~/watson/.env"))
@@ -94,17 +107,22 @@ def _build_prompt(questions: list[dict]) -> tuple[str, str]:
     categories_text = "\n".join(
         f"- {tid}: {CDB_CATEGORY_LABELS[tid]}" for tid in CDB_CATEGORY_TARGETS
     )
-    questions_text = "\n".join(f"{q['id']}. {q['question']}" for q in questions)
+    questions_text = "\n".join(
+        f"{q['id']}. [{'answered, but only by paying for an LLM call' if q.get('source') == 'claude_call' else 'could NOT be answered -- generic non-answer'}] {q['question']}"
+        for q in questions
+    )
 
     system = (
         "You help a church admin assistant (Watson) get better at answering common "
         "questions WITHOUT calling an expensive LLM API, by spotting when several "
-        "questions Watson couldn't answer actually share a pattern that fits (or is "
-        "close to) an EXISTING recognized question category. Return ONLY a JSON array, "
-        "no markdown, no explanation."
+        "questions Watson either couldn't answer, or could only answer by paying for an "
+        "LLM call, actually share a pattern that fits (or is close to) an EXISTING "
+        "recognized question category. Return ONLY a JSON array, no markdown, no "
+        "explanation."
     )
-    prompt = f"""Here are questions a church staff member asked Watson this week that it \
-could NOT answer with a direct database lookup (it had to give a generic non-answer):
+    prompt = f"""Here are questions a church staff member asked Watson recently, each tagged \
+with whether Watson gave a generic non-answer or actually answered correctly but only by \
+paying for an LLM call:
 
 {questions_text}
 
@@ -236,11 +254,15 @@ def _send_suggestion(suggestion_id: int, target_id: str | None, target_label: st
 
 
 def run() -> int:
-    """Returns the number of suggestions sent (0 is a normal, quiet week)."""
-    since = (datetime.now(timezone.utc) - timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S")
+    """Returns the number of suggestions sent (0 is a normal, quiet night)."""
+    synced = sync_claude_answered_questions()
+    if synced:
+        log.info("Synced %d successfully-answered-but-Claude-billed question(s) from claude_tier_spend_log.", synced)
+
+    since = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%d %H:%M:%S")
     questions = get_open_since(since)
     if len(questions) < _MIN_QUESTIONS:
-        log.info("Only %d open unanswered question(s) this week -- skipping analysis.", len(questions))
+        log.info("Only %d open question(s) tonight -- skipping analysis.", len(questions))
         return 0
 
     system, prompt = _build_prompt(questions)
