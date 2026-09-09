@@ -2372,21 +2372,46 @@ async function devLoadCost() {
   }
 }
 
-function _devPlanCard(title, plan) {
-  if (!plan) {
-    return `<div class="mpn-card"><div style="font-size:13px;font-weight:600">${esc(title)}</div><div style="font-size:12px;color:var(--muted);margin-top:2px">No plan in the pricing table covers this — would need a bigger tier or an attached volume.</div></div>`;
+const _DEV_SOURCE_META = {
+  'live':          { label: 'live',         color: '#4caf50' },
+  'cached':        { label: 'cached',       color: '#8a8a8a' },
+  'cached-stale':  { label: 'stale cache',  color: '#d99a2b' },
+  'reference':     { label: 'researched',   color: '#5b8def' },
+  'unavailable':   { label: 'unavailable',  color: '#c0392b' },
+};
+
+function _devProviderRow(p) {
+  const meta = _DEV_SOURCE_META[p.source] || { label: p.source || '?', color: '#8a8a8a' };
+  const asof = p.asof ? esc(String(p.asof).slice(0, 10)) : '?';
+  const right = p.plan
+    ? `$${p.plan.monthly_usd.toFixed(2)}/mo <span style="color:var(--muted);font-weight:400">— ${p.plan.vcpu}vCPU/${p.plan.ram_gb}GB/${p.plan.disk_gb}GB (${esc(p.plan.name)})</span>`
+    : `<span style="color:var(--muted)">no plan covers this</span>`;
+  return `
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;padding:3px 0">
+      <div style="min-width:90px;text-transform:capitalize">${esc(p.provider)}</div>
+      <div style="flex:1;text-align:right">${right}</div>
+      <div style="min-width:70px;text-align:right;font-size:10px;font-weight:600;color:${meta.color}" title="as of ${asof}">${meta.label}</div>
+    </div>`;
+}
+
+function _devPlanCard(title, agg) {
+  if (!agg || agg.average_monthly_usd == null) {
+    return `<div class="mpn-card"><div style="font-size:13px;font-weight:600">${esc(title)}</div><div style="font-size:12px;color:var(--muted);margin-top:2px">No provider's pricing table covers this — would need a bigger tier or an attached volume.</div></div>`;
   }
   return `
     <div class="mpn-card">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
         <div>
           <div style="font-size:13px;font-weight:600">${esc(title)}</div>
-          <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--text-muted);margin-top:2px">Hetzner ${esc(plan.name)} (${esc(plan.series)}) — ${plan.vcpu} vCPU / ${plan.ram_gb}GB / ${plan.disk_gb}GB</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:2px">Average across ${agg.provider_count} provider${agg.provider_count === 1 ? '' : 's'} — range $${agg.min_monthly_usd.toFixed(2)}–$${agg.max_monthly_usd.toFixed(2)}/mo</div>
         </div>
         <div style="text-align:right;flex-shrink:0">
-          <div style="font-size:15px;font-weight:700;color:var(--gold)">$${plan.monthly_usd.toFixed(2)}<span style="font-size:11px;font-weight:400;color:var(--muted)">/mo</span></div>
-          <div style="font-size:11px;color:var(--muted)">$${plan.daily_usd.toFixed(2)}/day</div>
+          <div style="font-size:15px;font-weight:700;color:var(--gold)">$${agg.average_monthly_usd.toFixed(2)}<span style="font-size:11px;font-weight:400;color:var(--muted)">/mo</span></div>
+          <div style="font-size:11px;color:var(--muted)">$${agg.average_daily_usd.toFixed(2)}/day</div>
         </div>
+      </div>
+      <div style="margin-top:8px;border-top:1px solid var(--border);padding-top:6px">
+        ${agg.providers.map(_devProviderRow).join('')}
       </div>
     </div>`;
 }
@@ -2403,20 +2428,10 @@ function _devRenderCost(data) {
   const u = data.usage, r = data.required;
   const dailyRows = (data.daily || []).slice().reverse();
 
-  const sourceMeta = {
-    'live':              { label: 'Live pricing',       color: '#4caf50' },
-    'cached':            { label: 'Cached pricing',      color: '#8a8a8a' },
-    'cached-stale':      { label: 'Stale cached pricing', color: '#d99a2b' },
-    'fallback-snapshot': { label: 'Fallback snapshot — not live', color: '#c0392b' },
-  }[data.pricing_source] || { label: data.pricing_source || 'unknown source', color: '#8a8a8a' };
-
   let html = `
-    <div class="mlabel" style="margin-top:0;display:flex;align-items:center;justify-content:space-between;gap:8px">
-      <span>If Watson ran on a VPS instead</span>
-      <span style="font-size:10px;font-weight:600;color:${sourceMeta.color};border:1px solid ${sourceMeta.color};border-radius:10px;padding:1px 8px">${esc(sourceMeta.label)}</span>
-    </div>
-    ${_devPlanCard('Sized to actual usage', data.recommended_plan)}
-    ${_devPlanCard('Matched to Beelink’s full specs', data.beelink_match_plan)}
+    <div class="mlabel" style="margin-top:0">If Watson ran on a VPS instead — averaged across providers</div>
+    ${_devPlanCard('Sized to actual usage', data.recommended)}
+    ${_devPlanCard('Matched to Beelink’s full specs', data.beelink_match)}
     <div class="mth-stats">
       <div class="mth-stat">
         <div class="mth-stat-num">${u.avg_cpu_percent}%</div>
@@ -2442,7 +2457,7 @@ function _devRenderCost(data) {
     <div style="font-size:11px;color:var(--muted);margin:6px 2px 12px">
       Over the last ${data.sizing_window_days} days (${data.sample_count} samples, ~${data.data_span_hours}h of data).
       Sized with ${Math.round((data.headroom.cpu - 1) * 100)}% CPU / ${Math.round((data.headroom.mem - 1) * 100)}% RAM / ${Math.round((data.headroom.disk - 1) * 100)}% disk headroom above observed peaks.
-      Pricing as of ${esc(data.pricing_asof)} (Hetzner, EU region, excl. VAT/IPv4) at ${data.eur_usd_rate} USD/EUR — both fetched live from Hetzner's API and a free FX API, cached up to 24h.
+      Vultr and Linode are fetched live from their public pricing APIs (cached up to 24h); Hetzner and DigitalOcean are dated research snapshots (see the badge next to each row) since neither exposes pricing without an account. EUR→USD at ${data.eur_usd_rate}, excl. VAT/tax at all providers.
       A shared vCPU is not the same speed as this box's physical cores — Watson's Ollama inference is CPU-bound with no GPU, so a plan sized by core <i>count</i> doesn't guarantee matching speed.
     </div>
     <div class="mlabel">Daily</div>`;
