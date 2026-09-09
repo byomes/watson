@@ -1,35 +1,40 @@
-"""jobs/beachhouse/scraper.py — discover, fetch, filter, and store candidate
-beach-house listings from VRBO and Airbnb.
+"""jobs/beachhouse/scraper.py — discover, fetch, and store candidate
+listings from VRBO and Airbnb, for every category in jobs.beachhouse.CATEGORIES.
 
 Neither platform offers a search API, and both disallow scraping their own
 search UI in robots.txt (VRBO: `Disallow: /search?`; Airbnb: `Disallow:
 /s/*/*`) — but neither disallows individual listing DETAIL pages, and
 Google indexes those. So discovery goes through jobs.research.web_search
-(Serper/Google) with site-scoped queries per region, and only the
+(Serper/Google) with site-scoped queries per category region, and only the
 resulting listing URLs get fetched directly — robots.txt-checked per URL
 regardless (jobs.retreats.discover.robots_allowed), same standing policy
 as jobs/retreats and jobs/servantcare.
 
 Every candidate with a parseable bedroom count gets stored, with its real
-bedrooms/bathrooms/pool/oceanfront values from the actual page content —
-the search snippet alone is never trusted for those values, since Google's
+bedrooms/bathrooms/amenity values from the actual page content — the
+search snippet alone is never trusted for those values, since Google's
 title/snippet text is user-facing marketing copy, not verified structured
-data. There is no hard accept/reject filter here on purpose: Donna sets
-her own real thresholds from the wtsn.me search UI at query time, against
-whatever this module has stored.
+data. There is no hard accept/reject filter here on purpose: Bill/Melanie
+set their own real thresholds from the wtsn.me search UI at query time,
+against whatever this module has stored. A listing found under more than
+one category's queries (e.g. a secluded cabin with a hot tub matching both
+Mountain and Romance) gets one row per category — see schema.py.
 
-Run standalone:
+Run standalone (all categories):
     PYTHONPATH=/home/billyomes/watson python3 -m jobs.beachhouse.scraper
-Safe to re-run — upserts by (source, source_id).
+Or one category at a time:
+    PYTHONPATH=/home/billyomes/watson python3 -m jobs.beachhouse.scraper mountain
+Safe to re-run — upserts by (source, source_id, category).
 """
 import html
 import logging
 import re
+import sys
 import time
 
 import requests
 
-from jobs.beachhouse import REGIONS, SOURCES
+from jobs.beachhouse import AMENITY_FIELDS, CATEGORIES, SOURCES
 from jobs.beachhouse.schema import create_tables, get_connection
 from jobs.research.web_search import search
 from jobs.retreats.discover import robots_allowed
@@ -54,12 +59,20 @@ _AIRBNB_ID_RE = re.compile(r"airbnb\.com/rooms/(\d+)")
 _BEDROOM_RE = re.compile(r"(\d+)\s*[- ]?bedrooms?\b", re.I)
 _BATHROOM_RE = re.compile(r"(\d+(?:\.\d+)?)\s*[- ]?bathrooms?\b", re.I)
 _SLEEPS_RE = re.compile(r"\bsleeps?\s+(\d+)\b", re.I)
-_POOL_RE = re.compile(r"\b(private pool|swimming pool|outdoor pool|heated pool)\b", re.I)
-_OCEANFRONT_RE = re.compile(r"\b(oceanfront|beachfront|direct beach access|ocean front)\b", re.I)
 _TITLE_RE = re.compile(r"<title>([^<]*)</title>")
 _DESC_RE = re.compile(r'<meta name="description" content="([^"]*)"')
 _IMAGE_RE = re.compile(r'<meta property="og:image" content="([^"]*)"')
 _CITY_RE = re.compile(r"\bin ([A-Z][A-Za-z .'-]{2,40}?)(?:[!,]| -)")
+
+# One regex per AMENITY_FIELDS entry -- order must match.
+_AMENITY_RES = {
+    "has_pool": re.compile(r"\b(private pool|swimming pool|outdoor pool|heated pool)\b", re.I),
+    "oceanfront": re.compile(r"\b(oceanfront|beachfront|direct beach access|ocean front)\b", re.I),
+    "hot_tub": re.compile(r"\b(hot tub|jacuzzi|whirlpool spa)\b", re.I),
+    "fireplace": re.compile(r"\b(fireplace|wood[- ]burning stove)\b", re.I),
+    "mountain_view": re.compile(r"\b(mountain view|ski[- ]in|ski[- ]out|slope[- ]side)\b", re.I),
+    "secluded": re.compile(r"\b(secluded|private retreat|tucked away|off the grid|remote getaway)\b", re.I),
+}
 
 
 def _source_id(source: str, url: str) -> str | None:
@@ -67,20 +80,18 @@ def _source_id(source: str, url: str) -> str | None:
     return m.group(1) if m else None
 
 
-def discover_candidate_urls() -> list[tuple[str, str, str]]:
-    """Runs one Serper query per (state region, source). Returns a deduped
-    list of (state, source, url) tuples -- state comes from which region
-    query surfaced the URL, not parsed from the page, since that's known
-    and reliable up front."""
+def discover_candidate_urls(category: str) -> list[tuple[str, str, str]]:
+    """Runs one Serper query per (state region, source) for the given
+    category. Returns a deduped list of (state, source, url) tuples --
+    state comes from which region query surfaced the URL, not parsed from
+    the page, since that's known and reliable up front."""
+    cfg = CATEGORIES[category]
     seen: set[tuple[str, str]] = set()
     candidates: list[tuple[str, str, str]] = []
-    for state, regions in REGIONS.items():
+    for state, regions in cfg["regions"].items():
         for region in regions:
             for src in SOURCES:
-                query = (
-                    f"site:{src}.com {region} large group vacation rental "
-                    f"oceanfront pool 7+ bedrooms"
-                )
+                query = f"site:{src}.com {region} {cfg['query_terms']}"
                 for r in search(query, max_results=10):
                     url = r.get("url", "")
                     sid = _source_id(src, url)
@@ -139,52 +150,56 @@ def parse_listing(page_html: str) -> dict | None:
     city_raw = _first(_CITY_RE, title)
     city = city_raw.split(",")[0].strip() if city_raw else None
 
-    return {
+    fields = {
         "name": title.split(" - ")[0].strip() or title,
         "description": desc,
         "city": city,
         "bedrooms": int(bedrooms),
         "bathrooms": float(bathrooms) if bathrooms else None,
         "max_sleeps": int(sleeps) if sleeps else None,
-        "has_pool": bool(_POOL_RE.search(haystack)),
-        "oceanfront": bool(_OCEANFRONT_RE.search(haystack)),
         "primary_image_url": _first(_IMAGE_RE, page_html),
     }
+    for amenity in AMENITY_FIELDS:
+        fields[amenity] = bool(_AMENITY_RES[amenity].search(haystack))
+    return fields
 
 
-def _upsert(source: str, source_id: str, url: str, state: str, fields: dict) -> None:
+def _upsert(category: str, source: str, source_id: str, url: str, state: str, fields: dict) -> None:
+    amenity_cols = ", ".join(AMENITY_FIELDS)
+    amenity_qs = ", ".join("?" * len(AMENITY_FIELDS))
+    amenity_updates = ", ".join(f"{a}=excluded.{a}" for a in AMENITY_FIELDS)
+    amenity_values = [int(fields[a]) for a in AMENITY_FIELDS]
+
     with get_connection() as conn:
         conn.execute(
-            """INSERT INTO bh_listings (
-                source, source_id, source_url, name, city, state, bedrooms,
-                bathrooms, max_sleeps, has_pool, oceanfront, description,
+            f"""INSERT INTO bh_listings (
+                category, source, source_id, source_url, name, city, state,
+                bedrooms, bathrooms, max_sleeps, {amenity_cols}, description,
                 primary_image_url, discovered_at, last_seen_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
-            ON CONFLICT(source, source_id) DO UPDATE SET
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, {amenity_qs}, ?, ?, datetime('now'), datetime('now'))
+            ON CONFLICT(source, source_id, category) DO UPDATE SET
                 name=excluded.name, city=excluded.city, state=excluded.state,
                 bedrooms=excluded.bedrooms, bathrooms=excluded.bathrooms,
-                max_sleeps=excluded.max_sleeps, has_pool=excluded.has_pool,
-                oceanfront=excluded.oceanfront, description=excluded.description,
+                max_sleeps=excluded.max_sleeps, {amenity_updates},
+                description=excluded.description,
                 primary_image_url=excluded.primary_image_url,
                 last_seen_at=datetime('now')
             """,
-            (
-                source, source_id, url, fields["name"], fields["city"], state,
+            [
+                category, source, source_id, url, fields["name"], fields["city"], state,
                 fields["bedrooms"], fields["bathrooms"], fields["max_sleeps"],
-                int(fields["has_pool"]), int(fields["oceanfront"]),
-                fields["description"], fields["primary_image_url"],
-            ),
+                *amenity_values, fields["description"], fields["primary_image_url"],
+            ],
         )
 
 
-def run() -> dict:
-    create_tables()
-    candidates = discover_candidate_urls()
-    log.info("discovered %d unique candidate URLs across VA/NC/SC/GA/FL", len(candidates))
+def run_category(category: str) -> dict:
+    candidates = discover_candidate_urls(category)
+    log.info("[%s] discovered %d unique candidate URLs", category, len(candidates))
 
     kept, unparseable, failed = 0, 0, 0
     for i, (state, source, url) in enumerate(candidates, 1):
-        log.info("[%d/%d] %s %s", i, len(candidates), source, url)
+        log.info("[%s][%d/%d] %s %s", category, i, len(candidates), source, url)
         page_html = _fetch(url)
         time.sleep(_POLITE_DELAY)
         if not page_html:
@@ -195,13 +210,23 @@ def run() -> dict:
             unparseable += 1
             continue
         sid = _source_id(source, url)
-        _upsert(source, sid, url, state, fields)
+        _upsert(category, source, sid, url, state, fields)
         kept += 1
 
-    log.info("done: %d kept, %d unparseable, %d failed", kept, unparseable, failed)
+    log.info("[%s] done: %d kept, %d unparseable, %d failed", category, kept, unparseable, failed)
     return {"kept": kept, "unparseable": unparseable, "failed": failed}
+
+
+def run(categories: list[str] | None = None) -> dict:
+    create_tables()
+    categories = categories or list(CATEGORIES.keys())
+    results = {}
+    for category in categories:
+        results[category] = run_category(category)
+    return results
 
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-    run()
+    requested = sys.argv[1:] or None
+    run(requested)

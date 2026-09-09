@@ -1,5 +1,5 @@
 """jobs/beachhouse/beachhouse_web.py — Flask Blueprint backing the
-wtsn.me/p/beachhouse family beach-house search tool.
+wtsn.me/p/beachhouse getaway search tool (Beach/Mountain/Romance tabs).
 
 Mount on the Watson dashboard app:
     from jobs.beachhouse.beachhouse_web import beachhouse_web_bp
@@ -17,6 +17,7 @@ from functools import wraps
 
 from flask import Blueprint, jsonify, request
 
+from jobs.beachhouse import AMENITY_FIELDS, CATEGORIES
 from jobs.beachhouse.schema import get_connection
 
 beachhouse_web_bp = Blueprint("beachhouse_web", __name__)
@@ -34,9 +35,14 @@ def _require_key(f):
     return wrapper
 
 
+def _valid_category(category: str) -> bool:
+    return category in CATEGORIES
+
+
 def _row_to_summary(row: dict) -> dict:
     return {
         "id": row["id"],
+        "category": row["category"],
         "source": row["source"],
         "name": row["name"],
         "city": row["city"],
@@ -44,8 +50,7 @@ def _row_to_summary(row: dict) -> dict:
         "bedrooms": row["bedrooms"],
         "bathrooms": row["bathrooms"],
         "max_sleeps": row["max_sleeps"],
-        "has_pool": bool(row["has_pool"]),
-        "oceanfront": bool(row["oceanfront"]),
+        **{a: bool(row[a]) for a in AMENITY_FIELDS},
         "source_url": row["source_url"],
         "primary_image_url": row["primary_image_url"],
         "price_note": row["price_note"],
@@ -53,12 +58,32 @@ def _row_to_summary(row: dict) -> dict:
     }
 
 
+@beachhouse_web_bp.route("/api/p/beachhouse/categories", methods=["GET"])
+@_require_key
+def list_categories():
+    return jsonify({
+        slug: {
+            "label": cfg["label"],
+            "states": cfg["states"],
+            "amenities": cfg["amenities"],
+            "default_min_bedrooms": cfg.get("default_min_bedrooms"),
+            "default_max_bedrooms": cfg.get("default_max_bedrooms"),
+            "default_min_bathrooms": cfg.get("default_min_bathrooms"),
+        }
+        for slug, cfg in CATEGORIES.items()
+    }), 200
+
+
 @beachhouse_web_bp.route("/api/p/beachhouse/states", methods=["GET"])
 @_require_key
 def list_states():
+    category = request.args.get("category", "").strip()
+    if not _valid_category(category):
+        return jsonify({"error": f"category must be one of {list(CATEGORIES)}"}), 400
     with get_connection() as conn:
         rows = conn.execute(
-            "SELECT state, COUNT(*) AS n FROM bh_listings GROUP BY state ORDER BY state"
+            "SELECT state, COUNT(*) AS n FROM bh_listings WHERE category = ? GROUP BY state ORDER BY state",
+            (category,),
         ).fetchall()
     return jsonify([{"state": r["state"], "count": r["n"]} for r in rows]), 200
 
@@ -66,19 +91,22 @@ def list_states():
 @beachhouse_web_bp.route("/api/p/beachhouse/search", methods=["GET"])
 @_require_key
 def search():
-    # states: comma-separated, e.g. "Virginia,North Carolina" -- lets Donna
-    # pick any combination rather than one state at a time.
+    category = request.args.get("category", "").strip()
+    if not _valid_category(category):
+        return jsonify({"error": f"category must be one of {list(CATEGORIES)}"}), 400
+
+    # states: comma-separated, e.g. "Virginia,North Carolina" -- lets
+    # Bill/Melanie pick any combination rather than one state at a time.
     states = [s.strip() for s in request.args.get("states", "").split(",") if s.strip()]
     source = request.args.get("source", "").strip()
     review_status = request.args.get("review_status", "").strip()
     min_bedrooms = request.args.get("min_bedrooms", "").strip()
+    max_bedrooms = request.args.get("max_bedrooms", "").strip()
     min_bathrooms = request.args.get("min_bathrooms", "").strip()
-    pool_required = request.args.get("pool_required", "").strip() == "1"
-    oceanfront_required = request.args.get("oceanfront_required", "").strip() == "1"
     q = request.args.get("q", "").strip()
 
-    clauses = []
-    params: list = []
+    clauses = ["category = ?"]
+    params: list = [category]
     if states:
         clauses.append(f"state IN ({', '.join(['?'] * len(states))})")
         params.extend(states)
@@ -90,27 +118,31 @@ def search():
         params.append(review_status)
     else:
         # default view excludes dismissed candidates so the list doesn't
-        # keep showing houses Bill/Donna already ruled out
+        # keep showing houses already ruled out
         clauses.append("review_status != 'dismissed'")
     if min_bedrooms.isdigit():
         clauses.append("bedrooms >= ?")
         params.append(int(min_bedrooms))
+    if max_bedrooms.isdigit():
+        clauses.append("bedrooms <= ?")
+        params.append(int(max_bedrooms))
     if min_bathrooms:
         try:
             clauses.append("bathrooms >= ?")
             params.append(float(min_bathrooms))
         except ValueError:
             pass
-    if pool_required:
-        clauses.append("has_pool = 1")
-    if oceanfront_required:
-        clauses.append("oceanfront = 1")
+    # amenity_<key>=1 for any amenity in this category's set -- e.g.
+    # amenity_hot_tub=1&amenity_fireplace=1
+    for amenity in AMENITY_FIELDS:
+        if request.args.get(f"amenity_{amenity}", "").strip() == "1":
+            clauses.append(f"{amenity} = 1")
     if q:
         clauses.append("(name LIKE ? OR city LIKE ? OR description LIKE ?)")
         like = f"%{q}%"
         params.extend([like, like, like])
 
-    where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+    where = f"WHERE {' AND '.join(clauses)}"
     with get_connection() as conn:
         rows = conn.execute(
             f"SELECT * FROM bh_listings {where} ORDER BY review_status = 'saved' DESC, state, city, bedrooms DESC",
@@ -126,7 +158,7 @@ def get_listing(listing_id: int):
         row = conn.execute("SELECT * FROM bh_listings WHERE id = ?", (listing_id,)).fetchone()
     if not row:
         return jsonify({"error": "not found"}), 404
-    return jsonify(dict(row)), 200
+    return jsonify(_row_to_summary(dict(row)) | {"description": row["description"]}), 200
 
 
 @beachhouse_web_bp.route("/api/p/beachhouse/listing/<int:listing_id>/status", methods=["POST"])
