@@ -9,6 +9,7 @@ data/curator.db
 data/trading.db
 data/servantcare.db
 data/servantcare_images/
+data/beachhouse.db
 data/session_archives/
 __pycache__/
 *.pyc
