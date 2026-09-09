@@ -1,10 +1,15 @@
 # Watson Bug Tracker
 _Auto-generated nightly from bug_tracker. Source of truth is the database — do not hand-edit this file, changes will be overwritten._
-Last generated: 2026-09-08 02:10
+Last generated: 2026-09-09 02:10
 
-## Open (44)
+## Open (49)
 | ID | Title | Repo | Discovered |
 |---|---|---|---|
+| 147 | jobs.browser: goto_safe failed for https://www.beenverified.com/people/mikhaela-molanders/de/ | watson | 2026-09-08 09:31:18 |
+| 146 | jobs.browser: goto_safe failed for https://www.beenverified.com/people/emily-yomes/de/ | watson | 2026-09-08 09:31:03 |
+| 145 | jobs.browser: goto_safe failed for https://www.beenverified.com/people/micah-yomes/de/ | watson | 2026-09-08 09:30:47 |
+| 144 | jobs.browser: goto_safe failed for https://www.beenverified.com/people/melanie-yomes/de/ | watson | 2026-09-08 09:30:32 |
+| 143 | jobs.browser: goto_safe failed for https://www.beenverified.com/people/william-yomes/de/ | watson | 2026-09-08 09:30:16 |
 | 141 | jobs.browser: goto_safe failed for https://www.beenverified.com/people/mikhaela-molanders/de/ | watson | 2026-09-07 09:31:05 |
 | 140 | jobs.browser: goto_safe failed for https://www.beenverified.com/people/emily-yomes/de/ | watson | 2026-09-07 09:30:50 |
 | 139 | jobs.browser: goto_safe failed for https://www.beenverified.com/people/micah-yomes/de/ | watson | 2026-09-07 09:30:34 |
@@ -53,6 +58,9 @@ Last generated: 2026-09-08 02:10
 ## Recently Resolved (last 30 days)
 | ID | Title | Repo | Resolved | Commit |
 |---|---|---|---|---|
+| 152 | "assign X to me" would write literal "Bill Yomes" into members.deacon | watson | 2026-09-08 19:07:44 | 5ac7aa9 |
+| 151 | data_chat generated wrong SQL for partner/deacon-gap questions | watson | 2026-09-08 12:44:30 | 6083f25 |
+| 150 | UnboundLocalError crashed all leader/team-chat Telegram messages | watson | 2026-09-08 12:40:15 | 114d148 |
 | 142 | Leadership-only prayer requests written as leadership_only=0 | watson | 2026-09-07 13:17:20 | 52145b1 |
 | 98 | connect_cards intake truncates multi-line question/comment field | watson | 2026-09-06 03:47:09 | a90d6d5 |
 | 97 | Dashboard SSE chat KB pre-check imports nonexistent kb_search.run | watson | 2026-09-06 03:47:09 | bef91e6 |
