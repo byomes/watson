@@ -263,22 +263,58 @@ def _fetch_daily_rows(conn, days: int | None):
     ).fetchall()
 
 
-def _savings_summary(daily_with_cost: list[dict], cumulative_savings_usd: float, daily_rows) -> dict:
+def _merge_historical_backfill(measured_days: list[dict]) -> list[dict]:
+    """Tags measured days and prepends modeled pre-sampler days from
+    historical_activity_backfill.py's cache, if it's been generated. See that
+    module's docstring -- modeled days are a rough log-activity proxy, never
+    a measurement, and are always tagged source="modeled" so callers can
+    keep them visually/semantically distinct."""
+    from jobs.dev.historical_activity_backfill import load_backfill
+
+    measured_tagged = [{**d, "source": "measured"} for d in measured_days]
+    backfill = load_backfill()
+    if not backfill.get("available"):
+        return measured_tagged
+
+    modeled_tagged = [
+        {
+            "day": day,
+            "estimated_vps_daily_usd": info["estimated_usd"],
+            "activity_count": info["activity_count"],
+            "source": "modeled",
+        }
+        for day, info in sorted(backfill["days"].items())
+    ]
+    return modeled_tagged + measured_tagged
+
+
+def _savings_summary(combined_daily: list[dict]) -> dict:
     today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     month_str = today_str[:7]
+
+    def _sum(rows):
+        vals = [d["estimated_vps_daily_usd"] for d in rows if d.get("estimated_vps_daily_usd") is not None]
+        return round(sum(vals), 2) if vals else 0.0
+
+    measured = [d for d in combined_daily if d["source"] == "measured"]
+    modeled = [d for d in combined_daily if d["source"] == "modeled"]
+
     today_usd = next(
-        (d["estimated_vps_daily_usd"] for d in daily_with_cost if d["day"] == today_str), None
+        (d["estimated_vps_daily_usd"] for d in combined_daily if d["day"] == today_str), None
     )
-    month_usd = round(sum(
-        d["estimated_vps_daily_usd"] for d in daily_with_cost
-        if d["day"].startswith(month_str) and d["estimated_vps_daily_usd"] is not None
-    ), 2)
+    month_usd = _sum(d for d in combined_daily if d["day"].startswith(month_str))
+
     return {
         "today_usd": today_usd,
         "this_month_usd": month_usd,
-        "total_usd": round(cumulative_savings_usd, 2),
-        "since": daily_rows[0]["day"] if daily_rows else None,
-        "days_counted": len(daily_with_cost),
+        "total_usd": round(_sum(measured) + _sum(modeled), 2),
+        "measured_usd": _sum(measured),
+        "modeled_usd": _sum(modeled),
+        "since": combined_daily[0]["day"] if combined_daily else None,
+        "measured_since": measured[0]["day"] if measured else None,
+        "days_counted": len(combined_daily),
+        "measured_days_counted": len(measured),
+        "modeled_days_counted": len(modeled),
     }
 
 
@@ -346,7 +382,6 @@ def build_estimate(sizing_window_days: int = 7, daily_rows_days: int | None = No
     # peak instead of the whole window's. This is the number Bill actually
     # wants to see day to day: what the Beelink saved him vs. renting.
     daily_with_cost = []
-    cumulative_savings_usd = 0.0
     for row in daily_rows:
         d = dict(row)
         day_vcpu = max(1, math.ceil((d["peak_cpu"] / 100) * total_cores * CPU_HEADROOM))
@@ -354,9 +389,9 @@ def build_estimate(sizing_window_days: int = 7, daily_rows_days: int | None = No
         day_disk_gb = round(d["disk_used"] * DISK_HEADROOM, 1)
         day_agg = _aggregate(providers, day_vcpu, day_ram_gb, day_disk_gb)
         d["estimated_vps_daily_usd"] = day_agg["average_daily_usd"]
-        if day_agg["average_daily_usd"] is not None:
-            cumulative_savings_usd += day_agg["average_daily_usd"]
         daily_with_cost.append(d)
+
+    combined_daily = _merge_historical_backfill(daily_with_cost)
 
     return {
         "available": True,
@@ -378,8 +413,8 @@ def build_estimate(sizing_window_days: int = 7, daily_rows_days: int | None = No
         },
         "recommended": _aggregate(providers, required_vcpu, required_ram_gb, required_disk_gb),
         "beelink_match": _aggregate(providers, total_cores, BEELINK_RAM_GB, required_disk_gb),
-        "daily": daily_with_cost,
-        "savings_to_date": _savings_summary(daily_with_cost, cumulative_savings_usd, daily_rows),
+        "daily": combined_daily,
+        "savings_to_date": _savings_summary(combined_daily),
         "eur_usd_rate": eur_usd_rate,
         "headroom": {"cpu": CPU_HEADROOM, "mem": MEM_HEADROOM, "disk": DISK_HEADROOM},
     }

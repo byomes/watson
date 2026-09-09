@@ -87,6 +87,7 @@ data/exports/
 data/font_cache/
 data/imports/
 data/dev/vps_pricing_cache.json
+data/dev/historical_activity_backfill.json
 incoming/
 
 # Deployment/build artifacts
