@@ -2324,8 +2324,7 @@ async function moreLoadEvents() {
 // More-page tile: just the dollar story (today / this month / all-time) and
 // the full daily log, no provider/sizing internals.
 
-let _savingsData    = null;
-let _savingsShowAll = false;
+let _savingsData = null;
 
 async function savingsLoad() {
   const el = document.getElementById('msec-inner-savings');
@@ -2337,11 +2336,6 @@ async function savingsLoad() {
   } catch {
     el.innerHTML = '<div class="empty">Could not load savings.</div>';
   }
-}
-
-function savingsToggleShowAll() {
-  _savingsShowAll = !_savingsShowAll;
-  _savingsRender();
 }
 
 function _savingsRender() {
@@ -2356,10 +2350,7 @@ function _savingsRender() {
 
   const s = data.savings_to_date || {};
   const fmt = v => v == null ? '—' : '$' + v.toFixed(2);
-  const allRows = (data.daily || []).slice().reverse();
-  const measuredRows = allRows.filter(d => d.source === 'measured');
-  const dailyRows = _savingsShowAll ? allRows : measuredRows;
-  const hasModeled = (s.modeled_days_counted || 0) > 0;
+  const measuredRows = (data.daily || []).filter(d => d.source === 'measured').slice().reverse();
 
   let html = `
     <div class="mth-stats">
@@ -2372,34 +2363,21 @@ function _savingsRender() {
         <div class="mth-stat-lbl">This Month</div>
       </div>
       <div class="mth-stat">
-        <div class="mth-stat-num">${fmt(s.total_usd)}</div>
+        <div class="mth-stat-num">${fmt(s.measured_usd)}</div>
         <div class="mth-stat-lbl">All-Time</div>
       </div>
     </div>
     <div style="font-size:11px;color:var(--muted);margin:6px 2px 12px">
-      ${hasModeled
-        ? `${fmt(s.measured_usd)} measured since ${esc(String(s.measured_since || '').slice(0, 10))} (${s.measured_days_counted} day${s.measured_days_counted === 1 ? '' : 's'}), plus ${fmt(s.modeled_usd)} modeled from job-activity history back to ${esc(String(s.since || '').slice(0, 10))} (${s.modeled_days_counted} day${s.modeled_days_counted === 1 ? '' : 's'} — no real CPU/RAM data exists that far back, so those days are estimated from how much job activity ran, not measured).`
-        : `Since ${esc(String(s.since || '').slice(0, 10))} (${s.days_counted || 0} day${s.days_counted === 1 ? '' : 's'} of data) — estimated cost of the cheapest VPS plan covering that day's actual usage, averaged across Vultr, Linode, Hetzner, and DigitalOcean.`}
+      Since ${esc(String(s.measured_since || '').slice(0, 10))} (${s.measured_days_counted || 0} day${s.measured_days_counted === 1 ? '' : 's'} of measured data) — estimated cost of the cheapest VPS plan covering that day's actual usage, averaged across Vultr, Linode, Hetzner, and DigitalOcean.
     </div>
-    <div class="mlabel" style="display:flex;align-items:center;justify-content:space-between;margin-top:0">
-      Daily log
-      ${hasModeled ? `<button class="mbtn mbtn-sm" onclick="savingsToggleShowAll()">${_savingsShowAll ? 'Show Measured Only' : `Show Full History (${s.days_counted})`}</button>` : ''}
-    </div>`;
+    <div class="mlabel" style="margin-top:0">Daily log</div>`;
 
-  html += dailyRows.length
-    ? dailyRows.map(d => {
-        const isModeled = d.source === 'modeled';
-        const color = isModeled ? 'var(--gold)' : 'var(--green)';
-        const badge = isModeled ? _devBadge('background:rgba(201,168,76,.12);color:var(--gold);border:1px solid rgba(201,168,76,.3)', 'modeled') : '';
-        return `
+  html += measuredRows.length
+    ? measuredRows.map(d => `
         <div class="mpn-card" style="padding:8px 12px;display:flex;align-items:center;justify-content:space-between;gap:8px">
-          <div style="display:flex;align-items:center;gap:6px">
-            <div style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text-muted)">${esc(d.day)}</div>
-            ${badge}
-          </div>
-          <div style="font-size:14px;font-weight:700;color:${color}">${d.estimated_vps_daily_usd != null ? '+$' + d.estimated_vps_daily_usd.toFixed(2) : '—'}</div>
-        </div>`;
-      }).join('')
+          <div style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text-muted)">${esc(d.day)}</div>
+          <div style="font-size:14px;font-weight:700;color:var(--green)">${d.estimated_vps_daily_usd != null ? '+$' + d.estimated_vps_daily_usd.toFixed(2) : '—'}</div>
+        </div>`).join('')
     : '<div class="empty">No daily rows yet.</div>';
 
   el.innerHTML = html;
