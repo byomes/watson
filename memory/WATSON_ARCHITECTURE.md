@@ -3543,3 +3543,45 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - 4712145 Add edit/delete to deacon notes in the Shepherding App
 - 3ae4015 Add Watson (Telegram) shortcut to Deacon App bottom nav
 - a3830b6 Fix: deacon app PIN pad ignored keyboard input on desktop
+
+---
+
+## Recent Changes — 2026-09-10
+
+### ~/watson
+- 0abcced docs: bugs/backlog export 2026-09-10
+- 200dfff docs: file map 2026-09-10
+- 1970b3b Update Watson's standard email signature
+- fadc97f Fix house call skill missing real messages with filler words
+- f43121a Recognize "home removal" as the same job as "house call"
+- 40d47e9 Track date/time and $100 rate on house calls, parse natural-language texts
+- 76e31c3 Add house call tracking for Bill's funeral home pay report
+- ee02a3d Recognize "add" in deacon-assign chat command, catch incomplete assign requests
+- 32d5a1b Widen fast-path learning loop to successful-but-Claude-billed Team Chat questions, run nightly
+- 12eab8e dev: backfill pre-sampler savings from job-activity history
+- 69dbc6b dashboard: add Savings tile to More page
+- 4979e46 dev: add daily $ savings log to VPS cost estimate
+- 3513b5c Add Getaway Search tile to dashboard More tab
+- 1335bb5 beachhouse: add sort=drive_asc/drive_desc to search + deals search
+- 22f83ed dashboard: add Getaway Search link to header
+- 451e22f flash_scraper: drop out-of-area deals instead of mislabeling their drive time
+- d5efcc5 beachhouse: add Flash tab -- Travelzoo same-week hotel deals near home
+- bc18935 beachhouse: town name + drive time from home on every listing
+- d9aadfc beachhouse: manual price_low/price_high + max-price search filter
+- 7ee8b45 beachhouse: generalize into Beach/Mountain/Romance getaway categories
+- 8ce6b45 beachhouse: decode HTML entities in scraped title/description
+- 18442a4 beachhouse: user-adjustable search criteria, GA/FL coverage, manual price notes
+- 94ccb8b Add jobs/beachhouse — Beach House Search for the family reunion week
+- 3c0e018 Rescope VPS cost estimate to a multi-provider average
+- a8c43d4 Live-fetch Hetzner VPS pricing instead of a hardcoded snapshot
+- fafc6e0 Silence nightly no-op Telegram ping from Claude export sync
+- b34f94b docs: architecture update 2026-09-09
+
+### ~/watson-tools
+- ac2332c beachhouse UI: Sort by drive time dropdown on both tab types
+- 0cbcc92 beachhouse UI: add Flash tab for same-week hotel deals near home
+- 5ae651a beachhouse UI: show town, state, and drive time on every card
+- 04de95f beachhouse UI: max-price filter + structured low/high price entry
+- 0af4766 beachhouse UI: Beach/Mountain/Romance tabs
+- 1860247 beachhouse UI: multi-state checkboxes, adjustable criteria, price notes
+- d99fc82 Add wtsn.me/p/beachhouse — Beach House Search
