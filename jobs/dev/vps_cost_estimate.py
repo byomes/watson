@@ -302,7 +302,10 @@ def _savings_summary(combined_daily: list[dict]) -> dict:
     today_usd = next(
         (d["estimated_vps_daily_usd"] for d in combined_daily if d["day"] == today_str), None
     )
-    month_usd = _sum(d for d in combined_daily if d["day"].startswith(month_str))
+    # measured-only, to match the All-Time tile (savings_to_date.measured_usd) --
+    # otherwise a few pre-sampler modeled days landing in the current calendar
+    # month get counted in "This Month" but not in "All-Time", which mismatches.
+    month_usd = _sum(d for d in measured if d["day"].startswith(month_str))
 
     return {
         "today_usd": today_usd,
