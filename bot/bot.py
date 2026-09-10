@@ -946,18 +946,39 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
         _leader_name = _team_member_name_for_chat(_chat_id) or _deacon_name_for_chat(_chat_id)
         if _leader_name:
             _msg_text = update.message.text or ""
+            _is_family_editor = _leader_name in _FAMILY_EDIT_ALLOWLIST
+            _add_child = _extract_add_child(_msg_text) if _is_family_editor else None
+            _bday_update = (
+                _extract_birthday_update(_msg_text) if (_is_family_editor and not _add_child) else None
+            )
             _is_assigner = _leader_name in _DEACON_ASSIGN_ALLOWLIST
-            _assign = _extract_deacon_assign(_msg_text) if _is_assigner else None
+            _assign = (
+                _extract_deacon_assign(_msg_text)
+                if (_is_assigner and not _add_child and not _bday_update) else None
+            )
             _assign_incomplete = (
-                bool(_assign is None and _is_assigner and _DEACON_ASSIGN_INCOMPLETE_RE.match(_msg_text.strip()))
+                bool(
+                    _assign is None and _is_assigner and not _add_child and not _bday_update
+                    and _DEACON_ASSIGN_INCOMPLETE_RE.match(_msg_text.strip())
+                )
             )
             from jobs.telegram.leader_tool_usage import log_usage as _log_leader_tool_usage
             with get_connection() as _lc:
                 _log_leader_tool_usage(
                     _lc, _leader_name, _chat_id,
-                    "deacon_assign" if _assign else ("deacon_assign_incomplete" if _assign_incomplete else "team_chat"),
+                    "add_child" if _add_child else (
+                        "update_birthdate" if _bday_update else (
+                            "deacon_assign" if _assign else (
+                                "deacon_assign_incomplete" if _assign_incomplete else "team_chat"
+                            )
+                        )
+                    ),
                 )
-            if _assign:
+            if _add_child:
+                await _handle_add_child(update, _leader_name, *_add_child)
+            elif _bday_update:
+                await _handle_birthday_update(update, _leader_name, *_bday_update)
+            elif _assign:
                 await _handle_deacon_assign(update, _leader_name, *_assign)
             elif _assign_incomplete:
                 await update.message.reply_text(
@@ -2257,6 +2278,71 @@ def _extract_deacon_assign(text: str) -> tuple[str, str] | None:
     return (person, deacon) if person and deacon else None
 
 
+# Per Bill's 2026-09-10 request, adding a child (a genuinely unguarded
+# congregation.db write via free-text parsing) is restricted to these four --
+# the three routed through _handle_text_body's onboarded-leader branch below,
+# plus Bill Yomes wired separately in _handle_general (his own chat skips
+# that branch entirely, same split as _DEACON_ASSIGN_ALLOWLIST above).
+_FAMILY_EDIT_ALLOWLIST = frozenset({"Bill Crook", "Jim Bouchat", "Donna Redman"})
+
+
+def _extract_add_child(text: str) -> tuple[str, str, str] | None:
+    """Recognize "add child <name> to <parent>, born/dob <date>" or
+    "add <name> as a child of <parent>, born/dob <date>" and return
+    (child_name, parent_query, date_raw), or None. Checked before
+    _extract_deacon_assign in both call sites -- "add child X to Y" would
+    otherwise also match that function's own "add <person> to <deacon>"
+    pattern."""
+    text = text.strip()
+    m = re.search(
+        r"add\s+child\s+(.+?)\s+to\s+(.+?)[,]?\s*(?:born|dob|birthdate|birthday)\s*[:\-]?\s*(.+?)[.!]?$",
+        text, re.IGNORECASE,
+    )
+    if not m:
+        m = re.search(
+            r"add\s+(.+?)\s+as\s+(?:a\s+)?child\s+of\s+(.+?)[,]?\s*(?:born|dob|birthdate|birthday)\s*[:\-]?\s*(.+?)[.!]?$",
+            text, re.IGNORECASE,
+        )
+    if not m:
+        return None
+    child = m.group(1).strip(" .,")
+    parent = m.group(2).strip(" .,")
+    date_raw = m.group(3).strip(" .,")
+    return (child, parent, date_raw) if child and parent and date_raw else None
+
+
+def _extract_birthday_update(text: str) -> tuple[str, str] | None:
+    """Recognize "<name>'s birthday is <date>", "update/set/fix <name>'s
+    birthday to <date>", or "<name> was born <date>" and return
+    (name_query, date_raw), or None."""
+    text = text.strip()
+    m = re.search(
+        r"(?:update|set|fix|correct)\s+(.+?)(?:'s)?\s+birthday\s+(?:to|is)\s+(.+?)[.!]?$",
+        text, re.IGNORECASE,
+    )
+    if not m:
+        m = re.search(r"(.+?)'s\s+birthday\s+is\s+(.+?)[.!]?$", text, re.IGNORECASE)
+    if not m:
+        m = re.search(r"(.+?)\s+was\s+born\s+(?:on\s+)?(.+?)[.!]?$", text, re.IGNORECASE)
+    if not m:
+        return None
+    name = m.group(1).strip(" .,")
+    date_raw = m.group(2).strip(" .,")
+    return (name, date_raw) if name and date_raw else None
+
+
+async def _handle_add_child(update: Update, sender_name: str, child_name: str, parent_query: str, date_raw: str) -> None:
+    from jobs.congregation.family_edit import add_child
+    reply = await asyncio.to_thread(add_child, child_name, parent_query, date_raw, sender_name)
+    await update.message.reply_text(reply)
+
+
+async def _handle_birthday_update(update: Update, sender_name: str, name_query: str, date_raw: str) -> None:
+    from jobs.congregation.family_edit import update_birthdate
+    reply = await asyncio.to_thread(update_birthdate, name_query, date_raw, sender_name)
+    await update.message.reply_text(reply)
+
+
 def _resolve_deacon_name(query: str, sender_name: str) -> str | None:
     """Match a free-typed deacon name against the real roster
     (deacon_reports.list_deacons()) -- exact (case-insensitive) first, then
@@ -2791,6 +2877,24 @@ async def _try_congregation_data_lookup(text: str) -> str | None:
 
 
 async def _handle_general(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str) -> str:
+    # Add-child / birthday-update via chat, added 2026-09-10, extended to
+    # Dr. Bill's own chat the same way deacon reassignment was 2026-09-08 --
+    # parallel wiring for the one chat that skips _handle_text_body's
+    # onboarded-leader branch (and thus _FAMILY_EDIT_ALLOWLIST) entirely. No
+    # allowlist check needed here: only reached from Bill's own authorized
+    # chat. Checked before _extract_deacon_assign below since "add child X
+    # to Y" would otherwise also match that function's "add <person> to
+    # <deacon>" pattern.
+    _add_child = _extract_add_child(text)
+    if _add_child:
+        await _handle_add_child(update, "Bill Yomes", *_add_child)
+        return ""
+
+    _bday_update = _extract_birthday_update(text)
+    if _bday_update:
+        await _handle_birthday_update(update, "Bill Yomes", *_bday_update)
+        return ""
+
     # Deacon reassignment via chat, extended to Dr. Bill's own chat 2026-09-08
     # (previously Bill Crook/Jim Bouchat only, via _DEACON_ASSIGN_ALLOWLIST in
     # _handle_text_body -- this is the parallel wiring for the one chat that
