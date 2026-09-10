@@ -15,9 +15,10 @@ Backs up:
   - ~/.claude/projects (2026-08-30 addition) — Claude Code's own session
     memory, not reconstructible from anything else on the box
   - CODE_REPO_SOURCES: every actively-developed byomes repo on this box
-    (2026-08-22 addition) — full working trees, including uncommitted
-    changes and .git history, so the machine can be recreated from this
-    drive alone even if something was never pushed to GitHub. Excludes
+    (2026-08-22 addition, widened 2026-08-31/2026-09-10 as new repos went
+    live) — full working trees, including uncommitted changes and .git
+    history, so the machine can be recreated from this drive alone even
+    if something was never pushed to GitHub. Excludes
     node_modules/venv/.next/dist/build/__pycache__ (regenerate via a
     normal install step on restore, not worth the backup size/time).
 
@@ -85,6 +86,8 @@ CODE_REPO_SOURCES = [
     f"{HOME_DIR}/curator",
     f"{HOME_DIR}/bodyrec",
     f"{HOME_DIR}/fms",
+    f"{HOME_DIR}/hamprep",
+    f"{HOME_DIR}/micah-tasks",
 ]
 
 # Regenerable via a normal install step on restore (npm/pip install, next
