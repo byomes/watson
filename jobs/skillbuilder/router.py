@@ -130,8 +130,8 @@ _SKILL_PRE_CHECKS: dict[str, tuple] = {
         "what do i have today", "what do i have on",
     ),
     "log_house_call": (
-        "house call:", "house call for", "log house call", "log a house call",
-        "home removal:", "home removal for", "log home removal", "log a home removal",
+        "house call", "log house call", "log a house call",
+        "home removal", "log home removal", "log a home removal",
     ),
 }
 

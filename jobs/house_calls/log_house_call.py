@@ -31,7 +31,8 @@ _COLON_RE = re.compile(
 # to the next sentence break or a trailing clause word.
 _FOR_RE = re.compile(
     rf'{_TERM}\b.{{0,20}}?\bfor\b\s+(?:the\s+)?(?P<name>.+?)'
-    r'(?=\s+family\b|[.!?,]|\s+please\b|\s+so\b|\s+which\b|\s+is\b|\s+was\b|$)',
+    r'(?=\s+family\b|[.!?,]|\s+please\b|\s+so\b|\s+which\b|\s+is\b|\s+was\b'
+    r'|\s+today\b|\s+tonight\b|\s+yesterday\b|$)',
     re.IGNORECASE,
 )
 
@@ -39,7 +40,13 @@ _FOR_RE = re.compile(
 def _extract_family_name(text: str) -> str:
     m = _COLON_RE.search(text) or _FOR_RE.search(text)
     name = m.group("name") if m else ""
-    name = re.sub(r'^the\s+', '', name, flags=re.IGNORECASE)
+    # "for a man named John Smith" / "for someone named John Smith" — the
+    # real name is whatever follows "named", not the descriptive filler
+    # in front of it.
+    named_m = re.search(r'\bnamed\s+(?P<n>.+)', name, re.IGNORECASE)
+    if named_m:
+        name = named_m.group("n")
+    name = re.sub(r'^(?:the|an?)\s+', '', name, flags=re.IGNORECASE)
     name = re.sub(r'\s+family\s*$', '', name, flags=re.IGNORECASE)
     return re.sub(r'\s+', ' ', name).strip(" ,.;:!?").strip()
 

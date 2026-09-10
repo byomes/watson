@@ -1022,10 +1022,12 @@
       "description": "Log a funeral home house call (aka home removal) by name for Bill's monthly pay report to Jim.",
       "category": "Personal",
       "triggers": [
+        "house call",
         "house call:",
         "house call for",
         "log house call",
         "log a house call",
+        "home removal",
         "home removal:",
         "home removal for",
         "log home removal",
