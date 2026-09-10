@@ -2,7 +2,8 @@
 state_of_church.py — Weekly State of the Church report.
 
 Queries congregation.db, synthesizes via Ollama (qwen2.5:7b),
-and emails an HTML pastoral digest to pastorbill@catalyst302.com.
+and emails an HTML pastoral digest to Bill Yomes, Bill Crook, and
+Jim Bouchat (see TO_ADDRS).
 
 Cron: Thu 4:00pm
   0 16 * * 4  PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python -m jobs.connect_cards.state_of_church >> /home/billyomes/watson/logs/state_of_church.log 2>&1
@@ -35,7 +36,11 @@ load_dotenv(os.path.expanduser("~/watson/.env"))
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger(__name__)
 
-TO_ADDR      = "pastorbill@catalyst302.com"
+TO_ADDRS     = [
+    ("pastorbill@catalyst302.com", ""),
+    ("wccrook@verizon.net", "Bill Crook"),
+    ("jim.bouchat@verizon.net", "Jim Bouchat"),
+]
 CONG_DB      = os.path.expanduser("~/watson/data/congregation.db")
 BENCHMARKS_DOC = os.path.expanduser("~/watson/memory/projects/benchmarks.md")
 OLLAMA_URL   = "http://localhost:11434/api/generate"
@@ -999,13 +1004,14 @@ def build_report() -> tuple[str, str, str]:
 # ── Send ───────────────────────────────────────────────────────────────────────
 
 def send_report(subject: str, html: str, plain: str) -> None:
-    result = send_email(
-        to_email=TO_ADDR, to_name="", subject=subject,
-        text_body=plain, html_body=html, include_signature=False,
-    )
-    if not result["success"]:
-        raise RuntimeError(f"Brevo send failed: {result['error']}")
-    log.info("Sent: %r → %s", subject, TO_ADDR)
+    for to_email, to_name in TO_ADDRS:
+        result = send_email(
+            to_email=to_email, to_name=to_name, subject=subject,
+            text_body=plain, html_body=html, include_signature=False,
+        )
+        if not result["success"]:
+            raise RuntimeError(f"Brevo send failed for {to_email}: {result['error']}")
+        log.info("Sent: %r → %s", subject, to_email)
 
 
 # ── Entry point ────────────────────────────────────────────────────────────────
@@ -1027,7 +1033,8 @@ if __name__ == "__main__":
     print(html[:500])
 
     if args.dry_run:
-        print(f"\n[dry-run] Would send: {subject!r} → {TO_ADDR}")
+        addrs = ", ".join(e for e, _ in TO_ADDRS)
+        print(f"\n[dry-run] Would send: {subject!r} → {addrs}")
         print(f"[dry-run] Content-Type: multipart/alternative (text/plain + text/html)")
         sys.exit(0)
 
