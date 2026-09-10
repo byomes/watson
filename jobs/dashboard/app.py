@@ -2542,6 +2542,32 @@ def house_calls_set_paid(call_id):
     return jsonify({"ok": True})
 
 
+@app.route("/api/house-calls/<int:call_id>", methods=["PATCH"])
+def house_calls_update(call_id):
+    from jobs.house_calls.db import update_call
+    data = request.get_json(force=True) or {}
+    family_last_name = data.get("family_last_name")
+    if family_last_name is not None:
+        family_last_name = family_last_name.strip()
+        if not family_last_name:
+            return jsonify({"error": "family_last_name cannot be blank"}), 400
+    update_call(
+        call_id,
+        family_last_name=family_last_name,
+        called_at=data.get("called_at"),
+        amount=data.get("amount"),
+        notes=data.get("notes"),
+    )
+    return jsonify({"ok": True})
+
+
+@app.route("/api/house-calls/<int:call_id>", methods=["DELETE"])
+def house_calls_delete(call_id):
+    from jobs.house_calls.db import delete_call
+    delete_call(call_id)
+    return jsonify({"ok": True})
+
+
 @app.route("/api/project-backlog")
 def project_backlog_list():
     rows = _db().execute("""

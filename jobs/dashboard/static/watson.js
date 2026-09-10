@@ -2412,16 +2412,23 @@ function _houseCallRow(r) {
   const isPaid = !!r.paid_at;
   const sub = `${esc(_hcWhenLabel(r.called_at))} · $${r.amount.toFixed(2)}${r.reported_at ? ' · reported' : ''}`;
   return `
-    <div class="mpn-card" style="padding:8px 12px;display:flex;align-items:center;justify-content:space-between;gap:8px">
-      <div style="min-width:0">
-        <div style="font-size:13px;font-weight:500">${esc(r.family_last_name)}</div>
-        <div style="font-size:11px;color:var(--muted)">${sub}</div>
+    <div class="mpn-card" id="mhc-card-${r.id}" style="padding:8px 12px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+        <div style="min-width:0">
+          <div style="font-size:13px;font-weight:500">${esc(r.family_last_name)}</div>
+          <div style="font-size:11px;color:var(--muted)">${sub}</div>
+        </div>
+        <label class="mswitch" title="Paid">
+          <input type="checkbox" ${isPaid ? 'checked' : ''} onchange="houseCallTogglePaid(${r.id}, this.checked)">
+          <span class="mswitch-track"></span>
+          <span class="mswitch-thumb"></span>
+        </label>
       </div>
-      <label class="mswitch" title="Paid">
-        <input type="checkbox" ${isPaid ? 'checked' : ''} onchange="houseCallTogglePaid(${r.id}, this.checked)">
-        <span class="mswitch-track"></span>
-        <span class="mswitch-thumb"></span>
-      </label>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button class="mbtn mbtn-sm" onclick="houseCallToggleEdit(${r.id})">Edit</button>
+        <button class="mbtn mbtn-sm mbtn-d" onclick="houseCallDelete(${r.id})">Delete</button>
+      </div>
+      <div id="mhc-edit-${r.id}" style="display:none"></div>
     </div>`;
 }
 
@@ -2440,6 +2447,74 @@ async function houseCallTogglePaid(id, isPaid) {
     if (row) row.paid_at = prevPaidAt;
     _houseCallsRender();
     alert('Failed to update paid status.');
+  }
+}
+
+let _houseCallEditId = null;
+
+function houseCallToggleEdit(id) {
+  const expEl = document.getElementById(`mhc-edit-${id}`);
+  if (!expEl) return;
+  if (_houseCallEditId === id) {
+    expEl.style.display = 'none';
+    expEl.innerHTML = '';
+    _houseCallEditId = null;
+    return;
+  }
+  if (_houseCallEditId !== null) {
+    const prev = document.getElementById(`mhc-edit-${_houseCallEditId}`);
+    if (prev) { prev.style.display = 'none'; prev.innerHTML = ''; }
+  }
+  _houseCallEditId = id;
+  const r = (_houseCallsData || []).find(x => x.id === id);
+  if (!r) return;
+  const [datePart, timePart] = String(r.called_at || '').split(' ');
+  expEl.innerHTML = `
+    <div class="mform" style="margin-top:8px">
+      <input id="mhc-name-${id}" type="text" value="${esc(r.family_last_name)}" placeholder="Family last name">
+      <div style="display:flex;gap:8px">
+        <input id="mhc-date-${id}" type="date" value="${esc(datePart || '')}" style="flex:1;color-scheme:dark">
+        <input id="mhc-time-${id}" type="time" value="${esc(timePart || '')}" style="flex:1;color-scheme:dark">
+      </div>
+      <input id="mhc-amt-${id}" type="number" step="0.01" value="${r.amount}" placeholder="Amount">
+      <div class="mfrow">
+        <button class="mbtn mbtn-p mbtn-sm" onclick="houseCallSaveEdit(${id})">Save</button>
+        <button class="mbtn mbtn-sm" onclick="houseCallToggleEdit(${id})">Cancel</button>
+      </div>
+    </div>`;
+  expEl.style.display = 'block';
+}
+
+async function houseCallSaveEdit(id) {
+  const name = (document.getElementById(`mhc-name-${id}`).value || '').trim();
+  const date = document.getElementById(`mhc-date-${id}`).value;
+  const time = document.getElementById(`mhc-time-${id}`).value || '00:00';
+  const amount = parseFloat(document.getElementById(`mhc-amt-${id}`).value);
+  if (!name) { alert('Family last name is required.'); return; }
+  if (!date || isNaN(amount)) { alert('Date and amount are required.'); return; }
+  try {
+    await api(`/api/house-calls/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ family_last_name: name, called_at: `${date} ${time}`, amount }),
+    });
+    _houseCallEditId = null;
+    moreLoadHouseCalls();
+  } catch {
+    alert('Failed to save changes.');
+  }
+}
+
+async function houseCallDelete(id) {
+  const r = (_houseCallsData || []).find(x => x.id === id);
+  const label = r ? `${r.family_last_name} (${_hcWhenLabel(r.called_at)})` : 'this call';
+  if (!confirm(`Delete ${label}? This cannot be undone.`)) return;
+  try {
+    await api(`/api/house-calls/${id}`, { method: 'DELETE' });
+    _houseCallEditId = null;
+    moreLoadHouseCalls();
+  } catch {
+    alert('Failed to delete.');
   }
 }
 

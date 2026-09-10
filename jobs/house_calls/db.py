@@ -158,3 +158,36 @@ def mark_unpaid(ids: list[int]) -> None:
             "UPDATE house_calls SET paid_at = NULL WHERE id = ?",
             [(i,) for i in ids],
         )
+
+
+def update_call(call_id: int, family_last_name: str | None = None,
+                 called_at: str | None = None, amount: float | None = None,
+                 notes: str | None = None) -> None:
+    """Correct a misheard/mistyped row (e.g. wrong name or time). Only the
+    passed fields are changed; reported_at/paid_at are untouched here."""
+    fields, params = [], []
+    if family_last_name is not None:
+        fields.append("family_last_name = ?")
+        params.append(family_last_name)
+    if called_at is not None:
+        fields.append("called_at = ?")
+        params.append(called_at)
+    if amount is not None:
+        fields.append("amount = ?")
+        params.append(amount)
+    if notes is not None:
+        fields.append("notes = ?")
+        params.append(notes)
+    if not fields:
+        return
+    params.append(call_id)
+    with conn() as c:
+        c.execute(f"UPDATE house_calls SET {', '.join(fields)} WHERE id = ?", params)
+
+
+def delete_call(call_id: int) -> None:
+    """Remove a row entirely — for test/junk entries, not normal correction
+    (use update_call for that). Unlike reported_at, this is an actual
+    delete, so it's only for rows that should never have existed."""
+    with conn() as c:
+        c.execute("DELETE FROM house_calls WHERE id = ?", (call_id,))
