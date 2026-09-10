@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-09-09*
+*Generated: 2026-09-10*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -85,6 +85,8 @@ data/
         sh004_label_injection_test.mbz
         sh004_multisection_test.mbz
         sh004_multisection_test_v2.mbz
+  beachhouse.db
+  beachhouse.db.bak-pre-categories
   campaigns/
     WCKY-Book-Launch-Framework.md
     twj/
@@ -106,6 +108,9 @@ data/
   cron_backups/
     crontab_20260905-223718.txt
   curator.db
+  dev/
+    historical_activity_backfill.json
+    vps_pricing_cache.json
   donors.db
   exports/
     kit_export_20260817-184426.json
@@ -3992,6 +3997,22 @@ data/
         trust-issues-outline-draft.txt
       20260908-141410-sermon-series-retired-direct-to-manuscript-pivot-c/
         transcript.md
+      20260909-085842-ghostwriting-interview-pass-ch-1-2-and-4-material/
+        transcript.md
+      20260909-141718-interview-session-chapters-3-4-5-6-story-gathering/
+        transcript.md
+      20260909-142209-ghostwriting-pass-chapter-1-full-draft-2-180-words/
+        Chapter_1_The_Thing_Nobody_Worries_About.md
+        transcript.md
+      20260909-142447-current-working-chapter-outline-everyday-ai-book/
+        everyday-ai-working-outline.txt
+        transcript.md
+      20260909-150451-driving-interview-chapter-4-5-story-gathering/
+        transcript.md
+      20260909-222429-building-the-ghostwriter-interview-protocol-and-fi/
+        field-research-protocol.md
+        ghostwriter-interview-protocol.md
+        transcript.md
     wcky-book-launch-project/
       20260826-013953-sending-giving-statements-in-tithely/
         transcript.md
@@ -4598,8 +4619,6 @@ data/
   skill_audit.json
   trading.db
   watson.db
-  watson.db-shm
-  watson.db-wal
 deploy/
   .gitkeep
   apt-packages.txt
@@ -4698,6 +4717,12 @@ jobs/
   backup.py
   backup_local.py
   batch.py
+  beachhouse/
+    __init__.py
+    beachhouse_web.py
+    flash_scraper.py
+    schema.py
+    scraper.py
   bible.py
   bodyrec/
     __init__.py
@@ -4865,6 +4890,7 @@ jobs/
     git_tools.py
     github_tools.py
     hello_dashboard.py
+    historical_activity_backfill.py
     ollama_monitor.py
     performance_profiler.py
     resource_sampler.py
@@ -4954,6 +4980,11 @@ jobs/
     __init__.py
     classroom_sync.py
     headcount_sync.py
+  house_calls/
+    __init__.py
+    db.py
+    log_house_call.py
+    monthly_report.py
   ingest_drafts.py.retired
   intent/
     __init__.py
@@ -6501,6 +6532,29 @@ src/
           lastseen/
             route.ts
       p/
+        beachhouse/
+          categories/
+            route.ts
+          deals/
+            [id]/
+              route.ts
+              status/
+                route.ts
+            search/
+              route.ts
+            towns/
+              route.ts
+          listing/
+            [id]/
+              price/
+                route.ts
+              route.ts
+              status/
+                route.ts
+          search/
+            route.ts
+          states/
+            route.ts
         servantcare/
           listing/
             [pid]/
@@ -6550,6 +6604,10 @@ src/
     layout.tsx
     not-found.tsx
     p/
+      beachhouse/
+        FlashDeals.tsx
+        GetawaySearch.tsx
+        page.tsx
       servantcare/
         ServantCareSearch.tsx
         page.tsx
