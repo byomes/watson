@@ -482,6 +482,7 @@ A skill marked **disabled** below is registered but intentionally turned off —
 
 | Skill | Status | Interfaces | Trigger phrases | What it does |
 |---|---|---|---|---|
+| **Log House Call** (`log_house_call`) | ready | telegram, dashboard | `house call`, `house call:`, `house call for`, `log house call`, `log a house call`, `home removal`, `home removal:`, `home removal for`, `log home removal`, `log a home removal` | Log a funeral home house call (aka home removal) by name for Bill's monthly pay report to Jim. |
 | **Romantic Getaway Finder** (`romantic_getaway`) | ready | telegram, dashboard | `find us a romantic getaway`, `plan a romantic trip`, `romantic getaway`, `surprise us with a trip`, `trip:` | Propose a 3-day romantic getaway (flight + hotel) for Bill and Donna, delivered privately by Telegram DM for approve/reject. Never delivered to any group, Kaci, or Donna. |
 
 ### Direct commands (bypass the skill router)
