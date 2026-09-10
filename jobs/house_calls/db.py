@@ -118,10 +118,14 @@ def unreported_calls() -> list[sqlite3.Row]:
 
 
 def all_calls(limit: int = 100) -> list[sqlite3.Row]:
+    """Dashboard log order: most-recently-*logged* call first (id DESC, which
+    tracks insertion order). Deliberately not called_at DESC — called_at can
+    be backdated or edited after the fact, and a running log should always
+    show what was just added at the top regardless of the call's own time."""
     with conn() as c:
         return c.execute(
             "SELECT id, family_last_name, called_at, amount, notes, reported_at, paid_at "
-            "FROM house_calls ORDER BY called_at DESC, id DESC LIMIT ?",
+            "FROM house_calls ORDER BY id DESC LIMIT ?",
             (limit,),
         ).fetchall()
 

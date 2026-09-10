@@ -2418,15 +2418,18 @@ function _houseCallRow(r) {
           <div style="font-size:13px;font-weight:500">${esc(r.family_last_name)}</div>
           <div style="font-size:11px;color:var(--muted)">${sub}</div>
         </div>
-        <label class="mswitch" title="Paid">
-          <input type="checkbox" ${isPaid ? 'checked' : ''} onchange="houseCallTogglePaid(${r.id}, this.checked)">
-          <span class="mswitch-track"></span>
-          <span class="mswitch-thumb"></span>
-        </label>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:3px;flex-shrink:0">
+          <span style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Paid</span>
+          <label class="mswitch">
+            <input type="checkbox" ${isPaid ? 'checked' : ''} onchange="houseCallTogglePaid(${r.id}, this.checked)">
+            <span class="mswitch-track"></span>
+            <span class="mswitch-thumb"></span>
+          </label>
+        </div>
       </div>
       <div style="display:flex;gap:8px;margin-top:8px">
         <button class="mbtn mbtn-sm" onclick="houseCallToggleEdit(${r.id})">Edit</button>
-        <button class="mbtn mbtn-sm mbtn-d" onclick="houseCallDelete(${r.id})">Delete</button>
+        <button class="mbtn mbtn-sm" onclick="houseCallDelete(${r.id})">Delete</button>
       </div>
       <div id="mhc-edit-${r.id}" style="display:none"></div>
     </div>`;
