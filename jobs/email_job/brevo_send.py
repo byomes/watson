@@ -15,8 +15,8 @@ DEFAULT_FROM_NAME = "Watson"
 _TIMEOUT = 15
 _MAX_RETRIES = 1
 
-SIGNATURE_TEXT = "\n\n--\nWatson\nDigital Assistant to Dr. Bill Yomes\nwilliamckyomes.com/start"
-SIGNATURE_HTML = '<p style="margin-top:24px;">--<br>Watson<br>Digital Assistant to Dr. Bill Yomes<br><a href="https://williamckyomes.com/start">williamckyomes.com/start</a></p>'
+SIGNATURE_TEXT = "\n\n--\nWatson\nAI-powered Digital Assistant\nThe office of Dr. Bill Yomes\nWilliamckyomes.com/start"
+SIGNATURE_HTML = '<p style="margin-top:24px;">--<br>Watson<br>AI-powered Digital Assistant<br>The office of Dr. Bill Yomes<br><a href="https://williamckyomes.com/start">Williamckyomes.com/start</a></p>'
 
 
 def _fallback_name(email):
