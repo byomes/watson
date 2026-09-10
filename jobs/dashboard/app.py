@@ -2524,6 +2524,24 @@ def dev_vps_cost_estimate():
     return jsonify(build_estimate())
 
 
+@app.route("/api/house-calls")
+def house_calls_list():
+    from jobs.house_calls.db import init_db, all_calls
+    init_db()
+    return jsonify([dict(r) for r in all_calls()])
+
+
+@app.route("/api/house-calls/<int:call_id>/paid", methods=["PATCH"])
+def house_calls_set_paid(call_id):
+    from jobs.house_calls.db import mark_paid, mark_unpaid
+    data = request.get_json(force=True) or {}
+    if data.get("paid"):
+        mark_paid([call_id])
+    else:
+        mark_unpaid([call_id])
+    return jsonify({"ok": True})
+
+
 @app.route("/api/project-backlog")
 def project_backlog_list():
     rows = _db().execute("""

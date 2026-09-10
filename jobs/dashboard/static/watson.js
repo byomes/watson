@@ -1563,18 +1563,6 @@ function renderMore() {
     </div>
     <div id="vacation-suppressed-list" style="display:none;padding:0 16px 12px"></div>
     <div class="mgrid">
-      <button class="mtile" id="mtile-ministry" onclick="moreToggle('ministry')">
-        <span class="mtile-label">Ministry</span>
-        <span class="mtile-chev">›</span>
-      </button>
-      <button class="mtile" id="mtile-events" onclick="moreToggle('events')">
-        <span class="mtile-label">Events</span>
-        <span class="mtile-chev">›</span>
-      </button>
-      <button class="mtile" id="mtile-members" onclick="moreToggle('members')">
-        <span class="mtile-label">Members</span>
-        <span class="mtile-chev">›</span>
-      </button>
       <button class="mtile" id="mtile-publishing" onclick="moreToggle('publishing')">
         <span class="mtile-label">Publishing</span>
         <span class="mtile-chev">›</span>
@@ -1599,20 +1587,12 @@ function renderMore() {
         <span class="mtile-label">Getaway Search</span>
         <span class="mtile-chev">›</span>
       </button>
-      <button class="mtile" id="mtile-links" onclick="moreToggle('links')">
-        <span class="mtile-label">Links</span>
-        <span class="mtile-chev">›</span>
-      </button>
       <button class="mtile" id="mtile-email-activity" onclick="moreToggle('email-activity')">
         <span class="mtile-label">Email Activity</span>
         <span class="mtile-chev">›</span>
       </button>
       <button class="mtile" id="mtile-telegram-log" onclick="moreToggle('telegram-log')">
         <span class="mtile-label">Telegram Log</span>
-        <span class="mtile-chev">›</span>
-      </button>
-      <button class="mtile" id="mtile-leader-usage" onclick="moreToggle('leader-usage')">
-        <span class="mtile-label">Leader Usage</span>
         <span class="mtile-chev">›</span>
       </button>
       <button class="mtile" id="mtile-privacy-guard" onclick="moreToggle('privacy-guard')">
@@ -1631,17 +1611,12 @@ function renderMore() {
         <span class="mtile-label">Savings</span>
         <span class="mtile-chev">›</span>
       </button>
+      <button class="mtile" id="mtile-house-calls" onclick="moreToggle('house-calls')">
+        <span class="mtile-label">House Calls</span>
+        <span class="mtile-chev">›</span>
+      </button>
     </div>
     <div id="more-expand-area">
-      <div class="msec-body" id="msec-body-ministry">
-        <div class="msec-inner" id="msec-inner-ministry"><div class="loading">Loading&hellip;</div></div>
-      </div>
-      <div class="msec-body" id="msec-body-events">
-        <div class="msec-inner" id="msec-inner-events"><div class="loading">Loading&hellip;</div></div>
-      </div>
-      <div class="msec-body" id="msec-body-members">
-        <div class="msec-inner" id="msec-inner-members"></div>
-      </div>
       <div class="msec-body" id="msec-body-publishing">
         <div class="msec-inner" id="msec-inner-publishing"><div class="loading">Loading&hellip;</div></div>
       </div>
@@ -1655,17 +1630,11 @@ function renderMore() {
       <div class="msec-body" id="msec-body-api">
         <div class="msec-inner" id="msec-inner-api"><div class="loading">Loading&hellip;</div></div>
       </div>
-      <div class="msec-body" id="msec-body-links">
-        <div class="msec-inner" id="msec-inner-links"></div>
-      </div>
       <div class="msec-body" id="msec-body-email-activity">
         <div class="msec-inner" id="msec-inner-email-activity"></div>
       </div>
       <div class="msec-body" id="msec-body-telegram-log">
         <div class="msec-inner" id="msec-inner-telegram-log"></div>
-      </div>
-      <div class="msec-body" id="msec-body-leader-usage">
-        <div class="msec-inner" id="msec-inner-leader-usage"></div>
       </div>
       <div class="msec-body" id="msec-body-privacy-guard">
         <div class="msec-inner" id="msec-inner-privacy-guard"></div>
@@ -1675,6 +1644,9 @@ function renderMore() {
       </div>
       <div class="msec-body" id="msec-body-savings">
         <div class="msec-inner" id="msec-inner-savings"><div class="loading">Loading&hellip;</div></div>
+      </div>
+      <div class="msec-body" id="msec-body-house-calls">
+        <div class="msec-inner" id="msec-inner-house-calls"><div class="loading">Loading&hellip;</div></div>
       </div>
     </div>`);
   moreLoadVacationStatus();
@@ -1743,20 +1715,16 @@ function moreToggle(sec) {
   if (tile) tile.classList.toggle('active', isOpen);
   if (isOpen && !_moreSecLoaded[sec]) {
     _moreSecLoaded[sec] = true;
-    if (sec === 'ministry') moreLoadMinistry();
     if (sec === 'reading')  moreLoadReading();
-    if (sec === 'events')   moreLoadEvents();
-    if (sec === 'members')  moreLoadMembers();
     if (sec === 'publishing') publishingLoad();
     if (sec === 'thesis')   moreLoadThesis();
     if (sec === 'api')      moreLoadApiSpending();
-    if (sec === 'links')    moreLoadLinks();
     if (sec === 'email-activity') moreLoadEmailActivity();
     if (sec === 'telegram-log') moreLoadTelegramLog();
-    if (sec === 'leader-usage') moreLoadLeaderUsage();
     if (sec === 'privacy-guard') moreLoadPrivacyGuard();
     if (sec === 'covercomps') coverCompsLoad();
     if (sec === 'savings') savingsLoad();
+    if (sec === 'house-calls') moreLoadHouseCalls();
   }
 }
 
@@ -2381,6 +2349,98 @@ function _savingsRender() {
     : '<div class="empty">No daily rows yet.</div>';
 
   el.innerHTML = html;
+}
+
+// ── House Calls (funeral home) ───────────────────────────────────────────────
+
+let _houseCallsData = [];
+
+async function moreLoadHouseCalls() {
+  const el = document.getElementById('msec-inner-house-calls');
+  if (!el) return;
+  el.innerHTML = '<div class="loading">Loading&hellip;</div>';
+  try {
+    _houseCallsData = await api('/api/house-calls');
+    _houseCallsRender();
+  } catch {
+    el.innerHTML = '<div class="empty">Could not load house calls.</div>';
+  }
+}
+
+function _hcWhenLabel(calledAt) {
+  const [datePart, timePart] = String(calledAt || '').split(' ');
+  if (!datePart) return calledAt || '';
+  const [y, m, d] = datePart.split('-').map(Number);
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  let label = `${months[m - 1]} ${d}, ${y}`;
+  if (timePart) {
+    let [hh, mm] = timePart.split(':').map(Number);
+    const ampm = hh >= 12 ? 'PM' : 'AM';
+    hh = hh % 12 || 12;
+    label += ` ${hh}:${String(mm).padStart(2, '0')} ${ampm}`;
+  }
+  return label;
+}
+
+function _houseCallsRender() {
+  const el = document.getElementById('msec-inner-house-calls');
+  if (!el) return;
+  const rows = _houseCallsData || [];
+  const unreported = rows.filter(r => !r.reported_at);
+  const owed = unreported.filter(r => !r.paid_at);
+  const owedTotal = owed.reduce((s, r) => s + r.amount, 0);
+
+  let html = `
+    <div class="mth-stats">
+      <div class="mth-stat">
+        <div class="mth-stat-num">${unreported.length}</div>
+        <div class="mth-stat-lbl">Pending</div>
+      </div>
+      <div class="mth-stat">
+        <div class="mth-stat-num">$${owedTotal.toFixed(2)}</div>
+        <div class="mth-stat-lbl">Still Owed</div>
+      </div>
+    </div>
+    <div class="mlabel" style="margin-top:0">House Calls</div>`;
+
+  html += rows.length ? rows.map(_houseCallRow).join('') : '<div class="empty">No house calls logged yet.</div>';
+
+  el.innerHTML = html;
+}
+
+function _houseCallRow(r) {
+  const isPaid = !!r.paid_at;
+  const sub = `${esc(_hcWhenLabel(r.called_at))} · $${r.amount.toFixed(2)}${r.reported_at ? ' · reported' : ''}`;
+  return `
+    <div class="mpn-card" style="padding:8px 12px;display:flex;align-items:center;justify-content:space-between;gap:8px">
+      <div style="min-width:0">
+        <div style="font-size:13px;font-weight:500">${esc(r.family_last_name)}</div>
+        <div style="font-size:11px;color:var(--muted)">${sub}</div>
+      </div>
+      <label class="mswitch" title="Paid">
+        <input type="checkbox" ${isPaid ? 'checked' : ''} onchange="houseCallTogglePaid(${r.id}, this.checked)">
+        <span class="mswitch-track"></span>
+        <span class="mswitch-thumb"></span>
+      </label>
+    </div>`;
+}
+
+async function houseCallTogglePaid(id, isPaid) {
+  const row = (_houseCallsData || []).find(r => r.id === id);
+  const prevPaidAt = row ? row.paid_at : null;
+  if (row) row.paid_at = isPaid ? new Date().toISOString() : null;
+  _houseCallsRender();
+  try {
+    await api(`/api/house-calls/${id}/paid`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ paid: isPaid }),
+    });
+  } catch {
+    if (row) row.paid_at = prevPaidAt;
+    _houseCallsRender();
+    alert('Failed to update paid status.');
+  }
 }
 
 // ── Dev (project_backlog / bug_tracker) ─────────────────────────────────────

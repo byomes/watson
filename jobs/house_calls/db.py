@@ -3,13 +3,16 @@
 A "house call" is a paid callout from the funeral home Bill works for
 part-time (his boss: Jim), at a flat RATE_PER_CALL each. He texts Watson the
 family's last name when he's called out; Watson logs it here with the
-current date/time. Once a month, jobs/house_calls/monthly_report.py emails
-every not-yet-reported call to Jim so Bill can be paid, then marks those
-rows reported. Rows are never deleted — reported_at is the only state
-change, so a late-logged call from a prior period is never lost or silently
-skipped, and nothing can be double-reported. amount is captured per-row at
-log time (not computed from RATE_PER_CALL at report time) so a future rate
-change never rewrites the pay owed on an already-logged call.
+current date/time. Once a month, jobs/house_calls/monthly_report.py bills
+Jim for every not-yet-reported call that isn't already marked paid_at (Jim
+sometimes pays Bill directly, out of band — the dashboard toggle records
+that so the report never asks for that money twice), then marks all of
+those rows reported. Rows are never deleted — reported_at is the only state
+change that matters for billing, so a late-logged call from a prior period
+is never lost or silently skipped, and nothing can be double-reported.
+amount is captured per-row at log time (not computed from RATE_PER_CALL at
+report time) so a future rate change never rewrites the pay owed on an
+already-logged call.
 """
 import sqlite3
 from datetime import datetime
@@ -48,9 +51,17 @@ def init_db() -> None:
                 amount            REAL NOT NULL DEFAULT 100.00,
                 notes             TEXT,
                 reported_at       TEXT,
+                paid_at           TEXT,
                 created_at        TEXT NOT NULL DEFAULT (datetime('now'))
             )
         """)
+
+        # paid_at added 2026-09-10 for calls Jim pays Bill directly, out of
+        # band from the monthly report — ADD COLUMN since it's a plain
+        # nullable field, no rename-dance needed like the call_date migration.
+        cols = {row[1] for row in c.execute("PRAGMA table_info(house_calls)").fetchall()}
+        if "paid_at" not in cols:
+            c.execute("ALTER TABLE house_calls ADD COLUMN paid_at TEXT")
 
         legacy = c.execute(
             "SELECT name FROM sqlite_master WHERE type='table' AND name='house_calls_legacy_call_date'"
@@ -101,8 +112,17 @@ def unreported_total() -> float:
 def unreported_calls() -> list[sqlite3.Row]:
     with conn() as c:
         return c.execute(
-            "SELECT id, family_last_name, called_at, amount, notes FROM house_calls "
+            "SELECT id, family_last_name, called_at, amount, notes, paid_at FROM house_calls "
             "WHERE reported_at IS NULL ORDER BY called_at, id"
+        ).fetchall()
+
+
+def all_calls(limit: int = 100) -> list[sqlite3.Row]:
+    with conn() as c:
+        return c.execute(
+            "SELECT id, family_last_name, called_at, amount, notes, reported_at, paid_at "
+            "FROM house_calls ORDER BY called_at DESC, id DESC LIMIT ?",
+            (limit,),
         ).fetchall()
 
 
@@ -114,4 +134,27 @@ def mark_reported(ids: list[int]) -> None:
         c.executemany(
             "UPDATE house_calls SET reported_at = ? WHERE id = ?",
             [(now, i) for i in ids],
+        )
+
+
+def mark_paid(ids: list[int]) -> None:
+    """Note that Jim already paid these calls directly, out of band from the
+    monthly report, so the report doesn't ask for that money again."""
+    if not ids:
+        return
+    now = datetime.now(NY).isoformat()
+    with conn() as c:
+        c.executemany(
+            "UPDATE house_calls SET paid_at = ? WHERE id = ?",
+            [(now, i) for i in ids],
+        )
+
+
+def mark_unpaid(ids: list[int]) -> None:
+    if not ids:
+        return
+    with conn() as c:
+        c.executemany(
+            "UPDATE house_calls SET paid_at = NULL WHERE id = ?",
+            [(i,) for i in ids],
         )
