@@ -284,6 +284,41 @@ def _resolve_first_person(question: str, asker_name: str) -> str:
     return q
 
 
+_NAME_COLUMN_LOOKUP_RE = re.compile(r"\bname\s+like\b", re.IGNORECASE)
+
+
+def _clarify_if_ambiguous_person(sql: str, rows: list[dict], question: str) -> str | None:
+    """If `sql` looked someone up by members.name (not a group/event filter
+    like `deacon LIKE` or `event_name LIKE`, which are supposed to return
+    several different people) and the match pulled in more than one distinct
+    person, return a clarifying question instead of a reply the caller
+    should format normally (None).
+
+    Per Bill's 2026-09-11 feedback: Tyler asked a question and Watson sent
+    back multiple phone numbers with no attempt to narrow it down first --
+    it should ask which person was meant, and only fall back to listing
+    every match if the asker still can't specify further. If the asker's
+    question already names each matched person individually (a deliberate
+    "give me both" follow-up), that's not ambiguity -- let it through.
+    """
+    if len(rows) < 2 or not _NAME_COLUMN_LOOKUP_RE.search(sql):
+        return None
+    name_key = next((k for k in rows[0] if k.lower() == "name"), None)
+    if not name_key:
+        return None
+    distinct_names = list(dict.fromkeys(r.get(name_key) for r in rows if r.get(name_key)))
+    if len(distinct_names) < 2:
+        return None
+    q_lower = question.lower()
+    if all(str(n).lower() in q_lower for n in distinct_names):
+        return None
+    names_list = ", ".join(str(n) for n in distinct_names[:15])
+    return (
+        f"A few people match that: {names_list}. Which one did you mean? "
+        "(Or ask again naming both if you want all of them.)"
+    )
+
+
 _DOMAIN_RE = re.compile(r"DOMAIN:\s*(attendance|web|events|none)", re.IGNORECASE)
 _SQL_RE = re.compile(r"SQL:\s*(.+)", re.IGNORECASE | re.DOTALL)
 _FORBIDDEN_SQL_RE = re.compile(
@@ -457,7 +492,8 @@ def answer_data_question(
         rows = _run("attendance", pm_sql)
         if rows:
             log.info("data_chat: pattern-match hit, asker=%s q=%r sql=%r rows=%d", asker_name, question, pm_sql, len(rows))
-            return True, _format_rows(rows)
+            clarify = _clarify_if_ambiguous_person(pm_sql, rows, question)
+            return True, clarify or _format_rows(rows)
         log.info("data_chat: pattern-match matched but found nothing (rows=%s), falling through to generation: q=%r sql=%r", rows, question, pm_sql)
 
     domain, sql = _generate(question, asker_name, allow_contact_info)
@@ -473,4 +509,5 @@ def answer_data_question(
         return True, "I hit an error pulling that data — try again in a moment."
 
     log.info("data_chat: domain=%s asker=%s q=%r sql=%r rows=%d", domain, asker_name, question, validated, len(rows))
-    return True, _format_rows(rows)
+    clarify = _clarify_if_ambiguous_person(validated, rows, question)
+    return True, clarify or _format_rows(rows)
