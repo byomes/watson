@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-09-10*
+*Generated: 2026-09-11*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -99,6 +99,8 @@ data/
     66e0844b7fab4e0a8bb386db8504deac.png
     9eca6f54ecff491dbed2470fd0b3d196.png
   congregation.db
+  congregation.db-shm
+  congregation.db-wal
   congregation.db.bak_before_orphan_delete_20260906_070048
   cover_images/
     cover_1.jpg
@@ -2277,6 +2279,9 @@ data/
         transcript.md
       20260826-015833-watson-note-storage-system-design/
         transcript.md
+    book-ideas/
+      20260910-085606-new-book-idea-you-can-t-change-the-rules-and-keep/
+        transcript.md
     christian-worldview-writing-project/
       20260826-013953-church-project-brainstorming/
         family_bible_conference_logos.html
@@ -4013,6 +4018,17 @@ data/
         field-research-protocol.md
         ghostwriter-interview-protocol.md
         transcript.md
+      20260910-083337-interview-session-chapter-5-confirmed-done-chapter/
+        transcript.md
+      20260910-144925-trust-issues-ch-1-8-word-count-audit-vs-new-4k-flo/
+        transcript.md
+      20260910-145050-trust-issues-ch-1-8-word-count-audit-vs-new-4k-flo/
+        transcript.md
+      20260910-153329-backup-everyday-ai-overview-combined-field-researc/
+        combined-field-research.md
+        everyday-ai-overview.md
+        project-instructions.md
+        transcript.md
     wcky-book-launch-project/
       20260826-013953-sending-giving-statements-in-tithely/
         transcript.md
@@ -4618,6 +4634,9 @@ data/
         transcript.md
   skill_audit.json
   trading.db
+  trading.db.bak-pre-donchian-20260911001022
+  trading.db.bak-pre-holdout-batch-20260911000446
+  trading.db.bak-pre-min-trades-fix
   watson.db
 deploy/
   .gitkeep
@@ -4716,6 +4735,7 @@ jobs/
     voice_profile.py
   backup.py
   backup_local.py
+  backup_status_report.py
   batch.py
   beachhouse/
     __init__.py
@@ -4770,6 +4790,7 @@ jobs/
     __init__.py
     attendance_web.py
     batch_intake.py
+    birthday_daily_alert.py
     birthday_report.py
     deacon_reports.py
     deacons_web.py
@@ -4777,6 +4798,7 @@ jobs/
     duplicates_weekly_notify.py
     elder_shepherding_report.py
     elder_shepherding_report_web.py
+    family_edit.py
     import_deacon_directory.py
     init_db.py
     member_match.py
@@ -5185,6 +5207,7 @@ jobs/
     weekly_completed_report.py
   telegram/
     __init__.py
+    _oneoff_donna_children_note.py
     dashboard_api.py
     leader_tool_usage.py
     leader_tool_usage_api.py
