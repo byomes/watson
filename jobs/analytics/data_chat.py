@@ -315,7 +315,7 @@ def _clarify_if_ambiguous_person(sql: str, rows: list[dict], question: str) -> s
     names_list = ", ".join(str(n) for n in distinct_names[:15])
     return (
         f"A few people match that: {names_list}. Which one did you mean? "
-        "(Or ask again naming both if you want all of them.)"
+        "(Or ask again naming each one if you want more than one.)"
     )
 
 
