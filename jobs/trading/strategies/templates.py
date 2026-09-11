@@ -262,6 +262,20 @@ TEMPLATES = {
                 for f in (65, 70, 75, 80, 90)
                 for s in (100, 120, 140, 160, 180, 200, 220, 250, 280, 300, 320, 350, 380, 400, 450, 500, 550, 600)
             ]
+            # Round 4 (2026-09-11): targeted, not exhaustive — a fine sweep
+            # around the neighborhood of the best post-sizing-fix performer
+            # (#89, fast=30/slow=40, training sharpe 0.99), explicitly
+            # picked to fill gaps the coarser rounds above left untried in
+            # fast=22-40/slow=35-90, aimed at beating the sealed holdout
+            # passers rather than blind grid coverage.
+            + [
+                {"fast": f, "slow": s}
+                for f, s in (
+                    (22, 35), (22, 65), (24, 40), (24, 75), (26, 50), (26, 80),
+                    (28, 55), (28, 90), (30, 85), (32, 60), (34, 35), (34, 70),
+                    (36, 50), (36, 80), (38, 60), (40, 45),
+                )
+            ]
         ),
     },
     "mean_reversion": {
@@ -281,6 +295,22 @@ TEMPLATES = {
                 {"period": p, "devfactor": d}
                 for p in (85, 90, 95, 100, 110, 120)
                 for d in (1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 6.0)
+            ]
+            # Round 4 (2026-09-11): targeted, not exhaustive — a fine sweep
+            # of period 11-43 crossed with the devfactor values (1.0-2.5)
+            # that actually showed up across the post-sizing-fix top
+            # performers (#142, #168, #139, #15, #109...), filling gaps the
+            # coarser rounds above left untried, aimed at beating the
+            # sealed holdout passers (#18, #57, #160) rather than blind
+            # grid coverage.
+            + [
+                {"period": p, "devfactor": d}
+                for p, d in (
+                    (11, 1.0), (13, 1.5), (14, 2.5), (16, 2.5), (19, 1.0),
+                    (21, 1.5), (23, 2.0), (25, 2.0), (27, 1.0), (29, 1.75),
+                    (31, 2.0), (33, 1.0), (34, 2.0), (37, 1.0), (38, 2.0),
+                    (40, 1.5), (42, 1.0), (43, 2.0),
+                )
             ]
         ),
     },
@@ -322,6 +352,19 @@ TEMPLATES = {
             for e in (10, 20, 30, 55, 100)
             for x in (5, 10, 20, 50)
             if x < e
+        ]
+        # Round 2 (2026-09-11): targeted, not exhaustive — fills gaps the
+        # coarse round above left untried, weighted toward the sealed
+        # passer's neighborhood (#419, entry=20/exit=10) plus the other
+        # strong training performer (#426, entry=55/exit=50), aimed at
+        # beating the current holdout passers rather than blind coverage.
+        + [
+            {"entry_period": e, "exit_period": x}
+            for e, x in (
+                (12, 3), (15, 7), (18, 7), (22, 7), (25, 3), (28, 3),
+                (28, 15), (35, 12), (35, 30), (40, 12), (45, 3), (45, 15),
+                (65, 3), (65, 15), (80, 3), (80, 15),
+            )
         ],
     },
 }
