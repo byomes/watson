@@ -191,10 +191,15 @@ def handle_event_signup_email(
         log.info("Skipping re-prompt — pending event_new action already open for uid=%s", msg_id)
         return "pending"
 
+    # body was previously dropped entirely after classification — Bill
+    # couldn't see the actual signup email, same complaint as email_intake.py's
+    # generic triage. Stored now (2026-09-11), same 2000-char convention as
+    # email_intake.py's email_triage payload.
     payload = {
         "uid": msg_id,
         "sender_email": sender_email,
         "subject": subject,
+        "body": body[:2000],
         "received_at": received_at,
         "event_name_guess": name_guess or subject,
         "detection": detection,
@@ -202,12 +207,17 @@ def handle_event_signup_email(
     pending_id = store_pending_action("event_new", 0, payload)
 
     display_name = name_guess or "(unnamed event)"
+    body_snippet = body.strip()[:400]
+    ellipsis = "…" if len(body.strip()) > 400 else ""
     text = (
         f"🎪 New signup notification — no matching tracked event\n\n"
         f"From: {sender_email}\n"
         f"Subject: {subject}\n"
         f"Registrant: {who}\n\n"
-        f"Start tracking \"{display_name}\" as a new event?"
+        f"---\n{body_snippet}{ellipsis}\n---\n\n"
+        f"Start tracking \"{display_name}\" as a new event?\n"
+        f"Reply with the correct event name to track it under that instead, "
+        f"or \"ignore\" to skip."
     )
     keyboard = {
         "inline_keyboard": [[
@@ -273,3 +283,29 @@ def handle_event_new_no(payload: dict) -> str:
         except Exception as exc:
             log.error("mark_as_read failed for event_new dismissal: %s", exc)
     return "Ignored — no event created."
+
+
+_IGNORE_KEYWORDS = ("ignore", "skip", "not an event", "junk", "spam", "delete")
+# "no" is checked separately as a whole word only (regex \b) — a plain
+# substring check matched it inside "know", "announcement", "november",
+# incorrectly declining a real event named e.g. "November Fellowship Night".
+# Confirmed live 2026-09-11 before this shipped.
+_IGNORE_WORD_RE = re.compile(r"\bno\b", re.IGNORECASE)
+
+
+def handle_event_new_reply(payload: dict, instruction: str) -> str:
+    """Bill replied with free text instead of tapping a button — added
+    2026-09-11 per Bill, same complaint as email_intake.py's generic triage:
+    no way to tell Watson what to do with a signup email it couldn't match
+    to a tracked event.
+
+    A clear decline routes to the exact same handler the 'No' button calls.
+    Anything else is treated as the event name Bill wants it tracked under
+    (the auto-detected guess is often wrong — e.g. "New Event" — and this
+    is the direct fix: reply with the real name instead of accepting a bad
+    guess or having to fix it later)."""
+    lower = instruction.strip().lower()
+    if any(kw in lower for kw in _IGNORE_KEYWORDS) or _IGNORE_WORD_RE.search(lower):
+        return handle_event_new_no(payload)
+    corrected = {**payload, "event_name_guess": instruction.strip()}
+    return handle_event_new_yes(corrected)

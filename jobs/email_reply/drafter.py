@@ -19,13 +19,21 @@ SYSTEM_PROMPT = (
 )
 
 
-def draft_reply(email: dict) -> str:
-    """Call Ollama qwen2.5:7b and return a draft reply for the given email dict."""
+def draft_reply(email: dict, extra_instruction: str | None = None) -> str:
+    """Call Ollama qwen2.5:7b and return a draft reply for the given email dict.
+
+    extra_instruction: optional guidance from Bill on what the reply should
+    say (e.g. "let them know I'll call this afternoon") — appended to the
+    prompt so the draft follows his direction instead of guessing generically.
+    Used when Bill replies with free text to a triage prompt instead of
+    tapping a button; see jobs/email_intake.py's handle_instruction_reply()."""
     prompt = (
         f"From: {email['sender_name']} <{email['sender_email']}>\n"
         f"Subject: {email['subject']}\n\n"
         f"{email['body']}"
     )
+    if extra_instruction:
+        prompt += f"\n\n---\nDr. Bill's instructions for this reply: {extra_instruction}"
     try:
         claude_result = call_claude(
             system=SYSTEM_PROMPT, user=prompt, job_name="email_reply.drafter",

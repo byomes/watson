@@ -3149,6 +3149,28 @@ async def _route_tg_pending_reply(
             return True
         return False
 
+    if action_type == "email_triage":
+        # Added 2026-09-11: previously any free-text reply to a triage
+        # prompt fell through to normal chat routing and was silently
+        # discarded — Bill's instructions for a funeral-home email (or
+        # anything else Watson couldn't classify) went nowhere. See
+        # jobs/email_intake.py's handle_instruction_reply().
+        from jobs.email_intake import handle_instruction_reply
+        result = await asyncio.to_thread(handle_instruction_reply, payload, text)
+        await update.message.reply_text(result)
+        mark_done(pending_id)
+        return True
+
+    if action_type == "event_new":
+        # Same fix as email_triage, for the event-signup path (e.g. a
+        # picnic signup Watson doesn't have a tracked event for yet). See
+        # jobs/events/signup_detect.py's handle_event_new_reply().
+        from jobs.events.signup_detect import handle_event_new_reply
+        result = await asyncio.to_thread(handle_event_new_reply, payload, text)
+        await update.message.reply_text(result)
+        mark_done(pending_id)
+        return True
+
     if action_type == "pastoral_note":
         from jobs.pastoral_notes.handler import handle_notes_reply
         await handle_notes_reply(text)

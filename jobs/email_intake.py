@@ -715,6 +715,7 @@ def _send_triage_prompt(
     sender_name: str,
     sender_email: str,
     subject: str,
+    body: str,
     summary: str,
     suggested_action: str,
     reply_warranted: bool,
@@ -729,14 +730,25 @@ def _send_triage_prompt(
     icon = _CATEGORY_ICONS.get(category, "❓")
     is_spam = category == "spam"
 
+    # Show the actual email, not just the AI paraphrase — added 2026-09-11
+    # per Bill: he couldn't act on a funeral-home email or a picnic signup
+    # because the Telegram message only ever showed Ollama's summary, never
+    # the real content. 600 chars leaves room for the summary/buttons/reply
+    # instructions within TELEGRAM_CHAR_LIMIT.
+    body_snippet = body.strip()[:600]
+    ellipsis = "…" if len(body.strip()) > 600 else ""
+
     reply_line = "\n💬 Reply may be warranted." if reply_warranted else ""
     text = (
         f"{icon} Email from {sender_name} <{sender_email}>\n"
         f"Subject: {subject}\n"
         f"Category: {category}\n\n"
         f"{summary}\n\n"
+        f"---\n{body_snippet}{ellipsis}\n---\n\n"
         f"Suggested: {suggested_action}"
-        f"{reply_line}"
+        f"{reply_line}\n\n"
+        f"Reply to this message with instructions (what to say back, or "
+        f"\"ignore\"/\"delete\"/\"log it\"), or tap a button below."
     )[:TELEGRAM_CHAR_LIMIT]
 
     second_btn_text = "🗑️ Delete" if is_spam else "🗑️ Mark as read"
@@ -816,6 +828,7 @@ def _handle_non_whitelist(
         sender_name=sender_name,
         sender_email=sender_email,
         subject=subject,
+        body=body,
         summary=summary,
         suggested_action=suggested_action,
         reply_warranted=reply_warranted,
@@ -944,6 +957,74 @@ def handle_delete_action(payload: dict) -> str:
             log.error("delete_email failed: %s", exc)
             return f"⚠️ Could not delete: {exc}"
     return "🗑️ Deleted"
+
+
+# Simple dispositions Bill can type instead of tapping a button — checked
+# before treating the reply as reply-guidance. Word-boundary regex, not a
+# plain substring check — confirmed live 2026-09-11 that substring matching
+# false-positived "log it" inside "catalog it" and "please log its details",
+# both of which are real reply-guidance sentences, not dispositions.
+_DISPOSITION_KEYWORDS = (
+    ("ignore", "read"), ("skip", "read"), ("nothing", "read"), ("no action", "read"),
+    ("delete", "delete"), ("trash", "delete"), ("spam", "delete"),
+    ("mark read", "read"), ("mark as read", "read"),
+    ("log it", "ingest"), ("just log", "ingest"), ("ingest", "ingest"), ("handle it", "ingest"),
+)
+_DISPOSITION_PATTERNS = [
+    (re.compile(r"\b" + re.escape(phrase) + r"\b", re.IGNORECASE), disposition)
+    for phrase, disposition in _DISPOSITION_KEYWORDS
+]
+
+
+def _match_disposition(text: str) -> str | None:
+    lower = text.strip().lower()
+    for pattern, disposition in _DISPOSITION_PATTERNS:
+        if pattern.search(lower):
+            return disposition
+    return None
+
+
+def handle_instruction_reply(payload: dict, instruction: str) -> str:
+    """Bill replied with free text to a triage prompt instead of tapping a
+    button — added 2026-09-11 per Bill: he had no way to tell Watson what to
+    do with an email it couldn't classify (a funeral home email, same
+    complaint as the picnic signup in jobs/events/signup_detect.py).
+
+    A simple disposition ('ignore', 'delete', 'log it', ...) routes to the
+    exact same handler the equivalent button calls — no new logic, just a
+    second way to trigger it. Anything else is treated as guidance for a
+    reply: drafted via jobs/email_reply/drafter.py with Bill's instruction
+    embedded, then queued through the EXISTING email_draft go/change/cancel
+    approval (jobs/email_reply/handler.py) — never sent directly off a
+    single free-text message. Same human-checkpoint-before-anything-external
+    principle as every other outbound action in this codebase."""
+    disposition = _match_disposition(instruction)
+    if disposition == "read":
+        return handle_markread_action(payload)
+    if disposition == "delete":
+        return handle_delete_action(payload)
+    if disposition == "ingest":
+        return handle_ingest_action(payload)
+
+    email_dict = {
+        "message_id":   payload.get("uid", ""),
+        "sender_name":  payload.get("sender_name") or payload.get("sender_email", ""),
+        "sender_email": payload.get("sender_email", ""),
+        "subject":      payload.get("subject", ""),
+        "body":         payload.get("body", ""),
+    }
+    try:
+        from jobs.email_reply.drafter import draft_reply
+        from jobs.email_reply.handler import save_pending, send_telegram_notification
+        draft = draft_reply(email_dict, extra_instruction=instruction)
+        if not draft:
+            return "⚠️ Couldn't draft a reply from that — try again or handle it manually in Gmail."
+        save_pending(email_dict, draft)
+        send_telegram_notification(email_dict, draft)
+        return f"✅ Draft reply queued for approval — {email_dict['sender_name']}"
+    except Exception as exc:
+        log.error("Instruction-driven reply draft failed: %s", exc)
+        return f"⚠️ Draft failed: {exc}"
 
 
 # ── Main run loop ──────────────────────────────────────────────────────────────
