@@ -1,10 +1,11 @@
 # Watson Bug Tracker
 _Auto-generated nightly from bug_tracker. Source of truth is the database — do not hand-edit this file, changes will be overwritten._
-Last generated: 2026-09-10 02:10
+Last generated: 2026-09-11 02:10
 
-## Open (49)
+## Open (50)
 | ID | Title | Repo | Discovered |
 |---|---|---|---|
+| 155 | ma_crossover/mean_reversion/momentum templates use 1-share default order size, not fully-invested | watson | 2026-09-11 04:11:20 |
 | 147 | jobs.browser: goto_safe failed for https://www.beenverified.com/people/mikhaela-molanders/de/ | watson | 2026-09-08 09:31:18 |
 | 146 | jobs.browser: goto_safe failed for https://www.beenverified.com/people/emily-yomes/de/ | watson | 2026-09-08 09:31:03 |
 | 145 | jobs.browser: goto_safe failed for https://www.beenverified.com/people/micah-yomes/de/ | watson | 2026-09-08 09:30:47 |
@@ -58,6 +59,8 @@ Last generated: 2026-09-10 02:10
 ## Recently Resolved (last 30 days)
 | ID | Title | Repo | Resolved | Commit |
 |---|---|---|---|---|
+| 154 | Trading holdout pass bar gameable by inactive strategies | watson | 2026-09-11 03:39:55 | 1a6ec67 |
+| 153 | Savings tab: This Month != All-Time | watson | 2026-09-10 15:48:03 | 3ecd252 |
 | 152 | "assign X to me" would write literal "Bill Yomes" into members.deacon | watson | 2026-09-08 19:07:44 | 5ac7aa9 |
 | 151 | data_chat generated wrong SQL for partner/deacon-gap questions | watson | 2026-09-08 12:44:30 | 6083f25 |
 | 150 | UnboundLocalError crashed all leader/team-chat Telegram messages | watson | 2026-09-08 12:40:15 | 114d148 |
