@@ -1,16 +1,27 @@
 """jobs/trading/strategies/templates.py — Fixed, vetted strategy templates
 with explicit parameter grids. "Watson proposes a strategy variant" means
-deterministically picking the next untried grid point for one of these three
+deterministically picking the next untried grid point for one of these
 templates — there is no code-generation path here, and there never should
 be one; see jobs/trading/iteration_loop.py's module docstring for why.
 
-Position sizing note: these use backtrader's default all-in-cash sizer
-(fully invested when the signal is on, flat otherwise) to test each
-template's raw edge against SPY buy-and-hold — that's standard backtesting
-practice for a single-symbol strategy-quality test. jobs/trading/risk.py's
-2%-per-position cap is a real-order-placement gate for live (paper) trading,
-not a backtest sizing rule; it applies once a strategy is actually placing
-orders, not while comparing strategy shape against the benchmark here.
+Position sizing note: the intent (to test each template's raw edge against
+SPY buy-and-hold, fully invested when the signal is on) is standard
+backtesting practice for a single-symbol strategy-quality test, and is
+what TimeSeriesMomentumStrategy and DonchianBreakoutStrategy actually do
+via explicit `self.buy(size=...)` sizing. It is NOT what MACrossoverStrategy/
+MeanReversionStrategy/MomentumStrategy do: they call bare `self.buy()`
+with no sizer configured, which backtrader defaults to a fixed 1-share
+order regardless of account size — confirmed live 2026-09-11, not a
+"default all-in-cash sizer" as this note previously (incorrectly) claimed.
+Those three templates have been risking ~$200-400 of a $100k account on
+every trade, structurally capping their returns near zero independent of
+real edge. Left unfixed here — correcting it would change the meaning of
+hundreds of already-run, some already-sealed, backtest results, which is
+a bigger call than a single template addition should make unilaterally.
+jobs/trading/risk.py's 2%-per-position cap is a separate, real-order-
+placement gate for live (paper) trading, not a backtest sizing rule; it
+applies once a strategy is actually placing orders, not while comparing
+strategy shape against the benchmark here.
 """
 import backtrader as bt
 
@@ -162,6 +173,62 @@ class TimeSeriesMomentumStrategy(_TrackedStrategy):
                 self.sell(size=-diff)
 
 
+class DonchianBreakoutStrategy(_TrackedStrategy):
+    """Classic Turtle-style channel breakout — see
+    kb/trading-strategies/articles/donchian-channel-breakout.md. A genuinely
+    different signal family from the other three templates: breakout-based
+    (reacts to new extremes) rather than average-based (MA crossover,
+    Bollinger mean-reversion, rate-of-change momentum all react to a
+    smoothed center line).
+
+    Long-only, capped at 1x notional (no leverage, no shorting) — same
+    simplification as TimeSeriesMomentumStrategy, and for the same reason:
+    fits this pipeline's single-symbol, no-leverage design rather than the
+    source system's original short side.
+
+    Entry: close breaks above the highest high of the prior `entry_period`
+    bars (today's own bar excluded — bt.ind.Highest is built on
+    `self.data.high(-1)`, a line shifted back one bar, so the band is a
+    real "prior N days" channel rather than one that trivially includes
+    today's own high). Exit: close breaks below the lowest low of the
+    prior `exit_period` bars, same exclusion. Default 20/10 matches the
+    original Turtle rules (20-day entry, 10-day opposite-direction exit)
+    exactly, per the KB source.
+
+    Sizing: explicit here (95% of portfolio value at signal, same margin-
+    safety cap and reasoning as TimeSeriesMomentumStrategy above), NOT the
+    bare `self.buy()` the other three templates use. Confirmed live while
+    building this: backtrader's actual default order size for a bare
+    `self.buy()` with no sizer configured is a fixed 1 share, not "fully
+    invested" as this module's original position-sizing note claimed — so
+    ma_crossover/mean_reversion/momentum have been risking ~$200-400 of a
+    $100k account regardless of signal, structurally capping their returns
+    near zero independent of any real edge. Not fixed here (would change
+    the meaning of hundreds of already-run, some already-sealed, backtest
+    results — a bigger call than this template needed); flagged to Bill
+    separately. This template is written correctly from the start instead
+    of inheriting that bug."""
+    params = (("entry_period", 20), ("exit_period", 10))
+
+    def __init__(self):
+        super().__init__()
+        self.upper = bt.ind.Highest(self.data.high(-1), period=self.p.entry_period)
+        self.lower = bt.ind.Lowest(self.data.low(-1), period=self.p.exit_period)
+
+    def next(self):
+        if not self.position and self.data.close[0] > self.upper[0]:
+            # Cap at 0.95, not 1.0 — same reasoning as
+            # TimeSeriesMomentumStrategy: a market order sized at exactly
+            # 100% of portfolio value against today's close, filled at
+            # tomorrow's open, leaves zero room for slippage/price
+            # movement and backtrader rejects the whole order on margin.
+            target_size = int(self.broker.getvalue() * 0.95 / self.data.close[0])
+            if target_size > 0:
+                self.buy(size=target_size)
+        elif self.position and self.data.close[0] < self.lower[0]:
+            self.close()
+
+
 # Grids intentionally start with the original small combinations (already
 # tested live) as a prefix, with more combinations appended after — grid
 # indexing in iteration_loop.propose_next_variant() is positional
@@ -235,6 +302,21 @@ TEMPLATES = {
             for lb in (126, 189, 252)   # ~6, 9, 12 months
             for tv in (0.10, 0.15, 0.20)
             for vw in (20, 60)
+        ],
+    },
+    "donchian_breakout": {
+        "cls": DonchianBreakoutStrategy,
+        "label": "Donchian channel breakout (Turtle)",
+        # Spans the KB's short/medium/long period guidance (10-20 day
+        # trading, 20-50 swing, 50-100+ trend-following), anchored on the
+        # exact classic Turtle default (20/10), always with exit_period <
+        # entry_period (the exit channel must be tighter than the entry
+        # channel or the position could never trigger its own exit).
+        "grid": [
+            {"entry_period": e, "exit_period": x}
+            for e in (10, 20, 30, 55, 100)
+            for x in (5, 10, 20, 50)
+            if x < e
         ],
     },
 }

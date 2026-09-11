@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS risk_state (
 CREATE_STRATEGIES = """
 CREATE TABLE IF NOT EXISTS strategies (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    family     TEXT NOT NULL CHECK (family IN ('ma_crossover', 'mean_reversion', 'momentum', 'time_series_momentum')),
+    family     TEXT NOT NULL CHECK (family IN ('ma_crossover', 'mean_reversion', 'momentum', 'time_series_momentum', 'donchian_breakout')),
     params_json TEXT NOT NULL,
     rationale  TEXT,
     status     TEXT NOT NULL DEFAULT 'proposed'
@@ -102,12 +102,12 @@ def _migrate_strategies_family_check(conn) -> None:
     row = conn.execute(
         "SELECT sql FROM sqlite_master WHERE type='table' AND name='strategies'"
     ).fetchone()
-    if not row or "time_series_momentum" in row[0]:
+    if not row or "donchian_breakout" in row[0]:
         return
     conn.execute("""
         CREATE TABLE strategies_new (
             id         INTEGER PRIMARY KEY AUTOINCREMENT,
-            family     TEXT NOT NULL CHECK (family IN ('ma_crossover', 'mean_reversion', 'momentum', 'time_series_momentum')),
+            family     TEXT NOT NULL CHECK (family IN ('ma_crossover', 'mean_reversion', 'momentum', 'time_series_momentum', 'donchian_breakout')),
             params_json TEXT NOT NULL,
             rationale  TEXT,
             status     TEXT NOT NULL DEFAULT 'proposed'
