@@ -1,0 +1,12 @@
+LLM usage report: 2026-09-04 13:04:07 to now
+
+jobs/intent/keep_warm.py: 2332 calls, 0 errors, 122078 total tokens (avg 52.3/call) — gemma3:4b×2332
+jobs/curator/research.py: 9 calls, 0 errors, 4481 total tokens (avg 497.9/call) — qwen2.5:7b×9
+jobs/research/benchmark_check.py: 9 calls, 0 errors, 1373 total tokens (avg 152.6/call) — llama3.2:3b×9
+bot/bot.py: 8 calls, 0 errors, 2353 total tokens (avg 294.1/call) — llama3.2:3b×8
+jobs/research/web_benchmark_check.py: 8 calls, 0 errors, 1266 total tokens (avg 158.2/call) — llama3.2:3b×8
+jobs/privacy/discover.py: 5 calls, 0 errors, 1777 total tokens (avg 355.4/call) — qwen2.5:7b×5
+jobs/skillbuilder/router.py: 3 calls, 3 errors, 0 total tokens (avg n/a/call) — gemma3:4b×3
+jobs/analytics/data_chat.py: 2 calls, 0 errors, 5049 total tokens (avg 2524.5/call) — qwen2.5-coder:7b×2
+jobs/meet/fireflies_review.py: 1 calls, 0 errors, 1260 total tokens (avg 1260.0/call) — qwen2.5:7b×1
+jobs/dashboard/app.py: 1 calls, 0 errors, 0 total tokens (avg n/a/call) — llama3.2:3b×1
