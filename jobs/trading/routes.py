@@ -97,6 +97,27 @@ _PAGE_TEMPLATE = """
   <p class="empty">No strategies proposed yet.</p>
   {% endif %}
 
+  <h2>Live paper loop</h2>
+  <p class="note">Runs weekdays 16:15 ET (cron), one decision per SPY session. Proof-of-concept phase: proves the pipe works reliably, not that the strategy has edge — see jobs/trading/live_loop.py.</p>
+  {% if live_decisions %}
+  <table>
+    <tr><th>Run</th><th>Bar date</th><th>Signal</th><th>Action</th><th>Reason</th><th>Equity</th><th>Risk</th></tr>
+    {% for d in live_decisions %}
+    <tr>
+      <td>{{ d.run_at }}</td>
+      <td>{{ d.bar_date }}</td>
+      <td>{{ d.signal }}</td>
+      <td>{{ d.action_taken }}{% if d.order_id %} ({{ d.order_id[:8] }}...){% endif %}</td>
+      <td class="rationale">{{ d.reason }}{% if d.error %} — ERROR: {{ d.error }}{% endif %}</td>
+      <td>${{ d.equity_before }} → ${{ d.equity_after }}</td>
+      <td>{{ d.risk_status }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p class="empty">No live-loop runs yet.</p>
+  {% endif %}
+
   <h2>Backtest / trade log</h2>
   {% if runs %}
   <table>
@@ -158,10 +179,15 @@ def trading_page():
         runs = [dict(r) for r in conn.execute(
             "SELECT * FROM backtest_runs ORDER BY id DESC LIMIT 50"
         ).fetchall()]
+        live_decisions = [dict(r) for r in conn.execute(
+            "SELECT * FROM live_decisions ORDER BY id DESC LIMIT 30"
+        ).fetchall()]
     finally:
         conn.close()
 
-    return render_template_string(_PAGE_TEMPLATE, risk=risk, strategies=strategies, runs=runs)
+    return render_template_string(
+        _PAGE_TEMPLATE, risk=risk, strategies=strategies, runs=runs, live_decisions=live_decisions
+    )
 
 
 @trading_bp.route("/trading/api/resume-drawdown", methods=["POST"])

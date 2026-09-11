@@ -94,6 +94,28 @@ CREATE TABLE IF NOT EXISTS holdout_tests (
 );
 """
 
+# Every run of jobs/trading/live_loop.py logs one row here, whether or not
+# it actually placed an order — this is the audit trail for "does the live
+# loop run reliably", the whole point of the paper proof-of-concept phase.
+CREATE_LIVE_DECISIONS = """
+CREATE TABLE IF NOT EXISTS live_decisions (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_at        TEXT NOT NULL DEFAULT (datetime('now')),
+    symbol        TEXT NOT NULL,
+    family        TEXT NOT NULL,
+    params_json   TEXT NOT NULL,
+    bar_date      TEXT NOT NULL,
+    signal        TEXT NOT NULL,
+    action_taken  TEXT NOT NULL,
+    reason        TEXT,
+    equity_before REAL,
+    equity_after  REAL,
+    order_id      TEXT,
+    risk_status   TEXT NOT NULL,
+    error         TEXT
+);
+"""
+
 ALL_TABLES = [
     CREATE_DAILY_BARS,
     CREATE_INTRADAY_BARS,
@@ -101,6 +123,7 @@ ALL_TABLES = [
     CREATE_STRATEGIES,
     CREATE_BACKTEST_RUNS,
     CREATE_HOLDOUT_TESTS,
+    CREATE_LIVE_DECISIONS,
 ]
 
 
