@@ -312,6 +312,19 @@ TEMPLATES = {
                     (40, 1.5), (42, 1.0), (43, 2.0),
                 )
             ]
+            # Round 5 (2026-09-11): tighter still, around the new leader
+            # (#499, period=34/devfactor=2.0, sealed holdout avg return
+            # 10.6% — beat #18's prior best) and its close training-sharpe
+            # neighbors #497 (31/2.0) and #500 (37/1.0). period 29-39,
+            # devfactor 1.75-2.25 at fine steps.
+            + [
+                {"period": p, "devfactor": d}
+                for p, d in (
+                    (29, 1.9), (29, 2.25), (30, 2.25), (31, 2.1), (32, 2.0),
+                    (33, 1.75), (33, 2.25), (34, 2.1), (35, 2.1), (36, 1.9),
+                    (37, 1.75), (37, 2.1), (38, 2.1), (39, 1.9),
+                )
+            ]
         ),
     },
     "momentum": {
@@ -327,6 +340,16 @@ TEMPLATES = {
             # far), so no overlap check needed against the "5 mod 10"
             # segment above.
             + [{"period": p} for p in range(255, 505, 5)]
+            # Round 4 (2026-09-11): every Round-3 (>250) candidate turned
+            # out structurally untestable against the sealed holdout —
+            # holdout_data() returns each window in isolation with no
+            # pre-window buffer, and the shortest window (crash_2020) is
+            # only 62 bars, so a period>250 RateOfChange can never produce
+            # a single signal within any of the 3 windows (confirmed live:
+            # all 15 tested, all 0 trades in all 3 windows). This round
+            # stays under 62 specifically so it CAN trade even in
+            # crash_2020, not just the two 251-bar windows.
+            + [{"period": p} for p in (42, 43, 46, 48, 49, 52, 54, 56, 58, 61)]
         ),
     },
     "time_series_momentum": {
@@ -364,6 +387,15 @@ TEMPLATES = {
                 (12, 3), (15, 7), (18, 7), (22, 7), (25, 3), (28, 3),
                 (28, 15), (35, 12), (35, 30), (40, 12), (45, 3), (45, 15),
                 (65, 3), (65, 15), (80, 3), (80, 15),
+            )
+        ]
+        # Round 3 (2026-09-11): tight sweep around the sealed passer
+        # (#508, entry=22/exit=7), entry 17-28 crossed with exit 5-9.
+        + [
+            {"entry_period": e, "exit_period": x}
+            for e, x in (
+                (17, 5), (18, 6), (19, 8), (21, 5), (22, 6),
+                (23, 9), (25, 5), (26, 6), (27, 7), (28, 8),
             )
         ],
     },
