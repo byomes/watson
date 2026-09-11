@@ -4,20 +4,28 @@ deterministically picking the next untried grid point for one of these
 templates — there is no code-generation path here, and there never should
 be one; see jobs/trading/iteration_loop.py's module docstring for why.
 
-Position sizing note: the intent (to test each template's raw edge against
-SPY buy-and-hold, fully invested when the signal is on) is standard
-backtesting practice for a single-symbol strategy-quality test, and is
-what TimeSeriesMomentumStrategy and DonchianBreakoutStrategy actually do
-via explicit `self.buy(size=...)` sizing. It is NOT what MACrossoverStrategy/
-MeanReversionStrategy/MomentumStrategy do: they call bare `self.buy()`
-with no sizer configured, which backtrader defaults to a fixed 1-share
-order regardless of account size — confirmed live 2026-09-11, not a
-"default all-in-cash sizer" as this note previously (incorrectly) claimed.
-Those three templates have been risking ~$200-400 of a $100k account on
-every trade, structurally capping their returns near zero independent of
-real edge. Left unfixed here — correcting it would change the meaning of
-hundreds of already-run, some already-sealed, backtest results, which is
-a bigger call than a single template addition should make unilaterally.
+Position sizing note: every template here sizes a real position — either
+the shared `_TrackedStrategy._enter_full_position()` helper (95% of
+portfolio value; ma_crossover/mean_reversion/momentum/donchian_breakout)
+or TimeSeriesMomentumStrategy's own explicit vol-scaled sizing — never a
+bare `self.buy()`, which backtrader defaults to a fixed 1-share order
+regardless of account size. ma_crossover/mean_reversion/momentum called
+bare `self.buy()` until 2026-09-11 (confirmed live while building
+donchian_breakout, not the "default all-in-cash sizer" an earlier version
+of this note incorrectly claimed): they'd been risking ~$200-400 of a
+$100k account per trade since the Aug 2026 build session, structurally
+capping returns near zero independent of real edge. Fixed the same day.
+Every `backtest_runs` row logged under the old 1-share sizing is stale
+(left in place as a harmless historical record, but superseded — the
+selectors in evaluate.py already key off each strategy's *most recent*
+training run for exactly this kind of re-test). Any already-sealed
+`holdout_tests` row for these three families was deleted and its strategy
+reset to `training_tested`, following the exact precedent already
+established for TimeSeriesMomentumStrategy's original margin-rejection
+bug: a bug that means the code never actually implemented the signal at
+real size isn't a real evaluation, so the one-shot seal's anti-cherry-
+picking purpose doesn't apply to correcting it.
+
 jobs/trading/risk.py's 2%-per-position cap is a separate, real-order-
 placement gate for live (paper) trading, not a backtest sizing rule; it
 applies once a strategy is actually placing orders, not while comparing
@@ -43,6 +51,18 @@ class _TrackedStrategy(bt.Strategy):
         if order.status in (order.Margin, order.Rejected):
             self.rejected_orders += 1
 
+    def _enter_full_position(self):
+        """Buy sized at 95% of portfolio value — NOT bare `self.buy()`,
+        which backtrader defaults to a fixed 1-share order regardless of
+        account size (see this module's docstring). 95%, not 100%: a
+        market order sized against today's close but filled at tomorrow's
+        open needs headroom for the next bar's price move or slippage, or
+        backtrader rejects the whole order on margin (same reasoning as
+        TimeSeriesMomentumStrategy's cap)."""
+        target_size = int(self.broker.getvalue() * 0.95 / self.data.close[0])
+        if target_size > 0:
+            self.buy(size=target_size)
+
 
 class MACrossoverStrategy(_TrackedStrategy):
     params = (("fast", 20), ("slow", 50))
@@ -55,7 +75,7 @@ class MACrossoverStrategy(_TrackedStrategy):
 
     def next(self):
         if not self.position and self.crossover > 0:
-            self.buy()
+            self._enter_full_position()
         elif self.position and self.crossover < 0:
             self.close()
 
@@ -69,7 +89,7 @@ class MeanReversionStrategy(_TrackedStrategy):
 
     def next(self):
         if not self.position and self.data.close[0] < self.bb.lines.bot[0]:
-            self.buy()
+            self._enter_full_position()
         elif self.position and self.data.close[0] >= self.bb.lines.mid[0]:
             self.close()
 
@@ -83,7 +103,7 @@ class MomentumStrategy(_TrackedStrategy):
 
     def next(self):
         if not self.position and self.roc[0] > 0:
-            self.buy()
+            self._enter_full_position()
         elif self.position and self.roc[0] <= 0:
             self.close()
 
@@ -195,19 +215,11 @@ class DonchianBreakoutStrategy(_TrackedStrategy):
     original Turtle rules (20-day entry, 10-day opposite-direction exit)
     exactly, per the KB source.
 
-    Sizing: explicit here (95% of portfolio value at signal, same margin-
-    safety cap and reasoning as TimeSeriesMomentumStrategy above), NOT the
-    bare `self.buy()` the other three templates use. Confirmed live while
-    building this: backtrader's actual default order size for a bare
-    `self.buy()` with no sizer configured is a fixed 1 share, not "fully
-    invested" as this module's original position-sizing note claimed — so
-    ma_crossover/mean_reversion/momentum have been risking ~$200-400 of a
-    $100k account regardless of signal, structurally capping their returns
-    near zero independent of any real edge. Not fixed here (would change
-    the meaning of hundreds of already-run, some already-sealed, backtest
-    results — a bigger call than this template needed); flagged to Bill
-    separately. This template is written correctly from the start instead
-    of inheriting that bug."""
+    Sizing: the shared `_TrackedStrategy._enter_full_position()` helper
+    (95% of portfolio value at signal) — this template was written with
+    real sizing from the start; see this module's docstring for the
+    ma_crossover/mean_reversion/momentum sizing bug found while building
+    it, since fixed to use the same helper."""
     params = (("entry_period", 20), ("exit_period", 10))
 
     def __init__(self):
@@ -217,14 +229,7 @@ class DonchianBreakoutStrategy(_TrackedStrategy):
 
     def next(self):
         if not self.position and self.data.close[0] > self.upper[0]:
-            # Cap at 0.95, not 1.0 — same reasoning as
-            # TimeSeriesMomentumStrategy: a market order sized at exactly
-            # 100% of portfolio value against today's close, filled at
-            # tomorrow's open, leaves zero room for slippage/price
-            # movement and backtrader rejects the whole order on margin.
-            target_size = int(self.broker.getvalue() * 0.95 / self.data.close[0])
-            if target_size > 0:
-                self.buy(size=target_size)
+            self._enter_full_position()
         elif self.position and self.data.close[0] < self.lower[0]:
             self.close()
 
