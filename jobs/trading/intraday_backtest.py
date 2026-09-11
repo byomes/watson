@@ -55,18 +55,25 @@ def run_intraday_backtest(strategy_cls, params: dict, session_dates: list[str],
         # LITERAL LAST bar never gets a chance to execute: backtrader
         # matches/fills a pending order during the broker-processing cycle
         # BETWEEN next() calls, and there is no such cycle after the final
-        # bar — confirmed live 2026-09-11 (both with and without
-        # cheat-on-close) via a minimal repro. This bit on 2022-11-25 (the
-        # Thanksgiving-Friday early close — real trading thins out well
-        # before the fixed 16:00 ET session boundary this pipeline uses,
-        # see intraday_data.py's documented simplification, so the flatten
-        # trigger fired on what turned out to be the last bar actually
-        # fed). Fix: append one synthetic, zero-volume, flat-price trailing
-        # bar so there's always one more processing cycle for a same-day
-        # flatten order to fill against — combined with cheat-on-close
-        # (fills at the triggering bar's own close, not a delayed price),
-        # this makes flatten-by-close unconditionally reliable regardless
-        # of how ragged a specific session's real data is.
+        # bar. This bit on 2022-11-25 (the Thanksgiving-Friday early close
+        # — real trading thins out well before the fixed 16:00 ET session
+        # boundary this pipeline uses, see intraday_data.py's documented
+        # simplification, so the flatten trigger fired on what turned out
+        # to be the last bar actually fed). Fix: append one synthetic,
+        # zero-volume, flat-price trailing bar so there's always one more
+        # processing cycle for a same-day flatten order to fill against —
+        # at that bar's OPEN, under backtrader's normal (non-cheating)
+        # next-bar-open fill semantics, same convention backtest.py's
+        # daily pipeline uses. Confirmed live 2026-09-11: an earlier
+        # version of this fix used cerebro.broker.set_coc(True)
+        # (cheat-on-close) instead, which "worked" but silently made
+        # EVERY fill in this engine happen at the signal bar's own close
+        # rather than the next bar's open — a broker-level setting, not
+        # something scopable to just the flatten order — quietly more
+        # optimistic than the daily pipeline's convention for every entry
+        # and exit, not just the end-of-day flatten it was meant to fix.
+        # The trailing bar alone (verified via a minimal repro) fully
+        # solves the original problem without that side effect.
         last_ts = df.index[-1]
         last_close = df["close"].iloc[-1]
         trailing = df.iloc[[-1]].copy()
@@ -81,7 +88,6 @@ def run_intraday_backtest(strategy_cls, params: dict, session_dates: list[str],
         cerebro.broker.setcash(equity)
         cerebro.broker.setcommission(commission=0.0)
         cerebro.broker.set_slippage_perc(perc=SLIPPAGE_PCT, slip_open=True, slip_match=True)
-        cerebro.broker.set_coc(True)
         cerebro.addanalyzer(bt.analyzers.TradeAnalyzer, _name="trades")
 
         start_value = cerebro.broker.getvalue()
