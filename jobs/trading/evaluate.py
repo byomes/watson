@@ -9,21 +9,40 @@ chained onto training-loop approval. A strategy that fails holdout stays
 failed — only a genuinely new strategy variant (new strategy_id) gets a new
 holdout attempt.
 
-Pass bar: beats SPY buy-and-hold on >= 2 of the 3 sealed windows, AND no
-window shows an outright loss, AND the strategy actually traded at least
+Pass bar (redefined 2026-09-11 — see below): beats SPY buy-and-hold
+OUTRIGHT — in EVERY sealed window, not a majority of them — AND no window
+shows an outright loss, AND the strategy actually traded at least
 MIN_HOLDOUT_TRADES times across all 3 windows combined.
 
-That last clause was added after the Aug 2026 build session's 434-variant
-run found every ma_crossover/mean_reversion/momentum "pass" was benchmark-
-gaming: a near-zero-return, barely-trading strategy trivially beats a
-benchmark that fell, with zero real timing skill — confirmed by checking
-the one bull-market window specifically, where every top "passer" captured
-~0% of it too (i.e. flat across all three windows, not defensively
-positioned in just the down ones). A real trade-count floor closes that
-gap without penalizing a strategy like time_series_momentum that
-genuinely, sparsely trades but demonstrably captures real upside when its
-signal fires (verified by tracing actual signal values, not just the
-aggregate result).
+That last (trade-count) clause was added after the Aug 2026 build
+session's 434-variant run found every ma_crossover/mean_reversion/momentum
+"pass" was benchmark-gaming: a near-zero-return, barely-trading strategy
+trivially beats a benchmark that fell, with zero real timing skill —
+confirmed by checking the one bull-market window specifically, where
+every top "passer" captured ~0% of it too. A real trade-count floor
+closes that gap without penalizing a strategy like time_series_momentum
+that genuinely, sparsely trades but demonstrably captures real upside
+when its signal fires.
+
+The windows_beaten requirement was tightened from >= 2 to == 3 on
+2026-09-11, on explicit direction to focus the pipeline on beating
+buy-and-hold outright rather than just limiting downside. Every sealed
+"pass" up to that point (mean_reversion/donchian_breakout candidates like
+#18/#419/#499) beat the benchmark in the two down/defensive windows
+(crash_2020, bear_2022) while trailing it — sometimes by 10+ points — in
+the calm bull window (calm_2017, SPY +18.57%). That's real downside
+protection, genuinely earned, but it is NOT "beating buy-and-hold
+outright": a strategy that wins 2 of 3 by playing defense while giving
+back more than it made on offense can still finish behind buy-and-hold
+overall. windows_beaten == 3 requires demonstrated strength in every
+regime tested, not a blended/lucky-on-average result — the same rigor
+this pipeline already applies against benchmark-gaming, applied to the
+new stricter goal. Confirmed empirically before this change: 0 of the
+115 sealed strategies to date (any family) had windows_beaten == 3 — see
+the 2026-09-11 backfill in schema.py, which re-scored every existing row
+under this bar using already-stored windows_beaten/any_outright_loss/
+total_trades (no new access to sealed data — those columns were already
+derived facts from the one-time run, not a re-peek).
 """
 
 # Aggregate (summed across all 3 sealed windows) minimum trade count for
@@ -114,7 +133,7 @@ def run_holdout_test(strategy_id: int) -> dict:
     any_outright_loss = any(m["return_pct"] < 0 for m in window_results.values())
     total_trades = sum(m["total_trades"] for m in window_results.values())
     overall_pass = (
-        windows_beaten >= 2
+        windows_beaten == len(HOLDOUT_WINDOWS)
         and not any_outright_loss
         and total_trades >= MIN_HOLDOUT_TRADES
     )
@@ -313,8 +332,8 @@ def format_holdout_result(result: dict) -> str:
         lines.append(f"  {name}: {m['return_pct']}% ({beat} SPY {m['benchmark_return_pct']}%)")
     verdict = "PASSED" if result["overall_pass"] else "FAILED"
     lines.append(
-        f"{verdict} — beat buy-and-hold on {result['windows_beaten']}/3 windows, "
-        f"outright loss: {result['any_outright_loss']}, "
+        f"{verdict} — beat buy-and-hold outright on {result['windows_beaten']}/3 windows "
+        f"(3/3 required), outright loss: {result['any_outright_loss']}, "
         f"total trades: {result['total_trades']} (min {MIN_HOLDOUT_TRADES} required)"
     )
     if result["overall_pass"]:
