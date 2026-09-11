@@ -24,6 +24,7 @@ tracking exists yet for this engine (unlike backtest.py/evaluate.py's
 daily-pipeline equivalent) — this is infrastructure-validation scope, not
 the full pipeline. That's a deliberate, separate decision for later.
 """
+import datetime as dt
 import logging
 
 import backtrader as bt
@@ -74,13 +75,42 @@ def run_intraday_backtest(strategy_cls, params: dict, session_dates: list[str],
         # and exit, not just the end-of-day flatten it was meant to fix.
         # The trailing bar alone (verified via a minimal repro) fully
         # solves the original problem without that side effect.
-        last_ts = df.index[-1]
+        #
+        # The trailing bar's timestamp is forced to the nominal session
+        # close (16:01), NOT last_real_bar + 1 minute — confirmed live
+        # 2026-09-11 on 2019-08-12, a completely ordinary Monday whose feed
+        # simply stops at 15:31 (a real data gap, unrelated to any actual
+        # early close). _IntradayStrategy._flatten_if_near_close() decides
+        # whether to flatten by comparing the bar's OWN wall-clock time
+        # against FLATTEN_AFTER (15:55) — a last-real-bar+1-minute trailing
+        # bar inherits whatever time the gap left the real data at (15:32
+        # here), which is still before 15:55, so the flatten check never
+        # fires at all, gap or no trailing bar. Forcing the trailing bar's
+        # clock time to be unambiguously past every strategy's close
+        # window — regardless of where the real feed for that session
+        # happened to end — is what actually guarantees flatten-by-close
+        # fires on every session, not just ones with clean, complete data
+        # to the real 16:00 close.
+        #
+        # One trailing bar still wasn't enough — confirmed live 2026-09-11,
+        # same 2019-08-12 session: forcing that bar to 16:01 correctly made
+        # the flatten check fire (bar_time 16:01 >= FLATTEN_AFTER), which
+        # calls self.close() — but that close() order is now ITSELF
+        # submitted on the (new) literal last bar, so it hits the exact
+        # same no-following-cycle problem this whole mechanism exists to
+        # solve, just one bar later. Two trailing bars: the first
+        # guarantees the flatten decision triggers, the second gives the
+        # resulting close() order a bar to actually fill against. Verified
+        # via a minimal repro before applying here.
         last_close = df["close"].iloc[-1]
-        trailing = df.iloc[[-1]].copy()
-        trailing.index = [last_ts + pd.Timedelta(minutes=1)]
-        trailing[["open", "high", "low", "close"]] = last_close
-        trailing["volume"] = 0
-        df = pd.concat([df, trailing])
+        session_date = df.index[-1].date()
+        trailing1 = df.iloc[[-1]].copy()
+        trailing1.index = [pd.Timestamp.combine(session_date, dt.time(16, 1))]
+        trailing1[["open", "high", "low", "close"]] = last_close
+        trailing1["volume"] = 0
+        trailing2 = trailing1.copy()
+        trailing2.index = [pd.Timestamp.combine(session_date, dt.time(16, 2))]
+        df = pd.concat([df, trailing1, trailing2])
 
         cerebro = bt.Cerebro(runonce=False)
         cerebro.addstrategy(strategy_cls, **(params or {}))
