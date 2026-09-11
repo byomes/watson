@@ -16,6 +16,19 @@ CREATE TABLE IF NOT EXISTS daily_bars (
 );
 """
 
+CREATE_INTRADAY_BARS = """
+CREATE TABLE IF NOT EXISTS intraday_bars (
+    symbol    TEXT NOT NULL,
+    timestamp TEXT NOT NULL,
+    open      REAL NOT NULL,
+    high      REAL NOT NULL,
+    low       REAL NOT NULL,
+    close     REAL NOT NULL,
+    volume    INTEGER NOT NULL,
+    PRIMARY KEY (symbol, timestamp)
+);
+"""
+
 CREATE_RISK_STATE = """
 CREATE TABLE IF NOT EXISTS risk_state (
     id                     INTEGER PRIMARY KEY CHECK (id = 1),
@@ -83,6 +96,7 @@ CREATE TABLE IF NOT EXISTS holdout_tests (
 
 ALL_TABLES = [
     CREATE_DAILY_BARS,
+    CREATE_INTRADAY_BARS,
     CREATE_RISK_STATE,
     CREATE_STRATEGIES,
     CREATE_BACKTEST_RUNS,
