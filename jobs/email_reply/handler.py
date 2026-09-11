@@ -100,9 +100,20 @@ def send_telegram_notification(email: dict, draft: str) -> int | None:
         log.warning("Telegram credentials not set; skipping notification")
         return None
 
+    # Show the original email, not just the draft reply — added 2026-09-11:
+    # Bill got a draft-approval message and couldn't judge whether the draft
+    # was any good without seeing what it was replying to. Same root
+    # complaint, different message, from jobs/email_intake.py's triage
+    # prompt fix earlier the same day.
+    body = (email.get("body") or "").strip()
+    body_snippet = body[:600]
+    ellipsis = "…" if len(body) > 600 else ""
     text = (
         f"📧 New email from {email.get('sender_name', '')} <{email['sender_email']}>\n"
         f"Subject: {email.get('subject', '(no subject)')}\n\n"
+        f"---ORIGINAL EMAIL---\n"
+        f"{body_snippet}{ellipsis}\n"
+        f"---\n\n"
         f"---DRAFT REPLY---\n"
         f"{draft}\n"
         f"---\n\n"
@@ -110,7 +121,7 @@ def send_telegram_notification(email: dict, draft: str) -> int | None:
         f"• go — send this reply\n"
         f"• change: [your text] — send your version instead\n"
         f"• cancel — discard, do nothing"
-    )
+    )[:4000]  # Telegram's hard sendMessage limit is 4096 chars
 
     try:
         resp = requests.post(
