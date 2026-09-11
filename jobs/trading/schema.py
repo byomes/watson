@@ -66,6 +66,8 @@ CREATE TABLE IF NOT EXISTS backtest_runs (
 
 # Sealed by construction: strategy_id UNIQUE means a strategy can be tested
 # against the three holdout windows at most once, ever — see evaluate.py.
+# total_trades: summed across the 3 windows, gates overall_pass alongside
+# windows_beaten/any_outright_loss — see evaluate.py's MIN_HOLDOUT_TRADES.
 CREATE_HOLDOUT_TESTS = """
 CREATE TABLE IF NOT EXISTS holdout_tests (
     id               INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -73,6 +75,7 @@ CREATE TABLE IF NOT EXISTS holdout_tests (
     window_results_json TEXT NOT NULL,
     windows_beaten   INTEGER NOT NULL,
     any_outright_loss INTEGER NOT NULL,
+    total_trades     INTEGER NOT NULL DEFAULT 0,
     overall_pass     INTEGER NOT NULL,
     tested_at        TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -136,6 +139,19 @@ def create_tables(conn=None) -> None:
         cols = {row[1] for row in conn.execute("PRAGMA table_info(backtest_runs)").fetchall()}
         if "rejected_orders" not in cols:
             conn.execute("ALTER TABLE backtest_runs ADD COLUMN rejected_orders INTEGER NOT NULL DEFAULT 0")
+        if "total_trades" not in cols:
+            conn.execute("ALTER TABLE backtest_runs ADD COLUMN total_trades INTEGER NOT NULL DEFAULT 0")
+
+        # total_trades on holdout_tests: added alongside the MIN_HOLDOUT_TRADES
+        # pass-bar fix (evaluate.py) — closes the "near-zero-return, barely-
+        # trading strategy trivially beats a falling benchmark" gaming pattern
+        # confirmed in the Aug 2026 build session. Existing sealed rows predate
+        # this column and are left at the DEFAULT 0 rather than backfilled —
+        # backfilling would require re-deriving trade counts from a re-run of
+        # the sealed holdout data, which the one-shot seal exists to forbid.
+        holdout_cols = {row[1] for row in conn.execute("PRAGMA table_info(holdout_tests)").fetchall()}
+        if "total_trades" not in holdout_cols:
+            conn.execute("ALTER TABLE holdout_tests ADD COLUMN total_trades INTEGER NOT NULL DEFAULT 0")
 
         conn.execute(
             "INSERT OR IGNORE INTO risk_state (id, status) VALUES (1, 'active')"

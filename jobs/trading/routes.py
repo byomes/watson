@@ -79,7 +79,7 @@ _PAGE_TEMPLATE = """
       <td>
         {% if s.holdout_overall_pass is not none %}
           <span class="{{ 'pass' if s.holdout_overall_pass else 'fail' }}">
-            {{ 'PASSED' if s.holdout_overall_pass else 'FAILED' }} ({{ s.holdout_windows_beaten }}/3)
+            {{ 'PASSED' if s.holdout_overall_pass else 'FAILED' }} ({{ s.holdout_windows_beaten }}/3, {{ s.holdout_total_trades }} trades)
           </span>
         {% else %}
           not tested
@@ -149,7 +149,8 @@ def trading_page():
     conn = get_connection()
     try:
         strategies = [dict(r) for r in conn.execute(
-            """SELECT s.*, h.overall_pass AS holdout_overall_pass, h.windows_beaten AS holdout_windows_beaten
+            """SELECT s.*, h.overall_pass AS holdout_overall_pass, h.windows_beaten AS holdout_windows_beaten,
+                      h.total_trades AS holdout_total_trades
                FROM strategies s
                LEFT JOIN holdout_tests h ON h.strategy_id = s.id
                ORDER BY s.id DESC"""

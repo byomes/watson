@@ -10,8 +10,32 @@ failed — only a genuinely new strategy variant (new strategy_id) gets a new
 holdout attempt.
 
 Pass bar: beats SPY buy-and-hold on >= 2 of the 3 sealed windows, AND no
-window shows an outright loss.
+window shows an outright loss, AND the strategy actually traded at least
+MIN_HOLDOUT_TRADES times across all 3 windows combined.
+
+That last clause was added after the Aug 2026 build session's 434-variant
+run found every ma_crossover/mean_reversion/momentum "pass" was benchmark-
+gaming: a near-zero-return, barely-trading strategy trivially beats a
+benchmark that fell, with zero real timing skill — confirmed by checking
+the one bull-market window specifically, where every top "passer" captured
+~0% of it too (i.e. flat across all three windows, not defensively
+positioned in just the down ones). A real trade-count floor closes that
+gap without penalizing a strategy like time_series_momentum that
+genuinely, sparsely trades but demonstrably captures real upside when its
+signal fires (verified by tracing actual signal values, not just the
+aggregate result).
 """
+
+# Aggregate (summed across all 3 sealed windows) minimum trade count for
+# overall_pass. Picked well above what a single accidental fill could
+# produce, and low enough not to penalize a genuinely low-turnover
+# trend-following strategy (time_series_momentum) that just doesn't trade
+# often. Existing sealed holdout_tests rows predate this column (total_trades
+# defaults to 0 there) and are NOT retroactively re-scored — the one-shot
+# seal means their real trade counts can't be recovered without re-running
+# the sealed backtest, which the seal exists to forbid. Those rows were
+# already known (Aug 2026 session) to be gaming artifacts under the old bar.
+MIN_HOLDOUT_TRADES = 5
 import json
 import logging
 
@@ -88,15 +112,21 @@ def run_holdout_test(strategy_id: int) -> dict:
         1 for m in window_results.values() if m["return_pct"] > m["benchmark_return_pct"]
     )
     any_outright_loss = any(m["return_pct"] < 0 for m in window_results.values())
-    overall_pass = windows_beaten >= 2 and not any_outright_loss
+    total_trades = sum(m["total_trades"] for m in window_results.values())
+    overall_pass = (
+        windows_beaten >= 2
+        and not any_outright_loss
+        and total_trades >= MIN_HOLDOUT_TRADES
+    )
 
     conn = get_connection()
     try:
         conn.execute(
             """INSERT INTO holdout_tests
-               (strategy_id, window_results_json, windows_beaten, any_outright_loss, overall_pass)
-               VALUES (?, ?, ?, ?, ?)""",
-            (strategy_id, json.dumps(window_results), windows_beaten, int(any_outright_loss), int(overall_pass)),
+               (strategy_id, window_results_json, windows_beaten, any_outright_loss, total_trades, overall_pass)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (strategy_id, json.dumps(window_results), windows_beaten, int(any_outright_loss),
+             total_trades, int(overall_pass)),
         )
         conn.execute(
             "UPDATE strategies SET status = ? WHERE id = ?",
@@ -111,6 +141,7 @@ def run_holdout_test(strategy_id: int) -> dict:
         "window_results": window_results,
         "windows_beaten": windows_beaten,
         "any_outright_loss": any_outright_loss,
+        "total_trades": total_trades,
         "overall_pass": overall_pass,
     }
 
@@ -240,7 +271,7 @@ def format_holdout_batch_report(results: list[dict]) -> str:
         lines.append(
             f"  #{r['strategy_id']} [{verdict}] {label} {strategy['params_json']} — "
             f"beat {r['windows_beaten']}/3, avg return {_avg_return(r):.3f}%, "
-            f"outright loss: {r['any_outright_loss']}"
+            f"outright loss: {r['any_outright_loss']}, trades: {r['total_trades']}"
         )
     if len(ranked) > 20:
         lines.append(f"  ...and {len(ranked) - 20} more — see trading.db for the full list.")
@@ -283,7 +314,8 @@ def format_holdout_result(result: dict) -> str:
     verdict = "PASSED" if result["overall_pass"] else "FAILED"
     lines.append(
         f"{verdict} — beat buy-and-hold on {result['windows_beaten']}/3 windows, "
-        f"outright loss: {result['any_outright_loss']}"
+        f"outright loss: {result['any_outright_loss']}, "
+        f"total trades: {result['total_trades']} (min {MIN_HOLDOUT_TRADES} required)"
     )
     if result["overall_pass"]:
         lines.append("Eligible for live paper-account forward testing (manual next step).")

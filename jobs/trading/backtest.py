@@ -89,6 +89,7 @@ def run_backtest(strategy_cls, params: dict, data_df, symbol: str = "SPY",
         "win_rate": round(win_rate, 2) if win_rate is not None else None,
         "benchmark_return_pct": round(_buy_and_hold_return_pct(data_df), 4),
         "rejected_orders": rejected_orders,
+        "total_trades": total_trades,
     }
 
     _log_run(
@@ -105,16 +106,18 @@ def run_backtest(strategy_cls, params: dict, data_df, symbol: str = "SPY",
 
 def _log_run(strategy_id, symbol, window_label, start_date, end_date,
              return_pct, max_drawdown_pct, sharpe, win_rate, benchmark_return_pct,
-             rationale, rejected_orders=0) -> int:
+             rationale, rejected_orders=0, total_trades=0) -> int:
     conn = get_connection()
     try:
         cur = conn.execute(
             """INSERT INTO backtest_runs
                (strategy_id, symbol, window_label, start_date, end_date,
-                return_pct, max_drawdown_pct, sharpe, win_rate, benchmark_return_pct, rationale, rejected_orders)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                return_pct, max_drawdown_pct, sharpe, win_rate, benchmark_return_pct, rationale,
+                rejected_orders, total_trades)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (strategy_id, symbol, window_label, start_date, end_date,
-             return_pct, max_drawdown_pct, sharpe, win_rate, benchmark_return_pct, rationale, rejected_orders),
+             return_pct, max_drawdown_pct, sharpe, win_rate, benchmark_return_pct, rationale,
+             rejected_orders, total_trades),
         )
         conn.commit()
         return cur.lastrowid
