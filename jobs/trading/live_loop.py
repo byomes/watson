@@ -128,7 +128,21 @@ def run_once() -> dict:
     Safe to call repeatedly (idempotent w.r.t. position state — checks the
     REAL current position before deciding, not a locally-cached guess)."""
     create_tables()
-    pull_daily_bars(symbol=SYMBOL, years=1)  # cheap incremental refresh, not the full 10yr history
+    # Confirmed live 2026-09-11: Alpaca's data API can 504 for an extended
+    # period (backend request timeout — not this pipeline's code, every
+    # symbol including SPY failed identically). An unguarded pull_daily_bars
+    # here would crash the whole run before logging anything or notifying
+    # Telegram, silently skipping the day with nothing but a line in a log
+    # file nobody's watching. Degrade instead: warn and proceed on whatever
+    # daily_bars already has (stale but usable — the loop already runs
+    # daily, so "yesterday's pull, one day stale" is a minor accuracy loss,
+    # not a correctness bug), and say so in the Telegram message.
+    data_stale = False
+    try:
+        pull_daily_bars(symbol=SYMBOL, years=1)  # cheap incremental refresh, not the full 10yr history
+    except Exception as exc:
+        log.warning("Daily bar refresh failed, proceeding on existing data: %s", exc)
+        data_stale = True
 
     client = get_trading_client()
     account = client.get_account()
@@ -197,12 +211,15 @@ def run_once() -> dict:
         f"{reason}\n"
         f"Equity: ${equity:.2f} -> ${equity_after:.2f}"
     )
+    if data_stale:
+        msg += "\nNOTE: today's data refresh failed (Alpaca API issue) — decision used yesterday's bar."
     if error:
         msg += f"\nERROR: {error}"
     _send_telegram(msg + "\n- Watson")
 
     return {
         "bar_date": sig["bar_date"], "signal": signal, "action": action, "reason": reason,
+        "data_stale": data_stale,
         "equity_before": equity, "equity_after": equity_after, "order_id": order_id,
         "risk_status": risk_status, "error": error,
     }
