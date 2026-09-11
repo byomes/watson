@@ -3586,3 +3586,26 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - 0af4766 beachhouse UI: Beach/Mountain/Romance tabs
 - 1860247 beachhouse UI: multi-state checkboxes, adjustable criteria, price notes
 - d99fc82 Add wtsn.me/p/beachhouse — Beach House Search
+
+---
+
+## Recent Changes — 2026-09-11
+
+### ~/watson
+- acf1995 docs: bugs/backlog export 2026-09-11
+- 98fccbb docs: file map 2026-09-11
+- b82b87b feat(trading): Donchian channel breakout template (Turtle rules)
+- 1a6ec67 fix(trading): close holdout benchmark-gaming pass bar with a trade-count floor
+- 29977e1 Add Telegram chat commands to add children and correct birthdates
+- 543d9ea Add daily birthday alert to Dr. Bill, congregation-wide
+- 079e1dd Add Bill Crook and Jim Bouchat as recipients of State of the Church report
+- 679a884 House Calls tile: log-order sorting, neutral delete button, visible Paid label
+- 1ebd234 Add edit/delete controls to dashboard House Calls tile
+- 2e91dbe Add house-call paid tracking to dashboard, decouple pay-toggle from monthly bill
+- 3ecd252 Fix Savings tab month/all-time mismatch in vps_cost_estimate.py
+- dab6d6e Add hamprep/micah-tasks to local backup, add nightly backup confirmation
+- 4f2834e Restore archive Telegram notification with OK/Change Filing buttons
+- 0e1b94e Remove Telegram Keep/Change notification on session archive
+- 3394f90 Drop modeled backfill data from dashboard Savings tab
+- b6a361f docs: regenerate Skills & Capabilities Catalog
+- 286fb72 docs: architecture update 2026-09-10
