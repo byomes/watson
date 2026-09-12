@@ -69,7 +69,7 @@ _API_KEY = lambda: os.getenv("DEACONS_API_KEY", "")
 _LAST_SEEN_NEVER = "1900-01-01"
 
 _ROSTER_FIELDS = (
-    "m.id, m.name, m.email, m.phone, m.address, m.birthdate, m.household_id, "
+    "m.id, m.name, m.email, m.phone, m.address, m.birthdate, m.household_id, m.household_role, "
     "m.deacon, m.deacon_status, m.member_status, "
     "MAX("
     f"  COALESCE((SELECT MAX(service_date) FROM connect_cards WHERE member_id = m.id), '{_LAST_SEEN_NEVER}'),"
@@ -317,3 +317,65 @@ def delete_deacon_note(member_id, note_id):
         conn.commit()
 
     return jsonify({"ok": True}), 200
+
+
+def _roster_rows(conn, member_ids: list[int]) -> list[dict]:
+    """Fresh roster rows (same shape get_roster/update_member return) for
+    specific member ids -- used by the family routes below to hand back
+    both affected people's updated household_id/household_role in one
+    response, since a spouse/child mark always changes two rows at once."""
+    if not member_ids:
+        return []
+    placeholders = ",".join("?" for _ in member_ids)
+    rows = conn.execute(
+        f"SELECT {_ROSTER_FIELDS} FROM members m WHERE m.id IN ({placeholders}) GROUP BY m.id",
+        member_ids,
+    ).fetchall()
+    people = [dict(r) for r in rows]
+    _attach_shepherding_info(conn, people)
+    return people
+
+
+# Added 2026-09-12 per Bill's request that every leader (not just Telegram's
+# _FAMILY_EDIT_ALLOWLIST) be able to manage family relationships -- every
+# logged-in deacon already gets full roster access via this blueprint (see
+# module docstring's "unified by design"), so these two routes carry no
+# extra allowlist of their own, same as the rest of the blueprint. See
+# jobs/congregation/family_edit.py's module docstring for the household_id/
+# household_role model these write to.
+@deacons_web_bp.route("/api/cat/deacons/family/spouse", methods=["POST"])
+@_require_key
+def mark_family_spouse():
+    data = request.get_json(force=True) or {}
+    member_id, spouse_id = data.get("member_id"), data.get("spouse_id")
+    sender = (data.get("sender") or "").strip() or "Deacon App"
+    if not isinstance(member_id, int) or not isinstance(spouse_id, int):
+        return jsonify({"error": "member_id and spouse_id are required"}), 400
+
+    from jobs.congregation.family_edit import mark_spouse_by_id
+    ok, message = mark_spouse_by_id(member_id, spouse_id, sender)
+    if not ok:
+        return jsonify({"error": message}), 400
+
+    with _conn() as conn:
+        updated = _roster_rows(conn, [member_id, spouse_id])
+    return jsonify({"message": message, "updated": updated}), 200
+
+
+@deacons_web_bp.route("/api/cat/deacons/family/child", methods=["POST"])
+@_require_key
+def mark_family_child():
+    data = request.get_json(force=True) or {}
+    child_id, parent_id = data.get("child_id"), data.get("parent_id")
+    sender = (data.get("sender") or "").strip() or "Deacon App"
+    if not isinstance(child_id, int) or not isinstance(parent_id, int):
+        return jsonify({"error": "child_id and parent_id are required"}), 400
+
+    from jobs.congregation.family_edit import mark_child_by_id
+    ok, message = mark_child_by_id(child_id, parent_id, sender)
+    if not ok:
+        return jsonify({"error": message}), 400
+
+    with _conn() as conn:
+        updated = _roster_rows(conn, [child_id, parent_id])
+    return jsonify({"message": message, "updated": updated}), 200

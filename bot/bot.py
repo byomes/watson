@@ -951,13 +951,18 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
             _bday_update = (
                 _extract_birthday_update(_msg_text) if (_is_family_editor and not _add_child) else None
             )
+            # Per Bill's 2026-09-12 request, family relationship marking (unlike
+            # add_child/birthday-update above) is open to EVERY onboarded
+            # leader, not just _FAMILY_EDIT_ALLOWLIST -- _leader_name being set
+            # at all already means "onboarded team member or deacon" (see the
+            # comment on _handle_team_chat's access model above), so no extra
+            # allowlist check is needed here.
             _mark_spouse = (
-                _extract_mark_spouse(_msg_text)
-                if (_is_family_editor and not _add_child and not _bday_update) else None
+                _extract_mark_spouse(_msg_text) if (not _add_child and not _bday_update) else None
             )
             _mark_child = (
                 _extract_mark_child(_msg_text)
-                if (_is_family_editor and not _add_child and not _bday_update and not _mark_spouse) else None
+                if (not _add_child and not _bday_update and not _mark_spouse) else None
             )
             _is_assigner = _leader_name in _DEACON_ASSIGN_ALLOWLIST
             _assign = (
