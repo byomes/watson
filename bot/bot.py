@@ -2541,6 +2541,7 @@ _TEAM_LOOKUP_FIELD_WORDS = {
     "contact": "contact", "contact info": "contact", "contact information": "contact",
     "address": "address", "home address": "address",
     "birthday": "birthday", "birthdate": "birthday", "date of birth": "birthday",
+    "age": "age",
 }
 # Longest-phrase-first so "cell phone" wins over the bare "phone" alternative
 # it contains, same reasoning as _WEB_METRIC_KEYWORDS_BY_LENGTH below.
@@ -2595,6 +2596,18 @@ def _extract_team_lookup(text: str) -> tuple[str, str] | None:
     m = re.search(r"where\s+does\s+(\w+(?:\s+\w+)?)\s+live", text, re.IGNORECASE)
     if m:
         return m.group(1), "address"
+    # "how old is X" -- doesn't fit the "X's field" / "field for X" shapes
+    # above, so it needs its own pattern. Added 2026-09-12 after Bill asked
+    # this and got the raw birthdate back instead of a computed age: without
+    # this fast path the question fell through to data_chat.py's LLM-generated
+    # SQL, which (reasonably, given no age-specific example) just selected
+    # the birthdate column and returned it verbatim -- correct data, wrong
+    # question answered.
+    m = re.search(r"how\s+old\s+is\s+(\w+(?:\s+\w+)?)\b", text, re.IGNORECASE)
+    if m:
+        name = _strip_team_lookup_stopwords(m.group(1))
+        if name:
+            return name, "age"
     m = re.search(
         # Lazy second-word group: without it, "when did Donna last attend"
         # greedily captures "Donna last" as the name (group 1 prefers to eat
@@ -2613,6 +2626,20 @@ def _extract_team_lookup(text: str) -> tuple[str, str] | None:
     if m:
         return m.group(1), "last_seen"
     return None
+
+
+def _compute_age(birthdate: str) -> int | None:
+    """Current age (accounting for whether this year's birthday has already
+    passed), not the naive year-difference family_edit.py/birthday_report.py
+    use elsewhere -- those are answering "what age do they turn THIS year"
+    for a birthday announcement, a different question than "how old are
+    they right now"."""
+    try:
+        born = date.fromisoformat(birthdate)
+    except (ValueError, TypeError):
+        return None
+    today = date.today()
+    return today.year - born.year - ((today.month, today.day) < (born.month, born.day))
 
 
 def _format_team_lookup_reply(person_name: str, field: str) -> str:
@@ -2637,6 +2664,11 @@ def _format_team_lookup_reply(person_name: str, field: str) -> str:
         return f"{m['name']} lives at: {m.get('address') or 'no address on file.'}"
     if field == "birthday":
         return f"{m['name']}'s birthday: {m.get('birthdate') or 'not on file.'}"
+    if field == "age":
+        age = _compute_age(m["birthdate"]) if m.get("birthdate") else None
+        if age is None:
+            return f"{m['name']}'s birthdate isn't on file, so I can't tell you their age."
+        return f"{m['name']} is {age} years old."
     if field == "last_seen":
         seen = m.get("last_seen")
         if not seen or seen == "1900-01-01":
