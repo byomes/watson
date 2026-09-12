@@ -1632,6 +1632,13 @@ channel-agnostic. Any new caller resolving a recipient/contact string should che
 self-aliases through this same function rather than reinventing the check, or the same
 failure mode reappears.
 
+**Family fields** (added 2026-09-12): `jobs/people/lookup.py::lookup_member_family(query)` is
+the congregation.db-only counterpart used for `deacon`/`spouse`/`children`/`parent` --
+`lookup_member_details` doesn't select those columns. Backs `bot.py`'s `_extract_team_lookup`
+fast paths ("who is X's deacon", "who is X's spouse", etc. -- see that function's own comments
+for the full phrasing list) via the household_id/household_role self-join described under
+Family Relationships (Congregation Management, above).
+
 ---
 
 ## Watson Identity & Email
@@ -3660,6 +3667,7 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 ## Recent Changes — 2026-09-12
 
 ### ~/watson
+- eb2319e Widen fast-path phrasing across team chat for leader usability (new who's-X's-deacon/spouse/children/parent lookups, fixed 2 dead cdb_query.py triggers, many more phrasing synonyms)
 - 5b93b5a fix: "how old is X" now answers with computed age, not raw birthdate
 - 8c22270 Open family relationship management to all leaders (chat + deacon app)
 - 270a80d Add family relationship tracking (spouse/child) to congregation.db
