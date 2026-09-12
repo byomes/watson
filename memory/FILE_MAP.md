@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-09-11*
+*Generated: 2026-09-12*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -99,8 +99,6 @@ data/
     66e0844b7fab4e0a8bb386db8504deac.png
     9eca6f54ecff491dbed2470fd0b3d196.png
   congregation.db
-  congregation.db-shm
-  congregation.db-wal
   congregation.db.bak_before_orphan_delete_20260906_070048
   cover_images/
     cover_1.jpg
@@ -4029,6 +4027,14 @@ data/
         everyday-ai-overview.md
         project-instructions.md
         transcript.md
+      20260911-155846-book-title-locked-cover-art-prompts-four-tests-rew/
+        transcript.md
+      20260911-181003-guardrails-fully-anchored-in-scripture-full-outlin/
+        transcript.md
+      20260911-221334-chapter-2-confirmed-chapter-5-relationship-stories/
+        transcript.md
+      20260911-225702-reconciliation-check-project-files-memory-and-wats/
+        transcript.md
     wcky-book-launch-project/
       20260826-013953-sending-giving-statements-in-tithely/
         transcript.md
@@ -4636,8 +4642,16 @@ data/
   trading.db
   trading.db.bak-pre-donchian-20260911001022
   trading.db.bak-pre-holdout-batch-20260911000446
+  trading.db.bak-pre-holdout-batch2-20260911075635
+  trading.db.bak-pre-holdout-batch3-20260911080328
+  trading.db.bak-pre-holdout-batch4-20260911080956
+  trading.db.bak-pre-intraday-pull-20260911082432
   trading.db.bak-pre-min-trades-fix
+  trading.db.bak-pre-sizing-fix-20260911073349
+  trading.db.bak-pre-windows3-backfill-20260911110635
   watson.db
+  watson.db-shm
+  watson.db-wal
 deploy/
   .gitkeep
   apt-packages.txt
@@ -5207,7 +5221,6 @@ jobs/
     weekly_completed_report.py
   telegram/
     __init__.py
-    _oneoff_donna_children_note.py
     dashboard_api.py
     leader_tool_usage.py
     leader_tool_usage_api.py
@@ -5232,6 +5245,7 @@ jobs/
   trading/
     HOLDOUT_WINDOWS.md
     __init__.py
+    _oneoff_live_loop_week1_summary.py
     alpaca_client.py
     backtest.py
     data.py
@@ -5239,14 +5253,21 @@ jobs/
     db.py
     evaluate.py
     holdout.py
+    intraday_backtest.py
+    intraday_data.py
+    intraday_data_pull.py
     iteration_loop.py
     kb_ingest.py
+    live_loop.py
     risk.py
     routes.py
+    run_basket_test.py
     schema.py
     strategies/
       __init__.py
+      intraday_templates.py
       templates.py
+    symbol_basket.py
     verify_holdout_windows.py
   transcribe.py
   trip/
