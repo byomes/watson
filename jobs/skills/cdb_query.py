@@ -296,6 +296,46 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
                 f"ORDER BY name"
             )
 
+    # SPOUSE LOOKUP -- checked before MEMBER LOOKUP BY NAME below, whose
+    # generic 'who is' trigger would otherwise swallow "who is X married to"
+    # as a literal (always-empty) name search for someone named "X married
+    # to". Uses household_id/household_role (added 2026-09-12, see
+    # jobs/congregation/family_edit.py) via the same self-join pattern as
+    # jobs/analytics/data_chat.py's spouse examples. Found 2026-09-12
+    # reviewing this file's fast-path phrasing: the trigger list below used
+    # to contain the literal string 'who is [name] married to' (brackets and
+    # all), which can never match real text containing an actual name --
+    # this question fell all the way through to the generic name-search
+    # fallback instead, which itself mishandled it the same way. Replaced
+    # with an actual working pattern below.
+    _spouse_m = re.search(r"who\s+is\s+(\w+(?:\s+\w+)?)\s+married\s+to\b", q)
+    if not _spouse_m:
+        _spouse_m = re.search(r"is\s+(\w+(?:\s+\w+)?)\s+married\b", q)
+    if not _spouse_m:
+        _spouse_m = re.search(r"(\w+(?:\s+\w+)?)'s\s+spouse\b", q)
+    if _spouse_m:
+        spouse_name = _spouse_m.group(1).strip()
+        if spouse_name:
+            return (
+                f"SELECT m2.name FROM members m1 JOIN members m2 ON m2.household_id = m1.household_id "
+                f"AND m2.id != m1.id WHERE m1.name LIKE '%{spouse_name}%' AND m1.active = 1 "
+                f"AND m1.household_role IN ('head','spouse') AND m2.household_role IN ('head','spouse')"
+            )
+
+    # MEMBER'S OWN DEACON -- checked before MEMBER LOOKUP BY NAME for the
+    # same reason as SPOUSE LOOKUP above. Distinct from DEACON GROUP
+    # MEMBERSHIP earlier in this function, which lists everyone a GIVEN
+    # deacon shepherds -- this answers who shepherds ONE member. Also
+    # replaces a dead 'does [name] have a deacon' literal-bracket trigger
+    # found the same review pass as SPOUSE LOOKUP above.
+    _member_deacon_m = re.search(r"does\s+(\w+(?:\s+\w+)?)\s+have\s+a\s+deacon\b", q)
+    if not _member_deacon_m:
+        _member_deacon_m = re.search(r"who\s+is\s+(\w+(?:\s+\w+)?)'s\s+deacon\b", q)
+    if _member_deacon_m:
+        member_name = _member_deacon_m.group(1).strip()
+        if member_name:
+            return f"SELECT name, deacon FROM members WHERE name LIKE '%{member_name}%' AND active = 1"
+
     # BIRTHDAYS -- a month-wide list ("birthdays in October", "who has a
     # birthday this month"), distinct from a single person's own birthday
     # (that's bot.py's _extract_team_lookup "X's birthday" fast path instead).
@@ -316,7 +356,15 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
             )
 
     # MEMBER LOOKUP BY NAME
-    if any(w in q for w in ['what is [name] birthday', 'who is [name] married to', 'does [name] have a deacon', 'look up', 'find member', 'search for', 'who is', 'tell me about',
+    # (Two dead trigger phrases removed here 2026-09-12: 'what is [name]
+    # birthday' and 'who is [name] married to' and 'does [name] have a
+    # deacon' were literal strings with brackets in them that could never
+    # match real text -- a person's actual name would never contain the
+    # literal substring "[name]". "who is X married to"/"does X have a
+    # deacon" now have real, working patterns above instead; a single
+    # person's own birthday is bot.py's _extract_team_lookup fast path, not
+    # this file, per the BIRTHDAYS block's comment above.)
+    if any(w in q for w in ['look up', 'find member', 'search for', 'who is', 'tell me about',
                              'get info on', 'member info', 'pull up', 'details on', 'info for']):
         name = q
         for trigger in ['tell me about', 'get info on', 'find member', 'member info',

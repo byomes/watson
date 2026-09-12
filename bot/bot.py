@@ -2265,7 +2265,7 @@ def _deacon_name_for_chat(chat_id: str) -> str | None:
 _DEACON_ASSIGN_ALLOWLIST = frozenset({"Bill Crook", "Jim Bouchat"})
 
 
-_DEACON_ASSIGN_VERBS = r"assign|reassign|move|put|add"
+_DEACON_ASSIGN_VERBS = r"assign|reassign|move|put|add|switch|transfer"
 
 # Anchored at the start of the message (unlike _extract_deacon_assign's
 # re.search below) -- used only to catch an assign-shaped message that's
@@ -2288,7 +2288,30 @@ def _extract_deacon_assign(text: str) -> tuple[str, str] | None:
     ("Can you add Emily Taylor to Bill crook") used it and previously fell
     all the way through to jobs.analytics.data_chat's Claude-first
     read-only Q&A path, which paid for an API call and then correctly
-    refused (it only ever generates SELECTs) -- worst of both worlds."""
+    refused (it only ever generates SELECTs) -- worst of both worlds.
+
+    "change/update/set X's deacon to Y" (added 2026-09-12) gets its own
+    pattern rather than joining _DEACON_ASSIGN_VERBS -- "change"/"update"/
+    "set" are common sentence starters for all kinds of unrelated requests
+    ("change Sarah's email to ..."), so folding them into the generic
+    verb+to/with regex above would have misdirected those into a failed
+    deacon lookup instead of falling through to whatever should have
+    handled them. Requiring the literal word "deacon" keeps this
+    unambiguous. (A reversed "make Y X's deacon" pattern was tried and
+    dropped -- with both the person and deacon names free-text and
+    possibly multi-word, "make Bill Crook Emily's deacon" can't be split
+    reliably: is "Bill Crook" the deacon and "Emily" the person, or "Bill"
+    the deacon and "Crook Emily" the person? Either parse is equally valid
+    without a real name lookup at match time, and it's a rare enough
+    phrasing that failing safe -- falling through to team chat -- beats
+    guessing.)"""
+    m = re.search(
+        r"(?:change|update|set)\s+(.+?)'s\s+deacon\s+to\s+(.+?)[.!]?$", text.strip(), re.IGNORECASE
+    )
+    if m:
+        person = m.group(1).strip(" .,")
+        deacon = m.group(2).strip(" .,")
+        return (person, deacon) if person and deacon else None
     m = re.search(
         rf"(?:{_DEACON_ASSIGN_VERBS})\s+(.+?)\s+(?:to|with)\s+(.+?)(?:'s\s+list)?[.!]?$",
         text.strip(),
@@ -2326,25 +2349,43 @@ def _extract_add_child(text: str) -> tuple[str, str, str] | None:
             r"add\s+(.+?)\s+as\s+(?:a\s+)?child\s+of\s+(.+?)[,]?\s*(?:born|dob|birthdate|birthday)\s*[:\-]?\s*(.+?)[.!]?$",
             text, re.IGNORECASE,
         )
-    if not m:
-        return None
-    child = m.group(1).strip(" .,")
-    parent = m.group(2).strip(" .,")
-    date_raw = m.group(3).strip(" .,")
-    return (child, parent, date_raw) if child and parent and date_raw else None
+    if m:
+        child = m.group(1).strip(" .,")
+        parent = m.group(2).strip(" .,")
+        date_raw = m.group(3).strip(" .,")
+        return (child, parent, date_raw) if child and parent and date_raw else None
+    # "new baby X born to Y on DATE" -- added 2026-09-12, a natural
+    # birth-announcement phrasing distinct from the two "add ... as a child
+    # of ..." shapes above. Requires the literal "on" before the date to
+    # stay unambiguous (without it, "X born to Y, some trailing text"
+    # can't reliably tell where the parent name ends and a date begins).
+    m = re.search(
+        r"(?:new\s+baby\s+)?(\w+(?:\s+\w+)?)\s+born\s+to\s+(.+?)\s+on\s+(.+?)[.!]?$",
+        text, re.IGNORECASE,
+    )
+    if m:
+        child = m.group(1).strip(" .,")
+        parent = m.group(2).strip(" .,")
+        date_raw = m.group(3).strip(" .,")
+        return (child, parent, date_raw) if child and parent and date_raw else None
+    return None
+
+
+_BIRTHDATE_WORD_ALTS = r"birthday|birthdate|dob|date of birth"
 
 
 def _extract_birthday_update(text: str) -> tuple[str, str] | None:
-    """Recognize "<name>'s birthday is <date>", "update/set/fix <name>'s
-    birthday to <date>", or "<name> was born <date>" and return
-    (name_query, date_raw), or None."""
+    """Recognize "<name>'s birthday/birthdate/dob is <date>", "update/set/
+    fix/correct <name>'s birthday to <date>", or "<name> was born <date>"
+    and return (name_query, date_raw), or None. "birthdate"/"dob"/"date of
+    birth" joined "birthday" 2026-09-12 in both patterns below."""
     text = text.strip()
     m = re.search(
-        r"(?:update|set|fix|correct)\s+(.+?)(?:'s)?\s+birthday\s+(?:to|is)\s+(.+?)[.!]?$",
+        rf"(?:update|set|fix|correct)\s+(.+?)(?:'s)?\s+(?:{_BIRTHDATE_WORD_ALTS})\s+(?:to|is)\s+(?:on\s+)?(.+?)[.!]?$",
         text, re.IGNORECASE,
     )
     if not m:
-        m = re.search(r"(.+?)'s\s+birthday\s+is\s+(.+?)[.!]?$", text, re.IGNORECASE)
+        m = re.search(rf"(.+?)'s\s+(?:{_BIRTHDATE_WORD_ALTS})\s+is\s+(?:on\s+)?(.+?)[.!]?$", text, re.IGNORECASE)
     if not m:
         m = re.search(r"(.+?)\s+was\s+born\s+(?:on\s+)?(.+?)[.!]?$", text, re.IGNORECASE)
     if not m:
@@ -2373,17 +2414,23 @@ async def _handle_birthday_update(update: Update, sender_name: str, name_query: 
 # members ALREADY on file; _extract_add_child above stays the tool for a
 # brand-new member.
 def _extract_mark_spouse(text: str) -> tuple[str, str] | None:
-    """Recognize "X and Y are married/spouses", "X is married to Y", or
-    "X's spouse is Y" and return (name1, name2), or None."""
+    """Recognize "X and Y are married/spouses", "X is married to Y", "X's
+    spouse is Y", "X married Y", or "X is Y's husband/wife" and return
+    (name1, name2), or None. "&"/"got married"/husband-wife possessive
+    joined 2026-09-12."""
     text = text.strip()
     m = re.search(
-        r"^(?:mark\s+)?(.+?)\s+and\s+(.+?)\s+(?:are|as)\s+(?:married|spouses|husband and wife)[.!]?$",
+        r"^(?:mark\s+)?(.+?)\s+(?:and|&)\s+(.+?)\s+(?:are|as)\s+(?:married|spouses|husband and wife)[.!]?$",
         text, re.IGNORECASE,
     )
     if not m:
-        m = re.search(r"^(.+?)\s+is\s+married\s+to\s+(.+?)[.!]?$", text, re.IGNORECASE)
+        m = re.search(r"^(.+?)\s+(?:is\s+|got\s+)?married\s+to\s+(.+?)[.!]?$", text, re.IGNORECASE)
+    if not m:
+        m = re.search(r"^(.+?)\s+married\s+(.+?)[.!]?$", text, re.IGNORECASE)
     if not m:
         m = re.search(r"^(.+?)'s\s+spouse\s+is\s+(.+?)[.!]?$", text, re.IGNORECASE)
+    if not m:
+        m = re.search(r"^(.+?)\s+is\s+(.+?)'s\s+(?:husband|wife)[.!]?$", text, re.IGNORECASE)
     if not m:
         return None
     a = m.group(1).strip(" .,")
@@ -2391,25 +2438,36 @@ def _extract_mark_spouse(text: str) -> tuple[str, str] | None:
     return (a, b) if a and b else None
 
 
+_CHILD_WORD_ALTS = r"child|son|daughter|kid"
+
+
 def _extract_mark_child(text: str) -> tuple[str, str] | None:
-    """Recognize "X is Y's child/son/daughter" or "X is a child of Y" for an
-    EXISTING member -- return (child_name, parent_name), or None. Checked
-    only after _extract_add_child (which needs "add" + a birthdate) has
-    already failed, so "add X as a child of Y born DATE" is never
+    """Recognize "X is Y's child/son/daughter/kid", "X is a child of Y", or
+    "Y is X's father/mother/dad/mom" (parent-initiated -- added 2026-09-12)
+    for an EXISTING member -- return (child_name, parent_name), or None.
+    Checked only after _extract_add_child (which needs "add" + a birthdate)
+    has already failed, so "add X as a child of Y born DATE" is never
     reinterpreted here."""
     text = text.strip()
-    m = re.search(r"^(.+?)\s+is\s+(?:a\s+)?(?:child|son|daughter)\s+of\s+(.+?)[.!]?$", text, re.IGNORECASE)
+    m = re.search(rf"^(.+?)\s+is\s+(?:a\s+)?(?:{_CHILD_WORD_ALTS})\s+of\s+(.+?)[.!]?$", text, re.IGNORECASE)
     if m:
         child, parent = m.group(1), m.group(2)
     else:
-        m = re.search(r"^(.+?)\s+is\s+(.+?)'s\s+(?:child|son|daughter)[.!]?$", text, re.IGNORECASE)
+        m = re.search(rf"^(.+?)\s+is\s+(.+?)'s\s+(?:{_CHILD_WORD_ALTS})[.!]?$", text, re.IGNORECASE)
         if m:
             child, parent = m.group(1), m.group(2)
         else:
-            m = re.search(r"^(.+?)'s\s+(?:child|son|daughter)\s+is\s+(.+?)[.!]?$", text, re.IGNORECASE)
-            if not m:
-                return None
-            parent, child = m.group(1), m.group(2)
+            m = re.search(rf"^(.+?)'s\s+(?:{_CHILD_WORD_ALTS})\s+is\s+(.+?)[.!]?$", text, re.IGNORECASE)
+            if m:
+                parent, child = m.group(1), m.group(2)
+            else:
+                # Parent-initiated: "Y is X's father/mother/dad/mom" --
+                # reversed order from the possessive case above (there the
+                # possessive names the CHILD; here it names the PARENT).
+                m = re.search(r"^(.+?)\s+is\s+(.+?)'s\s+(?:father|mother|dad|mom)[.!]?$", text, re.IGNORECASE)
+                if not m:
+                    return None
+                parent, child = m.group(1), m.group(2)
     child = child.strip(" .,")
     parent = parent.strip(" .,")
     return (child, parent) if child and parent else None
@@ -2535,17 +2593,40 @@ def _get_team_reply_sync(text: str) -> tuple[str, bool]:
 
 
 _TEAM_LOOKUP_FIELD_WORDS = {
-    "email": "email", "e-mail": "email",
+    "email": "email", "e-mail": "email", "email address": "email",
     "phone": "phone", "number": "phone", "cell": "phone", "cell phone": "phone",
-    "mobile": "phone", "mobile number": "phone",
+    "cell number": "phone", "mobile": "phone", "mobile number": "phone",
+    "phone number": "phone", "text number": "phone",
     "contact": "contact", "contact info": "contact", "contact information": "contact",
-    "address": "address", "home address": "address",
-    "birthday": "birthday", "birthdate": "birthday", "date of birth": "birthday",
+    "address": "address", "home address": "address", "mailing address": "address",
+    "street address": "address",
+    "birthday": "birthday", "birthdate": "birthday", "date of birth": "birthday", "dob": "birthday",
     "age": "age",
+    # Family fields (2026-09-12, alongside household_role -- see
+    # jobs/congregation/family_edit.py / jobs/people/lookup.py's
+    # lookup_member_family). "deacon" is NOT here -- "X's deacon GROUP" is a
+    # different question (a roster, handled by cdb_query.py's separate
+    # deacon-group pattern) and belongs to a different person than the
+    # single "who is X's deacon" lookup, so it gets its own regex below with
+    # a negative lookahead instead of risking this shared alternation
+    # swallowing "group" phrasing by accident.
+    "spouse": "spouse", "husband": "spouse", "wife": "spouse",
+    "children": "children", "kids": "children",
+    "mom": "parent", "mother": "parent", "dad": "parent", "father": "parent",
+    "parent": "parent", "parents": "parent",
 }
 # Longest-phrase-first so "cell phone" wins over the bare "phone" alternative
 # it contains, same reasoning as _WEB_METRIC_KEYWORDS_BY_LENGTH below.
 _TEAM_LOOKUP_FIELD_ALTS = "|".join(re.escape(k) for k in sorted(_TEAM_LOOKUP_FIELD_WORDS, key=len, reverse=True))
+# Same alternation, minus the bare "number" key -- safe in "X's number" or
+# "number for X" (both require a name right there), but "number OF X" is
+# also just plain English for "count of X" ("the number of people who
+# attended", "number of kids in nursery"), which the shared "of" pattern
+# below would otherwise misfire on constantly. Multi-word variants ("phone
+# number", "cell number") stay in since they're unambiguous either way.
+_TEAM_LOOKUP_OF_ALTS = "|".join(
+    re.escape(k) for k in sorted(_TEAM_LOOKUP_FIELD_WORDS, key=len, reverse=True) if k != "number"
+)
 
 # The name-capture groups below allow up to 2 words so two-word names work,
 # but that same slack lets a leading question word get swept in as if it
@@ -2587,8 +2668,17 @@ def _extract_team_lookup(text: str) -> tuple[str, str] | None:
         name = _strip_team_lookup_stopwords(m.group(1))
         if name:
             return name, _TEAM_LOOKUP_FIELD_WORDS[m.group(2).lower()]
-    # Non-possessive phrasing: "phone number for X", "what's the email for X".
-    m = re.search(rf"({_TEAM_LOOKUP_FIELD_ALTS})\s+for\s+(\w+(?:\s+\w+)?)\b", text, re.IGNORECASE)
+    # Non-possessive phrasing: "phone number for X", "what's the email for X",
+    # "email on file for X" (the optional "on file" added 2026-09-12).
+    m = re.search(rf"({_TEAM_LOOKUP_FIELD_ALTS})(?:\s+on\s+file)?\s+for\s+(\w+(?:\s+\w+)?)\b", text, re.IGNORECASE)
+    if m:
+        name = _strip_team_lookup_stopwords(m.group(2))
+        if name:
+            return name, _TEAM_LOOKUP_FIELD_WORDS[m.group(1).lower()]
+    # "the phone number of X" -- same non-possessive idea, "of" instead of
+    # "for" (added 2026-09-12). Uses _TEAM_LOOKUP_OF_ALTS (excludes bare
+    # "number") -- see its definition for why.
+    m = re.search(rf"({_TEAM_LOOKUP_OF_ALTS})\s+of\s+(\w+(?:\s+\w+)?)\b", text, re.IGNORECASE)
     if m:
         name = _strip_team_lookup_stopwords(m.group(2))
         if name:
@@ -2596,6 +2686,17 @@ def _extract_team_lookup(text: str) -> tuple[str, str] | None:
     m = re.search(r"where\s+does\s+(\w+(?:\s+\w+)?)\s+live", text, re.IGNORECASE)
     if m:
         return m.group(1), "address"
+    # "how can I reach/contact X", "get in touch with X" -- added 2026-09-12,
+    # doesn't fit the "X's field"/"field for X" shapes above.
+    m = re.search(
+        r"how\s+(?:can|do)\s+i\s+(?:reach|contact)\s+(\w+(?:\s+\w+)?)\b"
+        r"|get\s+in\s+touch\s+with\s+(\w+(?:\s+\w+)?)\b",
+        text, re.IGNORECASE,
+    )
+    if m:
+        name = _strip_team_lookup_stopwords(m.group(1) or m.group(2))
+        if name:
+            return name, "contact"
     # "how old is X" -- doesn't fit the "X's field" / "field for X" shapes
     # above, so it needs its own pattern. Added 2026-09-12 after Bill asked
     # this and got the raw birthdate back instead of a computed age: without
@@ -2608,6 +2709,39 @@ def _extract_team_lookup(text: str) -> tuple[str, str] | None:
         name = _strip_team_lookup_stopwords(m.group(1))
         if name:
             return name, "age"
+    # "when was X born" -- same "age" family of questions, added 2026-09-12
+    # alongside "how old is X" above.
+    m = re.search(r"when\s+was\s+(\w+(?:\s+\w+)??)\s+born\b", text, re.IGNORECASE)
+    if m:
+        name = _strip_team_lookup_stopwords(m.group(1))
+        if name:
+            return name, "birthday"
+    # "who is X married to" / "is X married" -- added 2026-09-12 alongside
+    # household_role (see jobs/congregation/family_edit.py). Kept separate
+    # from the generic "X's spouse" field word above since this shape has no
+    # possessive at all.
+    m = re.search(
+        r"who\s+is\s+(\w+(?:\s+\w+)?)\s+married\s+to\b"
+        r"|is\s+(\w+(?:\s+\w+)?)\s+married\b",
+        text, re.IGNORECASE,
+    )
+    if m:
+        name = _strip_team_lookup_stopwords(m.group(1) or m.group(2))
+        if name:
+            return name, "spouse"
+    # "who is X's deacon" / "does X have a deacon" -- added 2026-09-12.
+    # Deliberately its own pattern rather than a _TEAM_LOOKUP_FIELD_WORDS
+    # entry: "X's deacon GROUP" means something else entirely (a roster of
+    # everyone that deacon shepherds, handled by cdb_query.py's separate
+    # pattern) -- the negative lookahead keeps this lookup from swallowing
+    # that phrasing by matching "X's deacon" as a prefix of it first.
+    m = re.search(r"(\w+(?:\s+\w+)?)'s\s+deacon\b(?!\s*group)", text, re.IGNORECASE)
+    if not m:
+        m = re.search(r"does\s+(\w+(?:\s+\w+)?)\s+have\s+a\s+deacon\b", text, re.IGNORECASE)
+    if m:
+        name = _strip_team_lookup_stopwords(m.group(1))
+        if name:
+            return name, "deacon"
     m = re.search(
         # Lazy second-word group: without it, "when did Donna last attend"
         # greedily captures "Donna last" as the name (group 1 prefers to eat
@@ -2617,9 +2751,10 @@ def _extract_team_lookup(text: str) -> tuple[str, str] | None:
         # only expand to two if the verb doesn't immediately follow --
         # correctly handles both "Donna" and two-word names like "Sarah
         # Mitchell" (bug found 2026-09-03 testing the new Telegram
-        # natural-language contact lookup).
+        # natural-language contact lookup). "visit(?:ed)?" joined the verb
+        # list 2026-09-12.
         r"when\s+(?:was|did)\s+(?:the\s+last\s+time\s+)?(\w+(?:\s+\w+)??)\s+"
-        r"(?:last\s+)?(?:come|came|attend(?:ed)?|showed?\s+up|was\s+(?:here|at\s+church))",
+        r"(?:last\s+)?(?:come|came|attend(?:ed)?|visit(?:ed)?|showed?\s+up|was\s+(?:here|at\s+church))",
         text,
         re.IGNORECASE,
     )
@@ -2642,10 +2777,21 @@ def _compute_age(birthdate: str) -> int | None:
     return today.year - born.year - ((today.month, today.day) < (born.month, born.day))
 
 
-def _format_team_lookup_reply(person_name: str, field: str) -> str:
-    from jobs.people.lookup import lookup_member_details
+_FAMILY_LOOKUP_FIELDS = {"deacon", "spouse", "children", "parent"}
 
-    hits = lookup_member_details(person_name)
+
+def _format_team_lookup_reply(person_name: str, field: str) -> str:
+    # deacon/spouse/children/parent (added 2026-09-12) need household_id/
+    # household_role + the deacon column, which lookup_member_details
+    # doesn't select -- lookup_member_family does, at the cost of its own
+    # separate cascade query. Same ambiguity/not-found handling either way.
+    if field in _FAMILY_LOOKUP_FIELDS:
+        from jobs.people.lookup import lookup_member_family
+        hits = lookup_member_family(person_name)
+    else:
+        from jobs.people.lookup import lookup_member_details
+        hits = lookup_member_details(person_name)
+
     if not hits:
         return f'I couldn\'t find anyone matching "{person_name}".'
     if len(hits) > 1:
@@ -2669,6 +2815,17 @@ def _format_team_lookup_reply(person_name: str, field: str) -> str:
         if age is None:
             return f"{m['name']}'s birthdate isn't on file, so I can't tell you their age."
         return f"{m['name']} is {age} years old."
+    if field == "deacon":
+        return f"{m['name']}'s deacon: {m.get('deacon') or 'not assigned.'}"
+    if field == "spouse":
+        names = m.get("spouse_names") or []
+        return f"{m['name']}'s spouse: {', '.join(names) if names else 'not on file.'}"
+    if field == "children":
+        names = m.get("children_names") or []
+        return f"{m['name']}'s children: {', '.join(names) if names else 'none on file.'}"
+    if field == "parent":
+        names = m.get("parent_names") or []
+        return f"{m['name']}'s parent(s): {', '.join(names) if names else 'not on file.'}"
     if field == "last_seen":
         seen = m.get("last_seen")
         if not seen or seen == "1900-01-01":
@@ -2680,12 +2837,13 @@ def _format_team_lookup_reply(person_name: str, field: str) -> str:
 # Sheet header abbreviation -> room key expected by jobs.gsheets.classroom_sync.ROOMS.
 _CLASSROOM_KEYWORDS = {
     "nursery": "nursery",
+    "babies": "nursery", "infants": "nursery", "infant room": "nursery",
     "toddler": "toddlers",
-    "toddlers": "toddlers",
+    "toddlers": "toddlers", "twos and threes": "toddlers", "2s and 3s": "toddlers",
     "pre-k": "prek",
     "prek": "prek",
-    "pre k": "prek",
-    "elementary": "elementary",
+    "pre k": "prek", "preschool": "prek", "pre-school": "prek",
+    "elementary": "elementary", "grade school": "elementary", "kindergarten": "elementary",
 }
 
 
@@ -2698,7 +2856,7 @@ def _extract_classroom_lookup(text: str) -> str | None:
     answers for the most recently synced Sunday -- doesn't try to parse a
     specific date out of the question."""
     lowered = text.lower()
-    if not re.search(r"\battend|\bhow many\b|\bheadcount\b|\bcount\b|\bnumbers?\b", lowered):
+    if not re.search(r"\battend|\bhow many\b|\bheadcount\b|\bcount\b|\bnumbers?\b|\bturnout\b", lowered):
         return None
     for kw, room in _CLASSROOM_KEYWORDS.items():
         if re.search(rf"\b{re.escape(kw)}\b", lowered):
@@ -2782,6 +2940,12 @@ _WEB_METRIC_KEYWORDS: dict[str, tuple[str, str] | str] = {
     "website traffic": ("E Mails/Website", "Active Web Users"),
     "site traffic": ("E Mails/Website", "Active Web Users"),
     "website visitors": ("E Mails/Website", "Active Web Users"),
+    "website users": ("E Mails/Website", "Active Web Users"),
+    "site users": ("E Mails/Website", "Active Web Users"),
+    "site visitors": ("E Mails/Website", "Active Web Users"),
+    "unique visitors": ("E Mails/Website", "Active Web Users"),
+    "people visited the website": ("E Mails/Website", "Active Web Users"),
+    "people visited our site": ("E Mails/Website", "Active Web Users"),
     "web user": ("E Mails/Website", "Active Web Users"),
     "engagement time": ("E Mails/Website", "Avg Engagement Time (sec)"),
     "time on site": ("E Mails/Website", "Avg Engagement Time (sec)"),
@@ -2821,10 +2985,14 @@ _WEB_METRIC_KEYWORDS: dict[str, tuple[str, str] | str] = {
     "total instagram posts": ("Social Media", "Total Instagram Posts"),
     "app downloads": ("Catalyt App Engagement", "App Downloads"),
     "app download": ("Catalyt App Engagement", "App Downloads"),
+    "app installs": ("Catalyt App Engagement", "App Downloads"),
+    "app install": ("Catalyt App Engagement", "App Downloads"),
+    "downloaded the app": ("Catalyt App Engagement", "App Downloads"),
     "app impressions": ("Catalyt App Engagement", "App Impressions"),
     "app impression": ("Catalyt App Engagement", "App Impressions"),
     "app launches": ("Catalyt App Engagement", "App Launches"),
     "app launch": ("Catalyt App Engagement", "App Launches"),
+    "app opens": ("Catalyt App Engagement", "App Launches"),
 }
 _WEB_METRIC_KEYWORDS_BY_LENGTH = sorted(_WEB_METRIC_KEYWORDS, key=len, reverse=True)
 

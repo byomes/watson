@@ -146,6 +146,66 @@ def lookup_member_details(query: str) -> list[dict]:
     return rows
 
 
+def lookup_member_family(query: str) -> list[dict]:
+    """Like lookup_member_details, but for bot.py's "who is X's deacon/
+    spouse/children/parent" fast paths (added 2026-09-12 alongside
+    household_role -- see jobs/congregation/family_edit.py) -- returns
+    deacon plus spouse_names/children_names/parent_names (each a list of
+    names, computed via a household_id/household_role self-join, same
+    logic as jobs/analytics/data_chat.py's spouse/child/parent SQL
+    examples). congregation.db only, same reasoning as lookup_member_details:
+    watson.db's people table has no household/deacon concept. Only computes
+    the household lists for a single unambiguous match -- an ambiguous or
+    empty result mirrors lookup_member_details' shape (caller checks
+    len(hits))."""
+    query = query.strip()
+    if not query:
+        return []
+    words = query.split()
+
+    def _q(conn, term: str, exact: bool) -> list[dict]:
+        op = "= ?" if exact else "LIKE ?"
+        val = term if exact else f"%{term}%"
+        rows = conn.execute(
+            "SELECT id, name, deacon, household_id, household_role FROM members"
+            f" WHERE active = 1 AND name {op} COLLATE NOCASE ORDER BY name",
+            (val,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    cong = sqlite3.connect(CONG_DB)
+    cong.row_factory = sqlite3.Row
+    try:
+        rows = _q(cong, query, exact=True)
+        if not rows:
+            rows = _q(cong, query, exact=False)
+        if not rows and len(words) > 1:
+            rows = _q(cong, words[-1], exact=False)
+        if not rows:
+            rows = _q(cong, words[0], exact=False)
+        if len(rows) == 1:
+            p = rows[0]
+            mates = []
+            if p["household_id"]:
+                mates = [
+                    dict(r) for r in cong.execute(
+                        "SELECT name, household_role FROM members"
+                        " WHERE household_id = ? AND id != ? AND active = 1",
+                        (p["household_id"], p["id"]),
+                    ).fetchall()
+                ]
+            head_spouse_mates = [m["name"] for m in mates if m["household_role"] in ("head", "spouse")]
+            # Those household-mates are p's SPOUSE if p is themselves an
+            # adult (head/spouse), or p's PARENTS if p is a child -- never
+            # both, so only one of the two lists below is ever populated.
+            p["spouse_names"] = head_spouse_mates if p["household_role"] in ("head", "spouse") else []
+            p["parent_names"] = head_spouse_mates if p["household_role"] == "child" else []
+            p["children_names"] = [m["name"] for m in mates if m["household_role"] == "child"]
+        return rows
+    finally:
+        cong.close()
+
+
 def lookup_member_for_assign(query: str) -> list[dict]:
     """Like lookup_member_details, but returns id + current deacon instead
     of address/last_seen -- for bot.py's Telegram deacon-assign path, which
