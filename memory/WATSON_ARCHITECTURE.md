@@ -575,14 +575,26 @@ or a parent from a child. `household_role` is one of `head`, `spouse`,
 
 - **Write path (Telegram, `jobs/congregation/family_edit.py`):** `mark_spouse()`
   and `mark_child()`, for two members ALREADY on file (use the existing
-  `add_child()` instead for a brand-new member). Recognized phrasings —
-  same `_FAMILY_EDIT_ALLOWLIST` (Bill Crook/Jim Bouchat/Donna Redman) plus
-  Bill Yomes's own chat as `add_child`/birthday-update already use:
+  `add_child()` instead for a brand-new member). Per Bill's 2026-09-12
+  follow-up ("I want all leaders to be able to help manage families"),
+  these are open to EVERY onboarded leader (team member or deacon) in
+  Telegram team chat — deliberately NOT gated by `_FAMILY_EDIT_ALLOWLIST`
+  the way `add_child`/birthday-update still are (that narrower gate was a
+  separate, earlier decision and stays unchanged). Recognized phrasings:
   - "X and Y are married" / "X and Y are spouses" / "X is married to Y" / "X's spouse is Y"
   - "X is a child of Y" / "X is Y's child" / "X's child is Y"
   - If the two people are in different, already-populated households, this
     refuses to auto-merge (asks for a manual fix via dashboard Member
     Management first) rather than risk scrambling either family's data.
+- **Write path (deacon app, `wtsn.me/cat/deaconapp`):** same 2026-09-12
+  request — every logged-in deacon can manage family relationships from a
+  person's card in the List tab (`DeaconBoard.tsx`'s `FamilySection`,
+  typeahead `PersonPicker` over the full roster). Backed by
+  `jobs/congregation/deacons_web.py`'s `POST /api/cat/deacons/family/spouse`
+  and `/family/child`, which call `family_edit.py`'s `mark_spouse_by_id`/
+  `mark_child_by_id` — id-based (the app already has both members' ids from
+  its loaded roster, so none of the Telegram path's fuzzy name-matching or
+  ambiguity handling is needed). Same household-merge refusal as above.
 - **Read path (`jobs/analytics/data_chat.py`):** `household_id`/`household_role`
   are queryable columns on `members` (not gated behind `allow_contact_info`
   — they carry no address/phone/email of their own). The system prompt
@@ -3648,6 +3660,7 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 ## Recent Changes — 2026-09-12
 
 ### ~/watson
+- 8c22270 Open family relationship management to all leaders (chat + deacon app)
 - 270a80d Add family relationship tracking (spouse/child) to congregation.db
 - 77ca101 docs: bugs/backlog export 2026-09-12
 - 045d8cb docs: file map 2026-09-12
