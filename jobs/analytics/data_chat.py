@@ -297,7 +297,13 @@ _NAME_COLUMN_LOOKUP_RE = re.compile(r"\bname\s+like\b", re.IGNORECASE)
 # directly instead of re-running the whole question through SQL generation
 # (which has no verb/question shape to work with for a bare name reply).
 # Lost on a bot restart -- acceptable, worst case the leader just asks again.
+# Scoped per asker_name (each leader's pending clarification is independent
+# of everyone else's) and bounded by _PENDING_CLARIFICATION_MAX_ENTRIES --
+# per Bill's 2026-09-11 direction, an asker who never sends a follow-up
+# would otherwise sit here forever; a size cap with oldest-first eviction
+# keeps this from growing unbounded without needing a background sweeper.
 _PENDING_CLARIFICATION_TTL_SECONDS = 300
+_PENDING_CLARIFICATION_MAX_ENTRIES = 200
 _pending_clarifications: dict[str, dict] = {}
 
 _NAME_WORD_RE = re.compile(r"[a-z]+")
@@ -305,6 +311,9 @@ _NAME_WORD_RE = re.compile(r"[a-z]+")
 
 def _remember_pending_clarification(asker_name: str, rows: list[dict], name_key: str) -> None:
     _pending_clarifications[asker_name] = {"rows": rows, "name_key": name_key, "asked_at": time.monotonic()}
+    if len(_pending_clarifications) > _PENDING_CLARIFICATION_MAX_ENTRIES:
+        oldest_asker = min(_pending_clarifications, key=lambda k: _pending_clarifications[k]["asked_at"])
+        _pending_clarifications.pop(oldest_asker, None)
 
 
 def _forget_pending_clarification(asker_name: str) -> None:
