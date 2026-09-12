@@ -316,7 +316,7 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
             )
 
     # MEMBER LOOKUP BY NAME
-    if any(w in q for w in ['does [name] have a deacon', 'look up', 'find member', 'search for', 'who is', 'tell me about',
+    if any(w in q for w in ['who is [name] married to', 'does [name] have a deacon', 'look up', 'find member', 'search for', 'who is', 'tell me about',
                              'get info on', 'member info', 'pull up', 'details on', 'info for']):
         name = q
         for trigger in ['tell me about', 'get info on', 'find member', 'member info',
