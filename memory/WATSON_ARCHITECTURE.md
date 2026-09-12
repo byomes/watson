@@ -3648,6 +3648,7 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 ## Recent Changes — 2026-09-12
 
 ### ~/watson
+- 270a80d Add family relationship tracking (spouse/child) to congregation.db
 - 77ca101 docs: bugs/backlog export 2026-09-12
 - 045d8cb docs: file map 2026-09-12
 - 84ca59f Cap the pending-clarification cache with oldest-first eviction
