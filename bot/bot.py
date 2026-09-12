@@ -951,14 +951,24 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
             _bday_update = (
                 _extract_birthday_update(_msg_text) if (_is_family_editor and not _add_child) else None
             )
+            _mark_spouse = (
+                _extract_mark_spouse(_msg_text)
+                if (_is_family_editor and not _add_child and not _bday_update) else None
+            )
+            _mark_child = (
+                _extract_mark_child(_msg_text)
+                if (_is_family_editor and not _add_child and not _bday_update and not _mark_spouse) else None
+            )
             _is_assigner = _leader_name in _DEACON_ASSIGN_ALLOWLIST
             _assign = (
                 _extract_deacon_assign(_msg_text)
-                if (_is_assigner and not _add_child and not _bday_update) else None
+                if (_is_assigner and not _add_child and not _bday_update
+                    and not _mark_spouse and not _mark_child) else None
             )
             _assign_incomplete = (
                 bool(
                     _assign is None and _is_assigner and not _add_child and not _bday_update
+                    and not _mark_spouse and not _mark_child
                     and _DEACON_ASSIGN_INCOMPLETE_RE.match(_msg_text.strip())
                 )
             )
@@ -968,8 +978,12 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     _lc, _leader_name, _chat_id,
                     "add_child" if _add_child else (
                         "update_birthdate" if _bday_update else (
-                            "deacon_assign" if _assign else (
-                                "deacon_assign_incomplete" if _assign_incomplete else "team_chat"
+                            "mark_spouse" if _mark_spouse else (
+                                "mark_child" if _mark_child else (
+                                    "deacon_assign" if _assign else (
+                                        "deacon_assign_incomplete" if _assign_incomplete else "team_chat"
+                                    )
+                                )
                             )
                         )
                     ),
@@ -978,6 +992,10 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await _handle_add_child(update, _leader_name, *_add_child)
             elif _bday_update:
                 await _handle_birthday_update(update, _leader_name, *_bday_update)
+            elif _mark_spouse:
+                await _handle_mark_spouse(update, _leader_name, *_mark_spouse)
+            elif _mark_child:
+                await _handle_mark_child(update, _leader_name, *_mark_child)
             elif _assign:
                 await _handle_deacon_assign(update, _leader_name, *_assign)
             elif _assign_incomplete:
@@ -2343,6 +2361,67 @@ async def _handle_birthday_update(update: Update, sender_name: str, name_query: 
     await update.message.reply_text(reply)
 
 
+# Added 2026-09-12 after Pastor Tyler asked Watson "who is so-and-so's wife"
+# and there was no way to answer -- see jobs/congregation/family_edit.py's
+# module docstring and jobs/congregation/migrate_household_role.py for the
+# household_role model this writes. These mark a relationship between two
+# members ALREADY on file; _extract_add_child above stays the tool for a
+# brand-new member.
+def _extract_mark_spouse(text: str) -> tuple[str, str] | None:
+    """Recognize "X and Y are married/spouses", "X is married to Y", or
+    "X's spouse is Y" and return (name1, name2), or None."""
+    text = text.strip()
+    m = re.search(
+        r"^(?:mark\s+)?(.+?)\s+and\s+(.+?)\s+(?:are|as)\s+(?:married|spouses|husband and wife)[.!]?$",
+        text, re.IGNORECASE,
+    )
+    if not m:
+        m = re.search(r"^(.+?)\s+is\s+married\s+to\s+(.+?)[.!]?$", text, re.IGNORECASE)
+    if not m:
+        m = re.search(r"^(.+?)'s\s+spouse\s+is\s+(.+?)[.!]?$", text, re.IGNORECASE)
+    if not m:
+        return None
+    a = m.group(1).strip(" .,")
+    b = m.group(2).strip(" .,")
+    return (a, b) if a and b else None
+
+
+def _extract_mark_child(text: str) -> tuple[str, str] | None:
+    """Recognize "X is Y's child/son/daughter" or "X is a child of Y" for an
+    EXISTING member -- return (child_name, parent_name), or None. Checked
+    only after _extract_add_child (which needs "add" + a birthdate) has
+    already failed, so "add X as a child of Y born DATE" is never
+    reinterpreted here."""
+    text = text.strip()
+    m = re.search(r"^(.+?)\s+is\s+(?:a\s+)?(?:child|son|daughter)\s+of\s+(.+?)[.!]?$", text, re.IGNORECASE)
+    if m:
+        child, parent = m.group(1), m.group(2)
+    else:
+        m = re.search(r"^(.+?)\s+is\s+(.+?)'s\s+(?:child|son|daughter)[.!]?$", text, re.IGNORECASE)
+        if m:
+            child, parent = m.group(1), m.group(2)
+        else:
+            m = re.search(r"^(.+?)'s\s+(?:child|son|daughter)\s+is\s+(.+?)[.!]?$", text, re.IGNORECASE)
+            if not m:
+                return None
+            parent, child = m.group(1), m.group(2)
+    child = child.strip(" .,")
+    parent = parent.strip(" .,")
+    return (child, parent) if child and parent else None
+
+
+async def _handle_mark_spouse(update: Update, sender_name: str, name1: str, name2: str) -> None:
+    from jobs.congregation.family_edit import mark_spouse
+    reply = await asyncio.to_thread(mark_spouse, name1, name2, sender_name)
+    await update.message.reply_text(reply)
+
+
+async def _handle_mark_child(update: Update, sender_name: str, child_query: str, parent_query: str) -> None:
+    from jobs.congregation.family_edit import mark_child
+    reply = await asyncio.to_thread(mark_child, child_query, parent_query, sender_name)
+    await update.message.reply_text(reply)
+
+
 def _resolve_deacon_name(query: str, sender_name: str) -> str | None:
     """Match a free-typed deacon name against the real roster
     (deacon_reports.list_deacons()) -- exact (case-insensitive) first, then
@@ -2893,6 +2972,19 @@ async def _handle_general(update: Update, context: ContextTypes.DEFAULT_TYPE, te
     _bday_update = _extract_birthday_update(text)
     if _bday_update:
         await _handle_birthday_update(update, "Bill Yomes", *_bday_update)
+        return ""
+
+    # Spouse/child relationship marking, extended to Dr. Bill's own chat the
+    # same way add-child/birthday-update are above -- see _extract_mark_spouse
+    # / _extract_mark_child's docstrings.
+    _mark_spouse = _extract_mark_spouse(text)
+    if _mark_spouse:
+        await _handle_mark_spouse(update, "Bill Yomes", *_mark_spouse)
+        return ""
+
+    _mark_child = _extract_mark_child(text)
+    if _mark_child:
+        await _handle_mark_child(update, "Bill Yomes", *_mark_child)
         return ""
 
     # Deacon reassignment via chat, extended to Dr. Bill's own chat 2026-09-08

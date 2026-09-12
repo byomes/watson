@@ -198,7 +198,7 @@ Watson acts on Dr. Bill's behalf under his supervision. Always identified openly
 
 ### congregation.db Key Tables
 
-- `members` — includes `member_status` (active/deceased/disconnected/non_local/snowbird), `campus_preference` (Wilmington/Online/Hybrid), `shepherding_exempt`
+- `members` — includes `member_status` (active/deceased/disconnected/non_local/snowbird), `campus_preference` (Wilmington/Online/Hybrid), `shepherding_exempt`, `household_id`/`household_role` (family relationships — see Family Relationships below)
 - `attendance`, `connect_cards`, `next_steps`, `prayer_requests`, `follow_ups`
 - `member_conflicts` — Sunday 5pm Telegram conflict report with 3-button resolution
 
@@ -562,6 +562,39 @@ Three sections, each suppressed if empty: WILMINGTON CAMPUS / ONLINE CAMPUS / HY
 ### Conflict Resolution
 Sunday 5pm Telegram report with 3-button resolution: Keep Old / Keep New / Skip
 Dashboard trigger available: "Run Conflict Check" in More tab.
+
+### Family Relationships (`household_id` / `household_role`)
+Added 2026-09-12 after Pastor Tyler asked Watson "who is so-and-so's wife"
+and there was no way to answer it. `household_id` (e.g. `H047`) already
+grouped a family together (added earlier for the deacon-directory import,
+used by `jobs/congregation/family_edit.py::add_child`), but nothing said
+WHO within that group was the spouse vs. a child vs. the head — matching on
+shared household_id or last name alone can't tell a spouse from a sibling
+or a parent from a child. `household_role` is one of `head`, `spouse`,
+`child`, `other` (adult relative/roommate), or `NULL` if never recorded.
+
+- **Write path (Telegram, `jobs/congregation/family_edit.py`):** `mark_spouse()`
+  and `mark_child()`, for two members ALREADY on file (use the existing
+  `add_child()` instead for a brand-new member). Recognized phrasings —
+  same `_FAMILY_EDIT_ALLOWLIST` (Bill Crook/Jim Bouchat/Donna Redman) plus
+  Bill Yomes's own chat as `add_child`/birthday-update already use:
+  - "X and Y are married" / "X and Y are spouses" / "X is married to Y" / "X's spouse is Y"
+  - "X is a child of Y" / "X is Y's child" / "X's child is Y"
+  - If the two people are in different, already-populated households, this
+    refuses to auto-merge (asks for a manual fix via dashboard Member
+    Management first) rather than risk scrambling either family's data.
+- **Read path (`jobs/analytics/data_chat.py`):** `household_id`/`household_role`
+  are queryable columns on `members` (not gated behind `allow_contact_info`
+  — they carry no address/phone/email of their own). The system prompt
+  teaches the model a self-join pattern: match X by name on one side, match
+  the relationship role on the other (`household_role IN ('head','spouse')`
+  for a spouse, `= 'child'` for a child, and `household_role = 'child'`
+  on X's own side + `IN ('head','spouse')` on the other for X's parents).
+- Existing households imported before 2026-09-12 have `household_role = NULL`
+  until a leader (or Bill) tells Watson the relationship via one of the
+  phrasings above — there was no reliable way to auto-backfill roles from
+  the existing data (a 2-adult household isn't necessarily a married
+  couple), so this fills in over time rather than being guessed at bulk.
 
 ---
 
