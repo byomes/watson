@@ -3660,6 +3660,7 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 ## Recent Changes — 2026-09-12
 
 ### ~/watson
+- 5b93b5a fix: "how old is X" now answers with computed age, not raw birthdate
 - 8c22270 Open family relationship management to all leaders (chat + deacon app)
 - 270a80d Add family relationship tracking (spouse/child) to congregation.db
 - 77ca101 docs: bugs/backlog export 2026-09-12
