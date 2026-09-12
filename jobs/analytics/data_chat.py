@@ -71,6 +71,7 @@ import logging
 import os
 import re
 import sqlite3
+import time
 from datetime import date, timedelta
 
 import requests
@@ -286,8 +287,68 @@ def _resolve_first_person(question: str, asker_name: str) -> str:
 
 _NAME_COLUMN_LOOKUP_RE = re.compile(r"\bname\s+like\b", re.IGNORECASE)
 
+# Found 2026-09-11 testing the clarify fix live: Tyler got asked "which Bill
+# did you mean?", replied "Crook", and that one-word reply fell all the way
+# through to general chat ("what's on your mind regarding the term
+# 'crook'?") because nothing connected it back to the pending question --
+# each call into this module is otherwise stateless. This in-process cache
+# remembers, per asker, the candidate rows a clarifying question was just
+# asked about, so a short follow-up naming one of them can be resolved
+# directly instead of re-running the whole question through SQL generation
+# (which has no verb/question shape to work with for a bare name reply).
+# Lost on a bot restart -- acceptable, worst case the leader just asks again.
+_PENDING_CLARIFICATION_TTL_SECONDS = 300
+_pending_clarifications: dict[str, dict] = {}
 
-def _clarify_if_ambiguous_person(sql: str, rows: list[dict], question: str) -> str | None:
+_NAME_WORD_RE = re.compile(r"[a-z]+")
+
+
+def _remember_pending_clarification(asker_name: str, rows: list[dict], name_key: str) -> None:
+    _pending_clarifications[asker_name] = {"rows": rows, "name_key": name_key, "asked_at": time.monotonic()}
+
+
+def _forget_pending_clarification(asker_name: str) -> None:
+    _pending_clarifications.pop(asker_name, None)
+
+
+def _matching_candidates(reply_text: str, rows: list[dict], name_key: str) -> list[dict]:
+    """Rows among `rows` whose name contains every word of `reply_text` --
+    matches a bare "Crook" or "Bill Crook" follow-up against "Bill Crook",
+    but not a full new question that happens to mention the same word."""
+    reply_words = set(_NAME_WORD_RE.findall(reply_text.lower()))
+    if not reply_words:
+        return []
+    return [r for r in rows if reply_words.issubset(_NAME_WORD_RE.findall(str(r.get(name_key, "")).lower()))]
+
+
+def _try_resolve_pending_clarification(asker_name: str, question: str) -> tuple[bool, str | None] | None:
+    """Returns the (on_topic, reply) to send back if `question` looks like
+    the asker's answer to a clarifying question Watson just asked them;
+    None if there's no pending clarification to resolve, so the caller
+    should run the normal pipeline instead."""
+    pending = _pending_clarifications.get(asker_name)
+    if not pending:
+        return None
+    if time.monotonic() - pending["asked_at"] > _PENDING_CLARIFICATION_TTL_SECONDS:
+        _forget_pending_clarification(asker_name)
+        return None
+    matches = _matching_candidates(question, pending["rows"], pending["name_key"])
+    if len(matches) == 1:
+        _forget_pending_clarification(asker_name)
+        return True, _format_rows(matches)
+    if len(matches) > 1:
+        # Narrowed but still ambiguous (e.g. "Bill" still matches all of
+        # them) -- keep waiting, ask again with just the narrowed set.
+        _remember_pending_clarification(asker_name, matches, pending["name_key"])
+        names_list = ", ".join(str(r.get(pending["name_key"])) for r in matches[:15])
+        return True, f"Still more than one: {names_list}. Which one did you mean?"
+    # No candidate matched at all -- not an answer to the pending question,
+    # so drop it and let the normal pipeline treat this as a new question.
+    _forget_pending_clarification(asker_name)
+    return None
+
+
+def _clarify_if_ambiguous_person(sql: str, rows: list[dict], question: str, asker_name: str) -> str | None:
     """If `sql` looked someone up by members.name (not a group/event filter
     like `deacon LIKE` or `event_name LIKE`, which are supposed to return
     several different people) and the match pulled in more than one distinct
@@ -312,6 +373,7 @@ def _clarify_if_ambiguous_person(sql: str, rows: list[dict], question: str) -> s
     q_lower = question.lower()
     if all(str(n).lower() in q_lower for n in distinct_names):
         return None
+    _remember_pending_clarification(asker_name, rows, name_key)
     names_list = ", ".join(str(n) for n in distinct_names[:15])
     return (
         f"A few people match that: {names_list}. Which one did you mean? "
@@ -477,6 +539,15 @@ def answer_data_question(
     question. on_topic=True always comes with a reply (an answer, or an
     apologetic failure message) and should be sent back as-is.
     """
+    # Checked before anything else so a short "which one did you mean"
+    # follow-up (e.g. "Crook") resolves against the candidates a prior
+    # clarifying question offered, rather than being run through SQL
+    # generation, which has no verb/question shape to work with for a bare
+    # name reply -- see _try_resolve_pending_clarification's docstring.
+    resolved = _try_resolve_pending_clarification(asker_name, question)
+    if resolved is not None:
+        return resolved
+
     # Found 2026-09-02 debugging Donna's "who is in Bill Crook's deacon
     # group?" -- cdb_query._pattern_match()'s 'who is'/'tell me about'
     # trigger is built for simple name lookups and can misfire on a longer
@@ -492,7 +563,7 @@ def answer_data_question(
         rows = _run("attendance", pm_sql)
         if rows:
             log.info("data_chat: pattern-match hit, asker=%s q=%r sql=%r rows=%d", asker_name, question, pm_sql, len(rows))
-            clarify = _clarify_if_ambiguous_person(pm_sql, rows, question)
+            clarify = _clarify_if_ambiguous_person(pm_sql, rows, question, asker_name)
             return True, clarify or _format_rows(rows)
         log.info("data_chat: pattern-match matched but found nothing (rows=%s), falling through to generation: q=%r sql=%r", rows, question, pm_sql)
 
@@ -509,5 +580,5 @@ def answer_data_question(
         return True, "I hit an error pulling that data — try again in a moment."
 
     log.info("data_chat: domain=%s asker=%s q=%r sql=%r rows=%d", domain, asker_name, question, validated, len(rows))
-    clarify = _clarify_if_ambiguous_person(validated, rows, question)
+    clarify = _clarify_if_ambiguous_person(validated, rows, question, asker_name)
     return True, clarify or _format_rows(rows)
