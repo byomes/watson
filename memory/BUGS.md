@@ -1,11 +1,10 @@
 # Watson Bug Tracker
 _Auto-generated nightly from bug_tracker. Source of truth is the database — do not hand-edit this file, changes will be overwritten._
-Last generated: 2026-09-11 02:10
+Last generated: 2026-09-12 02:10
 
-## Open (50)
+## Open (49)
 | ID | Title | Repo | Discovered |
 |---|---|---|---|
-| 155 | ma_crossover/mean_reversion/momentum templates use 1-share default order size, not fully-invested | watson | 2026-09-11 04:11:20 |
 | 147 | jobs.browser: goto_safe failed for https://www.beenverified.com/people/mikhaela-molanders/de/ | watson | 2026-09-08 09:31:18 |
 | 146 | jobs.browser: goto_safe failed for https://www.beenverified.com/people/emily-yomes/de/ | watson | 2026-09-08 09:31:03 |
 | 145 | jobs.browser: goto_safe failed for https://www.beenverified.com/people/micah-yomes/de/ | watson | 2026-09-08 09:30:47 |
@@ -59,6 +58,14 @@ Last generated: 2026-09-11 02:10
 ## Recently Resolved (last 30 days)
 | ID | Title | Repo | Resolved | Commit |
 |---|---|---|---|---|
+| 162 | Draft-reply approval Telegram message never showed the original email | watson | 2026-09-11 20:10:57 | ad136ae |
+| 161 | Disposition keyword matching false-positived on substrings | watson | 2026-09-11 20:06:09 | aa869ee |
+| 160 | Email/event-signup Telegram triage never showed real content, replies discarded | watson | 2026-09-11 20:06:09 | aa869ee |
+| 159 | Live loop crashes silently on Alpaca data API outage | watson | 2026-09-11 16:43:39 | fde831d |
+| 158 | Intraday flatten-by-close fails on sessions with real data gaps | watson | 2026-09-11 13:00:17 | 66331f6 |
+| 157 | Intraday flatten order submitted on literal last bar never fills | watson | 2026-09-11 12:36:11 | f0ef17f |
+| 156 | Intraday flatten-by-close let new entries fire in the closing window | watson | 2026-09-11 12:36:11 | f0ef17f |
+| 155 | ma_crossover/mean_reversion/momentum templates use 1-share default order size, not fully-invested | watson | 2026-09-11 11:36:25 | 15360dd |
 | 154 | Trading holdout pass bar gameable by inactive strategies | watson | 2026-09-11 03:39:55 | 1a6ec67 |
 | 153 | Savings tab: This Month != All-Time | watson | 2026-09-10 15:48:03 | 3ecd252 |
 | 152 | "assign X to me" would write literal "Bill Yomes" into members.deacon | watson | 2026-09-08 19:07:44 | 5ac7aa9 |
