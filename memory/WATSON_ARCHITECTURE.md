@@ -3609,3 +3609,30 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - 3394f90 Drop modeled backfill data from dashboard Savings tab
 - b6a361f docs: regenerate Skills & Capabilities Catalog
 - 286fb72 docs: architecture update 2026-09-10
+
+---
+
+## Recent Changes — 2026-09-12
+
+### ~/watson
+- 77ca101 docs: bugs/backlog export 2026-09-12
+- 045d8cb docs: file map 2026-09-12
+- 84ca59f Cap the pending-clarification cache with oldest-first eviction
+- da3644f Connect a leader's follow-up reply to the clarifying question it answers
+- 26002cc Fix clarify-message wording for 3+ ambiguous name matches
+- 9a8e666 Ask which person was meant before dumping multiple contact matches
+- ad136ae fix(email): draft-approval Telegram message now shows the original email
+- aa869ee fix(email): show real content in triage prompts, let Bill reply with instructions
+- 8376980 feat(trading): multi-symbol robustness test for mean-reversion signal
+- fde831d fix(trading): live loop degrades gracefully on Alpaca data API failure
+- 5d65181 feat(trading): daily paper live-forward loop, first real order-placing job
+- d5a9421 feat(trading): daily pipeline pass bar now requires beating buy-and-hold outright
+- d765960 feat(trading): push VWAP mean-reversion grid wider, informed by Round 1
+- 66331f6 fix(trading): intraday flatten-by-close needs two trailing bars, not one
+- fe9cbba fix(trading): remove cheat-on-close from intraday engine, keep trailing bar
+- f0ef17f feat(trading): intraday data pull + day-trading backtest infrastructure
+- b42ba9f feat(trading): round 2 targeted grids, informed by holdout results
+- f1f6a69 feat(trading): targeted Round 4/2 grids for ma_crossover/mean_reversion/donchian
+- 15360dd fix(trading): real position sizing for ma_crossover/mean_reversion/momentum
+- 0544505 Add "does [name] have a deacon" fast-path phrase to looking up a specific member
+- 9efadbd docs: architecture update 2026-09-11
