@@ -1,5 +1,5 @@
 # Transcript: Joshua   Ch3   Walking Between Miracles
-Date: 2026-06-22
+Date: 2026-06-21
 
 ---
 

@@ -1,0 +1,4209 @@
+{
+  "_meta": {
+    "source": "https://docs.google.com/spreadsheets/d/1aDrJ_jlNmJcMIQiA9F8p9QNqGoaXls4WiN232ZEuCcY",
+    "snapshotted": "2026-09-13",
+    "note": "One tab is literally labeled 2018 in the sheet but its dates fall on real 2018 Saturdays, not Sundays -- they match 2019 Sundays exactly (verified via weekday + Easter-date cross-check). Corrected to 2019 here; flagged to Bill, not yet fixed in the source sheet."
+  },
+  "rows": [
+    {
+      "date": "2017-01-01",
+      "year_block": 2017,
+      "holiday": "",
+      "series": "",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2017-01-15",
+      "year_block": 2017,
+      "holiday": "",
+      "series": "",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2017-01-22",
+      "year_block": 2017,
+      "holiday": "",
+      "series": "",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2017-01-29",
+      "year_block": 2017,
+      "holiday": "",
+      "series": "",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2017-02-05",
+      "year_block": 2017,
+      "holiday": "",
+      "series": "Parables: Stories of the Savior",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2017-02-12",
+      "year_block": 2017,
+      "holiday": "(Valentines Day)",
+      "series": "Parables: Stories of the Savior",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2017-02-19",
+      "year_block": 2017,
+      "holiday": "",
+      "series": "Parables: Stories of the Savior",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2017-02-26",
+      "year_block": 2017,
+      "holiday": "",
+      "series": "Parables: Stories of the Savior",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2017-03-05",
+      "year_block": 2017,
+      "holiday": "",
+      "series": "Parables: Stories of the Savior",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2017-03-12",
+      "year_block": 2017,
+      "holiday": "",
+      "series": "Parables: Stories of the Savior",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2017-03-19",
+      "year_block": 2017,
+      "holiday": "",
+      "series": "Faith to Follow",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2017-03-26",
+      "year_block": 2017,
+      "holiday": "",
+      "series": "Faith to Follow",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2017-04-02",
+      "year_block": 2017,
+      "holiday": "",
+      "series": "Faith to Follow",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2017-04-09",
+      "year_block": 2017,
+      "holiday": "Palm Sunday",
+      "series": "Faith to Follow",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2017-04-16",
+      "year_block": 2017,
+      "holiday": "Easter",
+      "series": "Encountering Jesus",
+      "message": "Faithful Criminal",
+      "passage": ""
+    },
+    {
+      "date": "2017-04-23",
+      "year_block": 2017,
+      "holiday": "",
+      "series": "Encountering Jesus",
+      "message": "Blind Bartimeus",
+      "passage": ""
+    },
+    {
+      "date": "2017-04-27",
+      "year_block": 2017,
+      "holiday": "",
+      "series": "",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2017-04-30",
+      "year_block": 2017,
+      "holiday": "",
+      "series": "Encountering Jesus",
+      "message": "Canaanite Woman",
+      "passage": ""
+    },
+    {
+      "date": "2017-05-07",
+      "year_block": 2017,
+      "holiday": "",
+      "series": "Encountering Jesus",
+      "message": "Gadarene Demoniac",
+      "passage": ""
+    },
+    {
+      "date": "2017-05-14",
+      "year_block": 2017,
+      "holiday": "Mother's Day",
+      "series": "Encountering Jesus",
+      "message": "Bleeding Woman",
+      "passage": ""
+    },
+    {
+      "date": "2017-05-21",
+      "year_block": 2017,
+      "holiday": "",
+      "series": "Encountering Jesus",
+      "message": "Roman Centurain",
+      "passage": ""
+    },
+    {
+      "date": "2017-05-28",
+      "year_block": 2017,
+      "holiday": "",
+      "series": "Encountering Jesus",
+      "message": "Nicodemus",
+      "passage": ""
+    },
+    {
+      "date": "2017-06-04",
+      "year_block": 2017,
+      "holiday": "",
+      "series": "Finding Forgiveness",
+      "message": "What is Forgiveness?",
+      "passage": ""
+    },
+    {
+      "date": "2017-06-11",
+      "year_block": 2017,
+      "holiday": "",
+      "series": "Finding Forgiveness",
+      "message": "Why Should I Forgive?",
+      "passage": ""
+    },
+    {
+      "date": "2017-06-18",
+      "year_block": 2017,
+      "holiday": "Father's Day",
+      "series": "Finding Forgiveness",
+      "message": "Barriers to Forgiveness",
+      "passage": ""
+    },
+    {
+      "date": "2017-06-25",
+      "year_block": 2017,
+      "holiday": "",
+      "series": "Finding Forgiveness",
+      "message": "What Happens if I dont' Forgive?",
+      "passage": ""
+    },
+    {
+      "date": "2017-07-02",
+      "year_block": 2017,
+      "holiday": "",
+      "series": "Habits for Health",
+      "message": "Prayer",
+      "passage": ""
+    },
+    {
+      "date": "2017-07-09",
+      "year_block": 2017,
+      "holiday": "",
+      "series": "Habits for Health",
+      "message": "Bible",
+      "passage": ""
+    },
+    {
+      "date": "2017-07-16",
+      "year_block": 2017,
+      "holiday": "",
+      "series": "Habits for Health",
+      "message": "Serving",
+      "passage": ""
+    },
+    {
+      "date": "2017-07-23",
+      "year_block": 2017,
+      "holiday": "",
+      "series": "Habits for Health",
+      "message": "Worship",
+      "passage": "the psalms is always fun to do in summer, lots of people in & out"
+    },
+    {
+      "date": "2017-07-30",
+      "year_block": 2017,
+      "holiday": "",
+      "series": "Habits for Health",
+      "message": "Fasting",
+      "passage": ""
+    },
+    {
+      "date": "2017-08-06",
+      "year_block": 2017,
+      "holiday": "",
+      "series": "Habits for Health",
+      "message": "Stewardship",
+      "passage": ""
+    },
+    {
+      "date": "2017-08-13",
+      "year_block": 2017,
+      "holiday": "",
+      "series": "Christ First",
+      "message": "Christ's Supreme Importance",
+      "passage": ""
+    },
+    {
+      "date": "2017-08-20",
+      "year_block": 2017,
+      "holiday": "",
+      "series": "Christ First",
+      "message": "Christ's Importance in the Life of Paul",
+      "passage": ""
+    },
+    {
+      "date": "2017-08-27",
+      "year_block": 2017,
+      "holiday": "",
+      "series": "Christ First",
+      "message": "Christ's Importance in the Believers Life",
+      "passage": ""
+    },
+    {
+      "date": "2017-09-03",
+      "year_block": 2017,
+      "holiday": "Labor Day",
+      "series": "BILL ON VACATION",
+      "message": "Pastor Gary Foster",
+      "passage": ""
+    },
+    {
+      "date": "2017-09-10",
+      "year_block": 2017,
+      "holiday": "",
+      "series": "Doctrine of Salvation",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2017-09-17",
+      "year_block": 2017,
+      "holiday": "",
+      "series": "Christ First",
+      "message": "Christ's Importance in the Family",
+      "passage": ""
+    },
+    {
+      "date": "2017-09-24",
+      "year_block": 2017,
+      "holiday": "",
+      "series": "End of Days",
+      "message": "The Promises",
+      "passage": ""
+    },
+    {
+      "date": "2017-10-01",
+      "year_block": 2017,
+      "holiday": "",
+      "series": "End of Days",
+      "message": "The Rapture",
+      "passage": ""
+    },
+    {
+      "date": "2017-10-08",
+      "year_block": 2017,
+      "holiday": "",
+      "series": "End of Days",
+      "message": "The Tribulation",
+      "passage": ""
+    },
+    {
+      "date": "2017-10-15",
+      "year_block": 2017,
+      "holiday": "",
+      "series": "End of Days",
+      "message": "The Earthly Kingdom",
+      "passage": ""
+    },
+    {
+      "date": "2017-10-22",
+      "year_block": 2017,
+      "holiday": "Halloween",
+      "series": "End of Days",
+      "message": "The Final Judgment",
+      "passage": ""
+    },
+    {
+      "date": "2017-10-29",
+      "year_block": 2017,
+      "holiday": "",
+      "series": "End of Days",
+      "message": "The Eternal Kingdom",
+      "passage": ""
+    },
+    {
+      "date": "2017-11-05",
+      "year_block": 2017,
+      "holiday": "Daylight Savings Ends",
+      "series": "Thankful for who God is",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2017-11-12",
+      "year_block": 2017,
+      "holiday": "",
+      "series": "Feast of Thanks",
+      "message": "Weeks",
+      "passage": ""
+    },
+    {
+      "date": "2017-11-19",
+      "year_block": 2017,
+      "holiday": "",
+      "series": "Feast of Thanks",
+      "message": "Tabernacles",
+      "passage": ""
+    },
+    {
+      "date": "2017-11-26",
+      "year_block": 2017,
+      "holiday": "Thanksgiving",
+      "series": "BILL ON VACATION",
+      "message": "Pastor Gary Foster",
+      "passage": ""
+    },
+    {
+      "date": "2017-12-03",
+      "year_block": 2017,
+      "holiday": "",
+      "series": "According to the Angels",
+      "message": "this is the hardest, a new take on Xmas every year",
+      "passage": ""
+    },
+    {
+      "date": "2017-12-10",
+      "year_block": 2017,
+      "holiday": "",
+      "series": "According to the Angels",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2017-12-17",
+      "year_block": 2017,
+      "holiday": "",
+      "series": "According to the Angels",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2017-12-24",
+      "year_block": 2017,
+      "holiday": "Christmas Eve",
+      "series": "According to the Angels",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2017-12-31",
+      "year_block": 2017,
+      "holiday": "New Years Eve",
+      "series": "Final Exam",
+      "message": "taking stock of this year and it's spiritual impact",
+      "passage": ""
+    },
+    {
+      "date": "2018-01-07",
+      "year_block": 2018,
+      "holiday": "",
+      "series": "Wedding at Cana",
+      "message": "\"virtual\" sermon via Facebook due to weather",
+      "passage": ""
+    },
+    {
+      "date": "2018-01-14",
+      "year_block": 2018,
+      "holiday": "",
+      "series": "The Yew Year",
+      "message": "topical message to start the year growing in Godliness",
+      "passage": ""
+    },
+    {
+      "date": "2018-01-21",
+      "year_block": 2018,
+      "holiday": "",
+      "series": "Prayer",
+      "message": "the Unseen",
+      "passage": ""
+    },
+    {
+      "date": "2018-01-28",
+      "year_block": 2018,
+      "holiday": "",
+      "series": "Prayer",
+      "message": "the Authority",
+      "passage": ""
+    },
+    {
+      "date": "2018-02-04",
+      "year_block": 2018,
+      "holiday": "",
+      "series": "Prayer",
+      "message": "the Conflict",
+      "passage": ""
+    },
+    {
+      "date": "2018-02-11",
+      "year_block": 2018,
+      "holiday": "Valentines Day",
+      "series": "Prayer",
+      "message": "Answered Prayer",
+      "passage": ""
+    },
+    {
+      "date": "2018-02-18",
+      "year_block": 2018,
+      "holiday": "",
+      "series": "Prayer",
+      "message": "When God Says No",
+      "passage": ""
+    },
+    {
+      "date": "2018-02-25",
+      "year_block": 2018,
+      "holiday": "",
+      "series": "-- Bill on Vacation --",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2018-03-04",
+      "year_block": 2018,
+      "holiday": "",
+      "series": "I AM the CHURCH",
+      "message": "The Great Co-Mission",
+      "passage": ""
+    },
+    {
+      "date": "2018-03-11",
+      "year_block": 2018,
+      "holiday": "",
+      "series": "I AM the CHURCH",
+      "message": "Wating for the Spirit",
+      "passage": ""
+    },
+    {
+      "date": "2018-03-18",
+      "year_block": 2018,
+      "holiday": "",
+      "series": "I AM the CHURCH",
+      "message": "The Birth of the Church",
+      "passage": ""
+    },
+    {
+      "date": "2018-03-25",
+      "year_block": 2018,
+      "holiday": "",
+      "series": "I AM the CHURCH",
+      "message": "The Challenge of Growth",
+      "passage": ""
+    },
+    {
+      "date": "2018-04-01",
+      "year_block": 2018,
+      "holiday": "Easter Sunday",
+      "series": "Questioning Easter",
+      "message": "Did the Ressurection Really Happen? If so...",
+      "passage": ""
+    },
+    {
+      "date": "2018-04-08",
+      "year_block": 2018,
+      "holiday": "",
+      "series": "Questioning the Bible",
+      "message": "Is the Bible really the Word of God? If so...",
+      "passage": ""
+    },
+    {
+      "date": "2018-04-15",
+      "year_block": 2018,
+      "holiday": "",
+      "series": "Questioning God",
+      "message": "Is God really real? If so...",
+      "passage": ""
+    },
+    {
+      "date": "2018-04-22",
+      "year_block": 2018,
+      "holiday": "",
+      "series": "Hall of Heroes: OT",
+      "message": "Moses",
+      "passage": ""
+    },
+    {
+      "date": "2018-04-29",
+      "year_block": 2018,
+      "holiday": "",
+      "series": "Hall of Heroes: OT",
+      "message": "Rahab",
+      "passage": ""
+    },
+    {
+      "date": "2018-05-06",
+      "year_block": 2018,
+      "holiday": "",
+      "series": "Hall of Heroes: OT",
+      "message": "Gideon",
+      "passage": ""
+    },
+    {
+      "date": "2018-05-13",
+      "year_block": 2018,
+      "holiday": "Mother's Day",
+      "series": "Hall of Heroes: OT",
+      "message": "David",
+      "passage": ""
+    },
+    {
+      "date": "2018-05-20",
+      "year_block": 2018,
+      "holiday": "",
+      "series": "Hall of Heroes: OT",
+      "message": "Esther",
+      "passage": ""
+    },
+    {
+      "date": "2018-05-27",
+      "year_block": 2018,
+      "holiday": "Memorial Day",
+      "series": "Hall of Heroes: OT",
+      "message": "Daniel",
+      "passage": ""
+    },
+    {
+      "date": "2018-06-03",
+      "year_block": 2018,
+      "holiday": "",
+      "series": "The Use of Money",
+      "message": "Counting the Cost",
+      "passage": ""
+    },
+    {
+      "date": "2018-06-10",
+      "year_block": 2018,
+      "holiday": "",
+      "series": "The Use of Money",
+      "message": "Long-Term Investments",
+      "passage": ""
+    },
+    {
+      "date": "2018-06-17",
+      "year_block": 2018,
+      "holiday": "Father's Day",
+      "series": "The Use of Money",
+      "message": "Unseen Liability",
+      "passage": ""
+    },
+    {
+      "date": "2018-06-24",
+      "year_block": 2018,
+      "holiday": "",
+      "series": "Resurgence",
+      "message": "The Heart of Renewal",
+      "passage": ""
+    },
+    {
+      "date": "2018-07-01",
+      "year_block": 2018,
+      "holiday": "Indepedence Day",
+      "series": "Resurgence",
+      "message": "Beginning the Work",
+      "passage": ""
+    },
+    {
+      "date": "2018-07-08",
+      "year_block": 2018,
+      "holiday": "",
+      "series": "Resurgence",
+      "message": "Dealing with Detractors",
+      "passage": ""
+    },
+    {
+      "date": "2018-07-15",
+      "year_block": 2018,
+      "holiday": "",
+      "series": "Resurgence",
+      "message": "Dealing with Distractions",
+      "passage": ""
+    },
+    {
+      "date": "2018-07-22",
+      "year_block": 2018,
+      "holiday": "",
+      "series": "Resurgence",
+      "message": "Making the Change",
+      "passage": ""
+    },
+    {
+      "date": "2018-07-29",
+      "year_block": 2018,
+      "holiday": "",
+      "series": "Resurgence",
+      "message": "Making it Last",
+      "passage": ""
+    },
+    {
+      "date": "2018-08-05",
+      "year_block": 2018,
+      "holiday": "",
+      "series": "The Mission",
+      "message": "We will be known by our love for others",
+      "passage": ""
+    },
+    {
+      "date": "2018-08-12",
+      "year_block": 2018,
+      "holiday": "",
+      "series": "The Mission",
+      "message": "We will help those in need",
+      "passage": ""
+    },
+    {
+      "date": "2018-08-19",
+      "year_block": 2018,
+      "holiday": "",
+      "series": "The Mission",
+      "message": "We will emphasize the teaching of the Word",
+      "passage": ""
+    },
+    {
+      "date": "2018-08-26",
+      "year_block": 2018,
+      "holiday": "",
+      "series": "The Mission",
+      "message": "We will be a people of prayer",
+      "passage": ""
+    },
+    {
+      "date": "2018-09-02",
+      "year_block": 2018,
+      "holiday": "Labor Day",
+      "series": "The Mission",
+      "message": "We protect our Christian witness",
+      "passage": ""
+    },
+    {
+      "date": "2018-09-09",
+      "year_block": 2018,
+      "holiday": "",
+      "series": "The Mission",
+      "message": "We will invest in the next generation",
+      "passage": ""
+    },
+    {
+      "date": "2018-09-16",
+      "year_block": 2018,
+      "holiday": "",
+      "series": "The Mission",
+      "message": "We will share what God has done in our lives.",
+      "passage": ""
+    },
+    {
+      "date": "2018-09-23",
+      "year_block": 2018,
+      "holiday": "",
+      "series": "Walking Deeper",
+      "message": "Priorities",
+      "passage": ""
+    },
+    {
+      "date": "2018-09-30",
+      "year_block": 2018,
+      "holiday": "",
+      "series": "-- Bill on Vacation --",
+      "message": "[ Mark Quick ]",
+      "passage": ""
+    },
+    {
+      "date": "2018-10-07",
+      "year_block": 2018,
+      "holiday": "",
+      "series": "Walking Deeper",
+      "message": "Decisions",
+      "passage": ""
+    },
+    {
+      "date": "2018-10-14",
+      "year_block": 2018,
+      "holiday": "",
+      "series": "Walking Deeper",
+      "message": "Finances",
+      "passage": ""
+    },
+    {
+      "date": "2018-10-21",
+      "year_block": 2018,
+      "holiday": "",
+      "series": "Walking Deeper",
+      "message": "Character",
+      "passage": ""
+    },
+    {
+      "date": "2018-10-28",
+      "year_block": 2018,
+      "holiday": "Halloween",
+      "series": "Feast",
+      "message": "Sabbath",
+      "passage": ""
+    },
+    {
+      "date": "2018-11-04",
+      "year_block": 2018,
+      "holiday": "",
+      "series": "Feast",
+      "message": "Passover",
+      "passage": ""
+    },
+    {
+      "date": "2018-11-11",
+      "year_block": 2018,
+      "holiday": "",
+      "series": "Feast",
+      "message": "Pentecost",
+      "passage": ""
+    },
+    {
+      "date": "2018-11-18",
+      "year_block": 2018,
+      "holiday": "Thanksgiving",
+      "series": "Feast",
+      "message": "Tabernacles",
+      "passage": ""
+    },
+    {
+      "date": "2018-11-25",
+      "year_block": 2018,
+      "holiday": "",
+      "series": "-- Bill on Vacation --",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2018-12-02",
+      "year_block": 2018,
+      "holiday": "",
+      "series": "Not So Nativity",
+      "message": "Matthew: God speaks to Joseph",
+      "passage": ""
+    },
+    {
+      "date": "2018-12-09",
+      "year_block": 2018,
+      "holiday": "",
+      "series": "Not So Nativity",
+      "message": "Matthew: The Magi visit Herod",
+      "passage": ""
+    },
+    {
+      "date": "2018-12-16",
+      "year_block": 2018,
+      "holiday": "",
+      "series": "Not So Nativity",
+      "message": "Luke: The angel visits Mary",
+      "passage": ""
+    },
+    {
+      "date": "2018-12-23",
+      "year_block": 2018,
+      "holiday": "Xmas",
+      "series": "Not So Nativity",
+      "message": "Luke: The angel visits the Shepherds",
+      "passage": ""
+    },
+    {
+      "date": "2018-12-30",
+      "year_block": 2018,
+      "holiday": "New Years",
+      "series": "End of The Year",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2019-01-06",
+      "year_block": 2019,
+      "holiday": "New Years",
+      "series": "HIStory",
+      "message": "Overview of the Year",
+      "passage": ""
+    },
+    {
+      "date": "2019-01-13",
+      "year_block": 2019,
+      "holiday": "",
+      "series": "1: Pre-History",
+      "message": "Creation",
+      "passage": ""
+    },
+    {
+      "date": "2019-01-20",
+      "year_block": 2019,
+      "holiday": "",
+      "series": "Fall of Man",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2019-01-27",
+      "year_block": 2019,
+      "holiday": "",
+      "series": "Guest Speaker: John  Seltzer",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2019-02-03",
+      "year_block": 2019,
+      "holiday": "",
+      "series": "Cain, the first son",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2019-02-10",
+      "year_block": 2019,
+      "holiday": "Valentine's Day",
+      "series": "Noah & the Great Flood",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2019-02-17",
+      "year_block": 2019,
+      "holiday": "",
+      "series": "2: The Patriarchs",
+      "message": "Abraham, The First Patriarch",
+      "passage": ""
+    },
+    {
+      "date": "2019-02-24",
+      "year_block": 2019,
+      "holiday": "",
+      "series": "Abraham, The Man of Faith",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2019-03-03",
+      "year_block": 2019,
+      "holiday": "",
+      "series": "Deception, A Family Tradition",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2019-03-10",
+      "year_block": 2019,
+      "holiday": "",
+      "series": "Joseph, A Brother Betrayed",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2019-03-17",
+      "year_block": 2019,
+      "holiday": "",
+      "series": "Joseph, A Family Restored",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2019-03-24",
+      "year_block": 2019,
+      "holiday": "",
+      "series": "Guest Speaker: Care Net",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2019-03-31",
+      "year_block": 2019,
+      "holiday": "",
+      "series": "3: Exodus & The Land",
+      "message": "Moses, The Exodus from Egypt",
+      "passage": ""
+    },
+    {
+      "date": "2019-04-07",
+      "year_block": 2019,
+      "holiday": "",
+      "series": "Moses, The Birth of a Nation",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2019-04-14",
+      "year_block": 2019,
+      "holiday": "",
+      "series": "Failure of a Generation",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2019-04-21",
+      "year_block": 2019,
+      "holiday": "Easter",
+      "series": "Grace in the Wilderness Wandering",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2019-04-28",
+      "year_block": 2019,
+      "holiday": "",
+      "series": "Joshua",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2019-05-05",
+      "year_block": 2019,
+      "holiday": "",
+      "series": "4: Judges & Kings",
+      "message": "Gideon",
+      "passage": ""
+    },
+    {
+      "date": "2019-05-12",
+      "year_block": 2019,
+      "holiday": "Mother's Day",
+      "series": "Deborah",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2019-05-19",
+      "year_block": 2019,
+      "holiday": "",
+      "series": "Samson",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2019-05-26",
+      "year_block": 2019,
+      "holiday": "Memorial Day",
+      "series": "Saul becomes King",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2019-06-02",
+      "year_block": 2019,
+      "holiday": "",
+      "series": "Sauls disobeys God",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2019-06-09",
+      "year_block": 2019,
+      "holiday": "",
+      "series": "God Chooses A New King",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2019-06-16",
+      "year_block": 2019,
+      "holiday": "Father's Day",
+      "series": "God Reveals His New King",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2019-06-23",
+      "year_block": 2019,
+      "holiday": "",
+      "series": "Wisdom of Solomon / Temple",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2019-06-30",
+      "year_block": 2019,
+      "holiday": "Independance Day",
+      "series": "5: The Divided Kingdom",
+      "message": "Rehoboam & Jeroboam",
+      "passage": ""
+    },
+    {
+      "date": "2019-07-07",
+      "year_block": 2019,
+      "holiday": "",
+      "series": "Ahab & Elijah",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2019-07-14",
+      "year_block": 2019,
+      "holiday": "",
+      "series": "Josephat & Ahab",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2019-07-21",
+      "year_block": 2019,
+      "holiday": "",
+      "series": "Jonah & The Ninevites",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2019-07-28",
+      "year_block": 2019,
+      "holiday": "",
+      "series": "6: Israel in Captivity",
+      "message": "The Fall of Israel",
+      "passage": ""
+    },
+    {
+      "date": "2019-08-04",
+      "year_block": 2019,
+      "holiday": "",
+      "series": "Hebrews in Babylon",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2019-08-11",
+      "year_block": 2019,
+      "holiday": "",
+      "series": "Persecution in Exile",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2019-08-18",
+      "year_block": 2019,
+      "holiday": "",
+      "series": "Esther",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2019-08-25",
+      "year_block": 2019,
+      "holiday": "",
+      "series": "Church Leadership",
+      "message": "What is a Deacon?",
+      "passage": ""
+    },
+    {
+      "date": "2019-09-01",
+      "year_block": 2019,
+      "holiday": "Labor Day",
+      "series": "Church Leadership",
+      "message": "What is an Elder?",
+      "passage": ""
+    },
+    {
+      "date": "2019-09-08",
+      "year_block": 2019,
+      "holiday": "",
+      "series": "ANNIVERSARY",
+      "message": "ANNIVERSARY",
+      "passage": ""
+    },
+    {
+      "date": "2019-09-15",
+      "year_block": 2019,
+      "holiday": "",
+      "series": "Return to the Land",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2019-09-22",
+      "year_block": 2019,
+      "holiday": "",
+      "series": "7: Coming of the Messiah",
+      "message": "The Forerunner is Revealed",
+      "passage": ""
+    },
+    {
+      "date": "2019-09-29",
+      "year_block": 2019,
+      "holiday": "",
+      "series": "Men seek the Messiah (shepherds / Magi)",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2019-10-06",
+      "year_block": 2019,
+      "holiday": "",
+      "series": "Preparation for Ministry",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2019-10-13",
+      "year_block": 2019,
+      "holiday": "",
+      "series": "OFF",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2019-10-20",
+      "year_block": 2019,
+      "holiday": "Annual Meeting",
+      "series": "8: Messiah's Earthly Ministry",
+      "message": "Fishers of Men",
+      "passage": "Good Samaritan?"
+    },
+    {
+      "date": "2019-10-27",
+      "year_block": 2019,
+      "holiday": "Halloween",
+      "series": "Woman at the Well",
+      "message": "Woman at the Well?",
+      "passage": ""
+    },
+    {
+      "date": "2019-11-03",
+      "year_block": 2019,
+      "holiday": "",
+      "series": "Jesus Cleanses His Father's House",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2019-11-10",
+      "year_block": 2019,
+      "holiday": "",
+      "series": "The Final Week",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2019-11-17",
+      "year_block": 2019,
+      "holiday": "",
+      "series": "Ressurrection & Ascension",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2019-11-24",
+      "year_block": 2019,
+      "holiday": "Thanksgiving",
+      "series": "9: The Age of the Church",
+      "message": "Pentecost",
+      "passage": ""
+    },
+    {
+      "date": "2019-12-01",
+      "year_block": 2019,
+      "holiday": "",
+      "series": "OFF",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2019-12-08",
+      "year_block": 2019,
+      "holiday": "",
+      "series": "Cornelius House",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2019-12-15",
+      "year_block": 2019,
+      "holiday": "",
+      "series": "The Jerusalem Council",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2019-12-22",
+      "year_block": 2019,
+      "holiday": "Xmas",
+      "series": "3rd John",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2019-12-29",
+      "year_block": 2019,
+      "holiday": "New Year's Eve",
+      "series": "End of Days",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2020-01-05",
+      "year_block": 2020,
+      "holiday": "New Years",
+      "series": "Looking Ahead",
+      "message": "Preparing for Growth",
+      "passage": ""
+    },
+    {
+      "date": "2020-01-12",
+      "year_block": 2020,
+      "holiday": "",
+      "series": "ROB SHORES (Bill's Grandmother's Funeral)",
+      "message": "The Good Samaritan",
+      "passage": ""
+    },
+    {
+      "date": "2020-01-19",
+      "year_block": 2020,
+      "holiday": "",
+      "series": "VICTORY: Discover the Secret to Biblical Blessing",
+      "message": "Preparation for Blessing",
+      "passage": ""
+    },
+    {
+      "date": "2020-01-26",
+      "year_block": 2020,
+      "holiday": "",
+      "series": "VICTORY: Discover the Secret to Biblical Blessing",
+      "message": "Crossing the Jordon",
+      "passage": ""
+    },
+    {
+      "date": "2020-02-02",
+      "year_block": 2020,
+      "holiday": "",
+      "series": "VICTORY: Discover the Secret to Biblical Blessing",
+      "message": "Spiritual Readiness",
+      "passage": ""
+    },
+    {
+      "date": "2020-02-09",
+      "year_block": 2020,
+      "holiday": "Valentine's Day",
+      "series": "VICTORY: Discover the Secret to Biblical Blessing",
+      "message": "Sin in the Camp",
+      "passage": ""
+    },
+    {
+      "date": "2020-02-16",
+      "year_block": 2020,
+      "holiday": "",
+      "series": "Worthless Worship",
+      "message": "Leftovers",
+      "passage": ""
+    },
+    {
+      "date": "2020-02-23",
+      "year_block": 2020,
+      "holiday": "",
+      "series": "Worthless Worship",
+      "message": "Selfish",
+      "passage": ""
+    },
+    {
+      "date": "2020-03-01",
+      "year_block": 2020,
+      "holiday": "",
+      "series": "Worthless Worship",
+      "message": "Profane",
+      "passage": ""
+    },
+    {
+      "date": "2020-03-08",
+      "year_block": 2020,
+      "holiday": "",
+      "series": "Worthless Worship",
+      "message": "Deceptive",
+      "passage": ""
+    },
+    {
+      "date": "2020-03-15",
+      "year_block": 2020,
+      "holiday": "",
+      "series": "Cultivating A Life of Stewardship",
+      "message": "Created to be stewards",
+      "passage": "eden"
+    },
+    {
+      "date": "2020-03-22",
+      "year_block": 2020,
+      "holiday": "",
+      "series": "Cultivating A Life of Stewardship",
+      "message": "Called to be stewards",
+      "passage": "1 Cor 4"
+    },
+    {
+      "date": "2020-03-29",
+      "year_block": 2020,
+      "holiday": "",
+      "series": "Cultivating A Life of Stewardship",
+      "message": "Accountable for our stewardship",
+      "passage": "talents"
+    },
+    {
+      "date": "2020-04-05",
+      "year_block": 2020,
+      "holiday": "",
+      "series": "Cultivating A Life of Stewardship",
+      "message": "Stewardship is a lifestyle",
+      "passage": "prodigal"
+    },
+    {
+      "date": "2020-04-12",
+      "year_block": 2020,
+      "holiday": "Easter",
+      "series": "Jesus > Religion",
+      "message": "Greater than Sin",
+      "passage": ""
+    },
+    {
+      "date": "2020-04-19",
+      "year_block": 2020,
+      "holiday": "",
+      "series": "Jesus > Religion",
+      "message": "Greater than Culture",
+      "passage": ""
+    },
+    {
+      "date": "2020-04-26",
+      "year_block": 2020,
+      "holiday": "",
+      "series": "Jesus > Religion",
+      "message": "Greater than Tradition",
+      "passage": ""
+    },
+    {
+      "date": "2020-05-03",
+      "year_block": 2020,
+      "holiday": "",
+      "series": "Jesus > Religion",
+      "message": "Greater than Self-Righteousness",
+      "passage": ""
+    },
+    {
+      "date": "2020-05-10",
+      "year_block": 2020,
+      "holiday": "Mother's Day",
+      "series": "HOH: Women Warriors",
+      "message": "Hannah",
+      "passage": ""
+    },
+    {
+      "date": "2020-05-17",
+      "year_block": 2020,
+      "holiday": "",
+      "series": "HOH: Women Warriors",
+      "message": "Rahab",
+      "passage": ""
+    },
+    {
+      "date": "2020-05-24",
+      "year_block": 2020,
+      "holiday": "Memorial Day",
+      "series": "HOH: Women Warriors",
+      "message": "Miriam",
+      "passage": ""
+    },
+    {
+      "date": "2020-05-31",
+      "year_block": 2020,
+      "holiday": "",
+      "series": "Petecost Sun.",
+      "message": "Pentecost",
+      "passage": ""
+    },
+    {
+      "date": "2020-06-07",
+      "year_block": 2020,
+      "holiday": "",
+      "series": "HOH: Women Warriors",
+      "message": "Deborah",
+      "passage": ""
+    },
+    {
+      "date": "2020-06-14",
+      "year_block": 2020,
+      "holiday": "",
+      "series": "HOH: Women Warriors",
+      "message": "Ruth",
+      "passage": ""
+    },
+    {
+      "date": "2020-06-21",
+      "year_block": 2020,
+      "holiday": "Fathers Day",
+      "series": "Who is God?",
+      "message": "My Heavenly Father",
+      "passage": ""
+    },
+    {
+      "date": "2020-06-28",
+      "year_block": 2020,
+      "holiday": "Independance Day",
+      "series": "Who is God?",
+      "message": "The Eternal God",
+      "passage": ""
+    },
+    {
+      "date": "2020-07-05",
+      "year_block": 2020,
+      "holiday": "",
+      "series": "Who is God?",
+      "message": "The Holy God",
+      "passage": ""
+    },
+    {
+      "date": "2020-07-12",
+      "year_block": 2020,
+      "holiday": "",
+      "series": "Who is God?",
+      "message": "The Triune God",
+      "passage": ""
+    },
+    {
+      "date": "2020-07-19",
+      "year_block": 2020,
+      "holiday": "",
+      "series": "Who is God?",
+      "message": "The Covenant Maker",
+      "passage": ""
+    },
+    {
+      "date": "2020-07-26",
+      "year_block": 2020,
+      "holiday": "",
+      "series": "Who is God?",
+      "message": "The Miracle Worker",
+      "passage": ""
+    },
+    {
+      "date": "2020-08-02",
+      "year_block": 2020,
+      "holiday": "",
+      "series": "Gifted",
+      "message": "Introduction to Spiritual Gifts",
+      "passage": ""
+    },
+    {
+      "date": "2020-08-09",
+      "year_block": 2020,
+      "holiday": "",
+      "series": "Gifted",
+      "message": "Why Different Gifts?",
+      "passage": ""
+    },
+    {
+      "date": "2020-08-16",
+      "year_block": 2020,
+      "holiday": "",
+      "series": "Gifted",
+      "message": "Love's Suprememcy in Spiritual Gifts",
+      "passage": "13:1-3"
+    },
+    {
+      "date": "2020-08-23",
+      "year_block": 2020,
+      "holiday": "",
+      "series": "Gifted",
+      "message": "Speaking in Tongues",
+      "passage": "14:1-19"
+    },
+    {
+      "date": "2020-08-30",
+      "year_block": 2020,
+      "holiday": "",
+      "series": "Gifted",
+      "message": "Proper Use of the Gifts",
+      "passage": "14:20-25"
+    },
+    {
+      "date": "2020-09-06",
+      "year_block": 2020,
+      "holiday": "Labor Day",
+      "series": "Gifted",
+      "message": "Disorder in the Use of the Gifts",
+      "passage": "14:26-33"
+    },
+    {
+      "date": "2020-09-13",
+      "year_block": 2020,
+      "holiday": "",
+      "series": "Gifted",
+      "message": "Dangers of Spiritual Gifts",
+      "passage": "14:34-40"
+    },
+    {
+      "date": "2020-09-20",
+      "year_block": 2020,
+      "holiday": "",
+      "series": "End of Days",
+      "message": "The Promises",
+      "passage": "Trailer"
+    },
+    {
+      "date": "2020-09-27",
+      "year_block": 2020,
+      "holiday": "",
+      "series": "End of Days",
+      "message": "The Rapture",
+      "passage": ""
+    },
+    {
+      "date": "2020-10-04",
+      "year_block": 2020,
+      "holiday": "",
+      "series": "End of Days",
+      "message": "The Tribulation",
+      "passage": ""
+    },
+    {
+      "date": "2020-10-11",
+      "year_block": 2020,
+      "holiday": "",
+      "series": "End of Days",
+      "message": "The Earthly Kingdom",
+      "passage": ""
+    },
+    {
+      "date": "2020-10-18",
+      "year_block": 2020,
+      "holiday": "Annual Meeting",
+      "series": "End of Days",
+      "message": "The Final Judgment",
+      "passage": ""
+    },
+    {
+      "date": "2020-10-25",
+      "year_block": 2020,
+      "holiday": "Halloween",
+      "series": "End of Days",
+      "message": "The Eternal Kingdom",
+      "passage": ""
+    },
+    {
+      "date": "2020-11-01",
+      "year_block": 2020,
+      "holiday": "",
+      "series": "Miracles of Jesus",
+      "message": "Water into Wine",
+      "passage": ""
+    },
+    {
+      "date": "2020-11-08",
+      "year_block": 2020,
+      "holiday": "",
+      "series": "Miracles of Jesus",
+      "message": "Raising of Lazarus",
+      "passage": ""
+    },
+    {
+      "date": "2020-11-15",
+      "year_block": 2020,
+      "holiday": "",
+      "series": "Miracles of Jesus",
+      "message": "Feeding the 5,000",
+      "passage": ""
+    },
+    {
+      "date": "2020-11-22",
+      "year_block": 2020,
+      "holiday": "Thanksgiving",
+      "series": "Miracles of Jesus (Rob Shores)",
+      "message": "Healing is Blind Bartimeaus",
+      "passage": "Mark 10:46-52"
+    },
+    {
+      "date": "2020-11-29",
+      "year_block": 2020,
+      "holiday": "",
+      "series": "Miracles of Jesus (Joe Pescador)",
+      "message": "Healing of the 10 Lepers",
+      "passage": "Luke 17:11-21"
+    },
+    {
+      "date": "2020-12-06",
+      "year_block": 2020,
+      "holiday": "",
+      "series": "Xmas",
+      "message": "The Promised Messiah",
+      "passage": "Matt 1:18-24"
+    },
+    {
+      "date": "2020-12-13",
+      "year_block": 2020,
+      "holiday": "",
+      "series": "Xmas",
+      "message": "The Coming King",
+      "passage": "Matt 2:1-12"
+    },
+    {
+      "date": "2020-12-20",
+      "year_block": 2020,
+      "holiday": "Xmas",
+      "series": "Xmas",
+      "message": "The Savior of All",
+      "passage": "Luke 2:1-20"
+    },
+    {
+      "date": "2020-12-27",
+      "year_block": 2020,
+      "holiday": "New Year's Eve",
+      "series": "Looking Back",
+      "message": "Measuring The Growth",
+      "passage": ""
+    },
+    {
+      "date": "2021-01-03",
+      "year_block": 2021,
+      "holiday": "New Years",
+      "series": "Required",
+      "message": "Prayer",
+      "passage": "Matthew 6:5-14"
+    },
+    {
+      "date": "2021-01-10",
+      "year_block": 2021,
+      "holiday": "",
+      "series": "Required",
+      "message": "Fast",
+      "passage": "Matthew 6:16-18"
+    },
+    {
+      "date": "2021-01-17",
+      "year_block": 2021,
+      "holiday": "",
+      "series": "Required",
+      "message": "Give",
+      "passage": "OT > NT"
+    },
+    {
+      "date": "2021-01-24",
+      "year_block": 2021,
+      "holiday": "",
+      "series": "Required",
+      "message": "Serve",
+      "passage": "Matthew 25:31-46"
+    },
+    {
+      "date": "2021-01-31",
+      "year_block": 2021,
+      "holiday": "",
+      "series": "Required",
+      "message": "Rest",
+      "passage": "\"Sabbath\""
+    },
+    {
+      "date": "2021-02-07",
+      "year_block": 2021,
+      "holiday": "",
+      "series": "MISSIONS",
+      "message": "HELPING HANDS - David & Linda",
+      "passage": ""
+    },
+    {
+      "date": "2021-02-14",
+      "year_block": 2021,
+      "holiday": "Valentine's Day",
+      "series": "Message from the Mount",
+      "message": "Beatitudes",
+      "passage": "Mathew 5:1-12"
+    },
+    {
+      "date": "2021-02-21",
+      "year_block": 2021,
+      "holiday": "",
+      "series": "Message from the Mount",
+      "message": "Fulfill the Law, not Abolish",
+      "passage": "Matthew 5:17-20"
+    },
+    {
+      "date": "2021-02-28",
+      "year_block": 2021,
+      "holiday": "",
+      "series": "Message from the Mount",
+      "message": "How to Treat Others",
+      "passage": "Matthew 5:43-6:4"
+    },
+    {
+      "date": "2021-03-07",
+      "year_block": 2021,
+      "holiday": "",
+      "series": "Message from the Mount",
+      "message": "Treasures in Heaven",
+      "passage": "Matthew 6:19-24"
+    },
+    {
+      "date": "2021-03-14",
+      "year_block": 2021,
+      "holiday": "",
+      "series": "Message from the Mount",
+      "message": "Do not worry",
+      "passage": "Matthew 6:25-34"
+    },
+    {
+      "date": "2021-03-21",
+      "year_block": 2021,
+      "holiday": "",
+      "series": "Message from the Mount",
+      "message": "Judging others",
+      "passage": "Matthew 7:1-6"
+    },
+    {
+      "date": "2021-03-28",
+      "year_block": 2021,
+      "holiday": "",
+      "series": "ELDER SUNDAY",
+      "message": "Rob Shores",
+      "passage": "50 Shades of Solomon"
+    },
+    {
+      "date": "2021-04-04",
+      "year_block": 2021,
+      "holiday": "Easter",
+      "series": "American Idolatry",
+      "message": "Religion",
+      "passage": ""
+    },
+    {
+      "date": "2021-04-11",
+      "year_block": 2021,
+      "holiday": "",
+      "series": "American Idolatry",
+      "message": "Pleasure",
+      "passage": ""
+    },
+    {
+      "date": "2021-04-18",
+      "year_block": 2021,
+      "holiday": "",
+      "series": "American Idolatry",
+      "message": "Greed",
+      "passage": ""
+    },
+    {
+      "date": "2021-04-25",
+      "year_block": 2021,
+      "holiday": "",
+      "series": "American Idolatry",
+      "message": "Pride",
+      "passage": ""
+    },
+    {
+      "date": "2021-05-02",
+      "year_block": 2021,
+      "holiday": "",
+      "series": "American Idolatry",
+      "message": "Politics",
+      "passage": ""
+    },
+    {
+      "date": "2021-05-09",
+      "year_block": 2021,
+      "holiday": "Mother's Day",
+      "series": "American Idolatry",
+      "message": "Selfishness",
+      "passage": ""
+    },
+    {
+      "date": "2021-05-16",
+      "year_block": 2021,
+      "holiday": "",
+      "series": "MISSIONS",
+      "message": "ORPHAN HELPERS - Joe Pescador",
+      "passage": ""
+    },
+    {
+      "date": "2021-05-23",
+      "year_block": 2021,
+      "holiday": "",
+      "series": "BILL VACATION",
+      "message": "Joe Pescador",
+      "passage": ""
+    },
+    {
+      "date": "2021-05-30",
+      "year_block": 2021,
+      "holiday": "Memorial Day",
+      "series": "All for One",
+      "message": "Our Unity",
+      "passage": "Acts 2:42-47"
+    },
+    {
+      "date": "2021-06-06",
+      "year_block": 2021,
+      "holiday": "",
+      "series": "All for One",
+      "message": "Our Activity",
+      "passage": "Acts 3:1-21"
+    },
+    {
+      "date": "2021-06-13",
+      "year_block": 2021,
+      "holiday": "",
+      "series": "All for One",
+      "message": "Our Sincerity",
+      "passage": "Acts 4:1-20"
+    },
+    {
+      "date": "2021-06-20",
+      "year_block": 2021,
+      "holiday": "Fathers Day",
+      "series": "ELDER SUNDAY",
+      "message": "David Loase",
+      "passage": "Ritual: Renewel or Rut"
+    },
+    {
+      "date": "2021-06-27",
+      "year_block": 2021,
+      "holiday": "",
+      "series": "HOH: Peculiar Prophets",
+      "message": "Amos",
+      "passage": ""
+    },
+    {
+      "date": "2021-07-04",
+      "year_block": 2021,
+      "holiday": "Independance Day",
+      "series": "HOH: Peculiar Prophets",
+      "message": "Hosea",
+      "passage": ""
+    },
+    {
+      "date": "2021-07-11",
+      "year_block": 2021,
+      "holiday": "",
+      "series": "HOH: Peculiar Prophets",
+      "message": "Nahum",
+      "passage": ""
+    },
+    {
+      "date": "2021-07-18",
+      "year_block": 2021,
+      "holiday": "",
+      "series": "MISSONS",
+      "message": "CARE NET",
+      "passage": ""
+    },
+    {
+      "date": "2021-07-25",
+      "year_block": 2021,
+      "holiday": "",
+      "series": "HOH: Peculiar Prophets",
+      "message": "Ezekiel",
+      "passage": ""
+    },
+    {
+      "date": "2021-08-01",
+      "year_block": 2021,
+      "holiday": "",
+      "series": "HOH: Peculiar Prophets",
+      "message": "Ezra",
+      "passage": ""
+    },
+    {
+      "date": "2021-08-08",
+      "year_block": 2021,
+      "holiday": "Bill - Worship",
+      "series": "Courageous Kids",
+      "message": "David",
+      "passage": ""
+    },
+    {
+      "date": "2021-08-15",
+      "year_block": 2021,
+      "holiday": "",
+      "series": "ELDER SUNDAY",
+      "message": "Joe Pescador",
+      "passage": ""
+    },
+    {
+      "date": "2021-08-22",
+      "year_block": 2021,
+      "holiday": "",
+      "series": "Courageous Kids",
+      "message": "Miriam",
+      "passage": ""
+    },
+    {
+      "date": "2021-08-29",
+      "year_block": 2021,
+      "holiday": "",
+      "series": "Courageous Kids",
+      "message": "Timothy",
+      "passage": ""
+    },
+    {
+      "date": "2021-09-05",
+      "year_block": 2021,
+      "holiday": "Labor Day",
+      "series": "Courageous Kids",
+      "message": "Joseph",
+      "passage": ""
+    },
+    {
+      "date": "2021-09-12",
+      "year_block": 2021,
+      "holiday": "",
+      "series": "Everyday Faith",
+      "message": "Dealing with Difficulty",
+      "passage": "James 1:1-7"
+    },
+    {
+      "date": "2021-09-19",
+      "year_block": 2021,
+      "holiday": "",
+      "series": "Everyday Faith",
+      "message": "Believing Behavior",
+      "passage": "James 2:14-26"
+    },
+    {
+      "date": "2021-09-26",
+      "year_block": 2021,
+      "holiday": "",
+      "series": "Bill Covid",
+      "message": "Rob Shores teaching",
+      "passage": ""
+    },
+    {
+      "date": "2021-10-03",
+      "year_block": 2021,
+      "holiday": "",
+      "series": "Bill Covid",
+      "message": "David Loase",
+      "passage": ""
+    },
+    {
+      "date": "2021-10-10",
+      "year_block": 2021,
+      "holiday": "",
+      "series": "Everyday Faith",
+      "message": "Wicked Words",
+      "passage": "James 3:1-12"
+    },
+    {
+      "date": "2021-10-17",
+      "year_block": 2021,
+      "holiday": "Annual Meeting",
+      "series": "Everyday Faith",
+      "message": "Standards of Success",
+      "passage": "James 3:13-4:3"
+    },
+    {
+      "date": "2021-10-24",
+      "year_block": 2021,
+      "holiday": "",
+      "series": "Everyday Faith",
+      "message": "False Faithfulness",
+      "passage": "James 4:4-12"
+    },
+    {
+      "date": "2021-10-31",
+      "year_block": 2021,
+      "holiday": "Halloween",
+      "series": "Everyday Faith",
+      "message": "Kingdom Context",
+      "passage": "James 4:13 - 5:6 / We Need to Talk / Ephesus / Revelation 2:1-7"
+    },
+    {
+      "date": "2021-11-07",
+      "year_block": 2021,
+      "holiday": "",
+      "series": "Bill on Vacation",
+      "message": "We Need to Talk",
+      "passage": "Pergamum / Revelation 2:12-17"
+    },
+    {
+      "date": "2021-11-14",
+      "year_block": 2021,
+      "holiday": "",
+      "series": "We Need to Talk",
+      "message": "Thyatira",
+      "passage": "Revelation 2:18-29"
+    },
+    {
+      "date": "2021-11-21",
+      "year_block": 2021,
+      "holiday": "Thanksgiving",
+      "series": "Bill on Vacation",
+      "message": "David Loase",
+      "passage": ""
+    },
+    {
+      "date": "2021-11-28",
+      "year_block": 2021,
+      "holiday": "",
+      "series": "Unlocking Christmas",
+      "message": "The Eternal Logos",
+      "passage": ""
+    },
+    {
+      "date": "2021-12-05",
+      "year_block": 2021,
+      "holiday": "",
+      "series": "Unlocking Christmas",
+      "message": "Hyostatic Union",
+      "passage": ""
+    },
+    {
+      "date": "2021-12-12",
+      "year_block": 2021,
+      "holiday": "",
+      "series": "Unlocking Christmas",
+      "message": "Virgin Birth",
+      "passage": ""
+    },
+    {
+      "date": "2021-12-19",
+      "year_block": 2021,
+      "holiday": "Xmas",
+      "series": "Unlocking Christmas",
+      "message": "Davidic Line",
+      "passage": ""
+    },
+    {
+      "date": "2021-12-26",
+      "year_block": 2021,
+      "holiday": "",
+      "series": "Looking Back",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2022-01-02",
+      "year_block": 2022,
+      "holiday": "",
+      "series": "",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2022-01-09",
+      "year_block": 2022,
+      "holiday": "",
+      "series": "",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2022-01-16",
+      "year_block": 2022,
+      "holiday": "",
+      "series": "Parables",
+      "message": "The Good Samaritan",
+      "passage": "Luke 10:25-37"
+    },
+    {
+      "date": "2022-01-23",
+      "year_block": 2022,
+      "holiday": "",
+      "series": "Parables",
+      "message": "The Sower",
+      "passage": "Mark 4:1-20"
+    },
+    {
+      "date": "2022-01-30",
+      "year_block": 2022,
+      "holiday": "",
+      "series": "Parables",
+      "message": "The Talents",
+      "passage": "Mathew 25:14-30"
+    },
+    {
+      "date": "2022-02-06",
+      "year_block": 2022,
+      "holiday": "",
+      "series": "Parables",
+      "message": "Unforgiving Servant",
+      "passage": "Matthew 18:21\u201335"
+    },
+    {
+      "date": "2022-02-13",
+      "year_block": 2022,
+      "holiday": "Valentine's Day",
+      "series": "Parables",
+      "message": "The Losts",
+      "passage": "Luke 15:1-10"
+    },
+    {
+      "date": "2022-02-20",
+      "year_block": 2022,
+      "holiday": "",
+      "series": "Parables",
+      "message": "The Two Sons",
+      "passage": "Luke 15:11-32"
+    },
+    {
+      "date": "2022-02-27",
+      "year_block": 2022,
+      "holiday": "",
+      "series": "I AM A CATALYST",
+      "message": "INTRO",
+      "passage": ""
+    },
+    {
+      "date": "2022-03-06",
+      "year_block": 2022,
+      "holiday": "",
+      "series": "I AM A CATALYST",
+      "message": "Surrender to Christ",
+      "passage": ""
+    },
+    {
+      "date": "2022-03-13",
+      "year_block": 2022,
+      "holiday": "Daylight Savings",
+      "series": "I AM A CATALYST",
+      "message": "Get Baptized",
+      "passage": ""
+    },
+    {
+      "date": "2022-03-20",
+      "year_block": 2022,
+      "holiday": "",
+      "series": "I AM A CATALYST",
+      "message": "Live by the Spirit",
+      "passage": ""
+    },
+    {
+      "date": "2022-03-27",
+      "year_block": 2022,
+      "holiday": "",
+      "series": "I AM A CATALYST",
+      "message": "Join in Community",
+      "passage": ""
+    },
+    {
+      "date": "2022-04-03",
+      "year_block": 2022,
+      "holiday": "",
+      "series": "I AM A CATALYST",
+      "message": "Partner in Ministry",
+      "passage": ""
+    },
+    {
+      "date": "2022-04-10",
+      "year_block": 2022,
+      "holiday": "Palm Sunday",
+      "series": "KIDS",
+      "message": "Kids Easter Program",
+      "passage": ""
+    },
+    {
+      "date": "2022-04-17",
+      "year_block": 2022,
+      "holiday": "Easter Sunday",
+      "series": "Investigation Easter",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2022-04-24",
+      "year_block": 2022,
+      "holiday": "",
+      "series": "Habits for Health",
+      "message": "Prayer",
+      "passage": ""
+    },
+    {
+      "date": "2022-05-01",
+      "year_block": 2022,
+      "holiday": "",
+      "series": "Habits for Health",
+      "message": "Serving",
+      "passage": ""
+    },
+    {
+      "date": "2022-05-08",
+      "year_block": 2022,
+      "holiday": "Mother's Day",
+      "series": "Habits for Heath",
+      "message": "Worship",
+      "passage": ""
+    },
+    {
+      "date": "2022-05-15",
+      "year_block": 2022,
+      "holiday": "",
+      "series": "Habits for Health",
+      "message": "Fasting",
+      "passage": ""
+    },
+    {
+      "date": "2022-05-22",
+      "year_block": 2022,
+      "holiday": "",
+      "series": "Habits for Health",
+      "message": "Bible",
+      "passage": ""
+    },
+    {
+      "date": "2022-05-29",
+      "year_block": 2022,
+      "holiday": "Memorial Day",
+      "series": "Habits for Health",
+      "message": "Stewardship",
+      "passage": ""
+    },
+    {
+      "date": "2022-06-05",
+      "year_block": 2022,
+      "holiday": "",
+      "series": "Hall of Heroes",
+      "message": "Moses",
+      "passage": ""
+    },
+    {
+      "date": "2022-06-12",
+      "year_block": 2022,
+      "holiday": "",
+      "series": "GUEST MISSIONARY",
+      "message": "Steve Aenis",
+      "passage": ""
+    },
+    {
+      "date": "2022-06-19",
+      "year_block": 2022,
+      "holiday": "Father's Day",
+      "series": "Hall of Heroes",
+      "message": "Gideon",
+      "passage": ""
+    },
+    {
+      "date": "2022-06-26",
+      "year_block": 2022,
+      "holiday": "",
+      "series": "Hall of Heroes",
+      "message": "David",
+      "passage": ""
+    },
+    {
+      "date": "2022-07-03",
+      "year_block": 2022,
+      "holiday": "Independence Day",
+      "series": "Hall of Heroes",
+      "message": "Esther",
+      "passage": ""
+    },
+    {
+      "date": "2022-07-10",
+      "year_block": 2022,
+      "holiday": "",
+      "series": "Hall of Heroes",
+      "message": "Daniel",
+      "passage": ""
+    },
+    {
+      "date": "2022-07-17",
+      "year_block": 2022,
+      "holiday": "",
+      "series": "Communion",
+      "message": "Communion",
+      "passage": ""
+    },
+    {
+      "date": "2022-07-24",
+      "year_block": 2022,
+      "holiday": "",
+      "series": "In The Beginning",
+      "message": "Creation of Everything",
+      "passage": "Gen 1:1-2:3"
+    },
+    {
+      "date": "2022-07-31",
+      "year_block": 2022,
+      "holiday": "",
+      "series": "In The Beginning",
+      "message": "Adam & Eve",
+      "passage": "Gen 2:4-25"
+    },
+    {
+      "date": "2022-08-07",
+      "year_block": 2022,
+      "holiday": "",
+      "series": "In The Beginning",
+      "message": "Fall of Man",
+      "passage": "Gen 3:1-24"
+    },
+    {
+      "date": "2022-08-14",
+      "year_block": 2022,
+      "holiday": "",
+      "series": "In The Beginning",
+      "message": "The Fall",
+      "passage": "Gen 3:1-6"
+    },
+    {
+      "date": "2022-08-21",
+      "year_block": 2022,
+      "holiday": "",
+      "series": "In The Beginning",
+      "message": "Shared Consequences",
+      "passage": "Gen 3:7-13"
+    },
+    {
+      "date": "2022-08-28",
+      "year_block": 2022,
+      "holiday": "",
+      "series": "In The Beginning",
+      "message": "Specific Consequences",
+      "passage": "Gen 3:14-25"
+    },
+    {
+      "date": "2022-09-04",
+      "year_block": 2022,
+      "holiday": "Labor Day",
+      "series": "Pastor Paul (Bill Vacay)",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2022-09-11",
+      "year_block": 2022,
+      "holiday": "",
+      "series": "Chris McMillian",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2022-09-18",
+      "year_block": 2022,
+      "holiday": "",
+      "series": "In The Beginning",
+      "message": "Fatih After the Fall",
+      "passage": "Gen 4:1-7"
+    },
+    {
+      "date": "2022-09-25",
+      "year_block": 2022,
+      "holiday": "",
+      "series": "Miraculous",
+      "message": "Water into Wine",
+      "passage": "John 2:1-11 / Jesus transforms us"
+    },
+    {
+      "date": "2022-10-02",
+      "year_block": 2022,
+      "holiday": "",
+      "series": "Miraculous",
+      "message": "Catch of Fish",
+      "passage": "Luke 5:1-11 / Jesus guides us"
+    },
+    {
+      "date": "2022-10-09",
+      "year_block": 2022,
+      "holiday": "",
+      "series": "Deacon Ordination",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2022-10-16",
+      "year_block": 2022,
+      "holiday": "",
+      "series": "Celebrate Recovery Sunday",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2022-10-23",
+      "year_block": 2022,
+      "holiday": "",
+      "series": "Miraculous",
+      "message": "The Centurion's Servant",
+      "passage": "Matthew 8:5-13 / Jesus sets us free"
+    },
+    {
+      "date": "2022-10-30",
+      "year_block": 2022,
+      "holiday": "Halloween",
+      "series": "Miraculous",
+      "message": "Heals the paratlytic",
+      "passage": "Matthew 9:1-8 / Jesus heals and saves us"
+    },
+    {
+      "date": "2022-11-06",
+      "year_block": 2022,
+      "holiday": "",
+      "series": "Miraculous",
+      "message": "Bleeding Woman",
+      "passage": "Luke 8:43-48 / Jesus overcomes our impossibles"
+    },
+    {
+      "date": "2022-11-13",
+      "year_block": 2022,
+      "holiday": "",
+      "series": "Miraculous",
+      "message": "Healing a man born blind",
+      "passage": "Mark 10:46-52 / Jesus uses our story"
+    },
+    {
+      "date": "2022-11-20",
+      "year_block": 2022,
+      "holiday": "Thanksgiving",
+      "series": "Bill VACATION",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2022-11-27",
+      "year_block": 2022,
+      "holiday": "",
+      "series": "Guest: Brian Lunger",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2022-12-04",
+      "year_block": 2022,
+      "holiday": "",
+      "series": "Not So Nativity",
+      "message": "Matthew",
+      "passage": ""
+    },
+    {
+      "date": "2022-12-11",
+      "year_block": 2022,
+      "holiday": "",
+      "series": "Not So Nativity",
+      "message": "Luke",
+      "passage": ""
+    },
+    {
+      "date": "2022-12-18",
+      "year_block": 2022,
+      "holiday": "",
+      "series": "Kids Xmas Musical",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2022-12-25",
+      "year_block": 2022,
+      "holiday": "Christmas Day",
+      "series": "God Became Flesh",
+      "message": "John 1",
+      "passage": ""
+    },
+    {
+      "date": "2023-01-01",
+      "year_block": 2023,
+      "holiday": "",
+      "series": "Holy New Year!",
+      "message": "https://www.ignitermedia.com/products/35425-jonah",
+      "passage": ""
+    },
+    {
+      "date": "2023-01-08",
+      "year_block": 2023,
+      "holiday": "",
+      "series": "Back to Basics",
+      "message": "Prayer",
+      "passage": ""
+    },
+    {
+      "date": "2023-01-15",
+      "year_block": 2023,
+      "holiday": "",
+      "series": "Guest: Brian Lunger",
+      "message": "Pastor had Covid",
+      "passage": ""
+    },
+    {
+      "date": "2023-01-22",
+      "year_block": 2023,
+      "holiday": "",
+      "series": "Back to Basics",
+      "message": "Worship",
+      "passage": ""
+    },
+    {
+      "date": "2023-01-29",
+      "year_block": 2023,
+      "holiday": "",
+      "series": "Back to Basics",
+      "message": "Fasting",
+      "passage": "https://www.ignitermedia.com/products/89175-ten"
+    },
+    {
+      "date": "2023-02-05",
+      "year_block": 2023,
+      "holiday": "",
+      "series": "Back to Basics",
+      "message": "The Bible",
+      "passage": ""
+    },
+    {
+      "date": "2023-02-12",
+      "year_block": 2023,
+      "holiday": "Valentine's Day",
+      "series": "Back to Basics",
+      "message": "Giving",
+      "passage": ""
+    },
+    {
+      "date": "2023-02-19",
+      "year_block": 2023,
+      "holiday": "",
+      "series": "Back to Basics",
+      "message": "Sharing the Gospel",
+      "passage": "7"
+    },
+    {
+      "date": "2023-02-26",
+      "year_block": 2023,
+      "holiday": "",
+      "series": "Sex is Good",
+      "message": "ch 1",
+      "passage": ""
+    },
+    {
+      "date": "2023-03-05",
+      "year_block": 2023,
+      "holiday": "",
+      "series": "JONAH: Faith in the Depths",
+      "message": "The Depths of Disobedeince",
+      "passage": "ch 1 / ch 2"
+    },
+    {
+      "date": "2023-03-12",
+      "year_block": 2023,
+      "holiday": "Daylight Savings",
+      "series": "JONAH: Faith in the Depths",
+      "message": "The Depths of Consequences",
+      "passage": "ch 2"
+    },
+    {
+      "date": "2023-03-19",
+      "year_block": 2023,
+      "holiday": "",
+      "series": "JONAH: Faith in the Depths",
+      "message": "The Depths of Undeserved Grace",
+      "passage": "ch 3"
+    },
+    {
+      "date": "2023-03-26",
+      "year_block": 2023,
+      "holiday": "",
+      "series": "JONAH: Faith in the Depths",
+      "message": "The Depths of Selfishness",
+      "passage": "ch 4"
+    },
+    {
+      "date": "2023-04-02",
+      "year_block": 2023,
+      "holiday": "Palm Sunday",
+      "series": "Why Palm Sunday?",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2023-04-09",
+      "year_block": 2023,
+      "holiday": "Easter Sunday",
+      "series": "Did the Resurrection Really Happen?",
+      "message": "historical Paul view with free book",
+      "passage": ""
+    },
+    {
+      "date": "2023-04-16",
+      "year_block": 2023,
+      "holiday": "",
+      "series": "TEN",
+      "message": "no gods before me",
+      "passage": "https://www.ignitermedia.com/products/46090-joshua"
+    },
+    {
+      "date": "2023-04-23",
+      "year_block": 2023,
+      "holiday": "",
+      "series": "TEN",
+      "message": "don't make idols",
+      "passage": ""
+    },
+    {
+      "date": "2023-04-30",
+      "year_block": 2023,
+      "holiday": "",
+      "series": "TEN",
+      "message": "keep the Name holy",
+      "passage": ""
+    },
+    {
+      "date": "2023-05-07",
+      "year_block": 2023,
+      "holiday": "",
+      "series": "TEN",
+      "message": "keep the Sabbath holy",
+      "passage": ""
+    },
+    {
+      "date": "2023-05-14",
+      "year_block": 2023,
+      "holiday": "Mother's Day",
+      "series": "TEN",
+      "message": "Honor your parents",
+      "passage": ""
+    },
+    {
+      "date": "2023-05-21",
+      "year_block": 2023,
+      "holiday": "",
+      "series": "Chris McMillan",
+      "message": "BILL GRADUATION",
+      "passage": ""
+    },
+    {
+      "date": "2023-05-28",
+      "year_block": 2023,
+      "holiday": "Memorial Day",
+      "series": "TEN",
+      "message": "Do not kill",
+      "passage": ""
+    },
+    {
+      "date": "2023-06-04",
+      "year_block": 2023,
+      "holiday": "",
+      "series": "TEN",
+      "message": "Do not commit adultery",
+      "passage": ""
+    },
+    {
+      "date": "2023-06-11",
+      "year_block": 2023,
+      "holiday": "",
+      "series": "Church in the Sun",
+      "message": "Dinner with Jesus",
+      "passage": ""
+    },
+    {
+      "date": "2023-06-18",
+      "year_block": 2023,
+      "holiday": "Father's Day",
+      "series": "TEN",
+      "message": "Do not steal",
+      "passage": ""
+    },
+    {
+      "date": "2023-06-25",
+      "year_block": 2023,
+      "holiday": "",
+      "series": "TEN",
+      "message": "Do not lie",
+      "passage": ""
+    },
+    {
+      "date": "2023-07-02",
+      "year_block": 2023,
+      "holiday": "Independence Day",
+      "series": "TEN",
+      "message": "Do not Covet",
+      "passage": ""
+    },
+    {
+      "date": "2023-07-09",
+      "year_block": 2023,
+      "holiday": "",
+      "series": "Gospel of John",
+      "message": "The Word & The Light",
+      "passage": "1:1-13"
+    },
+    {
+      "date": "2023-07-16",
+      "year_block": 2023,
+      "holiday": "",
+      "series": "Missionary: Steve Ennis",
+      "message": "NO LIVE STREAM",
+      "passage": ""
+    },
+    {
+      "date": "2023-07-23",
+      "year_block": 2023,
+      "holiday": "",
+      "series": "Gospel of John",
+      "message": "God Became Flesh",
+      "passage": "1:14-18"
+    },
+    {
+      "date": "2023-07-30",
+      "year_block": 2023,
+      "holiday": "",
+      "series": "Gospel of John",
+      "message": "The Last Prophet",
+      "passage": "1:19-28"
+    },
+    {
+      "date": "2023-08-06",
+      "year_block": 2023,
+      "holiday": "",
+      "series": "Gospel of John",
+      "message": "The Sacrificial Lamb",
+      "passage": "1:29-34"
+    },
+    {
+      "date": "2023-08-13",
+      "year_block": 2023,
+      "holiday": "",
+      "series": "RESCUE",
+      "message": "A Gospel Message For Today",
+      "passage": ""
+    },
+    {
+      "date": "2023-08-20",
+      "year_block": 2023,
+      "holiday": "",
+      "series": "The Holy Spirit",
+      "message": "The Holy Spirit's Identity",
+      "passage": ""
+    },
+    {
+      "date": "2023-08-27",
+      "year_block": 2023,
+      "holiday": "",
+      "series": "The Holy Spirit",
+      "message": "The Holy Spirit's Words",
+      "passage": ""
+    },
+    {
+      "date": "2023-09-03",
+      "year_block": 2023,
+      "holiday": "Labor Day",
+      "series": "The Holy Spirit",
+      "message": "The Holy Spirit's Work",
+      "passage": ""
+    },
+    {
+      "date": "2023-09-10",
+      "year_block": 2023,
+      "holiday": "",
+      "series": "The Holy Spirit",
+      "message": "The Holy Spirit & The Believer",
+      "passage": ""
+    },
+    {
+      "date": "2023-09-17",
+      "year_block": 2023,
+      "holiday": "",
+      "series": "The Holy Spirit",
+      "message": "The Holy Spirit & The Church",
+      "passage": ""
+    },
+    {
+      "date": "2023-09-24",
+      "year_block": 2023,
+      "holiday": "",
+      "series": "CR Sunday",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2023-10-01",
+      "year_block": 2023,
+      "holiday": "",
+      "series": "Revelation",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2023-10-08",
+      "year_block": 2023,
+      "holiday": "",
+      "series": "Revelation",
+      "message": "https://twelvethirty.media/product/revelation-revealing-the-mystery-of-the-end-sermon-bumper/",
+      "passage": ""
+    },
+    {
+      "date": "2023-10-15",
+      "year_block": 2023,
+      "holiday": "",
+      "series": "Revelation",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2023-10-22",
+      "year_block": 2023,
+      "holiday": "",
+      "series": "Revelation",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2023-10-29",
+      "year_block": 2023,
+      "holiday": "Halloween",
+      "series": "Revelation",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2023-11-05",
+      "year_block": 2023,
+      "holiday": "Daylight Savings",
+      "series": "Revelation",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2023-11-12",
+      "year_block": 2023,
+      "holiday": "",
+      "series": "Revelation",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2023-11-19",
+      "year_block": 2023,
+      "holiday": "Thanksgiving",
+      "series": "Thanksgiving",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2023-11-26",
+      "year_block": 2023,
+      "holiday": "",
+      "series": "Bill on Vacation",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2023-12-03",
+      "year_block": 2023,
+      "holiday": "",
+      "series": "Bill on Vacation",
+      "message": "https://www.ignitermedia.com/products/80452-christmas-gold-merry-christmas",
+      "passage": ""
+    },
+    {
+      "date": "2023-12-10",
+      "year_block": 2023,
+      "holiday": "",
+      "series": "Merry Christmas",
+      "message": "Joseph: The Savior of the World",
+      "passage": "Matthew 1:18-24"
+    },
+    {
+      "date": "2023-12-17",
+      "year_block": 2023,
+      "holiday": "",
+      "series": "Merry Christmas",
+      "message": "Mary: The Son of God",
+      "passage": "Luke 1:26-38"
+    },
+    {
+      "date": "2023-12-24",
+      "year_block": 2023,
+      "holiday": "Christmas Eve",
+      "series": "Merry Christmas",
+      "message": "Shepherds: The Savior, Messiah, Lord is Here",
+      "passage": "Luke 2:8-15"
+    },
+    {
+      "date": "2023-12-31",
+      "year_block": 2023,
+      "holiday": "",
+      "series": "RESET",
+      "message": "preparing for a new beginning",
+      "passage": ""
+    },
+    {
+      "date": "2024-01-07",
+      "year_block": 2024,
+      "holiday": "",
+      "series": "Better",
+      "message": "Holy",
+      "passage": ""
+    },
+    {
+      "date": "2024-01-14",
+      "year_block": 2024,
+      "holiday": "",
+      "series": "Better",
+      "message": "Faithful",
+      "passage": ""
+    },
+    {
+      "date": "2024-01-21",
+      "year_block": 2024,
+      "holiday": "",
+      "series": "Better",
+      "message": "Servant",
+      "passage": ""
+    },
+    {
+      "date": "2024-01-28",
+      "year_block": 2024,
+      "holiday": "",
+      "series": "Better",
+      "message": "Worship",
+      "passage": ""
+    },
+    {
+      "date": "2024-02-04",
+      "year_block": 2024,
+      "holiday": "",
+      "series": "Better",
+      "message": "Community",
+      "passage": ""
+    },
+    {
+      "date": "2024-02-11",
+      "year_block": 2024,
+      "holiday": "Valentine's Day",
+      "series": "Chris McMillian",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2024-02-18",
+      "year_block": 2024,
+      "holiday": "",
+      "series": "Revelation II",
+      "message": "Ch 14",
+      "passage": ""
+    },
+    {
+      "date": "2024-02-25",
+      "year_block": 2024,
+      "holiday": "",
+      "series": "Revelation II",
+      "message": "Ch 15-16",
+      "passage": ""
+    },
+    {
+      "date": "2024-03-03",
+      "year_block": 2024,
+      "holiday": "",
+      "series": "Revelation II",
+      "message": "Ch 17-19",
+      "passage": ""
+    },
+    {
+      "date": "2024-03-10",
+      "year_block": 2024,
+      "holiday": "Daylight Savings",
+      "series": "Revelation II",
+      "message": "Ch 20",
+      "passage": ""
+    },
+    {
+      "date": "2024-03-17",
+      "year_block": 2024,
+      "holiday": "",
+      "series": "Revelation II",
+      "message": "Ch 21-22",
+      "passage": ""
+    },
+    {
+      "date": "2024-03-24",
+      "year_block": 2024,
+      "holiday": "Palm Sunday",
+      "series": "",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2024-03-31",
+      "year_block": 2024,
+      "holiday": "Easter Sunday",
+      "series": "Resurrection!",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2024-04-07",
+      "year_block": 2024,
+      "holiday": "",
+      "series": "1:1 with Jesus",
+      "message": "Blind Bartimeaus",
+      "passage": "Listen Like Jesus"
+    },
+    {
+      "date": "2024-04-14",
+      "year_block": 2024,
+      "holiday": "",
+      "series": "1:1 with Jesus",
+      "message": "Gaderene Demonic",
+      "passage": "Discern Like Jesus"
+    },
+    {
+      "date": "2024-04-21",
+      "year_block": 2024,
+      "holiday": "",
+      "series": "Missionary: Geras",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2024-04-28",
+      "year_block": 2024,
+      "holiday": "",
+      "series": "1:1 with Jesus",
+      "message": "Jesus heals the a man with a shriveled hand",
+      "passage": "Understand like Jesus"
+    },
+    {
+      "date": "2024-05-05",
+      "year_block": 2024,
+      "holiday": "",
+      "series": "1:1 with Jesus",
+      "message": "Man Born Blind",
+      "passage": "Story Like Jesus"
+    },
+    {
+      "date": "2024-05-12",
+      "year_block": 2024,
+      "holiday": "Mother's Day",
+      "series": "Ruth",
+      "message": "Ch 1",
+      "passage": ""
+    },
+    {
+      "date": "2024-05-19",
+      "year_block": 2024,
+      "holiday": "",
+      "series": "Steve Ennis",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2024-05-26",
+      "year_block": 2024,
+      "holiday": "Memorial Day",
+      "series": "Ruth",
+      "message": "Ch 2",
+      "passage": ""
+    },
+    {
+      "date": "2024-06-02",
+      "year_block": 2024,
+      "holiday": "",
+      "series": "Ruth",
+      "message": "Ch 3",
+      "passage": ""
+    },
+    {
+      "date": "2024-06-09",
+      "year_block": 2024,
+      "holiday": "",
+      "series": "Ruth",
+      "message": "Ch 4",
+      "passage": "Psalm 4"
+    },
+    {
+      "date": "2024-06-16",
+      "year_block": 2024,
+      "holiday": "Father's Day",
+      "series": "Summer Psalms",
+      "message": "Psalm 1",
+      "passage": "Psalm 7"
+    },
+    {
+      "date": "2024-06-23",
+      "year_block": 2024,
+      "holiday": "",
+      "series": "Summer Psalms",
+      "message": "Psalm 2",
+      "passage": "Psalm 23"
+    },
+    {
+      "date": "2024-06-30",
+      "year_block": 2024,
+      "holiday": "Independence Day",
+      "series": "Summer Psalms",
+      "message": "Psalm 3",
+      "passage": ""
+    },
+    {
+      "date": "2024-07-07",
+      "year_block": 2024,
+      "holiday": "",
+      "series": "Summer Psalms",
+      "message": "Psalm 8",
+      "passage": ""
+    },
+    {
+      "date": "2024-07-14",
+      "year_block": 2024,
+      "holiday": "",
+      "series": "Summer Psalms",
+      "message": "Psalm 14",
+      "passage": ""
+    },
+    {
+      "date": "2024-07-21",
+      "year_block": 2024,
+      "holiday": "",
+      "series": "Summer Psalms",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2024-07-28",
+      "year_block": 2024,
+      "holiday": "",
+      "series": "Summer Psalms",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2024-08-04",
+      "year_block": 2024,
+      "holiday": "",
+      "series": "Bill in AFRICA",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2024-08-11",
+      "year_block": 2024,
+      "holiday": "",
+      "series": "Bill in AFRICA",
+      "message": "Who was Jesus really?",
+      "passage": ""
+    },
+    {
+      "date": "2024-08-18",
+      "year_block": 2024,
+      "holiday": "",
+      "series": "Report on AFRICA",
+      "message": "How can I trust the Bible?",
+      "passage": ""
+    },
+    {
+      "date": "2024-08-25",
+      "year_block": 2024,
+      "holiday": "",
+      "series": "What does the Bible say about",
+      "message": "the image of God",
+      "passage": "Who decides who I am?"
+    },
+    {
+      "date": "2024-09-01",
+      "year_block": 2024,
+      "holiday": "Labor Day",
+      "series": "What does the Bible say about",
+      "message": "salvation",
+      "passage": "Whose truth is true?"
+    },
+    {
+      "date": "2024-09-08",
+      "year_block": 2024,
+      "holiday": "",
+      "series": "What does the Bible say about",
+      "message": "after salvation",
+      "passage": "Why does God care who I have sex with?"
+    },
+    {
+      "date": "2024-09-15",
+      "year_block": 2024,
+      "holiday": "",
+      "series": "CR Sunday",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2024-09-22",
+      "year_block": 2024,
+      "holiday": "",
+      "series": "Redeemed from Political Discord",
+      "message": "Identity Factor",
+      "passage": "God's peaople find their identity in Him"
+    },
+    {
+      "date": "2024-09-29",
+      "year_block": 2024,
+      "holiday": "",
+      "series": "Redeemed from Political Discord",
+      "message": "History Factor",
+      "passage": "God's people"
+    },
+    {
+      "date": "2024-10-06",
+      "year_block": 2024,
+      "holiday": "",
+      "series": "Redeemed from Political Discord",
+      "message": "Kingdom Factor",
+      "passage": ""
+    },
+    {
+      "date": "2024-10-13",
+      "year_block": 2024,
+      "holiday": "",
+      "series": "Redeemed from Political Discord",
+      "message": "Authority Factor",
+      "passage": ""
+    },
+    {
+      "date": "2024-10-20",
+      "year_block": 2024,
+      "holiday": "",
+      "series": "Redeemed from Political Discord",
+      "message": "Unity Factor",
+      "passage": ""
+    },
+    {
+      "date": "2024-10-27",
+      "year_block": 2024,
+      "holiday": "Halloween",
+      "series": "Redeemed from Political Discord",
+      "message": "Future Factor",
+      "passage": ""
+    },
+    {
+      "date": "2024-11-03",
+      "year_block": 2024,
+      "holiday": "Daylight Savings",
+      "series": "Redeemed from Political Discord",
+      "message": "Priority Factor",
+      "passage": ""
+    },
+    {
+      "date": "2024-11-10",
+      "year_block": 2024,
+      "holiday": "",
+      "series": "",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2024-11-17",
+      "year_block": 2024,
+      "holiday": "",
+      "series": "Angels",
+      "message": "What Are Angels?",
+      "passage": ""
+    },
+    {
+      "date": "2024-11-24",
+      "year_block": 2024,
+      "holiday": "Thanksgiving",
+      "series": "Angels",
+      "message": "What Can Angels Do?",
+      "passage": ""
+    },
+    {
+      "date": "2024-12-01",
+      "year_block": 2024,
+      "holiday": "",
+      "series": "According to the Angels",
+      "message": "Zechariah",
+      "passage": ""
+    },
+    {
+      "date": "2024-12-08",
+      "year_block": 2024,
+      "holiday": "",
+      "series": "According to the Angels",
+      "message": "Mary",
+      "passage": ""
+    },
+    {
+      "date": "2024-12-15",
+      "year_block": 2024,
+      "holiday": "",
+      "series": "According to the Angels",
+      "message": "Joseph",
+      "passage": ""
+    },
+    {
+      "date": "2024-12-22",
+      "year_block": 2024,
+      "holiday": "Christmas Sunday",
+      "series": "According to the Angels",
+      "message": "Shepherds",
+      "passage": ""
+    },
+    {
+      "date": "2024-12-24",
+      "year_block": 2024,
+      "holiday": "Christmas Eve",
+      "series": "Christmas Eve",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2024-12-29",
+      "year_block": 2024,
+      "holiday": "",
+      "series": "Pastor Tyler",
+      "message": "[  ?  ]",
+      "passage": ""
+    },
+    {
+      "date": "2025-01-05",
+      "year_block": 2025,
+      "holiday": "",
+      "series": "RESET",
+      "message": "Making the Most Out of The New Year",
+      "passage": ""
+    },
+    {
+      "date": "2025-01-12",
+      "year_block": 2025,
+      "holiday": "",
+      "series": "Christian Growth Cycle",
+      "message": "Trust in Jesus",
+      "passage": ""
+    },
+    {
+      "date": "2025-01-19",
+      "year_block": 2025,
+      "holiday": "",
+      "series": "Christian Growth Cycle",
+      "message": "Follower 1",
+      "passage": ""
+    },
+    {
+      "date": "2025-01-26",
+      "year_block": 2025,
+      "holiday": "",
+      "series": "Christian Growth Cycle",
+      "message": "Follower 2",
+      "passage": ""
+    },
+    {
+      "date": "2025-02-02",
+      "year_block": 2025,
+      "holiday": "",
+      "series": "Christian Growth Cycle",
+      "message": "Follower 3",
+      "passage": ""
+    },
+    {
+      "date": "2025-02-09",
+      "year_block": 2025,
+      "holiday": "Valentine's Day",
+      "series": "Christian Growth Cycle",
+      "message": "Follower 4",
+      "passage": ""
+    },
+    {
+      "date": "2025-02-16",
+      "year_block": 2025,
+      "holiday": "",
+      "series": "Christian Growth Cycle",
+      "message": "Follower 5",
+      "passage": ""
+    },
+    {
+      "date": "2025-02-23",
+      "year_block": 2025,
+      "holiday": "",
+      "series": "Missionary: Chris McMillian",
+      "message": "ITEM",
+      "passage": ""
+    },
+    {
+      "date": "2025-03-02",
+      "year_block": 2025,
+      "holiday": "",
+      "series": "Haggai",
+      "message": "ch1",
+      "passage": "no Lucie"
+    },
+    {
+      "date": "2025-03-09",
+      "year_block": 2025,
+      "holiday": "Daylight Savings",
+      "series": "Haggai",
+      "message": "ch2",
+      "passage": ""
+    },
+    {
+      "date": "2025-03-16",
+      "year_block": 2025,
+      "holiday": "",
+      "series": "HomeLife",
+      "message": "Family",
+      "passage": ""
+    },
+    {
+      "date": "2025-03-23",
+      "year_block": 2025,
+      "holiday": "",
+      "series": "HomeLife",
+      "message": "Marriage",
+      "passage": ""
+    },
+    {
+      "date": "2025-03-30",
+      "year_block": 2025,
+      "holiday": "",
+      "series": "HomeLife",
+      "message": "Husband",
+      "passage": ""
+    },
+    {
+      "date": "2025-04-06",
+      "year_block": 2025,
+      "holiday": "",
+      "series": "HomeLife",
+      "message": "Wife",
+      "passage": ""
+    },
+    {
+      "date": "2025-04-13",
+      "year_block": 2025,
+      "holiday": "Palm Sunday",
+      "series": "HomeLife",
+      "message": "Child",
+      "passage": ""
+    },
+    {
+      "date": "2025-04-20",
+      "year_block": 2025,
+      "holiday": "Easter Sunday",
+      "series": "Why Resurrection?",
+      "message": "Why did Jesus die and resurrect?",
+      "passage": ""
+    },
+    {
+      "date": "2025-04-27",
+      "year_block": 2025,
+      "holiday": "",
+      "series": "Heresies: Jesus",
+      "message": "Docetism",
+      "passage": ""
+    },
+    {
+      "date": "2025-05-04",
+      "year_block": 2025,
+      "holiday": "",
+      "series": "Heresies: Jesus",
+      "message": "Ebionism",
+      "passage": ""
+    },
+    {
+      "date": "2025-05-11",
+      "year_block": 2025,
+      "holiday": "Mother's Day",
+      "series": "Heresies: Jesus",
+      "message": "Gnosticism",
+      "passage": ""
+    },
+    {
+      "date": "2025-05-18",
+      "year_block": 2025,
+      "holiday": "",
+      "series": "Book of James",
+      "message": "Trials  1:1-12",
+      "passage": ""
+    },
+    {
+      "date": "2025-05-25",
+      "year_block": 2025,
+      "holiday": "Memorial Day",
+      "series": "Book of James",
+      "message": "Temptation  1:13-27",
+      "passage": ""
+    },
+    {
+      "date": "2025-06-01",
+      "year_block": 2025,
+      "holiday": "",
+      "series": "Book of James",
+      "message": "Favoritism  2:1-13",
+      "passage": ""
+    },
+    {
+      "date": "2025-06-08",
+      "year_block": 2025,
+      "holiday": "",
+      "series": "Book of James",
+      "message": "Faith & Works  2:14-26",
+      "passage": ""
+    },
+    {
+      "date": "2025-06-15",
+      "year_block": 2025,
+      "holiday": "Father's Day",
+      "series": "Book of James",
+      "message": "The Tongue 3:1-12",
+      "passage": ""
+    },
+    {
+      "date": "2025-06-22",
+      "year_block": 2025,
+      "holiday": "",
+      "series": "Book of James",
+      "message": "Two Wisdoms 3:13-4:3",
+      "passage": ""
+    },
+    {
+      "date": "2025-06-29",
+      "year_block": 2025,
+      "holiday": "Independence Day",
+      "series": "Book of James",
+      "message": "4:4-17",
+      "passage": ""
+    },
+    {
+      "date": "2025-07-06",
+      "year_block": 2025,
+      "holiday": "",
+      "series": "Book of James",
+      "message": "Fatih in Suffering  5:1-12",
+      "passage": ""
+    },
+    {
+      "date": "2025-07-13",
+      "year_block": 2025,
+      "holiday": "",
+      "series": "Book of James",
+      "message": "Prayer of Faith  5:13-20",
+      "passage": ""
+    },
+    {
+      "date": "2025-07-20",
+      "year_block": 2025,
+      "holiday": "",
+      "series": "",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2025-07-27",
+      "year_block": 2025,
+      "holiday": "",
+      "series": "Gifts of the Spirit",
+      "message": "1",
+      "passage": ""
+    },
+    {
+      "date": "2025-08-03",
+      "year_block": 2025,
+      "holiday": "",
+      "series": "Gifts of the Spirit",
+      "message": "2",
+      "passage": ""
+    },
+    {
+      "date": "2025-08-10",
+      "year_block": 2025,
+      "holiday": "",
+      "series": "Gifts of the Spirit",
+      "message": "3",
+      "passage": ""
+    },
+    {
+      "date": "2025-08-17",
+      "year_block": 2025,
+      "holiday": "",
+      "series": "Gifts of the Spirit",
+      "message": "4",
+      "passage": ""
+    },
+    {
+      "date": "2025-08-24",
+      "year_block": 2025,
+      "holiday": "",
+      "series": "Gifts of the Spirit",
+      "message": "5",
+      "passage": ""
+    },
+    {
+      "date": "2025-08-31",
+      "year_block": 2025,
+      "holiday": "",
+      "series": "Gifts of the Spirit",
+      "message": "6",
+      "passage": ""
+    },
+    {
+      "date": "2025-09-07",
+      "year_block": 2025,
+      "holiday": "Labor Day",
+      "series": "Gifts of the Spirit",
+      "message": "7",
+      "passage": ""
+    },
+    {
+      "date": "2025-09-14",
+      "year_block": 2025,
+      "holiday": "",
+      "series": "CR SUNDAY",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2025-09-21",
+      "year_block": 2025,
+      "holiday": "",
+      "series": "Pastor Tyler (PB on Vacation)",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2025-09-28",
+      "year_block": 2025,
+      "holiday": "",
+      "series": "Pastor Tyler (PB on Vacation)",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2025-10-05",
+      "year_block": 2025,
+      "holiday": "",
+      "series": "Christian Worldview",
+      "message": "Introduction",
+      "passage": ""
+    },
+    {
+      "date": "2025-10-12",
+      "year_block": 2025,
+      "holiday": "",
+      "series": "Christian Worldview",
+      "message": "Meaning",
+      "passage": ""
+    },
+    {
+      "date": "2025-10-19",
+      "year_block": 2025,
+      "holiday": "",
+      "series": "Christian Worldview",
+      "message": "Purpose",
+      "passage": ""
+    },
+    {
+      "date": "2025-10-26",
+      "year_block": 2025,
+      "holiday": "Halloween",
+      "series": "Christian Worldview",
+      "message": "Identity",
+      "passage": ""
+    },
+    {
+      "date": "2025-11-02",
+      "year_block": 2025,
+      "holiday": "Daylight Savings",
+      "series": "Christian Worldview",
+      "message": "Authority",
+      "passage": ""
+    },
+    {
+      "date": "2025-11-09",
+      "year_block": 2025,
+      "holiday": "",
+      "series": "Christian Worldview",
+      "message": "Morality",
+      "passage": ""
+    },
+    {
+      "date": "2025-11-16",
+      "year_block": 2025,
+      "holiday": "",
+      "series": "Christian Worldview",
+      "message": "Hope",
+      "passage": ""
+    },
+    {
+      "date": "2025-11-23",
+      "year_block": 2025,
+      "holiday": "Thanksgiving",
+      "series": "The Letter of 2nd John",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2025-11-30",
+      "year_block": 2025,
+      "holiday": "",
+      "series": "Christmas",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2025-12-07",
+      "year_block": 2025,
+      "holiday": "",
+      "series": "Christimas",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2025-12-14",
+      "year_block": 2025,
+      "holiday": "",
+      "series": "Christimas",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2025-12-21",
+      "year_block": 2025,
+      "holiday": "Christmas Sunday",
+      "series": "Christimas",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2025-12-24",
+      "year_block": 2025,
+      "holiday": "Christmas Eve",
+      "series": "Christimas Eve",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2025-12-28",
+      "year_block": 2025,
+      "holiday": "",
+      "series": "Tyler to Preach",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2026-01-04",
+      "year_block": 2026,
+      "holiday": "[merged] MATURITY",
+      "series": "Growing Our Church",
+      "message": "Vision 2026",
+      "passage": ""
+    },
+    {
+      "date": "2026-01-11",
+      "year_block": 2026,
+      "holiday": "[merged] MATURITY",
+      "series": "Growing Disciples",
+      "message": "TRUST: Becoming A Believer",
+      "passage": ""
+    },
+    {
+      "date": "2026-01-18",
+      "year_block": 2026,
+      "holiday": "[merged] MATURITY",
+      "series": "Growing Disciples",
+      "message": "GROW: Becoming A Follower",
+      "passage": ""
+    },
+    {
+      "date": "2026-01-25",
+      "year_block": 2026,
+      "holiday": "[merged] MATURITY",
+      "series": "Growing Disciples",
+      "message": "LEARN: Becoming a Disciple Maker",
+      "passage": ""
+    },
+    {
+      "date": "2026-02-01",
+      "year_block": 2026,
+      "holiday": "[merged] MATURITY",
+      "series": "Growing Disciples",
+      "message": "INVEST: Helping Others Mature",
+      "passage": ""
+    },
+    {
+      "date": "2026-02-08",
+      "year_block": 2026,
+      "holiday": "[merged] MATURITY",
+      "series": "MISSIONARY SUNDAY",
+      "message": "Dr Chris McMillian",
+      "passage": ""
+    },
+    {
+      "date": "2026-02-15",
+      "year_block": 2026,
+      "holiday": "[merged] MATURITY",
+      "series": "The Book of Acts",
+      "message": "Acts 1:1-14",
+      "passage": ""
+    },
+    {
+      "date": "2026-02-22",
+      "year_block": 2026,
+      "holiday": "[merged] MATURITY",
+      "series": "The Book of Acts",
+      "message": "Acts 1:15-26",
+      "passage": ""
+    },
+    {
+      "date": "2026-03-01",
+      "year_block": 2026,
+      "holiday": "[merged] COMMUNITY",
+      "series": "The Book of Acts",
+      "message": "Acts: 2:1-13",
+      "passage": ""
+    },
+    {
+      "date": "2026-03-08",
+      "year_block": 2026,
+      "holiday": "[merged] COMMUNITY",
+      "series": "The Book of Acts",
+      "message": "PB Vacay",
+      "passage": "Acts 2:14-24"
+    },
+    {
+      "date": "2026-03-15",
+      "year_block": 2026,
+      "holiday": "[merged] COMMUNITY",
+      "series": "The Book of Acts",
+      "message": "Acts 2:25-36",
+      "passage": ""
+    },
+    {
+      "date": "2026-03-22",
+      "year_block": 2026,
+      "holiday": "[merged] COMMUNITY",
+      "series": "The Book of Acts",
+      "message": "Acts 2:37-47",
+      "passage": ""
+    },
+    {
+      "date": "2026-03-29",
+      "year_block": 2026,
+      "holiday": "[merged] COMMUNITY",
+      "series": "",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2026-04-05",
+      "year_block": 2026,
+      "holiday": "[merged] COMMUNITY",
+      "series": "Easter",
+      "message": "Why Resurrection Matters.",
+      "passage": "bodily resurrection is a promise"
+    },
+    {
+      "date": "2026-04-12",
+      "year_block": 2026,
+      "holiday": "[merged] COMMUNITY",
+      "series": "Sermon on the Mount",
+      "message": "A Kingdom Citizen",
+      "passage": "Matthew 5:1-16"
+    },
+    {
+      "date": "2026-04-19",
+      "year_block": 2026,
+      "holiday": "[merged] COMMUNITY",
+      "series": "Sermon on the Mount",
+      "message": "Kingdom Standards Part One",
+      "passage": "Matthew 5:17-30"
+    },
+    {
+      "date": "2026-04-26",
+      "year_block": 2026,
+      "holiday": "[merged] COMMUNITY",
+      "series": "Sermon on the Mount",
+      "message": "Kingdom Standards Part Two",
+      "passage": "Matthew 5:31-48"
+    },
+    {
+      "date": "2026-05-03",
+      "year_block": 2026,
+      "holiday": "[merged] CAPACITY",
+      "series": "Sermon on the Mount",
+      "message": "Kingdom Audience",
+      "passage": "Matthew 6:1-18 / Malachi"
+    },
+    {
+      "date": "2026-05-10",
+      "year_block": 2026,
+      "holiday": "[merged] CAPACITY",
+      "series": "Sermon on the Mount",
+      "message": "Kingdom Priority",
+      "passage": "Matthew 6:19-34 / Malachi"
+    },
+    {
+      "date": "2026-05-17",
+      "year_block": 2026,
+      "holiday": "[merged] CAPACITY",
+      "series": "Sermon on the Mount",
+      "message": "Kingdom Activity",
+      "passage": "Matthew 7:1-12 / Malachi"
+    },
+    {
+      "date": "2026-05-24",
+      "year_block": 2026,
+      "holiday": "[merged] CAPACITY",
+      "series": "Sermon on the Mount",
+      "message": "Kingdom Exclusivity",
+      "passage": "Matthew 7:13-29 / Malachi"
+    },
+    {
+      "date": "2026-05-31",
+      "year_block": 2026,
+      "holiday": "[merged] CAPACITY",
+      "series": "Graduate Sunday",
+      "message": "Finishing Well ??",
+      "passage": ""
+    },
+    {
+      "date": "2026-06-07",
+      "year_block": 2026,
+      "holiday": "[merged] CAPACITY",
+      "series": "Joshua",
+      "message": "Joshua Begins to Lead",
+      "passage": "Joshua 1"
+    },
+    {
+      "date": "2026-06-14",
+      "year_block": 2026,
+      "holiday": "[merged] CAPACITY",
+      "series": "Joshua",
+      "message": "Rahab Hides the Spies",
+      "passage": "Joshua 2"
+    },
+    {
+      "date": "2026-06-21",
+      "year_block": 2026,
+      "holiday": "[merged] CAPACITY",
+      "series": "Joshua",
+      "message": "Israel Crosses the Jordan",
+      "passage": "Joshua 3"
+    },
+    {
+      "date": "2026-06-28",
+      "year_block": 2026,
+      "holiday": "[merged] CAPACITY",
+      "series": "Joshua",
+      "message": "Israel Establishes a Memoral",
+      "passage": "Joshua 4"
+    },
+    {
+      "date": "2026-07-05",
+      "year_block": 2026,
+      "holiday": "[merged] MATURITY",
+      "series": "Joshua",
+      "message": "Israel Renews Her Covenant",
+      "passage": "Joshua 5"
+    },
+    {
+      "date": "2026-07-12",
+      "year_block": 2026,
+      "holiday": "[merged] MATURITY",
+      "series": "Pastor Tyler",
+      "message": "Exodus 32",
+      "passage": ""
+    },
+    {
+      "date": "2026-07-19",
+      "year_block": 2026,
+      "holiday": "[merged] MATURITY",
+      "series": "Joshua",
+      "message": "Israel Captures Jericho",
+      "passage": "Joshua 6"
+    },
+    {
+      "date": "2026-07-26",
+      "year_block": 2026,
+      "holiday": "[merged] MATURITY",
+      "series": "Joshua",
+      "message": "Israel Struggle for Sin",
+      "passage": "Joshua 7"
+    },
+    {
+      "date": "2026-08-02",
+      "year_block": 2026,
+      "holiday": "[merged] MATURITY",
+      "series": "Bulletproof Joy",
+      "message": "Introduction, Thanks, and Gospel Perspective",
+      "passage": "1:1-18"
+    },
+    {
+      "date": "2026-08-09",
+      "year_block": 2026,
+      "holiday": "[merged] MATURITY",
+      "series": "Bulletproof Joy",
+      "message": "The Goodness of Chains",
+      "passage": "1:19-30"
+    },
+    {
+      "date": "2026-08-16",
+      "year_block": 2026,
+      "holiday": "[merged] MATURITY",
+      "series": "Bulletproof Joy",
+      "message": "The Humility of Christ",
+      "passage": "2:1-11"
+    },
+    {
+      "date": "2026-08-23",
+      "year_block": 2026,
+      "holiday": "[merged] MATURITY",
+      "series": "Bulletproof Joy",
+      "message": "The Seed & The Harvest",
+      "passage": "2:12-18"
+    },
+    {
+      "date": "2026-08-30",
+      "year_block": 2026,
+      "holiday": "[merged] MATURITY",
+      "series": "Bulletproof Joy",
+      "message": "Timothy & Epaphroditus",
+      "passage": "2:19-30"
+    },
+    {
+      "date": "2026-09-06",
+      "year_block": 2026,
+      "holiday": "[merged] COMMUNITY",
+      "series": "Bulletproof Joy",
+      "message": "Resurrection Over Religion",
+      "passage": "3:1-14"
+    },
+    {
+      "date": "2026-09-13",
+      "year_block": 2026,
+      "holiday": "[merged] COMMUNITY",
+      "series": "Bulletproof Joy",
+      "message": "Heavenly Citizenship & Unity",
+      "passage": "3:15-4:3"
+    },
+    {
+      "date": "2026-09-20",
+      "year_block": 2026,
+      "holiday": "[merged] COMMUNITY",
+      "series": "Bulletproof Joy",
+      "message": "Joy in the Lord & Final Greetings",
+      "passage": "4:4-23"
+    },
+    {
+      "date": "2026-09-27",
+      "year_block": 2026,
+      "holiday": "[merged] COMMUNITY",
+      "series": "",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2026-10-04",
+      "year_block": 2026,
+      "holiday": "[merged] COMMUNITY",
+      "series": "",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2026-10-11",
+      "year_block": 2026,
+      "holiday": "[merged] COMMUNITY",
+      "series": "",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2026-10-18",
+      "year_block": 2026,
+      "holiday": "[merged] COMMUNITY",
+      "series": "",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2026-10-25",
+      "year_block": 2026,
+      "holiday": "[merged] COMMUNITY",
+      "series": "PB Vacay",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2026-11-01",
+      "year_block": 2026,
+      "holiday": "[merged] CAPACITY",
+      "series": "Malachi",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2026-11-08",
+      "year_block": 2026,
+      "holiday": "[merged] CAPACITY",
+      "series": "Malachi",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2026-11-15",
+      "year_block": 2026,
+      "holiday": "[merged] CAPACITY",
+      "series": "Malachi",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2026-11-22",
+      "year_block": 2026,
+      "holiday": "[merged] CAPACITY",
+      "series": "Malachi",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2026-11-29",
+      "year_block": 2026,
+      "holiday": "[merged] CAPACITY",
+      "series": "Christmas",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2026-12-06",
+      "year_block": 2026,
+      "holiday": "[merged] CAPACITY",
+      "series": "Christmas",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2026-12-13",
+      "year_block": 2026,
+      "holiday": "[merged] CAPACITY",
+      "series": "Christmas",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2026-12-20",
+      "year_block": 2026,
+      "holiday": "[merged] CAPACITY",
+      "series": "Christmas",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2026-12-24",
+      "year_block": 2026,
+      "holiday": "[merged] CAPACITY",
+      "series": "Christmas",
+      "message": "",
+      "passage": ""
+    },
+    {
+      "date": "2026-12-27",
+      "year_block": 2026,
+      "holiday": "[merged] CAPACITY",
+      "series": "Pastor Tyler",
+      "message": "PB Vacay",
+      "passage": ""
+    }
+  ]
+}

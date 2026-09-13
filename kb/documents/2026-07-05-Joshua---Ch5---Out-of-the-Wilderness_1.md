@@ -1,5 +1,5 @@
 # Transcript: Joshua   Ch5   Out Of The Wilderness_1
-Date: 2026-07-13
+Date: 2026-07-05
 
 ---
 

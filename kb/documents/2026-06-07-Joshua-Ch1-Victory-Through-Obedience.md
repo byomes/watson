@@ -1,5 +1,5 @@
 # Transcript: Joshua   Ch1   Victory Through Obedience
-Date: 2026-06-08
+Date: 2026-06-07
 
 ---
 

@@ -1,5 +1,5 @@
 # Transcript: Joshua   Ch6   Qa
-Date: 2026-07-20
+Date: 2026-07-19
 
 ---
 

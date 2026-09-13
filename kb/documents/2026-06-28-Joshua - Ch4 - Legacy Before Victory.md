@@ -1,5 +1,5 @@
 # Transcript: Joshua   Ch4   Legacy Before Victory
-Date: 2026-06-29
+Date: 2026-06-28
 
 ---
 

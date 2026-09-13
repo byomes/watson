@@ -1,5 +1,5 @@
 # Transcript: Joshua   Ch7   Disobedient In Inheritence
-Date: 2026-07-27
+Date: 2026-07-26
 
 ---
 

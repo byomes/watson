@@ -1,5 +1,5 @@
 # Transcript: Joshua   Ch2   Faith Over Culture
-Date: 2026-06-22
+Date: 2026-06-14
 
 ---
 

@@ -29,6 +29,7 @@ Usage:
               or "05-10-2026-kingdom-citizenship" — date prefix is normalized.
 """
 
+import json
 import logging
 import os
 import re
@@ -139,9 +140,97 @@ def _most_recent_sunday(from_date: date) -> date:
     """Bill preaches on Sundays; a weekly transcript often gets processed a
     few days after the fact. When the filename carries no date, the most
     recent Sunday on/before the processing date is a better guess at the
-    actual preached date than "today" (added 2026-09-13 alongside the
-    preaching-plan spreadsheet backfill — see jobs/kb/tag_sermon_dates.py)."""
+    actual preached date than "today"."""
     return from_date - timedelta(days=(from_date.weekday() - 6) % 7)
+
+
+# Bill's annual preaching-plan spreadsheet, snapshotted locally so an
+# undated sermon slug can be cross-referenced against the actual Sunday it
+# was scheduled for instead of just guessing "most recent Sunday" (added
+# 2026-09-13). Source: docs.google.com/spreadsheets/d/1aDrJ_jlNmJcMIQiA9F8p9QNqGoaXls4WiN232ZEuCcY
+# — see data/sermon_calendar.json's _meta for a data-quality note (one tab's
+# dates are mislabeled by a year in the sheet itself, corrected here).
+SERMON_CALENDAR_PATH = REPO_ROOT / "data" / "sermon_calendar.json"
+_STOPWORDS = {"the", "a", "an", "of", "to", "in", "on", "and", "for", "is", "are",
+              "was", "were", "with", "from", "by", "at", "this", "that"}
+_sermon_calendar_cache = None
+
+
+def _tokenize(text: str) -> set[str]:
+    words = re.split(r"[^A-Za-z0-9]+", text.lower())
+    return {w for w in words if w and w not in _STOPWORDS and len(w) > 1}
+
+
+def _numbers_in(text: str) -> set[str]:
+    """Normalized (no leading zeros) digit runs, for calendar-side passage/
+    message text (e.g. "Joshua 2" or "2:12-18")."""
+    return {str(int(n)) for n in re.findall(r"\d+", text)}
+
+
+_CHAPTER_RE = re.compile(r"ch(?:apter)?\.?\s*(\d+)", re.IGNORECASE)
+
+
+def _slug_chapter_numbers(slug: str) -> set[str]:
+    """Chapter numbers explicitly marked as such in a slug (e.g. "Ch2",
+    "Chapter 3"). Deliberately narrower than _numbers_in() -- a slug's bare
+    ordinal like "Bulletproof-Joy---04---..." (the 4th sermon in the
+    series) is NOT a scripture reference and must not be treated as one, or
+    it can coincidentally collide with an unrelated week's passage number
+    (caught testing: "04" falsely matched a row whose passage was "4:4-23")."""
+    return {str(int(n)) for n in _CHAPTER_RE.findall(slug)}
+
+
+def _load_sermon_calendar() -> list[dict]:
+    global _sermon_calendar_cache
+    if _sermon_calendar_cache is None:
+        try:
+            _sermon_calendar_cache = json.loads(SERMON_CALENDAR_PATH.read_text(encoding="utf-8"))["rows"]
+        except Exception as e:
+            log.warning("Could not load sermon calendar (%s) -- falling back to Sunday guess only: %s",
+                        SERMON_CALENDAR_PATH, e)
+            _sermon_calendar_cache = []
+    return _sermon_calendar_cache
+
+
+def _calendar_lookup_date(slug: str, near: date, window_days: int = 21) -> str | None:
+    """Cross-reference an undated sermon slug against the preaching-plan
+    calendar for a more precise date than the Sunday-before-transcription
+    guess. Deliberately conservative -- a wrong date is worse than the
+    Sunday guess, so this requires the sermon's own series name (a
+    non-trivial token, not a stray short word) to actually appear in the
+    slug before it will return anything; a bare word-overlap coincidence
+    isn't enough.
+    """
+    calendar = _load_sermon_calendar()
+    slug_tokens = _tokenize(slug)
+    if not slug_tokens:
+        return None
+    best = None
+    for row in calendar:
+        row_date = date.fromisoformat(row["date"])
+        if abs((row_date - near).days) > window_days:
+            continue
+        series_tokens_all = _tokenize(row.get("series", ""))
+        matched_series = {t for t in series_tokens_all if len(t) >= 4} & slug_tokens
+        if not matched_series:
+            continue
+        detail_tokens = _tokenize(row.get("message", "")) | _tokenize(row.get("passage", ""))
+        # Exclude ANY series word (not just the >=4-letter ones used for the
+        # match gate above) -- a message title that happens to restate part
+        # of the series name (e.g. "Joy in the Lord" under a series called
+        # "Bulletproof Joy") must not get double-counted and tip the score
+        # toward the wrong week just because "joy" is short.
+        extra_overlap = (detail_tokens & slug_tokens) - series_tokens_all
+        score = len(matched_series) * 2 + len(extra_overlap)
+        row_numbers = _numbers_in(row.get("message", "")) | _numbers_in(row.get("passage", ""))
+        if row_numbers and (row_numbers & _slug_chapter_numbers(slug)):
+            score += 4
+        if score < 3:
+            continue
+        candidate = (score, -abs((row_date - near).days), row["date"])
+        if best is None or candidate > best:
+            best = candidate
+    return best[2] if best else None
 
 
 # --- Transfer to Beelink -----------------------------------------------
@@ -346,11 +435,15 @@ def _telegram_notify(raw_url: str, title: str, transfer_succeeded: bool = True,
 def generate(clean_path: Path, sermon_slug: str) -> None:
     clean_text = clean_path.read_text(encoding="utf-8")
 
-    # Use the sermon's own embedded date when the filename carries one (the
-    # historical backfill case), otherwise fall back to the most recent
-    # Sunday (a live weekly sermon dropped a few days after being preached,
-    # with no date in its filename).
-    preached_date = _extract_original_date(sermon_slug) or _most_recent_sunday(date.today()).strftime("%Y-%m-%d")
+    # Resolve the preached date in three tiers: (1) the filename's own
+    # embedded date, the historical-backfill case; (2) a confident match
+    # against the preaching-plan calendar for the exact scheduled Sunday;
+    # (3) the most recent Sunday before processing, as a last resort.
+    preached_date = (
+        _extract_original_date(sermon_slug)
+        or _calendar_lookup_date(sermon_slug, date.today())
+        or _most_recent_sunday(date.today()).strftime("%Y-%m-%d")
+    )
 
     # Strip any existing date prefix from slug, then apply the resolved date
     clean_slug = _strip_date_prefix(sermon_slug).replace(" ", "-")

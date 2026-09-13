@@ -1,5 +1,5 @@
 # Transcript: Joshua   Ch5   Qa
-Date: 2026-07-20
+Date: 2026-07-05
 
 ---
 
