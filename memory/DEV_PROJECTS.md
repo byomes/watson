@@ -1,6 +1,6 @@
 # Watson Project Backlog
 _Auto-generated nightly from project_backlog. Source of truth is the database — do not hand-edit this file, changes will be overwritten._
-Last generated: 2026-09-12 02:10
+Last generated: 2026-09-13 02:10
 
 ## Planned (30)
 | ID | Title | Summary | Added |
@@ -40,4 +40,3 @@ Last generated: 2026-09-12 02:10
 | ID | Title | Summary | Added |
 |---|---|---|---|
 | 36 | jobs/comms/api.py import collision pending (Kit->Brevo vs Comms Desk batch import) | Local main (unpushed) has 32d019d "Add local Brevo mirror" which deletes the brevo_contacts import lines in jobs/comms/api.py; PR #27 (merged) adds "from jobs.design import svg_generator" immediately after those same lines. | 2026-08-17 |
-| 35 | Backup subprocess ops now retry with backoff (shared core/retry.py) | Both backup legs (jobs/backup.py OneDrive/rclone, jobs/backup_local.py restic) now route every retry-eligible subprocess op through a shared core/retry.py:run_with_retry() helper — exponential backoff (5s->60s) up to a ~10 min real-elapsed-time budget — instead of failing on the first non-zero exit. | 2026-08-13 |
