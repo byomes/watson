@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-09-12*
+*Generated: 2026-09-13*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -3423,6 +3423,73 @@ data/
         Privacy-Guard-Build-Spec.md
         family_data_template.sql
         transcript.md
+    guardrails/
+      20260904-083459-merging-trust-issues-book-with-ai-and-ministry-fra/
+        merged-book-outline.txt
+        transcript.md
+      20260904-085736-trust-issues-field-research-fivefold-idolatry-wors/
+        transcript.md
+      20260904-090346-trust-issues-field-research-fivefold-idolatry-wors/
+        christian-ai-books-articles.md
+        transcript.md
+      20260907-111352-ai-amp-faith-ideas-from-a-conversation-with-mom-ar/
+        transcript.md
+      20260908-000640-pivot-to-general-audience-everyday-ai-book-outline/
+        everyday-ai-chapter-outline-draft.txt
+        sermon-series-outline-draft.txt
+        transcript.md
+        trust-issues-outline-draft.txt
+      20260908-141410-sermon-series-retired-direct-to-manuscript-pivot-c/
+        transcript.md
+      20260909-085842-ghostwriting-interview-pass-ch-1-2-and-4-material/
+        transcript.md
+      20260909-141718-interview-session-chapters-3-4-5-6-story-gathering/
+        transcript.md
+      20260909-142209-ghostwriting-pass-chapter-1-full-draft-2-180-words/
+        Chapter_1_The_Thing_Nobody_Worries_About.md
+        transcript.md
+      20260909-142447-current-working-chapter-outline-everyday-ai-book/
+        everyday-ai-working-outline.txt
+        transcript.md
+      20260909-150451-driving-interview-chapter-4-5-story-gathering/
+        transcript.md
+      20260909-222429-building-the-ghostwriter-interview-protocol-and-fi/
+        field-research-protocol.md
+        ghostwriter-interview-protocol.md
+        transcript.md
+      20260910-083337-interview-session-chapter-5-confirmed-done-chapter/
+        transcript.md
+      20260910-145050-trust-issues-ch-1-8-word-count-audit-vs-new-4k-flo/
+        transcript.md
+      20260910-153329-backup-everyday-ai-overview-combined-field-researc/
+        combined-field-research.md
+        everyday-ai-overview.md
+        project-instructions.md
+        transcript.md
+      20260911-155846-book-title-locked-cover-art-prompts-four-tests-rew/
+        transcript.md
+      20260911-181003-guardrails-fully-anchored-in-scripture-full-outlin/
+        transcript.md
+      20260911-221334-chapter-2-confirmed-chapter-5-relationship-stories/
+        transcript.md
+      20260911-225702-reconciliation-check-project-files-memory-and-wats/
+        transcript.md
+      20260912-200132-full-ch-1-8-interview-pass-trims-ch-5-real-word-co/
+        transcript.md
+      20260912-223242-guardrails-project-rename-verification-transcript/
+        transcript.md
+      20260912-223327-guardrails-word-count-crisis-field-research-pass-t/
+        transcript.md
+      20260912-223534-guardrails-word-count-gap-field-research-kb-mining/
+        guardrails-thesis-content-mining.md
+        transcript.md
+      20260912-230221-guardrails-session-files-verbatim-part-2-2-file-at/
+        guardrails-full-kb-content-mapped-part2.md
+        guardrails-full-kb-content-mapped.md
+        guardrails-interview-list.md
+        guardrails-new-chapters-field-research.md
+        guardrails-thesis-content-mining.md
+        transcript.md
     ideas-to-be-developed/
       20260826-013954-expanding-concept-ideas/
         transcript.md
@@ -3983,57 +4050,7 @@ data/
         To-My-Muslim-Friends-PUNCH-LIST.md
         transcript.md
     trust-issues/
-      20260904-083459-merging-trust-issues-book-with-ai-and-ministry-fra/
-        merged-book-outline.txt
-        transcript.md
-      20260904-085736-trust-issues-field-research-fivefold-idolatry-wors/
-        transcript.md
-      20260904-090346-trust-issues-field-research-fivefold-idolatry-wors/
-        christian-ai-books-articles.md
-        transcript.md
-      20260907-111352-ai-amp-faith-ideas-from-a-conversation-with-mom-ar/
-        transcript.md
-      20260908-000640-pivot-to-general-audience-everyday-ai-book-outline/
-        everyday-ai-chapter-outline-draft.txt
-        sermon-series-outline-draft.txt
-        transcript.md
-        trust-issues-outline-draft.txt
-      20260908-141410-sermon-series-retired-direct-to-manuscript-pivot-c/
-        transcript.md
-      20260909-085842-ghostwriting-interview-pass-ch-1-2-and-4-material/
-        transcript.md
-      20260909-141718-interview-session-chapters-3-4-5-6-story-gathering/
-        transcript.md
-      20260909-142209-ghostwriting-pass-chapter-1-full-draft-2-180-words/
-        Chapter_1_The_Thing_Nobody_Worries_About.md
-        transcript.md
-      20260909-142447-current-working-chapter-outline-everyday-ai-book/
-        everyday-ai-working-outline.txt
-        transcript.md
-      20260909-150451-driving-interview-chapter-4-5-story-gathering/
-        transcript.md
-      20260909-222429-building-the-ghostwriter-interview-protocol-and-fi/
-        field-research-protocol.md
-        ghostwriter-interview-protocol.md
-        transcript.md
-      20260910-083337-interview-session-chapter-5-confirmed-done-chapter/
-        transcript.md
       20260910-144925-trust-issues-ch-1-8-word-count-audit-vs-new-4k-flo/
-        transcript.md
-      20260910-145050-trust-issues-ch-1-8-word-count-audit-vs-new-4k-flo/
-        transcript.md
-      20260910-153329-backup-everyday-ai-overview-combined-field-researc/
-        combined-field-research.md
-        everyday-ai-overview.md
-        project-instructions.md
-        transcript.md
-      20260911-155846-book-title-locked-cover-art-prompts-four-tests-rew/
-        transcript.md
-      20260911-181003-guardrails-fully-anchored-in-scripture-full-outlin/
-        transcript.md
-      20260911-221334-chapter-2-confirmed-chapter-5-relationship-stories/
-        transcript.md
-      20260911-225702-reconciliation-check-project-files-memory-and-wats/
         transcript.md
     wcky-book-launch-project/
       20260826-013953-sending-giving-statements-in-tithely/
@@ -4650,8 +4667,6 @@ data/
   trading.db.bak-pre-sizing-fix-20260911073349
   trading.db.bak-pre-windows3-backfill-20260911110635
   watson.db
-  watson.db-shm
-  watson.db-wal
 deploy/
   .gitkeep
   apt-packages.txt
@@ -4802,6 +4817,7 @@ jobs/
     wordlist.txt
   congregation/
     __init__.py
+    _oneoff_donna_family_structure_request.py
     attendance_web.py
     batch_intake.py
     birthday_daily_alert.py
@@ -4818,6 +4834,7 @@ jobs/
     member_match.py
     migrate_deacon_pins.py
     migrate_deacon_visible_views.py
+    migrate_household_role.py
     migrations_archive/
       migrate_deacon_directory.py
       migrate_deacon_notes.py
@@ -5032,11 +5049,13 @@ jobs/
     archive_transcripts.py
     export_link.py
     export_link_cleanup.py
+    ingest_devotionals.py
     schema.py
     sync_and_index.py
     tag_source_types.py
   lead_magnet/
     __init__.py
+    _oneoff_wrong_jesus_guide_live.py
     api.py
     send_confirmation.py
   links/
@@ -5581,6 +5600,252 @@ kb/
   books/
     GODFIDENCE.pdf
     He Is Risen KINDLE.docx
+  devotionals/
+    01-03-16-web.pdf
+    01-04-15-web.pdf
+    01-05-2014-web.pdf
+    01-06-2013-web.pdf
+    01-08-17-web.pdf
+    01-10-16-web.pdf
+    01-11-15-web.pdf
+    01-12-2014-web.pdf
+    01-13-2013-web.pdf
+    01-17-16-web.pdf
+    01-18-15-web.pdf
+    01-19-2014-web.pdf
+    01-20-2013-web.pdf
+    01-24-16-web.pdf
+    01-25-15-web.pdf
+    01-26-2014-web.pdf
+    01-27-2013-web.pdf
+    02-01-15-web.pdf
+    02-01-16-web.pdf
+    02-02-2014-web.pdf
+    02-03-2013-web.pdf
+    02-05-17-web.pdf
+    02-07-16-web.pdf
+    02-07-2013-web.pdf
+    02-08-15-web.pdf
+    02-09-2014-web.pdf
+    02-10-2013-web.pdf
+    02-14-16-web.pdf
+    02-15-15-web.pdf
+    02-16-2014-web.pdf
+    02-17-2013-web.pdf
+    02-21-16-web.pdf
+    02-22-15-web.pdf
+    02-23-2014-web.pdf
+    02-24-2013-web.pdf
+    02-28-16-web.pdf
+    03-01-15-web.pdf
+    03-03-2013-web.pdf
+    03-06-16-web.pdf
+    03-08-15-web.pdf
+    03-10-2013-web.pdf
+    03-14-16-web.pdf
+    03-17-2013-web.pdf
+    03-21-16-web.pdf
+    03-24-2013-web.pdf
+    03-27-16-web.pdf
+    03-29-15-web.pdf
+    03-31-2013-web.pdf
+    04-03-16-web.pdf
+    04-05-15-web.pdf
+    04-07-2013-web.pdf
+    04-10-16-web.pdf
+    04-12-15-web.pdf
+    04-14-2013-web.pdf
+    04-17-16-web.pdf
+    04-19-15-web.pdf
+    04-21-2013-web.pdf
+    04-24-16-web.pdf
+    04-26-15-web.pdf
+    04-28-2013-web.pdf
+    05-01-16-web.pdf
+    05-03-15-web.pdf
+    05-05-2013-web.pdf
+    05-08-16-web.pdf
+    05-10-15-web.pdf
+    05-12-2013-web.pdf
+    05-15-16-web.pdf
+    05-17-15-web.pdf
+    05-19-2013-web.pdf
+    05-22-16-web.pdf
+    05-24-15-web.pdf
+    05-26-2013-web.pdf
+    05-29-16-web.pdf
+    05-31-15-web.pdf
+    06-02-2013-web.pdf
+    06-05-16-web.pdf
+    06-07-15-web.pdf
+    06-09-2013-web.pdf
+    06-12-16-web.pdf
+    06-14-15-web.pdf
+    06-19-16-web.pdf
+    06-21-15-web.pdf
+    06-23-2013-web.pdf
+    06-26-16-web.pdf
+    06-28-15-web.pdf
+    06-30-2013-web.pdf
+    07-05-15-web.pdf
+    07-06-2014-web.pdf
+    07-07-2013-web.pdf
+    07-10-16-web.pdf
+    07-12-15-web.pdf
+    07-13-2014-web.pdf
+    07-14-2013-web.pdf
+    07-17-16-web.pdf
+    07-19-15-web.pdf
+    07-20-2014-web.pdf
+    07-21-2013-web.pdf
+    07-24-16-web.pdf
+    07-26-15-web.pdf
+    07-27-2014-web.pdf
+    07-28-2013-web.pdf
+    07-31-16-web.pdf
+    08-02-15-web.pdf
+    08-04-2013-web.pdf
+    08-07-16-web.pdf
+    08-09-15-web.pdf
+    08-11-2013-web.pdf
+    08-13-16-web.pdf
+    08-16-15-web.pdf
+    08-18-2013-web.pdf
+    08-21-16-web.pdf
+    08-23-15-web.pdf
+    08-25-2013-web.pdf
+    08-28-16-web.pdf
+    08-30-15-web.pdf
+    09-01-2013-web.pdf
+    09-04-16-web.pdf
+    09-06-15-web.pdf
+    09-08-2013-web.pdf
+    09-11-16-web.pdf
+    09-13-15-web.pdf
+    09-15-2013-web.pdf
+    09-18-16-web.pdf
+    09-20-15-web.pdf
+    09-21-2013-web.pdf
+    09-25-16-web.pdf
+    09-27-15-web.pdf
+    09-30-2013-web.pdf
+    10-02-16-web.pdf
+    10-04-15-web.pdf
+    10-06-2013-web.pdf
+    10-09-16-web.pdf
+    10-11-15-web.pdf
+    10-12-2014-web.pdf
+    10-13-2013-web.pdf
+    10-16-16-web.pdf
+    10-18-15-web.pdf
+    10-19-2014-web.pdf
+    10-20-2013-web.pdf
+    10-23-16-web.pdf
+    10-25-15-web.pdf
+    10-26-2014-web.pdf
+    10-27-2013-web.pdf
+    10-30-16-web.pdf
+    10-5-2014-web.pdf
+    11-01-15-web.pdf
+    11-03-2013-web.pdf
+    11-06-16-web.pdf
+    11-08-15-web.pdf
+    11-10-2013-web.pdf
+    11-13-16-web.pdf
+    11-15-15-web.pdf
+    11-16-2014-web.pdf
+    11-17-2013-web.pdf
+    11-2-2014-web.pdf
+    11-20-16-web.pdf
+    11-22-15-web.pdf
+    11-23-2014-web.pdf
+    11-24-2013-web.pdf
+    11-29-15-web.pdf
+    11-30-2014-web.pdf
+    11-9-2014-web.pdf
+    12-01-2013-web.pdf
+    12-04-16-web.pdf
+    12-08-2013-web.pdf
+    12-11-16-web.pdf
+    12-13-15-web.pdf
+    12-14-2014-web.pdf
+    12-15-2013-web.pdf
+    12-18-16-web.pdf
+    12-21-15-web.pdf
+    12-21-2014-web.pdf
+    12-22-2013-web.pdf
+    12-28-2014-web.pdf
+    12-29-2013-web.pdf
+    12-7-2014-web.pdf
+    3-16-2014-web.pdf
+    3-2-2014-web.pdf
+    3-23-2014-web.pdf
+    3-30-2014-web.pdf
+    3-9-2014-web.pdf
+    4-13-2014-web.pdf
+    4-20-2014-web.pdf
+    4-27-2014-web.pdf
+    4-6-2014-web.pdf
+    5-11-2014-web.pdf
+    5-18-2014-web.pdf
+    5-24-2014-web.pdf
+    5-4-2014-web.pdf
+    6-1-2014-web.pdf
+    6-15-2014-web.pdf
+    6-22-2014-web.pdf
+    6-29-2014-web.pdf
+    6-8-2014-web.pdf
+    8-10-2014-web.pdf
+    8-17-2014-web.pdf
+    8-24-2014-web.pdf
+    8-3-2014-web.pdf
+    8-31-2014-web.pdf
+    9-14-2014-web.pdf
+    9-21-2014-web.pdf
+    9-28-2014-web.pdf
+    9-7-2014-web.pdf
+    CC 03-18-12.pdf
+    CC 03-25-12.pdf
+    CC 04-01-12.pdf
+    CC 04-08-12.pdf
+    CC 04-15-12.pdf
+    CC 04-22-12.pdf
+    CC 04-29-12.pdf
+    CC 05-06-12.pdf
+    CC 05-13-12.pdf
+    CC 05-20-12.pdf
+    CC 05-27-12.pdf
+    CC 06-03-12.pdf
+    CC 06-17-12.pdf
+    CC 06-24-12.pdf
+    CC 07-01-12.pdf
+    CC 07-08-12.pdf
+    CC 07-15-12.pdf
+    CC 07-22-12.pdf
+    CC 07-29-12.pdf
+    CC 08-05-12.pdf
+    CC 08-12-12.pdf
+    CC 08-19-12.pdf
+    CC 08-26-12.pdf
+    CC 09-02-12.pdf
+    CC 09-09-12.pdf
+    CC 09-16-12.pdf
+    CC 09-23-12.pdf
+    CC 09-30-12.pdf
+    CC 10-07-12.pdf
+    CC 10-14-12.pdf
+    CC 10-21-12.pdf
+    CC 10-28-12.pdf
+    CC 11-04-12.pdf
+    CC 11-11-12.pdf
+    CC 11-18-12.pdf
+    CC 11-25-12.pdf
+    CC 12-02-12.pdf
+    CC 12-09-12.pdf
+    CC 12-16-12.pdf
+    CC 12-23-12.pdf
+    CC 12-24-12.pdf
+    CC 12-30-12.pdf
   handouts/
     Bible Study Method Banner 2m x 3m.txt
     Bible Study Method.txt
@@ -5960,6 +6225,9 @@ content/
     2026-09-01-holy-or-devoted-to-destruction.md
     2026-09-03-what-we-bury-under-the-tent.md
     2026-09-05-standing-up-before-the-fix.md
+    2026-09-08-where-joy-actually-comes-from.md
+    2026-09-10-chains-and-confidence.md
+    2026-09-12-partners-not-spectators.md
     the-flashlight-of-your-focus.md
     where-your-treasure-is.md
 db/
@@ -6549,6 +6817,11 @@ src/
         connect/
           route.ts
         deacons/
+          family/
+            child/
+              route.ts
+            spouse/
+              route.ts
           list/
             route.ts
           member/
