@@ -37,7 +37,7 @@ def _trim_excerpt(text: str, query: str, window: int = EXCERPT_WINDOW) -> str:
     end = min(len(text), start + window)
     return text[start:end]
 
-def search_kb(query: str, collection_name: str = COLLECTION_NAME, expanded: bool = False) -> dict:
+def search_kb(query: str, collection_name: str = COLLECTION_NAME, sermons_only: bool = False) -> dict:
     ef = embedding_functions.SentenceTransformerEmbeddingFunction(
         model_name="all-MiniLM-L6-v2",
         device="cpu",
@@ -46,8 +46,9 @@ def search_kb(query: str, collection_name: str = COLLECTION_NAME, expanded: bool
     client = chromadb.PersistentClient(path=CHROMA_PATH)
     collection = client.get_collection(collection_name, embedding_function=ef)
     # source_type tiering only applies to the sermons collection (bible-study-note,
-    # handout, transcript) -- gutenberg/classics chunks have no source_type field.
-    where = {"source_type": "transcript"} if (collection_name == COLLECTION_NAME and not expanded) else None
+    # devotional, handout, transcript) -- gutenberg/classics chunks have no source_type
+    # field. Default is unrestricted (all content); sermons_only narrows to transcripts.
+    where = {"source_type": "transcript"} if (collection_name == COLLECTION_NAME and sermons_only) else None
     results = collection.query(query_texts=[query], n_results=3, where=where)
 
     chunks = [_trim_excerpt(c, query) for c in results["documents"][0]]
@@ -65,11 +66,11 @@ def search_kb(query: str, collection_name: str = COLLECTION_NAME, expanded: bool
     synopsis = response.json().get("response", "").strip()
 
     return {"synopsis": synopsis, "sources": sources, "query": query,
-            "collection": collection_name, "expanded": expanded}
+            "collection": collection_name, "sermons_only": sermons_only}
 
 def format_result(result: dict) -> str:
     sources_list = "\n".join(f"• {s}" for s in result["sources"])
     out = f"{result['synopsis']}\n\nSources:\n{sources_list}\n\nReply \"email that to me\" to send this to your inbox."
-    if result.get("collection", COLLECTION_NAME) == COLLECTION_NAME and not result.get("expanded", False):
-        out += "\n\nSearched sermon & Q&A transcripts only. Reply \"expanded search\" to also include bible study notes."
+    if result.get("collection", COLLECTION_NAME) == COLLECTION_NAME and result.get("sermons_only", False):
+        out += "\n\nSearched sermon transcripts only. Reply \"expanded search\" to include devotionals, bible study notes, and other KB content."
     return out

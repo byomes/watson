@@ -13,11 +13,11 @@ OLLAMA_URL = "http://localhost:11434/api/generate"
 OLLAMA_MODEL = "qwen2.5-coder:7b"
 TOP_K = 5
 
-def search(question, k=TOP_K, expanded=False):
+def search(question, k=TOP_K, sermons_only=False):
     client = chromadb.PersistentClient(path=str(CHROMA_DIR))
     ef = embedding_functions.SentenceTransformerEmbeddingFunction(model_name="all-MiniLM-L6-v2")
     collection = client.get_collection(name="sermons", embedding_function=ef)
-    where = None if expanded else {"source_type": "transcript"}
+    where = {"source_type": "transcript"} if sermons_only else None
     results = collection.query(query_texts=[question], n_results=k, where=where)
     chunks = []
     for doc, meta in zip(results["documents"][0], results["metadatas"][0]):
@@ -28,7 +28,7 @@ def synthesize(question, chunks, memory_context=""):
     context = ""
     for c in chunks:
         context += "--- From: " + c["title"] + " ---\n" + c["text"] + "\n\n"
-    prompt = "You are a helpful assistant with access to sermon transcripts from Pastor Bill Yomes. Answer the following question using only the provided sermon excerpts. Be specific and reference which sermons your answer draws from.\n\n"
+    prompt = "You are a helpful assistant with access to Pastor Bill Yomes's personal knowledge base of sermon transcripts, devotionals, and bible study notes. Answer the following question using only the provided excerpts. Be specific and reference which source your answer draws from.\n\n"
     if memory_context:
         prompt += memory_context + "\n\n## Current Message\n"
     prompt += "Question: " + question + "\n\nSermon excerpts:\n" + context + "\n\nAnswer:"
@@ -36,10 +36,10 @@ def synthesize(question, chunks, memory_context=""):
     resp.raise_for_status()
     return resp.json()["response"].strip()
 
-def ask(question, expanded=False):
+def ask(question, sermons_only=False):
     from jobs.memory_manager import build_context, append_working_memory, detect_topic, append_project_memory
     log.info("Searching knowledge base for: %s", question)
-    chunks = search(question, expanded=expanded)
+    chunks = search(question, sermons_only=sermons_only)
     if not chunks:
         return "No relevant sermons found for that question."
     log.info("Found %d relevant chunks, synthesizing...", len(chunks))
@@ -48,8 +48,8 @@ def ask(question, expanded=False):
     sources = list(dict.fromkeys(c["title"] for c in chunks))
     source_list = "\n".join("- " + s for s in sources)
     result = answer + "\n\nSources:\n" + source_list
-    if not expanded:
-        result += "\n\nSearched sermon & Q&A transcripts only. Reply \"expanded search\" to also include bible study notes."
+    if sermons_only:
+        result += "\n\nSearched sermon transcripts only. Reply \"expanded search\" to include devotionals, bible study notes, and other KB content."
     append_working_memory(question, answer)
     topic = detect_topic(question)
     if topic:

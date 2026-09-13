@@ -703,7 +703,7 @@ def terminal():
         _create_backlog_item(_bl_title, _bl_summary)
         return _pfx_out(f"Logged to backlog: {_bl_title}")
 
-    if cmd_lower.startswith("xkb:"):  # doc: Search the sermons KB with expanded/deeper matching.
+    if cmd_lower.startswith("xkb:"):  # doc: Search sermon transcripts only (narrower than kb:, which searches all KB content).
         try:
             from jobs.skills.kb_search import search_kb as _search_kb, format_result as _fmt_kb
             _kq = cmd[4:].strip()
@@ -711,7 +711,7 @@ def terminal():
         except Exception as _exc:
             return jsonify({"output": f"KB error: {_exc}", "success": False})
 
-    if cmd_lower.startswith("search the kb:") or cmd_lower.startswith("kb:"):  # doc: Search the sermon-transcript ChromaDB knowledge base.
+    if cmd_lower.startswith("search the kb:") or cmd_lower.startswith("kb:"):  # doc: Search the full ChromaDB knowledge base (sermons, devotionals, bible study notes, etc).
         try:
             from jobs.skills.kb_search import search_kb as _search_kb, format_result as _fmt_kb
             _kq = cmd[14:].strip() if cmd_lower.startswith("search the kb:") else cmd[3:].strip()
@@ -2778,7 +2778,7 @@ def skill_kb():
     data = request.get_json(force=True) or {}
     text = (data.get("text") or "").strip()
     query = text
-    expanded = query.lower().startswith("xkb:")
+    sermons_only = query.lower().startswith("xkb:")
     for prefix in ("search the kb:", "xkb:", "kb:"):
         if query.lower().startswith(prefix):
             query = query[len(prefix):].strip()
@@ -2787,7 +2787,7 @@ def skill_kb():
         return jsonify({"error": "No query provided"}), 400
     try:
         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-            result = executor.submit(search_kb, query, "sermons", expanded).result()
+            result = executor.submit(search_kb, query, "sermons", sermons_only).result()
         return jsonify({"result": format_result(result), "query": result["query"]})
     except Exception as exc:
         log.error("KB search error: %s", exc)
@@ -2945,12 +2945,14 @@ def chat_stream():
         from jobs.skills.kb_search import search_kb as _xkb_search, format_result as _xkb_fmt
         _xkb_q = message[len("xkb:"):].strip()
         def _xkb_stream(q=_xkb_q):
-            yield _emit_status("→ Searching your notes — expanded...")
+            yield _emit_status("→ Searching sermon transcripts...")
             try:
                 result = _xkb_search(q, "sermons", True)
                 yield _sse(_xkb_fmt(result))
+                from jobs.telegram.pending import store_skill_confirmation as _store_kb_expand_pending
+                _store_kb_expand_pending("kb_expand", {"source": "dashboard", "query": q})
             except Exception as exc:
-                yield _sse(f"Expanded search failed: {exc}")
+                yield _sse(f"KB search failed: {exc}")
             yield "data: [DONE]\n\n"
         return _sse_response(_xkb_stream())
     if msg_lower.startswith("kb:") or msg_lower.startswith("search the kb:"):
@@ -2962,8 +2964,6 @@ def chat_stream():
             try:
                 result = _kb_prefix_search(q)
                 yield _sse(_kb_prefix_fmt(result))
-                from jobs.telegram.pending import store_skill_confirmation as _store_kb_expand_pending
-                _store_kb_expand_pending("kb_expand", {"source": "dashboard", "query": q})
             except Exception as exc:
                 yield _sse(f"KB search failed: {exc}")
             yield "data: [DONE]\n\n"
@@ -2978,10 +2978,8 @@ def chat_stream():
             def _kb_expand_stream(q=_kb_exp_q):
                 yield _emit_status("→ Searching your notes — expanded...")
                 try:
-                    result = _kb_exp_search(q, "sermons", True)
+                    result = _kb_exp_search(q, "sermons", False)
                     yield _sse(_kb_exp_fmt(result))
-                    from jobs.telegram.pending import store_skill_confirmation as _store_kb_expand_pending2
-                    _store_kb_expand_pending2("kb_expand", {"source": "dashboard", "query": q})
                 except Exception as exc:
                     yield _sse(f"Expanded search failed: {exc}")
                 yield "data: [DONE]\n\n"
@@ -3555,15 +3553,18 @@ def chat_stream():
         return _sse_response(_stream_simple(_time_run()))
     # KB search pre-check — must fire before conversational/factual intercepts
     _kb_triggers = ("search kb", "search my notes", "search my sermons", "what have i said about", "what did i preach on", "find in my notes", "look in my sermons", "kb search", "search my kb", "summarize my")
+    _kb_sermon_triggers = ("search my sermons", "what did i preach on", "look in my sermons")
     if any(t in message.lower() for t in _kb_triggers):
         from jobs.skills.kb_search import search_kb as _kb_run, format_result as _kb_fmt
-        def _kb_stream(q=message):
-            yield _emit_status("→ Searching your notes...")
+        _kb_sermons_only = any(t in message.lower() for t in _kb_sermon_triggers)
+        def _kb_stream(q=message, sermons_only=_kb_sermons_only):
+            yield _emit_status("→ Searching your notes..." if not sermons_only else "→ Searching sermon transcripts...")
             try:
-                result = _kb_run(q)
+                result = _kb_run(q, "sermons", sermons_only)
                 yield _sse(_kb_fmt(result))
-                from jobs.telegram.pending import store_skill_confirmation as _store_kb_nl_pending
-                _store_kb_nl_pending("kb_expand", {"source": "dashboard", "query": q})
+                if sermons_only:
+                    from jobs.telegram.pending import store_skill_confirmation as _store_kb_nl_pending
+                    _store_kb_nl_pending("kb_expand", {"source": "dashboard", "query": q})
             except Exception as exc:
                 yield _sse(f"KB search failed: {exc}")
             yield "data: [DONE]\n\n"
