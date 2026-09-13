@@ -3692,3 +3692,59 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - 15360dd fix(trading): real position sizing for ma_crossover/mean_reversion/momentum
 - 0544505 Add "does [name] have a deacon" fast-path phrase to looking up a specific member
 - 9efadbd docs: architecture update 2026-09-11
+
+---
+
+## Recent Changes — 2026-09-13
+
+### ~/watson
+- 53bc36d kb: sync 1 transcript(s) to kb/documents (same-day)
+- 7953ec3 docs: bugs/backlog export 2026-09-13
+- 212e467 kb: sync 1 transcript(s) to kb/documents (same-day)
+- be8e112 docs: file map 2026-09-13
+- 69432f4 kb: sync 1 transcript(s) to kb/documents (same-day)
+- 7dd8b2e kb: sync 1 transcript(s) to kb/documents (same-day)
+- 9e1dacd kb: sync 1 transcript(s) to kb/documents (same-day)
+- ee57bba kb: sync 1 transcript(s) to kb/documents (same-day)
+- 0263c68 kb: sync 1 transcript(s) to kb/documents (same-day)
+- b1d713e kb: sync 1 transcript(s) to kb/documents (same-day)
+- 8723191 kb: sync 1 transcript(s) to kb/documents (same-day)
+- 7d879f0 kb: sync 1 transcript(s) to kb/documents (same-day)
+- 5db7110 kb: sync 1 transcript(s) to kb/documents (same-day)
+- c98f285 kb: sync 1 transcript(s) to kb/documents (same-day)
+- 217c652 kb: sync 1 transcript(s) to kb/documents (same-day)
+- a0a50b0 kb: sync 1 transcript(s) to kb/documents (same-day)
+- 3546fbb kb: sync 1 transcript(s) to kb/documents (same-day)
+- 4bbf935 kb: sync 1 transcript(s) to kb/documents (same-day)
+- 8d6659c kb: sync 1 transcript(s) to kb/documents (same-day)
+- 9ad05f5 kb: sync 1 transcript(s) to kb/documents (same-day)
+- aded8f5 kb: sync 1 transcript(s) to kb/documents (same-day)
+- 64b4bed kb: sync 1 transcript(s) to kb/documents (same-day)
+- 56a4e8c kb: sync 1 transcript(s) to kb/documents (same-day)
+- 83c9f50 kb: sync 1 transcript(s) to kb/documents (same-day)
+- 7d27730 kb: sync 1 transcript(s) to kb/documents (same-day)
+- dcf366b kb: sync 1 transcript(s) to kb/documents (same-day)
+- bcf0a66 kb: sync 1 transcript(s) to kb/documents (same-day)
+- 0d6fe11 kb: sync 1 transcript(s) to kb/documents (same-day)
+- dbc2e9b kb: sync 1 transcript(s) to kb/documents (same-day)
+- 03adf48 kb: sync 1 transcript(s) to kb/documents (same-day)
+- 21f0402 kb: sync 1 transcript(s) to kb/documents (same-day)
+- d86fa4d kb: sync 1 transcript(s) to kb/documents (same-day)
+- fe91476 kb: sync 1 transcript(s) to kb/documents (same-day)
+- 2e67154 docs: log fast-path phrasing review + document lookup_member_family
+- eb2319e Widen fast-path phrasing across team chat for leader usability
+- a1bc07c docs: log age-formatting fix in Recent Changes
+- 5b93b5a fix: "how old is X" now answers with computed age, not raw birthdate
+- c10ca4b docs: document widened family-management access (chat + deacon app)
+- 8c22270 Open family relationship management to all leaders (chat + deacon app)
+- 5a51b90 docs: log household_role commit in Recent Changes
+- 270a80d Add family relationship tracking (spouse/child) to congregation.db
+- eb788d9 Add "what is [name] birthday" fast-path phrase to looking up a specific member
+- f9c41f1 Add "who is [name] married to" fast-path phrase to looking up a specific member
+- 509d91e docs: architecture update 2026-09-12
+
+### ~/wcky
+- c3a9f90 publish: Partners, Not Spectators
+
+### ~/watson-tools
+- 66ed373 Add family relationship management to the deacon app
