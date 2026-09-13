@@ -5,6 +5,7 @@ import chromadb
 from chromadb.utils import embedding_functions
 import requests
 import core.llm_log  # noqa: F401 -- installs Ollama call logging, see core/llm_log.py
+from jobs.build_kb import boosted_distance
 
 log = logging.getLogger(__name__)
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -13,16 +14,26 @@ OLLAMA_URL = "http://localhost:11434/api/generate"
 OLLAMA_MODEL = "qwen2.5-coder:7b"
 TOP_K = 5
 
+# Over-fetch so the year-based re-rank (jobs.build_kb.boosted_distance) has
+# room to pull 2022+ chunks above equally-relevant older ones before cutting
+# to k.
+FETCH_MULTIPLIER = 3
+
 def search(question, k=TOP_K, sermons_only=False):
     client = chromadb.PersistentClient(path=str(CHROMA_DIR))
     ef = embedding_functions.SentenceTransformerEmbeddingFunction(model_name="all-MiniLM-L6-v2")
     collection = client.get_collection(name="sermons", embedding_function=ef)
     where = {"source_type": "transcript"} if sermons_only else None
-    results = collection.query(query_texts=[question], n_results=k, where=where)
-    chunks = []
-    for doc, meta in zip(results["documents"][0], results["metadatas"][0]):
-        chunks.append({"title": meta["title"], "text": doc})
-    return chunks
+    results = collection.query(
+        query_texts=[question], n_results=k * FETCH_MULTIPLIER, where=where,
+        include=["documents", "metadatas", "distances"],
+    )
+    scored = [
+        (boosted_distance(dist, meta.get("year")), meta, doc)
+        for doc, meta, dist in zip(results["documents"][0], results["metadatas"][0], results["distances"][0])
+    ]
+    scored.sort(key=lambda row: row[0])
+    return [{"title": meta["title"], "text": doc} for _, meta, doc in scored[:k]]
 
 def synthesize(question, chunks, memory_context=""):
     context = ""

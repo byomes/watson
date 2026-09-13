@@ -3,11 +3,18 @@ from chromadb.utils import embedding_functions
 import requests
 import os
 import core.llm_log  # noqa: F401 -- installs Ollama call logging, see core/llm_log.py
+from jobs.build_kb import boosted_distance
 
 CHROMA_PATH = "/home/billyomes/watson/data/chroma"
 COLLECTION_NAME = "sermons"
 OLLAMA_URL = "http://localhost:11434/api/generate"
 MODEL = "llama3.2:3b"
+RESULT_COUNT = 3
+# Over-fetch so the year-based re-rank (jobs.build_kb.boosted_distance) has
+# room to pull 2022+ sermon chunks above equally-relevant older ones before
+# cutting to RESULT_COUNT. Only meaningful for the "sermons" collection —
+# other collections (e.g. gutenberg/classics) have no `year` field.
+FETCH_MULTIPLIER = 3
 
 SYNOPSIS_PROMPT = """You are a research assistant summarizing content from a pastor's personal knowledge base of sermons and theological documents.
 
@@ -49,12 +56,25 @@ def search_kb(query: str, collection_name: str = COLLECTION_NAME, sermons_only: 
     # devotional, handout, transcript) -- gutenberg/classics chunks have no source_type
     # field. Default is unrestricted (all content); sermons_only narrows to transcripts.
     where = {"source_type": "transcript"} if (collection_name == COLLECTION_NAME and sermons_only) else None
-    results = collection.query(query_texts=[query], n_results=3, where=where)
+    is_sermons = collection_name == COLLECTION_NAME
+    fetch_n = RESULT_COUNT * FETCH_MULTIPLIER if is_sermons else RESULT_COUNT
+    results = collection.query(
+        query_texts=[query], n_results=fetch_n, where=where,
+        include=["documents", "metadatas", "distances"],
+    )
 
-    chunks = [_trim_excerpt(c, query) for c in results["documents"][0]]
-    sources = list(dict.fromkeys([
-        m["title"] for m in results["metadatas"][0]
-    ]))
+    docs, metas, dists = results["documents"][0], results["metadatas"][0], results["distances"][0]
+    if is_sermons:
+        scored = [(boosted_distance(d, m.get("year")), m, doc) for doc, m, d in zip(docs, metas, dists)]
+        scored.sort(key=lambda row: row[0])
+        top = scored[:RESULT_COUNT]
+        docs = [doc for _, _, doc in top]
+        metas = [m for _, m, _ in top]
+    else:
+        docs, metas = docs[:RESULT_COUNT], metas[:RESULT_COUNT]
+
+    chunks = [_trim_excerpt(c, query) for c in docs]
+    sources = list(dict.fromkeys([m["title"] for m in metas]))
 
     excerpts = "\n\n".join(chunks)
     response = requests.post(OLLAMA_URL, json={
