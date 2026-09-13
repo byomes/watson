@@ -166,6 +166,77 @@ def _trigger_immediate_sync() -> dict:
     return resp.json()
 
 
+def push_transcript_to_beelink(local_path: Path) -> dict:
+    """scp local_path to Beelink's kb/transcripts/ and trigger an immediate
+    sync/index/push. Shared by generate() (weekly) and watcher.py's
+    handle_archive() (archive mode, added after bug #164 — archive
+    transcripts used to dead-end in F:\\Knowledge_Database\\_inbox with no
+    path to the KB at all).
+
+    Returns {"transfer_succeeded": bool, "sync_ok": bool, "sync_error": str|None}.
+    """
+    transfer_succeeded = True
+    sync_ok = False
+    sync_error = None
+    try:
+        _scp_to_beelink(local_path)
+    except Exception as e:
+        log.error("Transfer to Beelink failed: %s", e)
+        transfer_succeeded = False
+
+    if transfer_succeeded:
+        try:
+            result = _trigger_immediate_sync()
+            sync_ok = bool(result.get("ok"))
+            if not sync_ok:
+                sync_error = result.get("error") or "unknown error"
+        except Exception as e:
+            log.error("Immediate sync trigger failed: %s", e)
+            sync_error = str(e)
+
+    return {"transfer_succeeded": transfer_succeeded, "sync_ok": sync_ok, "sync_error": sync_error}
+
+
+def notify_archive_transfer(title: str, result: dict) -> None:
+    """Lightweight Telegram notification for archive-mode transfers.
+
+    Silent on full success — these are historical backfill sermons with no
+    blog-draft step, and a per-file ping would spam Bill across the
+    hundreds of files in the Sermon Audio Master backlog. Still alerts on
+    failure so a stranded transcript doesn't go unnoticed again (bug #164).
+    """
+    if result["transfer_succeeded"] and result["sync_ok"]:
+        return
+
+    if not result["transfer_succeeded"]:
+        text = (
+            f"⚠️ <b>Archive transcript transfer failed</b>\n\n<b>{title}</b>\n\n"
+            f"Saved locally on FMSPC but the scp transfer to Beelink failed. "
+            f"It has NOT reached the KB yet — check FMSPC and retry manually."
+        )
+    else:
+        detail = f" ({result['sync_error']})" if result["sync_error"] else ""
+        text = (
+            f"⚠️ <b>Archive transcript transferred, sync didn't complete</b>\n\n<b>{title}</b>\n\n"
+            f"Reached Beelink's kb/transcripts/ safely{detail}, but the immediate "
+            f"sync/index/push trigger failed. Tonight's 2am KB sync will catch it."
+        )
+
+    if vacation_gate("system_failure", "jobs.generate.notify_archive_transfer", title):
+        return
+    if not WATSON_BOT_TOKEN or not WATSON_CHAT_ID:
+        log.warning("Telegram not configured — skipping notification")
+        return
+
+    resp = requests.post(
+        f"https://api.telegram.org/bot{WATSON_BOT_TOKEN}/sendMessage",
+        json={"chat_id": WATSON_CHAT_ID, "text": text, "parse_mode": "HTML"},
+        timeout=10,
+    )
+    resp.raise_for_status()
+    log.info("Archive transfer alert sent")
+
+
 # --- Telegram ---------------------------------------------------------
 
 def _telegram_notify(raw_url: str, title: str, transfer_succeeded: bool = True,
@@ -260,27 +331,10 @@ def generate(clean_path: Path, sermon_slug: str) -> None:
     staging_path.write_text(md_content, encoding="utf-8")
     log.info("Transcript staged locally: %s", staging_path)
 
-    transfer_succeeded = True
-    sync_ok = False
-    sync_error = None
-    try:
-        _scp_to_beelink(staging_path)
-    except Exception as e:
-        # Broad catch, not just RuntimeError: an unexpected failure here
-        # (missing scp/ssh binary, etc.) must still reach the Telegram
-        # alert below, not crash the script before notify runs.
-        log.error("Transfer to Beelink failed: %s", e)
-        transfer_succeeded = False
-
-    if transfer_succeeded:
-        try:
-            result = _trigger_immediate_sync()
-            sync_ok = bool(result.get("ok"))
-            if not sync_ok:
-                sync_error = result.get("error") or "unknown error"
-        except Exception as e:
-            log.error("Immediate sync trigger failed: %s", e)
-            sync_error = str(e)
+    transfer_result = push_transcript_to_beelink(staging_path)
+    transfer_succeeded = transfer_result["transfer_succeeded"]
+    sync_ok = transfer_result["sync_ok"]
+    sync_error = transfer_result["sync_error"]
 
     # --- Destination 2: Local KB inbox (F: drive or wherever KB_LOCAL_DIR points) ---
     if KB_LOCAL_DIR != KB_STAGING_DIR:

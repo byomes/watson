@@ -133,12 +133,33 @@ def handle_weekly(audio_path: Path):
 
 
 def handle_archive(audio_path: Path):
-    """Archive pipeline: transcribe only → kb/."""
+    """Archive pipeline: transcribe -> kb/, then transfer to Beelink + trigger
+    immediate sync. Before bug #164 was fixed, this stopped after
+    transcription and the .txt just piled up in F:\\Knowledge_Database\\_inbox
+    with no path to the KB — see jobs/generate.py's push_transcript_to_beelink.
+    """
     log.info("Archive pipeline starting: %s", audio_path.name)
 
     if not _run_job("transcribe.py", str(audio_path), "--mode", "archive"):
         log.error("Archive transcription failed — leaving file in archive/")
         return
+
+    from jobs.transcribe import archive_transcript_path
+    transcript_path = archive_transcript_path(audio_path)
+    if not transcript_path.exists():
+        log.error("Expected archive transcript not found: %s", transcript_path)
+        return
+
+    from jobs.generate import notify_archive_transfer, push_transcript_to_beelink
+    result = push_transcript_to_beelink(transcript_path)
+    notify_archive_transfer(audio_path.stem, result)
+    if not result["transfer_succeeded"]:
+        log.error("Archive transcript transfer to Beelink failed: %s", audio_path.name)
+    elif not result["sync_ok"]:
+        log.warning("Archive transcript transferred but immediate sync didn't complete "
+                    "(nightly backstop will catch it): %s", audio_path.name)
+    else:
+        log.info("Archive transcript synced to Beelink KB: %s", audio_path.name)
 
     log.info("Archive pipeline complete for: %s", audio_path.name)
 

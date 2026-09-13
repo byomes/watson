@@ -59,6 +59,11 @@ def raw_transcript_path(audio_path: Path) -> Path:
     return RAW_DIR / f"{audio_path.stem}-raw.txt"
 
 
+def archive_transcript_path(audio_path: Path) -> Path:
+    """Return the expected archive-mode transcript path for a given audio file."""
+    return KB_DIR / f"{audio_path.stem}.txt"
+
+
 def transcribe(audio_path: Path, mode: str, model_name: str) -> Path:
     """
     Run Whisper on audio_path.
