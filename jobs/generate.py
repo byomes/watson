@@ -105,6 +105,36 @@ def _strip_date_prefix(slug: str) -> str:
     return _DATE_PREFIX_RE.sub("", slug).strip("-")
 
 
+def _extract_original_date(slug: str) -> str | None:
+    """Parse a leading YYYY-MM-DD or MM-DD-YYYY date out of an audio filename
+    stem and normalize it to YYYY-MM-DD. Returns None if the filename has no
+    date prefix.
+
+    Historical backfill audio (e.g. "2011-11-27-Bill-Nativity1") carries the
+    actual date preached; a live weekly drop with no date in its name has no
+    such signal and the caller should fall back to date.today(). Before this
+    existed, generate() always stamped every file with today's ingestion
+    date, silently overwriting years-old preached dates with the date the
+    file happened to be transcribed (caught 2026-09-13 processing the
+    Sermon Audio Master backlog into the KB).
+    """
+    m = re.match(r"^(\d{2,4})-(\d{2})-(\d{2,4})-?", slug)
+    if not m:
+        return None
+    a, b, c = m.groups()
+    if len(a) == 4:
+        year, month, day = a, b, c
+    elif len(c) == 4:
+        month, day, year = a, b, c
+    else:
+        return None
+    try:
+        date(int(year), int(month), int(day))
+    except ValueError:
+        return None
+    return f"{year}-{month}-{day}"
+
+
 # --- Transfer to Beelink -----------------------------------------------
 
 def _ensure_remote_dir() -> None:
@@ -306,9 +336,13 @@ def _telegram_notify(raw_url: str, title: str, transfer_succeeded: bool = True,
 
 def generate(clean_path: Path, sermon_slug: str) -> None:
     clean_text = clean_path.read_text(encoding="utf-8")
-    today      = date.today().strftime("%Y-%m-%d")
 
-    # Strip any existing date prefix from slug, then apply today's date
+    # Use the sermon's own embedded date when the filename carries one (the
+    # historical backfill case), otherwise fall back to today (a live
+    # weekly sermon dropped same-day with no date in its filename).
+    today = _extract_original_date(sermon_slug) or date.today().strftime("%Y-%m-%d")
+
+    # Strip any existing date prefix from slug, then apply the resolved date
     clean_slug = _strip_date_prefix(sermon_slug).replace(" ", "-")
     dated_slug = f"{today}-{clean_slug}"
     filename   = f"{dated_slug}.md"
