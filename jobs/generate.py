@@ -34,7 +34,7 @@ import os
 import re
 import subprocess
 import sys
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 import requests
@@ -133,6 +133,15 @@ def _extract_original_date(slug: str) -> str | None:
     except ValueError:
         return None
     return f"{year}-{month}-{day}"
+
+
+def _most_recent_sunday(from_date: date) -> date:
+    """Bill preaches on Sundays; a weekly transcript often gets processed a
+    few days after the fact. When the filename carries no date, the most
+    recent Sunday on/before the processing date is a better guess at the
+    actual preached date than "today" (added 2026-09-13 alongside the
+    preaching-plan spreadsheet backfill — see jobs/kb/tag_sermon_dates.py)."""
+    return from_date - timedelta(days=(from_date.weekday() - 6) % 7)
 
 
 # --- Transfer to Beelink -----------------------------------------------
@@ -338,13 +347,14 @@ def generate(clean_path: Path, sermon_slug: str) -> None:
     clean_text = clean_path.read_text(encoding="utf-8")
 
     # Use the sermon's own embedded date when the filename carries one (the
-    # historical backfill case), otherwise fall back to today (a live
-    # weekly sermon dropped same-day with no date in its filename).
-    today = _extract_original_date(sermon_slug) or date.today().strftime("%Y-%m-%d")
+    # historical backfill case), otherwise fall back to the most recent
+    # Sunday (a live weekly sermon dropped a few days after being preached,
+    # with no date in its filename).
+    preached_date = _extract_original_date(sermon_slug) or _most_recent_sunday(date.today()).strftime("%Y-%m-%d")
 
     # Strip any existing date prefix from slug, then apply the resolved date
     clean_slug = _strip_date_prefix(sermon_slug).replace(" ", "-")
-    dated_slug = f"{today}-{clean_slug}"
+    dated_slug = f"{preached_date}-{clean_slug}"
     filename   = f"{dated_slug}.md"
 
     # Human-readable title from clean slug
@@ -353,7 +363,7 @@ def generate(clean_path: Path, sermon_slug: str) -> None:
     # Wrap transcript in minimal markdown for readability in claude.ai
     md_content = (
         f"# Transcript: {title}\n"
-        f"Date: {today}\n\n"
+        f"Date: {preached_date}\n\n"
         f"---\n\n"
         f"{clean_text.strip()}\n"
     )
