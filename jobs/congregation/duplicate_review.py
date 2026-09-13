@@ -181,6 +181,17 @@ def merge_members(
             (keep_id, merge["name"]),
         )
 
+    # attendance is keyed by (member_id, service_date) with no unique
+    # constraint (see jobs/congregation/attendance_web.py's data model note) --
+    # a blanket reassignment below would silently double-count any Sunday
+    # both keep_id and merge_id already have a row for. Drop merge_id's row
+    # for those dates first so the reassignment can't collide.
+    conn.execute(
+        """DELETE FROM attendance WHERE member_id = ? AND service_date IN
+           (SELECT service_date FROM attendance WHERE member_id = ?)""",
+        (merge_id, keep_id),
+    )
+
     for table in _LINKED_TABLES:
         conn.execute(f"UPDATE {table} SET member_id = ? WHERE member_id = ?", (keep_id, merge_id))
     conn.execute("UPDATE duplicate_flags SET member_id_a = ? WHERE member_id_a = ?", (keep_id, merge_id))
