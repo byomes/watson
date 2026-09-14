@@ -32,7 +32,7 @@ load_dotenv(os.path.expanduser("~/watson/.env"))
 log = logging.getLogger(__name__)
 
 OLLAMA_URL = "http://localhost:11434/api/generate"
-OLLAMA_MODEL = "llama3.2:1b"  # same fast/cheap model as email_intake.py's own triage classifier
+OLLAMA_MODEL = "llama3.2:3b"  # same fast/cheap model as email_intake.py's own triage classifier
 
 _DETECT_PROMPT = (
     "You are Watson, an AI assistant for a church. Determine whether this email is an "
