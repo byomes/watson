@@ -1,6 +1,6 @@
 # Watson Bug Tracker
 _Auto-generated nightly from bug_tracker. Source of truth is the database — do not hand-edit this file, changes will be overwritten._
-Last generated: 2026-09-13 02:10
+Last generated: 2026-09-14 02:10
 
 ## Open (49)
 | ID | Title | Repo | Discovered |
@@ -58,6 +58,9 @@ Last generated: 2026-09-13 02:10
 ## Recently Resolved (last 30 days)
 | ID | Title | Repo | Resolved | Commit |
 |---|---|---|---|---|
+| 165 | generate.py overwrote historical sermon dates with ingestion date | watson | 2026-09-13 20:39:58 | 9e8295e |
+| 164 | Archive-mode sermon pipeline never ships transcripts to Beelink KB | watson | 2026-09-13 20:36:44 | 1a4c9cf |
+| 163 | duplicate_review.merge_members double-counts attendance on collision | watson | 2026-09-13 20:12:45 | d9e9c9c |
 | 162 | Draft-reply approval Telegram message never showed the original email | watson | 2026-09-11 20:10:57 | ad136ae |
 | 161 | Disposition keyword matching false-positived on substrings | watson | 2026-09-11 20:06:09 | aa869ee |
 | 160 | Email/event-signup Telegram triage never showed real content, replies discarded | watson | 2026-09-11 20:06:09 | aa869ee |
