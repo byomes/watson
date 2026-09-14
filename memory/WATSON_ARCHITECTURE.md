@@ -498,8 +498,8 @@ Every prefix here also works typed directly in dashboard/Telegram chat, not just
 | `web: <...>` | Web search (prefix form of the web_search skill). |
 | `imagegen: <...>` / `imgen: <...>` | Generate an AI image from a text prompt. |
 | `backlog: <...>` | Log an item to the project backlog. |
-| `xkb: <...>` | Search the sermons KB with expanded/deeper matching. |
-| `search the kb: <...>` / `kb: <...>` | Search the sermon-transcript ChromaDB knowledge base. |
+| `xkb: <...>` | Search sermon transcripts only (narrower than kb:, which searches all KB content). |
+| `search the kb: <...>` / `kb: <...>` | Search the full ChromaDB knowledge base (sermons, devotionals, bible study notes, etc). |
 | `shepherding: <...>` | Pastoral shepherding report — critical care, at-risk, first-time visitors, no-next-step members. |
 | `state of church report` | Generate and email the full State of the Church HTML report (async — delivered by email). |
 | `system status` | CPU, memory, disk, and service health. |
