@@ -27,6 +27,12 @@ _DATE_PREFIX_RE = re.compile(r'^(\d{2,4})-(\d{2})-(\d{2,4})-?')
 TRUSTED_YEAR_CUTOFF = 2022
 TRUSTED_YEAR_DISTANCE_FACTOR = 0.85
 
+# AI-ghostwritten material (Bill's own ideas expanded by AI, not his original
+# words) is tagged with this source_type and must never be silently blended
+# into a normal or "expanded" search -- only surfaced when explicitly
+# requested. Shared by jobs/ask.py and jobs/skills/kb_search.py.
+GHOSTWRITTEN_SOURCE_TYPE = "ai-ghostwritten"
+
 
 def boosted_distance(distance: float, year) -> float:
     """Discount cosine distance for sermons preached TRUSTED_YEAR_CUTOFF or later."""

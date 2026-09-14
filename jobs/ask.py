@@ -5,7 +5,7 @@ import chromadb
 from chromadb.utils import embedding_functions
 import requests
 import core.llm_log  # noqa: F401 -- installs Ollama call logging, see core/llm_log.py
-from jobs.build_kb import boosted_distance
+from jobs.build_kb import boosted_distance, GHOSTWRITTEN_SOURCE_TYPE
 
 log = logging.getLogger(__name__)
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -19,11 +19,18 @@ TOP_K = 5
 # to k.
 FETCH_MULTIPLIER = 3
 
-def search(question, k=TOP_K, sermons_only=False):
+def search(question, k=TOP_K, sermons_only=False, ghostwritten_only=False):
     client = chromadb.PersistentClient(path=str(CHROMA_DIR))
     ef = embedding_functions.SentenceTransformerEmbeddingFunction(model_name="all-MiniLM-L6-v2")
     collection = client.get_collection(name="sermons", embedding_function=ef)
-    where = {"source_type": "transcript"} if sermons_only else None
+    if ghostwritten_only:
+        where = {"source_type": GHOSTWRITTEN_SOURCE_TYPE}
+    elif sermons_only:
+        where = {"source_type": "transcript"}
+    else:
+        # Default and "expanded search" both exclude ai-ghostwritten material --
+        # it must be explicitly requested, never blended in automatically.
+        where = {"source_type": {"$ne": GHOSTWRITTEN_SOURCE_TYPE}}
     results = collection.query(
         query_texts=[question], n_results=k * FETCH_MULTIPLIER, where=where,
         include=["documents", "metadatas", "distances"],
@@ -47,10 +54,10 @@ def synthesize(question, chunks, memory_context=""):
     resp.raise_for_status()
     return resp.json()["response"].strip()
 
-def ask(question, sermons_only=False):
+def ask(question, sermons_only=False, ghostwritten_only=False):
     from jobs.memory_manager import build_context, append_working_memory, detect_topic, append_project_memory
     log.info("Searching knowledge base for: %s", question)
-    chunks = search(question, sermons_only=sermons_only)
+    chunks = search(question, sermons_only=sermons_only, ghostwritten_only=ghostwritten_only)
     if not chunks:
         return "No relevant sermons found for that question."
     log.info("Found %d relevant chunks, synthesizing...", len(chunks))

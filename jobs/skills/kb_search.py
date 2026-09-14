@@ -3,7 +3,7 @@ from chromadb.utils import embedding_functions
 import requests
 import os
 import core.llm_log  # noqa: F401 -- installs Ollama call logging, see core/llm_log.py
-from jobs.build_kb import boosted_distance
+from jobs.build_kb import boosted_distance, GHOSTWRITTEN_SOURCE_TYPE
 
 CHROMA_PATH = "/home/billyomes/watson/data/chroma"
 COLLECTION_NAME = "sermons"
@@ -44,7 +44,8 @@ def _trim_excerpt(text: str, query: str, window: int = EXCERPT_WINDOW) -> str:
     end = min(len(text), start + window)
     return text[start:end]
 
-def search_kb(query: str, collection_name: str = COLLECTION_NAME, sermons_only: bool = False) -> dict:
+def search_kb(query: str, collection_name: str = COLLECTION_NAME, sermons_only: bool = False,
+              ghostwritten_only: bool = False) -> dict:
     ef = embedding_functions.SentenceTransformerEmbeddingFunction(
         model_name="all-MiniLM-L6-v2",
         device="cpu",
@@ -53,10 +54,19 @@ def search_kb(query: str, collection_name: str = COLLECTION_NAME, sermons_only: 
     client = chromadb.PersistentClient(path=CHROMA_PATH)
     collection = client.get_collection(collection_name, embedding_function=ef)
     # source_type tiering only applies to the sermons collection (bible-study-note,
-    # devotional, handout, transcript) -- gutenberg/classics chunks have no source_type
-    # field. Default is unrestricted (all content); sermons_only narrows to transcripts.
-    where = {"source_type": "transcript"} if (collection_name == COLLECTION_NAME and sermons_only) else None
+    # devotional, handout, transcript, ai-ghostwritten) -- gutenberg/classics chunks
+    # have no source_type field.
     is_sermons = collection_name == COLLECTION_NAME
+    if not is_sermons:
+        where = None
+    elif ghostwritten_only:
+        where = {"source_type": GHOSTWRITTEN_SOURCE_TYPE}
+    elif sermons_only:
+        where = {"source_type": "transcript"}
+    else:
+        # Default and "expanded search" both exclude ai-ghostwritten -- it must
+        # be explicitly requested, never blended in automatically.
+        where = {"source_type": {"$ne": GHOSTWRITTEN_SOURCE_TYPE}}
     fetch_n = RESULT_COUNT * FETCH_MULTIPLIER if is_sermons else RESULT_COUNT
     results = collection.query(
         query_texts=[query], n_results=fetch_n, where=where,
@@ -73,6 +83,11 @@ def search_kb(query: str, collection_name: str = COLLECTION_NAME, sermons_only: 
     else:
         docs, metas = docs[:RESULT_COUNT], metas[:RESULT_COUNT]
 
+    if not docs:
+        return {"synopsis": f"No results found for '{query}'.", "sources": [], "query": query,
+                "collection": collection_name, "sermons_only": sermons_only,
+                "ghostwritten_only": ghostwritten_only}
+
     chunks = [_trim_excerpt(c, query) for c in docs]
     sources = list(dict.fromkeys([m["title"] for m in metas]))
 
@@ -86,11 +101,17 @@ def search_kb(query: str, collection_name: str = COLLECTION_NAME, sermons_only: 
     synopsis = response.json().get("response", "").strip()
 
     return {"synopsis": synopsis, "sources": sources, "query": query,
-            "collection": collection_name, "sermons_only": sermons_only}
+            "collection": collection_name, "sermons_only": sermons_only,
+            "ghostwritten_only": ghostwritten_only}
 
 def format_result(result: dict) -> str:
     sources_list = "\n".join(f"• {s}" for s in result["sources"])
-    out = f"{result['synopsis']}\n\nSources:\n{sources_list}\n\nReply \"email that to me\" to send this to your inbox."
-    if result.get("collection", COLLECTION_NAME) == COLLECTION_NAME and result.get("sermons_only", False):
-        out += "\n\nSearched sermon transcripts only. Reply \"expanded search\" to include devotionals, bible study notes, and other KB content."
+    out = f"{result['synopsis']}\n\nSources:\n{sources_list}"
+    if sources_list:
+        out += "\n\nReply \"email that to me\" to send this to your inbox."
+    if result.get("collection", COLLECTION_NAME) == COLLECTION_NAME:
+        if result.get("ghostwritten_only", False):
+            out += "\n\nSearched AI-ghostwritten archive only."
+        elif result.get("sermons_only", False):
+            out += "\n\nSearched sermon transcripts only. Reply \"expanded search\" to include devotionals, bible study notes, and other KB content."
     return out
