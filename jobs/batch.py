@@ -38,6 +38,12 @@ load_dotenv()
 log = logging.getLogger(__name__)
 
 REPO_ROOT     = Path(__file__).resolve().parent.parent
+
+# batch.py is invoked directly (`py -3.11 jobs/batch.py`), which only puts
+# jobs/ on sys.path, not the repo root -- so `from jobs.X import Y` below
+# can't find the jobs package itself. Add REPO_ROOT so those imports work.
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 LOG_DIR       = REPO_ROOT / "outputs" / "logs"
 KB_DIR        = Path(os.getenv("KB_LOCAL_DIR", str(REPO_ROOT / "kb" / "transcripts")))
 
