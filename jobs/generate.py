@@ -97,19 +97,22 @@ WATSON_API_KEY = os.getenv("WRITING_ROOM_API_KEY", "")
 WATSON_BOT_TOKEN = os.getenv("WATSON_BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
 WATSON_CHAT_ID   = os.getenv("WATSON_CHAT_ID")   or os.getenv("TELEGRAM_CHAT_ID")
 
-# Matches any leading date: YYYY-MM-DD or MM-DD-YYYY
-_DATE_PREFIX_RE = re.compile(r"^\d{2,4}-\d{2}-\d{2,4}-?")
+# Matches any leading date: YYYY-MM-DD, MM-DD-YYYY, or MM-DD-YY. Digit counts
+# are deliberately loose (1-4) -- the Sermon Audio Master backlog mixes
+# zero-padded ("10-14-18") and non-padded ("10-7-18", "5-6-18") month/day,
+# and 2018 specifically uses a 2-digit year throughout.
+_DATE_PREFIX_RE = re.compile(r"^(\d{1,4})-(\d{1,2})-(\d{1,4})-?")
 
 
 def _strip_date_prefix(slug: str) -> str:
     """Remove any leading date pattern from a slug."""
-    return _DATE_PREFIX_RE.sub("", slug).strip("-")
+    return _DATE_PREFIX_RE.sub("", slug, count=1).strip("-")
 
 
 def _extract_original_date(slug: str) -> str | None:
-    """Parse a leading YYYY-MM-DD or MM-DD-YYYY date out of an audio filename
-    stem and normalize it to YYYY-MM-DD. Returns None if the filename has no
-    date prefix.
+    """Parse a leading YYYY-MM-DD, MM-DD-YYYY, or MM-DD-YY date out of an
+    audio filename stem and normalize it to YYYY-MM-DD. Returns None if the
+    filename has no date prefix.
 
     Historical backfill audio (e.g. "2011-11-27-Bill-Nativity1") carries the
     actual date preached; a live weekly drop with no date in its name has no
@@ -117,9 +120,12 @@ def _extract_original_date(slug: str) -> str | None:
     existed, generate() always stamped every file with today's ingestion
     date, silently overwriting years-old preached dates with the date the
     file happened to be transcribed (caught 2026-09-13 processing the
-    Sermon Audio Master backlog into the KB).
+    Sermon Audio Master backlog into the KB). The 2-digit-year branch was
+    added the same day after 26 of 2018's 29 files (e.g. "10-7-18-...")
+    turned out to use that format and would otherwise have silently missed
+    this entirely, needing the same after-the-fact correction as 2012/2013.
     """
-    m = re.match(r"^(\d{2,4})-(\d{2})-(\d{2,4})-?", slug)
+    m = _DATE_PREFIX_RE.match(slug)
     if not m:
         return None
     a, b, c = m.groups()
@@ -127,13 +133,15 @@ def _extract_original_date(slug: str) -> str | None:
         year, month, day = a, b, c
     elif len(c) == 4:
         month, day, year = a, b, c
+    elif len(c) == 2:
+        month, day, year = a, b, str(2000 + int(c))
     else:
         return None
     try:
         date(int(year), int(month), int(day))
     except ValueError:
         return None
-    return f"{year}-{month}-{day}"
+    return f"{int(year):04d}-{int(month):02d}-{int(day):02d}"
 
 
 def _most_recent_sunday(from_date: date) -> date:
