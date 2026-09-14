@@ -2780,7 +2780,7 @@ def _compute_age(birthdate: str) -> int | None:
 _FAMILY_LOOKUP_FIELDS = {"deacon", "spouse", "children", "parent"}
 
 
-def _format_team_lookup_reply(person_name: str, field: str) -> str:
+def _format_team_lookup_reply(person_name: str, field: str, asker: str = "Bill Yomes") -> str:
     # deacon/spouse/children/parent (added 2026-09-12) need household_id/
     # household_role + the deacon column, which lookup_member_details
     # doesn't select -- lookup_member_family does, at the cost of its own
@@ -2795,6 +2795,13 @@ def _format_team_lookup_reply(person_name: str, field: str) -> str:
     if not hits:
         return f'I couldn\'t find anyone matching "{person_name}".'
     if len(hits) > 1:
+        # Remember the pending question so a bare follow-up naming one of
+        # these candidates (see _try_resolve_pending_person) resumes THIS
+        # question for them, instead of being treated as a brand new,
+        # context-free query -- bug found 2026-09-14 (see
+        # jobs/people/pending_lookup.py).
+        from jobs.people.pending_lookup import set_pending
+        set_pending(asker, field, hits)
         names = ", ".join(h["name"] for h in hits)
         return f"I found more than one match: {names}. Can you be more specific?"
 
@@ -2832,6 +2839,50 @@ def _format_team_lookup_reply(person_name: str, field: str) -> str:
             return f"{m['name']} has no recorded attendance."
         return f"{m['name']} was last seen on {seen}."
     return f"{m['name']}: no data on file for that."
+
+
+def _try_resolve_pending_person(asker: str, text: str) -> str | None:
+    """If `asker` has a pending ambiguous-match question (set by
+    _format_team_lookup_reply above) and `text` names one of the candidates
+    it offered, resume the ORIGINAL question for that person instead of
+    treating `text` as a brand new, context-free query -- bug found
+    2026-09-14: replying "Jennifer" to Watson's own "Gerry DiMatteo,
+    Jennifer DiMatteo, Sophia DiMatteo -- can you be more specific?" got the
+    generic "I don't have a record of recent activity related to
+    'Jennifer'" instead of resuming the last-time-at-church question.
+
+    Re-runs _format_team_lookup_reply with the resolved candidate's exact
+    name (rather than formatting the stored, possibly-incomplete candidate
+    row directly) so fields like spouse/children/parent -- only computed by
+    lookup_member_family for a single unambiguous hit -- come back correct.
+
+    Returns None (falls through to normal handling) if there's no pending
+    question, it's expired, or `text` doesn't clearly name exactly one
+    candidate -- never silently guesses."""
+    from jobs.people.pending_lookup import pop_pending
+    pending = pop_pending(asker)
+    if not pending:
+        return None
+
+    from jobs.people.nicknames import equivalent_first_names
+    words = text.strip().lower().split()
+    if not words:
+        return None
+    first_candidates = equivalent_first_names(words[0])
+    text_lower = text.strip().lower()
+
+    def _matches(row: dict) -> bool:
+        name_lower = row["name"].lower()
+        if text_lower in name_lower:
+            return True
+        first = name_lower.split()[0] if name_lower.split() else ""
+        return first in first_candidates
+
+    picked = [row for row in pending["candidates"] if _matches(row)]
+    if len(picked) != 1:
+        return None
+
+    return _format_team_lookup_reply(picked[0]["name"], pending["field"], asker)
 
 
 # Sheet header abbreviation -> room key expected by jobs.gsheets.classroom_sync.ROOMS.
@@ -3076,13 +3127,22 @@ async def compute_team_chat_reply(name: str, text: str) -> str | None:
         return None
     _log_tg('in', text, recipient=name)
 
+    # A bare follow-up naming one of the candidates from a prior "I found
+    # more than one match" question (e.g. "Jennifer") resumes THAT question
+    # instead of running through the extractors below fresh -- see
+    # _try_resolve_pending_person.
+    pending_reply = await asyncio.to_thread(_try_resolve_pending_person, name, text)
+    if pending_reply is not None:
+        _log_tg('out', pending_reply, recipient=name)
+        return pending_reply
+
     lookup = _extract_team_lookup(text)
     classroom = _extract_classroom_lookup(text) if not lookup else None
     calendar = _extract_calendar_lookup(text) if not lookup and not classroom else False
     web_metric = _extract_web_metric_lookup(text) if not lookup and not classroom and not calendar else None
     if lookup:
         person_name, field = lookup
-        reply = await asyncio.to_thread(_format_team_lookup_reply, person_name, field)
+        reply = await asyncio.to_thread(_format_team_lookup_reply, person_name, field, name)
     elif classroom:
         reply = await asyncio.to_thread(_format_classroom_reply, classroom)
     elif calendar:
@@ -3142,10 +3202,17 @@ async def _try_congregation_data_lookup(text: str) -> str | None:
 
     Returns None if the question isn't a congregation-data question at all --
     caller falls through to general chat as before."""
+    # Same pending-disambiguation resumption as compute_team_chat_reply
+    # above, keyed to Bill's own fixed identity (this function is only ever
+    # reached from his own chat -- see module docstring).
+    pending_reply = await asyncio.to_thread(_try_resolve_pending_person, "Bill Yomes", text)
+    if pending_reply is not None:
+        return pending_reply
+
     lookup = _extract_team_lookup(text)
     if lookup:
         person_name, field = lookup
-        return await asyncio.to_thread(_format_team_lookup_reply, person_name, field)
+        return await asyncio.to_thread(_format_team_lookup_reply, person_name, field, "Bill Yomes")
 
     classroom = _extract_classroom_lookup(text)
     if classroom:

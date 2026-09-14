@@ -91,6 +91,13 @@ def _cascade(conn, query: str, columns: str) -> list[dict]:
         rows = _q(query, exact=False)
     if not rows and len(words) > 1:
         rows = _q(words[-1], exact=False)
+        if len(rows) > 1:
+            # Narrow a last-name-only match by the first word/nickname
+            # (e.g. "Jen" -> "Jennifer") before giving up and returning
+            # every same-surname household member as ambiguous -- same fix
+            # as jobs.people.lookup's cascade, 2026-09-14.
+            from jobs.people.lookup import _narrow_by_first_name
+            rows = _narrow_by_first_name(rows, words[0])
     if not rows:
         rows = _q(words[0], exact=False)
     return rows

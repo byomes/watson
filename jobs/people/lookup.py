@@ -6,8 +6,35 @@ CONG_DB = os.path.expanduser("~/watson/data/congregation.db")
 WATSON_DB = os.path.expanduser("~/watson/data/watson.db")
 
 
+def _narrow_by_first_name(rows: list[dict], first_word: str) -> list[dict]:
+    """Given ambiguous rows from a last-name-only match, try to narrow to the
+    person the asker meant using the query's first word -- a literal
+    substring match (the old behavior, e.g. "jen" in "jennifer") OR a
+    common-nickname equivalence (added 2026-09-14, see jobs/people/
+    nicknames.py: "Jen DiMatteo" was matching Gerry/Jennifer/Sophia DiMatteo
+    alike, because the last-name fallback ignored the first word entirely,
+    and most nickname/full-name pairs -- "Bill"/"William", "Peggy"/
+    "Margaret" -- aren't literal substrings of each other). Returns the
+    narrowed list only if it actually narrows things down to at least one
+    row; callers should keep the full ambiguous list otherwise, so a name
+    this doesn't recognize never silently loses a legitimate match."""
+    from jobs.people.nicknames import equivalent_first_names
+    candidates = equivalent_first_names(first_word)
+
+    def _matches(name: str) -> bool:
+        first = name.split()[0].lower() if name.split() else ""
+        if first in candidates:
+            return True
+        return any(len(c) >= 3 and (c in first or first in c) for c in candidates)
+
+    narrowed = [r for r in rows if _matches(r["name"])]
+    return narrowed or rows
+
+
 def _cascade(conn, table, query: str) -> list[dict]:
-    """Four-step name cascade: exact → full phrase → last name → first name."""
+    """Four-step name cascade: exact → full phrase → last name (narrowed by
+    first-name/nickname match when that leaves more than one row) → first
+    name."""
     def _q(term):
         return conn.execute(
             f"SELECT name, email, phone, carrier FROM {table}"
@@ -32,7 +59,10 @@ def _cascade(conn, table, query: str) -> list[dict]:
     # Step 2: partial full phrase match
     rows = _q(query)
     if not rows and len(words) > 1:
-        rows = _q(words[-1])
+        rows = [dict(r) for r in _q(words[-1])]
+        if len(rows) > 1:
+            rows = _narrow_by_first_name(rows, words[0])
+        return rows
     if not rows:
         rows = _q(words[0])
     return [dict(r) for r in rows]
@@ -139,6 +169,8 @@ def lookup_member_details(query: str) -> list[dict]:
             rows = _q(cong, query, exact=False)
         if not rows and len(words) > 1:
             rows = _q(cong, words[-1], exact=False)
+            if len(rows) > 1:
+                rows = _narrow_by_first_name(rows, words[0])
         if not rows:
             rows = _q(cong, words[0], exact=False)
     finally:
@@ -181,6 +213,8 @@ def lookup_member_family(query: str) -> list[dict]:
             rows = _q(cong, query, exact=False)
         if not rows and len(words) > 1:
             rows = _q(cong, words[-1], exact=False)
+            if len(rows) > 1:
+                rows = _narrow_by_first_name(rows, words[0])
         if not rows:
             rows = _q(cong, words[0], exact=False)
         if len(rows) == 1:
@@ -236,6 +270,8 @@ def lookup_member_for_assign(query: str) -> list[dict]:
             rows = _q(cong, query, exact=False)
         if not rows and len(words) > 1:
             rows = _q(cong, words[-1], exact=False)
+            if len(rows) > 1:
+                rows = _narrow_by_first_name(rows, words[0])
         if not rows:
             rows = _q(cong, words[0], exact=False)
     finally:
