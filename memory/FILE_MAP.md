@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-09-13*
+*Generated: 2026-09-14*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -99,6 +99,8 @@ data/
     66e0844b7fab4e0a8bb386db8504deac.png
     9eca6f54ecff491dbed2470fd0b3d196.png
   congregation.db
+  congregation.db-shm
+  congregation.db-wal
   congregation.db.bak_before_orphan_delete_20260906_070048
   cover_images/
     cover_1.jpg
@@ -202,6 +204,7 @@ data/
   retreats_seen.json
   riddle_current.json
   riddle_history.json
+  sermon_calendar.json
   servantcare.db
   servantcare_images/
     100/
@@ -5052,6 +5055,7 @@ jobs/
     ingest_devotionals.py
     schema.py
     sync_and_index.py
+    tag_sermon_years.py
     tag_source_types.py
   lead_magnet/
     __init__.py
