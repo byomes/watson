@@ -204,7 +204,14 @@ event_name LIKE '%picnic%'). When the answer is a LIST OF PEOPLE (e.g. "who's re
 "who is in X's group"), do NOT return separate raw columns like first_name/last_name/num_tickets side by side \
 -- concatenate them with SQL string concatenation into ONE readable text column instead (e.g. \
 `first_name || ' ' || last_name || CASE WHEN num_tickets > 1 THEN ' (' || num_tickets || ' tickets)' ELSE '' END`), \
-so each row reads as a single natural line rather than a raw field dump.
+so each row reads as a single natural line rather than a raw field dump. \
+When a question asks for a headcount "on both campuses" or "across both campuses" for a SINGLE service/date \
+(e.g. "how many attended on both campuses this past Sunday"), that means the COMBINED total across Wilmington \
+and Online for that one date -- COUNT(DISTINCT member_id) with no campus filter, never \
+`GROUP BY member_id HAVING COUNT(DISTINCT campus) = 2`, which asks whether one person attended two campuses at \
+the SAME service (structurally impossible for a single Sunday, always returns zero). That per-person \
+"attended both" grouping only makes sense for a genuine multi-week hybrid-attendance question spanning several \
+services, not a single Sunday's headcount.
 Today's date is {today}.
 
 ATTENDANCE tables (file: congregation.db):
@@ -223,6 +230,10 @@ SQL: <single-line SELECT -- omit this line entirely if DOMAIN is none>
 Q: what is the average attendance for the last four weeks?
 DOMAIN: attendance
 SQL: SELECT AVG(cnt) FROM (SELECT service_date, COUNT(*) AS cnt FROM attendance GROUP BY service_date ORDER BY service_date DESC LIMIT 4)
+
+Q: how many people attended church on both campuses this past Sunday?
+DOMAIN: attendance
+SQL: SELECT COUNT(DISTINCT member_id) FROM attendance WHERE service_date = (SELECT MAX(service_date) FROM attendance)
 
 Q: how many app downloads did we get in August?
 DOMAIN: web

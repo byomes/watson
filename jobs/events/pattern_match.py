@@ -93,18 +93,23 @@ _TRACKED_RE = re.compile(
     re.IGNORECASE,
 )
 
-# "how many" + a signup-shaped verb — covers "how many people are
-# registered/signed up/coming/attending", "how many tickets", "how many
-# RSVP'd".
+# "how many" + a signup-specific verb only — deliberately excludes
+# "attend"/"coming", both dropped 2026-09-14 after a live collision: "how
+# many people attended church on both campuses this past Sunday" (an
+# ordinary attendance question, nothing to do with any tracked event)
+# matched on "attend" and, since only one event was active at the time,
+# silently answered with that event's registration count instead of falling
+# through to the real attendance-domain query. "registered"/"signed up"/
+# "RSVP"/"ticket" don't appear in ordinary worship-attendance phrasing, so
+# they're safe; "attend"/"coming" are exactly the words that domain uses too.
 _COUNT_RE = re.compile(
-    r"\bhow many\b.*\b(regist|sign(ed)?[\s-]?up|coming|attend|rsvp|ticket)",
+    r"\bhow many\b.*\b(regist|sign(ed)?[\s-]?up|rsvp|ticket)",
     re.IGNORECASE,
 )
 
-# "who" + the same signup-shaped verbs — covers "who's registered", "who
-# signed up", "who's coming", "who is attending", "who RSVP'd".
+# "who" + the same signup-specific verbs — same exclusion as _COUNT_RE above.
 _LIST_RE = re.compile(
-    r"\bwho(?:'s|\s+is|\s+are)?\b.*\b(regist|sign(ed)?[\s-]?up|coming|attend|rsvp)",
+    r"\bwho(?:'s|\s+is|\s+are)?\b.*\b(regist|sign(ed)?[\s-]?up|rsvp|ticket)",
     re.IGNORECASE,
 )
 

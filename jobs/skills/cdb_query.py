@@ -135,7 +135,15 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
         )
 
     # HYBRID MEMBERS
-    if any(w in q for w in ['hybrid', 'both campus', 'both campuses', 'online and wilmington', 'wilmington and online', 'switches', 'multi campus']):
+    # 'both campus'/'both campuses' removed from this trigger list 2026-09-14
+    # -- found live colliding with an ordinary combined-total question ("how
+    # many people ... attended church on both campuses this past Sunday?"),
+    # which this file's own docstring convention (see feedback memory on
+    # fast-path phrasing collisions) says to fix by dropping the generic
+    # trigger rather than trying to out-guess it with more regex. The
+    # remaining triggers are all genuinely hybrid-specific -- nobody asking
+    # a simple weekly headcount says "hybrid", "switches", or "multi campus".
+    if any(w in q for w in ['hybrid', 'online and wilmington', 'wilmington and online', 'switches', 'multi campus']):
         w12 = weeks[11] if len(weeks) > 11 else weeks[-1]
         return (
             f"SELECT m.name, "

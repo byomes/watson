@@ -2777,6 +2777,24 @@ def _compute_age(birthdate: str) -> int | None:
     return today.year - born.year - ((today.month, today.day) < (born.month, born.day))
 
 
+def _format_last_seen_reply(name: str, seen: str) -> str:
+    """Both pieces Bill asked for (2026-09-14): the actual date AND how many
+    weeks it's been, in one natural sentence -- not just the bare date the
+    field used to return alone. Pronoun-free ("them") since attendance
+    records don't carry gender -- guessing one from a name risks misgendering
+    a real person."""
+    try:
+        seen_date = date.fromisoformat(seen)
+    except (ValueError, TypeError):
+        return f"We last saw {name} on {seen}."
+    pretty_date = seen_date.strftime("%B %-d, %Y")
+    weeks_since = (date.today() - seen_date).days // 7
+    if weeks_since <= 0:
+        return f"We last saw {name} on {pretty_date} — less than a week ago."
+    weeks_word = "week" if weeks_since == 1 else "weeks"
+    return f"We last saw {name} on {pretty_date} — it's been {weeks_since} {weeks_word} since we've seen them."
+
+
 _FAMILY_LOOKUP_FIELDS = {"deacon", "spouse", "children", "parent"}
 
 
@@ -2837,7 +2855,7 @@ def _format_team_lookup_reply(person_name: str, field: str, asker: str = "Bill Y
         seen = m.get("last_seen")
         if not seen or seen == "1900-01-01":
             return f"{m['name']} has no recorded attendance."
-        return f"{m['name']} was last seen on {seen}."
+        return _format_last_seen_reply(m["name"], seen)
     return f"{m['name']}: no data on file for that."
 
 
