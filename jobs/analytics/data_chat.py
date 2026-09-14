@@ -562,6 +562,20 @@ def _try_pattern_match(question: str) -> str | None:
     return _pattern_match(question, _last_sunday(), weeks)
 
 
+def _try_pattern_match_events(question: str) -> str | None:
+    """LLM-free fast path for common event-signup phrasings (RSVP counts/
+    lists, "what events are we tracking") — see jobs/events/pattern_match.py.
+    Mirrors _try_pattern_match's reuse pattern above but for the events
+    domain. Added 2026-09-14 after two picnic questions each triggered a
+    real Claude API call (core/claude_tier.py, ~$0.011 each) because no
+    events-domain fast path existed yet — only attendance had one."""
+    try:
+        from jobs.events.pattern_match import pattern_match
+    except Exception:
+        return None
+    return pattern_match(question)
+
+
 def answer_data_question(
     question: str, asker_name: str, allow_contact_info: bool = True
 ) -> tuple[bool, str | None]:
@@ -601,6 +615,16 @@ def answer_data_question(
             clarify = _clarify_if_ambiguous_person(pm_sql, rows, question, asker_name)
             return True, clarify or _format_rows(rows)
         log.info("data_chat: pattern-match matched but found nothing (rows=%s), falling through to generation: q=%r sql=%r", rows, question, pm_sql)
+
+    # Same free/LLM-free short-circuit as the attendance block above, for
+    # the events domain — see _try_pattern_match_events's docstring.
+    pm_events_sql = _validate_sql("events", _try_pattern_match_events(question), allow_contact_info)
+    if pm_events_sql:
+        rows = _run("events", pm_events_sql)
+        if rows:
+            log.info("data_chat: events pattern-match hit, asker=%s q=%r sql=%r rows=%d", asker_name, question, pm_events_sql, len(rows))
+            return True, _format_rows(rows)
+        log.info("data_chat: events pattern-match matched but found nothing (rows=%s), falling through to generation: q=%r sql=%r", rows, question, pm_events_sql)
 
     domain, sql = _generate(question, asker_name, allow_contact_info)
     if domain in (None, "none"):
