@@ -324,6 +324,9 @@ app.register_blueprint(lead_magnet_bp)
 from jobs.book_launch.api import book_launch_bp
 app.register_blueprint(book_launch_bp)
 
+from jobs.newsletter.api import newsletter_bp
+app.register_blueprint(newsletter_bp)
+
 from jobs.arc_interest.api import arc_interest_bp
 app.register_blueprint(arc_interest_bp)
 
