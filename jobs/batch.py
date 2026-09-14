@@ -5,8 +5,12 @@ Processes all audio files in a folder sequentially, one at a time.
 Skips files already transcribed. Resume-safe — restart anytime and it
 picks up where it left off.
 
-After successful transcription, audio is moved to a 'processed' folder
-so you know it's done and safe to delete.
+After successful transcription, the transcript is pushed to the Beelink
+KB (same transfer + sync-now trigger as watcher.py's handle_archive(),
+see jobs/generate.py's push_transcript_to_beelink) and the audio is
+moved to a 'processed' folder so you know it's done and safe to delete.
+Before this, batch.py only ran Whisper and stopped -- transcripts piled
+up in F:\\Knowledge_Database\\_inbox with no path to the KB (bug #164).
 
 Usage:
   py -3.11 jobs/batch.py                        # process SERMON_ARCHIVE_DIR
@@ -129,6 +133,23 @@ def batch(folder: Path, model: str, dry_run: bool) -> None:
         file_start = time.time()
 
         ok = _run_transcribe(audio_path, model)
+
+        if ok:
+            from jobs.transcribe import archive_transcript_path
+            transcript_path = archive_transcript_path(audio_path)
+            if not transcript_path.exists():
+                log.error("Expected archive transcript not found: %s", transcript_path)
+            else:
+                from jobs.generate import notify_archive_transfer, push_transcript_to_beelink
+                result = push_transcript_to_beelink(transcript_path)
+                notify_archive_transfer(audio_path.stem, result)
+                if not result["transfer_succeeded"]:
+                    log.error("Transfer to Beelink failed: %s", audio_path.name)
+                elif not result["sync_ok"]:
+                    log.warning("Transferred but immediate sync didn't complete "
+                                "(nightly backstop will catch it): %s", audio_path.name)
+                else:
+                    log.info("Synced to Beelink KB: %s", audio_path.name)
 
         elapsed = time.time() - file_start
         total_elapsed = time.time() - start_time
