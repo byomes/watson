@@ -37,7 +37,7 @@ _CSS = (
     ".stat-box{display:inline-block;text-align:center;padding:12px 20px;border:1px solid #eee;border-radius:4px;margin:4px}"
     ".empty{color:#bbb;font-style:italic;font-size:.9em}"
     ".footer{margin-top:32px;padding-top:12px;border-top:1px solid #eee;font-size:.8em;color:#bbb}"
-    ".note{background:#fafafa;border-left:3px solid #ddd;padding:6px 10px;margin:4px 0;font-size:.9em}"
+    ".note{background:#fafafa;border-left:3px solid #ddd;padding:6px 10px;margin:4px 0;font-size:.9em;white-space:pre-line}"
     ".updated-note{background:#fef9e7;border:1px solid #f0c040;border-radius:4px;padding:10px 14px;margin-bottom:16px;font-size:.9em;color:#666}"
 )
 
