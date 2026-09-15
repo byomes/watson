@@ -183,7 +183,7 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
         )
 
     # HOW MANY ATTENDED (count)
-    if any(w in q for w in ['how many attended', 'how many came', 'total attendance', 'attendance count', 'number who attended', 'sunday attendance', 'service attendance', 'how many showed up', 'how many people were there']):
+    if any(w in q for w in ['fire extinguishers', 'how many attended', 'how many came', 'total attendance', 'attendance count', 'number who attended', 'sunday attendance', 'service attendance', 'how many showed up', 'how many people were there']):
         if campus:
             return f"SELECT COUNT(DISTINCT a.member_id) as total FROM attendance a WHERE a.campus = '{campus}' AND {a_date}"
         else:
