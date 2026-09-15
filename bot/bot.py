@@ -977,6 +977,16 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     and _DEACON_ASSIGN_INCOMPLETE_RE.match(_msg_text.strip())
                 )
             )
+            # Family report email, added 2026-09-15 -- restricted to
+            # _FAMILY_REPORT_ALLOWLIST (Donna Redman), not every leader.
+            _family_report = (
+                bool(
+                    _leader_name in _FAMILY_REPORT_ALLOWLIST
+                    and not _add_child and not _bday_update and not _mark_spouse
+                    and not _mark_child and not _assign and not _assign_incomplete
+                    and _looks_like_family_report_request(_msg_text)
+                )
+            )
             from jobs.telegram.leader_tool_usage import log_usage as _log_leader_tool_usage
             with get_connection() as _lc:
                 _log_leader_tool_usage(
@@ -986,7 +996,9 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             "mark_spouse" if _mark_spouse else (
                                 "mark_child" if _mark_child else (
                                     "deacon_assign" if _assign else (
-                                        "deacon_assign_incomplete" if _assign_incomplete else "team_chat"
+                                        "deacon_assign_incomplete" if _assign_incomplete else (
+                                            "family_report" if _family_report else "team_chat"
+                                        )
                                     )
                                 )
                             )
@@ -1003,6 +1015,8 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await _handle_mark_child(update, _leader_name, *_mark_child)
             elif _assign:
                 await _handle_deacon_assign(update, _leader_name, *_assign)
+            elif _family_report:
+                await _handle_family_report(update, _leader_name)
             elif _assign_incomplete:
                 await update.message.reply_text(
                     "Who would you like to assign, and to which deacon? "
@@ -2266,6 +2280,28 @@ def _deacon_name_for_chat(chat_id: str) -> str | None:
 # elder over shepherding" because Bill named these two specifically.
 _DEACON_ASSIGN_ALLOWLIST = frozenset({"Bill Crook", "Jim Bouchat"})
 
+# Per Bill's 2026-09-15 explicit request: the family-units email report is
+# restricted to just Dr. Bill and Donna Redman -- hardcoded rather than
+# reusing _FAMILY_EDIT_ALLOWLIST (which also has Bill Crook/Jim Bouchat, not
+# named for this) or opening it to every onboarded leader. Bill's own chat
+# needs no allowlist check (see _handle_general); this gates Donna's.
+_FAMILY_REPORT_ALLOWLIST = frozenset({"Donna Redman"})
+
+
+def _looks_like_family_report_request(text: str) -> bool:
+    """Loose match -- no parameters to extract, just a yes/no trigger, so a
+    substring check is more robust than an anchored regex against the many
+    ways this could be phrased ("family report", "send me a family units
+    report", "can I get the family report", etc.)."""
+    low = text.lower()
+    return "family report" in low or "family units report" in low or "family units email" in low
+
+
+async def _handle_family_report(update: Update, sender_name: str) -> None:
+    from jobs.congregation.family_report import send_family_report
+    ok, message = await asyncio.to_thread(send_family_report, sender_name)
+    await update.message.reply_text(message if not ok else f"\U0001F4E7 {message}")
+
 
 _DEACON_ASSIGN_VERBS = r"assign|reassign|move|put|add|switch|transfer"
 
@@ -3299,6 +3335,13 @@ async def _handle_general(update: Update, context: ContextTypes.DEFAULT_TYPE, te
     _mark_child = _extract_mark_child(text)
     if _mark_child:
         await _handle_mark_child(update, "Bill Yomes", *_mark_child)
+        return ""
+
+    # Family report email, added 2026-09-15 -- Dr. Bill's own chat needs no
+    # allowlist check (only ever reached from his authorized chat); Donna
+    # Redman's parallel path is _handle_text_body's _FAMILY_REPORT_ALLOWLIST.
+    if _looks_like_family_report_request(text):
+        await _handle_family_report(update, "Bill Yomes")
         return ""
 
     # Deacon reassignment via chat, extended to Dr. Bill's own chat 2026-09-08

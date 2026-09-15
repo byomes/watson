@@ -385,3 +385,53 @@ def unlink_family_member_by_id(member_id: int, sender_name: str) -> tuple[bool, 
             (member_id,),
         )
     return True, f"Done — {member['name']} removed from that household relationship. — logged by {sender_name}"
+
+
+def create_member_by_deacon(
+    name: str,
+    email: str | None,
+    phone: str | None,
+    address: str | None,
+    birthdate_raw: str | None,
+    sender_name: str,
+) -> tuple[bool, str, int | None]:
+    """Deacon-app entry point (2026-09-15): create a brand-new member record
+    with no household context, for the header "+" button and for the "can't
+    find them? add new" fallback inside the spouse/parent/child picker
+    modal -- unlike add_child above, this person isn't necessarily anyone's
+    child, so there's no parent to inherit campus_preference/deacon/
+    household_id from. The caller (deacons_web.py's create_family_member)
+    links the new id into a relationship afterward via mark_spouse_by_id/
+    mark_child_by_id when created from inside a relation picker; a plain
+    "+"-button creation stays a standalone visitor record until someone
+    marks a relationship for them.
+
+    Open to every logged-in deacon, same as mark_spouse_by_id/
+    mark_child_by_id -- no allowlist, per Bill's 2026-09-12 "every leader
+    can help manage families" decision extending naturally to filling in
+    people those relationships need but don't yet have a record."""
+    name = (name or "").strip()
+    if not name:
+        return False, "A name is required.", None
+
+    birthdate = parse_birthdate(birthdate_raw) if birthdate_raw else None
+    if birthdate_raw and not birthdate:
+        return False, f'I couldn\'t parse "{birthdate_raw}" as a birthdate.', None
+
+    with _conn() as conn:
+        existing = _cascade(conn, name, "name")
+        exact = [m for m in existing if m["name"].lower() == name.lower()]
+        if exact:
+            return False, f"{exact[0]['name']} is already on file — search for them instead of adding a duplicate.", None
+
+        conn.execute(
+            """
+            INSERT INTO members (name, email, phone, address, birthdate, status, active, member_status)
+            VALUES (?, ?, ?, ?, ?, 'visitor', 1, 'active')
+            """,
+            (name, (email or "").strip() or None, (phone or "").strip() or None,
+             (address or "").strip() or None, birthdate),
+        )
+        member_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+    return True, f"Added {name}. — logged by {sender_name}", member_id

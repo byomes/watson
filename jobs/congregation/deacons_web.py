@@ -403,3 +403,28 @@ def unlink_family_member():
     with _conn() as conn:
         updated = _roster_rows(conn, [member_id])
     return jsonify({"message": message, "updated": updated}), 200
+
+
+# Added 2026-09-15: header "+" button and the relation-picker's "can't find
+# them? add new" fallback both hit this to create a brand-new member with
+# no household context. See family_edit.py::create_member_by_deacon.
+@deacons_web_bp.route("/api/cat/deacons/member/create", methods=["POST"])
+@_require_key
+def create_family_member():
+    data = request.get_json(force=True) or {}
+    name = data.get("name")
+    sender = (data.get("sender") or "").strip() or "Deacon App"
+    if not isinstance(name, str) or not name.strip():
+        return jsonify({"error": "name is required"}), 400
+
+    from jobs.congregation.family_edit import create_member_by_deacon
+    ok, message, member_id = create_member_by_deacon(
+        name, data.get("email"), data.get("phone"), data.get("address"),
+        data.get("birthdate"), sender,
+    )
+    if not ok:
+        return jsonify({"error": message}), 400
+
+    with _conn() as conn:
+        created = _roster_rows(conn, [member_id])
+    return jsonify({"message": message, "created": created[0] if created else None}), 200
