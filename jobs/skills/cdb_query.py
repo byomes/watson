@@ -208,7 +208,7 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
             )
 
     # MEMBERS NOT SEEN RECENTLY
-    if any(w in q for w in ['not seen', "haven't seen", 'not attended', 'not been', 'missing for',
+    if any(w in q for w in ['when was the last time [name] missed church', 'not seen', "haven't seen", 'not attended', 'not been', 'missing for',
                              'inactive', 'not come in', "haven't attended", "haven't come",
                              "haven't shown up", 'off the radar']):
         if '2 week' in q or 'two week' in q or '14 day' in q:
