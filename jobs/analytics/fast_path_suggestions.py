@@ -405,6 +405,7 @@ def review_single_question(spend_log_id: int, asker_name: str, question: str) ->
         )
         row_id = cur.lastrowid
 
+    log.info("review_single_question: reviewing id=%d asker=%r q=%r", row_id, asker_name, question)
     try:
         system, prompt = _build_prompt([{"id": row_id, "question": question, "source": "claude_call"}])
         raw = _call_ollama(system, prompt)
@@ -413,6 +414,8 @@ def review_single_question(spend_log_id: int, asker_name: str, question: str) ->
             log.error("review_single_question: Ollama analysis failed for q=%r", question)
         elif suggestions is None:
             log.error("review_single_question: could not parse JSON array: %r", raw[:300])
+        elif not suggestions:
+            log.info("review_single_question: id=%d -- nothing actionable.", row_id)
 
         for s in (suggestions or []):
             if not isinstance(s, dict):
@@ -432,8 +435,10 @@ def review_single_question(spend_log_id: int, asker_name: str, question: str) ->
             target_label = CDB_CATEGORY_LABELS.get(target_id, "a new kind of question")
 
             if target_id and new_phrase:
+                log.info("review_single_question: id=%d auto-applying %r to %s", row_id, new_phrase, target_id)
                 _auto_apply(suggestion_id, target_id, target_label, new_phrase, question, reasoning)
             else:
+                log.info("review_single_question: id=%d needs a real decision -- sent to Telegram (suggestion_id=%d).", row_id, suggestion_id)
                 _send_suggestion(suggestion_id, target_id, target_label, new_phrase, question, reasoning)
     finally:
         mark_reviewed([row_id])
