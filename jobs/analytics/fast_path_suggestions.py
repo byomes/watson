@@ -90,6 +90,66 @@ _MIN_QUESTIONS = 2
 
 _JSON_ARRAY_RE = re.compile(r"\[.*\]", re.DOTALL)
 
+# review_single_question() gate, added per notes/team_chat_conversational_
+# memory_spec.md -- every claude_tier.call_claude() call to
+# "analytics.data_chat" was treated as a "question" worth reviewing for a
+# fast-path pattern, even ones that were never questions at all (e.g. Kaci
+# Gravatt's first-ever message, a plain introduction: "Hi Watson, this is
+# Kaci. I handle digital communications and event registrations for
+# Catalyst." -- sent to Bill's Telegram 2026-09-15 as suggestion_id=22 asking
+# him to judge whether it needed a hand-built SQL pattern). A cheap heuristic
+# beats a real classifier call here: this only gates a review of a message
+# that already got a full LLM-generated-SQL answer, so the cost of getting it
+# wrong is one extra/missing weekly-digest row, not a live user-facing reply.
+_QUESTION_MARK_RE = re.compile(r"\?")
+_WH_OR_AUX_START_RE = re.compile(
+    r"^\s*(who|what|when|where|why|how|which|is|are|was|were|do|does|did|"
+    r"can|could|will|would|should|has|have|had)\b", re.IGNORECASE,
+)
+_REQUEST_VERB_RE = re.compile(
+    r"\b(find|look ?up|show|list|pull up|get me|give me|tell me|send me|"
+    r"remind|schedule|book|check|search|lookup)\b", re.IGNORECASE,
+)
+_SELF_INTRO_RE = re.compile(
+    r"^\s*(hi|hello|hey)[,!.\s]|(^|\.\s*)(this is|i'?m|my name is|i handle|"
+    r"i work|i manage|i'?ve|i just)\b", re.IGNORECASE,
+)
+# A short social filler with no request buried in it -- "good morning",
+# "Thanks!", "sounds good" -- shouldn't fall into the ambiguous-default-True
+# bucket below just because it doesn't start with "hi"/"hello"/"I'm" the way
+# _SELF_INTRO_RE expects. Whole-message match only (anchored both ends) so a
+# real question that happens to open with "thanks, but..." isn't swallowed.
+_BARE_SOCIAL_RE = re.compile(
+    r"^\s*(hi|hello|hey|good\s+(morning|afternoon|evening)|thanks?( you)?( so much)?|"
+    r"ok(ay)?|sounds good|got it|great|perfect|sure|no worries|you too|"
+    r"bye|goodbye|see you( later)?|talk (later|soon))\s*[!.]*\s*$",
+    re.IGNORECASE,
+)
+
+
+def _looks_like_question_or_request(text: str) -> bool:
+    """True if `text` plausibly asks for something -- a real "?", a
+    who/what/how-shaped opener, or an imperative request verb. False for a
+    plain statement, greeting, or self-introduction, which is never worth
+    reviewing for a fast-path SQL pattern (there's no data-shaped request in
+    it to pattern-match against)."""
+    text = (text or "").strip()
+    if not text:
+        return False
+    if _QUESTION_MARK_RE.search(text):
+        return True
+    if _WH_OR_AUX_START_RE.match(text):
+        return True
+    if _REQUEST_VERB_RE.search(text):
+        return True
+    if _BARE_SOCIAL_RE.match(text) or _SELF_INTRO_RE.search(text):
+        return False
+    # Genuinely ambiguous phrasing with no "?" and no recognized shape --
+    # default to reviewing it rather than silently dropping a real question
+    # that just happened to be phrased without a question mark or a
+    # recognized lead word.
+    return True
+
 
 def _bootstrap() -> None:
     with get_connection() as conn:
@@ -395,6 +455,9 @@ def review_single_question(spend_log_id: int, asker_name: str, question: str) ->
     rounding error against the spend it's analyzing."""
     question = (question or "").strip()
     if not question:
+        return
+    if not _looks_like_question_or_request(question):
+        log.info("review_single_question: id skipped -- not a question/request, asker=%r q=%r", asker_name, question)
         return
 
     with get_connection() as conn:

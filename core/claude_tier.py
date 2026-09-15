@@ -323,6 +323,7 @@ def call_claude(
     image_media_type: str = "image/jpeg",
     person: str = _DEFAULT_PERSON,
     message: str = "",
+    history: list[dict] | None = None,
 ) -> str | None:
     """Try a budget-tracked Claude API call. Returns the response text on
     success, or None if the tier is inactive/exhausted/erroring — callers
@@ -351,6 +352,12 @@ def call_claude(
     schema, embedded context), often unreadable or too long to show as-is.
     Truncated to _MAX_MESSAGE_LEN; "" for calls with no single discrete
     triggering message (a scheduled report, a batch job).
+
+    history: prior turns ([{"role": "user"|"assistant", "content": str}, ...],
+    oldest first) to prepend before `user` -- e.g. jobs.analytics.data_chat's
+    per-leader conversation buffer, so a Team Chat follow-up has the same
+    context a human would. None/empty behaves exactly as before this param
+    existed (single-turn call).
     """
     if not is_api_spending_enabled():
         return None
@@ -379,10 +386,11 @@ def call_claude(
             ]
         else:
             content = user
+        messages = list(history or []) + [{"role": "user", "content": content}]
         response = client.messages.create(
             model=model,
             max_tokens=max_tokens,
-            messages=[{"role": "user", "content": content}],
+            messages=messages,
             **kwargs,
         )
     except Exception as exc:

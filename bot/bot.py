@@ -2556,7 +2556,7 @@ async def _handle_deacon_assign(update: Update, sender_name: str, person_query: 
 _NO_ACCESS_TAG_RE = re.compile(r"\[\s*no[_\s]?access\s*\]:?\s*", re.IGNORECASE)
 
 
-def _get_team_reply_sync(text: str) -> tuple[str, bool]:
+def _get_team_reply_sync(text: str, asker_name: str) -> tuple[str, bool]:
     """Plain Ollama Q&A for a limited-access team member chat -- deliberately
     NOT build_prompt() (that's Bill's own routing/memory-aware prompt) and no
     skill routing, so a team member's chat can never reach Bill's directives,
@@ -2565,21 +2565,28 @@ def _get_team_reply_sync(text: str) -> tuple[str, bool]:
     below, which bypass this Ollama path entirely for a recognized question --
     everything else still lands here, unable to touch the database.
 
+    Prepends `asker_name`'s buffered prior turns (jobs.analytics.data_chat's
+    get_conversation_turns -- shared with the data-Q&A path so it's one
+    continuous conversation from the leader's point of view, not two
+    disconnected stateless ones) so the model can react to what was actually
+    said instead of treating every message as a fresh, context-free question.
+    See notes/team_chat_conversational_memory_spec.md.
+
     Returns (reply, declined_for_lack_of_access) -- TEAM_CHAT_SYSTEM
     (config/settings.py) instructs the model to prefix a decline with
     [NO_ACCESS], stripped here before the reply is shown to anyone; the flag
     lets _handle_team_chat alert Bill per his 2026-09-01 decision to review
     these and judge whether they're worth building a real lookup for."""
     import requests as _req
+    from jobs.analytics.data_chat import get_conversation_turns
     try:
         resp = _req.post(
             "http://localhost:11434/api/chat",
             json={
                 "model": "llama3.2:3b",
-                "messages": [
-                    {"role": "system", "content": TEAM_CHAT_SYSTEM},
-                    {"role": "user", "content": text},
-                ],
+                "messages": [{"role": "system", "content": TEAM_CHAT_SYSTEM}]
+                + get_conversation_turns(asker_name)
+                + [{"role": "user", "content": text}],
                 "stream": False,
             },
             timeout=60,
@@ -3137,6 +3144,19 @@ def _alert_unanswered_team_question(team_member_name: str, question: str, reply:
         log.warning("Failed to alert Bill about an unanswered team question: %s", exc)
 
 
+def _remember_team_chat_turns(name: str, text: str, reply: str | None) -> None:
+    """Records both sides of a team-chat exchange into the shared per-leader
+    conversation buffer (jobs.analytics.data_chat) -- called from every
+    return point in compute_team_chat_reply below so the buffer covers every
+    branch (lookup, classroom, calendar, web-metric, data_chat Q&A, and
+    general chat) uniformly, not just the general-chat fallback. See
+    notes/team_chat_conversational_memory_spec.md."""
+    from jobs.analytics.data_chat import remember_conversation_turn
+    remember_conversation_turn(name, "user", text)
+    if reply:
+        remember_conversation_turn(name, "assistant", reply)
+
+
 async def compute_team_chat_reply(name: str, text: str) -> str | None:
     """Pure (non-Telegram) core of the team-chat path -- shared by the real
     Telegram handler below and the dashboard's `teamtest:` debug prefix
@@ -3154,6 +3174,7 @@ async def compute_team_chat_reply(name: str, text: str) -> str | None:
     pending_reply = await asyncio.to_thread(_try_resolve_pending_person, name, text)
     if pending_reply is not None:
         _log_tg('out', pending_reply, recipient=name)
+        _remember_team_chat_turns(name, text, pending_reply)
         return pending_reply
 
     lookup = _extract_team_lookup(text)
@@ -3184,11 +3205,12 @@ async def compute_team_chat_reply(name: str, text: str) -> str | None:
         if on_topic:
             reply = dc_reply
         else:
-            reply, declined = await asyncio.to_thread(_get_team_reply_sync, text)
+            reply, declined = await asyncio.to_thread(_get_team_reply_sync, text, name)
             if declined:
                 await asyncio.to_thread(_alert_unanswered_team_question, name, text, reply)
 
     _log_tg('out', reply, recipient=name)
+    _remember_team_chat_turns(name, text, reply)
     return reply
 
 

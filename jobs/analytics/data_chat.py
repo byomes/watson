@@ -357,6 +357,57 @@ def _forget_pending_clarification(asker_name: str) -> None:
     _pending_clarifications.pop(asker_name, None)
 
 
+# Per-leader rolling conversation buffer -- see
+# notes/team_chat_conversational_memory_spec.md. Both this module's own LLM
+# calls (_generate, below) and
+# bot.py's _get_team_reply_sync draw on the same buffer, keyed by the same
+# asker_name identity already used by _pending_clarifications above, so a
+# leader's whole exchange with Watson (data questions AND general chat) reads
+# as one continuous conversation instead of two disconnected stateless paths.
+# Same shape/reasoning as _pending_clarifications: in-process only, lost on a
+# bot restart (acceptable -- worst case Watson just doesn't remember a stale
+# conversation), TTL'd so a leader who goes quiet doesn't have old context
+# resurface hours later, and size-capped with oldest-first eviction so an
+# asker who never returns doesn't sit here forever.
+_CONVERSATION_TTL_SECONDS = 1800
+_CONVERSATION_MAX_TURNS = 8  # (user, assistant) messages kept, most-recent-last
+_CONVERSATION_MAX_ASKERS = 200
+_conversation_buffers: dict[str, dict] = {}
+
+
+def get_conversation_turns(asker_name: str) -> list[dict]:
+    """Returns the buffered prior turns for `asker_name` as a
+    [{"role": "user"|"assistant", "content": str}, ...] list ready to prepend
+    to an Ollama/Claude messages array -- empty if there's no buffer yet or
+    it's gone stale past _CONVERSATION_TTL_SECONDS."""
+    buf = _conversation_buffers.get(asker_name)
+    if not buf:
+        return []
+    if time.monotonic() - buf["last_at"] > _CONVERSATION_TTL_SECONDS:
+        _conversation_buffers.pop(asker_name, None)
+        return []
+    return list(buf["turns"])
+
+
+def remember_conversation_turn(asker_name: str, role: str, content: str) -> None:
+    """Appends one turn (role: "user" or "assistant") to `asker_name`'s
+    buffer. Called once per side of an exchange -- see bot.py's
+    compute_team_chat_reply, which calls this for both the incoming message
+    and the reply actually sent, right after logging each to telegram_log."""
+    if not content:
+        return
+    buf = _conversation_buffers.setdefault(asker_name, {"turns": [], "last_at": time.monotonic()})
+    if time.monotonic() - buf["last_at"] > _CONVERSATION_TTL_SECONDS:
+        buf["turns"] = []  # stale thread -- start fresh rather than splicing old context back in
+    buf["turns"].append({"role": role, "content": content})
+    buf["turns"] = buf["turns"][-_CONVERSATION_MAX_TURNS:]
+    buf["last_at"] = time.monotonic()
+    if len(_conversation_buffers) > _CONVERSATION_MAX_ASKERS:
+        oldest_asker = min(_conversation_buffers, key=lambda k: _conversation_buffers[k]["last_at"])
+        if oldest_asker != asker_name:
+            _conversation_buffers.pop(oldest_asker, None)
+
+
 def _matching_candidates(reply_text: str, rows: list[dict], name_key: str) -> list[dict]:
     """Rows among `rows` whose name contains every word of `reply_text` --
     matches a bare "Crook" or "Bill Crook" follow-up against "Bill Crook",
@@ -448,10 +499,18 @@ def _generate(question: str, asker_name: str, allow_contact_info: bool) -> tuple
         contact_example=_CONTACT_ALLOWED_EXAMPLE if allow_contact_info else _CONTACT_BLOCKED_EXAMPLE,
     )
     resolved_question = _resolve_first_person(question, asker_name)
+    # Prior turns from this leader's rolling conversation buffer (see
+    # get_conversation_turns above) -- lets a follow-up like "what about last
+    # week" or a question that only makes sense after something the leader
+    # said earlier (e.g. Kaci mentioning she handles event registrations)
+    # resolve correctly instead of every call starting from nothing. The
+    # strict DOMAIN:/SQL: output contract in _SYSTEM_TEMPLATE still governs
+    # the reply shape regardless of what's in this history.
+    history = get_conversation_turns(asker_name)
 
     claude_result = call_claude(
         system=system, user=resolved_question, job_name="analytics.data_chat",
-        person=asker_name, message=question,
+        person=asker_name, message=question, history=history,
     )
     if claude_result:
         content = claude_result
@@ -461,10 +520,9 @@ def _generate(question: str, asker_name: str, allow_contact_info: bool) -> tuple
                 OLLAMA_URL,
                 json={
                     "model": MODEL,
-                    "messages": [
-                        {"role": "system", "content": system},
-                        {"role": "user", "content": resolved_question},
-                    ],
+                    "messages": [{"role": "system", "content": system}]
+                    + history
+                    + [{"role": "user", "content": resolved_question}],
                     "stream": False,
                     "options": {"temperature": 0},
                 },
