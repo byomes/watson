@@ -82,6 +82,28 @@ def create_tables(conn=None) -> None:
         if "merged_at" not in cols:
             conn.execute("ALTER TABLE claude_code_jobs ADD COLUMN merged_at TEXT")
 
+        # auto_merge: per Bill's 2026-09-15 explicit direction ("fully
+        # autonomous -- write, merge, deploy, no review"), jobs.analytics.
+        # fast_path_suggestions dispatches a real Claude Code job for any
+        # "needs real logic" gap it finds, with NO Approve/Reject gate.
+        # This flag tells jobs/devdispatch/poller.py to call
+        # _merge_claude_code_job + deploy the instant the PR is opened,
+        # instead of the normal "PR opened, Telegram sent, Bill merges
+        # manually" flow that every other dispatch still uses. Scoped to
+        # this one trigger on purpose -- see _merge_claude_code_job's own
+        # docstring, which this is a deliberate, narrow exception to, not a
+        # change to the general devdispatch safety model.
+        if "auto_merge" not in cols:
+            conn.execute("ALTER TABLE claude_code_jobs ADD COLUMN auto_merge INTEGER NOT NULL DEFAULT 0")
+
+        # source_suggestion_id: the fast_path_suggestions.id that triggered
+        # this dispatch, if any -- lets the poller write the outcome back
+        # onto that row (status, applied_detail) once merged/deployed or
+        # failed, the same way the non-autonomous suggestion flow already
+        # records what happened.
+        if "source_suggestion_id" not in cols:
+            conn.execute("ALTER TABLE claude_code_jobs ADD COLUMN source_suggestion_id INTEGER")
+
         conn.commit()
     finally:
         if owns_conn:

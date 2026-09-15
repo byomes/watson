@@ -39,12 +39,33 @@ happen automatically. Two changes:
      Reject gate, in both review_single_question() and run() below. Bill
      still gets a Telegram message either way: an FYI (not a permission
      ask) on success, a real alert if the safe apply itself failed.
-     Anything needing a genuine decision -- target_id None, a question
-     that doesn't fit any existing category and would need real new logic
-     -- still goes to Telegram with the original Approve/Reject card
-     (handled by bot.py's handle_fast_path_suggestion_callback on Approve,
-     which queues it for a coding session rather than attempting a risky
-     automated edit).
+
+**Re-architected again 2026-09-15**, the night after fixing a whole backlog
+of "needs real logic" suggestions by hand (fast_path_suggestions ids
+9-25, commit 21f8148) that had been sitting on Telegram Approve/Reject
+cards -- some for days -- waiting for Bill to remember to start a coding
+session. He asked Watson to "fix everything on this list and then rewire
+the loop... so that when help is needed it's just automatically coded and
+added, don't wait and stack it up for me to remember." Shown the risk
+first (several of that backlog turned out to be misclassified or
+structurally impossible fixes, and the one thing that WAS already fully
+automated -- a one-line trigger-phrase append -- still shipped a dead
+bracket-literal trigger the same day, see commit ee8c4d9/21f8148), Bill
+chose full autonomy anyway: write, merge, deploy, no review.
+
+A "needs real logic" suggestion (target_id None) no longer goes to a
+Telegram card at all -- _auto_dispatch_fix() immediately dispatches a
+real, headless Claude Code job (jobs.devdispatch.api._dispatch_claude_
+code_job) with auto_merge=1 set on its claude_code_jobs row. jobs/
+devdispatch/poller.py (already cron'd every 2 minutes) merges that job's
+PR and deploys it (git pull + restart watson-dashboard/watson-bot) the
+instant the PR is ready, with nobody in the loop -- see that function's
+_auto_merge_and_deploy() and _merge_claude_code_job's docstring in
+jobs/devdispatch/api.py for the scoped exception this is (every OTHER
+use of dispatch_claude_code_job still requires Bill's manual merge).
+Bill gets a Telegram FYI when the fix starts building and another when
+it's live (or if dispatch/merge/deploy failed) -- never a permission
+ask, same philosophy as the simple-fix path above.
 
 Cron (nightly 2:25am backstop, in the existing quiet-hours cluster after
 skills_catalog at 2:20am, before backup at 3:00am):
@@ -297,34 +318,94 @@ def _store_suggestion(target_id: str | None, new_phrase: str | None, example_que
         return cur.lastrowid
 
 
-def _send_suggestion(suggestion_id: int, target_id: str | None, target_label: str,
-                      new_phrase: str | None, example_question: str, reasoning: str) -> None:
-    if target_id and new_phrase:
-        text = (
-            f"\U0001f4a1 Fast-path suggestion\n\n"
-            f'Someone asked: "{example_question}"\n\n'
-            f"Add trigger phrase \"{new_phrase}\" to the existing {target_label} category?\n"
-            f"{reasoning}\n\n"
-            "Approving applies it immediately (no API call needed for this kind of "
-            "question going forward) and restarts Watson to pick it up.\n\n"
-            "- Watson"
+def _build_dispatch_spec(example_question: str, reasoning: str) -> str:
+    """Spec text handed to a real, headless Claude Code job for a 'needs
+    real logic' gap -- see _auto_dispatch_fix's docstring for why this
+    exists. Points it at the actual conventions to follow and, since this
+    ships with zero human review before merge+deploy, tells it explicitly
+    to stay conservative and to verify its own fix against the real
+    question rather than just eyeballing it."""
+    return (
+        "A Team Chat leader asked Watson (a church admin assistant) this question, and it had "
+        "no fast, free way to answer it -- it fell through to a paid LLM call:\n\n"
+        f'  "{example_question}"\n\n'
+        f"Why this doesn't fit anything that already exists: {reasoning}\n\n"
+        "Add a real, working answer for this shape of question. Read jobs/skills/cdb_query.py's "
+        "_pattern_match() first -- it's a big if/elif chain of regex/substring-triggered SQL "
+        "generators over data/congregation.db (members, attendance, connect_cards, follow_ups, "
+        "prayer_requests, next_steps), used by both jobs/analytics/data_chat.py (Team Chat) and "
+        "bot.py's DM-only fast paths. Follow its existing conventions exactly -- SPOUSE LOOKUP "
+        "and MEMBER'S OWN DEACON (checked before MEMBER LOOKUP BY NAME, same file) are good "
+        "examples of the regex-extract-name-then-build-SQL pattern to copy for a new category. "
+        "If the question is really about writing/changing data (not just looking it up), check "
+        "jobs/congregation/family_edit.py and bot.py's _extract_mark_spouse/_extract_mark_child "
+        "first -- there may already be a write path that just needs a new phrasing recognized, "
+        "the way add_child/mark_spouse/mark_child work.\n\n"
+        "Test whatever regex/logic you add against the ACTUAL question above before finishing -- "
+        "run it through the real function, don't just eyeball it. NEVER insert a literal "
+        "template placeholder (like '[name]') as a trigger phrase or pattern -- it can never "
+        "match real text; extract the real name with a regex capture group instead, the way "
+        "every existing pattern in that file does (a past auto-applied fix got this wrong and "
+        "shipped a dead trigger -- see commit 21f8148 for the cleanup). This fix ships with NO "
+        "human review before it goes live, so be conservative: prefer extending an existing, "
+        "working pattern over inventing new schema or new write paths, and if the question is "
+        "genuinely ambiguous or risky to answer automatically (e.g. it could write incorrect "
+        "data about a real person), it's fine to leave it unanswered/falling through to the LLM "
+        "path rather than guess."
+    )
+
+
+def _auto_dispatch_fix(suggestion_id: int, example_question: str, reasoning: str) -> None:
+    """Per Bill's 2026-09-15 explicit direction ('fully autonomous -- write,
+    merge, deploy, no review') for this one trigger: a 'needs real logic'
+    gap no longer sits on a Telegram Approve/Reject card waiting for him to
+    remember to start a coding session. It's dispatched to a real Claude
+    Code job immediately (jobs.devdispatch.api._dispatch_claude_code_job),
+    flagged auto_merge=1 on the claude_code_jobs row so jobs/devdispatch/
+    poller.py merges + deploys it the moment the PR is ready, with nobody
+    in the loop. Bill gets a Telegram FYI at dispatch time and another once
+    it's actually live (or if something failed) -- never a permission ask,
+    matching this file's existing 'FYI not a permission ask' philosophy for
+    the simple-fix auto-apply path. Replaces the old _send_suggestion
+    Approve/Reject-card flow for this branch entirely -- bot.py's
+    handle_fast_path_suggestion_callback still exists for its target_id-set
+    branch's sake (harmless either way, and a defensive fallback if this
+    dispatch itself fails below), but nothing here creates a 'pending' row
+    that needs a Telegram tap anymore."""
+    from jobs.devdispatch.api import _dispatch_claude_code_job
+
+    spec = _build_dispatch_spec(example_question, reasoning)
+    result = _dispatch_claude_code_job(spec, repo="watson", branch_name=f"fastpath/{suggestion_id}")
+    job_id = result.get("job_id")
+    if result.get("status") != "running" or not job_id:
+        err = result.get("error", "unknown error")
+        with get_connection() as conn:
+            conn.execute(
+                "UPDATE fast_path_suggestions SET status='failed', applied_detail=?, resolved_at=datetime('now') WHERE id=?",
+                (f"could not dispatch a coding job: {err}", suggestion_id),
+            )
+        _send_telegram(
+            f"⚠️ Tried to auto-fix a Team Chat gap but couldn't even start the coding job: {err}\n\n"
+            f'Question: "{example_question}"\n\n- Watson'
         )
-    else:
-        text = (
-            f"\U0001f4dd New pattern needed\n\n"
-            f'Someone asked: "{example_question}"\n\n'
-            f"This doesn't fit anything Watson already recognizes -- {reasoning}\n\n"
-            "Approving just flags it for our next coding session (no automatic code "
-            "change for something this open-ended).\n\n"
-            "- Watson"
+        return
+
+    with get_connection() as conn:
+        conn.execute(
+            "UPDATE claude_code_jobs SET auto_merge=1, source_suggestion_id=? WHERE id=?",
+            (suggestion_id, job_id),
         )
-    reply_markup = {
-        "inline_keyboard": [[
-            {"text": "✅ Approve", "callback_data": f"fps_approve:{suggestion_id}"},
-            {"text": "❌ Reject", "callback_data": f"fps_reject:{suggestion_id}"},
-        ]]
-    }
-    _send_telegram(text, reply_markup)
+        conn.execute(
+            "UPDATE fast_path_suggestions SET status='dispatched', applied_detail=? WHERE id=?",
+            (f"Auto-dispatched as devdispatch job {job_id} (branch fastpath/{suggestion_id}).", suggestion_id),
+        )
+        conn.commit()
+
+    _send_telegram(
+        f"\U0001f6e0️ Found a Team Chat gap and I'm building a fix automatically -- no action needed.\n\n"
+        f'Question: "{example_question}"\n{reasoning}\n\n'
+        f"I'll let you know once it's live (devdispatch job {job_id}).\n\n- Watson"
+    )
 
 
 def run() -> int:
@@ -376,11 +457,14 @@ def run() -> int:
         # Per Bill's 2026-09-14 "simple fixes just add them and move on" --
         # applies here too, not just the per-call path (review_single_
         # question) below, so this nightly backstop run behaves the same
-        # way if it ever catches something the live path missed.
+        # way if it ever catches something the live path missed. Per his
+        # 2026-09-15 "fully autonomous" follow-up, the else branch below no
+        # longer waits on a Telegram Approve/Reject tap either -- see
+        # _auto_dispatch_fix's docstring.
         if target_id and new_phrase:
             _auto_apply(suggestion_id, target_id, target_label, new_phrase, example_question, reasoning)
         else:
-            _send_suggestion(suggestion_id, target_id, target_label, new_phrase, example_question, reasoning)
+            _auto_dispatch_fix(suggestion_id, example_question, reasoning)
         sent += 1
         all_matched_ids.update(matched_ids)
 
@@ -501,8 +585,8 @@ def review_single_question(spend_log_id: int, asker_name: str, question: str) ->
                 log.info("review_single_question: id=%d auto-applying %r to %s", row_id, new_phrase, target_id)
                 _auto_apply(suggestion_id, target_id, target_label, new_phrase, question, reasoning)
             else:
-                log.info("review_single_question: id=%d needs a real decision -- sent to Telegram (suggestion_id=%d).", row_id, suggestion_id)
-                _send_suggestion(suggestion_id, target_id, target_label, new_phrase, question, reasoning)
+                log.info("review_single_question: id=%d needs real logic -- auto-dispatching (suggestion_id=%d).", row_id, suggestion_id)
+                _auto_dispatch_fix(suggestion_id, question, reasoning)
     finally:
         mark_reviewed([row_id])
         advance_claude_call_watermark(spend_log_id)

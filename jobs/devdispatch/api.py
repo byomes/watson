@@ -900,11 +900,22 @@ def _check_claude_code_job(job_id) -> dict:
 
 
 def _merge_claude_code_job(job_id) -> dict:
-    """Merge a dispatched job's PR into main. Only ever invoked as an
-    explicit, separate call on Bill's per-job approval — never from
-    _dispatch_claude_code_job's or _finalize_completed_job's own completion
-    path, which keep stopping at "PR opened, Telegram sent" exactly as
-    before."""
+    """Merge a dispatched job's PR into main. For an ordinary dispatch, only
+    ever invoked as an explicit, separate call on Bill's per-job approval —
+    never from _dispatch_claude_code_job's or _finalize_completed_job's own
+    completion path, which keep stopping at "PR opened, Telegram sent"
+    exactly as before.
+
+    ONE deliberate, narrow exception: jobs/devdispatch/poller.py calls this
+    automatically (no approval) for a job with auto_merge=1 — set only by
+    jobs.analytics.fast_path_suggestions when it dispatches a fix for a
+    Team Chat gap it found. Per Bill's explicit 2026-09-15 direction
+    ("fully autonomous — write, merge, deploy, no review") for THAT ONE
+    trigger specifically, after a session where several "simple" fixes in
+    that same pipeline turned out to need real engineering judgment to get
+    right (see fast_path_suggestions ids 9-25, commit 21f8148) — asked and
+    answered with that risk shown to him first. This does not change the
+    general rule above for any other caller of dispatch_claude_code_job."""
     if job_id is None:
         return {"error": "job_id is required"}
 

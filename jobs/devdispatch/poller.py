@@ -25,10 +25,13 @@ Cron (every 2 minutes):
 import fcntl
 import json
 import logging
+import subprocess
 from pathlib import Path
 
 from core.database import get_connection
-from jobs.devdispatch.api import _check_claude_code_job, _telegram, _worktree_path
+from jobs.devdispatch.api import (
+    _check_claude_code_job, _get_job_row, _merge_claude_code_job, _repo_path, _telegram, _worktree_path,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -99,6 +102,88 @@ def _check_progress(job_id: int) -> None:
         conn.close()
 
 
+def _record_suggestion_outcome(suggestion_id, status, detail) -> None:
+    if not suggestion_id:
+        return
+    conn = get_connection()
+    try:
+        conn.execute(
+            "UPDATE fast_path_suggestions SET status=?, applied_detail=?, resolved_at=datetime('now') WHERE id=?",
+            (status, detail, suggestion_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _auto_merge_and_deploy(job_id: int) -> None:
+    """Called right after a job transitions to 'done' (PR opened) for a job
+    dispatched with auto_merge=1 -- merges immediately with no approval
+    step, then pulls + restarts the live watson services so the fix is
+    actually live, not just merged into main. See _merge_claude_code_job's
+    docstring for the Bill-authorized (2026-09-15) exception this is,
+    scoped to jobs.analytics.fast_path_suggestions dispatches only."""
+    row = _get_job_row(job_id)
+    if row is None or not row["auto_merge"]:
+        return
+    source_suggestion_id = row["source_suggestion_id"]
+    repo = row["repo"]
+
+    result = _merge_claude_code_job(job_id)
+    status = result.get("status")
+    if status not in ("merged", "already_merged"):
+        err = result.get("error", "unknown error")
+        _telegram(
+            f"⚠️ devdispatch job {job_id} auto-fix built a PR but couldn't "
+            f"auto-merge: {err}\nStopping short of deploy — needs a manual look."
+        )
+        _record_suggestion_outcome(source_suggestion_id, "failed", f"PR opened but auto-merge failed: {err}")
+        return
+
+    if repo != "watson":
+        # Only watson's live services are ours to restart here -- an
+        # auto-merged fix to another repo still needs its own manual deploy
+        # step. This trigger only ever targets watson in practice (fast
+        # path suggestions are all about jobs/skills/cdb_query.py, bot.py,
+        # jobs/location/*), but this guard keeps that from silently
+        # expanding if that ever changes.
+        _record_suggestion_outcome(
+            source_suggestion_id, "applied", f"Merged (devdispatch job {job_id}) — deploy to {repo} still manual."
+        )
+        return
+
+    try:
+        pull = subprocess.run(
+            ["git", "pull"], cwd=str(_repo_path("watson")), capture_output=True, text=True, timeout=60,
+        )
+        if pull.returncode != 0:
+            raise RuntimeError((pull.stderr or pull.stdout or "git pull failed").strip()[:300])
+        subprocess.run(
+            ["sudo", "-n", "/usr/bin/systemctl", "restart", "watson-dashboard.service"], timeout=15, check=True,
+        )
+        # Fire-and-forget, same reasoning as fast_path_patcher.apply_and_
+        # deploy(): `systemctl restart` on watson-bot.service sends SIGTERM
+        # to whatever's calling it when the caller IS that service, and
+        # blocks until it exits -- but the poller itself isn't watson-bot,
+        # so this is just consistency with the established safe pattern.
+        subprocess.Popen(["sudo", "-n", "/usr/bin/systemctl", "restart", "watson-bot.service"])
+    except Exception as exc:
+        _telegram(
+            f"⚠️ devdispatch job {job_id} merged but deploy failed: {exc}\n"
+            f"Code is on main but NOT live yet — needs `git pull` + a service restart by hand."
+        )
+        _record_suggestion_outcome(source_suggestion_id, "failed", f"Merged (devdispatch job {job_id}) but deploy failed: {exc}")
+        return
+
+    _telegram(
+        f"✅ Auto-fixed and deployed (devdispatch job {job_id}, no review needed) — "
+        f"the Team Chat gap that triggered this is closed.\n- Watson"
+    )
+    _record_suggestion_outcome(
+        source_suggestion_id, "applied", f"Auto-dispatched, merged, and deployed via devdispatch job {job_id}.",
+    )
+
+
 def poll() -> None:
     job_ids = _pending_job_ids()
     if not job_ids:
@@ -114,6 +199,12 @@ def poll() -> None:
             status = result.get("status")
             if status in ("done", "failed"):
                 log.info("job %d: transitioned to %s (%s)", job_id, status, result.get("summary"))
+                if status == "done":
+                    try:
+                        _auto_merge_and_deploy(job_id)
+                    except Exception as exc:
+                        log.error("job %d: auto-merge/deploy raised: %s", job_id, exc)
+                        _telegram(f"⚠️ devdispatch job {job_id} auto-merge/deploy step crashed: {exc}")
             else:
                 log.info("job %d: still %s", job_id, status)
 
