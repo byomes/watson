@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-09-14*
+*Generated: 2026-09-15*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -99,8 +99,6 @@ data/
     66e0844b7fab4e0a8bb386db8504deac.png
     9eca6f54ecff491dbed2470fd0b3d196.png
   congregation.db
-  congregation.db-shm
-  congregation.db-wal
   congregation.db.bak_before_orphan_delete_20260906_070048
   cover_images/
     cover_1.jpg
@@ -205,6 +203,15 @@ data/
   riddle_current.json
   riddle_history.json
   sermon_calendar.json
+  sermonshots_clips/
+    746878.mp4
+    771143.mp4
+    771206.mp4
+    771259.mp4
+    771306.mp4
+    771336.mp4
+    771371.mp4
+    771402.mp4
   servantcare.db
   servantcare_images/
     100/
@@ -3493,6 +3500,9 @@ data/
         guardrails-new-chapters-field-research.md
         guardrails-thesis-content-mining.md
         transcript.md
+      20260914-201203-guardrails-master-outline-read-through-ch-1-fresh/
+        ch1-thing-nobody-worries-about.md
+        transcript.md
     ideas-to-be-developed/
       20260826-013954-expanding-concept-ideas/
         transcript.md
@@ -4054,6 +4064,10 @@ data/
         transcript.md
     trust-issues/
       20260910-144925-trust-issues-ch-1-8-word-count-audit-vs-new-4k-flo/
+        transcript.md
+      20260914-113036-ch-5-6-reconciliation-locked-new-chapter-interview/
+        transcript.md
+      20260914-135406-interview-session-watson-build-stories-claude-code/
         transcript.md
     wcky-book-launch-project/
       20260826-013953-sending-giving-statements-in-tithely/
@@ -4670,6 +4684,8 @@ data/
   trading.db.bak-pre-sizing-fix-20260911073349
   trading.db.bak-pre-windows3-backfill-20260911110635
   watson.db
+  watson.db-shm
+  watson.db-wal
 deploy/
   .gitkeep
   apt-packages.txt
@@ -4785,6 +4801,9 @@ jobs/
     font_finder.py
     routes.py
     schema.py
+  book_launch/
+    __init__.py
+    api.py
   browser/
     __init__.py
     browser_service.py
@@ -4803,6 +4822,14 @@ jobs/
     schema.py
     test_dispatch.py
     weekly_digest.py
+  church_social/
+    __init__.py
+    api.py
+    migrate_clip_scheduling.py
+    sermonshots.py
+    sermonshots_pull.py
+    social.py
+    social_web.py
   cleanup.py
   cleanup_library.ps1
   code_agent/
@@ -4995,6 +5022,7 @@ jobs/
     __init__.py
     import_csv.py
     matching.py
+    pattern_match.py
     schema.py
     signup_detect.py
   exports/
@@ -5055,11 +5083,11 @@ jobs/
     ingest_devotionals.py
     schema.py
     sync_and_index.py
+    sync_blog.py
     tag_sermon_years.py
     tag_source_types.py
   lead_magnet/
     __init__.py
-    _oneoff_wrong_jesus_guide_live.py
     api.py
     send_confirmation.py
   links/
@@ -5114,6 +5142,9 @@ jobs/
     __init__.py
     log_watch.py
     weather_every_morning.py
+  newsletter/
+    __init__.py
+    api.py
   note.py
   pastoral_notes/
     __init__.py
@@ -5128,6 +5159,8 @@ jobs/
     lookup.py
     migrate.py
     migrate_telegram_claim_code.py
+    nicknames.py
+    pending_lookup.py
     registry.py
     server.py
   privacy/
@@ -5850,6 +5883,69 @@ kb/
     CC 12-23-12.pdf
     CC 12-24-12.pdf
     CC 12-30-12.pdf
+  ghostwritten/
+    2026-04-21-your-life-is-a-passport.md
+    2026-04-22-hate-in-the-heart-is-murder-and-you-probably-know-someone-you-need-to-call.md
+    2026-04-24-the-biblical-definition-of-adultery-will-make-everyone-uncomfortable-equally.md
+    2026-04-25-jesus-didnt-cancel-the-old-testament-he-raised-the-standard.md
+    2026-04-27-you-cant-be-a-bible-thumper-and-a-kingdom-citizen-at-the-same-time.md
+    2026-04-29-stop-calling-it-persecution.md
+    2026-05-01-salt-that-isnt-salty-is-just-a-rock.md
+    2026-05-05-the-bema-seat-why-what-you-do-in-private-actually-matters.md
+    2026-05-07-god-is-not-a-genie.md
+    2026-05-20-the-discernment-we-were-never-supposed-to-abandon.md
+    2026-05-21-pearls-pigs-and-reading-the-room.md
+    2026-05-23-the-golden-rule-is-not-a-platitude.md
+    2026-05-26-the-plank-goes-first.md
+    2026-05-28-rock-sand-and-the-storms-that-tell-the-truth.md
+    2026-05-30-the-most-terrifying-sentence-in-scripture.md
+    2026-06-02-you-can-t-fake-the-fruit.md
+    2026-06-04-the-gate-nobody-wants-to-take.md
+    2026-06-09-you-don-t-have-to-see-the-whole-road.md
+    2026-06-10-blessing-lives-on-the-other-side-of-obedience.md
+    2026-06-12-god-doesn-t-do-detours.md
+    2026-06-14-stop-making-yourself-the-main-character.md
+    2026-06-17-the-inheritance-you-didn-t-build.md
+    2026-06-19-be-strong-and-courageous-is-not-a-feeling.md
+    2026-06-21-covenant-before-conquest.md
+    2026-06-24-passion-isn-t-character.md
+    2026-06-26-still-fighting-for-someone-else-s-land.md
+    2026-06-28-the-inheritance-was-already-written.md
+    2026-06-30-you-are-not-what-you-do.md
+    2026-07-02-when-culture-knocks-at-the-door.md
+    2026-07-04-everybody-heard-but-only-rahab-believed.md
+    2026-07-07-the-scarlet-cord-in-the-window.md
+    2026-07-09-a-brothel-to-a-bloodline.md
+    2026-07-11-the-wilderness-was-never-the-destination.md
+    2026-07-14-the-dry-ground-is-under-your-feet-only-after-you-step-in.md
+    2026-07-16-consecrated-people-cross-rivers.md
+    2026-07-18-provision-and-purpose-are-not-the-same-thing.md
+    2026-07-21-miraculous-and-providential-the-two-ways-god-moves.md
+    2026-07-23-the-stones-we-leave-behind.md
+    2026-07-25-covenant-is-not-a-private-matter.md
+    2026-07-28-joshua-s-second-pile.md
+    2026-07-30-hand-it-down-or-lose-it.md
+    2026-08-01-one-generation-from-extinction.md
+    2026-08-04-received-not-taken.md
+    2026-08-06-the-sign-before-the-conquest.md
+    2026-08-08-when-the-manna-stops.md
+    2026-08-11-are-you-with-me.md
+    2026-08-13-what-your-children-inherit.md
+    2026-08-15-the-inheritance-was-already-given.md
+    2026-08-18-faith-looks-foolish-from-the-wall.md
+    2026-08-20-holy-and-devoted-two-words-for-belonging-to-god.md
+    2026-08-22-is-this-genocide-reading-joshua-6-honestly.md
+    2026-08-25-rahab-and-the-allegiance-that-saves.md
+    2026-08-27-when-one-sin-belongs-to-everyone.md
+    2026-08-29-the-danger-of-yesterday-s-victory.md
+    2026-09-01-holy-or-devoted-to-destruction.md
+    2026-09-03-what-we-bury-under-the-tent.md
+    2026-09-05-standing-up-before-the-fix.md
+    2026-09-08-where-joy-actually-comes-from.md
+    2026-09-10-chains-and-confidence.md
+    2026-09-12-partners-not-spectators.md
+    the-flashlight-of-your-focus.md
+    where-your-treasure-is.md
   handouts/
     Bible Study Method Banner 2m x 3m.txt
     Bible Study Method.txt
@@ -6257,6 +6353,8 @@ public/
     DS3-cover.png
     HeIsRisen-Cover.jpg
     TWJ_Launch_2.PNG
+    guardrails-cover.png
+    guardrails-og.png
     lead-magnet.png
     lead-magnet2.png
     og-default.png
@@ -6285,6 +6383,9 @@ src/
           route.ts
         login/
           route.ts
+      guardrails/
+        signup/
+          route.ts
       ingest/
         route.ts
       lead-magnet/
@@ -6296,6 +6397,9 @@ src/
         availability/
           route.ts
         book/
+          route.ts
+      newsletter/
+        subscribe/
           route.ts
       read/
         [slug]/
@@ -6403,6 +6507,10 @@ src/
     go/
       [slug]/
         route.ts
+    guardrails/
+      ShareButtons.tsx
+      SignupForm.tsx
+      page.tsx
     guide/
       [slug]/
         GuideSignupForm.tsx
@@ -6538,6 +6646,7 @@ src/
     HomePopup.tsx
     LeadMagnetModal.tsx
     LeadMagnetModalContext.tsx
+    NewsletterModal.tsx
     StartCTA.tsx
   content/
     books/
@@ -6852,6 +6961,17 @@ src/
         shepherdingreport/
           lastseen/
             route.ts
+        social/
+          cancel/
+            route.ts
+          clips/
+            route.ts
+          create/
+            route.ts
+          queue/
+            route.ts
+          status/
+            route.ts
       p/
         beachhouse/
           categories/
@@ -6920,6 +7040,13 @@ src/
         apple-icon.jpg
         icon.jpg
         page.tsx
+      social/
+        SocialDashboard.tsx
+        actions.ts
+        login/
+          page.tsx
+          pin-pad.tsx
+        page.tsx
     globals.css
     icon.png
     layout.tsx
@@ -6939,6 +7066,7 @@ src/
     deaconTheme.ts
     requireLiveTool.ts
     shepherdingReport.ts
+    socialAuth.ts
     useAutoTheme.ts
     validation.ts
     watson.ts
