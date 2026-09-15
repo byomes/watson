@@ -1,9 +1,10 @@
 """
-Birthday Daily Alert -- Telegram nudge to Dr. Bill every morning listing
-anyone in the congregation whose birthday is today, so he can text them
-himself. Distinct from birthday_report.py (that one is a monthly
+Birthday Daily Alert -- Telegram nudge every morning listing anyone in
+the congregation whose birthday is today, so recipients can text them
+directly. Distinct from birthday_report.py (that one is a monthly
 look-ahead digest to the deacons, scoped to their own groups); this one
-is same-day, congregation-wide, and goes to Dr. Bill only.
+is same-day, congregation-wide, and goes to Dr. Bill, Jim Bouchat, and
+Bill Crook.
 
 Scope: members.active = 1 AND member_status = 'active' AND birthdate's
 month/day matches today. Includes phone number (when on file) so Dr.
@@ -31,7 +32,11 @@ from jobs.telegram.send_to_person import send_to_person
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger(__name__)
 
-BILL_PERSON_ID = 7  # people.id for Bill Yomes (watson.db)
+RECIPIENT_PERSON_IDS = [
+    7,   # Bill Yomes
+    254,  # Jim Bouchat
+    78,  # Bill Crook
+]
 
 
 def _todays_birthdays() -> list[tuple[str, int, str | None]]:
@@ -80,11 +85,16 @@ def main():
     if vacation_gate("normal", "jobs.congregation.birthday_daily_alert", message):
         return
 
-    ok = send_to_person(BILL_PERSON_ID, message)
-    if not ok:
-        log.error("birthday_daily_alert: failed to send to Bill")
-    else:
-        log.info("birthday_daily_alert: sent %d birthday(s) to Bill", len(birthdays))
+    for person_id in RECIPIENT_PERSON_IDS:
+        ok = send_to_person(person_id, message)
+        if not ok:
+            log.error("birthday_daily_alert: failed to send to person_id=%s", person_id)
+        else:
+            log.info(
+                "birthday_daily_alert: sent %d birthday(s) to person_id=%s",
+                len(birthdays),
+                person_id,
+            )
 
 
 if __name__ == "__main__":
