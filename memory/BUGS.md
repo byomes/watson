@@ -1,6 +1,6 @@
 # Watson Bug Tracker
 _Auto-generated nightly from bug_tracker. Source of truth is the database — do not hand-edit this file, changes will be overwritten._
-Last generated: 2026-09-14 02:10
+Last generated: 2026-09-15 02:10
 
 ## Open (49)
 | ID | Title | Repo | Discovered |
@@ -58,6 +58,13 @@ Last generated: 2026-09-14 02:10
 ## Recently Resolved (last 30 days)
 | ID | Title | Repo | Resolved | Commit |
 |---|---|---|---|---|
+| 172 | Testing mistake during fast-path-per-call feature build: live accidental auto-apply + watermark poisoned | watson | 2026-09-15 00:15:12 | 9357adc83f67e3daa7fb2f6a694984ac1dc5c371 |
+| 171 | jobs/events/pattern_match.py (commit 39e9424) attend/coming triggers collided with attendance questions | watson | 2026-09-14 22:54:11 | c1c538eafb1d48063bb1f0ff764a168f1f6275a4 |
+| 170 | 'Both campuses' fast-path/LLM collision gave a nonsense attendance answer | watson | 2026-09-14 22:54:11 | c1c538eafb1d48063bb1f0ff764a168f1f6275a4 |
+| 169 | Events questions always hit Claude API — no fast path existed | watson | 2026-09-14 22:13:17 | 39e9424446ca2d0ee0fe1835b03748ebe2914a78 |
+| 168 | Event-signup/email-triage Ollama classifiers 404 (llama3.2:1b pruned) | watson | 2026-09-14 21:52:35 | 4a0316904b120a8dd4e8676cba2fe69b49ce6818 |
+| 167 | Name lookup missed nicknames and lost context on disambiguation follow-up | watson | 2026-09-14 17:06:41 | b573a0b |
+| 166 | batch.py ModuleNotFoundError: No module named jobs when run directly | watson | 2026-09-14 13:02:20 | ee6f1bf |
 | 165 | generate.py overwrote historical sermon dates with ingestion date | watson | 2026-09-13 20:39:58 | 9e8295e |
 | 164 | Archive-mode sermon pipeline never ships transcripts to Beelink KB | watson | 2026-09-13 20:36:44 | 1a4c9cf |
 | 163 | duplicate_review.merge_members double-counts attendance on collision | watson | 2026-09-13 20:12:45 | d9e9c9c |
