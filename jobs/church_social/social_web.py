@@ -56,7 +56,7 @@ def status():
 def queue():
     with get_connection() as conn:
         rows = conn.execute(
-            """SELECT id, platform, text, image_path, status, scheduled_time,
+            """SELECT id, platform, text, image_path, video_path, status, scheduled_time,
                       posted_time, fb_error, ig_error, created_at
                FROM church_social_queue
                ORDER BY scheduled_time DESC
@@ -65,18 +65,43 @@ def queue():
     return jsonify({"posts": [dict(r) for r in rows]})
 
 
+@church_social_web_bp.route("/api/cat/social/clips", methods=["GET"])
+@_require_key
+def clips():
+    """Pulled Sermon Shots clips still awaiting review/scheduling —
+    jobs/church_social/sermonshots_pull.py fills this table every 30 min.
+    serve_token backs the dashboard's <video> preview and (once scheduled)
+    Meta's own fetch of the file, both via GET /church_social/clip/<token>
+    in jobs/church_social/api.py."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            """SELECT id, video_name, serve_token, pulled_at
+               FROM sermonshots_clips
+               WHERE status != 'dismissed' AND queued_post_id IS NULL
+               ORDER BY pulled_at DESC
+               LIMIT 50"""
+        ).fetchall()
+    return jsonify({"clips": [dict(r) for r in rows]})
+
+
 @church_social_web_bp.route("/api/cat/social/create", methods=["POST"])
 @_require_key
 def create():
     """JSON body (not multipart) — image_base64 may be a bare base64 string or a
     data: URL, since the dashboard's watsonFetch proxy only forwards string
     bodies, not multipart file streams (see jobs/church_social/social_web.py
-    callers in watson-tools' src/app/api/cat/social/create/route.ts)."""
+    callers in watson-tools' src/app/api/cat/social/create/route.ts).
+
+    clip_id schedules a pulled Sermon Shots clip instead of a compose-form
+    image — mutually exclusive with image_base64; resolves to that clip's
+    local video file and marks the clip 'scheduled' via queued_post_id so
+    it drops out of GET /api/cat/social/clips."""
     data = request.get_json(force=True) or {}
     platform = (data.get("platform") or "").strip().lower()
     text = (data.get("text") or "").strip()
     scheduled_time_raw = (data.get("scheduled_time") or "").strip()
     image_b64 = data.get("image_base64")
+    clip_id = data.get("clip_id")
 
     if platform not in ("facebook", "instagram", "both"):
         return jsonify({"error": "platform must be facebook, instagram, or both"}), 400
@@ -86,8 +111,20 @@ def create():
         scheduled_dt = datetime.fromisoformat(scheduled_time_raw)
     except ValueError:
         return jsonify({"error": "scheduled_time must be an ISO datetime"}), 400
-    if platform in ("instagram", "both") and not image_b64:
-        return jsonify({"error": "Instagram requires an image"}), 400
+    if platform in ("instagram", "both") and not image_b64 and not clip_id:
+        return jsonify({"error": "Instagram requires an image or a clip"}), 400
+
+    video_path = None
+    clip_row = None
+    if clip_id:
+        with get_connection() as conn:
+            clip_row = conn.execute(
+                "SELECT id, local_path FROM sermonshots_clips WHERE id=? AND queued_post_id IS NULL",
+                (clip_id,),
+            ).fetchone()
+        if not clip_row:
+            return jsonify({"error": "clip not found or already scheduled"}), 404
+        video_path = clip_row["local_path"]
 
     image_path = None
     if image_b64:
@@ -99,7 +136,17 @@ def create():
             return jsonify({"error": "image_base64 is not valid base64"}), 400
         image_path = save_queued_image(image_bytes)
 
-    post_id = add_to_queue(text=text, scheduled_time=scheduled_dt, platform=platform, image_path=image_path)
+    post_id = add_to_queue(
+        text=text, scheduled_time=scheduled_dt, platform=platform, image_path=image_path, video_path=video_path
+    )
+
+    if clip_row:
+        with get_connection() as conn:
+            conn.execute(
+                "UPDATE sermonshots_clips SET queued_post_id=? WHERE id=?", (post_id, clip_row["id"])
+            )
+            conn.commit()
+
     return jsonify({"id": post_id})
 
 
@@ -120,5 +167,8 @@ def cancel():
         if row["status"] == "posted":
             return jsonify({"error": "already posted"}), 409
         conn.execute("UPDATE church_social_queue SET status='cancelled' WHERE id=?", (post_id,))
+        # Free up the clip (if this was a scheduled Sermon Shots clip) so it
+        # goes back into GET /api/cat/social/clips for re-scheduling.
+        conn.execute("UPDATE sermonshots_clips SET queued_post_id=NULL WHERE queued_post_id=?", (post_id,))
         conn.commit()
     return jsonify({"ok": True})

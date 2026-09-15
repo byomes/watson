@@ -5107,19 +5107,19 @@ async def handle_churchclips(update: Update, context: ContextTypes.DEFAULT_TYPE)
         rows = conn.execute(
             """SELECT id, sermonshots_clip_id, video_name, status, pulled_at
                FROM sermonshots_clips
-               WHERE status != 'dismissed'
+               WHERE status != 'dismissed' AND queued_post_id IS NULL
                ORDER BY pulled_at DESC
                LIMIT 15"""
         ).fetchall()
     if not rows:
-        await update.message.reply_text("No Sermon Shots clips pulled in yet.")
+        await update.message.reply_text("No Sermon Shots clips awaiting review.")
         return
     lines = ["<b>Sermon Shots Clips (pulled, awaiting review):</b>\n"]
     for r in rows:
         lines.append(f"🎬 #{r['id']} — {r['video_name']}\n📥 {r['pulled_at']}")
     lines.append(
-        "\nThese are downloaded locally but not posted anywhere yet — video "
-        "posting isn't wired up. /churchclipdismiss &lt;id&gt; to drop one you don't want."
+        "\nPreview and schedule these at wtsn.me/cat/social. "
+        "/churchclipdismiss &lt;id&gt; to drop one you don't want."
     )
     await update.message.reply_text("\n".join(lines), parse_mode="HTML")
 

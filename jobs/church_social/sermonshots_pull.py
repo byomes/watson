@@ -14,6 +14,7 @@ Cron: every 30 min.
     */30 * * * * PYTHONPATH=/home/billyomes/watson python3 jobs/church_social/sermonshots_pull.py
 """
 import os
+import secrets
 import sqlite3
 from pathlib import Path
 
@@ -49,6 +50,8 @@ def init_db():
             local_path TEXT NOT NULL,
             source_url TEXT,
             status TEXT NOT NULL DEFAULT 'new',
+            serve_token TEXT,
+            queued_post_id INTEGER,
             pulled_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     """)
@@ -103,9 +106,9 @@ def run() -> int:
             conn = sqlite3.connect(DB_PATH)
             conn.execute(
                 """INSERT INTO sermonshots_clips
-                   (sermonshots_clip_id, sermonshots_video_id, video_name, local_path, source_url)
-                   VALUES (?, ?, ?, ?, ?)""",
-                (clip_id, video_id, video_name, str(local_path), file_url),
+                   (sermonshots_clip_id, sermonshots_video_id, video_name, local_path, source_url, serve_token)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                (clip_id, video_id, video_name, str(local_path), file_url, secrets.token_urlsafe(16)),
             )
             conn.commit()
             conn.close()
