@@ -23,6 +23,8 @@ import sqlite3
 from datetime import date, datetime
 from pathlib import Path
 
+import gender_guesser.detector as _gender_detector_module
+
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application, CallbackQueryHandler, CommandHandler,
@@ -2455,18 +2457,54 @@ async def _handle_birthday_update(update: Update, sender_name: str, name_query: 
 # household_role model this writes. These mark a relationship between two
 # members ALREADY on file; _extract_add_child above stays the tool for a
 # brand-new member.
+_BOT_ADDRESS_RE = re.compile(r"^(?:hey\s+|ok(?:ay)?\s+)?watson\s*[,:]\s*", re.IGNORECASE)
+
+_GENDER_DETECTOR = _gender_detector_module.Detector(case_sensitive=False)
+_MALE_GENDER_LABELS = frozenset({"male", "mostly_male"})
+_FEMALE_GENDER_LABELS = frozenset({"female", "mostly_female"})
+
+
+def _infer_spouse_roles(name1: str, name2: str) -> tuple[str | None, str | None]:
+    """Best-effort husband/wife inference from first names, for phrasings
+    ("X and Y are married") that don't say which is which -- added
+    2026-09-15 at Bill's request that "X and Y are married" reach the same
+    outcome as the explicit "X is Y's wife" phrasing. Only resolves when
+    the two first names land on confidently opposite genders in
+    gender_guesser's real name-corpus data (e.g. "Melissa"/"Gary") -- this
+    is inference from statistical name data, not the "arbitrary, whoever
+    got processed first" guess the old head/spouse pairing used and Bill
+    had removed the same day. Anything unisex, unknown, or same-gender
+    falls back to (None, None), which _handle_mark_spouse turns into its
+    existing clarifying question rather than risk writing the wrong gender
+    onto someone's record."""
+    first1 = name1.strip().split()[0] if name1.strip() else ""
+    first2 = name2.strip().split()[0] if name2.strip() else ""
+    if not first1 or not first2:
+        return (None, None)
+    g1 = _GENDER_DETECTOR.get_gender(first1)
+    g2 = _GENDER_DETECTOR.get_gender(first2)
+    if g1 in _MALE_GENDER_LABELS and g2 in _FEMALE_GENDER_LABELS:
+        return ("husband", "wife")
+    if g1 in _FEMALE_GENDER_LABELS and g2 in _MALE_GENDER_LABELS:
+        return ("wife", "husband")
+    return (None, None)
+
+
 def _extract_mark_spouse(text: str) -> tuple[str, str, str | None, str | None] | None:
     """Recognize "X and Y are married/spouses", "X is married to Y", "X's
-    spouse is Y", "X married Y", or "X is Y's husband/wife" and return
-    (name1, name2, role1, role2), or None. "&"/"got married"/husband-wife
-    possessive joined 2026-09-12.
+    spouse is Y", "X married Y", "X is Y's husband/wife", or "make X Y's
+    husband/wife" and return (name1, name2, role1, role2), or None.
+    "&"/"got married"/husband-wife possessive joined 2026-09-12; "make X
+    Y's wife" and a leading "Watson," address joined 2026-09-15 after Donna
+    Redman's actual phrasing ("watson, make Melissa Tabor Gary Tabor's
+    wife") didn't match anything and silently fell through to team_chat.
 
-    role1/role2 are 'husband'/'wife' ONLY when the phrasing said so
-    explicitly (the last pattern below) -- every other phrasing has no way
-    to know which of the two is which, so both come back None and
-    _handle_mark_spouse asks for clarification rather than guessing
-    (2026-09-15, replacing the old gender-neutral head/spouse pairing)."""
-    text = text.strip()
+    role1/role2 are 'husband'/'wife' when the phrasing said so explicitly,
+    or when _infer_spouse_roles can confidently resolve the two first
+    names' genders -- otherwise both come back None and _handle_mark_spouse
+    asks for clarification rather than guessing (2026-09-15, replacing the
+    old gender-neutral head/spouse pairing)."""
+    text = _BOT_ADDRESS_RE.sub("", text.strip(), count=1)
     m = re.search(
         r"^(?:mark\s+)?(.+?)\s+(?:and|&)\s+(.+?)\s+(?:are|as)\s+(?:married|spouses|husband and wife)[.!]?$",
         text, re.IGNORECASE,
@@ -2480,16 +2518,31 @@ def _extract_mark_spouse(text: str) -> tuple[str, str, str | None, str | None] |
     if m:
         a = m.group(1).strip(" .,")
         b = m.group(2).strip(" .,")
-        return (a, b, None, None) if a and b else None
+        if not a or not b:
+            return None
+        role_a, role_b = _infer_spouse_roles(a, b)
+        return (a, b, role_a, role_b)
 
     m = re.search(r"^(.+?)\s+is\s+(.+?)'s\s+(husband|wife)[.!]?$", text, re.IGNORECASE)
+    if m:
+        a = m.group(1).strip(" .,")
+        b = m.group(2).strip(" .,")
+        if not a or not b:
+            return None
+        role_a = m.group(3).lower()
+        role_b = "wife" if role_a == "husband" else "husband"
+        return (a, b, role_a, role_b)
+
+    m = re.search(r"^make\s+(.+?)'s\s+(husband|wife)[.!]?$", text, re.IGNORECASE)
     if not m:
         return None
-    a = m.group(1).strip(" .,")
-    b = m.group(2).strip(" .,")
-    if not a or not b:
+    combined = m.group(1).strip(" .,")
+    role_a = m.group(2).lower()
+    from jobs.congregation.family_edit import split_member_pair
+    pair = split_member_pair(combined)
+    if not pair:
         return None
-    role_a = m.group(3).lower()
+    a, b = pair
     role_b = "wife" if role_a == "husband" else "husband"
     return (a, b, role_a, role_b)
 

@@ -103,6 +103,35 @@ def _cascade(conn, query: str, columns: str) -> list[dict]:
     return rows
 
 
+def split_member_pair(combined: str) -> tuple[str, str] | None:
+    """Split a two-person free-text run with no delimiter between the two
+    names ("Melissa Tabor Gary Tabor", from bot.py's "make X Y's wife"
+    phrasing, 2026-09-15) into (name1, name2) by finding the single word
+    boundary where both halves exact-match a distinct active member's full
+    name. Exact-match only, unlike _cascade's fuzzy fallback -- this only
+    needs to work for a correctly-typed real name pair, and a fuzzy partial
+    match on one half could pair with an unrelated fuzzy match on the other
+    and silently produce a wrong pairing. Returns None (no unique matching
+    split) rather than guessing a boundary."""
+    words = combined.split()
+    if len(words) < 2:
+        return None
+    with _conn() as conn:
+        matches = []
+        for i in range(1, len(words)):
+            first = " ".join(words[:i])
+            second = " ".join(words[i:])
+            row1 = conn.execute(
+                "SELECT id FROM members WHERE active = 1 AND name = ? COLLATE NOCASE", (first,)
+            ).fetchone()
+            row2 = conn.execute(
+                "SELECT id FROM members WHERE active = 1 AND name = ? COLLATE NOCASE", (second,)
+            ).fetchone()
+            if row1 and row2 and row1["id"] != row2["id"]:
+                matches.append((first, second))
+    return matches[0] if len(matches) == 1 else None
+
+
 def add_child(child_name: str, parent_query: str, date_raw: str, sender_name: str) -> str:
     child_name = child_name.strip()
     birthdate = parse_birthdate(date_raw)
