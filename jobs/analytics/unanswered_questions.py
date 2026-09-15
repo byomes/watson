@@ -119,6 +119,34 @@ def sync_claude_answered_questions() -> int:
         return 0
 
 
+def advance_claude_call_watermark(spend_log_id: int) -> None:
+    """Push the claude_tier_spend_log watermark forward to at least
+    spend_log_id. Added 2026-09-14 alongside jobs/analytics/
+    fast_path_suggestions.py's per-call review (review_single_question) --
+    that function inserts its own unanswered_questions row directly rather
+    than going through sync_claude_answered_questions() above, so without
+    this the nightly batch's own sync would re-pull the exact same
+    claude_tier_spend_log row as a second, duplicate entry. Never moves the
+    watermark backward -- a slower-finishing background review for an
+    older call must not un-sync a newer one a faster call already advanced
+    past."""
+    try:
+        with get_connection() as conn:
+            row = conn.execute(
+                "SELECT value FROM system_settings WHERE key = ?", (_WATERMARK_KEY,)
+            ).fetchone()
+            current = int(row["value"]) if row else 0
+            if spend_log_id > current:
+                conn.execute(
+                    """INSERT INTO system_settings (key, value, updated_at)
+                       VALUES (?, ?, datetime('now'))
+                       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at""",
+                    (_WATERMARK_KEY, str(spend_log_id)),
+                )
+    except Exception:
+        pass
+
+
 def get_open_since(since_iso: str) -> list[dict]:
     """Open (not yet reviewed) rows logged at or after since_iso, oldest first."""
     with get_connection() as conn:

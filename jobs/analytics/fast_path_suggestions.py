@@ -1,44 +1,52 @@
-"""jobs/analytics/fast_path_suggestions.py — nightly review of Team Chat
-questions Watson had to hand off to an LLM (jobs/analytics/
-unanswered_questions.py), looking for repeat shapes that could become a
-new LLM-free fast-path phrase instead of costing an API call every time
-they're asked again.
+"""jobs/analytics/fast_path_suggestions.py — review of Team Chat questions
+Watson had to hand off to an LLM (jobs/analytics/unanswered_questions.py),
+looking for repeat shapes that could become a new LLM-free fast-path phrase
+instead of costing an API call every time they're asked again.
 
 Built 2026-09-08 per Bill's ask, right after the deacon-group/birthday
 fast-path additions and the "who called Claude" Telegram alert -- this
 closes the loop: log what Watson couldn't answer -> review -> propose a
-concrete addition -> Bill approves/rejects over Telegram with one tap.
+concrete addition -> apply it.
 
 Widened to nightly + broadened 2026-09-09 per Bill's ask, prompted by Jim
 Bouchat's Team Chat use for organizing the deacons generating a steady
-stream of "Watson called Claude for help" pings: run() now starts by
-calling unanswered_questions.sync_claude_answered_questions(), which pulls
-in every successfully-answered-but-Claude-billed jobs.analytics.data_chat
-question (not just the genuinely-unanswered ones this job originally
-reviewed) -- see that function's docstring for why that was most of the
-real spend. The goal, per Bill: Watson should get better from every call,
-preferably without spending more API calls to do it (this review step
-itself still costs one call/run, same as before) -- but instilling a new
-learned pattern is worth the occasional API call.
+stream of "Watson called Claude for help" pings: run() starts by calling
+unanswered_questions.sync_claude_answered_questions(), which pulls in every
+successfully-answered-but-Claude-billed jobs.analytics.data_chat question
+(not just the genuinely-unanswered ones this job originally reviewed) --
+see that function's docstring for why that was most of the real spend.
 
-Two kinds of suggestion, both sent to Telegram with Approve/Reject
-buttons, handled differently by bot.py's handle_fast_path_suggestion_
-callback on Approve:
-  - target_id set (matches jobs.analytics.fast_path_patcher's
-    CDB_CATEGORY_TARGETS): a genuinely safe one-line addition -- Approve
-    auto-applies it (jobs/skills/cdb_query.py edit + git commit + restart
-    both services) immediately.
-  - target_id None: the question doesn't fit any existing category, so
-    answering it without an LLM would need real new logic (like the
-    deacon-group/birthday additions did) -- Approve just queues it for a
-    real coding session (Bill + Claude Code) rather than attempting a
-    risky automated edit; Reject dismisses it.
+**Re-architected 2026-09-14 per Bill's ask** ("change fast path suggestions
+to run every time watson calls claude ... if they are simple fixes just
+add them and move on"), after a live incident where a Team Chat gap
+(events-domain questions) sat uncaught until Bill noticed the cost/latency
+himself -- waiting for the next 2:25am cron meant a same-day fix couldn't
+happen automatically. Two changes:
+  1. review_single_question(), triggered by core/claude_tier.py's
+     call_claude() right after every analytics.data_chat Claude call (see
+     that module's _trigger_fast_path_review) -- reviews THAT ONE question
+     immediately, launched as a detached subprocess so it adds zero
+     latency to the reply already sent to the asker. Ollama-only
+     (_call_ollama, never call_claude()) -- reviewing every Claude call by
+     making another Claude call would double the exact spend this feature
+     exists to cut. run()'s nightly batch below is unchanged and still
+     cron'd at 2:25am as a backstop for anything the live path misses
+     (e.g. this process getting killed mid-run) -- most nights it will
+     just find nothing left open.
+  2. Simple fixes (target_id set -- an existing jobs.analytics.
+     fast_path_patcher.CDB_CATEGORY_TARGETS category, just a new trigger
+     phrase) now auto-apply immediately via _auto_apply() -- no Approve/
+     Reject gate, in both review_single_question() and run() below. Bill
+     still gets a Telegram message either way: an FYI (not a permission
+     ask) on success, a real alert if the safe apply itself failed.
+     Anything needing a genuine decision -- target_id None, a question
+     that doesn't fit any existing category and would need real new logic
+     -- still goes to Telegram with the original Approve/Reject card
+     (handled by bot.py's handle_fast_path_suggestion_callback on Approve,
+     which queues it for a coding session rather than attempting a risky
+     automated edit).
 
-One Claude/Ollama call per run (job_name="analytics.fast_path_suggestions")
--- a single nightly call analyzing a batch is a rounding error against the
-very API spend this whole feature exists to reduce.
-
-Cron (nightly 2:25am, in the existing quiet-hours cluster after
+Cron (nightly 2:25am backstop, in the existing quiet-hours cluster after
 skills_catalog at 2:20am, before backup at 3:00am):
   25 2 * * * PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python \
     -m jobs.analytics.fast_path_suggestions \
@@ -58,7 +66,9 @@ from core.database import get_connection
 from core.job_tracker import track_job
 from core.vacation import vacation_gate
 from jobs.analytics.fast_path_patcher import CDB_CATEGORY_TARGETS, CDB_CATEGORY_LABELS
-from jobs.analytics.unanswered_questions import get_open_since, mark_reviewed, sync_claude_answered_questions
+from jobs.analytics.unanswered_questions import (
+    advance_claude_call_watermark, get_open_since, mark_reviewed, sync_claude_answered_questions,
+)
 import core.llm_log  # noqa: F401 -- installs Ollama call logging, see core/llm_log.py
 
 load_dotenv(os.path.expanduser("~/watson/.env"))
@@ -169,13 +179,7 @@ def _extract_json_array(raw: str) -> list[dict] | None:
         return None
 
 
-def _call_model(system: str, user: str) -> str | None:
-    result = call_claude(
-        system=system, user=user, job_name="analytics.fast_path_suggestions",
-        max_tokens=2048, message="(weekly fast-path suggestion review)",
-    )
-    if result:
-        return result
+def _call_ollama(system: str, user: str) -> str | None:
     try:
         resp = requests.post(
             OLLAMA_URL,
@@ -189,8 +193,18 @@ def _call_model(system: str, user: str) -> str | None:
         resp.raise_for_status()
         return resp.json()["message"]["content"].strip()
     except Exception as exc:
-        log.error("Ollama fallback failed: %s", exc)
+        log.error("Ollama call failed: %s", exc)
         return None
+
+
+def _call_model(system: str, user: str) -> str | None:
+    result = call_claude(
+        system=system, user=user, job_name="analytics.fast_path_suggestions",
+        max_tokens=2048, message="(weekly fast-path suggestion review)",
+    )
+    if result:
+        return result
+    return _call_ollama(system, user)
 
 
 def _send_telegram(text: str, reply_markup: dict | None = None) -> None:
@@ -299,7 +313,14 @@ def run() -> int:
 
         suggestion_id = _store_suggestion(target_id, new_phrase, example_question, matched_ids, reasoning)
         target_label = CDB_CATEGORY_LABELS.get(target_id, "a new kind of question")
-        _send_suggestion(suggestion_id, target_id, target_label, new_phrase, example_question, reasoning)
+        # Per Bill's 2026-09-14 "simple fixes just add them and move on" --
+        # applies here too, not just the per-call path (review_single_
+        # question) below, so this nightly backstop run behaves the same
+        # way if it ever catches something the live path missed.
+        if target_id and new_phrase:
+            _auto_apply(suggestion_id, target_id, target_label, new_phrase, example_question, reasoning)
+        else:
+            _send_suggestion(suggestion_id, target_id, target_label, new_phrase, example_question, reasoning)
         sent += 1
         all_matched_ids.update(matched_ids)
 
@@ -315,6 +336,116 @@ def run() -> int:
     return sent
 
 
+def _auto_apply(suggestion_id: int, target_id: str, target_label: str, new_phrase: str,
+                 example_question: str, reasoning: str) -> None:
+    """Immediately applies a simple, safe fast-path addition — per Bill's
+    2026-09-14 "if they are simple fixes just add them and move on," no
+    Approve/Reject gate for this kind of suggestion anymore. Still sends a
+    Telegram message either way: an FYI (not a permission ask) on success,
+    so there's a visible trail and an easy `git revert` if the phrase turns
+    out to misfire later; a real alert on failure, since that genuinely does
+    need Bill — the safe automated path couldn't be taken."""
+    from jobs.analytics.fast_path_patcher import apply_and_deploy
+    ok, detail = apply_and_deploy(target_id, new_phrase, actor="Watson (automatic, per-call review)")
+
+    with get_connection() as conn:
+        conn.execute(
+            "UPDATE fast_path_suggestions SET status=?, applied_detail=?, resolved_at=datetime('now') WHERE id=?",
+            ("applied" if ok else "failed", detail, suggestion_id),
+        )
+
+    if ok:
+        text = (
+            f"✅ Auto-added fast-path phrase\n\n"
+            f'Someone asked: "{example_question}"\n\n'
+            f'Added trigger phrase "{new_phrase}" to {target_label} ({reasoning}).\n'
+            f"Commit {detail}. No API call needed for this kind of question going forward.\n\n"
+            "No action needed — just letting you know.\n\n- Watson"
+        )
+    else:
+        text = (
+            f"⚠️ Couldn't auto-apply a fast-path fix\n\n"
+            f'Someone asked: "{example_question}"\n\n'
+            f'Tried to add "{new_phrase}" to {target_label} but it failed: {detail}\n\n'
+            "Flagging for a coding session instead.\n\n- Watson"
+        )
+    _send_telegram(text)
+
+
+def review_single_question(spend_log_id: int, asker_name: str, question: str) -> None:
+    """Per Bill's 2026-09-14 ask: review THIS one question right after the
+    analytics.data_chat Claude call it came from — launched as a detached
+    subprocess by core/claude_tier.py's call_claude(), see that module —
+    instead of waiting for the nightly batch (run(), still cron'd at
+    2:25am as a backstop for anything this misses, e.g. if this process
+    itself gets killed mid-run).
+
+    Simple fixes (an existing cdb_query.py category, just a new trigger
+    phrase) get applied immediately via _auto_apply, no approval gate.
+    Anything else — a genuinely new category needing real logic, or an
+    apply that failed — goes to Bill over Telegram with the same Approve/
+    Reject card run() already used, since THAT is a real decision, not a
+    mechanical one.
+
+    Ollama-only for the analysis call (_call_ollama, not _call_model) —
+    deliberately never call_claude() here: reviewing every single Claude
+    call by making another Claude call would double the exact API spend
+    this whole feature exists to cut down. run()'s own nightly batch still
+    tries Claude first since that's one call a night either way, a
+    rounding error against the spend it's analyzing."""
+    question = (question or "").strip()
+    if not question:
+        return
+
+    with get_connection() as conn:
+        cur = conn.execute(
+            "INSERT INTO unanswered_questions (asker_name, question, reply, source) "
+            "VALUES (?, ?, NULL, 'claude_call')",
+            (asker_name, question),
+        )
+        row_id = cur.lastrowid
+
+    try:
+        system, prompt = _build_prompt([{"id": row_id, "question": question, "source": "claude_call"}])
+        raw = _call_ollama(system, prompt)
+        suggestions = _extract_json_array(raw) if raw else None
+        if not raw:
+            log.error("review_single_question: Ollama analysis failed for q=%r", question)
+        elif suggestions is None:
+            log.error("review_single_question: could not parse JSON array: %r", raw[:300])
+
+        for s in (suggestions or []):
+            if not isinstance(s, dict):
+                continue
+            if row_id not in (s.get("matched_question_ids") or []):
+                continue
+            target_id = s.get("target_id")
+            if target_id is not None and target_id not in CDB_CATEGORY_TARGETS:
+                log.warning("review_single_question: unrecognized target_id %r -- treating as 'needs new pattern'.", target_id)
+                target_id = None
+            new_phrase = (s.get("new_phrase") or "").strip().lower() or None
+            if target_id is None:
+                new_phrase = None
+            reasoning = (s.get("reasoning") or "").strip()
+
+            suggestion_id = _store_suggestion(target_id, new_phrase, question, [row_id], reasoning)
+            target_label = CDB_CATEGORY_LABELS.get(target_id, "a new kind of question")
+
+            if target_id and new_phrase:
+                _auto_apply(suggestion_id, target_id, target_label, new_phrase, question, reasoning)
+            else:
+                _send_suggestion(suggestion_id, target_id, target_label, new_phrase, question, reasoning)
+    finally:
+        mark_reviewed([row_id])
+        advance_claude_call_watermark(spend_log_id)
+
+
 if __name__ == "__main__":
-    with track_job("analytics.fast_path_suggestions"):
-        run()
+    import sys as _sys
+
+    if len(_sys.argv) >= 4 and _sys.argv[1] == "--single":
+        with track_job("analytics.fast_path_suggestions"):
+            review_single_question(int(_sys.argv[2]), _sys.argv[3], _sys.argv[4] if len(_sys.argv) > 4 else "")
+    else:
+        with track_job("analytics.fast_path_suggestions"):
+            run()

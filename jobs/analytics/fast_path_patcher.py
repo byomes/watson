@@ -21,6 +21,7 @@ commit per successful apply (done by the caller), so `git revert` is also
 always available as a second line of defense.
 """
 import ast
+import subprocess
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
@@ -131,3 +132,56 @@ def append_cdb_phrase(target_id: str, new_phrase: str) -> tuple[bool, str]:
 
     CDB_QUERY_PATH.write_text(new_text)
     return True, "applied"
+
+
+def apply_and_deploy(target_id: str, new_phrase: str, actor: str) -> tuple[bool, str]:
+    """append_cdb_phrase() + git commit + restart both services, in one
+    call. Extracted 2026-09-14 from bot.py's fps_approve Telegram-button
+    handler (still used as-is for the "needs a real decision" suggestion
+    kind) so jobs/analytics/fast_path_suggestions.py's per-call auto-apply
+    path (added the same day, per Bill's "just add them and move on" for
+    simple fixes) can reuse the identical safe apply+deploy sequence rather
+    than a second copy of it. Returns (ok, commit_hash_or_error_detail) --
+    on ok=False nothing was written or restarted; on ok=True the two
+    services have already been asked to restart (dashboard blocking,
+    bot fire-and-forget -- see the note below)."""
+    ok, detail = append_cdb_phrase(target_id, new_phrase)
+    if not ok:
+        return False, detail
+
+    repo_root = str(REPO)
+    subprocess.run(["git", "add", "jobs/skills/cdb_query.py"], cwd=repo_root, check=True)
+    label = CDB_CATEGORY_LABELS.get(target_id, target_id)
+    msg = (
+        f'Add "{new_phrase}" fast-path phrase to {label}\n\n'
+        f"Applied automatically by {actor}.\n\n"
+        f"Co-Authored-By: Watson <noreply@watson.local>"
+    )
+    result = subprocess.run(["git", "commit", "-m", msg], cwd=repo_root, capture_output=True, text=True)
+    commit_hash = ""
+    if result.returncode == 0:
+        rev = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=repo_root, capture_output=True, text=True)
+        commit_hash = rev.stdout.strip()
+
+    # Dashboard restart is blocking (it's a Flask process, not the one
+    # running this code); the bot's own restart has to be fire-and-forget
+    # (subprocess.Popen, never .wait()d) since `systemctl restart` sends
+    # SIGTERM to whatever's calling it and blocks until that process exits
+    # first -- when the caller IS watson-bot.service itself (the per-call
+    # review path runs as its own separate short-lived process either way,
+    # but this function is also reachable from inside the bot process via
+    # bot.py's own callback), waiting synchronously would deadlock. Same
+    # reasoning bot.py's original handler already documented.
+    try:
+        subprocess.run(
+            ["sudo", "-n", "/usr/bin/systemctl", "restart", "watson-dashboard.service"],
+            timeout=15,
+        )
+    except Exception:
+        pass
+    try:
+        subprocess.Popen(["sudo", "-n", "/usr/bin/systemctl", "restart", "watson-bot.service"])
+    except Exception:
+        pass
+
+    return True, commit_hash or "committed (hash unavailable)"

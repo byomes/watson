@@ -17,6 +17,8 @@ instead activates ONLY this tier.
 """
 import logging
 import os
+import subprocess
+import sys
 from datetime import datetime, timezone
 
 from core.database import get_connection
@@ -190,14 +192,15 @@ def get_month_summary() -> dict:
 def _log_spend(
     job_name: str, model: str, input_tokens: int, output_tokens: int, cost_usd: float,
     person: str, trigger_message: str,
-) -> None:
+) -> int | None:
     with get_connection() as conn:
-        conn.execute(
+        cur = conn.execute(
             "INSERT INTO claude_tier_spend_log "
             "(job_name, model, input_tokens, output_tokens, cost_usd, person, trigger_message) "
             "VALUES (?, ?, ?, ?, ?, ?, ?)",
             (job_name, model, input_tokens, output_tokens, cost_usd, person, trigger_message),
         )
+        return cur.lastrowid
 
 
 def _maybe_send_exhausted_alert(month: str, spend: float, budget: float) -> None:
@@ -268,6 +271,40 @@ def _notify_claude_call(job_name: str, person: str, trigger_message: str, cost_u
         )
     except Exception:
         pass
+
+
+def _trigger_fast_path_review(spend_log_id: int, asker_name: str, question: str) -> None:
+    """Per Bill's 2026-09-14 ask: fire jobs/analytics/fast_path_suggestions.py's
+    review for THIS single question right after the Claude call that
+    answered it, instead of waiting for the nightly 2:25am batch -- so a
+    fast-path gap gets fixed the same day it's found, not queued for
+    tomorrow. Scoped to job_name == "analytics.data_chat" by the one caller
+    below -- that's the only job this whole feature is about (Team Chat
+    natural-language questions a keyword fast-path could answer instead);
+    every other call_claude() caller (newsletter drafts, pastoral notes,
+    etc.) has nothing for it to review.
+
+    Launched as a detached subprocess, never imported/called in-process --
+    this must add zero latency to the reply the asker already received, and
+    a crash or slow run in the reviewer must never affect the caller that
+    triggered it. Mirrors the exact invocation the existing nightly cron
+    uses (PYTHONPATH inlined, venv's own python), just with --single instead
+    of a bare run."""
+    try:
+        repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        python_bin = os.path.join(repo_root, "venv", "bin", "python")
+        if not os.path.exists(python_bin):
+            python_bin = sys.executable
+        env = os.environ.copy()
+        env["PYTHONPATH"] = repo_root
+        subprocess.Popen(
+            [python_bin, "-m", "jobs.analytics.fast_path_suggestions",
+             "--single", str(spend_log_id), asker_name, question],
+            cwd=repo_root, env=env,
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        )
+    except Exception as exc:
+        log.warning("claude_tier: failed to launch fast-path review: %s", exc)
 
 
 def call_claude(
@@ -359,8 +396,9 @@ def call_claude(
     if len(trigger_message) > _MAX_MESSAGE_LEN:
         trigger_message = trigger_message[:_MAX_MESSAGE_LEN].rstrip() + "…"
 
+    spend_log_id = None
     try:
-        _log_spend(job_name, model, in_tok, out_tok, cost, person, trigger_message)
+        spend_log_id = _log_spend(job_name, model, in_tok, out_tok, cost, person, trigger_message)
     except Exception as exc:
         log.warning("claude_tier: failed to log spend for job=%s: %s", job_name, exc)
 
@@ -368,6 +406,9 @@ def call_claude(
         _notify_claude_call(job_name, person, trigger_message, cost)
     except Exception as exc:
         log.warning("claude_tier: failed to send call notification for job=%s: %s", job_name, exc)
+
+    if job_name == "analytics.data_chat" and trigger_message and spend_log_id:
+        _trigger_fast_path_review(spend_log_id, person, trigger_message)
 
     new_total = spend + cost
     if new_total >= budget:
