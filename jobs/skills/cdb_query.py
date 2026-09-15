@@ -208,7 +208,14 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
             )
 
     # MEMBERS NOT SEEN RECENTLY
-    if any(w in q for w in ['when was the last time [name] missed church', 'not seen', "haven't seen", 'not attended', 'not been', 'missing for',
+    # (The literal 'when was the last time [name] missed church' trigger —
+    # brackets and all — used to live in this list, added 2026-09-15 by an
+    # auto-applied fast-path suggestion (commit ee8c4d9). Same class of dead
+    # trigger already cleaned up elsewhere in this function 2026-09-12: a
+    # real question never contains the literal substring "[name]", so it
+    # could never fire. Removed; LAST ATTENDED / LAST MISSED BY NAME below
+    # is the real, working pattern for that shape of question.)
+    if any(w in q for w in ['not seen', "haven't seen", 'not attended', 'not been', 'missing for',
                              'inactive', 'not come in', "haven't attended", "haven't come",
                              "haven't shown up", 'off the radar']):
         if '2 week' in q or 'two week' in q or '14 day' in q:
@@ -343,6 +350,85 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
         member_name = _member_deacon_m.group(1).strip()
         if member_name:
             return f"SELECT name, deacon FROM members WHERE name LIKE '%{member_name}%' AND active = 1"
+
+    # LAST ATTENDED / LAST MISSED BY NAME -- checked before MEMBER LOOKUP BY
+    # NAME for the same reason as SPOUSE LOOKUP above. Distinct from MEMBERS
+    # NOT SEEN RECENTLY earlier in this function, which lists EVERY inactive
+    # member -- this answers "when did/was the last time ONE named person
+    # attended/missed church", the Team Chat equivalent of bot.py's DM-only
+    # _extract_team_lookup "last_seen" field (that fast path isn't reachable
+    # from Team Chat, which only ever calls this file's _pattern_match).
+    # Added 2026-09-15 after an auto-applied fast-path phrase for this exact
+    # question shape turned out to be a dead bracket-literal trigger that
+    # could never match real text (see the MEMBERS NOT SEEN RECENTLY comment
+    # above) -- this is the real, working pattern instead of retrying that
+    # same broken template.
+    _last_seen_m = re.search(
+        r"when\s+(?:was|did)\s+(?:the\s+last\s+time\s+)?(\w+(?:\s+\w+)??)\s+"
+        r"(?:last\s+)?(?:come|came|attend(?:ed)?|visit(?:ed)?|showed?\s+up|"
+        r"miss(?:ed)?(?:\s+church)?|was\s+(?:here|at\s+church))\b",
+        q,
+    )
+    if _last_seen_m:
+        name = _last_seen_m.group(1).strip()
+        if name:
+            return (
+                f"SELECT m.name, MAX(a.service_date) as last_attended FROM members m "
+                f"LEFT JOIN attendance a ON a.member_id = m.id "
+                f"WHERE m.name LIKE '%{name}%' AND m.active = 1 "
+                f"GROUP BY m.id, m.name"
+            )
+
+    # PHONE NUMBER LOOKUP -- checked before MEMBER LOOKUP BY NAME for the
+    # same reason as SPOUSE LOOKUP/MEMBER'S OWN DEACON above: "X phone
+    # number" (no possessive, name BEFORE the field word) doesn't fit
+    # MEMBER LOOKUP BY NAME's prefix-strip mechanism, which assumes the
+    # trigger phrase is a prefix left behind once removed -- it needs its
+    # own name-then-field extraction instead. Added 2026-09-15 after two
+    # fast-path suggestions for this exact shape ("What is Mark Barbour
+    # phone number", "What is bill crook phone number") were flagged as
+    # needing new logic, correctly -- MEMBER LOOKUP BY NAME structurally
+    # cannot handle this shape, no phrase addition alone would fix it.
+    _phone_m = re.search(r"what(?:'s| is)\s+(\w+(?:\s+\w+)?)'s\s+(?:phone\s+)?number\b", q)
+    if not _phone_m:
+        # No possessive at all ("bills number", "Mark Barbour phone number").
+        _phone_m = re.search(r"what(?:'s| is)\s+(\w+(?:\s+\w+)?)\s+(?:phone\s+)?number\b", q)
+    if not _phone_m:
+        _phone_m = re.search(r"(?:phone\s+number|number)\s+(?:for|of)\s+(\w+(?:\s+\w+)?)\b", q)
+    if _phone_m:
+        name = _phone_m.group(1).strip()
+        if name:
+            if name.endswith('s') and len(name) > 1 and not name.endswith('ss'):
+                # Try both the literal capture and an informal-possessive-
+                # stripped form ("bills" -> "bill") since there's no way to
+                # tell from text alone whether the trailing s is part of the
+                # real name or a dropped apostrophe.
+                return (
+                    f"SELECT name, phone FROM members WHERE "
+                    f"(name LIKE '%{name}%' OR name LIKE '%{name[:-1]}%') AND active = 1"
+                )
+            return f"SELECT name, phone FROM members WHERE name LIKE '%{name}%' AND active = 1"
+
+    # AGE LOOKUP -- mirrors bot.py's DM-only "how old is X" -> age field
+    # (_extract_team_lookup, added 2026-09-12); missing here meant this
+    # question fell through to MEMBER LOOKUP BY NAME instead, which returns
+    # the raw birthdate -- correct data, wrong question answered, the exact
+    # bug already fixed for the DM path per that function's docstring. Added
+    # 2026-09-15 after a fast-path suggestion for "How old is John Valentine"
+    # proposed adding "how old is" as a MEMBER LOOKUP BY NAME trigger phrase,
+    # which would have reintroduced that same bug in Team Chat.
+    _age_m = re.search(r"how\s+old\s+is\s+(\w+(?:\s+\w+)?)\b", q)
+    if not _age_m:
+        _age_m = re.search(r"when\s+was\s+(\w+(?:\s+\w+)??)\s+born\b", q)
+    if _age_m:
+        name = _age_m.group(1).strip()
+        if name:
+            return (
+                f"SELECT name, birthdate, "
+                f"CAST(strftime('%Y', 'now') AS INTEGER) - CAST(strftime('%Y', birthdate) AS INTEGER) "
+                f"- (CAST(strftime('%m%d', 'now') AS INTEGER) < CAST(strftime('%m%d', birthdate) AS INTEGER)) AS age "
+                f"FROM members WHERE name LIKE '%{name}%' AND active = 1 AND birthdate IS NOT NULL"
+            )
 
     # BIRTHDAYS -- a month-wide list ("birthdays in October", "who has a
     # birthday this month"), distinct from a single person's own birthday

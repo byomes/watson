@@ -14,7 +14,7 @@ fallback for the Sunday query, which didn't land in either saved zone).
 This wires that same lookup into a repeatable command.
 """
 import re
-from datetime import datetime, time, timedelta
+from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 import requests
@@ -77,6 +77,128 @@ def parse_when(expr: str) -> datetime | None:
     except (ValueError, OverflowError):
         return None
     return dt.replace(tzinfo=NY)
+
+
+def parse_day(expr: str) -> date | None:
+    """Parse a bare day expression -- "last Wednesday", "yesterday",
+    "today", "September 12" -- with no time required, into a concrete
+    America/New_York date, or None if unparseable. Companion to
+    parse_when() above (which additionally requires a time, for a single-
+    point lookup); this is for answer_day()'s whole-day summary instead.
+    Added 2026-09-15 after Bill asked "what is my location data for
+    Saturday, September 12" and got no answer -- parse_when() correctly
+    returned None (no time given), but nothing existed yet for a
+    day-without-time question (fast_path_suggestions id 25)."""
+    expr = expr.strip().lower()
+    today = datetime.now(NY).date()
+
+    m = re.match(
+        r"^(?:on\s+|last\s+)?(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b",
+        expr,
+    )
+    if m:
+        target_wd = _WEEKDAY_NAMES[m.group(1)]
+        days_back = (today.weekday() - target_wd) % 7
+        if days_back == 0:
+            days_back = 7
+        return today - timedelta(days=days_back)
+    if expr.startswith("yesterday"):
+        return today - timedelta(days=1)
+    if expr.startswith("today"):
+        return today
+
+    try:
+        dt = _dateutil_parser.parse(expr, default=datetime.combine(today, time(0, 0)), fuzzy=True)
+    except (ValueError, OverflowError):
+        return None
+    return dt.date()
+
+
+def answer_day(day_expr: str) -> str:
+    """Whole-day summary over location_events (zone arrivals/departures) —
+    falling back to first/last raw ping if no zone events that day — for
+    "what is my location data for <day>" (no specific time, unlike answer()
+    above). See parse_day()'s docstring for why this exists."""
+    target = parse_day(day_expr)
+    if not target:
+        return (
+            'I couldn\'t work out what day you meant -- try something like '
+            '"what is my location data for Saturday, September 12".'
+        )
+    day_start = datetime.combine(target, time(0, 0), tzinfo=NY)
+    day_end = day_start + timedelta(days=1)
+    start_ts, end_ts = int(day_start.timestamp()), int(day_end.timestamp())
+    day_str = target.strftime("%A, %B %-d")
+
+    conn = get_db()
+    try:
+        events = conn.execute(
+            "SELECT tst, zone_from, zone_to FROM location_events "
+            "WHERE tst BETWEEN ? AND ? ORDER BY tst",
+            (start_ts, end_ts),
+        ).fetchall()
+        if events:
+            lines = []
+            for e in events:
+                t = datetime.fromtimestamp(e["tst"], NY).strftime("%-I:%M %p")
+                if e["zone_to"]:
+                    lines.append(f"{t} — arrived at {e['zone_to']}")
+                elif e["zone_from"]:
+                    lines.append(f"{t} — left {e['zone_from']}")
+            return f"On {day_str}:\n" + "\n".join(lines)
+
+        pings = conn.execute(
+            "SELECT lat, lon, tst FROM location_pings WHERE tst BETWEEN ? AND ? ORDER BY tst",
+            (start_ts, end_ts),
+        ).fetchall()
+        if not pings:
+            return f"I don't have any location data for {day_str}."
+
+        first, last = pings[0], pings[-1]
+        first_zone = _zone_for(conn, first["lat"], first["lon"])
+        last_zone = _zone_for(conn, last["lat"], last["lon"])
+    finally:
+        conn.close()
+
+    first_place = first_zone or _reverse_geocode(first["lat"], first["lon"]) or f"{first['lat']:.5f}, {first['lon']:.5f}"
+    last_place = last_zone or _reverse_geocode(last["lat"], last["lon"]) or f"{last['lat']:.5f}, {last['lon']:.5f}"
+    first_t = datetime.fromtimestamp(first["tst"], NY).strftime("%-I:%M %p")
+    last_t = datetime.fromtimestamp(last["tst"], NY).strftime("%-I:%M %p")
+    if first_t == last_t and first_place == last_place:
+        return f"On {day_str}, the only location data I have is {first_place} around {first_t}."
+    return (
+        f"On {day_str}: first seen at {first_place} around {first_t}, "
+        f"last seen at {last_place} around {last_t} ({len(pings)} data points)."
+    )
+
+
+_TIME_MARKER_RE = re.compile(r"\b\d{1,2}(?::\d{2})?\s*(?:am|pm)\b|\bnoon\b|\bmidnight\b", re.IGNORECASE)
+
+
+def answer_smart(expr: str) -> str:
+    """Single entry point for any "where was I ..." phrasing, with or
+    without a specific time -- prefers the whole-day summary (answer_day)
+    unless expr actually names a time (checked via _TIME_MARKER_RE, not
+    just "did parse_when() return something"), in which case it uses the
+    point-in-time answer() instead. Added 2026-09-15: _extract_where_was_i's
+    regex matches "where was I <anything after that>" unconditionally, so
+    day-only phrasings like "where was I on Saturday" were reaching here
+    too. A naive "try parse_when() first" doesn't work: dateutil's fuzzy
+    parser happily turns a bare day like "Saturday, September 12" into a
+    full datetime by defaulting the time to midnight, so parse_when()
+    succeeding is NOT proof a time was actually given -- the explicit
+    marker check is what actually distinguishes the two cases."""
+    if _TIME_MARKER_RE.search(expr) and parse_when(expr):
+        return answer(expr)
+    if parse_day(expr):
+        return answer_day(expr)
+    if parse_when(expr):
+        return answer(expr)
+    return (
+        'I need at least a day -- try something like "where was I last '
+        'Wednesday at 5 PM" or "what is my location data for Saturday, '
+        'September 12".'
+    )
 
 
 def _reverse_geocode(lat: float, lon: float) -> str | None:

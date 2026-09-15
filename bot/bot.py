@@ -2492,12 +2492,15 @@ def _infer_spouse_roles(name1: str, name2: str) -> tuple[str | None, str | None]
 
 def _extract_mark_spouse(text: str) -> tuple[str, str, str | None, str | None] | None:
     """Recognize "X and Y are married/spouses", "X is married to Y", "X's
-    spouse is Y", "X married Y", "X is Y's husband/wife", or "make X Y's
-    husband/wife" and return (name1, name2, role1, role2), or None.
-    "&"/"got married"/husband-wife possessive joined 2026-09-12; "make X
-    Y's wife" and a leading "Watson," address joined 2026-09-15 after Donna
-    Redman's actual phrasing ("watson, make Melissa Tabor Gary Tabor's
-    wife") didn't match anything and silently fell through to team_chat.
+    spouse is Y", "X married Y", "X is Y's husband/wife", "add X as Y's
+    husband/wife", "add X as the wife to/of/for Y", "add X as Y spouse", or
+    "make X Y's husband/wife" and return (name1, name2, role1, role2), or
+    None. "&"/"got married"/husband-wife possessive joined 2026-09-12; "make
+    X Y's wife" and a leading "Watson," address joined 2026-09-15 after
+    Donna Redman's actual phrasing ("watson, make Melissa Tabor Gary Tabor's
+    wife") didn't match anything and silently fell through to team_chat. The
+    "add X as ..." forms joined the same day after two more Team Chat
+    questions in that shape did the same (fast_path_suggestions ids 23-24).
 
     role1/role2 are 'husband'/'wife' when the phrasing said so explicitly,
     or when _infer_spouse_roles can confidently resolve the two first
@@ -2531,6 +2534,44 @@ def _extract_mark_spouse(text: str) -> tuple[str, str, str | None, str | None] |
             return None
         role_a = m.group(3).lower()
         role_b = "wife" if role_a == "husband" else "husband"
+        return (a, b, role_a, role_b)
+
+    # "add X as Y's husband/wife" / "add X as the wife to/of/for Y" / "add X
+    # as Y spouse" -- added 2026-09-15 after two Team Chat questions used
+    # this "add ... as ..." phrasing (fast_path_suggestions ids 23-24) and
+    # fell all the way through to an LLM call since none of the patterns
+    # above cover it. Optional leading "please" since Kathy Brown's actual
+    # message ("please add Kathy Brown as John Brown spouse") had one.
+    m = re.search(r"^(?:please\s+)?add\s+(.+?)\s+as\s+(.+?)'s\s+(husband|wife)[.!]?$", text, re.IGNORECASE)
+    if m:
+        a = m.group(1).strip(" .,")
+        b = m.group(2).strip(" .,")
+        if not a or not b:
+            return None
+        role_a = m.group(3).lower()
+        role_b = "wife" if role_a == "husband" else "husband"
+        return (a, b, role_a, role_b)
+
+    m = re.search(
+        r"^(?:please\s+)?add\s+(.+?)\s+as\s+(?:the\s+)?(husband|wife)\s+(?:to|of|for)\s+(.+?)[.!]?$",
+        text, re.IGNORECASE,
+    )
+    if m:
+        a = m.group(1).strip(" .,")
+        role_a = m.group(2).lower()
+        b = m.group(3).strip(" .,")
+        if not a or not b:
+            return None
+        role_b = "wife" if role_a == "husband" else "husband"
+        return (a, b, role_a, role_b)
+
+    m = re.search(r"^(?:please\s+)?add\s+(.+?)\s+as\s+(.+?)(?:'s)?\s+spouse[.!]?$", text, re.IGNORECASE)
+    if m:
+        a = m.group(1).strip(" .,")
+        b = m.group(2).strip(" .,")
+        if not a or not b:
+            return None
+        role_a, role_b = _infer_spouse_roles(a, b)
         return (a, b, role_a, role_b)
 
     m = re.search(r"^make\s+(.+?)'s\s+(husband|wife)[.!]?$", text, re.IGNORECASE)
@@ -2613,8 +2654,36 @@ def _extract_where_was_i(text: str) -> str | None:
 
 
 async def _handle_where_was_i(update: Update, when_expr: str) -> None:
-    from jobs.location.where_was_i import answer as _where_was_i_answer
+    # answer_smart (not answer) since _extract_where_was_i's regex matches
+    # "where was I ..." whether or not a time follows -- see answer_smart's
+    # docstring for why "where was I on Saturday" needs this instead of
+    # bouncing off answer()'s "I need both a day and a time".
+    from jobs.location.where_was_i import answer_smart as _where_was_i_answer
     reply = await asyncio.to_thread(_where_was_i_answer, when_expr)
+    await update.message.reply_text(reply)
+
+
+def _extract_location_day(text: str) -> str | None:
+    """Recognize "what is my location (data/history) for <day>" (a
+    whole-day summary) and return the raw day expression for
+    jobs.location.where_was_i.parse_day to interpret, or None. Added
+    2026-09-15 after "What is my location data for Saturday, September
+    12?" fell through to an LLM call (fast_path_suggestions id 25).
+    "where was I on <day>" is NOT handled here -- _extract_where_was_i
+    above already matches any "where was I ..." phrasing and routes it
+    through answer_smart, which falls back to the same day-only summary
+    this function's caller (_handle_location_day) uses."""
+    text = _BOT_ADDRESS_RE.sub("", text.strip(), count=1)
+    m = re.search(
+        r"my\s+location(?:\s+data|\s+history)?\s+(?:for|on)\s+(.+?)[?.!]*$",
+        text, re.IGNORECASE,
+    )
+    return m.group(1).strip() if m else None
+
+
+async def _handle_location_day(update: Update, day_expr: str) -> None:
+    from jobs.location.where_was_i import answer_day as _location_day_answer
+    reply = await asyncio.to_thread(_location_day_answer, day_expr)
     await update.message.reply_text(reply)
 
 
@@ -3456,6 +3525,11 @@ async def _handle_general(update: Update, context: ContextTypes.DEFAULT_TYPE, te
     _where_was_i = _extract_where_was_i(text)
     if _where_was_i:
         await _handle_where_was_i(update, _where_was_i)
+        return ""
+
+    _location_day = _extract_location_day(text)
+    if _location_day:
+        await _handle_location_day(update, _location_day)
         return ""
 
     _possessive = re.search(r"(\w+)'s\s+(?:email|phone|number|contact)", text, re.IGNORECASE)
