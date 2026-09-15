@@ -2602,6 +2602,22 @@ async def _handle_mark_child(update: Update, sender_name: str, child_query: str,
     await update.message.reply_text(reply)
 
 
+def _extract_where_was_i(text: str) -> str | None:
+    """Recognize "where was I <day> at <time>" (2026-09-15) and return the
+    raw day/time expression for jobs.location.where_was_i.parse_when to
+    interpret, or None. Wired only into _handle_general (Bill's own chat)
+    -- see that module's docstring for why."""
+    text = _BOT_ADDRESS_RE.sub("", text.strip(), count=1)
+    m = re.match(r"^where\s+was\s+i\s+(.+?)[?.!]*$", text, re.IGNORECASE)
+    return m.group(1).strip() if m else None
+
+
+async def _handle_where_was_i(update: Update, when_expr: str) -> None:
+    from jobs.location.where_was_i import answer as _where_was_i_answer
+    reply = await asyncio.to_thread(_where_was_i_answer, when_expr)
+    await update.message.reply_text(reply)
+
+
 def _resolve_deacon_name(query: str, sender_name: str) -> str | None:
     """Match a free-typed deacon name against the real roster
     (deacon_reports.list_deacons()) -- exact (case-insensitive) first, then
@@ -3431,6 +3447,15 @@ async def _handle_general(update: Update, context: ContextTypes.DEFAULT_TYPE, te
     _assign = _extract_deacon_assign(text)
     if _assign:
         await _handle_deacon_assign(update, "Bill Yomes", *_assign)
+        return ""
+
+    # "Where was I <day> at <time>" over his own phone's location history
+    # (jobs/location/where_was_i.py) -- Bill-only, same reasoning as
+    # add_child/mark_spouse above: only reached from his own authorized
+    # chat, and there's only one phone reporting location data anyway.
+    _where_was_i = _extract_where_was_i(text)
+    if _where_was_i:
+        await _handle_where_was_i(update, _where_was_i)
         return ""
 
     _possessive = re.search(r"(\w+)'s\s+(?:email|phone|number|contact)", text, re.IGNORECASE)
