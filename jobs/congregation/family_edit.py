@@ -354,3 +354,34 @@ def mark_child_by_id(child_id: int, parent_id: int, sender_name: str) -> tuple[b
         if isinstance(parent, str):
             return False, parent
         return _mark_child_core(conn, child, parent, sender_name)
+
+
+def unlink_family_member_by_id(member_id: int, sender_name: str) -> tuple[bool, str]:
+    """Deacon-app entry point: undo an incorrectly-logged spouse/parent/child
+    relationship by fully detaching ONE member from their household (clears
+    both household_id and household_role on that member only -- everyone
+    else in the household is untouched).
+
+    Which id to pass is the caller's job, and depends on which chip's "x"
+    was tapped, not which card is open:
+      - Removing a SPOUSE chip -> detach the spouse shown in the chip.
+      - Removing a CHILD chip (from a parent's card) -> detach that child.
+      - Removing a PARENT chip (from a child's card) -> detach the card's
+        OWN member (the child side of that relationship), not the parent
+        -- the parent's own head/spouse role is likely still valid on its
+        own (other children, a spouse) and shouldn't be cleared just
+        because one child relationship was logged in error.
+    The deacon-app frontend (DeaconBoard.tsx) already knows which case it's
+    in and picks the right id before calling this."""
+    with _conn() as conn:
+        member = _resolve_by_id(conn, member_id)
+        if isinstance(member, str):
+            return False, member
+        if not member["household_id"]:
+            return False, f"{member['name']} isn't marked as part of a household."
+
+        conn.execute(
+            "UPDATE members SET household_id = NULL, household_role = NULL WHERE id = ?",
+            (member_id,),
+        )
+    return True, f"Done — {member['name']} removed from that household relationship. — logged by {sender_name}"

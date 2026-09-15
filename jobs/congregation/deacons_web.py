@@ -379,3 +379,27 @@ def mark_family_child():
     with _conn() as conn:
         updated = _roster_rows(conn, [child_id, parent_id])
     return jsonify({"message": message, "updated": updated}), 200
+
+
+# Added 2026-09-15 alongside the deacon-app Family section redesign, so an
+# incorrectly-logged spouse/parent/child can be undone from an "x" on its
+# chip rather than staying stuck. See family_edit.py::unlink_family_member_by_id
+# for which id the frontend needs to send (not always the chip's own id --
+# removing a PARENT chip detaches the card's own member, not the parent).
+@deacons_web_bp.route("/api/cat/deacons/family/unlink", methods=["POST"])
+@_require_key
+def unlink_family_member():
+    data = request.get_json(force=True) or {}
+    member_id = data.get("member_id")
+    sender = (data.get("sender") or "").strip() or "Deacon App"
+    if not isinstance(member_id, int):
+        return jsonify({"error": "member_id is required"}), 400
+
+    from jobs.congregation.family_edit import unlink_family_member_by_id
+    ok, message = unlink_family_member_by_id(member_id, sender)
+    if not ok:
+        return jsonify({"error": message}), 400
+
+    with _conn() as conn:
+        updated = _roster_rows(conn, [member_id])
+    return jsonify({"message": message, "updated": updated}), 200
