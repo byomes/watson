@@ -5100,6 +5100,48 @@ async def handle_churchcancel(update: Update, context: ContextTypes.DEFAULT_TYPE
     await update.message.reply_text(f"❌ Cancelled post #{post_id}: {(row['text'] or '')[:60]}")
 
 
+async def handle_churchclips(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not _is_authorized(update):
+        return
+    with get_connection() as conn:
+        rows = conn.execute(
+            """SELECT id, sermonshots_clip_id, video_name, status, pulled_at
+               FROM sermonshots_clips
+               WHERE status != 'dismissed'
+               ORDER BY pulled_at DESC
+               LIMIT 15"""
+        ).fetchall()
+    if not rows:
+        await update.message.reply_text("No Sermon Shots clips pulled in yet.")
+        return
+    lines = ["<b>Sermon Shots Clips (pulled, awaiting review):</b>\n"]
+    for r in rows:
+        lines.append(f"🎬 #{r['id']} — {r['video_name']}\n📥 {r['pulled_at']}")
+    lines.append(
+        "\nThese are downloaded locally but not posted anywhere yet — video "
+        "posting isn't wired up. /churchclipdismiss &lt;id&gt; to drop one you don't want."
+    )
+    await update.message.reply_text("\n".join(lines), parse_mode="HTML")
+
+
+async def handle_churchclipdismiss(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not _is_authorized(update):
+        return
+    if not context.args or not context.args[0].isdigit():
+        await update.message.reply_text("Usage: /churchclipdismiss <id>")
+        return
+    clip_id = int(context.args[0])
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT id, video_name FROM sermonshots_clips WHERE id=?", (clip_id,)
+        ).fetchone()
+        if not row:
+            await update.message.reply_text(f"No pulled clip with id {clip_id}.")
+            return
+        conn.execute("UPDATE sermonshots_clips SET status='dismissed' WHERE id=?", (clip_id,))
+    await update.message.reply_text(f"❌ Dismissed clip #{clip_id} from \"{row['video_name']}\"")
+
+
 async def handle_curator_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle cur_approve:/cur_edit:/cur_reject: inline button presses."""
     query = update.callback_query
@@ -6091,6 +6133,8 @@ def main():
     app.add_handler(CommandHandler("fbcancel",    handle_fbcancel))
     app.add_handler(CommandHandler("churchqueue",  handle_churchqueue))
     app.add_handler(CommandHandler("churchcancel", handle_churchcancel))
+    app.add_handler(CommandHandler("churchclips",        handle_churchclips))
+    app.add_handler(CommandHandler("churchclipdismiss",  handle_churchclipdismiss))
     app.add_handler(CommandHandler("emailqueue",  handle_emailqueue))
     app.add_handler(CommandHandler("emailcancel", handle_emailcancel))
     app.add_handler(CommandHandler("draft",       handle_draft))
