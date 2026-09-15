@@ -90,6 +90,14 @@ DIRECTIVE_PREFIXES: dict = {
         "description": "Submit a book (title/author or link) to the Curator ingest pipeline",
         "example": "curator: City of Bones by Cassandra Clare",
     },
+    "churchpost:": {
+        "telegram": True, "dashboard": False, "category": "Communication",
+        # queues a scheduled post for the church's own FB/IG accounts — separate
+        # from the existing facebook_queue pipeline, which posts to the Faith
+        # Makes Sense ministry page, not the congregation's page
+        "description": "Queue a scheduled post to the church's Facebook/Instagram (send as caption on a photo for Instagram, which requires an image)",
+        "example": "churchpost: facebook 2026-09-21 09:00\nJoin us this Sunday for worship at 10am!",
+    },
     # Added 2026-07-29 menu-drift audit — both already had working dispatch in
     # app.py's /api/terminal (and image_gen/shepherding_report skills), just
     # weren't tracked here, so they were invisible to any generated menu.

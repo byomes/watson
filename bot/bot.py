@@ -1134,6 +1134,8 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     _ff_task.add_done_callback(_background_tasks.discard)
             elif _dpfx == "curator:":
                 await _handle_curator_text(update, context, _darg)
+            elif _dpfx == "churchpost:":
+                await _handle_church_post_text(update, context, _darg)
             log.info("DEBUG directive: %s", _dpfx)
             return
 
@@ -4901,6 +4903,9 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if caption.lower().startswith("curator:"):
         await _handle_curator_photo(update, context, caption[len("curator:"):].strip())
         return
+    if caption.lower().startswith("churchpost:"):
+        await _handle_church_post_photo(update, context, caption[len("churchpost:"):].strip())
+        return
 
     await update.message.reply_text(
         "📸 Book cover recognition is coming soon.\n\nFor now, use:\n<code>Watson add book: Title by Author</code>",
@@ -4964,6 +4969,135 @@ async def _handle_curator_photo(update: Update, context: ContextTypes.DEFAULT_TY
     await update.message.reply_text("📚 Reading the cover — I'll ping you when it's ready.")
 
     threading.Thread(target=_run, daemon=True).start()
+
+
+_CHURCH_POST_PLATFORM_ALIASES = {
+    "fb": "facebook", "facebook": "facebook",
+    "ig": "instagram", "instagram": "instagram",
+    "both": "both",
+}
+
+
+def _parse_church_post(body: str) -> tuple[str | None, "datetime | None", str | None]:
+    """Parses `churchpost:` directive/caption bodies:
+        <platform> <YYYY-MM-DD> <HH:MM>
+        <post text...>
+    Returns (platform, scheduled_dt, text) on success, or (None, None, error_message)."""
+    from datetime import datetime as _dt
+
+    lines = body.strip().split("\n", 1)
+    if len(lines) < 2 or not lines[1].strip():
+        return None, None, (
+            "Format:\nchurchpost: <facebook|instagram|both> <YYYY-MM-DD> <HH:MM>\n<post text>"
+        )
+    meta, text = lines[0].strip(), lines[1].strip()
+    parts = meta.split()
+    if len(parts) != 3:
+        return None, None, "First line must be: <facebook|instagram|both> <YYYY-MM-DD> <HH:MM>"
+
+    platform_raw, date_str, time_str = parts
+    platform = _CHURCH_POST_PLATFORM_ALIASES.get(platform_raw.lower())
+    if not platform:
+        return None, None, "Platform must be facebook, instagram, or both."
+
+    try:
+        scheduled_dt = _dt.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M")
+    except ValueError:
+        return None, None, "Date/time must be YYYY-MM-DD HH:MM (24h clock)."
+
+    return platform, scheduled_dt, text
+
+
+async def _handle_church_post_text(update: Update, context: ContextTypes.DEFAULT_TYPE, body: str) -> None:
+    """Handle `churchpost: <platform> <date> <time>` with no attached photo —
+    text-only, so Instagram (which has no text-only post) is rejected here."""
+    from jobs.church_social.social import add_to_queue
+
+    platform, scheduled_dt, text = _parse_church_post(body)
+    if platform is None:
+        await update.message.reply_text(text)
+        return
+    if platform in ("instagram", "both"):
+        await update.message.reply_text(
+            "Instagram requires an image — attach a photo with the same churchpost: caption instead."
+        )
+        return
+
+    post_id = add_to_queue(text=text, scheduled_time=scheduled_dt, platform=platform)
+    await update.message.reply_text(
+        f"✅ Queued Facebook post #{post_id} for {scheduled_dt:%Y-%m-%d %H:%M}.\n"
+        f"/churchqueue to review, /churchcancel {post_id} to remove."
+    )
+
+
+async def _handle_church_post_photo(update: Update, context: ContextTypes.DEFAULT_TYPE, caption_body: str) -> None:
+    """Handle a photo sent with a `churchpost:` caption."""
+    from jobs.church_social.social import add_to_queue, save_queued_image
+
+    platform, scheduled_dt, text = _parse_church_post(caption_body)
+    if platform is None:
+        await update.message.reply_text(text)
+        return
+
+    photo = update.message.photo[-1]
+    tg_file = await context.bot.get_file(photo.file_id)
+    image_bytes = bytes(await tg_file.download_as_bytearray())
+    image_path = save_queued_image(image_bytes)
+
+    post_id = add_to_queue(text=text, scheduled_time=scheduled_dt, platform=platform, image_path=image_path)
+    await update.message.reply_text(
+        f"✅ Queued {platform} post #{post_id} for {scheduled_dt:%Y-%m-%d %H:%M}.\n"
+        f"/churchqueue to review, /churchcancel {post_id} to remove."
+    )
+
+
+async def handle_churchqueue(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not _is_authorized(update):
+        return
+    with get_connection() as conn:
+        rows = conn.execute(
+            """SELECT id, platform, text, status, scheduled_time, posted_time
+               FROM church_social_queue
+               WHERE status IN ('approved', 'posted', 'failed')
+               ORDER BY scheduled_time ASC
+               LIMIT 10"""
+        ).fetchall()
+    if not rows:
+        await update.message.reply_text("Church social queue is empty.")
+        return
+    icons = {"approved": "✅", "posted": "📤", "failed": "⚠️"}
+    lines = ["<b>Church Social Queue:</b>\n"]
+    for r in rows:
+        sched = r["scheduled_time"] or r["posted_time"] or "unscheduled"
+        preview = (r["text"] or "")[:60]
+        lines.append(f"{icons.get(r['status'], '❔')} #{r['id']} [{r['platform']}] — {preview}\n📅 {sched}")
+    lines.append("\nSend /churchcancel &lt;id&gt; to remove a post from the queue.")
+    await update.message.reply_text("\n".join(lines), parse_mode="HTML")
+
+
+async def handle_churchcancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not _is_authorized(update):
+        return
+    if not context.args or not context.args[0].isdigit():
+        await update.message.reply_text("Usage: /churchcancel <id>")
+        return
+    post_id = int(context.args[0])
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT id, text, status FROM church_social_queue WHERE id=?",
+            (post_id,)
+        ).fetchone()
+        if not row:
+            await update.message.reply_text(f"No post with id {post_id}.")
+            return
+        if row["status"] == "posted":
+            await update.message.reply_text("That post has already been published.")
+            return
+        conn.execute(
+            "UPDATE church_social_queue SET status='cancelled' WHERE id=?",
+            (post_id,)
+        )
+    await update.message.reply_text(f"❌ Cancelled post #{post_id}: {(row['text'] or '')[:60]}")
 
 
 async def handle_curator_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -5955,6 +6089,8 @@ def main():
     app.add_handler(CommandHandler("queue",    handle_queue))
     app.add_handler(CommandHandler("fbqueue",     handle_fbqueue))
     app.add_handler(CommandHandler("fbcancel",    handle_fbcancel))
+    app.add_handler(CommandHandler("churchqueue",  handle_churchqueue))
+    app.add_handler(CommandHandler("churchcancel", handle_churchcancel))
     app.add_handler(CommandHandler("emailqueue",  handle_emailqueue))
     app.add_handler(CommandHandler("emailcancel", handle_emailcancel))
     app.add_handler(CommandHandler("draft",       handle_draft))

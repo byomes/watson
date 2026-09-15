@@ -404,6 +404,11 @@ from jobs.exports.schema import create_tables as _exports_create_tables
 _exports_create_tables()
 app.register_blueprint(exports_bp)
 
+from jobs.church_social.api import church_social_bp
+from jobs.church_social.social import init_db as _church_social_init_db
+_church_social_init_db()
+app.register_blueprint(church_social_bp)
+
 from jobs.book.routes import book_bp
 from jobs.book.schema import create_tables as _book_create_tables
 _book_create_tables()
