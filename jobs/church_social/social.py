@@ -51,6 +51,33 @@ def is_configured() -> bool:
     return bool(FB_PAGE_ID and FB_ACCESS_TOKEN)
 
 
+def get_token_status() -> dict:
+    """Non-alerting variant of check_token_expiry() for the dashboard's
+    GET /api/cat/social/status — same debug_token call, but returns a dict
+    instead of sending Telegram messages."""
+    if not is_configured():
+        return {"configured": False}
+    try:
+        resp = requests.get(
+            "https://graph.facebook.com/debug_token",
+            params={"input_token": FB_ACCESS_TOKEN, "access_token": FB_ACCESS_TOKEN},
+            timeout=10,
+        )
+        data = resp.json().get("data", {})
+        expires_at = data.get("expires_at", 0)
+        if not data.get("is_valid", False):
+            return {"configured": True, "valid": False, "ig_configured": bool(IG_USER_ID)}
+        days_remaining = None if expires_at == 0 else round((expires_at - time.time()) / 86400)
+        return {
+            "configured": True,
+            "valid": True,
+            "days_remaining": days_remaining,
+            "ig_configured": bool(IG_USER_ID),
+        }
+    except Exception as e:
+        return {"configured": True, "valid": False, "error": str(e), "ig_configured": bool(IG_USER_ID)}
+
+
 def check_token_expiry():
     if not is_configured():
         return
