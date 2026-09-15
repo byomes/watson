@@ -3878,3 +3878,172 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - c63732e kb: sync 1 transcript(s) to kb/documents (same-day)
 - bdcc603 kb: sync 1 transcript(s) to kb/documents (same-day)
 - 07f402e docs: architecture update 2026-09-13
+
+---
+
+## Recent Changes — 2026-09-15
+
+### ~/watson
+- 5008725 docs: bugs/backlog export 2026-09-15
+- 9f9180e docs: file map 2026-09-15
+- bc30b96 Let the social team view and schedule pulled Sermon Shots clips
+- 2a6b080 feat: pull finished Sermon Shots clips into a local review queue
+- e50d008 feat: church_social dashboard API backend (social_web.py)
+- 0d4ee0f feat: church social pipeline v1 — scheduled FB/IG posting engine
+- d779b6e polish: log INFO lines for per-call fast-path review, matching run()
+- 365116e fix: per-call fast-path review now logs, found verifying it live
+- 9357adc feat: fast-path suggestions run per Claude call, auto-apply simple fixes
+- 8a7d177 Revert "Add "fire extinguishers" fast-path phrase to count of who attended a service"
+- c24752a Add "fire extinguishers" fast-path phrase to count of who attended a service
+- c3f299e kb: sync 1 transcript(s) to kb/documents (same-day)
+- c1c538e fix+feat: last-seen weeks-missed reply, and two "both campuses" collisions
+- 79b5f12 kb: sync 1 transcript(s) to kb/documents (same-day)
+- a23053e kb: sync 1 transcript(s) to kb/documents (same-day)
+- 5f1c1a3 kb: sync 1 transcript(s) to kb/documents (same-day)
+- 0e46c28 kb: sync 1 transcript(s) to kb/documents (same-day)
+- 63ca2a7 kb: sync 1 transcript(s) to kb/documents (same-day)
+- 38207af kb: sync 1 transcript(s) to kb/documents (same-day)
+- f392967 kb: sync 1 transcript(s) to kb/documents (same-day)
+- 39e9424 feat: LLM-free fast path for event-signup Telegram questions
+- d495e45 kb: sync 1 transcript(s) to kb/documents (same-day)
+- 0bc040c kb: sync 1 transcript(s) to kb/documents (same-day)
+- 6b66af9 kb: sync 1 transcript(s) to kb/documents (same-day)
+- d90bef8 kb: sync 1 transcript(s) to kb/documents (same-day)
+- 2203b7e kb: sync 1 transcript(s) to kb/documents (same-day)
+- 4a03169 fix: point email/event-signup Ollama classifiers at llama3.2:3b
+- fe71b0d kb: sync 1 transcript(s) to kb/documents (same-day)
+- 713b9fb kb: sync 1 transcript(s) to kb/documents (same-day)
+- 50a2845 kb: sync 1 transcript(s) to kb/documents (same-day)
+- 1d73313 kb: sync 1 transcript(s) to kb/documents (same-day)
+- ef21e4c kb: sync 1 transcript(s) to kb/documents (same-day)
+- 5ba94da kb: sync 1 transcript(s) to kb/documents (same-day)
+- de06191 kb: sync 1 transcript(s) to kb/documents (same-day)
+- 4a17ce2 kb: sync 1 transcript(s) to kb/documents (same-day)
+- 8c6b7b1 kb: sync 1 transcript(s) to kb/documents (same-day)
+- 8f9cf69 kb: sync 1 transcript(s) to kb/documents (same-day)
+- 9b49742 kb: sync 1 transcript(s) to kb/documents (same-day)
+- ec8c49a kb: sync 1 transcript(s) to kb/documents (same-day)
+- 60ef70f kb: sync 1 transcript(s) to kb/documents (same-day)
+- d6fa96b kb: sync 1 transcript(s) to kb/documents (same-day)
+- b94b271 kb: sync 1 transcript(s) to kb/documents (same-day)
+- acc0c02 kb: sync 1 transcript(s) to kb/documents (same-day)
+- df4522b kb: sync 1 transcript(s) to kb/documents (same-day)
+- 72c2918 kb: sync 1 transcript(s) to kb/documents (same-day)
+- 1ef9c22 kb: sync 1 transcript(s) to kb/documents (same-day)
+- 2a4fa4d kb: sync 1 transcript(s) to kb/documents (same-day)
+- 468a437 kb: sync 1 transcript(s) to kb/documents (same-day)
+- bb7f226 kb: sync 1 transcript(s) to kb/documents (same-day)
+- 1541bd2 kb: sync 1 transcript(s) to kb/documents (same-day)
+- 3dcff68 kb: sync 1 transcript(s) to kb/documents (same-day)
+- c4c3757 kb: sync 1 transcript(s) to kb/documents (same-day)
+- f9d6a93 kb: sync 1 transcript(s) to kb/documents (same-day)
+- dbe3fa8 kb: sync 1 transcript(s) to kb/documents (same-day)
+- cfab0d1 kb: sync 1 transcript(s) to kb/documents (same-day)
+- 6a11675 kb: sync 1 transcript(s) to kb/documents (same-day)
+- 622d896 kb: sync 1 transcript(s) to kb/documents (same-day)
+- 9143d60 kb: sync 1 transcript(s) to kb/documents (same-day)
+- c00356d kb: sync 1 transcript(s) to kb/documents (same-day)
+- 3a50d1d kb: sync 1 transcript(s) to kb/documents (same-day)
+- ae65323 kb: sync 1 transcript(s) to kb/documents (same-day)
+- d70329f kb: sync 1 transcript(s) to kb/documents (same-day)
+- 5065ff7 kb: sync 1 transcript(s) to kb/documents (same-day)
+- 15d3db0 kb: sync 1 transcript(s) to kb/documents (same-day)
+- e08bca8 kb: sync 1 transcript(s) to kb/documents (same-day)
+- 5c1a332 kb: sync 1 transcript(s) to kb/documents (same-day)
+- 0b9747f kb: sync 1 transcript(s) to kb/documents (same-day)
+- 5b73733 kb: sync 1 transcript(s) to kb/documents (same-day)
+- 28e7a7c kb: sync 1 transcript(s) to kb/documents (same-day)
+- 8f6d450 kb: sync 1 transcript(s) to kb/documents (same-day)
+- 258a12f kb: sync 1 transcript(s) to kb/documents (same-day)
+- 4529da7 kb: sync 1 transcript(s) to kb/documents (same-day)
+- f187a39 kb: sync 1 transcript(s) to kb/documents (same-day)
+- eef755f kb: sync 1 transcript(s) to kb/documents (same-day)
+- bdd346c kb: sync 1 transcript(s) to kb/documents (same-day)
+- c19213f kb: sync 1 transcript(s) to kb/documents (same-day)
+- 81427ff kb: sync 1 transcript(s) to kb/documents (same-day)
+- 2aa15b6 kb: sync 1 transcript(s) to kb/documents (same-day)
+- a342017 kb: sync 1 transcript(s) to kb/documents (same-day)
+- e70412d kb: sync 1 transcript(s) to kb/documents (same-day)
+- d330c20 kb: sync 1 transcript(s) to kb/documents (same-day)
+- 1c2bf19 kb: sync 1 transcript(s) to kb/documents (same-day)
+- 65de2bf kb: sync 1 transcript(s) to kb/documents (same-day)
+- 5aef8fd kb: sync 1 transcript(s) to kb/documents (same-day)
+- 3fada75 kb: sync 1 transcript(s) to kb/documents (same-day)
+- b573a0b fix: nickname-aware name matching + resume disambiguation questions in context
+- f5e8891 kb: sync 1 transcript(s) to kb/documents (same-day)
+- 270f02f kb: sync 1 transcript(s) to kb/documents (same-day)
+- a4a6d16 kb: sync 1 transcript(s) to kb/documents (same-day)
+- 58002fd kb: sync 1 transcript(s) to kb/documents (same-day)
+- 3213b78 kb: sync 1 transcript(s) to kb/documents (same-day)
+- 3608076 kb: sync 1 transcript(s) to kb/documents (same-day)
+- b560475 kb: sync 1 transcript(s) to kb/documents (same-day)
+- 3854b7a kb: sync 1 transcript(s) to kb/documents (same-day)
+- 41a7bc2 kb: sync 1 transcript(s) to kb/documents (same-day)
+- 2d9fc32 kb: sync 1 transcript(s) to kb/documents (same-day)
+- f5d1295 kb: sync 1 transcript(s) to kb/documents (same-day)
+- 9676d3f kb: sync 1 transcript(s) to kb/documents (same-day)
+- a17b588 kb: sync 1 transcript(s) to kb/documents (same-day)
+- 294f6c5 kb: sync 1 transcript(s) to kb/documents (same-day)
+- 5c440c5 kb: sync 1 transcript(s) to kb/documents (same-day)
+- 58cd5d2 kb: sync 1 transcript(s) to kb/documents (same-day)
+- 3772dfb kb: sync 1 transcript(s) to kb/documents (same-day)
+- 11072ce kb: sync 1 transcript(s) to kb/documents (same-day)
+- 98e9c52 kb: sync 1 transcript(s) to kb/documents (same-day)
+- f534875 kb: sync 1 transcript(s) to kb/documents (same-day)
+- 31e0dd0 kb: sync 1 transcript(s) to kb/documents (same-day)
+- 6947141 kb: sync 1 transcript(s) to kb/documents (same-day)
+- 4c9599b kb: sync 1 transcript(s) to kb/documents (same-day)
+- 1c15f43 kb: sync 1 transcript(s) to kb/documents (same-day)
+- 21fa400 kb: sync 1 transcript(s) to kb/documents (same-day)
+- a8ad4de kb: sync 1 transcript(s) to kb/documents (same-day)
+- 3cb2ea7 test: confirm vercel auto-deploy disconnected (no-op)
+- 53ab89e kb: sync 1 transcript(s) to kb/documents (same-day)
+- 2b9526a kb: sync 1 transcript(s) to kb/documents (same-day)
+- 415313b kb: sync 1 transcript(s) to kb/documents (same-day)
+- d130f93 kb: sync 1 transcript(s) to kb/documents (same-day)
+- 65f6c2e kb: sync 1 transcript(s) to kb/documents (same-day)
+- fa5b091 kb: sync 1 transcript(s) to kb/documents (same-day)
+- fd851a7 kb: sync 1 transcript(s) to kb/documents (same-day)
+- cb3f3a0 kb: sync 1 transcript(s) to kb/documents (same-day)
+- 6aea351 kb: sync 1 transcript(s) to kb/documents (same-day)
+- 5971e7e feat: add general homepage newsletter signup API
+- 3ad9acd kb: sync 1 transcript(s) to kb/documents (same-day)
+- 46e6195 kb: sync 1 transcript(s) to kb/documents (same-day)
+- d564b5b kb: sync 1 transcript(s) to kb/documents (same-day)
+- 1556acd kb: sync 1 transcript(s) to kb/documents (same-day)
+- e259100 kb: sync 1 transcript(s) to kb/documents (same-day)
+- 5fb4a4b kb: sync 1 transcript(s) to kb/documents (same-day)
+- f35ece3 kb: sync 1 transcript(s) to kb/documents (same-day)
+- f4d6e44 feat: add book-launch pre-launch signup API for wcky GUARDRAILS page
+- ee6f1bf fix: batch.py ModuleNotFoundError when run directly (bug #166)
+- c32460d kb: pull wcky blog posts into ai-ghostwritten archive
+- b79a533 kb: add ai-ghostwritten source_type, excluded from search by default
+- cb0af69 kb: sync 1 transcript(s) to kb/documents (same-day)
+- b37e84e fix: batch.py now transfers transcripts to the Beelink KB (bug #164)
+- e538a02 kb: sync 1 transcript(s) to kb/documents (same-day)
+- 53fe56d fix: preserve line breaks in connect card comments/prayer requests emails
+- abd3a9d devdispatch: This is a READ-ONLY weekly health-check task. Do not modify any code, do (#60)
+- 1ff47cf docs: regenerate Skills & Capabilities Catalog
+- 3ba3d2e docs: architecture update 2026-09-14
+
+### ~/wcky
+- 4e5ce9e fix: reorder /books — Wrong Jesus first, GUARDRAILS last
+- 85a7ce7 fix: remove ARC from main nav
+- eb6a0a8 publish: replace homepage "Join the Launch Team" with email capture
+- b635e51 fix: update GUARDRAILS OG image to Bill's latest revision
+- 96dd01b publish: update GUARDRAILS description copy
+- 3a5b795 fix: remove em dashes from GUARDRAILS page copy
+- b4dc6bf fix: GUARDRAILS <title> was doubling up with the site-wide template
+- 558521f fix: drop "(Coming Soon)" from GUARDRAILS page <title>
+- 06da87f fix: use finished OG art for GUARDRAILS page instead of generated one
+- 3e75644 fix: GUARDRAILS hero — yellow "Coming Soon" badge, remove duplicate label
+- d81916e fix: drop "Dr." on GUARDRAILS page byline, use "William CK Yomes"
+- 3f531fa publish: GUARDRAILS landing page
+- c575e4c publish: The Wrong Jesus companion guide live signup
+
+### ~/watson-tools
+- 402f656 connect: add IP and coarse geo to connect-card diagnostic log
+- 5f1fef7 Split /cat/social into Scheduler and Sermon Clips tabs
+- 810ddb6 Add Sermon Clips review/scheduling to /cat/social
+- f0ebee4 style: grey box for the image file input button on /cat/social
+- 9913a4b feat: Catalyst Social command dashboard at /cat/social
