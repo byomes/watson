@@ -297,12 +297,18 @@ def _trigger_fast_path_review(spend_log_id: int, asker_name: str, question: str)
             python_bin = sys.executable
         env = os.environ.copy()
         env["PYTHONPATH"] = repo_root
-        subprocess.Popen(
-            [python_bin, "-m", "jobs.analytics.fast_path_suggestions",
-             "--single", str(spend_log_id), asker_name, question],
-            cwd=repo_root, env=env,
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-        )
+        # Appended to the same log the nightly cron writes to (not
+        # DEVNULL'd) -- found verifying this live 2026-09-14: with output
+        # discarded there was no way to check afterward whether a per-call
+        # run actually happened or why, short of inferring it from DB state.
+        log_path = os.path.join(repo_root, "logs", "fast_path_suggestions.log")
+        with open(log_path, "a") as log_file:
+            subprocess.Popen(
+                [python_bin, "-m", "jobs.analytics.fast_path_suggestions",
+                 "--single", str(spend_log_id), asker_name, question],
+                cwd=repo_root, env=env,
+                stdout=log_file, stderr=log_file,
+            )
     except Exception as exc:
         log.warning("claude_tier: failed to launch fast-path review: %s", exc)
 
