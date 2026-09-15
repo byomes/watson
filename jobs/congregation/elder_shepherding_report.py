@@ -189,30 +189,79 @@ def _last_name_key(name: str) -> str:
 _BUCKET_ORDER = {"6wk": 0, "3-5wk": 1, "2wk": 2, None: 3}
 
 
+def _member_engagement_tiers(conn) -> dict:
+    """{member_id: 'consistent'|'active'|'occasional'|'lapsed'|None} -- same
+    last-8/last-24-service-date visit-count thresholds as
+    jobs/connect_cards/state_of_church.py's _engagement_tiers(), just kept
+    per-member instead of summed into a weekly aggregate, so the deacon app
+    can show the same 8-week engagement classification Watson emails in the
+    State of the Church report. None means the member falls outside all four
+    tiers (no attendance in the last 24 service dates either)."""
+    rows = conn.execute(
+        """
+        WITH last8 AS (
+            SELECT DISTINCT service_date FROM attendance ORDER BY service_date DESC LIMIT 8
+        ),
+        last24 AS (
+            SELECT DISTINCT service_date FROM attendance ORDER BY service_date DESC LIMIT 24
+        )
+        SELECT
+            m.id,
+            SUM(CASE WHEN a.service_date IN (SELECT service_date FROM last8)  THEN 1 ELSE 0 END) AS last8_count,
+            SUM(CASE WHEN a.service_date IN (SELECT service_date FROM last24) THEN 1 ELSE 0 END) AS last24_count
+        FROM members m
+        LEFT JOIN attendance a ON a.member_id = m.id
+        WHERE m.active = 1
+        GROUP BY m.id
+        """
+    ).fetchall()
+
+    tiers = {}
+    for r in rows:
+        last8, last24 = r["last8_count"] or 0, r["last24_count"] or 0
+        if last8 >= 6:
+            tiers[r["id"]] = "consistent"
+        elif 3 <= last8 <= 5:
+            tiers[r["id"]] = "active"
+        elif 1 <= last8 <= 2:
+            tiers[r["id"]] = "occasional"
+        elif last8 == 0 and last24 > 0:
+            tiers[r["id"]] = "lapsed"
+        else:
+            tiers[r["id"]] = None
+    return tiers
+
+
 def build_deacon_group_names() -> list[dict]:
     """[{name, members: [{id, name, bucket, days_since, last_seen, email,
-    phone}, ...]}, ...] -- one row per real deacon (same list_deacons() order
-    as build_deacon_group_counts()), plus a trailing Unassigned row. Every
-    non-excluded member with attendance history appears exactly once, under
-    `bucket` (None = no flag -- seen within the last 2 weeks, or an old
-    first-timer that doesn't clear the 6+wk visit-count gate). `id` and
-    `last_seen` (raw ISO date) power the "update last seen" date-picker on
-    wtsn.me/cat/shepherdingreport (see elder_shepherding_report_web.py's
-    set_last_seen route); `days_since` is the exact day count the coarse
-    `bucket` is derived from, shown as a precise week count in that same UI
-    instead of the bucket's range label. `email`/`phone` are raw members.*
-    values (None if blank) -- power the call/text/email contact icons.
-    None of these four are used in the Telegram message. Each group's
-    members are pre-sorted
-    worst-bucket-first, then by last name, so the page renders top to
-    bottom with no client-side sort. Powers wtsn.me/cat/shepherdingreport
-    -- kept separate from build_deacon_group_counts() because Telegram's
-    character limit is the reason that one stays counts-only."""
+    phone, engagement}, ...]}, ...] -- one row per real deacon (same
+    list_deacons() order as build_deacon_group_counts()), plus a trailing
+    Unassigned row. Every non-excluded member with attendance history
+    appears exactly once, under `bucket` (None = no flag -- seen within the
+    last 2 weeks, or an old first-timer that doesn't clear the 6+wk
+    visit-count gate). `id` and `last_seen` (raw ISO date) power the
+    "update last seen" date-picker on wtsn.me/cat/shepherdingreport (see
+    elder_shepherding_report_web.py's set_last_seen route); `days_since` is
+    the exact day count the coarse `bucket` is derived from, shown as a
+    precise week count in that same UI instead of the bucket's range label.
+    `email`/`phone` are raw members.* values (None if blank) -- power the
+    call/text/email contact icons. `engagement` is the same
+    consistent/active/occasional/lapsed/None 8-week-window classification
+    state_of_church.py emails weekly, computed per-member by
+    _member_engagement_tiers(). None of these five are used in the Telegram
+    message. Each group's members are pre-sorted worst-bucket-first, then
+    by last name, so the page renders top to bottom with no client-side
+    sort. Powers wtsn.me/cat/shepherdingreport -- kept separate from
+    build_deacon_group_counts() because Telegram's character limit is the
+    reason that one stays counts-only."""
     deacons = list_deacons()
     groups = {d: {"name": d, "members": []} for d in deacons}
     unassigned = {"name": "Unassigned", "members": []}
 
     today = date.today()
+    with _conn() as conn:
+        engagement = _member_engagement_tiers(conn)
+
     for r in _raw_rows():
         key = _group_key(r["deacon"])
         if key == "_excluded_":
@@ -231,6 +280,7 @@ def build_deacon_group_names() -> list[dict]:
             "last_seen": r["last_seen"],
             "email": r["email"] or None,
             "phone": r["phone"] or None,
+            "engagement": engagement.get(r["id"]),
         })
 
     rows = [groups[d] for d in deacons]
