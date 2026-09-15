@@ -244,16 +244,27 @@ def _other_role_holders(conn, household_id: str, role: str, exclude_ids: set[int
     return [r["name"] for r in rows]
 
 
-def _mark_spouse_core(conn, a: dict, b: dict, sender_name: str) -> tuple[bool, str]:
+_SPOUSE_ROLES = ("husband", "wife")
+_ROLE_GENDER = {"husband": "male", "wife": "female"}
+_COMPLEMENT_ROLE = {"husband": "wife", "wife": "husband"}
+
+
+def _mark_spouse_core(conn, a: dict, b: dict, sender_name: str, a_role: str, b_role: str) -> tuple[bool, str]:
     """Shared logic behind mark_spouse (Telegram, free-text) and
     mark_spouse_by_id (deacon app, already has both ids from the roster it
-    loaded) -- household_role 'head'/'spouse', sharing one household_id.
-    Whichever of the two already holds 'head' keeps it; otherwise `a`
-    becomes 'head' and `b` becomes 'spouse' (arbitrary but consistent --
-    the two roles are interchangeable for answering "who is X's spouse",
-    no hierarchy implied). Returns (ok, message)."""
+    loaded) -- household_role 'husband'/'wife' (2026-09-15, replacing the
+    old gender-neutral 'head'/'spouse' pairing per Bill's request), sharing
+    one household_id. a_role/b_role must be exactly {'husband','wife'}
+    between them -- the caller is responsible for knowing which is which
+    (there's no gender inference here). Also sets gender ('male'/'female')
+    to match the assigned role, automatically, per Bill's 2026-09-15
+    request -- a role assignment is a deliberate human statement about who
+    someone is, so it always overwrites whatever gender was on file.
+    Returns (ok, message)."""
     if a["id"] == b["id"]:
         return False, f"{a['name']} can't be their own spouse."
+    if {a_role, b_role} != set(_SPOUSE_ROLES):
+        return False, "Need exactly one husband and one wife to mark a spouse relationship."
     if a["household_role"] == "child" or b["household_role"] == "child":
         child = a if a["household_role"] == "child" else b
         return False, (
@@ -265,23 +276,29 @@ def _mark_spouse_core(conn, a: dict, b: dict, sender_name: str) -> tuple[bool, s
     if merge_error:
         return False, merge_error
 
-    role_a, role_b = ("spouse", "head") if b["household_role"] == "head" else ("head", "spouse")
-    warn_names = _other_role_holders(conn, a["household_id"], role_b, {a["id"], b["id"]})
+    warn_names = _other_role_holders(conn, a["household_id"], b_role, {a["id"], b["id"]})
+    warn_names += _other_role_holders(conn, a["household_id"], a_role, {a["id"], b["id"]})
 
-    conn.execute("UPDATE members SET household_role = ? WHERE id = ?", (role_a, a["id"]))
-    conn.execute("UPDATE members SET household_role = ? WHERE id = ?", (role_b, b["id"]))
+    conn.execute("UPDATE members SET household_role = ?, gender = ? WHERE id = ?", (a_role, _ROLE_GENDER[a_role], a["id"]))
+    conn.execute("UPDATE members SET household_role = ?, gender = ? WHERE id = ?", (b_role, _ROLE_GENDER[b_role], b["id"]))
 
-    message = f"Done — {a['name']} and {b['name']} are now marked as spouses (household {a['household_id']}). — logged by {sender_name}"
+    a_word = "Husband" if a_role == "husband" else "Wife"
+    b_word = "Husband" if b_role == "husband" else "Wife"
+    message = (
+        f"Done — {a['name']} ({a_word}) and {b['name']} ({b_word}) are now marked as spouses "
+        f"(household {a['household_id']}). — logged by {sender_name}"
+    )
     if warn_names:
-        message += f" Note: {', '.join(warn_names)} was also marked '{role_b}' in that household — you may want to review."
+        message += f" Note: {', '.join(warn_names)} already held a spouse role in that household — you may want to review."
     return True, message
 
 
 def _mark_child_core(conn, child: dict, parent: dict, sender_name: str) -> tuple[bool, str]:
     """Shared logic behind mark_child (Telegram) and mark_child_by_id
     (deacon app) -- household_role 'child' for `child`, sharing `parent`'s
-    household_id. `parent`'s own role defaults to 'head' if unset; an
-    existing 'head'/'spouse' role is left as-is. Returns (ok, message)."""
+    household_id. `parent`'s own role defaults to 'head' (single parent,
+    2026-09-15 terminology) if unset; an existing 'husband'/'wife'/'head'
+    role is left as-is. Returns (ok, message)."""
     if child["id"] == parent["id"]:
         return False, f"{child['name']} can't be their own parent."
     if parent["household_role"] == "child":
@@ -302,9 +319,12 @@ def _mark_child_core(conn, child: dict, parent: dict, sender_name: str) -> tuple
     return True, message
 
 
-def mark_spouse(name1_query: str, name2_query: str, sender_name: str) -> str:
-    """Telegram entry point -- free-text name matching. Use add_child()
-    instead of this for someone not yet in congregation.db."""
+def mark_spouse(name1_query: str, name2_query: str, role1: str, role2: str, sender_name: str) -> str:
+    """Telegram entry point -- free-text name matching. role1/role2 are
+    'husband'/'wife' (bot.py's _extract_mark_spouse only calls this once
+    the phrasing made that explicit -- e.g. "X is Y's husband" -- asking
+    for clarification itself otherwise, rather than guessing here). Use
+    add_child() instead of this for someone not yet in congregation.db."""
     with _conn() as conn:
         a = _resolve_one(conn, name1_query)
         if isinstance(a, str):
@@ -312,7 +332,7 @@ def mark_spouse(name1_query: str, name2_query: str, sender_name: str) -> str:
         b = _resolve_one(conn, name2_query)
         if isinstance(b, str):
             return b
-        _, message = _mark_spouse_core(conn, a, b, sender_name)
+        _, message = _mark_spouse_core(conn, a, b, sender_name, role1, role2)
     return message
 
 
@@ -330,10 +350,16 @@ def mark_child(child_query: str, parent_query: str, sender_name: str) -> str:
     return message
 
 
-def mark_spouse_by_id(member_id: int, spouse_id: int, sender_name: str) -> tuple[bool, str]:
+def mark_spouse_by_id(member_id: int, spouse_id: int, spouse_role: str, sender_name: str) -> tuple[bool, str]:
     """Deacon-app entry point (jobs/congregation/deacons_web.py) -- both
     ids come from the roster the app already loaded, so no fuzzy matching
-    or ambiguity handling is needed here."""
+    or ambiguity handling is needed here. spouse_role ('husband' or 'wife')
+    is what `spouse_id` becomes -- the deacon app's FamilySection asks
+    "Add Husband" or "Add Wife" up front, so it already knows this before
+    the picker even opens; `member_id` (the card being viewed) becomes
+    the complementary role automatically."""
+    if spouse_role not in _SPOUSE_ROLES:
+        return False, "spouse_role must be 'husband' or 'wife'."
     with _conn() as conn:
         a = _resolve_by_id(conn, member_id)
         if isinstance(a, str):
@@ -341,7 +367,7 @@ def mark_spouse_by_id(member_id: int, spouse_id: int, sender_name: str) -> tuple
         b = _resolve_by_id(conn, spouse_id)
         if isinstance(b, str):
             return False, b
-        return _mark_spouse_core(conn, a, b, sender_name)
+        return _mark_spouse_core(conn, a, b, sender_name, _COMPLEMENT_ROLE[spouse_role], spouse_role)
 
 
 def mark_child_by_id(child_id: int, parent_id: int, sender_name: str) -> tuple[bool, str]:

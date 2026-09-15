@@ -129,20 +129,23 @@ def _attendance_schema(allow_contact_info: bool) -> str:
         "  -- one row per person per service actually attended. campus is 'Wilmington' or 'Online'.\n"
         "classroom_attendance(date TEXT, kids_nursery, adults_nursery, kids_toddlers, adults_toddlers, kids_prek, adults_prek, kids_elementary, adults_elementary INTEGER)\n"
         "  -- one row per Sunday with headcounts for each of the 4 kids' classrooms.\n"
-        f"members(id INTEGER, name TEXT, deacon TEXT, status TEXT, member_status TEXT, campus_preference TEXT, first_visit_date TEXT, active INTEGER, partnership_status TEXT, household_id TEXT, household_role TEXT{contact_cols})\n"
+        f"members(id INTEGER, name TEXT, deacon TEXT, status TEXT, member_status TEXT, campus_preference TEXT, first_visit_date TEXT, active INTEGER, partnership_status TEXT, household_id TEXT, household_role TEXT, gender TEXT{contact_cols})\n"
         "  -- deacon holds the free-text NAME of the deacon shepherding that member -- \"who's in <X>'s deacon group\" means WHERE deacon LIKE '%X%' DIRECTLY.\n"
         "  -- Never look up X's own row and reuse ITS deacon value instead -- deacons/elders themselves are tagged with a\n"
         "  -- leadership bucket there (e.g. 'Elders & Deacons'), shared by every deacon/elder and their spouse, not their own\n"
         "  -- name -- reusing it returns that whole leadership bucket, a wrong and unrelated group, not the person's shepherded members.\n"
         "  -- join attendance.member_id = members.id for a specific person's or group's attendance.\n"
-        "  -- household_id groups members of the same family (e.g. 'H047'); household_role is one of 'head', 'spouse',\n"
-        "  -- 'child', 'other', or NULL if never recorded. To find X's SPOUSE: self-join members to itself on matching\n"
-        "  -- household_id (excluding X's own row), requiring household_role IN ('head','spouse') on BOTH sides -- see\n"
-        "  -- the example below. To find X's CHILDREN: same self-join but the other side's household_role = 'child'\n"
-        "  -- (no requirement on X's own role). To find a CHILD's PARENTS: same self-join with X's own household_role\n"
-        "  -- = 'child' and the other side's household_role IN ('head','spouse'). Never use household_id alone (matching\n"
-        "  -- last name or address) to answer a spouse/parent/child question -- siblings and parent/child pairs can share\n"
-        "  -- a household_id too, and household_role is what actually distinguishes the relationship.\n"
+        "  -- household_id groups members of the same family (e.g. 'H047'); household_role is one of 'husband', 'wife',\n"
+        "  -- 'head' (a single parent -- no spouse on file), 'child', 'other', or NULL if never recorded. gender is\n"
+        "  -- 'male'/'female'/NULL, set automatically whenever a husband/wife role is assigned. To find X's SPOUSE:\n"
+        "  -- self-join members to itself on matching household_id (excluding X's own row), requiring household_role\n"
+        "  -- IN ('husband','wife') on BOTH sides -- see the example below (a 'head' has no spouse by definition, so\n"
+        "  -- never include 'head' in a spouse lookup). To find X's CHILDREN: same self-join but the other side's\n"
+        "  -- household_role = 'child' (no requirement on X's own role). To find a CHILD's PARENTS: same self-join with\n"
+        "  -- X's own household_role = 'child' and the other side's household_role IN ('husband','wife','head') -- a\n"
+        "  -- single parent's kids still need to find their one parent. Never use household_id alone (matching last\n"
+        "  -- name or address) to answer a spouse/parent/child question -- siblings and parent/child pairs can share a\n"
+        "  -- household_id too, and household_role is what actually distinguishes the relationship.\n"
         "  -- partnership_status is a category, one of exactly 'Partner', 'Guest', 'Regular Attender' -- to filter\n"
         "  -- to just partners use partnership_status = 'Partner', NEVER partnership_status IS NOT NULL (that matches\n"
         "  -- everyone, since the column is always populated with one of the three values above).\n"
@@ -257,7 +260,11 @@ SQL: SELECT name FROM members WHERE partnership_status = 'Partner' AND (deacon I
 
 Q: who is Kaci Gravatt's spouse?
 DOMAIN: attendance
-SQL: SELECT m2.name FROM members m1 JOIN members m2 ON m2.household_id = m1.household_id AND m2.id != m1.id WHERE m1.name LIKE '%Kaci Gravatt%' AND m1.household_role IN ('head','spouse') AND m2.household_role IN ('head','spouse')
+SQL: SELECT m2.name FROM members m1 JOIN members m2 ON m2.household_id = m1.household_id AND m2.id != m1.id WHERE m1.name LIKE '%Kaci Gravatt%' AND m1.household_role IN ('husband','wife') AND m2.household_role IN ('husband','wife')
+
+Q: who is Kaci Gravatt's husband?
+DOMAIN: attendance
+SQL: SELECT m2.name FROM members m1 JOIN members m2 ON m2.household_id = m1.household_id AND m2.id != m1.id WHERE m1.name LIKE '%Kaci Gravatt%' AND m2.household_role = 'husband'
 
 Q: who are Tara Mathena's children?
 DOMAIN: attendance
@@ -265,7 +272,7 @@ SQL: SELECT m2.name FROM members m1 JOIN members m2 ON m2.household_id = m1.hous
 
 Q: who are Kathryn Taylor's parents?
 DOMAIN: attendance
-SQL: SELECT m2.name FROM members m1 JOIN members m2 ON m2.household_id = m1.household_id AND m2.id != m1.id WHERE m1.name LIKE '%Kathryn Taylor%' AND m1.household_role = 'child' AND m2.household_role IN ('head','spouse')
+SQL: SELECT m2.name FROM members m1 JOIN members m2 ON m2.household_id = m1.household_id AND m2.id != m1.id WHERE m1.name LIKE '%Kathryn Taylor%' AND m1.household_role = 'child' AND m2.household_role IN ('husband','wife','head')
 
 Q: what deacon notes have been logged about Barry Balderson?
 DOMAIN: attendance

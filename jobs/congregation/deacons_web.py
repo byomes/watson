@@ -348,12 +348,15 @@ def _roster_rows(conn, member_ids: list[int]) -> list[dict]:
 def mark_family_spouse():
     data = request.get_json(force=True) or {}
     member_id, spouse_id = data.get("member_id"), data.get("spouse_id")
+    spouse_role = data.get("spouse_role")
     sender = (data.get("sender") or "").strip() or "Deacon App"
     if not isinstance(member_id, int) or not isinstance(spouse_id, int):
         return jsonify({"error": "member_id and spouse_id are required"}), 400
+    if spouse_role not in ("husband", "wife"):
+        return jsonify({"error": "spouse_role must be 'husband' or 'wife'"}), 400
 
     from jobs.congregation.family_edit import mark_spouse_by_id
-    ok, message = mark_spouse_by_id(member_id, spouse_id, sender)
+    ok, message = mark_spouse_by_id(member_id, spouse_id, spouse_role, sender)
     if not ok:
         return jsonify({"error": message}), 400
 

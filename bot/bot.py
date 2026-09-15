@@ -2451,11 +2451,17 @@ async def _handle_birthday_update(update: Update, sender_name: str, name_query: 
 # household_role model this writes. These mark a relationship between two
 # members ALREADY on file; _extract_add_child above stays the tool for a
 # brand-new member.
-def _extract_mark_spouse(text: str) -> tuple[str, str] | None:
+def _extract_mark_spouse(text: str) -> tuple[str, str, str | None, str | None] | None:
     """Recognize "X and Y are married/spouses", "X is married to Y", "X's
     spouse is Y", "X married Y", or "X is Y's husband/wife" and return
-    (name1, name2), or None. "&"/"got married"/husband-wife possessive
-    joined 2026-09-12."""
+    (name1, name2, role1, role2), or None. "&"/"got married"/husband-wife
+    possessive joined 2026-09-12.
+
+    role1/role2 are 'husband'/'wife' ONLY when the phrasing said so
+    explicitly (the last pattern below) -- every other phrasing has no way
+    to know which of the two is which, so both come back None and
+    _handle_mark_spouse asks for clarification rather than guessing
+    (2026-09-15, replacing the old gender-neutral head/spouse pairing)."""
     text = text.strip()
     m = re.search(
         r"^(?:mark\s+)?(.+?)\s+(?:and|&)\s+(.+?)\s+(?:are|as)\s+(?:married|spouses|husband and wife)[.!]?$",
@@ -2467,13 +2473,21 @@ def _extract_mark_spouse(text: str) -> tuple[str, str] | None:
         m = re.search(r"^(.+?)\s+married\s+(.+?)[.!]?$", text, re.IGNORECASE)
     if not m:
         m = re.search(r"^(.+?)'s\s+spouse\s+is\s+(.+?)[.!]?$", text, re.IGNORECASE)
-    if not m:
-        m = re.search(r"^(.+?)\s+is\s+(.+?)'s\s+(?:husband|wife)[.!]?$", text, re.IGNORECASE)
+    if m:
+        a = m.group(1).strip(" .,")
+        b = m.group(2).strip(" .,")
+        return (a, b, None, None) if a and b else None
+
+    m = re.search(r"^(.+?)\s+is\s+(.+?)'s\s+(husband|wife)[.!]?$", text, re.IGNORECASE)
     if not m:
         return None
     a = m.group(1).strip(" .,")
     b = m.group(2).strip(" .,")
-    return (a, b) if a and b else None
+    if not a or not b:
+        return None
+    role_a = m.group(3).lower()
+    role_b = "wife" if role_a == "husband" else "husband"
+    return (a, b, role_a, role_b)
 
 
 _CHILD_WORD_ALTS = r"child|son|daughter|kid"
@@ -2511,9 +2525,17 @@ def _extract_mark_child(text: str) -> tuple[str, str] | None:
     return (child, parent) if child and parent else None
 
 
-async def _handle_mark_spouse(update: Update, sender_name: str, name1: str, name2: str) -> None:
+async def _handle_mark_spouse(
+    update: Update, sender_name: str, name1: str, name2: str, role1: str | None, role2: str | None
+) -> None:
+    if not role1 or not role2:
+        await update.message.reply_text(
+            f"Got it, but I need to know which is the husband and which is the wife — try "
+            f'"{name1} is {name2}\'s husband" or "{name1} is {name2}\'s wife".'
+        )
+        return
     from jobs.congregation.family_edit import mark_spouse
-    reply = await asyncio.to_thread(mark_spouse, name1, name2, sender_name)
+    reply = await asyncio.to_thread(mark_spouse, name1, name2, role1, role2, sender_name)
     await update.message.reply_text(reply)
 
 

@@ -19,8 +19,8 @@ from jobs.email_job.brevo_send import send_email
 
 DB_PATH = Path.home() / "watson" / "data" / "congregation.db"
 
-_ROLE_LABEL = {"head": "Head", "spouse": "Spouse", "child": "Child"}
-_ROLE_SORT = {"head": 0, "spouse": 1, "child": 2}
+_ROLE_LABEL = {"husband": "Husband", "wife": "Wife", "head": "Head", "child": "Child"}
+_ROLE_SORT = {"husband": 0, "wife": 0, "head": 0, "child": 1}
 
 
 def _conn():
@@ -30,7 +30,7 @@ def _conn():
 
 
 def _household_label(members: list[dict]) -> str:
-    lead = next((m for m in members if m["household_role"] in ("head", "spouse")), members[0])
+    lead = next((m for m in members if m["household_role"] in ("husband", "wife", "head")), members[0])
     surname = lead["name"].split()[-1]
     return f"The {surname} Family"
 
@@ -74,7 +74,7 @@ def build_report() -> tuple[str, str]:
         by_role: dict[str, list[str]] = {}
         for m in members:
             by_role.setdefault(m["household_role"], []).append(m["name"])
-        for role in ("head", "spouse", "child"):
+        for role in ("husband", "wife", "head", "child"):
             names = by_role.get(role)
             if not names:
                 continue

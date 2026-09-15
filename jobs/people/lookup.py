@@ -228,12 +228,16 @@ def lookup_member_family(query: str) -> list[dict]:
                         (p["household_id"], p["id"]),
                     ).fetchall()
                 ]
-            head_spouse_mates = [m["name"] for m in mates if m["household_role"] in ("head", "spouse")]
-            # Those household-mates are p's SPOUSE if p is themselves an
-            # adult (head/spouse), or p's PARENTS if p is a child -- never
-            # both, so only one of the two lists below is ever populated.
-            p["spouse_names"] = head_spouse_mates if p["household_role"] in ("head", "spouse") else []
-            p["parent_names"] = head_spouse_mates if p["household_role"] == "child" else []
+            spouse_mates = [m["name"] for m in mates if m["household_role"] in ("husband", "wife")]
+            # A 'head' has no spouse (single parent), so parent_names casts
+            # a wider net than spouse_names -- a child's parent could be a
+            # husband/wife pair OR a lone 'head'.
+            parent_mates = [m["name"] for m in mates if m["household_role"] in ("husband", "wife", "head")]
+            # Those household-mates are p's SPOUSE if p is themselves
+            # husband/wife, or p's PARENTS if p is a child -- never both, so
+            # only one of the two lists below is ever populated.
+            p["spouse_names"] = spouse_mates if p["household_role"] in ("husband", "wife") else []
+            p["parent_names"] = parent_mates if p["household_role"] == "child" else []
             p["children_names"] = [m["name"] for m in mates if m["household_role"] == "child"]
         return rows
     finally:
