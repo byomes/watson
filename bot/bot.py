@@ -2278,7 +2278,11 @@ def _deacon_name_for_chat(chat_id: str) -> str | None:
 # member to a deacon is deliberately restricted to just these two people --
 # hardcoded rather than e.g. "any onboarded deacon" or "Jim, since he's the
 # elder over shepherding" because Bill named these two specifically.
-_DEACON_ASSIGN_ALLOWLIST = frozenset({"Bill Crook", "Jim Bouchat"})
+# Donna Redman added 2026-09-15 at Bill's explicit request -- she already
+# had _FAMILY_EDIT_ALLOWLIST/_FAMILY_REPORT_ALLOWLIST access but not this
+# one, so her reassignment requests were silently falling through to the
+# read-only team_chat path instead of executing.
+_DEACON_ASSIGN_ALLOWLIST = frozenset({"Bill Crook", "Jim Bouchat", "Donna Redman"})
 
 # Per Bill's 2026-09-15 explicit request: the family-units email report is
 # restricted to just Dr. Bill and Donna Redman -- hardcoded rather than
