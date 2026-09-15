@@ -184,4 +184,14 @@ def apply_and_deploy(target_id: str, new_phrase: str, actor: str) -> tuple[bool,
     except Exception:
         pass
 
+    try:
+        from jobs.dev.fix_log import log_fix
+        log_fix(
+            title=f'Fast-path: added "{new_phrase}" to {label}',
+            description=f"Applied automatically by {actor}.",
+            repo="watson", source="fast_path_auto", commit_hash=(commit_hash or None),
+        )
+    except Exception:
+        pass  # best-effort log -- never blocks the actual fix from landing
+
     return True, commit_hash or "committed (hash unavailable)"

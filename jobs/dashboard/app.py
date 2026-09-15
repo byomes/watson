@@ -2538,6 +2538,13 @@ def dev_vps_cost_estimate():
     return jsonify(build_estimate())
 
 
+@app.route("/api/fixes")
+def fixes_list():
+    from jobs.dev.fix_log import recent_fixes
+    limit = min(int(request.args.get("limit", 50)), 200)
+    return jsonify(recent_fixes(limit))
+
+
 @app.route("/api/house-calls")
 def house_calls_list():
     from jobs.house_calls.db import init_db, all_calls

@@ -2546,9 +2546,10 @@ function devLoad() {
   if (!el) return;
   el.innerHTML = `
     <div class="mtabs">
-      <button class="mtab${_devTab === 'dev'  ? ' active' : ''}" onclick="devSetTab('dev')">Dev</button>
-      <button class="mtab${_devTab === 'bugs' ? ' active' : ''}" onclick="devSetTab('bugs')">Bugs</button>
-      <button class="mtab${_devTab === 'cost' ? ' active' : ''}" onclick="devSetTab('cost')">Cost</button>
+      <button class="mtab${_devTab === 'dev'   ? ' active' : ''}" onclick="devSetTab('dev')">Dev</button>
+      <button class="mtab${_devTab === 'bugs'  ? ' active' : ''}" onclick="devSetTab('bugs')">Bugs</button>
+      <button class="mtab${_devTab === 'fixes' ? ' active' : ''}" onclick="devSetTab('fixes')">Fixes</button>
+      <button class="mtab${_devTab === 'cost'  ? ' active' : ''}" onclick="devSetTab('cost')">Cost</button>
     </div>
     <div id="dev-tab-body"><div class="loading">Loading&hellip;</div></div>`;
   devSetTab(_devTab, true);
@@ -2560,13 +2561,66 @@ function devSetTab(tab, isInitial) {
   _devExpandedBacklogId = null;
   if (!isInitial) {
     document.querySelectorAll('#msec-inner-dev .mtab').forEach(b => b.classList.remove('active'));
-    const idx = { dev: 0, bugs: 1, cost: 2 }[tab];
+    const idx = { dev: 0, bugs: 1, fixes: 2, cost: 3 }[tab];
     const btn = document.querySelectorAll('#msec-inner-dev .mtab')[idx];
     if (btn) btn.classList.add('active');
   }
-  if (tab === 'dev')  devLoadBacklog();
-  if (tab === 'bugs') devLoadBugs();
-  if (tab === 'cost') devLoadCost();
+  if (tab === 'dev')   devLoadBacklog();
+  if (tab === 'bugs')  devLoadBugs();
+  if (tab === 'fixes') devLoadFixes();
+  if (tab === 'cost')  devLoadCost();
+}
+
+// ── Fixes sub-tab (fix_log) ─────────────────────────────────────────────────
+// Append-only, read-only log -- no resolve/reopen actions like Bugs has,
+// since a fix_log row is a record of something that already happened, not
+// an open item to track. See jobs/dev/fix_log.py's module docstring.
+
+const _FIX_SOURCE_LABELS = {
+  'session':             'coding session',
+  'fast_path_auto':      'fast-path auto-apply',
+  'fast_path_dispatch':  'fast-path auto-dispatch',
+};
+
+let _devFixes = [];
+
+async function devLoadFixes() {
+  const el = document.getElementById('dev-tab-body');
+  if (!el) return;
+  el.innerHTML = '<div class="loading">Loading&hellip;</div>';
+  try {
+    _devFixes = await api('/api/fixes');
+    _devRenderFixes();
+  } catch {
+    el.innerHTML = '<div class="empty">Could not load fixes.</div>';
+  }
+}
+
+function _devRenderFixes() {
+  const el = document.getElementById('dev-tab-body');
+  if (!el) return;
+  let html = `<div class="mlabel">Fixes (${_devFixes.length})</div>`;
+  if (!_devFixes.length) {
+    html += `<div class="empty">No fixes logged yet.</div>`;
+    el.innerHTML = html;
+    return;
+  }
+  html += _devFixes.map(f => `
+    <div class="mpn-card">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:600">${esc(f.title)}</div>
+          ${f.description ? `<div style="font-size:12px;color:var(--muted);margin-top:2px">${esc(f.description)}</div>` : ''}
+          <div style="font-size:11px;color:var(--text-muted);margin-top:6px">
+            ${esc(f.repo)} &middot; ${esc(_FIX_SOURCE_LABELS[f.source] || f.source)}
+            ${f.commit_hash ? ` &middot; ${esc(f.commit_hash.slice(0, 7))}` : ''}
+            ${f.pr_url ? ` &middot; <a href="${esc(f.pr_url)}" target="_blank" rel="noopener">PR</a>` : ''}
+            &middot; ${esc((f.created_at || '').replace('T', ' ').slice(0, 16))}
+          </div>
+        </div>
+      </div>
+    </div>`).join('');
+  el.innerHTML = html;
 }
 
 // ── Cost sub-tab (resource_samples -> Hetzner VPS estimate) ────────────────

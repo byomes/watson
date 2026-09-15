@@ -116,6 +116,29 @@ def _record_suggestion_outcome(suggestion_id, status, detail) -> None:
         conn.close()
 
 
+def _log_auto_fix(job_id: int, repo: str, pr_url: str | None, suggestion_id, deployed: bool) -> None:
+    """Best-effort entry in jobs.dev.fix_log for a job that just merged
+    (and, for watson, deployed) with no human review -- see that module's
+    docstring for why Bill wanted this durable record."""
+    try:
+        from jobs.dev.fix_log import log_fix
+        example_question = None
+        if suggestion_id:
+            conn = get_connection()
+            try:
+                row = conn.execute(
+                    "SELECT example_question FROM fast_path_suggestions WHERE id = ?", (suggestion_id,)
+                ).fetchone()
+                example_question = row["example_question"] if row else None
+            finally:
+                conn.close()
+        title = f'Fast-path auto-fix: "{example_question}"' if example_question else f"Fast-path auto-fix (job {job_id})"
+        description = "Merged and deployed automatically, no review." if deployed else "Merged automatically; deploy to this repo still manual."
+        log_fix(title=title, description=description, repo=repo, source="fast_path_dispatch", pr_url=pr_url)
+    except Exception:
+        pass  # best-effort log -- never blocks the actual fix from landing
+
+
 def _auto_merge_and_deploy(job_id: int) -> None:
     """Called right after a job transitions to 'done' (PR opened) for a job
     dispatched with auto_merge=1 -- merges immediately with no approval
@@ -150,6 +173,7 @@ def _auto_merge_and_deploy(job_id: int) -> None:
         _record_suggestion_outcome(
             source_suggestion_id, "applied", f"Merged (devdispatch job {job_id}) — deploy to {repo} still manual."
         )
+        _log_auto_fix(job_id, repo, result.get("pr_url"), source_suggestion_id, deployed=False)
         return
 
     try:
@@ -182,6 +206,7 @@ def _auto_merge_and_deploy(job_id: int) -> None:
     _record_suggestion_outcome(
         source_suggestion_id, "applied", f"Auto-dispatched, merged, and deployed via devdispatch job {job_id}.",
     )
+    _log_auto_fix(job_id, repo, result.get("pr_url"), source_suggestion_id, deployed=True)
 
 
 def poll() -> None:

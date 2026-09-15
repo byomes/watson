@@ -2309,6 +2309,26 @@ async def _handle_family_report(update: Update, sender_name: str) -> None:
     await update.message.reply_text(message if not ok else f"\U0001F4E7 {message}")
 
 
+def _looks_like_fix_log_request(text: str) -> bool:
+    """Loose match, same reasoning as _looks_like_family_report_request
+    above -- a yes/no trigger for jobs.dev.fix_log's durable record of
+    fixes, added 2026-09-15 per Bill's ask right after the fast-path
+    autonomous rewire went live ('have watson keep a log of fixes... so
+    they can be referred back to')."""
+    low = text.lower()
+    return (
+        ("fix" in low or "fixes" in low)
+        and any(w in low for w in ["log", "recent", "what have you fixed", "what's been fixed",
+                                    "what has been fixed", "list of fixes", "fix history"])
+    )
+
+
+async def _handle_fix_log(update: Update) -> None:
+    from jobs.dev.fix_log import format_fixes_reply
+    reply = await asyncio.to_thread(format_fixes_reply, 10)
+    await update.message.reply_text(reply)
+
+
 _DEACON_ASSIGN_VERBS = r"assign|reassign|move|put|add|switch|transfer"
 
 # Anchored at the start of the message (unlike _extract_deacon_assign's
@@ -3506,6 +3526,14 @@ async def _handle_general(update: Update, context: ContextTypes.DEFAULT_TYPE, te
     # Redman's parallel path is _handle_text_body's _FAMILY_REPORT_ALLOWLIST.
     if _looks_like_family_report_request(text):
         await _handle_family_report(update, "Bill Yomes")
+        return ""
+
+    # Fix log ("what fixes have been made", "recent fixes"), added
+    # 2026-09-15 -- Bill-only, same reasoning as the location handlers
+    # below: this is Watson's own dev history, not congregation data, so
+    # it has no place in the leader-facing Team Chat surface.
+    if _looks_like_fix_log_request(text):
+        await _handle_fix_log(update)
         return ""
 
     # Deacon reassignment via chat, extended to Dr. Bill's own chat 2026-09-08
