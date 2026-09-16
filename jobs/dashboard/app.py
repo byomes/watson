@@ -6334,4 +6334,22 @@ if __name__ == "__main__":
     # Reproduced 2026-09-01 on /cat/deacons; safe to enable since
     # core/database.py's get_connection() already sets a busy_timeout for
     # concurrent SQLite access.
-    app.run(host="0.0.0.0", port=5200, debug=False, threaded=True)
+    # Bind to the Tailscale interface only (security review 2026-09-16 —
+    # dashboard was on 0.0.0.0, reachable from the LAN with no OS firewall
+    # enforcing the intended Tailscale-only boundary). Resolved dynamically
+    # each start rather than hardcoded, since a re-key would otherwise
+    # silently make the dashboard unreachable. If the lookup fails for any
+    # reason, fail safe to loopback-only rather than falling back to
+    # 0.0.0.0 — a broken Tailscale lookup should never mean "back to
+    # LAN-exposed."
+    import subprocess as _subprocess
+    try:
+        _ts_ip = _subprocess.run(
+            ["tailscale", "ip", "-4"], capture_output=True, text=True, timeout=5, check=True
+        ).stdout.strip()
+        if not _ts_ip:
+            raise ValueError("empty tailscale ip output")
+    except Exception as _exc:
+        log.error("Could not resolve Tailscale IP (%s) — binding to 127.0.0.1 only, not 0.0.0.0", _exc)
+        _ts_ip = "127.0.0.1"
+    app.run(host=_ts_ip, port=5200, debug=False, threaded=True)
