@@ -25,12 +25,14 @@ Cron (every 2 minutes):
 import fcntl
 import json
 import logging
+import os
 import subprocess
 from pathlib import Path
 
 from core.database import get_connection
 from jobs.devdispatch.api import (
-    _check_claude_code_job, _get_job_row, _merge_claude_code_job, _repo_path, _telegram, _worktree_path,
+    _check_claude_code_job, _get_job_row, _merge_claude_code_job, _repo_path,
+    _PR_URL_RE, _telegram, _worktree_path,
 )
 
 logging.basicConfig(
@@ -139,18 +141,74 @@ def _log_auto_fix(job_id: int, repo: str, pr_url: str | None, suggestion_id, dep
         pass  # best-effort log -- never blocks the actual fix from landing
 
 
+# Per Bill's 2026-09-16 direction, after PR #62 (job 52) auto-merged a
+# routing-logic change to bot.py's compute_team_chat_reply with zero
+# review: auto-merge stays limited to the exact file the already-safe
+# _auto_apply path edits directly (jobs/skills/cdb_query.py -- see
+# fast_path_patcher.py's own file-scope docstring for why that one file is
+# considered safe: pure lookup trigger-phrase additions, validated with
+# ast.parse() before write). A dispatched fix that touches anything else --
+# bot.py's message routing, a write path like family_edit.py, or a new
+# file -- is a judgment call, not a mechanical one, so it stops short of
+# auto-merge and waits for Bill same as every other (non-fast-path)
+# devdispatch job already does.
+_LOOKUP_ONLY_ALLOWED_FILES = {"jobs/skills/cdb_query.py"}
+_LOOKUP_ONLY_IGNORED_FILES = {".devdispatch/progress.json"}
+
+
+def _is_lookup_only_pr(pr_url: str) -> bool:
+    """True only if every file this PR touches (other than the job's own
+    .devdispatch/progress.json bookkeeping) is jobs/skills/cdb_query.py.
+    Returns False -- never auto-merge -- if the file list can't even be
+    fetched, so a GitHub API hiccup fails closed toward review, not toward
+    silently shipping an unreviewed routing change."""
+    match = _PR_URL_RE.match(pr_url or "")
+    if not match:
+        return False
+    owner, repo_name, pr_number = match.group(1), match.group(2), int(match.group(3))
+    token = os.getenv("GITHUB_TOKEN")
+    if not token:
+        return False
+    try:
+        from github import Github
+        gh_repo = Github(token).get_repo(f"{owner}/{repo_name}")
+        pr = gh_repo.get_pull(pr_number)
+        changed = {f.filename for f in pr.get_files()} - _LOOKUP_ONLY_IGNORED_FILES
+    except Exception as exc:
+        log.error("could not fetch changed files for %s: %s", pr_url, exc)
+        return False
+    return bool(changed) and changed.issubset(_LOOKUP_ONLY_ALLOWED_FILES)
+
+
 def _auto_merge_and_deploy(job_id: int) -> None:
     """Called right after a job transitions to 'done' (PR opened) for a job
     dispatched with auto_merge=1 -- merges immediately with no approval
     step, then pulls + restarts the live watson services so the fix is
     actually live, not just merged into main. See _merge_claude_code_job's
     docstring for the Bill-authorized (2026-09-15) exception this is,
-    scoped to jobs.analytics.fast_path_suggestions dispatches only."""
+    scoped to jobs.analytics.fast_path_suggestions dispatches only -- and
+    _is_lookup_only_pr's docstring above for the 2026-09-16 narrowing of
+    that exception to lookup-only changes."""
     row = _get_job_row(job_id)
     if row is None or not row["auto_merge"]:
         return
     source_suggestion_id = row["source_suggestion_id"]
     repo = row["repo"]
+
+    if not _is_lookup_only_pr(row["pr_url"]):
+        with get_connection() as conn:
+            conn.execute("UPDATE claude_code_jobs SET auto_merge=0 WHERE id=?", (job_id,))
+            conn.commit()
+        _telegram(
+            f"🔍 devdispatch job {job_id} built a fix that goes beyond a simple lookup addition "
+            f"(touches routing/behavior, not just jobs/skills/cdb_query.py) -- holding for your "
+            f"review instead of auto-merging.\n\n{row['pr_url']}\n\n- Watson"
+        )
+        _record_suggestion_outcome(
+            source_suggestion_id, "needs_review",
+            f"PR opened but not lookup-only -- held for manual review: {row['pr_url']}",
+        )
+        return
 
     result = _merge_claude_code_job(job_id)
     status = result.get("status")
