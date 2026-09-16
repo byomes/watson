@@ -1,4 +1,5 @@
 """cdb_query.py — natural language query against congregation.db via Ollama."""
+import calendar
 import re
 import sqlite3
 from pathlib import Path
@@ -84,6 +85,37 @@ _MONTH_NAMES = {
 # fallback, which is far less reliable (returned a bare "0" in production).
 _COUNT_ATTENDED_RE = re.compile(r"how many\b.{0,25}\b(attended|came|showed up|were there)\b")
 
+# Number words up to twelve, for "how many attended in the past six weeks" --
+# spelled-out counts are just as common in speech as digits.
+_NUMBER_WORDS = {
+    "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6,
+    "seven": 7, "eight": 8, "nine": 9, "ten": 10, "eleven": 11, "twelve": 12,
+}
+_NUMBER_ALT = "|".join(_NUMBER_WORDS)
+# Was hardcoded to only the literal phrases "2 week"/"two week" through
+# "6 week"/"six week" (2026-09-16) -- fixed 2026-09-16 to accept any digit or
+# spelled-out count 1-999 so "the last 8 weeks" / "the last 12 months" work
+# too, not just the 6 spans someone happened to hardcode first.
+_WEEK_SPAN_RE = re.compile(rf"\b(\d{{1,3}}|{_NUMBER_ALT})[- ]?weeks?\b")
+_MONTH_SPAN_RE = re.compile(rf"\b(\d{{1,2}}|{_NUMBER_ALT})[- ]?months?\b")
+_BARE_LAST_MONTH_RE = re.compile(r"\b(last|past|previous)\s+month\b")
+_THIS_MONTH_RE = re.compile(r"\b(this|current)\s+month\b")
+
+
+def _span_number(match: re.Match) -> int:
+    raw = match.group(1)
+    return _NUMBER_WORDS.get(raw, int(raw) if raw.isdigit() else 0)
+
+
+def _months_ago(d: date, n: int) -> date:
+    """Calendar-correct 'n calendar months before d', clamping the day of
+    month for shorter target months (e.g. Mar 31 minus 1 month -> Feb 28)."""
+    months_total = d.month - 1 - n
+    year = d.year + months_total // 12
+    month = months_total % 12 + 1
+    day = min(d.day, calendar.monthrange(year, month)[1])
+    return date(year, month, day)
+
 
 def _last_sunday() -> str:
     today = date.today()
@@ -104,35 +136,49 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
     elif any(w in q for w in ['wilmington', 'in person', 'in-person', 'physical', 'building', 'church building']):
         campus = 'Wilmington'
 
-    # Date range — a_date uses alias prefix for main queries; s_date is bare for subqueries.
-    # _span_weeks tracks the named N (2-6) for the COMBINED/CUMULATIVE ATTENDANCE
-    # block below, which needs to say "over the last N weeks" in plain English —
-    # None for a single-Sunday question, where combined and cumulative are the
-    # same number and that block doesn't apply.
-    _span_weeks = None
+    # Date range — a_date uses alias prefix for main queries; s_date is bare for
+    # subqueries. _span_label tracks a plain-English name ("the last 6 weeks",
+    # "the last month", "the current month") for the COMBINED/CUMULATIVE
+    # ATTENDANCE block below -- None for a single-Sunday question, where
+    # combined and cumulative are the same number and that block doesn't apply.
+    #
+    # Was hardcoded to only literal '2 week'..'6 week' phrases and had no
+    # concept of calendar months at all -- found live 2026-09-16 asking
+    # "how many people attended last month", which silently fell back to
+    # counting just last Sunday and reported that as the answer. Fixed to
+    # accept any week count via _WEEK_SPAN_RE, and real calendar-month ranges
+    # via _MONTH_SPAN_RE / _BARE_LAST_MONTH_RE / _THIS_MONTH_RE.
+    _span_label = None
+    today = date.today()
+    _week_m = _WEEK_SPAN_RE.search(q)
+    _month_m = _MONTH_SPAN_RE.search(q)
     if any(w in q for w in ['this past sunday', 'last sunday', 'this sunday']):
         a_date = f"a.service_date = '{last_sun}'"
         s_date = f"service_date = '{last_sun}'"
-    elif '2 week' in q or 'two week' in q:
-        a_date = f"a.service_date >= '{weeks[1]}' AND a.service_date <= '{last_sun}'"
-        s_date = f"service_date >= '{weeks[1]}' AND service_date <= '{last_sun}'"
-        _span_weeks = 2
-    elif '3 week' in q or 'three week' in q:
-        a_date = f"a.service_date >= '{weeks[2]}' AND a.service_date <= '{last_sun}'"
-        s_date = f"service_date >= '{weeks[2]}' AND service_date <= '{last_sun}'"
-        _span_weeks = 3
-    elif '4 week' in q or 'four week' in q:
-        a_date = f"a.service_date >= '{weeks[3]}' AND a.service_date <= '{last_sun}'"
-        s_date = f"service_date >= '{weeks[3]}' AND service_date <= '{last_sun}'"
-        _span_weeks = 4
-    elif '5 week' in q or 'five week' in q:
-        a_date = f"a.service_date >= '{weeks[4]}' AND a.service_date <= '{last_sun}'"
-        s_date = f"service_date >= '{weeks[4]}' AND service_date <= '{last_sun}'"
-        _span_weeks = 5
-    elif '6 week' in q or 'six week' in q:
-        a_date = f"a.service_date >= '{weeks[5]}' AND a.service_date <= '{last_sun}'"
-        s_date = f"service_date >= '{weeks[5]}' AND service_date <= '{last_sun}'"
-        _span_weeks = 6
+    elif _THIS_MONTH_RE.search(q):
+        start = today.replace(day=1).isoformat()
+        a_date = f"a.service_date >= '{start}' AND a.service_date <= '{today.isoformat()}'"
+        s_date = f"service_date >= '{start}' AND service_date <= '{today.isoformat()}'"
+        _span_label = "the current month"
+    elif _week_m and _span_number(_week_m) >= 1:
+        n = _span_number(_week_m)
+        start = (today - timedelta(weeks=n)).isoformat()
+        a_date = f"a.service_date >= '{start}' AND a.service_date <= '{last_sun}'"
+        s_date = f"service_date >= '{start}' AND service_date <= '{last_sun}'"
+        _span_label = "the last week" if n == 1 else f"the last {n} weeks"
+    elif _month_m and _span_number(_month_m) >= 1:
+        n = _span_number(_month_m)
+        start = _months_ago(today, n).isoformat()
+        a_date = f"a.service_date >= '{start}' AND a.service_date <= '{last_sun}'"
+        s_date = f"service_date >= '{start}' AND service_date <= '{last_sun}'"
+        _span_label = "the last month" if n == 1 else f"the last {n} months"
+    elif _BARE_LAST_MONTH_RE.search(q):
+        first_this_month = today.replace(day=1)
+        last_day_prev = first_this_month - timedelta(days=1)
+        first_day_prev = last_day_prev.replace(day=1)
+        a_date = f"a.service_date >= '{first_day_prev.isoformat()}' AND a.service_date <= '{last_day_prev.isoformat()}'"
+        s_date = f"service_date >= '{first_day_prev.isoformat()}' AND service_date <= '{last_day_prev.isoformat()}'"
+        _span_label = "the last month"
     else:
         a_date = f"a.service_date = '{last_sun}'"
         s_date = f"service_date = '{last_sun}'"
@@ -203,28 +249,28 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
             f"GROUP BY a.service_date ORDER BY a.service_date"
         )
 
-    # COMBINED + CUMULATIVE ATTENDANCE OVER MULTIPLE WEEKS
-    # Bill's 2026-09-16 request: a plain "attendance for the last N weeks"
-    # question is ambiguous between two real numbers -- combined (every
-    # check-in across those Sundays added together, so someone who came all
-    # N weeks counts N times) and cumulative (how many different people came
-    # at least once, each counted only once). Rather than guess which one he
-    # means, return both with a plain-English explanation. Only fires when
-    # _span_weeks names an actual multi-week range (2-6 -- see date-range
-    # block above); a single-Sunday question has no such ambiguity (the two
-    # numbers are identical) and stays on the simpler COUNT below. Requires
-    # the noun "attendance" or a "how many ... attended/came" count shape
-    # (see _COUNT_ATTENDED_RE) and excludes "who"/"list" so a "who attended
-    # in the last 3 weeks" or "list attendance for the last 4 weeks"
-    # question still falls through to WHO ATTENDED below instead of being
-    # swallowed as a count -- see the fast-path phrasing collision feedback
-    # memory this file already follows elsewhere (e.g. the HYBRID MEMBERS
-    # trigger comment above).
-    if _span_weeks and 'who' not in q and 'list' not in q and ('attendance' in q or _COUNT_ATTENDED_RE.search(q)):
+    # COMBINED + CUMULATIVE ATTENDANCE OVER A SPAN (weeks or calendar months)
+    # Bill's 2026-09-16 request: a plain "attendance for the last N weeks/
+    # months" question is ambiguous between two real numbers -- combined
+    # (every check-in across those Sundays added together, so someone who
+    # came every week counts once per week) and cumulative (how many
+    # different people came at least once, each counted only once). Rather
+    # than guess which one he means, return both with a plain-English
+    # explanation. Only fires when _span_label names an actual multi-Sunday
+    # range (see date-range block above); a single-Sunday question has no
+    # such ambiguity (the two numbers are identical) and stays on the
+    # simpler COUNT below. Requires the noun "attendance" or a "how many ...
+    # attended/came" count shape (see _COUNT_ATTENDED_RE) and excludes
+    # "who"/"list" so a "who attended in the last 3 weeks" or "list
+    # attendance for the last 4 weeks" question still falls through to WHO
+    # ATTENDED below instead of being swallowed as a count -- see the
+    # fast-path phrasing collision feedback memory this file already follows
+    # elsewhere (e.g. the HYBRID MEMBERS trigger comment above).
+    if _span_label and 'who' not in q and 'list' not in q and ('attendance' in q or _COUNT_ATTENDED_RE.search(q)):
         campus_filter = f"a.campus = '{campus}' AND " if campus else ""
         campus_literal = f"'{campus}'" if campus else "NULL"
         return (
-            f"SELECT {_span_weeks} as weeks_span, {campus_literal} as campus, "
+            f"SELECT '{_span_label}' as span_label, {campus_literal} as campus, "
             f"COUNT(a.member_id) as combined_total, COUNT(DISTINCT a.member_id) as unique_individuals "
             f"FROM attendance a WHERE {campus_filter}{a_date}"
         )

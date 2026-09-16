@@ -619,13 +619,13 @@ def _format_rows(rows: list[dict]) -> str:
         r = rows[0]
         return format_last_missed_reply(r["name"], r.get("last_missed"))
     # COMBINED + CUMULATIVE ATTENDANCE (cdb_query.py's _pattern_match "attendance
-    # for the last N weeks" block, added 2026-09-16) -- same routing convention
-    # as the two blocks above.
-    if len(rows) == 1 and set(rows[0].keys()) == {"weeks_span", "campus", "combined_total", "unique_individuals"}:
+    # for the last N weeks/months" block, added 2026-09-16) -- same routing
+    # convention as the two blocks above.
+    if len(rows) == 1 and set(rows[0].keys()) == {"span_label", "campus", "combined_total", "unique_individuals"}:
         from jobs.analytics.attendance_reply import format_period_attendance_reply
         r = rows[0]
         return format_period_attendance_reply(
-            r["weeks_span"], r["combined_total"], r["unique_individuals"], r.get("campus")
+            r["span_label"], r["combined_total"], r["unique_individuals"], r.get("campus")
         )
     if len(rows) == 1 and len(rows[0]) == 1:
         return str(_fmt_value(next(iter(rows[0].values()))))

@@ -35,17 +35,19 @@ def format_last_attended_reply(name: str, last_attended: str | None, campus: str
 
 
 def format_period_attendance_reply(
-    weeks_span: int, combined_total: int, unique_individuals: int, campus: str | None = None
+    span_label: str, combined_total: int, unique_individuals: int, campus: str | None = None
 ) -> str:
-    """Plain-English answer to "attendance for the last N weeks" — cdb_query.py's
-    _pattern_match COMBINED + CUMULATIVE ATTENDANCE block returns both numbers
-    rather than guessing which one the asker meant; this spells out what each
-    one means so the reply is self-explanatory without a follow-up question."""
-    weeks_word = "week" if weeks_span == 1 else "weeks"
+    """Plain-English answer to "attendance for the last N weeks/months" —
+    cdb_query.py's _pattern_match COMBINED + CUMULATIVE ATTENDANCE block
+    returns both numbers rather than guessing which one the asker meant;
+    this spells out what each one means so the reply is self-explanatory
+    without a follow-up question. span_label is a ready-made phrase from
+    that block, e.g. "the last 6 weeks", "the last month", "the current
+    month"."""
     scope = f" at the {campus} campus" if campus else ""
     person_word = "person" if unique_individuals == 1 else "people"
     return (
-        f"Over the last {weeks_span} {weeks_word}{scope}: {combined_total} combined check-ins "
+        f"Over {span_label}{scope}: {combined_total} combined check-ins "
         f"(every Sunday's headcount added together) and {unique_individuals} cumulative — unique "
         f"{person_word} who attended at least once."
     )
