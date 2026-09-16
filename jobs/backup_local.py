@@ -234,7 +234,7 @@ def run_backup():
     if errors:
         log(f"=== Local backup completed WITH ERRORS: {errors} ===")
         _send_telegram(
-            f"❌ Local (restic) backup failed — check logs\n\nFailed steps: {', '.join(errors)}"
+            f"❌ Local (restic) backup failed: check logs\n\nFailed steps: {', '.join(errors)}"
         )
     else:
         log("=== Local backup completed successfully ===")

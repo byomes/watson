@@ -105,7 +105,7 @@ def propose_holdout_test(strategy_id: int, chat_id: int | None = None) -> str:
     label = TEMPLATES[strategy["family"]]["label"]
     return (
         f"Ready to run strategy #{strategy_id} ({label}, params={strategy['params_json']}) "
-        f"against the 3 sealed holdout windows. This can only happen once for this strategy — "
+        f"against the 3 sealed holdout windows. This can only happen once for this strategy. "
         f"the result is permanent either way.\n\nReply YES to run it, or NO to hold off."
     )
 
@@ -276,7 +276,7 @@ def format_holdout_batch_report(results: list[dict]) -> str:
     lines = [
         f"Holdout batch complete: {len(results)} strategies tested, {len(passed)} PASSED.",
         "",
-        f"Caveat: this ranks {len(results)} candidates against the same sealed data — the "
+        f"Caveat: this ranks {len(results)} candidates against the same sealed data, the "
         f"top result is weaker evidence of real edge than a single pre-registered test "
         f"would be (multiple-comparisons bias, same class QuantStart's backtesting-"
         f"pitfalls KB article warns about for training data).",
@@ -288,12 +288,12 @@ def format_holdout_batch_report(results: list[dict]) -> str:
         label = TEMPLATES[strategy["family"]]["label"]
         verdict = "PASS" if r["overall_pass"] else "fail"
         lines.append(
-            f"  #{r['strategy_id']} [{verdict}] {label} {strategy['params_json']} — "
+            f"  #{r['strategy_id']} [{verdict}] {label} {strategy['params_json']}: "
             f"beat {r['windows_beaten']}/3, avg return {_avg_return(r):.3f}%, "
             f"outright loss: {r['any_outright_loss']}, trades: {r['total_trades']}"
         )
     if len(ranked) > 20:
-        lines.append(f"  ...and {len(ranked) - 20} more — see trading.db for the full list.")
+        lines.append(f"  ...and {len(ranked) - 20} more: see trading.db for the full list.")
     return "\n".join(lines)
 
 
@@ -312,7 +312,7 @@ def propose_holdout_batch(strategy_ids: list[int], chat_id: int | None = None) -
     if existing:
         return (
             f"A previous action (#{existing['id']}, {existing['action_type']}) is still "
-            f"awaiting your YES/NO — reply to that first."
+            f"awaiting your YES/NO. Reply to that first."
         )
 
     pending_module.save_pending(
@@ -326,13 +326,13 @@ def propose_holdout_batch(strategy_ids: list[int], chat_id: int | None = None) -
 
 
 def format_holdout_result(result: dict) -> str:
-    lines = [f"Holdout evaluation — strategy #{result['strategy_id']}"]
+    lines = [f"Holdout evaluation: strategy #{result['strategy_id']}"]
     for name, m in result["window_results"].items():
         beat = "beat" if m["return_pct"] > m["benchmark_return_pct"] else "trailed"
         lines.append(f"  {name}: {m['return_pct']}% ({beat} SPY {m['benchmark_return_pct']}%)")
     verdict = "PASSED" if result["overall_pass"] else "FAILED"
     lines.append(
-        f"{verdict} — beat buy-and-hold outright on {result['windows_beaten']}/3 windows "
+        f"{verdict}: beat buy-and-hold outright on {result['windows_beaten']}/3 windows "
         f"(3/3 required), outright loss: {result['any_outright_loss']}, "
         f"total trades: {result['total_trades']} (min {MIN_HOLDOUT_TRADES} required)"
     )

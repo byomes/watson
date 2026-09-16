@@ -372,7 +372,7 @@ def _validate_after_build(job_path: str) -> None:
             log.debug("Validation DB log failed: %s", db_exc)
 
         if result["passed"]:
-            _telegram(f"✓ Built and validated: {slug} — ready to approve ({score} checks passed)")
+            _telegram(f"✓ Built and validated: {slug}, ready to approve ({score} checks passed)")
         else:
             failed = [k for k, v in result["checks"].items() if not v["passed"]]
             _telegram(f"⚠ {slug} built but {score} checks passed. Failing: {', '.join(failed)}")
@@ -514,7 +514,7 @@ def build_skill(description: str, job_path: str) -> bool:
     except Exception as exc:
         error_1 = str(exc)
         log.error("Tier 1 Ollama error: %s", exc)
-        _telegram(f"Tier 1 Ollama error — skipping to Claude Sonnet.\n{exc}")
+        _telegram(f"Tier 1 Ollama error: skipping to Claude Sonnet.\n{exc}")
 
     lint_issues_1 = []
     if code_1:
@@ -593,7 +593,7 @@ def build_skill(description: str, job_path: str) -> bool:
     _telegram("Two attempts failed. Escalating to Claude.")
 
     if not os.getenv("ANTHROPIC_API_KEY"):
-        _telegram("Anthropic API key not configured — skipping Claude escalation.")
+        _telegram("Anthropic API key not configured: skipping Claude escalation.")
     else:
         tier3_user = base_user + "\n\nTwo previous attempts by a smaller model failed."
         if code_1:

@@ -506,7 +506,7 @@ def submit_removal(removal_id: int, dry_run: bool = False) -> dict:
         result = send_email(
             to_email=removal["opt_out_target"],
             to_name=removal["broker_name"],
-            subject=f"Data removal request — {removal['person_name']}",
+            subject=f"Data removal request: {removal['person_name']}",
             text_body=(
                 "To Whom It May Concern,\n\n"
                 f"Please remove the listing for {removal['person_name']} found at:\n"
@@ -527,19 +527,19 @@ def submit_removal(removal_id: int, dry_run: bool = False) -> dict:
     if ok:
         if confirmed:
             _mark_submitted(removal_id)
-            send_telegram(f"✅ Privacy Guard: removal submitted — {removal['person_name']} on {removal['broker_name']}.")
+            send_telegram(f"✅ Privacy Guard: removal submitted, {removal['person_name']} on {removal['broker_name']}.")
         else:
             _mark_unconfirmed(removal_id)
             send_telegram(
-                f"⚠️ Privacy Guard: removal request SENT but UNCONFIRMED — "
+                f"⚠️ Privacy Guard: removal request SENT but UNCONFIRMED, "
                 f"{removal['person_name']} on {removal['broker_name']}. The submit click succeeded, but "
-                "this broker gives no way to verify real completion — treat as pending until checked manually."
+                "this broker gives no way to verify real completion: treat as pending until checked manually."
             )
         return {"ok": True, "confirmed": confirmed}
     else:
         _mark_failed(removal_id, reason or "unknown failure")
         send_telegram(
-            f"⚠️ Privacy Guard: removal FAILED — {removal['person_name']} on {removal['broker_name']}: {reason}"
+            f"⚠️ Privacy Guard: removal FAILED, {removal['person_name']} on {removal['broker_name']}: {reason}"
         )
         return {"ok": False, "error": reason}
 

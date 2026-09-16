@@ -693,7 +693,7 @@ def process_transcript():
         # tier is unavailable — the request just blocks silently otherwise.
         # Same heads-up pattern as jobs/skillbuilder's build-trigger messages.
         _send_telegram(
-            f"Processing the meeting transcript for {member['name']} now — this'll take a "
+            f"Processing the meeting transcript for {member['name']} now: this'll take a "
             "few minutes if it falls back to the slower path. Other requests may be delayed "
             "until it's done."
         )

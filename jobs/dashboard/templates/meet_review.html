@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Meeting Review — Watson</title>
+<title>Meeting Review: Watson</title>
 <link rel="icon" type="image/png" href="/static/favicon-watson-tab.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -64,7 +64,7 @@ textarea:focus, input[type=text]:focus, select:focus { border-color: var(--gold)
 
   {% if review.status == 'sent' %}
   <div class="card sent-banner">
-    <strong style="color:var(--green);">&#10003; Sent</strong> — this review was emailed to elders{% if review.sent_at %} on {{ review.sent_at }}{% endif %}. Saving further edits here won't re-send it.
+    <strong style="color:var(--green);">&#10003; Sent</strong>, this review was emailed to elders{% if review.sent_at %} on {{ review.sent_at }}{% endif %}. Saving further edits here won't re-send it.
   </div>
   {% endif %}
 

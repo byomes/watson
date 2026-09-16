@@ -194,7 +194,7 @@ def cover_font_suggestions_rerender():
     finally:
         conn.close()
     if not row:
-        return jsonify({"error": "no font-suggestion batch found for this bucket yet — run Suggest Fonts first"}), 404
+        return jsonify({"error": "no font-suggestion batch found for this bucket yet, run Suggest Fonts first"}), 404
     batch_id = row["id"]
 
     def _run():

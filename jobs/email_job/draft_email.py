@@ -115,7 +115,7 @@ def draft_intro(articles):
 
 def build_email_body(articles):
     today = datetime.now().strftime("%B %d, %Y")
-    subject = f"Faith & Ideas — {today}"
+    subject = f"Faith & Ideas: {today}"
 
     intro = draft_intro(articles)
     body_lines = [f"{intro}\n"]
@@ -131,7 +131,7 @@ def build_email_body(articles):
             body_lines.append(f'<p><a href="{url}">Read more →</a></p>')
         body_lines.append("")
 
-    body_lines.append("<p>— Bill</p>")
+    body_lines.append("<p>- Bill</p>")
     body = "\n".join(body_lines)
     return subject, body
 

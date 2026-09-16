@@ -55,7 +55,7 @@ def _conn():
 
 
 def _subject(report_type: str, service_date: str, updated: bool) -> str:
-    base = f"Watson — {report_type} | {service_date}"
+    base = f"Watson: {report_type} | {service_date}"
     return base + (" | Updated" if updated else "")
 
 
@@ -203,8 +203,8 @@ def donna_report(service_date: str, updated: bool = False) -> tuple[str, str]:
             if r["is_first_visit"]
             else "<span class='badge returning'>Returning</span>"
         )
-        campus_badge = f"<span class='badge campus'>{r['campus'] or '—'}</span>"
-        contact = r["email"] or r["phone"] or "—"
+        campus_badge = f"<span class='badge campus'>{r['campus'] or 'N/A'}</span>"
+        contact = r["email"] or r["phone"] or "N/A"
         table_rows += (
             f"<tr>"
             f"<td>{r['name'] or '(no name)'}</td>"
@@ -274,7 +274,7 @@ def kaci_report(service_date: str, updated: bool = False) -> tuple[str, str]:
             if r["leadership_only"]
             else "<span class='badge public'>Public</span>"
         )
-        campus_badge = f"<span class='badge campus'>{r['campus'] or '—'}</span>"
+        campus_badge = f"<span class='badge campus'>{r['campus'] or 'N/A'}</span>"
         table_rows += (
             f"<tr>"
             f"<td><strong>{r['name'] or '(no name)'}</strong><br>{campus_badge}</td>"

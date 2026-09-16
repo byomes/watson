@@ -57,7 +57,7 @@ def _build_body(first_name: str, email: str, password: str) -> str:
         f"Dear {first_name},\n\n"
         "The ARC manuscript for The Wrong Jesus is live, and I hope you have been "
         "able to login and begin reading it. If you tried earlier and ran into "
-        "trouble, that was on our end — we had an email server issue that kept "
+        "trouble, that was on our end: we had an email server issue that kept "
         "some of you from getting through. That's fixed now, so if you were one "
         "of the ones affected, please try again.\n\n"
         "Here are your current login credentials:\n\n"
@@ -65,7 +65,7 @@ def _build_body(first_name: str, email: str, password: str) -> str:
         f"Password: {password}\n"
         f"Login: {_LOGIN_URL}\n\n"
         "While you're reading, you'll also see a new feedback feature built "
-        "right into the manuscript. As you go, I'd love your honest reactions — "
+        "right into the manuscript. As you go, I'd love your honest reactions: "
         "what's landing, what's surprising you, what you'd tell a friend. We're "
         "planning to use some of these early reader comments as part of the "
         "marketing push toward launch, so if something you write really captures "
@@ -135,7 +135,7 @@ def main():
         if dry_run:
             print(
                 f"[DRY RUN] Would send to {r['first_name']} {r['last_name']} "
-                f"<{r['email']}> — password: {_mask(r['password'])}"
+                f"<{r['email']}>, password: {_mask(r['password'])}"
             )
             continue
 

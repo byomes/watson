@@ -113,12 +113,12 @@ def _format(data: dict) -> str:
         rec = "Comfortable layers"
 
     if max_precip_prob > 50:
-        rec += " — bring an umbrella"
+        rec += ": bring an umbrella"
     if has_snow:
-        rec += " — watch for slippery conditions"
+        rec += ": watch for slippery conditions"
 
     parts = [
-        f"🌤 Good morning, Dr. Bill — {weekday} {month} {day}",
+        f"🌤 Good morning, Dr. Bill: {weekday} {month} {day}",
         "",
         "📍 Wilmington, DE",
         "",
@@ -127,9 +127,9 @@ def _format(data: dict) -> str:
         f"💨 Wind: {max_wind}mph",
     ]
     if has_rain and not has_snow:
-        parts.append("🌧 Rain expected — carry an umbrella")
+        parts.append("🌧 Rain expected: carry an umbrella")
     if has_snow:
-        parts.append("❄️ Snow expected — dress warm")
+        parts.append("❄️ Snow expected: dress warm")
     parts.append(f"\nRecommendation: {rec}")
 
     return "\n".join(parts)

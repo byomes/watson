@@ -164,7 +164,7 @@ def run_backup():
     if errors:
         log(f"=== Backup completed WITH ERRORS: {errors} ===")
         _send_telegram(
-            f"❌ OneDrive backup failed — check rclone auth/logs\n\nFailed targets: {', '.join(errors)}"
+            f"❌ OneDrive backup failed: check rclone auth/logs\n\nFailed targets: {', '.join(errors)}"
         )
     else:
         log("=== Backup completed successfully ===")

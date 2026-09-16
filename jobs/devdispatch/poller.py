@@ -91,7 +91,7 @@ def _check_progress(job_id: int) -> None:
 
     label = data.get("label", "")
     detail = data.get("detail", "")
-    _telegram(f"🔧 devdispatch job {job_id} — {step}/5 {label}: {detail}")
+    _telegram(f"🔧 devdispatch job {job_id}: {step}/5 {label}: {detail}")
 
     conn = get_connection()
     try:
@@ -216,7 +216,7 @@ def _auto_merge_and_deploy(job_id: int) -> None:
         err = result.get("error", "unknown error")
         _telegram(
             f"⚠️ devdispatch job {job_id} auto-fix built a PR but couldn't "
-            f"auto-merge: {err}\nStopping short of deploy — needs a manual look."
+            f"auto-merge: {err}\nStopping short of deploy, needs a manual look."
         )
         _record_suggestion_outcome(source_suggestion_id, "failed", f"PR opened but auto-merge failed: {err}")
         return
@@ -252,13 +252,13 @@ def _auto_merge_and_deploy(job_id: int) -> None:
     except Exception as exc:
         _telegram(
             f"⚠️ devdispatch job {job_id} merged but deploy failed: {exc}\n"
-            f"Code is on main but NOT live yet — needs `git pull` + a service restart by hand."
+            f"Code is on main but NOT live yet: needs `git pull` + a service restart by hand."
         )
         _record_suggestion_outcome(source_suggestion_id, "failed", f"Merged (devdispatch job {job_id}) but deploy failed: {exc}")
         return
 
     _telegram(
-        f"✅ Auto-fixed and deployed (devdispatch job {job_id}, no review needed) — "
+        f"✅ Auto-fixed and deployed (devdispatch job {job_id}, no review needed): "
         f"the Team Chat gap that triggered this is closed.\n- Watson"
     )
     _record_suggestion_outcome(

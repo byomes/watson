@@ -212,7 +212,7 @@ def handle_privacy_confirmation(uid: str, sender_email: str, subject: str, body:
                     ids = ", ".join(str(c["id"]) for c in candidates)
                     send_telegram(
                         f"⚠️ Privacy Guard: confirmation email from {broker['name']} matches "
-                        f"multiple pending removals (ids: {ids}) — can't tell which one without "
+                        f"multiple pending removals (ids: {ids}), can't tell which one without "
                         "guessing. Resolve manually."
                     )
                     _log_bug_once(conn, key, f"Candidate removal ids: {ids}")
@@ -230,7 +230,7 @@ def handle_privacy_confirmation(uid: str, sender_email: str, subject: str, body:
             )
             _log_bug_once(
                 conn, title,
-                "link_pattern did not match this email's body or any href in its html part — "
+                "link_pattern did not match this email's body or any href in its html part: "
                 "broker's confirmation template may have changed.",
             )
             send_telegram(
@@ -246,7 +246,7 @@ def handle_privacy_confirmation(uid: str, sender_email: str, subject: str, body:
         if success:
             _mark_submitted(removal["id"])
             send_telegram(
-                f"✅ Privacy Guard: removal CONFIRMED via email link — "
+                f"✅ Privacy Guard: removal CONFIRMED via email link, "
                 f"{removal['person_name']} on {broker['name']}."
             )
             return "read"
@@ -266,7 +266,7 @@ def handle_privacy_confirmation(uid: str, sender_email: str, subject: str, body:
             send_telegram(
                 f"⚠️ Privacy Guard: clicked {broker['name']}'s confirmation link for "
                 f"{removal['person_name']} {attempts}x but never saw a verified success signal "
-                f"({reason}). Status stays 'unconfirmed' — check manually."
+                f"({reason}). Status stays 'unconfirmed': check manually."
             )
             return "read"
         return "unread"

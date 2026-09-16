@@ -104,7 +104,7 @@ def _format_birthday_lines(birthdays: list[tuple[int, str, int]], month: int, ye
     if not birthdays:
         return ["(none on file)"]
     return [
-        f"{month:02d}/{day:02d} — {name} (turning {year - birth_year})"
+        f"{month:02d}/{day:02d}, {name} (turning {year - birth_year})"
         for day, name, birth_year in birthdays
     ]
 
@@ -116,7 +116,7 @@ def build_message(deacon_name: str) -> str:
     birthdays = _birthdays_for_month(month, deacon_name)
     missing = _missing_birthdates(deacon_name)
 
-    lines = [f"🎂 Birthdays in {month_name} {year} — your group"]
+    lines = [f"🎂 Birthdays in {month_name} {year}: your group"]
     lines.extend(_format_birthday_lines(birthdays, month, year))
 
     lines.append("")
@@ -124,7 +124,7 @@ def build_message(deacon_name: str) -> str:
     if missing:
         lines.append(", ".join(missing))
     else:
-        lines.append("(none — everyone in your group has a birthdate on file)")
+        lines.append("(none: everyone in your group has a birthdate on file)")
 
     lines.append("")
     lines.append("- Watson")

@@ -120,8 +120,8 @@ def _store_job(directive, spec):
 
 
 def handle(subject, body):
-    _telegram("📬 Directive received — " + subject)
-    _telegram("🧠 Thinking — drafting spec")
+    _telegram("🧠 Thinking: drafting spec")
+    _telegram("🧠 Thinking, drafting spec")
 
     directive = subject + "\n\n" + body
     spec = None
@@ -131,18 +131,18 @@ def handle(subject, body):
             if attempt < 3:
                 spec = _call_ollama(directive, attempt)
             else:
-                _telegram("🆘 Escalating to Claude API — Ollama failed twice")
+                _telegram("🆘 Escalating to Claude API: Ollama failed twice")
                 spec = _call_claude_api(directive)
             break
         except Exception as exc:
-            _telegram(f"❌ Failed attempt {attempt} of 3 — {exc}")
+            _telegram(f"❌ Failed attempt {attempt} of 3: {exc}")
             log.error("Code Agent attempt %d failed: %s", attempt, exc)
 
     if spec is None:
-        _telegram("❌ Code Agent failed — manual intervention needed")
+        _telegram("❌ Code Agent failed: manual intervention needed")
         return
 
     _send_spec(subject, spec)
-    _telegram("🧠 Spec ready — check your email")
+    _telegram("🧠 Spec ready: check your email")
     _store_job(directive, spec)
     log.info("Code Agent spec generated and emailed for: %s", subject)

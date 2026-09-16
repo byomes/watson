@@ -30,7 +30,7 @@ def send_guide_confirmation(to_email: str, name: str, title: str, pdf_filename: 
         "You can download it right here:\n\n"
         f"  {download_url}\n\n"
         "We hope it's helpful.\n\n"
-        "— Watson\n\n"
+        "- Watson\n\n"
         "AI-powered digital assistant · Office of Dr. Bill Yomes"
     )
     html = plain.replace("\n", "<br>")
@@ -42,7 +42,7 @@ def send_guide_confirmation(to_email: str, name: str, title: str, pdf_filename: 
 
     try:
         result = send_email(
-            to_email=to_email, to_name=first_name, subject=f"Your Free Companion Guide — {title}",
+            to_email=to_email, to_name=first_name, subject=f"Your Free Companion Guide: {title}",
             text_body=plain, html_body=html, include_signature=False,
         )
         if not result["success"]:

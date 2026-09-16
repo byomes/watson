@@ -205,7 +205,7 @@ def trailing_trend_summary_text(trend: dict) -> str:
 
     cc = trend["connect_cards"]
     lines.append(
-        f"CONNECT CARDS TOTAL: {_fmt_series(cc['total'])} — "
+        f"CONNECT CARDS TOTAL: {_fmt_series(cc['total'])}, "
         f"{cc['direction']} ({cc['consecutive_months']} consecutive months)"
     )
     for campus, vals in cc["by_campus"].items():
@@ -216,7 +216,7 @@ def trailing_trend_summary_text(trend: dict) -> str:
         vals = ga4["series"][metric]
         d = ga4["directions"][metric]
         lines.append(
-            f"GA4 {metric}: {_fmt_series(vals, pct=(metric == 'engagementRate'))} — "
+            f"GA4 {metric}: {_fmt_series(vals, pct=(metric == 'engagementRate'))}, "
             f"{d['direction']} ({d['consecutive_months']} consecutive months)"
         )
 
@@ -224,7 +224,7 @@ def trailing_trend_summary_text(trend: dict) -> str:
     for (section, label), vals in sheet["series"].items():
         d = sheet["directions"][(section, label)]
         lines.append(
-            f"SHEET {section} / {label}: {_fmt_series(vals)} — "
+            f"SHEET {section} / {label}: {_fmt_series(vals)}, "
             f"{d['direction']} ({d['consecutive_months']} consecutive months)"
         )
 

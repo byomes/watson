@@ -39,7 +39,7 @@ def next_steps_report(weeks: int = 12) -> tuple[str, str]:
             (cutoff,),
         ).fetchall()
 
-    title = f"Next Steps — Last {weeks} Weeks"
+    title = f"Next Steps: Last {weeks} Weeks"
     subject = _subject(title, _today(), False)
 
     if not rows:
@@ -60,7 +60,7 @@ def next_steps_report(weeks: int = 12) -> tuple[str, str]:
         for r in step_rows:
             body += (
                 f"<tr><td>{r['name'] or '(no name)'}</td>"
-                f"<td>{r['campus'] or '—'}</td>"
+                f"<td>{r['campus'] or 'N/A'}</td>"
                 f"<td>{r['date']}</td></tr>"
             )
         body += "</tbody></table>"
@@ -104,8 +104,8 @@ def missed_weeks_report(weeks: int = 3) -> tuple[str, str]:
     )
     table_rows = "".join(
         f"<tr><td>{r['name'] or '(no name)'}</td>"
-        f"<td>{r['campus_preference'] or '—'}</td>"
-        f"<td>{r['last_seen'] or '—'}</td>"
+        f"<td>{r['campus_preference'] or 'N/A'}</td>"
+        f"<td>{r['last_seen'] or 'N/A'}</td>"
         f"<td>{r['weeks_absent']} wks</td></tr>"
         for r in rows
     )
@@ -135,7 +135,7 @@ def first_time_visitors_report(weeks: int = 4) -> tuple[str, str]:
             (cutoff,),
         ).fetchall()
 
-    title = f"First-Time Visitors — Last {weeks} Weeks"
+    title = f"First-Time Visitors: Last {weeks} Weeks"
     subject = _subject(title, _today(), False)
 
     if not rows:
@@ -150,8 +150,8 @@ def first_time_visitors_report(weeks: int = 4) -> tuple[str, str]:
     )
     table_rows = "".join(
         f"<tr><td>{r['name'] or '(no name)'}</td>"
-        f"<td><small>{r['email'] or r['phone'] or '—'}</small></td>"
-        f"<td>{r['campus'] or '—'}</td>"
+        f"<td><small>{r['email'] or r['phone'] or 'N/A'}</small></td>"
+        f"<td>{r['campus'] or 'N/A'}</td>"
         f"<td>{r['visit_date']}</td></tr>"
         for r in rows
     )
@@ -182,7 +182,7 @@ def attendance_trends_report(weeks: int = 8) -> tuple[str, str]:
             (cutoff,),
         ).fetchall()
 
-    title = f"Attendance Trends — Last {weeks} Weeks"
+    title = f"Attendance Trends: Last {weeks} Weeks"
     subject = _subject(title, _today(), False)
 
     if not rows:
@@ -230,7 +230,7 @@ def congregation_overview_report() -> tuple[str, str]:
         ).fetchone()
         top_step = (
             _STEP_NAMES.get(top_step_row["step"], top_step_row["step"])
-            if top_step_row else "—"
+            if top_step_row else "N/A"
         )
 
         wilm_regulars = conn.execute(

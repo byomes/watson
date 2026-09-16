@@ -75,7 +75,7 @@ def render_text(results: list[dict], since_iso: str, until_label: str) -> str:
         avg_str = f"{avg:.1f}" if avg is not None else "n/a"
         lines.append(
             f"{job['job_name']}: {job['total_calls']} calls, {job['error_count']} errors, "
-            f"{job['total_tokens']} total tokens (avg {avg_str}/call) — {models}"
+            f"{job['total_tokens']} total tokens (avg {avg_str}/call): {models}"
         )
     return "\n".join(lines)
 

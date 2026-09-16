@@ -234,7 +234,7 @@ def _is_duplicate(conn, member_id, task_title):
 # ── Email ─────────────────────────────────────────────────────────────────────
 
 def _send_proposal_email(donna_email, donna_name, proposals_by_member, date_str):
-    subject = f"Watson — Proposed tasks from leadership notes ({date_str})"
+    subject = f"Watson: Proposed tasks from leadership notes ({date_str})"
 
     sections = []
     for member_name, tasks in proposals_by_member.items():
@@ -449,7 +449,7 @@ def handle_donna_proposal_reply(body: str) -> None:
         _assign_all(conn, batch_id, pending)
         leader_count = len({p["member_id"] for p in pending})
         _send_telegram(
-            f"✅ Donna approved task batch — {len(pending)} task(s) assigned "
+            f"✅ Donna approved task batch: {len(pending)} task(s) assigned "
             f"across {leader_count} leader(s)."
         )
 
@@ -468,7 +468,7 @@ def handle_donna_proposal_reply(body: str) -> None:
             _assign_corrected(conn, batch_id, pending, corrected)
             leader_count = len({item["member_id"] for item in corrected})
             _send_telegram(
-                f"✅ Donna sent corrections — {len(corrected)} task(s) assigned "
+                f"✅ Donna sent corrections: {len(corrected)} task(s) assigned "
                 f"across {leader_count} leader(s)."
             )
         else:
@@ -477,7 +477,7 @@ def handle_donna_proposal_reply(body: str) -> None:
             _assign_all(conn, batch_id, pending)
             leader_count = len({p["member_id"] for p in pending})
             _send_telegram(
-                f"✅ Donna sent corrections (unclear — assigned as-is) — "
+                f"✅ Donna sent corrections (unclear: assigned as-is), "
                 f"{len(pending)} task(s) across {leader_count} leader(s)."
             )
 

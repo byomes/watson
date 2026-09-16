@@ -122,7 +122,7 @@ def scrape(dashboard_link: str) -> dict:
         result = _pull(dashboard_link)
     except Exception as exc:
         send_telegram(
-            "⚠️ Thesis snapshot failed — link may have expired.\n"
+            "⚠️ Thesis snapshot failed: link may have expired.\n"
             "Update DC_DASHBOARD_LINK in .env with a fresh link from the latest Liberty/Digital Commons email."
         )
         return {"success": False, "error": str(exc)}
@@ -177,7 +177,7 @@ def scrape(dashboard_link: str) -> dict:
         )
     except Exception as exc:
         send_telegram(
-            "⚠️ Thesis snapshot failed — link may have expired.\n"
+            "⚠️ Thesis snapshot failed: link may have expired.\n"
             "Update DC_DASHBOARD_LINK in .env with a fresh link from the latest Liberty/Digital Commons email."
         )
         return {"success": False, "error": f"DB insert failed: {exc}"}

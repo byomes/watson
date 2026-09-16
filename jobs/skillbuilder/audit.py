@@ -281,7 +281,7 @@ def run_audit() -> str:
         return f"Audit parse failed: {exc}"
 
     if not gaps:
-        _telegram("📊 Weekly audit complete — no capability gaps identified.")
+        _telegram("📊 Weekly audit complete: no capability gaps identified.")
         return "No gaps identified."
 
     filtered = []
@@ -317,7 +317,7 @@ def run_audit() -> str:
         conn.commit()
 
         _telegram(
-            f"📊 Weekly Audit — Capability Gap #{n}\n\n"
+            f"📊 Weekly Audit: Capability Gap #{n}\n\n"
             f"{gap_name}\n\n"
             f"Why: {reason}\n\n"
             f"Shall I build this? Reply YES to build {job_path}"

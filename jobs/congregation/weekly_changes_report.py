@@ -185,7 +185,7 @@ def _section(title: str, count: int, rows_html: str) -> str:
 
 def build_report_html(data: dict) -> str:
     parts = [
-        f"<h2 style='margin:0 0 4px'>Congregation DB Changes — {_window_label()}</h2>",
+        f"<h2 style='margin:0 0 4px'>Congregation DB Changes, {_window_label()}</h2>",
         "<p style='color:#777;font-size:.9em;margin:0 0 16px'>"
         "New members and profile-field changes (name, email, phone, address, birthdate) "
         "in congregation.db, for mirroring into the church management system. "
@@ -194,9 +194,9 @@ def build_report_html(data: dict) -> str:
 
     if data["new_members"]:
         items = "".join(
-            f"<li><strong>{_esc(m['name'])}</strong> — "
-            f"email: {_esc(m['email']) or '—'}, phone: {_esc(m['phone']) or '—'}, "
-            f"address: {_esc(m['address']) or '—'}, birthdate: {m['birthdate'] or '—'}</li>"
+            f"address: {_esc(m['address']) or ', '}, birthdate: {m['birthdate'] or ', '}</li>"
+            f"email: {_esc(m['email']) or 'N/A'}, phone: {_esc(m['phone']) or 'N/A'}, "
+            f"address: {_esc(m['address']) or 'N/A'}, birthdate: {m['birthdate'] or 'N/A'}</li>"
             for m in data["new_members"]
         )
         parts.append(_section("New People", len(data["new_members"]), f"<ul style='margin:0;padding-left:20px'>{items}</ul>"))
@@ -207,10 +207,10 @@ def build_report_html(data: dict) -> str:
         items = []
         for c in data["changes"]:
             field_lines = "; ".join(
-                f"{_FIELD_LABELS[f]}: {_esc(before) or '—'} → {_esc(after) or '—'}"
+                f"{_FIELD_LABELS[f]}: {_esc(before) or ', '} → {_esc(after) or ', '}"
                 for f, before, after in c["diffs"]
             )
-            items.append(f"<li><strong>{_esc(c['name'])}</strong> — {field_lines}</li>")
+            items.append(f"<li><strong>{_esc(c['name'])}</strong>: {field_lines}</li>")
         parts.append(_section("Profile Changes", len(data["changes"]), f"<ul style='margin:0;padding-left:20px'>{''.join(items)}</ul>"))
     else:
         parts.append(_section("Profile Changes", 0, "<p style='color:#999;margin:0'>None.</p>"))
@@ -238,7 +238,7 @@ def send_weekly_changes_report(bill_only: bool = False, dry_run: bool = False) -
 
         html = build_report_html(data)
         text = build_report_text(data)
-        subject = f"Congregation DB Changes — {_window_label()}"
+        subject = f"Congregation DB Changes: {_window_label()}"
 
         if dry_run:
             print(subject)

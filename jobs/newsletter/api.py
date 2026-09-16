@@ -173,7 +173,7 @@ def newsletter_subscribe():
             f"\U0001F4EC New Newsletter Signup\n\n"
             f"Name: {name or '(none given)'}\n"
             f"Email: {email}\n"
-            f"Brevo tag: {'✅ applied' if tagged else '⚠️ not applied — check BREVO_API_KEY'}"
+            f"Brevo tag: {'✅ applied' if tagged else '⚠️ not applied, check BREVO_API_KEY'}"
         )
     except Exception as exc:
         log.error("Telegram notify failed for newsletter signup %s: %s", email, exc)

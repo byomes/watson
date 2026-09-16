@@ -76,7 +76,7 @@ def format_fixes_reply(limit: int = 10) -> str:
         when = (f["created_at"] or "")[:16].replace("T", " ")
         src = _SOURCE_LABELS.get(f["source"], f["source"])
         ref = f" ({f['commit_hash'][:7]})" if f.get("commit_hash") else (f" ({f['pr_url']})" if f.get("pr_url") else "")
-        lines.append(f"\n• {f['title']} — {f['repo']}, {src}{ref}, {when}")
+        lines.append(f"\n• {f['title']}: {f['repo']}, {src}{ref}, {when}")
         if f.get("description"):
             lines.append(f"  {f['description']}")
     return "\n".join(lines)

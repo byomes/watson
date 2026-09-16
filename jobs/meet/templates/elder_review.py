@@ -93,20 +93,19 @@ def render_elder_review_email(structured: dict, preview: bool = False) -> tuple[
     fallback     = bool(structured.get("fallback"))
 
     subject_prefix = "PREVIEW: " if preview else ""
-    subject = f"{subject_prefix}Elders Meeting Review — {date_display}"
+    subject = f"{subject_prefix}Elders Meeting Review: {date_display}"
 
     preview_banner = (
         '<div style="margin:0;padding:10px 32px;background:#fff3cd;border-bottom:1px solid #ffe08a;">'
         '<p style="margin:0;font-size:12px;font-weight:700;color:#8a6d1f;text-transform:uppercase;'
-        'letter-spacing:0.5px;">Preview — elders have not received this yet</p>'
+        'letter-spacing:0.5px;">Preview, elders have not received this yet</p>'
         "</div>"
     ) if preview else ""
 
     fallback_banner = ("""
     <div style="margin:16px 32px 0;padding:10px 14px;background:#fff8e1;border-left:3px solid #f57c00;">
       <p style="margin:0;font-size:12px;color:#8a6d3b;line-height:1.5;">
-        Note: automatic formatting of this meeting's transcript failed after a retry —
-        this is a basic summary. Consider reviewing the full transcript directly in Fireflies.
+        Note: automatic formatting of this meeting's transcript failed after a retry, this is a basic summary. Consider reviewing the full transcript directly in Fireflies.
       </p>
     </div>""") if fallback else ""
 
@@ -159,10 +158,10 @@ def render_elder_review_email(structured: dict, preview: bool = False) -> tuple[
 def render_elder_review_plain(structured: dict) -> str:
     """Plain-text alternative part for the same structured content."""
     date_display = structured.get("date_display") or "Unknown date"
-    lines = [f"Elders Meeting Review — {date_display}", ""]
+    lines = [f"Elders Meeting Review: {date_display}", ""]
 
     if structured.get("fallback"):
-        lines.append("(Note: automatic formatting failed — basic summary shown below.)")
+        lines.append("(Note: automatic formatting failed, basic summary shown below.)")
         lines.append("")
 
     lines.append("Meeting Overview:")

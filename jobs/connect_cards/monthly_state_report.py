@@ -682,7 +682,7 @@ def build_report(year: int, month: int) -> tuple[str, str]:
         next_steps_count = _next_steps_this_month(conn, year, month)
         follow_ups_tracked = _follow_ups_table_has_data(conn)
 
-    subject = f"Watson — Monthly State of the Church | {month_label}"
+    subject = f"Watson: Monthly State of the Church | {month_label}"
 
     attended_count = sum(1 for c in cur_counts.values() if c >= 1)
 
@@ -699,7 +699,7 @@ def build_report(year: int, month: int) -> tuple[str, str]:
         synthesis_html = _render_synthesis_html(synthesis)
     else:
         synthesis_html = (
-            "<p class='empty'>Framing overview unavailable this month — Ollama didn't respond in "
+            "<p class='empty'>Framing overview unavailable this month: Ollama didn't respond in "
             "time after two attempts. The data below is unaffected; Bill's been alerted to check "
             "the logs.</p>"
         )
@@ -710,7 +710,7 @@ def build_report(year: int, month: int) -> tuple[str, str]:
         f"<div style='font-size:3em;font-weight:bold;color:#222'>{attended_count} "
         f"<span style='font-size:.5em;font-weight:normal;color:#888'>of {active_count}</span></div>"
         "<div style='font-size:.95em;color:#666;text-transform:uppercase;letter-spacing:.05em'>"
-        f"Active Members Attended — {month_label}</div>"
+        f"Active Members Attended: {month_label}</div>"
         "</div>"
     )
 
@@ -735,10 +735,10 @@ def build_report(year: int, month: int) -> tuple[str, str]:
         body += (
             f"<p>Actual Wilmington headcount this month: <strong>{headcount_gap['actual']}</strong> "
             f"across {headcount_gap['weeks']} synced Sunday(s), vs. <strong>{headcount_gap['cards']}</strong> "
-            f"connect-card-derived attendance for those same Sundays — gap: "
+            f"connect-card-derived attendance for those same Sundays, gap: "
             f"<strong>{headcount_gap['gap']}</strong> ({headcount_gap['gap_pct']:.0f}%).</p>"
             "<p style='color:#888;font-size:.85em'>This is an aggregate coverage check, not a "
-            "person-level correction — the headcount has no names attached, so it can show "
+            "person-level correction: the headcount has no names attached, so it can show "
             "<em>that</em> Wilmington attendance is undercounted and by how much, but not "
             "<em>which</em> specific members are the ones missing from connect-card attendance.</p>"
         )
@@ -752,7 +752,7 @@ def build_report(year: int, month: int) -> tuple[str, str]:
     else:
         body += "<p class='empty'>No headcount data synced yet this month.</p>"
 
-    body += "<h3 style='margin:14px 0 4px'>Wilmington Headcount — Historical Context</h3>"
+    body += "<h3 style='margin:14px 0 4px'>Wilmington Headcount, Historical Context</h3>"
     if historical_context is not None:
         hc = historical_context
         parts = [
@@ -782,7 +782,7 @@ def build_report(year: int, month: int) -> tuple[str, str]:
         else:
             parts.append(
                 "<p style='color:#888;font-size:.85em'>No prior-year data synced yet for this "
-                "calendar month — 3-year comparison unavailable.</p>"
+                "calendar month: 3-year comparison unavailable.</p>"
             )
         body += "".join(parts)
     else:
@@ -804,7 +804,7 @@ def build_report(year: int, month: int) -> tuple[str, str]:
         body += (
             f"<p>{movement['up']} member(s) moved up a tier, {movement['down']} moved down.</p>"
             f"<p><strong>{len(new_disengaged)}</strong> newly {_TIER_DISPLAY['Disengaged']} after being "
-            f"{_TIER_DISPLAY['Partially engaged']} or {_TIER_DISPLAY['Highly engaged']} last month — "
+            f"{_TIER_DISPLAY['Partially engaged']} or {_TIER_DISPLAY['Highly engaged']} last month: "
             "the group worth a look.</p>"
         )
         if new_disengaged:
@@ -812,7 +812,7 @@ def build_report(year: int, month: int) -> tuple[str, str]:
                 "<table><thead><tr><th>Name</th><th>Campus</th><th>Last Attended</th></tr></thead><tbody>"
                 + "".join(
                     f"<tr><td>{r['name'] or '(no name)'}</td><td>{r['campus']}</td>"
-                    f"<td>{r['last_attended'] or '—'}</td></tr>"
+                    f"<td>{r['last_attended'] or 'N/A'}</td></tr>"
                     for r in new_disengaged
                 )
                 + "</tbody></table>"
@@ -840,7 +840,7 @@ def build_report(year: int, month: int) -> tuple[str, str]:
     else:
         body += (
             f"<p>{next_steps_count} next-step request(s) logged in {month_label}.</p>"
-            "<p class='empty'>No follow-up completion data available — the follow_ups table "
+            "<p class='empty'>No follow-up completion data available: the follow_ups table "
             "has no records tracked yet.</p>"
         )
 
@@ -899,7 +899,7 @@ def send_report(year: int, month: int, to_override: str | None = None) -> None:
         with _conn() as conn:
             recipients = _resolve_recipients(conn)
         if not recipients:
-            raise RuntimeError("No recipients resolved — check BILL_EMAIL and congregation.db member records.")
+            raise RuntimeError("No recipients resolved: check BILL_EMAIL and congregation.db member records.")
 
     text_fallback = re.sub(r"<[^>]+>", "", html)
     for to in recipients:

@@ -198,7 +198,7 @@ async def _new_match_pass(conn) -> list[int]:
 
     if attempts and failures == attempts:
         send_telegram(
-            f"⚠️ Privacy Guard: every broker fetch failed this run ({failures}/{attempts}) — "
+            f"⚠️ Privacy Guard: every broker fetch failed this run ({failures}/{attempts}), "
             "possible outage, check logs/privacy_scan.log.",
             priority="system_failure",
         )
@@ -286,7 +286,7 @@ def _send_digest(removal_ids: list[int]) -> None:
     conn = get_connection()
     try:
         if len(removal_ids) > _DIGEST_BATCH_THRESHOLD:
-            lines = [f"🔍 Privacy Guard — {len(removal_ids)} new matches"]
+            lines = [f"🔍 Privacy Guard: {len(removal_ids)} new matches"]
             keyboard = []
             for rid in removal_ids:
                 row = _digest_row(conn, rid)

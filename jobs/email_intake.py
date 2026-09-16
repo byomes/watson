@@ -279,7 +279,7 @@ def _generate_sms_reply(body: str) -> str | None:
     from jobs.memory.prompt_builder import build_prompt
     system = build_prompt(task=body, project=None) + (
         "\n\nThis reply goes out as an SMS text message, not a chat message. "
-        "Keep it to 1-2 short sentences — anything longer gets cut off at the "
+        "Keep it to 1-2 short sentences: anything longer gets cut off at the "
         "150-character SMS limit."
     )
     try:
@@ -330,7 +330,7 @@ def _handle_sms_reply(sender_email: str, body: str) -> None:
     if not reply:
         _tg(
             f"⚠️ Text from {who}: {body_clean}\n\n"
-            f"Watson's auto-reply failed (Ollama error) — no reply sent. Follow up manually."
+            f"Watson's auto-reply failed (Ollama error): no reply sent. Follow up manually."
         )
         return
 
@@ -338,11 +338,11 @@ def _handle_sms_reply(sender_email: str, body: str) -> None:
     result = send_sms(who, digits, "", reply)
 
     if result.get("success"):
-        _tg(f"📱 SMS exchange — {who}\n→ Them: {body_clean}\n→ Watson: {reply}")
+        _tg(f"📱 SMS exchange: {who}\n→ Them: {body_clean}\n→ Watson: {reply}")
     elif result.get("needs_carrier"):
         _tg(
             f"⚠️ Text from {who}: {body_clean}\n\n"
-            f"Watson drafted a reply but couldn't send — no carrier on file for this "
+            f"Watson drafted a reply but couldn't send: no carrier on file for this "
             f"number. Drafted reply: {reply}"
         )
     else:
@@ -517,7 +517,7 @@ def _handle_meeting_summary(detection: dict) -> bool:
     parts = member_name.split()
     first = parts[1] if len(parts) > 1 and parts[0] in _HONORIFICS else parts[0]
     _tg(
-        f"📋 Meeting summary logged — {member_name}\n\n"
+        f"📋 Meeting summary logged: {member_name}\n\n"
         f"Tasks for {first}: {len(tasks_for_leader)}\n"
         f"Tasks for you: {len(tasks_for_bill)}\n"
         f"Note logged: ✓"
@@ -1018,10 +1018,10 @@ def handle_instruction_reply(payload: dict, instruction: str) -> str:
         from jobs.email_reply.handler import save_pending, send_telegram_notification
         draft = draft_reply(email_dict, extra_instruction=instruction)
         if not draft:
-            return "⚠️ Couldn't draft a reply from that — try again or handle it manually in Gmail."
+            return "⚠️ Couldn't draft a reply from that: try again or handle it manually in Gmail."
         save_pending(email_dict, draft)
         send_telegram_notification(email_dict, draft)
-        return f"✅ Draft reply queued for approval — {email_dict['sender_name']}"
+        return f"✅ Draft reply queued for approval: {email_dict['sender_name']}"
     except Exception as exc:
         log.error("Instruction-driven reply draft failed: %s", exc)
         return f"⚠️ Draft failed: {exc}"

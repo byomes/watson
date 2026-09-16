@@ -252,7 +252,7 @@ def sync(dry_run: bool = False) -> dict:
 
     if failed_tabs:
         _alert(
-            "Classroom attendance sheet structure changed — could not find "
+            "Classroom attendance sheet structure changed: could not find "
             f"Date + all 8 room columns in tab(s): {', '.join(failed_tabs)}. "
             "Other tabs synced normally; this/these tab(s) were skipped. "
             "Check the sheet layout."

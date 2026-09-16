@@ -348,7 +348,7 @@ def notify_archive_transfer(title: str, result: dict) -> None:
         text = (
             f"⚠️ <b>Archive transcript transfer failed</b>\n\n<b>{title}</b>\n\n"
             f"Saved locally on FMSPC but the scp transfer to Beelink failed. "
-            f"It has NOT reached the KB yet — check FMSPC and retry manually."
+            f"It has NOT reached the KB yet: check FMSPC and retry manually."
         )
     else:
         detail = f" ({result['sync_error']})" if result["sync_error"] else ""
@@ -381,7 +381,7 @@ def _telegram_notify(raw_url: str, title: str, transfer_succeeded: bool = True,
         # scp itself failed — infra problem, nothing reached Beelink at all.
         priority = "system_failure"
         text = (
-            f"⚠️ <b>Transcript saved locally — transfer to Beelink failed</b>\n\n"
+            f"⚠️ <b>Transcript saved locally: transfer to Beelink failed</b>\n\n"
             f"<b>{title}</b>\n\n"
             f"The transcript was written locally on FMSPC but the scp transfer "
             f"to Beelink failed (network, SSH, or permission error). It has NOT "
@@ -420,7 +420,7 @@ def _telegram_notify(raw_url: str, title: str, transfer_succeeded: bool = True,
             f"⚠️ <b>Transcript transferred, but immediate KB sync didn't complete</b>\n\n"
             f"<b>{title}</b>\n\n"
             f"The file reached Beelink's kb/transcripts/ safely, but the immediate "
-            f"sync/index/push trigger failed{detail}. The raw URL is not live yet — "
+            f"sync/index/push trigger failed{detail}. The raw URL is not live yet: "
             f"tonight's 2am KB sync will catch it as a backstop.\n\n"
             f"<code>{raw_url}</code>"
         )

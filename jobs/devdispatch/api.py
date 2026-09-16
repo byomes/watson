@@ -685,20 +685,20 @@ def _dispatch_claude_code_job(spec, repo, branch_name=None) -> dict:
         stdout, stderr = proc.communicate(timeout=_LAUNCH_TIMEOUT_S)
     except Exception as exc:
         _update_job(job_id, status="failed", summary=f"launch failed: {exc}")
-        _telegram(f"❌ devdispatch job {job_id} failed to launch — {exc}")
+        _telegram(f"❌ devdispatch job {job_id} failed to launch: {exc}")
         return {"job_id": job_id, "status": "failed", "error": str(exc)}
 
     if proc.returncode != 0:
         err = _redact((stderr or stdout or "").strip())[:500]
         _update_job(job_id, status="failed", summary=f"launch failed (exit {proc.returncode}): {err}")
-        _telegram(f"❌ devdispatch job {job_id} failed to launch — {err}")
+        _telegram(f"❌ devdispatch job {job_id} failed to launch: {err}")
         return {"job_id": job_id, "status": "failed", "error": err}
 
     match = _BACKGROUNDED_RE.search(stdout or "")
     if not match:
         err = _redact((stdout or stderr or "").strip())[:500]
         _update_job(job_id, status="failed", summary=f"could not parse session id from launch output: {err}")
-        _telegram(f"❌ devdispatch job {job_id} launched but session id unparseable — {err}")
+        _telegram(f"❌ devdispatch job {job_id} launched but session id unparseable: {err}")
         return {"job_id": job_id, "status": "failed", "error": "could not parse session id from launch output"}
 
     cli_session_id = match.group(1)
@@ -733,14 +733,14 @@ def _finalize_completed_job(row) -> dict:
 
     if not worktree.is_dir():
         _update_job(job_id, status="failed", summary="worktree missing at completion")
-        _telegram(f"❌ devdispatch job {job_id} — worktree missing at completion")
+        _telegram(f"❌ devdispatch job {job_id}: worktree missing at completion")
         return _row_to_dict(_get_job_row(job_id))
 
     status_proc = _run_git(["status", "--porcelain"], worktree)
     if status_proc.returncode != 0:
         err = _redact(status_proc.stderr.strip())[:500]
         _update_job(job_id, status="failed", summary=f"git status failed: {err}")
-        _telegram(f"❌ devdispatch job {job_id} — git status failed: {err}")
+        _telegram(f"❌ devdispatch job {job_id}: git status failed: {err}")
         return _row_to_dict(_get_job_row(job_id))
 
     if status_proc.stdout.strip():
@@ -753,14 +753,14 @@ def _finalize_completed_job(row) -> dict:
         if add_proc.returncode != 0:
             err = _redact(add_proc.stderr.strip())[:500]
             _update_job(job_id, status="failed", summary=f"git add failed: {err}")
-            _telegram(f"❌ devdispatch job {job_id} — git add failed: {err}")
+            _telegram(f"❌ devdispatch job {job_id}: git add failed: {err}")
             return _row_to_dict(_get_job_row(job_id))
 
         commit_proc = _run_git(["commit", "-m", commit_msg], worktree)
         if commit_proc.returncode != 0:
             err = _redact((commit_proc.stderr or commit_proc.stdout).strip())[:500]
             _update_job(job_id, status="failed", summary=f"git commit failed: {err}")
-            _telegram(f"❌ devdispatch job {job_id} — git commit failed: {err}")
+            _telegram(f"❌ devdispatch job {job_id}: git commit failed: {err}")
             return _row_to_dict(_get_job_row(job_id))
 
     # Worktrees of the same repo share refs, so the local `main` pointer in
@@ -777,7 +777,7 @@ def _finalize_completed_job(row) -> dict:
     if fetch_proc.returncode != 0:
         err = _redact((fetch_proc.stderr or fetch_proc.stdout).strip())[:500]
         _update_job(job_id, status="failed", summary=f"git fetch origin main failed: {err}")
-        _telegram(f"❌ devdispatch job {job_id} — git fetch origin main failed: {err}")
+        _telegram(f"❌ devdispatch job {job_id}: git fetch origin main failed: {err}")
         return _row_to_dict(_get_job_row(job_id))
 
     # A clean working tree does NOT mean "nothing happened" — confirmed
@@ -789,7 +789,7 @@ def _finalize_completed_job(row) -> dict:
     if ahead_proc.returncode != 0:
         err = _redact(ahead_proc.stderr.strip())[:500]
         _update_job(job_id, status="failed", summary=f"git rev-list failed: {err}")
-        _telegram(f"❌ devdispatch job {job_id} — git rev-list failed: {err}")
+        _telegram(f"❌ devdispatch job {job_id}: git rev-list failed: {err}")
         return _row_to_dict(_get_job_row(job_id))
 
     if int((ahead_proc.stdout or "0").strip() or "0") == 0:
@@ -803,7 +803,7 @@ def _finalize_completed_job(row) -> dict:
             _cleanup_worktree(repo, branch_name)
         except Exception as exc:
             log.warning("devdispatch: worktree cleanup raised for job %s (no-op): %s", job_id, exc)
-        _telegram(f"ℹ️ devdispatch job {job_id} done — no changes produced.")
+        _telegram(f"ℹ️ devdispatch job {job_id} done: no changes produced.")
         return _row_to_dict(_get_job_row(job_id))
 
     # PR title reflects what actually landed in the last commit — accurate
@@ -826,7 +826,7 @@ def _finalize_completed_job(row) -> dict:
     if push_proc.returncode != 0:
         err = _redact((push_proc.stderr or push_proc.stdout).strip())[:500]
         _update_job(job_id, status="failed", summary=f"git push failed (committed locally): {err}")
-        _telegram(f"❌ devdispatch job {job_id} — git push failed: {err}")
+        _telegram(f"❌ devdispatch job {job_id}: git push failed: {err}")
         return _row_to_dict(_get_job_row(job_id))
 
     pr_body = f"Dispatched via MCP devdispatch job #{job_id}.\n\nSpec:\n{row['spec_text']}"
@@ -834,7 +834,7 @@ def _finalize_completed_job(row) -> dict:
     if pr_err:
         summary = f"Pushed {git_branch} but PR creation failed: {pr_err}"
         _update_job(job_id, status="failed", summary=summary)
-        _telegram(f"⚠️ devdispatch job {job_id} — pushed but PR failed: {pr_err}\nBranch: {git_branch}")
+        _telegram(f"⚠️ devdispatch job {job_id}: pushed but PR failed: {pr_err}\nBranch: {git_branch}")
         return _row_to_dict(_get_job_row(job_id))
 
     summary = f"PR opened: {pr_url}"
@@ -847,7 +847,7 @@ def _finalize_completed_job(row) -> dict:
         _cleanup_worktree(repo, branch_name)
     except Exception as exc:
         log.warning("devdispatch: worktree cleanup raised for job %s (post-PR): %s", job_id, exc)
-    _telegram(f"✅ devdispatch job {job_id} done — {pr_url}")
+    _telegram(f"✅ devdispatch job {job_id} done: {pr_url}")
     return _row_to_dict(_get_job_row(job_id))
 
 
@@ -895,7 +895,7 @@ def _check_claude_code_job(job_id) -> dict:
     # record it verbatim rather than assume what it means.
     summary = f"unrecognized claude agents state: {state!r}"
     _update_job(job_id, status="failed", summary=summary)
-    _telegram(f"❌ devdispatch job {job_id} — {summary}")
+    _telegram(f"❌ devdispatch job {job_id}: {summary}")
     return _row_to_dict(_get_job_row(job_id))
 
 

@@ -73,7 +73,7 @@ def _when_label(called_at: str) -> str:
 
 def _rows_lines(rows) -> str:
     return "\n".join(
-        f"{_when_label(r['called_at'])} — {r['family_last_name']} — ${r['amount']:.2f}"
+        f"{_when_label(r['called_at'])}, {r['family_last_name']}, ${r['amount']:.2f}"
         for r in rows
     )
 
@@ -102,7 +102,7 @@ def build_bill_report(unpaid_rows, paid_rows) -> tuple[str, str, str]:
     records but left out of the amount owed.
     """
     today = datetime.now(NY).strftime("%B %Y")
-    subject = f"House Calls — {today}"
+    subject = f"House Calls: {today}"
     total = sum(r["amount"] for r in unpaid_rows)
 
     paid_note_text = ""
@@ -111,11 +111,11 @@ def build_bill_report(unpaid_rows, paid_rows) -> tuple[str, str, str]:
         paid_names = ", ".join(r["family_last_name"] for r in paid_rows)
         n = len(paid_rows)
         paid_note_text = (
-            f"\n\n(Already paid directly, no action needed: {n} call{'s' if n != 1 else ''} — {paid_names})"
+            f"\n\n(Already paid directly, no action needed: {n} call{'s' if n != 1 else ''}, {paid_names})"
         )
         paid_note_html = (
             f"<p style='margin-top:10px;color:#666;font-size:.9em'>Already paid directly, no action "
-            f"needed: {n} call{'s' if n != 1 else ''} — {paid_names}</p>"
+            f"needed: {n} call{'s' if n != 1 else ''}, {paid_names}</p>"
         )
 
     text_body = (
@@ -129,7 +129,7 @@ def build_bill_report(unpaid_rows, paid_rows) -> tuple[str, str, str]:
     html_body = (
         "<html><body style='font-family:Georgia,serif;color:#222'>"
         f"<p>Hi {BOSS_NAME},</p>"
-        f"<h2 style='border-bottom:2px solid #333;padding-bottom:8px'>House Calls — {today}</h2>"
+        f"<h2 style='border-bottom:2px solid #333;padding-bottom:8px'>House Calls, {today}</h2>"
         + _rows_table_html(unpaid_rows)
         + f"<p style='margin-top:16px'><strong>Total: {len(unpaid_rows)} calls, ${total:.2f}</strong></p>"
         + paid_note_html
@@ -144,12 +144,12 @@ def build_confirmation_report(rows) -> tuple[str, str, str]:
     period was already paid directly — sent instead of the bill so Jim gets
     a positive confirmation rather than silence."""
     today = datetime.now(NY).strftime("%B %Y")
-    subject = f"House Calls — {today} (Paid in Full)"
+    subject = f"House Calls: {today} (Paid in Full)"
     total = sum(r["amount"] for r in rows)
 
     text_body = (
         f"Hi {BOSS_NAME},\n\n"
-        f"Just confirming — all house calls for this period have already been paid "
+        f"Just confirming: all house calls for this period have already been paid "
         f"directly, so nothing is owed. For your records:\n\n"
         + _rows_lines(rows)
         + f"\n\nTotal: {len(rows)} calls, ${total:.2f} (already paid)\n\nThanks,\nBill"
@@ -157,8 +157,8 @@ def build_confirmation_report(rows) -> tuple[str, str, str]:
     html_body = (
         "<html><body style='font-family:Georgia,serif;color:#222'>"
         f"<p>Hi {BOSS_NAME},</p>"
-        f"<h2 style='border-bottom:2px solid #333;padding-bottom:8px'>House Calls — {today} (Paid in Full)</h2>"
-        f"<p>Just confirming — all house calls for this period have already been paid directly, "
+        f"<p>Just confirming: all house calls for this period have already been paid directly, "
+        f"<p>Just confirming, all house calls for this period have already been paid directly, "
         f"so nothing is owed. For your records:</p>"
         + _rows_table_html(rows)
         + f"<p style='margin-top:16px'><strong>Total: {len(rows)} calls, ${total:.2f} (already paid)</strong></p>"
@@ -193,10 +193,10 @@ def send_report(dry_run: bool = False, to_override: str | None = None) -> None:
     to = to_override or BOSS_EMAIL
     if not to:
         total = sum(r["amount"] for r in unpaid)
-        names = ", ".join(r["family_last_name"] for r in unpaid) or "none owed — all already paid"
+        names = ", ".join(r["family_last_name"] for r in unpaid) or "none owed: all already paid"
         _telegram(
             f"House call report is ready ({len(unpaid)} calls owed, ${total:.2f}: {names}) but "
-            "FUNERAL_HOME_BOSS_EMAIL isn't set in .env yet — send me Jim's email "
+            "FUNERAL_HOME_BOSS_EMAIL isn't set in .env yet: send me Jim's email "
             "and I'll send it next run. Nothing has been marked reported. - Watson"
         )
         log.warning("FUNERAL_HOME_BOSS_EMAIL not set — report not sent, rows left unreported.")
@@ -219,9 +219,9 @@ def send_report(dry_run: bool = False, to_override: str | None = None) -> None:
         names = ", ".join(r["family_last_name"] for r in unpaid)
         total = sum(r["amount"] for r in unpaid)
         extra = f", {len(paid)} already paid" if paid else ""
-        _telegram(f"Sent house call bill to {to}: {len(unpaid)} calls, ${total:.2f} owed — {names}{extra}. - Watson")
+        _telegram(f"Sent house call bill to {to}: {len(unpaid)} calls, ${total:.2f} owed, {names}{extra}. - Watson")
     else:
-        _telegram(f"Sent house call report to {to}: all {len(paid)} calls already paid — confirmed nothing owed. - Watson")
+        _telegram(f"Sent house call report to {to}: all {len(paid)} calls already paid, confirmed nothing owed. - Watson")
 
 
 if __name__ == "__main__":

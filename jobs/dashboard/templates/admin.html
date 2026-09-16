@@ -669,7 +669,7 @@ html, body {
   <a href="/admin" id="hdr-mark"><img src="/static/favicon-watson.png" alt="Watson"></a>
   <div id="hdr-text">
     <div id="hdr-title">WATSON ADMIN</div>
-    <div id="hdr-sub">Catalyst Community Church — Leadership</div>
+    <div id="hdr-sub">Catalyst Community Church: Leadership</div>
   </div>
   <div style="display:flex;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:20px;padding:2px;gap:2px;flex-shrink:0">
     <a href="/admin" style="padding:4px 12px;border-radius:16px;font-size:12px;font-weight:500;background:#c9a84c;color:#000;text-decoration:none">Team</a>
@@ -790,7 +790,7 @@ html, body {
         </td>
         <td>
           <div class="member-name">{{ m.name }}</div>
-          <div class="member-role">{{ m.role or m.ministry or '—' }}</div>
+          <div class="member-role">{{ m.role or m.ministry or 'N/A' }}</div>
         </td>
         <td>
           <span class="status-badge {{ m.status }}">
@@ -808,14 +808,14 @@ html, body {
           {% if m.last_activity_date %}
             <span class="{{ m.last_activity_date | date_color }}">{{ m.last_activity_date[:10] }}</span>
           {% else %}
-            <span class="date-none">—</span>
+            <span class="date-none">N/A</span>
           {% endif %}
         </td>
         <td>
           {% if m.last_comms_date %}
             <span class="{{ m.last_comms_date | date_color }}">{{ m.last_comms_date[:10] }}</span>
           {% else %}
-            <span class="date-none">—</span>
+            <span class="date-none">N/A</span>
           {% endif %}
         </td>
         <td>
@@ -1446,12 +1446,12 @@ async function _adminPoll() {
       const ac = row.cells[4];
       if (ac) ac.innerHTML = m.last_activity_date
         ? `<span class="${_adminDateClass(m.last_activity_date)}">${m.last_activity_date.slice(0,10)}</span>`
-        : `<span class="date-none">—</span>`;
+        : `<span class="date-none">N/A</span>`;
       // Comms date (cell index 5)
       const cc = row.cells[5];
       if (cc) cc.innerHTML = m.last_comms_date
         ? `<span class="${_adminDateClass(m.last_comms_date)}">${m.last_comms_date.slice(0,10)}</span>`
-        : `<span class="date-none">—</span>`;
+        : `<span class="date-none">N/A</span>`;
     });
   } catch(e) { /* silent — stale data acceptable */ }
 }

@@ -210,7 +210,7 @@ def _build_message(prefix: str, guest_name: str, start_dt: datetime,
     loc_line = meet_link or location or "TBD"
     lines = [
         f"📅 *{prefix}: {guest_name}* in 30 minutes",
-        f"🕐 {start_dt.strftime('%-I:%M %p')} — {loc_line}",
+        f"🕐 {start_dt.strftime('%-I:%M %p')}, {loc_line}",
     ]
     if description:
         lines += ["", "*Meeting Context:*", description]

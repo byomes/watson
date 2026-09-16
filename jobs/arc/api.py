@@ -255,7 +255,7 @@ def arc_apply():
             f"Name: {first_name} {last_name}\n"
             f"Email: {email}\n"
             f"Book: The Wrong Jesus\n"
-            f"Kit tag: {'✅ applied' if tagged else '⚠️ failed — check KIT_API_SECRET'}"
+            f"Kit tag: {'✅ applied' if tagged else '⚠️ failed, check KIT_API_SECRET'}"
         )
     except Exception as exc:
         log.error("Telegram notify failed for ARC reader %s: %s", email, exc)
@@ -510,7 +510,7 @@ def invite_reader_to_writing_room(reader_id: int) -> tuple[bool, str | None, int
             (reader_id,),
         ).fetchall()
         if len(commitments) != 5:
-            return False, "commitment records incomplete — cannot invite", 400
+            return False, "commitment records incomplete: cannot invite", 400
         unapproved = [c["commitment_number"] for c in commitments if not c["approved_by_admin"]]
         if unapproved:
             return False, f"commitments {unapproved} not yet approved", 400

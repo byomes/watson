@@ -58,7 +58,7 @@ def _send_call_reminder(call: dict, tier: str) -> None:
 
         tomorrow_label = "tomorrow" if tier == "24h" else "in 1 hour"
         send_telegram(
-            f"📞 Writing Room — Call Reminder Sent\n\n"
+            f"📞 Writing Room: Call Reminder Sent\n\n"
             f"\"{call['title']}\" is {tomorrow_label}.\n"
             f"Reminder emailed to {len(emails)} partner{'s' if len(emails) != 1 else ''}."
         )

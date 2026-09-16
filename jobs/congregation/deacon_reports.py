@@ -232,9 +232,9 @@ def _attendance_line(last_seen: str) -> str:
     weeks = (date.today() - date.fromisoformat(last_seen)).days // 7
     date_txt = f"Last seen: {_fmt_date(last_seen)} ({weeks} wks ago)"
     if weeks >= 6:
-        return f"<span style='color:#ff6b6b;font-weight:bold'>&#128308; Critical — {date_txt}</span>"
+        return f"<span style='color:#ff6b6b;font-weight:bold'>&#128308; Critical, {date_txt}</span>"
     if weeks >= 3:
-        return f"<span style='color:#f0c040;font-weight:bold'>&#9888;&#65039; At Risk — {date_txt}</span>"
+        return f"<span style='color:#f0c040;font-weight:bold'>&#9888;&#65039; At Risk, {date_txt}</span>"
     return f"<span style='color:#7eb8f7'>{date_txt}</span>"
 
 
@@ -391,7 +391,7 @@ def _scope_section_html(clause: str, clause_params: tuple, label: str, include_l
         stat_bits.append(f"{critical} critical")
     if at_risk:
         stat_bits.append(f"{at_risk} at risk")
-    banner = f"<div style='{_DEACON_HEADER_STYLE}'>{label} — {', '.join(stat_bits)}</div>"
+    banner = f"<div style='{_DEACON_HEADER_STYLE}'>{label}: {', '.join(stat_bits)}</div>"
     return banner + roster_html, total
 
 
@@ -403,18 +403,18 @@ def generate_deacon_report(deacon_name: str) -> tuple[str, str]:
     if deacon_name not in list_deacons():
         raise ValueError(f"{deacon_name!r} is not a recognized deacon.")
     today = _today()
-    subject = f"Deacon Report — {deacon_name} — {today}"
+    subject = f"Deacon Report: {deacon_name}, {today}"
     clause, params = _deacon_clause(deacon_name)
     body, _ = _scope_section_html(clause, params, deacon_name, include_leadership_only=False)
-    return subject, _wrap(f"Deacon Report — {deacon_name}", today, body)
+    return subject, _wrap(f"Deacon Report: {deacon_name}", today, body)
 
 
 def generate_unassigned_report() -> tuple[str, str]:
     """(subject, html) for the unassigned pool — for elders to assign deacons."""
     today = _today()
-    subject = f"Unassigned Shepherding Report — {today}"
+    subject = f"Unassigned Shepherding Report: {today}"
     clause, params = _deacon_clause(None)
-    body, _ = _scope_section_html(clause, params, "Unassigned — Needs Deacon Assignment")
+    body, _ = _scope_section_html(clause, params, "Unassigned: Needs Deacon Assignment")
     return subject, _wrap("Unassigned Shepherding Report", today, body)
 
 
@@ -422,7 +422,7 @@ def generate_master_shepherding_report() -> tuple[str, str]:
     """(subject, html) — Jim Bouchat's own list first, then every other deacon's
     list, then the unassigned pool. Jim is the elder over shepherding."""
     today = _today()
-    subject = f"Master Shepherding Report — {today}"
+    subject = f"Master Shepherding Report: {today}"
 
     deacons = list_deacons()
     ordered = [MASTER_ELDER_NAME] + [d for d in deacons if d != MASTER_ELDER_NAME]
@@ -434,7 +434,7 @@ def generate_master_shepherding_report() -> tuple[str, str]:
         parts.append(html)
 
     clause, params = _deacon_clause(None)
-    unassigned_html, _ = _scope_section_html(clause, params, "Unassigned — Needs Deacon Assignment")
+    unassigned_html, _ = _scope_section_html(clause, params, "Unassigned: Needs Deacon Assignment")
     parts.append(unassigned_html)
 
     return subject, _wrap("Master Shepherding Report", today, "".join(parts))
@@ -446,7 +446,7 @@ def generate_pastor_list_report() -> tuple[str, str]:
     This is Bill's personal oversight of the deacon households, separate from
     the Master Shepherding Report (which is Jim's, as elder over shepherding)."""
     today = _today()
-    subject = f"Pastor Bill's List — {today}"
+    subject = f"Pastor Bill's List: {today}"
     household_ids = _deacon_household_ids()
     clause, params = _household_clause(household_ids)
     body, _ = _scope_section_html(clause, params, PASTOR_LIST_LABEL)

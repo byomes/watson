@@ -210,7 +210,7 @@ def handle_event_signup_email(
     body_snippet = body.strip()[:400]
     ellipsis = "…" if len(body.strip()) > 400 else ""
     text = (
-        f"🎪 New signup notification — no matching tracked event\n\n"
+        f"🎪 New signup notification: no matching tracked event\n\n"
         f"From: {sender_email}\n"
         f"Subject: {subject}\n"
         f"Registrant: {who}\n\n"

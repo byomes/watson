@@ -210,13 +210,13 @@ def build_report(year: int, month: int) -> tuple[str, str]:
         else:
             campus_rows, types, weeks = [], None, []
 
-    subject = f"Watson — Connect Card Engagement | {month_label}"
+    subject = f"Watson: Connect Card Engagement | {month_label}"
 
     headline = (
         "<div style='text-align:center;margin:20px 0 28px'>"
         f"<div style='font-size:3em;font-weight:bold;color:#222'>{total}</div>"
         "<div style='font-size:.95em;color:#666;text-transform:uppercase;letter-spacing:.05em'>"
-        f"Total Connect Cards — {month_label}</div>"
+        f"Total Connect Cards: {month_label}</div>"
         "</div>"
     )
 
@@ -225,13 +225,13 @@ def build_report(year: int, month: int) -> tuple[str, str]:
         prev_count, pct = mom
         comparisons += (
             f"<p>Month-over-month: <strong>{total}</strong> vs <strong>{prev_count}</strong> "
-            f"({_month_label(prev_year, prev_month)}) — {pct}</p>"
+            f"({_month_label(prev_year, prev_month)}): {pct}</p>"
         )
     if yoy is not None:
         yoy_count, pct = yoy
         comparisons += (
             f"<p>Year-over-year: <strong>{total}</strong> vs <strong>{yoy_count}</strong> "
-            f"({_month_label(yoy_year, yoy_month)}) — {pct}</p>"
+            f"({_month_label(yoy_year, yoy_month)}): {pct}</p>"
         )
 
     body = headline + comparisons
@@ -282,7 +282,7 @@ def send_report(year: int, month: int, preview: bool = False, to_override: str |
     subject, html = build_report(year, month)
     to = to_override or (PREVIEW_EMAIL if preview else KACI_EMAIL)
     if not to:
-        raise RuntimeError("Recipient address is empty — check KACI_EMAIL in .env.")
+        raise RuntimeError("Recipient address is empty: check KACI_EMAIL in .env.")
     if preview and not to_override:
         subject = f"[PREVIEW] {subject}"
 

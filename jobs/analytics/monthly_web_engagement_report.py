@@ -233,12 +233,12 @@ def _sheet_metrics_section_html(conn, year: int, month: int) -> str:
         for r in section_rows:
             is_pct = _is_percent_metric(section, r["metric_label"])
             if r["is_flagged"]:
-                value_str = f"<span title='Unparseable — original: {r['value_raw']}'>⚠ {r['value_raw']}</span>"
+                value_str = f"<span title='Unparseable (original: {r['value_raw']})'>⚠ {r['value_raw']}</span>"
             else:
                 value_str = _fmt(r["value_numeric"], pct=is_pct)
 
             prev = prev_lookup.get((section, r["metric_label"]))
-            delta_str = "—"
+            delta_str = "N/A"
             if prev and not prev["is_flagged"] and not r["is_flagged"] and prev["value_numeric"] is not None and r["value_numeric"] is not None:
                 delta = r["value_numeric"] - prev["value_numeric"]
                 if is_pct:
@@ -471,19 +471,19 @@ def _reconciliation_html(conn, year: int, month: int) -> str:
 
     html = (
         "<p style='color:#888;font-size:.85em'>Two different sources for the same underlying "
-        "concept — shown side by side, not merged. A mismatch is expected (the Sheet is a "
+        "concept: shown side by side, not merged. A mismatch is expected (the Sheet is a "
         "hand-copied snapshot; GA4 numbers here are a live pull) and is not resolved below.</p>"
     )
     html += "<table><thead><tr><th>Metric</th><th>Sheet (hand-copied)</th><th>GA4 (live, US only)</th></tr></thead><tbody>"
     for sheet_label, ga4_metric, display in _RECONCILE_PAIRS:
         sheet_row = _sheet_label_lookup(sheet_by_key, sheet_label)
         if sheet_row is None:
-            sheet_str = "—"
+            sheet_str = "N/A"
         elif sheet_row["is_flagged"]:
             sheet_str = f"⚠ {sheet_row['value_raw']}"
         else:
             sheet_str = _fmt(sheet_row["value_numeric"])
-        ga4_str = _fmt(ga4_month.get(ga4_metric)) if weeks else "—"
+        ga4_str = _fmt(ga4_month.get(ga4_metric)) if weeks else "N/A"
         html += f"<tr><td>{display}</td><td>{sheet_str}</td><td>{ga4_str}</td></tr>"
     html += "</tbody></table>"
     return html
@@ -702,7 +702,7 @@ def _oddities_html(conn, year: int, month: int, top_pages: list[dict]) -> str:
 
     items = []
     for r in flagged:
-        items.append(f"<li>Sheet — <strong>{r['section']} / {r['metric_label']}</strong>: unparseable value {r['value_raw']!r}, stored as flagged, not zeroed.</li>")
+        items.append(f"<li>Sheet: <strong>{r['section']} / {r['metric_label']}</strong>: unparseable value {r['value_raw']!r}, stored as flagged, not zeroed.</li>")
 
     rates = [p["bounce_rate"] for p in top_pages if p.get("bounce_rate") is not None]
     if rates:
@@ -711,7 +711,7 @@ def _oddities_html(conn, year: int, month: int, top_pages: list[dict]) -> str:
             rate = p.get("bounce_rate")
             if rate is not None and avg_rate > 0 and rate >= avg_rate * BOUNCE_RATE_FLAG_THRESHOLD:
                 items.append(
-                    f"<li>GA4 — <strong>{p['page_title'] or p['path']}</strong> ({p['path']}) bounce rate "
+                    f"<li>GA4: <strong>{p['page_title'] or p['path']}</strong> ({p['path']}) bounce rate "
                     f"({rate * 100:.1f}%) is notably higher than this report's other top pages "
                     f"(avg {avg_rate * 100:.1f}%).</li>"
                 )
@@ -754,13 +754,13 @@ def build_report(year: int, month: int) -> tuple[str, str]:
         interpretation_html = _render_interpretation_html(interpretation)
     else:
         interpretation_html = (
-            "<p class='empty'>Interpretation unavailable this month — Ollama didn't respond in "
+            "<p class='empty'>Interpretation unavailable this month: Ollama didn't respond in "
             "time after two attempts. The data below is unaffected; Bill's been alerted to check "
             "the logs.</p>"
         )
         _alert_interpretation_failed(month_label)
 
-    subject = f"Watson — Monthly Web Engagement Report | {month_label}"
+    subject = f"Watson: Monthly Web Engagement Report | {month_label}"
 
     # Interpretation leads the email -- the written read on what the numbers
     # mean and what to do about it, before any raw data. Per Bill's
@@ -770,10 +770,10 @@ def build_report(year: int, month: int) -> tuple[str, str]:
     # point is reference material for the analysis above it.
     body = "<h2>Interpretation & Recommendations</h2>" + interpretation_html
     body += "<h2 style='margin-top:28px;padding-top:14px;border-top:2px solid #ddd'>The Data</h2>"
-    body += "<h3 style='margin:14px 0 4px'>Sheet Metrics — Social / App / Email / Acquisitions</h3>" + sheet_html
+    body += "<h3 style='margin:14px 0 4px'>Sheet Metrics, Social / App / Email / Acquisitions</h3>" + sheet_html
     body += "<h3 style='margin:14px 0 4px'>GA4 Web Trend</h3>" + ga4_html
     body += "<h3 style='margin:14px 0 4px'>Connect Cards</h3>" + connect_html
-    body += "<h3 style='margin:14px 0 4px'>Reconciliation — Sheet vs. GA4</h3>" + reconciliation_html
+    body += "<h3 style='margin:14px 0 4px'>Reconciliation, Sheet vs. GA4</h3>" + reconciliation_html
     body += "<h3 style='margin:14px 0 4px'>Known Oddities</h3>" + oddities_html
 
     return subject, _wrap("Monthly Web Engagement Report", month_label, body)
@@ -806,7 +806,7 @@ def send_report(year: int, month: int, to_override: str | None = None) -> None:
     else:
         recipients = _resolve_recipients()
         if not recipients:
-            raise RuntimeError("No recipients — neither BILL_EMAIL nor KACI_EMAIL set in .env, and no --to override given.")
+            raise RuntimeError("No recipients: neither BILL_EMAIL nor KACI_EMAIL set in .env, and no --to override given.")
 
     text_fallback = re.sub(r"<[^>]+>", "", html)
     for to in recipients:

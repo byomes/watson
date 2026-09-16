@@ -269,7 +269,7 @@ def run() -> None:
                 )
                 note = f" (skipped: {', '.join(skipped_names)})" if skipped_names else ""
                 _send_telegram(
-                    f"📋 Attendance intake complete — {inserted} records added for {date_label} ({campus}){note}"
+                    f"📋 Attendance intake complete: {inserted} records added for {date_label} ({campus}){note}"
                 )
         finally:
             conn.close()

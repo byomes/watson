@@ -73,14 +73,14 @@ def _fmt_date(d: str) -> str:
         from datetime import datetime
         return datetime.strptime(d, "%Y-%m-%d").strftime("%b %-d, %Y")
     except Exception:
-        return d or "—"
+        return d or "N/A"
 
 
 _CAMPUS_DISPLAY = {
     "Wilmington": "Wilmington",
     "Online":     "Online",
     "Hybrid":     "Hybrid \U0001f500",
-    "Unknown":    "—",
+    "Unknown":    "N/A",
 }
 
 
@@ -148,14 +148,14 @@ def _build_at_risk_section() -> tuple[str, int]:
         campus_map = {r["id"]: _get_member_campus(r["id"], conn) for r in rows}
 
     count   = len(rows)
-    heading = f"<h2>⚠️ At Risk — Absent 3–5 Weeks ({count})</h2>"
+    heading = f"<h2>⚠️ At Risk: Absent 3–5 Weeks ({count})</h2>"
 
     if not rows:
         return heading + "<p class='empty'>No members in this category.</p>", count
 
     table_rows = ""
     for r in rows:
-        campus = _CAMPUS_DISPLAY.get(campus_map[r["id"]], "—")
+        campus = _CAMPUS_DISPLAY.get(campus_map[r["id"]], "N/A")
         campus_badge = (
             f"<span style='display:inline-block;background:#1e3a5f;color:#7eb8f7;"
             f"font-size:11px;padding:2px 8px;border-radius:4px;margin-top:4px'>{campus}</span>"
@@ -221,7 +221,7 @@ def _build_critical_section() -> tuple[str, int]:
 
     count   = len(rows)
     heading = (
-        f"<h2 style='color:#c0392b'>\U0001f534 Critical Care — Absent 6+ Weeks ({count})</h2>"
+        f"<h2 style='color:#c0392b'>\U0001f534 Critical Care, Absent 6+ Weeks ({count})</h2>"
         f"<p style='color:#c0392b;font-size:.85em;margin-top:-8px'>"
         f"These members require immediate pastoral attention.</p>"
     )
@@ -235,7 +235,7 @@ def _build_critical_section() -> tuple[str, int]:
             f"<strong>{_display_name(r['name']) or '(no name)'}</strong>"
             f" <span style='color:#ff6b6b;font-size:11px'>&#9679; Critical</span>"
         )
-        campus = _CAMPUS_DISPLAY.get(campus_map[r["id"]], "—")
+        campus = _CAMPUS_DISPLAY.get(campus_map[r["id"]], "N/A")
         campus_badge = (
             f"<span style='display:inline-block;background:#1e3a5f;color:#7eb8f7;"
             f"font-size:11px;padding:2px 8px;border-radius:4px;margin-top:4px'>{campus}</span>"
@@ -281,7 +281,7 @@ def _build_visitors_section() -> tuple[str, int]:
         campus_map = {r["id"]: _get_member_campus(r["id"], conn) for r in rows}
 
     count   = len(rows)
-    heading = f"<h2>👋 First-Time Visitors — Last 3 Weeks ({count})</h2>"
+    heading = f"<h2>👋 First-Time Visitors: Last 3 Weeks ({count})</h2>"
 
     if not rows:
         return (
@@ -291,7 +291,7 @@ def _build_visitors_section() -> tuple[str, int]:
 
     table_rows = ""
     for r in rows:
-        campus = _CAMPUS_DISPLAY.get(campus_map[r["id"]], "—")
+        campus = _CAMPUS_DISPLAY.get(campus_map[r["id"]], "N/A")
         campus_badge = (
             f"<span style='display:inline-block;background:#1e3a5f;color:#7eb8f7;"
             f"font-size:11px;padding:2px 8px;border-radius:4px;margin-top:4px'>{campus}</span>"
@@ -333,7 +333,7 @@ def _build_next_steps_section() -> tuple[str, int]:
         ).fetchall()
 
     count   = len(rows)
-    heading = f"<h2>Next Steps — Last 30 Days ({count})</h2>"
+    heading = f"<h2>Next Steps: Last 30 Days ({count})</h2>"
 
     if not rows:
         return heading + "<p class='empty'>No next steps in the last 30 days.</p>", count
@@ -357,8 +357,8 @@ def _build_next_steps_section() -> tuple[str, int]:
             "</tr></thead><tbody>"
         )
         for r in step_rows:
-            contact = r["email"] or r["phone"] or "—"
-            campus = _CAMPUS_DISPLAY.get(r["campus"], r["campus"] or "—")
+            contact = r["email"] or r["phone"] or "N/A"
+            campus = _CAMPUS_DISPLAY.get(r["campus"], r["campus"] or "N/A")
             campus_badge = (
                 f"<span style='display:inline-block;background:#1e3a5f;color:#7eb8f7;"
                 f"font-size:11px;padding:2px 8px;border-radius:4px;margin-top:4px'>{campus}</span>"
@@ -394,7 +394,7 @@ def _build_prayer_section() -> tuple[str, int]:
         ).fetchall()
 
     count   = len(rows)
-    heading = f"<h2>Prayer Requests — Last 7 Days ({count})</h2>"
+    heading = f"<h2>Prayer Requests: Last 7 Days ({count})</h2>"
 
     if not rows:
         return heading + "<p class='empty'>No prayer requests in the last 7 days.</p>", count
@@ -412,7 +412,7 @@ def _build_prayer_section() -> tuple[str, int]:
                 display_name += f" {parts[-1][0]}."
             privacy_badge = "<span class='badge public'>Public</span>"
 
-        campus_badge = f"<span class='badge campus'>{r['campus'] or '—'}</span>"
+        campus_badge = f"<span class='badge campus'>{r['campus'] or 'N/A'}</span>"
         table_rows += (
             f"<tr>"
             f"<td><strong>{display_name}</strong><br>{campus_badge}</td>"
@@ -436,7 +436,7 @@ def _build_prayer_section() -> tuple[str, int]:
 def generate_shepherding_report() -> tuple[str, str]:
     """Return (subject, html) for the full shepherding report."""
     today   = _today()
-    subject = f"Shepherding Report — {today}"
+    subject = f"Shepherding Report: {today}"
 
     s1_html, _  = _build_at_risk_section()
     s2_html, _  = _build_critical_section()
@@ -459,7 +459,7 @@ def telegram_shepherding_summary() -> str:
     _, prayers   = _build_prayer_section()
 
     return (
-        f"\U0001f4cb Shepherding Report — {today}\n"
+        f"\U0001f4cb Shepherding Report: {today}\n"
         f"\U0001f534 Critical Care (6+ weeks): {critical} people\n"
         f"⚠️ At Risk (3–5 weeks): {at_risk} people\n"
         f"\U0001f44b First-time visitors (last 3 weeks): {visitors}\n"

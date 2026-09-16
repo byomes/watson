@@ -263,7 +263,7 @@ def lead_magnet_subscribe():
             f"Book: {magnet['title']}\n"
             f"Name: {name}\n"
             f"Email: {email}\n"
-            f"Brevo tag: {'✅ applied' if tagged else '⚠️ not applied — check BREVO_API_KEY'}"
+            f"Brevo tag: {'✅ applied' if tagged else '⚠️ not applied, check BREVO_API_KEY'}"
         )
     except Exception as exc:
         log.error("Telegram notify failed for lead magnet signup %s: %s", email, exc)

@@ -61,12 +61,12 @@ def format_report(results: list[dict]) -> str:
     beat_count = 0
     for r in results:
         if "error" in r:
-            lines.append(f"  {r['symbol']}: ERROR — {r['error']}")
+            lines.append(f"  {r['symbol']}: ERROR, {r['error']}")
             continue
         beat = r["return_pct"] > r["benchmark_return_pct"]
         beat_count += beat
         lines.append(
-            f"  {r['symbol']}: {'BEAT' if beat else 'trail'} — return {r['return_pct']}% "
+            f"  {r['symbol']}: {'BEAT' if beat else 'trail'}, return {r['return_pct']}% "
             f"(buy-hold {r['benchmark_return_pct']}%), sharpe {r['sharpe']}, "
             f"trades {r['total_trades']}, win_rate {r['win_rate']}"
         )

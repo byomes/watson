@@ -216,7 +216,7 @@ def book_launch_subscribe():
             f"Book: {book['title']}\n"
             f"Name: {name or '(none given)'}\n"
             f"Email: {email}\n"
-            f"Brevo tag: {'✅ applied' if tagged else '⚠️ not applied — check BREVO_API_KEY'}"
+            f"Brevo tag: {'✅ applied' if tagged else '⚠️ not applied, check BREVO_API_KEY'}"
         )
     except Exception as exc:
         log.error("Telegram notify failed for book launch signup %s: %s", email, exc)

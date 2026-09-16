@@ -100,7 +100,7 @@ def handle_privacy_ack(uid: str, sender_email: str, subject: str, body: str) -> 
                     ids = ", ".join(str(c["id"]) for c in candidates)
                     send_telegram(
                         f"⚠️ Privacy Guard: a reply from {broker['name']} matches multiple submitted "
-                        f"removals (ids: {ids}) — can't tell which one without guessing. Read it manually."
+                        f"removals (ids: {ids}), can't tell which one without guessing. Read it manually."
                     )
                     conn.execute(
                         "INSERT INTO bug_tracker (title, description, repo) VALUES (?, ?, 'watson')",
@@ -120,7 +120,7 @@ def handle_privacy_ack(uid: str, sender_email: str, subject: str, body: str) -> 
         conn.commit()
         send_telegram(
             f"📨 Privacy Guard: {broker['name']} replied to the removal request for "
-            f"{removal['person_name']} — read it and confirm manually if it says the listing's gone:\n\n"
+            f"{removal['person_name']}: read it and confirm manually if it says the listing's gone:\n\n"
             f"{snippet[:300]}"
         )
         return "read"

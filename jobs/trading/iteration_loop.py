@@ -142,7 +142,7 @@ def run_variant(strategy_id: int) -> dict:
 def _format_result_message(variant: dict, metrics: dict) -> str:
     beat = "beat" if metrics["return_pct"] > metrics["benchmark_return_pct"] else "trailed"
     return (
-        f"Trading — {TEMPLATES[variant['family']]['label']} variant #{variant['strategy_id']}\n"
+        f"Trading: {TEMPLATES[variant['family']]['label']} variant #{variant['strategy_id']}\n"
         f"Rationale: {variant['rationale']}\n"
         f"Training-data return: {metrics['return_pct']}% ({beat} SPY buy-and-hold "
         f"{metrics['benchmark_return_pct']}%)\n"
@@ -170,7 +170,7 @@ def propose_and_run_next(family: str, chat_id: int | None = None) -> str:
     if existing:
         return (
             f"A previous action (#{existing['id']}, {existing['action_type']}) is still "
-            f"awaiting your YES/NO — reply to that first before the next variant runs."
+            f"awaiting your YES/NO. Reply to that first before the next variant runs."
         )
 
     variant = propose_next_variant(family)
@@ -230,11 +230,11 @@ def _format_batch_report(results: list[dict]) -> str:
         for w in winners[:15]:
             label = TEMPLATES[w["family"]]["label"]
             lines.append(
-                f"  #{w['strategy_id']} {label} {w['params']} — win rate {w['win_rate']}%, "
+                f"  #{w['strategy_id']} {label} {w['params']}: win rate {w['win_rate']}%, "
                 f"return {w['return_pct']}% (SPY {w['benchmark_return_pct']}%)"
             )
         if len(winners) > 15:
-            lines.append(f"  ...and {len(winners) - 15} more — see the Trading dashboard page for the full list.")
+            lines.append(f"  ...and {len(winners) - 15} more: see the Trading dashboard page for the full list.")
     else:
         lines.append(f"None cleared the >{WIN_RATE_THRESHOLD_PCT:.0f}% win-rate bar.")
     return "\n".join(lines)
@@ -263,13 +263,13 @@ def propose_batch(n: int, chat_id: int | None = None) -> str:
     if existing:
         return (
             f"A previous action (#{existing['id']}, {existing['action_type']}) is still "
-            f"awaiting your YES/NO — reply to that first."
+            f"awaiting your YES/NO. Reply to that first."
         )
 
     pending_module.save_pending(chat_id, "trading_batch_approve", {"n": n}, None)
     return (
         f"Ready to run {n} strategy variants across all templates (no per-variant "
-        f"approval — this one YES covers the whole batch). Results filtered to "
+        f"approval, this one YES covers the whole batch). Results filtered to "
         f">{WIN_RATE_THRESHOLD_PCT:.0f}% win rate will be reported back.\n\n"
         f"Reply YES to run it, or NO to cancel."
     )

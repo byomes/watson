@@ -322,7 +322,7 @@ def build_report_text() -> str:
     today = _today()
     rows = build_deacon_group_counts()
 
-    lines = [f"\U0001f4ca Catalyst Shepherding Report — {today}", ""]
+    lines = [f"\U0001f4ca Catalyst Shepherding Report: {today}", ""]
     tot_current = tot_at_risk = tot_critical = 0
     for r in rows:
         tot_current += r["current"]
@@ -331,13 +331,13 @@ def build_report_text() -> str:
         at_risk_flag = " ⚠️" if r["at_risk"] else ""
         critical_flag = " \U0001f534" if r["critical"] else ""
         lines.append(
-            f"{r['name']}: {r['total']} — "
+            f"{r['name']}: {r['total']}, "
             f"current {r['current']}, at-risk {r['at_risk']}{at_risk_flag}, critical {r['critical']}{critical_flag}"
         )
 
     lines.append("")
     tot_flag = " \U0001f534" if tot_critical else ""
-    lines.append(f"Totals — current {tot_current} | at-risk {tot_at_risk} | critical {tot_critical}{tot_flag}")
+    lines.append(f"Totals: current {tot_current} | at-risk {tot_at_risk} | critical {tot_critical}{tot_flag}")
     lines.append("")
     lines.append(f"Names by group: {REPORT_URL}")
     return "\n".join(lines)

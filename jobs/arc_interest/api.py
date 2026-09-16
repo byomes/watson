@@ -134,7 +134,7 @@ def arc_interest_signup():
             f"\U0001F4DD New ARC Interest Signup\n\n"
             f"Name: {name}\n"
             f"Email: {email}\n"
-            f"Kit tag: {'✅ applied' if tagged else '⚠️ not applied — check KIT_API_SECRET'}"
+            f"Kit tag: {'✅ applied' if tagged else '⚠️ not applied, check KIT_API_SECRET'}"
         )
     except Exception as exc:
         log.error("Telegram notify failed for ARC interest signup %s: %s", email, exc)

@@ -290,7 +290,7 @@ async def _process_note_text(row: dict, note_text: str, share: bool = False) -> 
             reply += (
                 " Also shared as a deacon note."
                 if _share_as_deacon_note(person["name"], note_text)
-                else " Could not share as a deacon note — no matching congregation member found."
+                else " Could not share as a deacon note: no matching congregation member found."
             )
         await _send_telegram(reply)
 
@@ -312,7 +312,7 @@ async def _process_note_text(row: dict, note_text: str, share: bool = False) -> 
         _mark_complete(pending_id)
         reply = "Note stored."
         if share:
-            reply += " Could not share as a deacon note — no person matched for this note."
+            reply += " Could not share as a deacon note: no person matched for this note."
         await _send_telegram(reply)
 
     await _maybe_extract_tasks(note_text, appointment_title)
@@ -417,7 +417,7 @@ async def handle_notes_reply(reply_text: str) -> None:
     if lower == "skip all":
         _append_skip_keyword(appointment_title)
         _mark_dismissed(pending_id)
-        await _send_telegram(f'Got it — I\'ll never ask for notes on "{appointment_title}" again.')
+        await _send_telegram(f'Got it: I\'ll never ask for notes on "{appointment_title}" again.')
         return
 
     reply_text, share = _extract_share_flag(reply_text)

@@ -50,7 +50,7 @@ REPORT_URL = "https://wtsn.me/cat/shepherdingreport"
 def build_message() -> str:
     today = _today()
     return (
-        f"\U0001f4ca This week's Catalyst Shepherding Report is ready — {today}\n"
+        f"\U0001f4ca This week's Catalyst Shepherding Report is ready: {today}\n"
         f"{REPORT_URL}"
     )
 

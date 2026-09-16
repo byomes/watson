@@ -3216,7 +3216,7 @@ def chat_stream():
                 "sms_message": _sms_msg_raw,
             })
             return _sse_response(_stream_simple(
-                f"Just to confirm — you want me to text you: '{_sms_msg_raw}'. Reply yes to proceed or no to cancel."
+                f"Just to confirm, you want me to text you: '{_sms_msg_raw}'. Reply yes to proceed or no to cancel."
             ))
 
         elif _sms_to_me_pattern:
@@ -3236,7 +3236,7 @@ def chat_stream():
                 "sms_message": _sms_msg_raw,
             })
             return _sse_response(_stream_simple(
-                f"Just to confirm — you want me to text you: '{_sms_msg_raw}'. Reply yes to proceed or no to cancel."
+                f"Just to confirm, you want me to text you: '{_sms_msg_raw}'. Reply yes to proceed or no to cancel."
             ))
 
         elif _sms_pattern:
@@ -3257,7 +3257,7 @@ def chat_stream():
                 "sms_message": _sms_message,
             })
             return _sse_response(_stream_simple(
-                f"Just to confirm — you want me to text {_contact_raw}: '{_sms_message}'. Reply yes to proceed or no to cancel."
+                f"Just to confirm, you want me to text {_contact_raw}: '{_sms_message}'. Reply yes to proceed or no to cancel."
             ))
 
     # block_time: "block 60 minutes for staff meeting on thursday" — dashboard-native
@@ -3335,7 +3335,7 @@ def chat_stream():
                 args=(pending, job_path, "dashboard"),
                 daemon=True,
             ).start()
-            return _sse_response(_stream_simple("Building that skill now — this'll take a few minutes. I'll notify you via Telegram when it's ready; other requests may be delayed until it's done."))
+            return _sse_response(_stream_simple("Building that skill now: this'll take a few minutes. I'll notify you via Telegram when it's ready; other requests may be delayed until it's done."))
         if msg_lower in _DENY or msg_lower.startswith("no "):
             _pending_skill_request = None
             return _sse_response(_stream_simple("Got it. Let me know if you need anything else."))
@@ -3535,7 +3535,7 @@ def chat_stream():
             _audit = json.loads(_audit_path.read_text(encoding="utf-8"))
             _s = _audit.get("summary", {})
             _lines = [
-                f"Skill Audit — run {_audit.get('run_at', 'unknown')[:19]}\n",
+                f"Skill Audit: run {_audit.get('run_at', 'unknown')[:19]}\n",
                 f"✅ Functional: {_s.get('functional', 0)}",
                 f"📝 Prompt-only: {_s.get('prompt_only', 0)}",
                 f"❌ Broken: {_s.get('broken', 0)}",
@@ -3672,7 +3672,7 @@ def chat_stream():
             args=(route_result["description"], route_result["job_path"], "dashboard"),
             daemon=True,
         ).start()
-        return _sse_response(_stream_simple("Building that skill now — this'll take a few minutes. I'll notify you via Telegram when it's ready; other requests may be delayed until it's done."))
+        return _sse_response(_stream_simple("Building that skill now: this'll take a few minutes. I'll notify you via Telegram when it's ready; other requests may be delayed until it's done."))
 
     if route_result["action"] == "propose":
         route_result = {"action": "chat"}
@@ -4065,7 +4065,7 @@ def chat():
             _audit = json.loads(_audit_path.read_text(encoding="utf-8"))
             _s = _audit.get("summary", {})
             _lines = [
-                f"Skill Audit — run {_audit.get('run_at', 'unknown')[:19]}\n",
+                f"Skill Audit: run {_audit.get('run_at', 'unknown')[:19]}\n",
                 f"✅ Functional: {_s.get('functional', 0)}",
                 f"📝 Prompt-only: {_s.get('prompt_only', 0)}",
                 f"❌ Broken: {_s.get('broken', 0)}",
@@ -4943,7 +4943,7 @@ def reports_run():
             from jobs.connect_cards.shepherding_report import telegram_shepherding_summary
             content = telegram_shepherding_summary()
         else:
-            content = f"[{report_type.replace('_', ' ').title()} — last {weeks} weeks]\n\nReport generation for this type is not yet implemented."
+            content = f"[{report_type.replace('_', ' ').title()}: last {weeks} weeks]\n\nReport generation for this type is not yet implemented."
         return jsonify({"type": report_type, "weeks": weeks, "content": content})
     except Exception as exc:
         log.error("reports/run failed: %s", exc)
@@ -4960,7 +4960,7 @@ def reports_telegram():
         return jsonify({"error": "content required"}), 400
     try:
         label = rtype.replace("_", " ").title()
-        header = f"*{label}*" + (f" — {weeks}w" if weeks else "")
+        header = f"*{label}*" + (f": {weeks}w" if weeks else "")
         _send_telegram(f"{header}\n\n{content}")
         return jsonify({"ok": True})
     except Exception as exc:
@@ -5450,7 +5450,7 @@ def lock_vault() -> None:
             f"https://api.telegram.org/bot{token}/sendMessage",
             json={
                 "chat_id": chat_id,
-                "text": "⚠️ Login vault locked — 3 failed attempts on dashboard.",
+                "text": "⚠️ Login vault locked: 3 failed attempts on dashboard.",
                 "reply_markup": keyboard.to_dict(),
             },
             timeout=10,

@@ -406,7 +406,7 @@ def _build_html(
     else:
         synthesis_html = (
             '<p style="margin:0;font-size:14px;color:#888;font-style:italic;">'
-            "Synthesis unavailable — Ollama did not respond in time.</p>"
+            "Synthesis unavailable: Ollama did not respond in time.</p>"
         )
 
     synthesis_block = f"""
@@ -458,7 +458,7 @@ def _build_html(
             f'<p style="margin:12px 0 0;font-size:14px;color:#333;">'
             f'Actual headcount: <strong>{headcount}</strong> &nbsp;vs&nbsp; '
             f'connect-card attendance: <strong>{wil_cards}</strong> '
-            f'&nbsp;—&nbsp; gap: <strong>{gap}</strong> ({gap_pct:.0f}%)</p>'
+            f'&nbsp;&nbsp;gap: <strong>{gap}</strong> ({gap_pct:.0f}%)</p>'
         )
     else:
         headcount_block = (
@@ -601,7 +601,7 @@ def _build_html(
     if missing:
         missing_items = ""
         for i, m in enumerate(missing):
-            campus   = m["campus_preference"] or "—"
+            campus   = m["campus_preference"] or "N/A"
             raw_last = m["last_seen"]
             last_display = ("last seen " + date.fromisoformat(raw_last).strftime("%b %-d, %Y")) if raw_last else "never"
             border = "" if i == len(missing) - 1 else "border-bottom:1px solid #f0f0f0;"
@@ -641,7 +641,7 @@ def _build_html(
       <p style="margin:6px 0 0;font-size:15px;color:#666;">Week of {date_label}</p>
     </div>
 
-    <!-- Watson's Read — FIRST -->
+    <!-- Watson's Read: FIRST -->
     <div style="padding:0 32px;">
       {synthesis_block}
     </div>
@@ -840,7 +840,7 @@ def build_report() -> tuple[str, str, str]:
     last_sunday = this_sunday - timedelta(days=7)
     monday      = week_monday()
 
-    subject = f"State of the Church — Week of {monday.strftime('%B %d, %Y')}"
+    subject = f"State of the Church: Week of {monday.strftime('%B %d, %Y')}"
 
     try:
         cong = sqlite3.connect(f"file:{CONG_DB}?mode=ro", uri=True)
@@ -965,12 +965,12 @@ def build_report() -> tuple[str, str, str]:
         f"8-WEEK AVG: Wilmington {wil8}, Online {onl8}\n"
         f"TREND: Wilmington {wil_d}, Online {onl_d}\n"
         f"NORMAL RANGE (8-wk mean ± 1 std dev, combined): {band_low:.0f}–{band_high:.0f}\n"
-        f"COMBINED TOTAL VS NORMAL RANGE: {this_total} — {range_verdict}\n"
+        f"COMBINED TOTAL VS NORMAL RANGE: {this_total}, {range_verdict}\n"
         f"CONSECUTIVE WEEKS OUTSIDE NORMAL RANGE: {consecutive_outside_band}\n"
         f"SEASONAL CAVEAT: {seasonal_caveat}\n"
         f"ENGAGEMENT: Consistent {engagement['consistent']}, Active {engagement['active']}, "
         f"Occasional {engagement['occasional']}, Lapsed {engagement['lapsed']}\n"
-        f"SPECIAL EVENTS (past 14 days): {len(special_events)} — {ev_names}\n"
+        f"SPECIAL EVENTS (past 14 days): {len(special_events)}, {ev_names}\n"
         f"FIRST-TIME VISITORS: {len(visitors)}\n"
         f"OPEN FOLLOW-UPS: {len(followups)}\n"
         f"PRAYER REQUESTS: {len(prayers)} requests from: {prayer_names}\n"

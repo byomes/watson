@@ -249,11 +249,11 @@ def _send_digest(conn, new_ids: list[int]) -> None:
     if not to_notify:
         return
 
-    lines = [f"🔎 Privacy Guard — {len(to_notify)} possible new broker site(s) found this week"]
+    lines = [f"🔎 Privacy Guard: {len(to_notify)} possible new broker site(s) found this week"]
     keyboard = []
     for row in to_notify:
         lines.append(
-            f"  • {row['domain']} — found via {row['example_person']}'s search "
+            f"  • {row['domain']}: found via {row['example_person']}'s search "
             f"({int((row['confidence'] or 0) * 100)}% confidence)\n    {row['example_url']}"
         )
         keyboard.append([

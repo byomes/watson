@@ -35,12 +35,12 @@ def send_arc_invite_email(to_email: str, first_name: str) -> None:
 
     plain = (
         f"Hi {first_name},\n\n"
-        "You did what you said you would do — and you've earned access to the Writing Room.\n\n"
+        "You did what you said you would do: and you've earned access to the Writing Room.\n\n"
         "The Writing Room is an inner circle of trusted readers who will watch What Child Is This "
         "develop from the ground up. Log in with your ARC email and password:\n\n"
         f"{_LOGIN_URL}\n\n"
         "Welcome to the inner circle.\n\n"
-        "— Dr. Bill\n\n"
+        "- Dr. Bill\n\n"
         "Watson · AI-powered digital assistant · Office of Dr. Bill Yomes"
     )
 

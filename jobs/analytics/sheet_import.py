@@ -277,7 +277,7 @@ def sync(dry_run: bool = False) -> dict:
 
     if failed_tabs:
         _alert(
-            "Catalyst Tracking Sheet structure changed — could not find month "
+            "Catalyst Tracking Sheet structure changed: could not find month "
             f"columns in tab(s): {', '.join(failed_tabs)}. Other tabs synced "
             "normally; this/these tab(s) were skipped. Check the sheet layout."
         )

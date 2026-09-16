@@ -141,13 +141,13 @@ def process_denial(partner_id: int) -> None:
 
 
 def send_verification_email(email: str, first_name: str, token: str) -> None:
-    subject = "You're in — verify your email to access the Writing Room"
+    subject = "You're in: verify your email to access the Writing Room"
     verify_url = f"williamckyomes.com/room/verify?token={token}"
     body = f"""Hi {first_name},
 
 Dr. Bill approved your Writing Room application.
 
-One step left — verify your email and set your password:
+One step left: verify your email and set your password:
 
 {verify_url}
 

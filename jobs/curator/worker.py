@@ -484,8 +484,8 @@ def _send_batch_sms(user_id, count: int) -> None:
 
     from jobs.sms.sms_send import send_sms
     message = (
-        f"Curator: {count} book{'s' if count != 1 else ''} ready for review "
-        "— open the app when you get a chance."
+        f"Curator: {count} book{'s' if count != 1 else ''} ready for review. "
+        "Open the app when you get a chance."
     )
     result = send_sms(contact["name"], contact["phone"], "", message)
     if not result.get("success"):
@@ -524,7 +524,7 @@ def _send_uncertain_reel_email(user_id, link, raw_text, confident_titles, uncert
     try:
         result = send_email(
             to_email=contact["email"], to_name=contact.get("name") or "",
-            subject="Curator — a few books I couldn't identify", text_body=body,
+            subject="Curator: a few books I couldn't identify", text_body=body,
         )
         if not result["success"]:
             raise RuntimeError(result["error"])

@@ -48,7 +48,7 @@ def _build_html(tasks: list, date_from: str, date_to: str) -> str:
 <html>
 <head><meta charset="utf-8"></head>
 <body style="font-family:Arial,sans-serif;color:#222;max-width:620px;margin:0 auto;padding:20px">
-  <h2 style="margin:0 0 4px;font-size:18px;color:#111">Weekly Completed Tasks — Catalyst</h2>
+  <h2 style="margin:0 0 4px;font-size:18px;color:#111">Weekly Completed Tasks, Catalyst</h2>
   <p style="margin:0 0 20px;font-size:13px;color:#666">{from_fmt} – {to_fmt}</p>
 """
 

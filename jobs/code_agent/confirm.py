@@ -69,7 +69,7 @@ def _expire_stale_jobs():
 
 def _process_confirm(msg_id, job_id, spec):
     mark_as_read(msg_id)
-    _telegram("🔨 Coding — Claude Code is building")
+    _telegram("🔨 Coding: Claude Code is building")
 
     proc = subprocess.Popen(
         ["claude", "--dangerously-skip-permissions"],
@@ -85,16 +85,16 @@ def _process_confirm(msg_id, job_id, spec):
         proc.kill()
         stdout, stderr = proc.communicate()
         _update_job(job_id, "failed", result="Timeout after 300 seconds")
-        _telegram("❌ Build failed — timed out after 300 seconds")
+        _telegram("❌ Build failed: timed out after 300 seconds")
         return
 
     if proc.returncode == 0:
         _update_job(job_id, "done", confirmed_at=datetime.utcnow().isoformat())
-        _telegram("✅ Done — committed, ready to pull")
+        _telegram("✅ Done: committed, ready to pull")
     else:
         err_snippet = stderr.decode(errors="replace")[:200]
         _update_job(job_id, "failed", result=err_snippet)
-        _telegram("❌ Build failed — " + err_snippet)
+        _telegram("❌ Build failed: " + err_snippet)
 
 
 def poll_confirms():

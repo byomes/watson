@@ -61,7 +61,7 @@ def send_signup_confirmation(to_email: str, first_name: str, temp_password: str)
         f"  Email: {to_email}\n"
         f"  Password: {temp_password}\n\n"
         f"Log in here: {_LOGIN_URL}\n\n"
-        "This password was generated just for you — keep it safe. Forgot it later? Click "
+        "This password was generated just for you: keep it safe. Forgot it later? Click "
         "\"Forgot password?\" on the login page and a new one will be sent to this email. "
         "You'll use this same email and password to enter the Writing Room later if you complete all five commitments.\n\n"
         "Here's what you committed to:\n"
@@ -70,7 +70,7 @@ def send_signup_confirmation(to_email: str, first_name: str, temp_password: str)
         "  3. Post an honest review on Amazon on launch day\n"
         "  4. Share about the book on at least one social media platform\n"
         "  5. Tell people in your life who you think would connect with this book\n\n"
-        "— Watson\n\n"
+        "- Watson\n\n"
         "AI-powered digital assistant · Office of Dr. Bill Yomes"
     )
     _send_email(to_email, _SUBJECT, plain)
@@ -86,7 +86,7 @@ def send_waitlist_confirmation(to_email: str, first_name: str) -> None:
         "Thank you for joining the ARC team for The Wrong Jesus.\n\n"
         "We're not opening manuscript access to new readers at the moment, but "
         "we'll email you the moment the next ARC round is ready to go.\n\n"
-        "— Watson\n\n"
+        "- Watson\n\n"
         "AI-powered digital assistant · Office of Dr. Bill Yomes"
     )
     _send_email(to_email, _WAITLIST_SUBJECT, plain)
@@ -100,9 +100,9 @@ def send_password_reset_email(to_email: str, first_name: str, new_password: str)
         f"  Email: {to_email}\n"
         f"  Password: {new_password}\n\n"
         f"Log in here: {_LOGIN_URL}\n\n"
-        "This password was generated just for you — keep it safe. Forgot it later? Click "
+        "This password was generated just for you: keep it safe. Forgot it later? Click "
         "\"Forgot password?\" on the login page and a new one will be sent to this email.\n\n"
-        "— Watson\n\n"
+        "- Watson\n\n"
         "AI-powered digital assistant · Office of Dr. Bill Yomes"
     )
     _send_email(to_email, _RESET_SUBJECT, plain)

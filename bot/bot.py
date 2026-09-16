@@ -463,20 +463,20 @@ async def handle_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
     directive_help = _html.escape(_telegram_help_text())
     text = (
         "Watson commands:\n"
-        "/menu — show interactive menu\n"
-        "/briefing — fetch today's research briefing\n"
-        "/queue — show pending blog drafts and publish dates\n"
-        "/fbqueue — show scheduled Facebook posts\n"
-        "/fbcancel &lt;id&gt; — cancel a queued post\n"
-        "/emailqueue — show articles queued for weekly email\n"
-        "/emailcancel &lt;id&gt; — remove an article from the email queue\n"
-        "/saved — show your saved for later list\n"
-        "/help — show this message\n\n"
+        "/menu: show interactive menu\n"
+        "/briefing: fetch today's research briefing\n"
+        "/queue: show pending blog drafts and publish dates\n"
+        "/fbqueue: show scheduled Facebook posts\n"
+        "/fbcancel &lt;id&gt;: cancel a queued post\n"
+        "/emailqueue: show articles queued for weekly email\n"
+        "/emailcancel &lt;id&gt;: remove an article from the email queue\n"
+        "/saved: show your saved for later list\n"
+        "/help: show this message\n\n"
         "Directive commands (colon-prefixed, generated from the routing registry):\n"
         f"{directive_help}\n\n"
         "Send <b>#blog</b> followed by markdown to queue a blog draft.\n"
         "Drafts publish automatically Tue/Thu/Sat at 10am.\n\n"
-        "Watson add book: Title by Author — link\n"
+        "Watson add book: Title by Author (or a link)\n"
         "Watson list books\n"
         "Watson reading: Title\n"
         "Watson finished: Title\n"
@@ -600,7 +600,7 @@ async def handle_facebook_image_callback(update, context):
         slot = await asyncio.to_thread(approve_post, post_id)
         slot_text = slot.strftime("%Y-%m-%d %H:%M") if slot else "no open slot found"
         await query.edit_message_caption(
-            caption=f"{query.message.caption}\n\n✅ Approved — scheduled for {slot_text}",
+            caption=f"{query.message.caption}\n\n✅ Approved: scheduled for {slot_text}",
             reply_markup=None,
         )
     elif action == "fb_img_discard":
@@ -722,7 +722,7 @@ async def handle_campaign_callback(update, context):
     # it conditional or drop it back to the bare default here.
     result = await asyncio.to_thread(approve_week, campaign_id, week_number, dry_run=False)
     summary = (
-        f"✅ Approved {result['approved']} item(s) for {campaign_id} Week {week_number} — "
+        f"✅ Approved {result['approved']} item(s) for {campaign_id} Week {week_number}: "
         f"Facebook queued: {result['facebook_queued']}, Brevo sent now: {result['brevo_sent_now']}"
     )
     await query.edit_message_text(
@@ -824,7 +824,7 @@ async def handle_privacy_candidate_callback(update: Update, context: ContextType
             )
             conn.commit()
             await query.edit_message_text(
-                text=f"{query.message.text}\n\n🚫 {row['domain']} — dismissed, won't resurface.",
+                text=f"{query.message.text}\n\n🚫 {row['domain']}: dismissed, won't resurface.",
                 reply_markup=None,
             )
             return
@@ -852,7 +852,7 @@ async def handle_privacy_candidate_callback(update: Update, context: ContextType
         )
         conn.commit()
         await query.edit_message_text(
-            text=f"{query.message.text}\n\n🔎 {row['domain']} — added to backlog for investigation.",
+            text=f"{query.message.text}\n\n🔎 {row['domain']}: added to backlog for investigation.",
             reply_markup=None,
         )
     finally:
@@ -945,7 +945,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         log.error("handle_text timed out after %ss", _HANDLE_TEXT_TIMEOUT_SECONDS)
         try:
             await update.message.reply_text(
-                "That's taking too long — something's stuck. Try again in a moment."
+                "That's taking too long: something's stuck. Try again in a moment."
             )
         except Exception:
             pass
@@ -1141,7 +1141,7 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     _ff_meeting_id = _darg
                     _ff_text_clean = text_clean
                     await update.message.reply_text(
-                        f"Processing meeting {_ff_meeting_id} — this may take a few minutes..."
+                        f"Processing meeting {_ff_meeting_id}: this may take a few minutes..."
                     )
 
                     # Detached on purpose: handle_text() wraps this whole function in a
@@ -1229,7 +1229,7 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Retreat search — "find more retreats" / "find retreats" / etc.
     if text_lower.startswith("find") and "retreat" in text_lower:
-        await update.message.reply_text("Searching for retreats — this can take a few minutes, I'll let you know what I find.")
+        await update.message.reply_text("Searching for retreats: this can take a few minutes, I'll let you know what I find.")
 
         # Detached on purpose, same reasoning as debug:/fireflies: below — the
         # real pipeline (page fetches + an Ollama extraction call per candidate)
@@ -1306,7 +1306,7 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 args=(pending_desc, job_path, "telegram"),
                 daemon=True,
             ).start()
-            await update.message.reply_text("Building that skill now — this'll take a few minutes. I'll notify you via Telegram when it's ready; other requests may be delayed until it's done.")
+            await update.message.reply_text("Building that skill now: this'll take a few minutes. I'll notify you via Telegram when it's ready; other requests may be delayed until it's done.")
             log.info("DEBUG pre-check: confirmed pending skill build")
             return
         gap = _get_next_proposed_gap()
@@ -1322,7 +1322,7 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 daemon=True,
             ).start()
             await update.message.reply_text(
-                f"Building {gap['gap_name']} now — this'll take a few minutes. I'll notify you via "
+                f"Building {gap['gap_name']} now: this'll take a few minutes. I'll notify you via "
                 "Telegram when it's ready; other requests may be delayed until it's done."
             )
             log.info("DEBUG pre-check: confirmed capability gap build")
@@ -1355,7 +1355,7 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
         p = pending_module.get_pending(chat_id)
         if p:
             pending_module.cancel_pending(p["id"])
-            await update.message.reply_text("Got it — cancelled.")
+            await update.message.reply_text("Got it: cancelled.")
             log.info("DEBUG pre-check: cancelled pending calendar action")
             return
 
@@ -1516,7 +1516,7 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if _fwd_medium is None:
             from jobs.telegram.pending import store_pending_action
             sent = await update.message.reply_text(
-                f"Email or text — which should I use to reach {_fwd_name}?"
+                f"Email or text: which should I use to reach {_fwd_name}?"
             )
             store_pending_action(
                 "forward_medium_clarify",
@@ -1774,7 +1774,7 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
             args=(route_result["description"], route_result["job_path"], "telegram"),
             daemon=True,
         ).start()
-        await update.message.reply_text("Building that skill now — this'll take a few minutes. I'll notify you via Telegram when it's ready; other requests may be delayed until it's done.")
+        await update.message.reply_text("Building that skill now: this'll take a few minutes. I'll notify you via Telegram when it's ready; other requests may be delayed until it's done.")
         log.info("DEBUG pre-check: skill router action:build")
         return
 
@@ -1794,7 +1794,7 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
             args=(description, job_path, "telegram"),
             daemon=True,
         ).start()
-        await update.message.reply_text("Building that skill now — this'll take a few minutes. I'll notify you via Telegram when it's ready; other requests may be delayed until it's done.")
+        await update.message.reply_text("Building that skill now: this'll take a few minutes. I'll notify you via Telegram when it's ready; other requests may be delayed until it's done.")
         log.info("DEBUG pre-check: safety net build trigger")
         return
 
@@ -2668,7 +2668,7 @@ async def _handle_mark_spouse(
 ) -> None:
     if not role1 or not role2:
         await update.message.reply_text(
-            f"Got it, but I need to know which is the husband and which is the wife — try "
+            f"Got it, but I need to know which is the husband and which is the wife: try "
             f'"{name1} is {name2}\'s husband" or "{name1} is {name2}\'s wife".'
         )
         return
@@ -2772,7 +2772,7 @@ def _compute_deacon_assign_reply(sender_name: str, person_query: str, deacon_que
     from jobs.congregation.deacon_reports import assign_member_to_deacon
     assign_member_to_deacon(member["id"], resolved_deacon)
     prior = member.get("deacon") or "Unassigned"
-    return f"Done — {member['name']} moved from {prior} to {resolved_deacon}."
+    return f"Done: {member['name']} moved from {prior} to {resolved_deacon}."
 
 
 async def _handle_deacon_assign(update: Update, sender_name: str, person_query: str, deacon_query: str) -> None:
@@ -3229,7 +3229,7 @@ def _format_calendar_reply(text: str) -> str:
         )
     except Exception as exc:
         log.error("Team calendar lookup failed: %s", exc)
-        return "I couldn't reach the calendar right now — try again in a moment."
+        return "I couldn't reach the calendar right now: try again in a moment."
 
 
 # Keyword -> ("section", "metric_label") in engagement_sheet_metrics, or the
@@ -3330,7 +3330,7 @@ def _format_web_metric_reply(route) -> str:
         lines = [f"Top pages ({month}):"]
         for i, p in enumerate(pages, start=1):
             share = f"{p['value_numeric']*100:.0f}%" if p["value_numeric"] is not None else "?"
-            lines.append(f"{i}. {p['value_raw']} — {share}")
+            lines.append(f"{i}. {p['value_raw']}: {share}")
         return "\n".join(lines)
 
     section, metric_label = route
@@ -3659,7 +3659,7 @@ async def _send_carrier_confirm_keyboard(update: Update, name: str, phone: str, 
          for label, value in _CARRIER_CONFIRM_BUTTONS[:3]],
         [InlineKeyboardButton(label, callback_data=f"carrier_pick:{pending_id}:{value}")
          for label, value in _CARRIER_CONFIRM_BUTTONS[3:]]
-        + [InlineKeyboardButton("Other — type it", callback_data=f"carrier_other:{pending_id}")],
+        + [InlineKeyboardButton("Other: type it", callback_data=f"carrier_other:{pending_id}")],
     ])
     await sent.edit_reply_markup(reply_markup=keyboard)
 
@@ -3921,7 +3921,7 @@ async def _route_tg_pending_reply(
             p = pending_module.get_pending(chat_id)
             if p:
                 pending_module.cancel_pending(p["id"])
-                await update.message.reply_text("Got it — cancelled.")
+                await update.message.reply_text("Got it: cancelled.")
                 mark_cancelled(pending_id)
                 return True
         return False
@@ -3955,7 +3955,7 @@ async def _route_tg_pending_reply(
                 await update.message.reply_text("Expanded search only applies to the sermon knowledge base.")
                 return True
             query = payload.get("query", "")
-            await update.message.reply_text("Searching knowledge base — expanded...")
+            await update.message.reply_text("Searching knowledge base: expanded...")
             try:
                 from jobs.skills.kb_search import search_kb, format_result
                 result = await asyncio.to_thread(search_kb, query, "sermons", False)
@@ -4144,7 +4144,7 @@ async def _execute_pending(update: Update, context: ContextTypes.DEFAULT_TYPE, p
             if params.get("due"):
                 await update.message.reply_text(f"✅ Reminder set for {params['title']} on {params['due']}.")
             else:
-                await update.message.reply_text(f"✅ Got it — added '{params['title']}' to your tasks.")
+                await update.message.reply_text(f"✅ Got it: added '{params['title']}' to your tasks.")
         except Exception as exc:
             log.error("Task create execute failed: %s", exc)
             pending_module.cancel_pending(pending_id)
@@ -4189,7 +4189,7 @@ async def _execute_pending(update: Update, context: ContextTypes.DEFAULT_TYPE, p
             from jobs.gcal.gcal_service import mark_busy
             mark_busy(start_dt, end_dt)
             pending_module.confirm_pending(pending_id)
-            await update.message.reply_text("🚫 Done — marked rest of today as busy.")
+            await update.message.reply_text("🚫 Done: marked rest of today as busy.")
             return
         elif action_type == "block_time":
             from jobs.gcal.gcal_service import mark_busy
@@ -4199,7 +4199,7 @@ async def _execute_pending(update: Update, context: ContextTypes.DEFAULT_TYPE, p
             create_event(title, start_dt, end_dt, "", params.get("email", ""))
 
         pending_module.confirm_pending(pending_id)
-        await update.message.reply_text(f"✅ Booked — {title} on {display}")
+        await update.message.reply_text(f"✅ Booked: {title} on {display}")
 
         try:
             _result = _brevo_send_email(
@@ -4216,7 +4216,7 @@ async def _execute_pending(update: Update, context: ContextTypes.DEFAULT_TYPE, p
     except Exception as exc:
         log.error("Execute pending failed: %s", exc)
         pending_module.cancel_pending(pending_id)
-        await update.message.reply_text(f"Sorry, I couldn't book that — calendar error: {exc}")
+        await update.message.reply_text(f"Sorry, I couldn't book that. Calendar error: {exc}")
 
 
 _REJECT_REASONS = [
@@ -4437,7 +4437,7 @@ async def handle_reject_callback(update: Update, context: ContextTypes.DEFAULT_T
 
     log.info("Rejected item %d (%s): %s", item_id, reject_reason, row["title"][:60])
     await query.edit_message_text(
-        f"Rejected: {row['title'][:80]} — {reject_reason}",
+        f"Rejected: {row['title'][:80]}, {reject_reason}",
         reply_markup=None,
     )
 
@@ -4751,7 +4751,7 @@ async def handle_emailqueue(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for r in rows:
         title = (r["title"] or "Untitled")[:60]
         added = r["created_at"] or ""
-        lines.append(f"📧 #{r['id']} — {title}\n📅 {added}")
+        lines.append(f"📧 #{r['id']}: {title}\n📅 {added}")
     lines.append("\nSend /emailcancel &lt;id&gt; to remove an article.")
     await update.message.reply_text("\n".join(lines), parse_mode="HTML")
 
@@ -5060,7 +5060,7 @@ async def handle_room_callback(update: Update, context: ContextTypes.DEFAULT_TYP
                 log.error("room_approve failed for %d: %s", partner_id, exc)
 
         threading.Thread(target=_approve, daemon=True).start()
-        await query.edit_message_text("✅ Approval in progress — welcome email sending.", reply_markup=None)
+        await query.edit_message_text("✅ Approval in progress: welcome email sending.", reply_markup=None)
 
     elif query.data.startswith("room_deny:"):
         partner_id = int(query.data.split(":", 1)[1])
@@ -5108,12 +5108,12 @@ async def handle_meeting_pattern_callback(update: Update, context: ContextTypes.
     prefix = row["prefix"]
     if action == "approved":
         await query.edit_message_text(
-            f"Approved — future '{prefix}' events will get pre-meeting briefs.",
+            f"Approved: future '{prefix}' events will get pre-meeting briefs.",
             reply_markup=None,
         )
     else:
         await query.edit_message_text(
-            f"Noted — '{prefix}' events will be ignored.",
+            f"Noted: '{prefix}' events will be ignored.",
             reply_markup=None,
         )
 
@@ -5253,7 +5253,7 @@ async def _handle_curator_text(update: Update, context: ContextTypes.DEFAULT_TYP
 
     body = body.strip()
     if not body:
-        await update.message.reply_text("Usage: curator: <title> by <author>  —or—  curator: <link>")
+        await update.message.reply_text("Usage: curator: <title> by <author>   or   curator: <link>")
         return
 
     link = body if body.lower().startswith(("http://", "https://")) else None
@@ -5265,7 +5265,7 @@ async def _handle_curator_text(update: Update, context: ContextTypes.DEFAULT_TYP
         input_type="link" if link else "text",
         input_raw=_json.dumps({"title": title, "author": author, "link": link}),
     )
-    await update.message.reply_text("📚 Looking into that one — I'll ping you when it's ready.")
+    await update.message.reply_text("📚 Looking into that one: I'll ping you when it's ready.")
 
 
 async def _handle_curator_photo(update: Update, context: ContextTypes.DEFAULT_TYPE, caption_body: str) -> None:
@@ -5285,7 +5285,7 @@ async def _handle_curator_photo(update: Update, context: ContextTypes.DEFAULT_TY
         input_raw=_json.dumps({"title": title, "author": author}),
         image_bytes=image_bytes,
     )
-    await update.message.reply_text("📚 Reading the cover — I'll ping you when it's ready.")
+    await update.message.reply_text("📚 Reading the cover: I'll ping you when it's ready.")
 
     threading.Thread(target=_run, daemon=True).start()
 
@@ -5338,7 +5338,7 @@ async def _handle_church_post_text(update: Update, context: ContextTypes.DEFAULT
         return
     if platform in ("instagram", "both"):
         await update.message.reply_text(
-            "Instagram requires an image — attach a photo with the same churchpost: caption instead."
+            "Instagram requires an image: attach a photo with the same churchpost: caption instead."
         )
         return
 
@@ -5489,7 +5489,7 @@ async def handle_curator_callback(update: Update, context: ContextTypes.DEFAULT_
     elif query.data.startswith("cur_edit:"):
         book_id = int(query.data[len("cur_edit:"):])
         prompt_msg = await query.message.reply_text(
-            "Reply to THIS message with the correction — start with a digit 0-5 for a new "
+            "Reply to THIS message with the correction: start with a digit 0-5 for a new "
             "spice rating (e.g. \"2 - one closed-door scene ch 14\"), or just send corrected notes."
         )
         from jobs.telegram.pending import store_pending_action
@@ -5619,7 +5619,7 @@ async def handle_tool_deploy_callback(update: Update, context: ContextTypes.DEFA
             f"{query.message.text}\n\n✅ Live: https://wtsn.me/{category}/{slug}", reply_markup=None
         )
     elif query.data.startswith("tool_deploy_no:"):
-        await query.edit_message_text(f"{query.message.text}\n\n🚫 Cancelled — stays draft.", reply_markup=None)
+        await query.edit_message_text(f"{query.message.text}\n\n🚫 Cancelled: stays draft.", reply_markup=None)
 
 
 async def handle_ask(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -5777,7 +5777,7 @@ async def handle_merge_conflict_callback(update: Update, context: ContextTypes.D
                 "UPDATE member_conflicts SET status='skipped' WHERE id=?", (conflict_id,)
             )
             conn.commit()
-            await query.edit_message_text("⏭ Skipped — flagged for manual review.", reply_markup=None)
+            await query.edit_message_text("⏭ Skipped: flagged for manual review.", reply_markup=None)
             return
 
         if action == "different":
@@ -5791,12 +5791,12 @@ async def handle_merge_conflict_callback(update: Update, context: ContextTypes.D
             )
             conn.commit()
             await query.edit_message_text(
-                "✅ Confirmed — two different people, no changes made.", reply_markup=None
+                "✅ Confirmed: two different people, no changes made.", reply_markup=None
             )
             return
 
         if not old_id or not new_id:
-            await query.edit_message_text("❌ Conflict is missing member IDs — cannot merge.", reply_markup=None)
+            await query.edit_message_text("❌ Conflict is missing member IDs: cannot merge.", reply_markup=None)
             return
 
         old_row = conn.execute("SELECT * FROM members WHERE id=?", (old_id,)).fetchone()
@@ -5834,7 +5834,7 @@ async def handle_merge_conflict_callback(update: Update, context: ContextTypes.D
             )
             conn.commit()
             await query.edit_message_text(
-                f"✅ Merged — kept {old_name}, folded in new data.", reply_markup=None
+                f"✅ Merged: kept {old_name}, folded in new data.", reply_markup=None
             )
 
         elif action == "merge_new":
@@ -5865,7 +5865,7 @@ async def handle_merge_conflict_callback(update: Update, context: ContextTypes.D
             )
             conn.commit()
             await query.edit_message_text(
-                f"✅ Merged — kept {new_name}, folded in old data.", reply_markup=None
+                f"✅ Merged: kept {new_name}, folded in old data.", reply_markup=None
             )
 
     except Exception as exc:
@@ -6052,7 +6052,7 @@ def _format_dup_flag_message(flag_id: int):
 
     def _line(m):
         extra = m["email"] or m["phone"] or ""
-        return f"<b>{m['name']}</b> — id {m['id']}, {m['history_count']} history records" + (f", {extra}" if extra else "")
+        return f"<b>{m['name']}</b>: id {m['id']}, {m['history_count']} history records" + (f", {extra}" if extra else "")
 
     text = (
         f"\U0001F50E <b>Possible duplicate</b> (matched on {flag['reason']})\n\n"
@@ -6099,7 +6099,7 @@ async def handle_dup_flag_callback(update: Update, context: ContextTypes.DEFAULT
 
     if action == "dupf_skip":
         await query.edit_message_text(
-            "⏭ Skipped — still pending review at wtsn.me/cat/duplicates.", reply_markup=None
+            "⏭ Skipped: still pending review at wtsn.me/cat/duplicates.", reply_markup=None
         )
         return
 
@@ -6111,7 +6111,7 @@ async def handle_dup_flag_callback(update: Update, context: ContextTypes.DEFAULT
             conn.execute("UPDATE duplicate_flags SET status = 'merged' WHERE id = ?", (flag_id,))
             conn.commit()
         alias_note = " (name saved as an alias so it won't create a new duplicate next time)" if add_alias else ""
-        await query.edit_message_text(f"✅ Merged — kept {result['name']}{alias_note}.", reply_markup=None)
+        await query.edit_message_text(f"✅ Merged: kept {result['name']}{alias_note}.", reply_markup=None)
     except Exception as exc:
         log.error("dup_flag merge failed (flag=%s action=%s): %s", flag_id, action, exc)
         await query.edit_message_text(f"❌ Error: {exc}", reply_markup=None)
@@ -6254,7 +6254,7 @@ async def handle_git_sync_callback(update: Update, context: ContextTypes.DEFAULT
 
     if action == "skip":
         mark_done(pending_id)
-        await query.edit_message_text(f"Skipped — {repo_name} left as-is.", reply_markup=None)
+        await query.edit_message_text(f"Skipped: {repo_name} left as-is.", reply_markup=None)
         return
 
     import subprocess
@@ -6268,7 +6268,7 @@ async def handle_git_sync_callback(update: Update, context: ContextTypes.DEFAULT
         await asyncio.to_thread(_run_git, ["rebase", "--abort"])
         mark_done(pending_id)
         await query.edit_message_text(
-            f"❌ {repo_name} has a real conflict — can't auto-resolve. "
+            f"❌ {repo_name} has a real conflict: can't auto-resolve. "
             f"SSH in: cd {repo_path}, git status",
             reply_markup=None,
         )
@@ -6343,7 +6343,7 @@ async def handle_fast_path_suggestion_callback(update: Update, context: ContextT
                 "UPDATE fast_path_suggestions SET status='rejected', resolved_at=datetime('now') WHERE id=?",
                 (suggestion_id,),
             )
-        await query.edit_message_text("❌ Rejected — left as-is.", reply_markup=None)
+        await query.edit_message_text("❌ Rejected: left as-is.", reply_markup=None)
         return
 
     target_id = row["target_id"]
@@ -6356,7 +6356,7 @@ async def handle_fast_path_suggestion_callback(update: Update, context: ContextT
                 (suggestion_id,),
             )
         await query.edit_message_text(
-            "\U0001f4dd Noted — I'll bring this to our next coding session.", reply_markup=None,
+            "\U0001f4dd Noted: I'll bring this to our next coding session.", reply_markup=None,
         )
         return
 
@@ -6408,7 +6408,7 @@ async def handle_fast_path_suggestion_callback(update: Update, context: ContextT
         )
 
     await query.edit_message_text(
-        f'✅ Applied — Watson now recognizes "{new_phrase}" for {row["target_label"]}. '
+        f'✅ Applied: Watson now recognizes "{new_phrase}" for {row["target_label"]}. '
         f"Restarting to pick it up...",
         reply_markup=None,
     )

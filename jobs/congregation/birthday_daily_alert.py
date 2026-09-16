@@ -69,7 +69,7 @@ def build_message(birthdays: list[tuple[str, int, str | None]]) -> str:
     lines = ["🎂 Birthdays today"]
     for name, age, phone in birthdays:
         phone_part = phone if phone else "no phone on file"
-        lines.append(f"{name} (turning {age}) — {phone_part}")
+        lines.append(f"{name} (turning {age}): {phone_part}")
     lines.append("")
     lines.append("- Watson")
     return "\n".join(lines)

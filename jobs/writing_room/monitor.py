@@ -67,7 +67,7 @@ def check_posts(conn) -> None:
 
         if section == "prayer" and parent_id is not None:
             msg = (
-                f"🙏 Writing Room — Prayer\n\n"
+                f"🙏 Writing Room: Prayer\n\n"
                 f"{name} responded to a prayer request.\n\n"
                 f"\"{preview}\"\n\n"
                 f"View → {_PRAYER_URL}"
@@ -77,7 +77,7 @@ def check_posts(conn) -> None:
 
         if flagged:
             msg = (
-                f"✍️ Writing Room — {_section_label(section)}\n\n"
+                f"✍️ Writing Room: {_section_label(section)}\n\n"
                 f"⚠️ Flagged content from {name}\n\n"
                 f"\"{preview}\"\n\n"
                 f"View in Room → {_ROOM_URL}"
@@ -112,7 +112,7 @@ def check_posts(conn) -> None:
             kind = "question"
 
         msg = (
-            f"✍️ Writing Room — {_section_label(section)}\n\n"
+            f"✍️ Writing Room: {_section_label(section)}\n\n"
             f"New {kind} from {name}\n\n"
             f"\"{preview}\"\n\n"
             f"View in Room → {_ROOM_URL}"
@@ -138,7 +138,7 @@ def check_beta_feedback(conn) -> None:
         comment    = row["comment"] or "(none)"
 
         msg = (
-            f"📖 Writing Room — Beta Feedback\n\n"
+            f"📖 Writing Room: Beta Feedback\n\n"
             f"{name} reacted to {slug}\n"
             f"Reaction: {reaction}\n"
             f"Comment: \"{comment}\"\n\n"
@@ -157,7 +157,7 @@ def check_messages(conn) -> None:
             "UPDATE writing_room_messages SET watson_alerted = 1 WHERE id = ?", (row["id"],)
         )
         msg = (
-            f"✉️ Writing Room — Message for William\n\n"
+            f"✉️ Writing Room: Message for William\n\n"
             f"From: {row['name']} ({row['email']})\n\n"
             f"{row['message']}"
         )

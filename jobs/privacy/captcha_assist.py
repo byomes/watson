@@ -156,12 +156,12 @@ async def wait_for_human(
     proxy = await start_tailscale_proxy(port)
 
     send_telegram(
-        f"🧩 Privacy Guard needs a hand — {broker_name} ({person_name}) is filled in and waiting on a "
+        f"🧩 Privacy Guard needs a hand: {broker_name} ({person_name}) is filled in and waiting on a "
         f"CAPTCHA only you can solve.\n\n"
         f"1. On a device on the Tailscale network, open Chrome and go to chrome://inspect\n"
         f"2. Click \"Configure...\" and add: {TAILSCALE_IP}:{port}\n"
         f"3. Under \"Remote Target\", click \"inspect\" on the page that appears\n"
-        f"4. Solve the CAPTCHA and click the real submit button yourself in that window — "
+        f"4. Solve the CAPTCHA and click the real submit button yourself in that window: "
         f"Watson won't touch it after this message\n"
         f"5. Tap a button below once you're done (times out in 15 min otherwise)",
         priority="normal",
