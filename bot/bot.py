@@ -6522,6 +6522,12 @@ if __name__ == "__main__":
         format="%(asctime)s %(levelname)s %(message)s",
         datefmt="%H:%M:%S",
     )
+    # httpx (python-telegram-bot's HTTP client) logs "HTTP Request: POST
+    # <url>" at INFO, and every Telegram Bot API URL embeds the bot token
+    # in its path -- at root-logger INFO that put the live token in
+    # journalctl/systemctl status output on every request. WARNING still
+    # surfaces httpx-level errors, just not the routine per-request line.
+    logging.getLogger("httpx").setLevel(logging.WARNING)
     main()
 
 
