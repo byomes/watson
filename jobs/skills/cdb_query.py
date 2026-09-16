@@ -373,7 +373,7 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
     # column shapes to route through jobs/analytics/attendance_reply.py
     # instead of the generic "col: val" dump.
     _last_missed_m = re.search(
-        r"when\s+(?:was|did)\s+(?:the\s+last\s+time\s+)?(\w+(?:\s+\w+)??)\s+"
+        r"when\s+(?:was|is|did)\s+(?:the\s+last\s+time\s+)?(\w+(?:\s+\w+)??)\s+"
         r"(?:last\s+)?miss(?:ed)?(?:\s+church)?\b",
         q,
     )
@@ -390,7 +390,7 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
             )
 
     _last_seen_m = re.search(
-        r"when\s+(?:was|did)\s+(?:the\s+last\s+time\s+)?(\w+(?:\s+\w+)??)\s+"
+        r"when\s+(?:was|is|did)\s+(?:the\s+last\s+time\s+)?(\w+(?:\s+\w+)??)\s+"
         r"(?:last\s+)?(?:come|came|attend(?:ed)?|visit(?:ed)?|showed?\s+up|"
         r"was\s+(?:here|at\s+church))\b",
         q,
