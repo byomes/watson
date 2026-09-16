@@ -356,27 +356,60 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
     # NOT SEEN RECENTLY earlier in this function, which lists EVERY inactive
     # member -- this answers "when did/was the last time ONE named person
     # attended/missed church", the Team Chat equivalent of bot.py's DM-only
-    # _extract_team_lookup "last_seen" field (that fast path isn't reachable
-    # from Team Chat, which only ever calls this file's _pattern_match).
-    # Added 2026-09-15 after an auto-applied fast-path phrase for this exact
-    # question shape turned out to be a dead bracket-literal trigger that
-    # could never match real text (see the MEMBERS NOT SEEN RECENTLY comment
-    # above) -- this is the real, working pattern instead of retrying that
-    # same broken template.
+    # _extract_team_lookup "last_seen"/"last_missed" fields (that fast path
+    # isn't reachable from Team Chat, which only ever calls this file's
+    # _pattern_match).
+    #
+    # Split into two branches 2026-09-15: the miss verbs used to share the
+    # SAME regex/SQL as the attend verbs, so "when did X last miss church"
+    # silently returned X's last ATTENDED date mislabeled as an answer to a
+    # miss question. Also added campus (via a correlated subquery over the
+    # attendance/connect_cards union, so it names whichever record actually
+    # produced the max date) and a real last-missed calc: the most recent
+    # service_date the whole church held (distinct dates in attendance) that
+    # doesn't appear among this member's own attendance rows. No campus for
+    # a miss -- there's no campus for a service someone wasn't at.
+    # jobs/analytics/data_chat.py's _format_rows special-cases these exact
+    # column shapes to route through jobs/analytics/attendance_reply.py
+    # instead of the generic "col: val" dump.
+    _last_missed_m = re.search(
+        r"when\s+(?:was|did)\s+(?:the\s+last\s+time\s+)?(\w+(?:\s+\w+)??)\s+"
+        r"(?:last\s+)?miss(?:ed)?(?:\s+church)?\b",
+        q,
+    )
+    if _last_missed_m:
+        name = _last_missed_m.group(1).strip()
+        if name:
+            return (
+                f"SELECT m.name, "
+                f"(SELECT MAX(d.service_date) FROM (SELECT DISTINCT service_date FROM attendance) d "
+                f" WHERE d.service_date NOT IN (SELECT service_date FROM attendance WHERE member_id = m.id)"
+                f") as last_missed "
+                f"FROM members m "
+                f"WHERE m.name LIKE '%{name}%' AND m.active = 1"
+            )
+
     _last_seen_m = re.search(
         r"when\s+(?:was|did)\s+(?:the\s+last\s+time\s+)?(\w+(?:\s+\w+)??)\s+"
         r"(?:last\s+)?(?:come|came|attend(?:ed)?|visit(?:ed)?|showed?\s+up|"
-        r"miss(?:ed)?(?:\s+church)?|was\s+(?:here|at\s+church))\b",
+        r"was\s+(?:here|at\s+church))\b",
         q,
     )
     if _last_seen_m:
         name = _last_seen_m.group(1).strip()
         if name:
             return (
-                f"SELECT m.name, MAX(a.service_date) as last_attended FROM members m "
-                f"LEFT JOIN attendance a ON a.member_id = m.id "
-                f"WHERE m.name LIKE '%{name}%' AND m.active = 1 "
-                f"GROUP BY m.id, m.name"
+                f"SELECT m.name, "
+                f"(SELECT MAX(service_date) FROM ("
+                f"  SELECT service_date FROM attendance WHERE member_id = m.id"
+                f"  UNION ALL SELECT service_date FROM connect_cards WHERE member_id = m.id"
+                f")) as last_attended, "
+                f"(SELECT campus FROM ("
+                f"  SELECT service_date, campus FROM attendance WHERE member_id = m.id"
+                f"  UNION ALL SELECT service_date, campus FROM connect_cards WHERE member_id = m.id"
+                f") ORDER BY service_date DESC LIMIT 1) as campus "
+                f"FROM members m "
+                f"WHERE m.name LIKE '%{name}%' AND m.active = 1"
             )
 
     # PHONE NUMBER LOOKUP -- checked before MEMBER LOOKUP BY NAME for the

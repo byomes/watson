@@ -128,13 +128,29 @@ def lookup_member(query: str, chat_id: int | str | None = None) -> list[dict]:
 _LAST_SEEN_NEVER = "1900-01-01"
 
 # Mirrors jobs/congregation/deacons_web.py's _ROSTER_FIELDS last_seen calc
-# (max of connect_cards/attendance service_date per member).
+# (max of connect_cards/attendance service_date per member). last_seen_campus
+# and last_missed added 2026-09-15 for bot.py's "last_seen"/"last_missed"
+# team-lookup fields (see jobs/analytics/attendance_reply.py) -- last_seen
+# alone can't say which campus that date was at, since it's a MAX() over two
+# tables; last_seen_campus is a correlated subquery over the same union so it
+# names the campus of whichever record actually produced that max date.
+# last_missed is the most recent service_date the whole church held
+# (distinct dates in attendance) that this member's own attendance rows don't
+# include -- there's no campus for a service someone wasn't at, so it doesn't
+# get one.
 _DETAIL_FIELDS = (
     "m.name, m.email, m.phone, m.address, m.birthdate, "
-    "MAX("
-    f"  COALESCE((SELECT MAX(service_date) FROM connect_cards WHERE member_id = m.id), '{_LAST_SEEN_NEVER}'),"
-    f"  COALESCE((SELECT MAX(service_date) FROM attendance  WHERE member_id = m.id), '{_LAST_SEEN_NEVER}')"
-    ") AS last_seen"
+    "COALESCE((SELECT MAX(service_date) FROM ("
+    "  SELECT service_date FROM connect_cards WHERE member_id = m.id"
+    "  UNION ALL SELECT service_date FROM attendance WHERE member_id = m.id"
+    f")), '{_LAST_SEEN_NEVER}') AS last_seen, "
+    "(SELECT campus FROM ("
+    "  SELECT service_date, campus FROM connect_cards WHERE member_id = m.id"
+    "  UNION ALL SELECT service_date, campus FROM attendance WHERE member_id = m.id"
+    ") ORDER BY service_date DESC LIMIT 1) AS last_seen_campus, "
+    "(SELECT MAX(d.service_date) FROM (SELECT DISTINCT service_date FROM attendance) d"
+    " WHERE d.service_date NOT IN (SELECT service_date FROM attendance WHERE member_id = m.id)"
+    ") AS last_missed"
 )
 
 

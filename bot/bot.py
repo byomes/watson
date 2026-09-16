@@ -2971,6 +2971,19 @@ def _extract_team_lookup(text: str) -> tuple[str, str] | None:
         name = _strip_team_lookup_stopwords(m.group(1))
         if name:
             return name, "deacon"
+    # "when did X last miss (church)" -- checked before the attend-verb
+    # pattern below since both share the same "when was/did ... last" prefix
+    # and only differ on the verb; a miss verb must not fall through and get
+    # mistaken for an attend verb. Mirrors cdb_query.py's identical two-branch
+    # split for the Team Chat path (added 2026-09-15, same request).
+    m = re.search(
+        r"when\s+(?:was|did)\s+(?:the\s+last\s+time\s+)?(\w+(?:\s+\w+)??)\s+"
+        r"(?:last\s+)?miss(?:ed)?(?:\s+church)?\b",
+        text,
+        re.IGNORECASE,
+    )
+    if m:
+        return m.group(1), "last_missed"
     m = re.search(
         # Lazy second-word group: without it, "when did Donna last attend"
         # greedily captures "Donna last" as the name (group 1 prefers to eat
@@ -3004,24 +3017,6 @@ def _compute_age(birthdate: str) -> int | None:
         return None
     today = date.today()
     return today.year - born.year - ((today.month, today.day) < (born.month, born.day))
-
-
-def _format_last_seen_reply(name: str, seen: str) -> str:
-    """Both pieces Bill asked for (2026-09-14): the actual date AND how many
-    weeks it's been, in one natural sentence -- not just the bare date the
-    field used to return alone. Pronoun-free ("them") since attendance
-    records don't carry gender -- guessing one from a name risks misgendering
-    a real person."""
-    try:
-        seen_date = date.fromisoformat(seen)
-    except (ValueError, TypeError):
-        return f"We last saw {name} on {seen}."
-    pretty_date = seen_date.strftime("%B %-d, %Y")
-    weeks_since = (date.today() - seen_date).days // 7
-    if weeks_since <= 0:
-        return f"We last saw {name} on {pretty_date} — less than a week ago."
-    weeks_word = "week" if weeks_since == 1 else "weeks"
-    return f"We last saw {name} on {pretty_date} — it's been {weeks_since} {weeks_word} since we've seen them."
 
 
 _FAMILY_LOOKUP_FIELDS = {"deacon", "spouse", "children", "parent"}
@@ -3081,10 +3076,11 @@ def _format_team_lookup_reply(person_name: str, field: str, asker: str = "Bill Y
         names = m.get("parent_names") or []
         return f"{m['name']}'s parent(s): {', '.join(names) if names else 'not on file.'}"
     if field == "last_seen":
-        seen = m.get("last_seen")
-        if not seen or seen == "1900-01-01":
-            return f"{m['name']} has no recorded attendance."
-        return _format_last_seen_reply(m["name"], seen)
+        from jobs.analytics.attendance_reply import format_last_attended_reply
+        return format_last_attended_reply(m["name"], m.get("last_seen"), m.get("last_seen_campus"))
+    if field == "last_missed":
+        from jobs.analytics.attendance_reply import format_last_missed_reply
+        return format_last_missed_reply(m["name"], m.get("last_missed"))
     return f"{m['name']}: no data on file for that."
 
 

@@ -606,6 +606,18 @@ def _fmt_value(v):
 def _format_rows(rows: list[dict]) -> str:
     if not rows:
         return "That didn't turn up any matching data."
+    # LAST ATTENDED / LAST MISSED BY NAME (cdb_query.py's _pattern_match)
+    # name these exact column shapes so this generic formatter can route them
+    # through the same weeks-ago + campus sentence bot.py's DM path uses,
+    # instead of the generic "col: val" dump below -- added 2026-09-15.
+    if len(rows) == 1 and set(rows[0].keys()) == {"name", "last_attended", "campus"}:
+        from jobs.analytics.attendance_reply import format_last_attended_reply
+        r = rows[0]
+        return format_last_attended_reply(r["name"], r.get("last_attended"), r.get("campus"))
+    if len(rows) == 1 and set(rows[0].keys()) == {"name", "last_missed"}:
+        from jobs.analytics.attendance_reply import format_last_missed_reply
+        r = rows[0]
+        return format_last_missed_reply(r["name"], r.get("last_missed"))
     if len(rows) == 1 and len(rows[0]) == 1:
         return str(_fmt_value(next(iter(rows[0].values()))))
     if len(rows) == 1:
