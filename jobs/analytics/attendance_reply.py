@@ -34,6 +34,26 @@ def format_last_attended_reply(name: str, last_attended: str | None, campus: str
     return sentence
 
 
+def format_period_attendance_reply(
+    weeks_span: int, combined_total: int, unique_individuals: int, campus: str | None = None
+) -> str:
+    """Plain-English answer to "attendance for the last N weeks" — cdb_query.py's
+    _pattern_match COMBINED + CUMULATIVE ATTENDANCE block returns both numbers
+    rather than guessing which one the asker meant; this spells out what each
+    one means so the reply is self-explanatory without a follow-up question."""
+    weeks_word = "week" if weeks_span == 1 else "weeks"
+    scope = f" at the {campus} campus" if campus else ""
+    checkin_word = "check-in" if combined_total == 1 else "check-ins"
+    person_word = "person" if unique_individuals == 1 else "people"
+    return (
+        f"Over the last {weeks_span} {weeks_word}{scope}, combined attendance was {combined_total} "
+        f"{checkin_word} — that's every Sunday's headcount added together, so someone who came all "
+        f"{weeks_span} {weeks_word} is counted {weeks_span} times. Cumulative attendance was "
+        f"{unique_individuals} unique {person_word} — that's how many different individuals showed up "
+        f"at least once, each counted only one time no matter how many of those Sundays they attended."
+    )
+
+
 def format_last_missed_reply(name: str, last_missed: str | None) -> str:
     if not last_missed:
         return f"{name} hasn't missed a service on record."

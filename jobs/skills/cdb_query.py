@@ -93,25 +93,35 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
     elif any(w in q for w in ['wilmington', 'in person', 'in-person', 'physical', 'building', 'church building']):
         campus = 'Wilmington'
 
-    # Date range — a_date uses alias prefix for main queries; s_date is bare for subqueries
+    # Date range — a_date uses alias prefix for main queries; s_date is bare for subqueries.
+    # _span_weeks tracks the named N (2-6) for the COMBINED/CUMULATIVE ATTENDANCE
+    # block below, which needs to say "over the last N weeks" in plain English —
+    # None for a single-Sunday question, where combined and cumulative are the
+    # same number and that block doesn't apply.
+    _span_weeks = None
     if any(w in q for w in ['this past sunday', 'last sunday', 'this sunday']):
         a_date = f"a.service_date = '{last_sun}'"
         s_date = f"service_date = '{last_sun}'"
     elif '2 week' in q or 'two week' in q:
         a_date = f"a.service_date >= '{weeks[1]}' AND a.service_date <= '{last_sun}'"
         s_date = f"service_date >= '{weeks[1]}' AND service_date <= '{last_sun}'"
+        _span_weeks = 2
     elif '3 week' in q or 'three week' in q:
         a_date = f"a.service_date >= '{weeks[2]}' AND a.service_date <= '{last_sun}'"
         s_date = f"service_date >= '{weeks[2]}' AND service_date <= '{last_sun}'"
+        _span_weeks = 3
     elif '4 week' in q or 'four week' in q:
         a_date = f"a.service_date >= '{weeks[3]}' AND a.service_date <= '{last_sun}'"
         s_date = f"service_date >= '{weeks[3]}' AND service_date <= '{last_sun}'"
+        _span_weeks = 4
     elif '5 week' in q or 'five week' in q:
         a_date = f"a.service_date >= '{weeks[4]}' AND a.service_date <= '{last_sun}'"
         s_date = f"service_date >= '{weeks[4]}' AND service_date <= '{last_sun}'"
+        _span_weeks = 5
     elif '6 week' in q or 'six week' in q:
         a_date = f"a.service_date >= '{weeks[5]}' AND a.service_date <= '{last_sun}'"
         s_date = f"service_date >= '{weeks[5]}' AND service_date <= '{last_sun}'"
+        _span_weeks = 6
     else:
         a_date = f"a.service_date = '{last_sun}'"
         s_date = f"service_date = '{last_sun}'"
@@ -180,6 +190,31 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
             f"SUM(CASE WHEN a.campus='Wilmington' THEN 1 ELSE 0 END) as wilm_count "
             f"FROM attendance a WHERE a.service_date >= '{w8}' "
             f"GROUP BY a.service_date ORDER BY a.service_date"
+        )
+
+    # COMBINED + CUMULATIVE ATTENDANCE OVER MULTIPLE WEEKS
+    # Bill's 2026-09-16 request: a plain "attendance for the last N weeks"
+    # question is ambiguous between two real numbers -- combined (every
+    # check-in across those Sundays added together, so someone who came all
+    # N weeks counts N times) and cumulative (how many different people came
+    # at least once, each counted only once). Rather than guess which one he
+    # means, return both with a plain-English explanation. Only fires when
+    # _span_weeks names an actual multi-week range (2-6 -- see date-range
+    # block above); a single-Sunday question has no such ambiguity (the two
+    # numbers are identical) and stays on the simpler COUNT below. Requires
+    # the noun "attendance" specifically (not "attended"/"came"/"showed
+    # up") and excludes "who"/"list" so a "who attended in the last 3 weeks"
+    # or "list attendance for the last 4 weeks" question still falls through
+    # to WHO ATTENDED below instead of being swallowed as a count -- see the
+    # fast-path phrasing collision feedback memory this file already follows
+    # elsewhere (e.g. the HYBRID MEMBERS trigger comment above).
+    if _span_weeks and 'who' not in q and 'list' not in q and 'attendance' in q:
+        campus_filter = f"a.campus = '{campus}' AND " if campus else ""
+        campus_literal = f"'{campus}'" if campus else "NULL"
+        return (
+            f"SELECT {_span_weeks} as weeks_span, {campus_literal} as campus, "
+            f"COUNT(a.member_id) as combined_total, COUNT(DISTINCT a.member_id) as unique_individuals "
+            f"FROM attendance a WHERE {campus_filter}{a_date}"
         )
 
     # HOW MANY ATTENDED (count)
