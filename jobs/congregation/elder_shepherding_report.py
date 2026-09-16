@@ -14,15 +14,17 @@ elder to scan group health at a glance, not to replace it. Once proven out,
 the plan is a per-deacon version of this sent to each deacon individually
 (most deacons aren't Telegram-onboarded yet, so that's not buildable today).
 
-Buckets (days since last connect card or attendance record):
-  2 wks    14-20 days ago
-  3-5 wks  21-41 days ago   (same cutoff as shepherding_report.py's "at risk")
-  6+ wks   42+ days ago, with 3+ total visits on file
-           (same cutoff/gate as shepherding_report.py's "critical" -- the
-           visit-count gate keeps a single old visitor record from reading
-           as "critical"; a first-time visitor is unassigned by definition,
-           see deacon_reports.py's module docstring, so this mostly matters
-           for the Unassigned row)
+Buckets (days since last connect card or attendance record; Bill's ruling
+2026-09-15 -- deliberately its own scale now, no longer pinned to
+shepherding_report.py's 3-5/6+ week "at risk"/"critical" cutoffs, since
+missing one Sunday isn't a pastoral concern but missing two is):
+  current   0-13 days ago    (missed 0-1 Sunday)
+  at_risk   14-27 days ago   (missed 2-3 Sundays)
+  critical  28+ days ago, with 3+ total visits on file
+            (visit-count gate keeps a single old visitor record from reading
+            as "critical"; a first-time visitor is unassigned by definition,
+            see deacon_reports.py's module docstring, so this mostly matters
+            for the Unassigned row)
 
 Same base filters as shepherding_report.py's at-risk/critical sections:
 members.status != 'inactive', not shepherding_exempt, member_status not in
@@ -89,19 +91,23 @@ REPORT_URL = "https://wtsn.me/cat/shepherdingreport"
 
 _BLANK_DEACON_VALUES = {"none"}
 
-_WK2_DAYS_MIN, _WK2_DAYS_MAX = 14, 20
-_WK35_DAYS_MIN, _WK35_DAYS_MAX = 21, 41
-_WK6PLUS_DAYS_MIN = 42
-_WK6PLUS_VISIT_MIN = 3
+# Bill's ruling 2026-09-15: missing one Sunday isn't a concern (Current),
+# missing two starts to matter (At Risk), four+ is Critical. Days are
+# inclusive Sunday-to-Sunday windows (7 days/wk), so "missed 1 wk" covers
+# same-day through just under 2 wks out, etc.
+_CURRENT_DAYS_MIN, _CURRENT_DAYS_MAX = 0, 13
+_AT_RISK_DAYS_MIN, _AT_RISK_DAYS_MAX = 14, 27
+_CRITICAL_DAYS_MIN = 28
+_CRITICAL_VISIT_MIN = 3
 
 
 def _bucket(days_since: int, visit_count: int) -> str | None:
-    if _WK2_DAYS_MIN <= days_since <= _WK2_DAYS_MAX:
-        return "2wk"
-    if _WK35_DAYS_MIN <= days_since <= _WK35_DAYS_MAX:
-        return "3-5wk"
-    if days_since >= _WK6PLUS_DAYS_MIN and visit_count >= _WK6PLUS_VISIT_MIN:
-        return "6wk"
+    if _CURRENT_DAYS_MIN <= days_since <= _CURRENT_DAYS_MAX:
+        return "current"
+    if _AT_RISK_DAYS_MIN <= days_since <= _AT_RISK_DAYS_MAX:
+        return "at_risk"
+    if days_since >= _CRITICAL_DAYS_MIN and visit_count >= _CRITICAL_VISIT_MIN:
+        return "critical"
     return None
 
 
@@ -147,12 +153,12 @@ def _group_key(raw_deacon: str | None) -> str | None:
 
 
 def build_deacon_group_counts() -> list[dict]:
-    """[{name, total, wk2, wk35, wk6plus}, ...] -- one row per real deacon
-    (alphabetical, seeded at zero so every deacon appears even with no risk),
-    plus a trailing Unassigned row."""
+    """[{name, total, current, at_risk, critical}, ...] -- one row per real
+    deacon (alphabetical, seeded at zero so every deacon appears even with no
+    risk), plus a trailing Unassigned row."""
     deacons = list_deacons()
-    counts = {d: {"name": d, "total": 0, "wk2": 0, "wk35": 0, "wk6plus": 0} for d in deacons}
-    unassigned = {"name": "Unassigned", "total": 0, "wk2": 0, "wk35": 0, "wk6plus": 0}
+    counts = {d: {"name": d, "total": 0, "current": 0, "at_risk": 0, "critical": 0} for d in deacons}
+    unassigned = {"name": "Unassigned", "total": 0, "current": 0, "at_risk": 0, "critical": 0}
 
     today = date.today()
     for r in _raw_rows():
@@ -166,12 +172,12 @@ def build_deacon_group_counts() -> list[dict]:
         target["total"] += 1
         days_since = (today - date.fromisoformat(r["last_seen"])).days
         bucket = _bucket(days_since, r["visit_count"])
-        if bucket == "2wk":
-            target["wk2"] += 1
-        elif bucket == "3-5wk":
-            target["wk35"] += 1
-        elif bucket == "6wk":
-            target["wk6plus"] += 1
+        if bucket == "current":
+            target["current"] += 1
+        elif bucket == "at_risk":
+            target["at_risk"] += 1
+        elif bucket == "critical":
+            target["critical"] += 1
 
     rows = [counts[d] for d in deacons]
     rows.append(unassigned)
@@ -186,7 +192,7 @@ def _last_name_key(name: str) -> str:
     return parts[-1].lower() if parts else ""
 
 
-_BUCKET_ORDER = {"6wk": 0, "3-5wk": 1, "2wk": 2, None: 3}
+_BUCKET_ORDER = {"critical": 0, "at_risk": 1, "current": 2, None: 3}
 
 
 def _member_engagement_tiers(conn) -> dict:
@@ -237,9 +243,10 @@ def build_deacon_group_names() -> list[dict]:
     phone, engagement}, ...]}, ...] -- one row per real deacon (same
     list_deacons() order as build_deacon_group_counts()), plus a trailing
     Unassigned row. Every non-excluded member with attendance history
-    appears exactly once, under `bucket` (None = no flag -- seen within the
-    last 2 weeks, or an old first-timer that doesn't clear the 6+wk
-    visit-count gate). `id` and `last_seen` (raw ISO date) power the
+    appears exactly once, under `bucket` (None = the rare case of an old
+    first-timer that doesn't clear the critical visit-count gate; everyone
+    else gets an explicit current/at_risk/critical value). `id` and
+    `last_seen` (raw ISO date) power the
     "update last seen" date-picker on wtsn.me/cat/shepherdingreport (see
     elder_shepherding_report_web.py's set_last_seen route); `days_since` is
     the exact day count the coarse `bucket` is derived from, shown as a
@@ -295,21 +302,21 @@ def build_report_text() -> str:
     rows = build_deacon_group_counts()
 
     lines = [f"\U0001f4ca Catalyst Shepherding Report — {today}", ""]
-    tot2 = tot35 = tot6 = 0
+    tot_current = tot_at_risk = tot_critical = 0
     for r in rows:
-        tot2 += r["wk2"]
-        tot35 += r["wk35"]
-        tot6 += r["wk6plus"]
-        wk35_flag = " ⚠️" if r["wk35"] else ""
-        wk6_flag = " \U0001f534" if r["wk6plus"] else ""
+        tot_current += r["current"]
+        tot_at_risk += r["at_risk"]
+        tot_critical += r["critical"]
+        at_risk_flag = " ⚠️" if r["at_risk"] else ""
+        critical_flag = " \U0001f534" if r["critical"] else ""
         lines.append(
             f"{r['name']}: {r['total']} — "
-            f"2wk {r['wk2']}, 3-5wk {r['wk35']}{wk35_flag}, 6+wk {r['wk6plus']}{wk6_flag}"
+            f"current {r['current']}, at-risk {r['at_risk']}{at_risk_flag}, critical {r['critical']}{critical_flag}"
         )
 
     lines.append("")
-    tot_flag = " \U0001f534" if tot6 else ""
-    lines.append(f"Totals — 2wk {tot2} | 3-5wk {tot35} | 6+wk {tot6}{tot_flag}")
+    tot_flag = " \U0001f534" if tot_critical else ""
+    lines.append(f"Totals — current {tot_current} | at-risk {tot_at_risk} | critical {tot_critical}{tot_flag}")
     lines.append("")
     lines.append(f"Names by group: {REPORT_URL}")
     return "\n".join(lines)
