@@ -358,9 +358,29 @@ def _log_tg(direction: str, message: str, recipient: str = 'Bill') -> None:
     # usual way by the caller above. Everyone else's messages (team-chat
     # lookups, onboarding confirmations, broadcast reports) still log here
     # normally so Bill can review them on the dashboard.
-    if recipient == 'Bill':
-        return
     db_path = os.path.expanduser("~/watson/data/watson.db")
+    if recipient == 'Bill':
+        # Bill asked 2026-09-15 for a plain, ungrouped record of his own
+        # exchanges he can grep/refer back to -- chat_messages exists but is
+        # split across per-day session rows built for context-window use,
+        # not quick lookup.
+        try:
+            with sqlite3.connect(db_path) as _conn:
+                _conn.execute(
+                    """CREATE TABLE IF NOT EXISTS bill_telegram_log (
+                        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                        direction  TEXT NOT NULL,
+                        message    TEXT NOT NULL,
+                        created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+                    )"""
+                )
+                _conn.execute(
+                    "INSERT INTO bill_telegram_log (direction, message) VALUES (?, ?)",
+                    (direction, message),
+                )
+        except Exception as exc:
+            log.warning("bill_telegram_log write failed: %s", exc)
+        return
     try:
         with sqlite3.connect(db_path) as _conn:
             _conn.execute(
