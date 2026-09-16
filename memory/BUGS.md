@@ -1,6 +1,6 @@
 # Watson Bug Tracker
 _Auto-generated nightly from bug_tracker. Source of truth is the database — do not hand-edit this file, changes will be overwritten._
-Last generated: 2026-09-15 02:10
+Last generated: 2026-09-16 02:10
 
 ## Open (49)
 | ID | Title | Repo | Discovered |
@@ -58,6 +58,9 @@ Last generated: 2026-09-15 02:10
 ## Recently Resolved (last 30 days)
 | ID | Title | Repo | Resolved | Commit |
 |---|---|---|---|---|
+| 175 | fast_path_suggestions auto-apply can insert a dead bracket-literal trigger | watson | 2026-09-15 21:35:50 | 21f8148 |
+| 174 | Deacon app FamilySection picker hides already-grouped household mates as spouse candidates | watson-tools | 2026-09-15 18:19:23 | 2ad6efa |
+| 173 | Spouse-marking phrasings ("make X Y's wife", "X and Y are married") not recognized | watson | 2026-09-15 18:12:48 | 775e49a |
 | 172 | Testing mistake during fast-path-per-call feature build: live accidental auto-apply + watermark poisoned | watson | 2026-09-15 00:15:12 | 9357adc83f67e3daa7fb2f6a694984ac1dc5c371 |
 | 171 | jobs/events/pattern_match.py (commit 39e9424) attend/coming triggers collided with attendance questions | watson | 2026-09-14 22:54:11 | c1c538eafb1d48063bb1f0ff764a168f1f6275a4 |
 | 170 | 'Both campuses' fast-path/LLM collision gave a nonsense attendance answer | watson | 2026-09-14 22:54:11 | c1c538eafb1d48063bb1f0ff764a168f1f6275a4 |
