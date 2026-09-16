@@ -25,10 +25,10 @@ def format_last_attended_reply(name: str, last_attended: str | None, campus: str
     pretty_date = seen_date.strftime("%B %-d, %Y")
     weeks_since = (date.today() - seen_date).days // 7
     if weeks_since <= 0:
-        sentence = f"We last saw {name} on {pretty_date} — less than a week ago."
+        sentence = f"We last saw {name} on {pretty_date}, less than a week ago."
     else:
         weeks_word = "week" if weeks_since == 1 else "weeks"
-        sentence = f"We last saw {name} on {pretty_date} — it's been {weeks_since} {weeks_word} since we've seen them."
+        sentence = f"We last saw {name} on {pretty_date}. It's been {weeks_since} {weeks_word} since we've seen them."
     if campus:
         sentence += f" They last attended the {campus} campus."
     return sentence
@@ -37,7 +37,7 @@ def format_last_attended_reply(name: str, last_attended: str | None, campus: str
 def format_period_attendance_reply(
     span_label: str, combined_total: int, unique_individuals: int, campus: str | None = None
 ) -> str:
-    """Plain-English answer to "attendance for the last N weeks/months" —
+    """Plain-English answer to "attendance for the last N weeks/months".
     cdb_query.py's _pattern_match COMBINED + CUMULATIVE ATTENDANCE block
     returns both numbers rather than guessing which one the asker meant;
     this spells out what each one means so the reply is self-explanatory
@@ -48,7 +48,7 @@ def format_period_attendance_reply(
     person_word = "person" if unique_individuals == 1 else "people"
     return (
         f"Over {span_label}{scope}: {combined_total} combined check-ins "
-        f"(every Sunday's headcount added together) and {unique_individuals} cumulative — unique "
+        f"(every Sunday's headcount added together) and {unique_individuals} cumulative, unique "
         f"{person_word} who attended at least once."
     )
 
@@ -63,6 +63,6 @@ def format_last_missed_reply(name: str, last_missed: str | None) -> str:
     pretty_date = missed_date.strftime("%B %-d, %Y")
     weeks_since = (date.today() - missed_date).days // 7
     if weeks_since <= 0:
-        return f"{name} last missed church on {pretty_date} — less than a week ago."
+        return f"{name} last missed church on {pretty_date}, less than a week ago."
     weeks_word = "week" if weeks_since == 1 else "weeks"
-    return f"{name} last missed church on {pretty_date} — it's been {weeks_since} {weeks_word} since they missed."
+    return f"{name} last missed church on {pretty_date}. It's been {weeks_since} {weeks_word} since they missed."
