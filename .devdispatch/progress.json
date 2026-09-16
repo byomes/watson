@@ -1,1 +1,1 @@
-{"step": 5, "total": 5, "label": "Reporting", "detail": "Committing the BARE NAME LOOKUP fast path fix"}
+{"step": 5, "total": 5, "label": "Reporting", "detail": "Committing fast-path fix for no-reply-needed test messages in Team Chat"}

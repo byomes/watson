@@ -3380,6 +3380,31 @@ def _alert_unanswered_team_question(team_member_name: str, question: str, reply:
         log.warning("Failed to alert Bill about an unanswered team question: %s", exc)
 
 
+_NO_REPLY_NEEDED_PHRASES = (
+    'no reply needed', 'no reply is needed', 'no response needed',
+    'no response is needed', 'no need to reply', 'no need to respond',
+    "don't need a reply", "doesn't need a reply", "don't need a response",
+    'reply not needed', 'response not needed',
+)
+
+
+def _is_no_reply_needed(text: str) -> bool:
+    """Recognizes a message that explicitly says it doesn't need an answer
+    -- e.g. a leader testing that Telegram/team-chat logging works ("Testing
+    telegram log. No reply needed"). This is neither a data question nor a
+    write, so it doesn't fit cdb_query.py's _pattern_match or family_edit.py;
+    it's an IT-support ping, not something to answer at all. Checked first in
+    compute_team_chat_reply so it never reaches answer_data_question, whose
+    domain classification (jobs/analytics/data_chat.py's _generate) tries a
+    paid Claude call for every message it sees -- including ones that end up
+    classified DOMAIN: none, which this always would. Deliberately narrow
+    (an explicit "no reply/response needed" statement only, not "test" alone)
+    per the same leave-it-unanswered-rather-than-guess convention as
+    cdb_query.py's fast paths -- a bare "test" could be a real question."""
+    lowered = text.lower()
+    return any(phrase in lowered for phrase in _NO_REPLY_NEEDED_PHRASES)
+
+
 def _remember_team_chat_turns(name: str, text: str, reply: str | None) -> None:
     """Records both sides of a team-chat exchange into the shared per-leader
     conversation buffer (jobs.analytics.data_chat) -- called from every
@@ -3402,6 +3427,13 @@ async def compute_team_chat_reply(name: str, text: str) -> str | None:
     if not text:
         return None
     _log_tg('in', text, recipient=name)
+
+    # An explicit "no reply needed" ping (e.g. testing that this logging
+    # works at all) -- see _is_no_reply_needed's docstring for why this is
+    # checked before everything else below, including answer_data_question.
+    if _is_no_reply_needed(text):
+        log.info("compute_team_chat_reply: %s said no reply needed, skipping (q=%r)", name, text)
+        return None
 
     # A bare follow-up naming one of the candidates from a prior "I found
     # more than one match" question (e.g. "Jennifer") resumes THAT question
