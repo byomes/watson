@@ -47,6 +47,7 @@ Mount on the Watson dashboard app:
     app.register_blueprint(deacons_web_bp)
 """
 import os
+from datetime import date
 from functools import wraps
 from hashlib import scrypt
 from hmac import compare_digest
@@ -61,6 +62,7 @@ from jobs.congregation.deacon_reports import (
     _STEPS_WINDOW_DAYS,
     list_deacons,
 )
+from jobs.congregation.elder_shepherding_report import _bucket, _member_engagement_tiers
 
 deacons_web_bp = Blueprint("deacons_web", __name__)
 
@@ -108,8 +110,11 @@ def _attach_shepherding_info(conn, people: list[dict]) -> None:
     excluded -- see module docstring) + next_steps (last 90 days each) +
     deacon_notes (full history, no window -- these are deacon-logged and
     typically few enough per person that a cutoff would just hide the
-    ones worth seeing). Deliberately does NOT touch follow_ups -- see
-    module docstring."""
+    ones worth seeing) + bucket/days_since/engagement (the same Connected/
+    Consistency classification wtsn.me/cat/shepherdingreport shows, reused
+    from elder_shepherding_report.py so the List tab's badges can never
+    drift from the Report tab's). Deliberately does NOT touch follow_ups --
+    see module docstring."""
     member_ids = [p["id"] for p in people]
     if not member_ids:
         return
@@ -152,10 +157,24 @@ def _attach_shepherding_info(conn, people: list[dict]) -> None:
             }
         )
 
+    engagement_by_member = _member_engagement_tiers(conn)
+    today = date.today()
+
     for p in people:
         p["prayer_requests"] = prayers_by_member.get(p["id"], [])
         p["next_steps"] = steps_by_member.get(p["id"], [])
         p["deacon_notes"] = notes_by_member.get(p["id"], [])
+        # Never-seen people (last_seen sentinel) get no bucket, same as the
+        # Report tab implicitly excludes anyone with zero attendance rows
+        # from _raw_rows() entirely -- there's no "0 wks" reading to show.
+        if p["last_seen"] == _LAST_SEEN_NEVER:
+            p["bucket"] = None
+            p["days_since"] = None
+        else:
+            days_since = (today - date.fromisoformat(p["last_seen"])).days
+            p["days_since"] = days_since
+            p["bucket"] = _bucket(days_since)
+        p["engagement"] = engagement_by_member.get(p["id"])
 
 
 def _require_key(f):
