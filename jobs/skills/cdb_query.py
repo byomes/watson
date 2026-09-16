@@ -239,7 +239,7 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
         )
 
     # ATTENDANCE TREND
-    if any(w in q for w in ['trend', 'trending', 'attendance over', 'attendance by week', 'weekly attendance', 'how has attendance', 'campus breakdown', 'attendance history', 'attendance pattern']):
+    if any(w in q for w in ['last six weeks', 'trend', 'trending', 'attendance over', 'attendance by week', 'weekly attendance', 'how has attendance', 'campus breakdown', 'attendance history', 'attendance pattern']):
         w8 = weeks[7] if len(weeks) > 7 else weeks[-1]
         return (
             f"SELECT a.service_date, "
