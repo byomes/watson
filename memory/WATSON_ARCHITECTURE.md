@@ -4047,3 +4047,58 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - 810ddb6 Add Sermon Clips review/scheduling to /cat/social
 - f0ebee4 style: grey box for the image file input button on /cat/social
 - 9913a4b feat: Catalyst Social command dashboard at /cat/social
+
+---
+
+## Recent Changes — 2026-09-16
+
+### ~/watson
+- 305e4c7 docs: bugs/backlog export 2026-09-16
+- c9dc434 docs: file map 2026-09-16
+- 86c3b27 Add bill_telegram_log for Bill's own Telegram exchanges with Watson
+- c5507f0 Add bare-name fast path to cdb_query pattern match (#61)
+- 92531b2 Fix Watson email signature link to include https:// scheme
+- 591114a Align Last Sunday and Consistency to the same population and roster total
+- bba4a4a Rework shepherding report absence buckets to current/at-risk/critical
+- 68f3ab0 Reformat "last attended"/"last missed" answers with weeks-ago + campus
+- a01cd49 feat(shepherding): expose per-member weekly engagement tier
+- d345b70 Add a durable fix log so past fixes can be referred back to
+- c78cfce Fully autonomous fast-path fixes: dispatch, merge, and deploy with no review gate
+- 21f8148 Fix fast-path suggestions backlog: age/phone/last-attended patterns, spouse-add phrasing, and a whole-day location summary
+- 6e40f17 Wire "where was I <day> at <time>" into Watson's Telegram chat
+- 775e49a Recognize "make X Y's wife" and "X and Y are married" for spouse marking
+- d8fadf3 Add Donna Redman to deacon-assignment allowlist
+- a8176bd Replace head/spouse with husband/wife; auto-set gender on assignment
+- 4bf9bf6 Add "create new person" endpoint and family report email
+- 7ac3ef2 Add family relationship unlink endpoint for the deacon app
+- 2305bd9 Give team chat per-leader conversational memory
+- cb14ea1 Add Jim Bouchat and Bill Crook to daily birthday alert recipients
+- ee8c4d9 Add "when was the last time [name] missed church" fast-path phrase to members not seen recently
+- 6ab6396 docs: architecture update 2026-09-15
+
+### ~/wcky
+- 91d9411 Drop "New Book" label from Wrong Jesus OG/Twitter image
+- c7c6170 Refresh Wrong Jesus OG/Twitter image for launch day, feature cover
+- 2be4668 Point Wrong Jesus CTAs to paperback sales, drop pre-launch content
+- 94cc9e9 publish: When the Wrong Motive Still Preaches the Truth
+- 3f7561e Flip The Wrong Jesus to published/live on launch day, add paperback link
+
+### ~/watson-tools
+- f08a9d1 Rename Last Sunday label to Connected in shepherding stats
+- b2d3585 Make shepherding report stat labels tap-to-expand people lists
+- daf1403 Drop dead null-bucket/null-engagement handling
+- 8103bb7 Color-match shepherding report labels to their box color
+- a469a8f Add Last Sunday / Consistency section headers with definitions
+- 19fe26b Put shepherding report totals count on its own line below the range label
+- d9ddd1e Fix prod build break: split client-safe compute out of shepherdingReport.ts
+- 3837592 Update shepherding report labels for new current/at-risk/critical buckets
+- c5efe5f fix(deaconapp): restyle engagement definitions as Current/At Risk/Critical boxes
+- acd7f06 feat(deaconapp): add missed-weeks legend, pair it with engagement legend
+- 29cae0a fix(shepherdingreport): stack engagement badge under last-seen badge
+- a678b7f feat(shepherdingreport): show weekly engagement tier per member
+- c347920 fix(deaconapp): stop iOS Safari auto-zoom on note fields
+- 2ad6efa Fix FamilySection picker hiding a roleless household mate as a spouse candidate
+- ef5d91b Replace generic Spouse add with explicit Husband/Wife buttons
+- ea08fc0 Add "+" button to create a new person, from header and relation pickers
+- 8c79c0e Add remove ("x") button to Family section chips
+- 5f58606 Redesign deacon app Family section with add-buttons and name chips
