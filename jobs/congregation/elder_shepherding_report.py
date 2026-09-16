@@ -20,14 +20,15 @@ shepherding_report.py's 3-5/6+ week "at risk"/"critical" cutoffs, since
 missing one Sunday isn't a pastoral concern but missing two is):
   current   0-13 days ago    (missed 0-1 Sunday)
   at_risk   14-27 days ago   (missed 2-3 Sundays)
-  critical  28+ days ago, with 3+ total visits on file
-            (visit-count gate keeps a single old visitor record from reading
-            as "critical"; a first-time visitor is unassigned by definition,
-            see deacon_reports.py's module docstring, so this mostly matters
+  critical  28+ days ago
+            (no visit-count gate as of 2026-09-16 -- every listed member
+            gets one of these three, so the totals always sum to the full
+            roster; a first-time visitor is unassigned by definition, see
+            deacon_reports.py's module docstring, so this mostly matters
             for the Unassigned row)
 
 Same base filters as shepherding_report.py's at-risk/critical sections:
-members.status != 'inactive', not shepherding_exempt, member_status not in
+members.active = 1, not shepherding_exempt, member_status not in
 (deceased/disconnected/non_local/snowbird), and at least one connect_cards
 or attendance row on file. Same deacon-bucket exclusions as deacon_reports.py
 (EXCLUDED_DEACON_VALUES) -- "Elders & Deacons" / "~ Admin" / "P Bill Yomes" /
@@ -98,22 +99,34 @@ _BLANK_DEACON_VALUES = {"none"}
 _CURRENT_DAYS_MIN, _CURRENT_DAYS_MAX = 0, 13
 _AT_RISK_DAYS_MIN, _AT_RISK_DAYS_MAX = 14, 27
 _CRITICAL_DAYS_MIN = 28
-_CRITICAL_VISIT_MIN = 3
 
 
-def _bucket(days_since: int, visit_count: int) -> str | None:
+def _bucket(days_since: int) -> str:
+    """Always returns one of the three buckets -- no more visit-count gate
+    (dropped 2026-09-16, Bill's call: every listed member should land in a
+    visible box so Current+At Risk+Critical always sums to the full
+    roster, rather than a rare old first-timer silently falling through
+    all three)."""
     if _CURRENT_DAYS_MIN <= days_since <= _CURRENT_DAYS_MAX:
         return "current"
     if _AT_RISK_DAYS_MIN <= days_since <= _AT_RISK_DAYS_MAX:
         return "at_risk"
-    if days_since >= _CRITICAL_DAYS_MIN and visit_count >= _CRITICAL_VISIT_MIN:
-        return "critical"
-    return None
+    return "critical"
 
 
 def _raw_rows() -> list:
     """Every non-excluded member with at least one attendance record, plus
-    their name, raw members.deacon value, last_seen, and total visit count."""
+    their name, raw members.deacon value, last_seen, and total visit count.
+
+    2026-09-16 bug fix: this used to gate on `m.status != 'inactive'`, but
+    `status` is a membership-type label (only ever 'member'/'visitor' in
+    live data) -- not an activity flag, so that condition was always true
+    and did nothing. The real inactive flag is `m.active` (set to 0 via
+    wtsn.me/cat/attendance's Member Management panel), which is what
+    _member_engagement_tiers() below already correctly checks -- meaning
+    someone marked Inactive would silently vanish from Consistency but
+    keep showing up here. Switched to `m.active = 1` so both sections of
+    the report agree on who counts as active."""
     with _conn() as conn:
         return conn.execute(
             """
@@ -130,7 +143,7 @@ def _raw_rows() -> list:
                      )
                    ) AS visit_count
             FROM members m
-            WHERE m.status != 'inactive'
+            WHERE m.active = 1
               AND (m.shepherding_exempt IS NULL OR m.shepherding_exempt = 0)
               AND (m.member_status IS NULL OR m.member_status NOT IN ('deceased', 'disconnected', 'non_local', 'snowbird'))
               AND (
@@ -171,7 +184,7 @@ def build_deacon_group_counts() -> list[dict]:
 
         target["total"] += 1
         days_since = (today - date.fromisoformat(r["last_seen"])).days
-        bucket = _bucket(days_since, r["visit_count"])
+        bucket = _bucket(days_since)
         if bucket == "current":
             target["current"] += 1
         elif bucket == "at_risk":
@@ -192,31 +205,41 @@ def _last_name_key(name: str) -> str:
     return parts[-1].lower() if parts else ""
 
 
-_BUCKET_ORDER = {"critical": 0, "at_risk": 1, "current": 2, None: 3}
+_BUCKET_ORDER = {"critical": 0, "at_risk": 1, "current": 2}
 
 
 def _member_engagement_tiers(conn) -> dict:
-    """{member_id: 'consistent'|'active'|'occasional'|'lapsed'|None} -- same
-    last-8/last-24-service-date visit-count thresholds as
-    jobs/connect_cards/state_of_church.py's _engagement_tiers(), just kept
-    per-member instead of summed into a weekly aggregate, so the deacon app
-    can show the same 8-week engagement classification Watson emails in the
-    State of the Church report. None means the member falls outside all four
-    tiers (no attendance in the last 24 service dates either)."""
+    """{member_id: 'consistent'|'active'|'occasional'|'lapsed'} -- last-8-
+    service-date visit-count thresholds, loosely based on
+    jobs/connect_cards/state_of_church.py's _engagement_tiers() but
+    diverged 2026-09-16 (Bill's call, deacon app only -- state_of_church.py
+    is untouched):
+      - counts connect_cards as a visit alongside attendance (a UNION of
+        both, same as _raw_rows()'s last_seen/visit_count above), since the
+        Last Sunday bucket already credits a connect card as being seen --
+        Consistency previously ignored connect_cards entirely, so someone
+        with connect-card-only history could show as "Current" up top but
+        be invisible down here.
+      - always returns one of the four tiers (no more None/"outside all
+        tiers" case, which used to require a last-24-service-date check to
+        rule out) -- last8 == 0 is now just Lapsed, so Consistent+Active+
+        Occasional+Lapsed always sums to the full roster, matching the
+        Last Sunday buckets' behavior above."""
     rows = conn.execute(
         """
-        WITH last8 AS (
-            SELECT DISTINCT service_date FROM attendance ORDER BY service_date DESC LIMIT 8
+        WITH visits AS (
+            SELECT member_id, service_date FROM attendance
+            UNION
+            SELECT member_id, service_date FROM connect_cards
         ),
-        last24 AS (
-            SELECT DISTINCT service_date FROM attendance ORDER BY service_date DESC LIMIT 24
+        last8 AS (
+            SELECT DISTINCT service_date FROM visits ORDER BY service_date DESC LIMIT 8
         )
         SELECT
             m.id,
-            SUM(CASE WHEN a.service_date IN (SELECT service_date FROM last8)  THEN 1 ELSE 0 END) AS last8_count,
-            SUM(CASE WHEN a.service_date IN (SELECT service_date FROM last24) THEN 1 ELSE 0 END) AS last24_count
+            SUM(CASE WHEN v.service_date IN (SELECT service_date FROM last8)  THEN 1 ELSE 0 END) AS last8_count
         FROM members m
-        LEFT JOIN attendance a ON a.member_id = m.id
+        LEFT JOIN visits v ON v.member_id = m.id
         WHERE m.active = 1
         GROUP BY m.id
         """
@@ -224,17 +247,15 @@ def _member_engagement_tiers(conn) -> dict:
 
     tiers = {}
     for r in rows:
-        last8, last24 = r["last8_count"] or 0, r["last24_count"] or 0
+        last8 = r["last8_count"] or 0
         if last8 >= 6:
             tiers[r["id"]] = "consistent"
         elif 3 <= last8 <= 5:
             tiers[r["id"]] = "active"
         elif 1 <= last8 <= 2:
             tiers[r["id"]] = "occasional"
-        elif last8 == 0 and last24 > 0:
-            tiers[r["id"]] = "lapsed"
         else:
-            tiers[r["id"]] = None
+            tiers[r["id"]] = "lapsed"
     return tiers
 
 
@@ -243,20 +264,20 @@ def build_deacon_group_names() -> list[dict]:
     phone, engagement}, ...]}, ...] -- one row per real deacon (same
     list_deacons() order as build_deacon_group_counts()), plus a trailing
     Unassigned row. Every non-excluded member with attendance history
-    appears exactly once, under `bucket` (None = the rare case of an old
-    first-timer that doesn't clear the critical visit-count gate; everyone
-    else gets an explicit current/at_risk/critical value). `id` and
-    `last_seen` (raw ISO date) power the
+    appears exactly once, always under one of the three current/at_risk/
+    critical `bucket` values (see _bucket()) -- no None case since
+    2026-09-16. `id` and `last_seen` (raw ISO date) power the
     "update last seen" date-picker on wtsn.me/cat/shepherdingreport (see
     elder_shepherding_report_web.py's set_last_seen route); `days_since` is
     the exact day count the coarse `bucket` is derived from, shown as a
     precise week count in that same UI instead of the bucket's range label.
     `email`/`phone` are raw members.* values (None if blank) -- power the
-    call/text/email contact icons. `engagement` is the same
-    consistent/active/occasional/lapsed/None 8-week-window classification
-    state_of_church.py emails weekly, computed per-member by
-    _member_engagement_tiers(). None of these five are used in the Telegram
-    message. Each group's members are pre-sorted worst-bucket-first, then
+    call/text/email contact icons. `engagement` is the consistent/active/
+    occasional/lapsed 8-week-window classification computed per-member by
+    _member_engagement_tiers() (diverged from state_of_church.py's version
+    2026-09-16, see that function's docstring). None of these five are
+    used in the Telegram message. Each group's members are pre-sorted
+    worst-bucket-first, then
     by last name, so the page renders top to bottom with no client-side
     sort. Powers wtsn.me/cat/shepherdingreport -- kept separate from
     build_deacon_group_counts() because Telegram's character limit is the
@@ -278,7 +299,7 @@ def build_deacon_group_names() -> list[dict]:
             continue
 
         days_since = (today - date.fromisoformat(r["last_seen"])).days
-        bucket = _bucket(days_since, r["visit_count"])
+        bucket = _bucket(days_since)
         target["members"].append({
             "id": r["id"],
             "name": r["name"],
