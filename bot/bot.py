@@ -2997,7 +2997,7 @@ def _extract_team_lookup(text: str) -> tuple[str, str] | None:
     # mistaken for an attend verb. Mirrors cdb_query.py's identical two-branch
     # split for the Team Chat path (added 2026-09-15, same request).
     m = re.search(
-        r"when\s+(?:was|did)\s+(?:the\s+last\s+time\s+)?(\w+(?:\s+\w+)??)\s+"
+        r"when\s+(?:was|is|did)\s+(?:the\s+last\s+time\s+)?(\w+(?:\s+\w+)??)\s+"
         r"(?:last\s+)?miss(?:ed)?(?:\s+church)?\b",
         text,
         re.IGNORECASE,
@@ -3015,7 +3015,7 @@ def _extract_team_lookup(text: str) -> tuple[str, str] | None:
         # Mitchell" (bug found 2026-09-03 testing the new Telegram
         # natural-language contact lookup). "visit(?:ed)?" joined the verb
         # list 2026-09-12.
-        r"when\s+(?:was|did)\s+(?:the\s+last\s+time\s+)?(\w+(?:\s+\w+)??)\s+"
+        r"when\s+(?:was|is|did)\s+(?:the\s+last\s+time\s+)?(\w+(?:\s+\w+)??)\s+"
         r"(?:last\s+)?(?:come|came|attend(?:ed)?|visit(?:ed)?|showed?\s+up|was\s+(?:here|at\s+church))",
         text,
         re.IGNORECASE,
