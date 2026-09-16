@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-09-15*
+*Generated: 2026-09-16*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -99,7 +99,10 @@ data/
     66e0844b7fab4e0a8bb386db8504deac.png
     9eca6f54ecff491dbed2470fd0b3d196.png
   congregation.db
+  congregation.db-shm
+  congregation.db-wal
   congregation.db.bak_before_orphan_delete_20260906_070048
+  congregation.db.bak_zipcheck_20260915
   cover_images/
     cover_1.jpg
     cover_10.jpg
@@ -167,6 +170,7 @@ data/
     img_a_lighthouse_at_sunset_1783180276.jpg
   imports/
     Deacon-Directory.xlsx
+    Subsplash Contacts 09-15-2026.csv
     catalyst_contacts2.csv
     church_contacts.csv
     deacon_directory_clean.csv
@@ -4733,6 +4737,7 @@ jobs/
     security_monitor.py
   analytics/
     __init__.py
+    attendance_reply.py
     claude_spend_daily_report.py
     connect_card_rollup.py
     data_chat.py
@@ -4847,7 +4852,6 @@ jobs/
     wordlist.txt
   congregation/
     __init__.py
-    _oneoff_donna_family_structure_request.py
     attendance_web.py
     batch_intake.py
     birthday_daily_alert.py
@@ -4859,11 +4863,14 @@ jobs/
     elder_shepherding_report.py
     elder_shepherding_report_web.py
     family_edit.py
+    family_report.py
     import_deacon_directory.py
+    import_subsplash_contacts.py
     init_db.py
     member_match.py
     migrate_deacon_pins.py
     migrate_deacon_visible_views.py
+    migrate_gender_and_spouse_roles.py
     migrate_household_role.py
     migrations_archive/
       migrate_deacon_directory.py
@@ -4871,6 +4878,7 @@ jobs/
       migrate_inactive_deacon.py
       migrate_leadership_roles.py
       migrate_reparse.py
+    notify_subsplash_fuzzy_review.py
     papercards_web.py
     set_deacon_pin.py
     shepherding_report_ready.py
@@ -4968,6 +4976,7 @@ jobs/
     docs_sync.py
     error_analyzer.py
     file_map.py
+    fix_log.py
     fix_style.py
     git_sync.py
     git_tools.py
@@ -5100,6 +5109,7 @@ jobs/
     __init__.py
     api.py
     routes.py
+    where_was_i.py
   marketing/
     __init__.py
     seo_tools.py
@@ -6227,6 +6237,7 @@ memory/
   working.md
 notes/
   .gitkeep
+  team_chat_conversational_memory_spec.md
   wtsn-me-public-tools-spec.md
 prompts/
   cleanup.md
@@ -6235,6 +6246,7 @@ prompts/
 requirements.txt
 run.sh
 scripts/
+  send_donna_zip_email_once.py
   watson_recover.sh
   wcky_meet_reauth.py
 tests/
@@ -6328,6 +6340,7 @@ content/
     2026-09-08-where-joy-actually-comes-from.md
     2026-09-10-chains-and-confidence.md
     2026-09-12-partners-not-spectators.md
+    2026-09-15-when-the-wrong-motive-still-preaches-the-truth.md
     the-flashlight-of-your-focus.md
     where-your-treasure-is.md
 db/
@@ -6935,6 +6948,8 @@ src/
               route.ts
             spouse/
               route.ts
+            unlink/
+              route.ts
           list/
             route.ts
           member/
@@ -6943,6 +6958,8 @@ src/
                 [noteId]/
                   route.ts
                 route.ts
+              route.ts
+            create/
               route.ts
           roster/
             route.ts
@@ -7037,6 +7054,7 @@ src/
       shepherdingreport/
         AutoThemeShell.tsx
         GroupList.tsx
+        ShepherdingStats.tsx
         apple-icon.jpg
         icon.jpg
         page.tsx
@@ -7066,6 +7084,7 @@ src/
     deaconTheme.ts
     requireLiveTool.ts
     shepherdingReport.ts
+    shepherdingReportShared.ts
     socialAuth.ts
     useAutoTheme.ts
     validation.ts
