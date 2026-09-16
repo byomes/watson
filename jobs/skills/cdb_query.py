@@ -74,6 +74,17 @@ _MONTH_NAMES = {
 }
 
 
+# Matches "how many people/members/folks (have) attended/came/showed up" --
+# the literal-substring trigger lists elsewhere in this file (e.g. 'how many
+# attended') miss this whenever a word sits between "how many" and the verb,
+# which is a completely normal way to phrase the question ("how many people
+# have attended..."). Found live 2026-09-16: exactly this phrasing fell
+# through the COMBINED + CUMULATIVE ATTENDANCE block below and the single-
+# Sunday HOW MANY ATTENDED block, landing on the Ollama SQL-generation
+# fallback, which is far less reliable (returned a bare "0" in production).
+_COUNT_ATTENDED_RE = re.compile(r"how many\b.{0,25}\b(attended|came|showed up|were there)\b")
+
+
 def _last_sunday() -> str:
     today = date.today()
     days_since_saturday = (today.weekday() - 5) % 7
@@ -202,13 +213,14 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
     # _span_weeks names an actual multi-week range (2-6 -- see date-range
     # block above); a single-Sunday question has no such ambiguity (the two
     # numbers are identical) and stays on the simpler COUNT below. Requires
-    # the noun "attendance" specifically (not "attended"/"came"/"showed
-    # up") and excludes "who"/"list" so a "who attended in the last 3 weeks"
-    # or "list attendance for the last 4 weeks" question still falls through
-    # to WHO ATTENDED below instead of being swallowed as a count -- see the
-    # fast-path phrasing collision feedback memory this file already follows
-    # elsewhere (e.g. the HYBRID MEMBERS trigger comment above).
-    if _span_weeks and 'who' not in q and 'list' not in q and 'attendance' in q:
+    # the noun "attendance" or a "how many ... attended/came" count shape
+    # (see _COUNT_ATTENDED_RE) and excludes "who"/"list" so a "who attended
+    # in the last 3 weeks" or "list attendance for the last 4 weeks"
+    # question still falls through to WHO ATTENDED below instead of being
+    # swallowed as a count -- see the fast-path phrasing collision feedback
+    # memory this file already follows elsewhere (e.g. the HYBRID MEMBERS
+    # trigger comment above).
+    if _span_weeks and 'who' not in q and 'list' not in q and ('attendance' in q or _COUNT_ATTENDED_RE.search(q)):
         campus_filter = f"a.campus = '{campus}' AND " if campus else ""
         campus_literal = f"'{campus}'" if campus else "NULL"
         return (
@@ -218,7 +230,10 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
         )
 
     # HOW MANY ATTENDED (count)
-    if any(w in q for w in ['how many attended', 'how many came', 'total attendance', 'attendance count', 'number who attended', 'sunday attendance', 'service attendance', 'how many showed up', 'how many people were there']):
+    # _COUNT_ATTENDED_RE catches phrasings like "how many people have
+    # attended" that the substring list below misses (word between "how
+    # many" and the verb) -- same fix as the multi-week block above.
+    if _COUNT_ATTENDED_RE.search(q) or any(w in q for w in ['how many attended', 'how many came', 'total attendance', 'attendance count', 'number who attended', 'sunday attendance', 'service attendance', 'how many showed up', 'how many people were there']):
         if campus:
             return f"SELECT COUNT(DISTINCT a.member_id) as total FROM attendance a WHERE a.campus = '{campus}' AND {a_date}"
         else:
