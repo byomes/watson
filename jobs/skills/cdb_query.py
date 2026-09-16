@@ -558,6 +558,30 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
             f"ORDER BY cc.service_date DESC"
         )
 
+    # BARE NAME LOOKUP -- checked last, after every trigger-phrase pattern
+    # above (including MEMBER LOOKUP BY NAME) has missed. A Team Chat leader
+    # sometimes just types a person's name with no verb at all ("Melanie
+    # Yomes") -- MEMBER LOOKUP BY NAME above requires an explicit trigger
+    # phrase ('who is', 'look up', 'tell me about', ...), which a bare name
+    # doesn't have, so this used to fall all the way through to the paid LLM
+    # path for a question that isn't really a data question at all -- it's
+    # just "look this person up". Recognize the shape on the ORIGINAL
+    # (un-lowered) question instead of adding more trigger phrases: 2-4
+    # Title-Case words, letters/apostrophe/hyphen only, nothing else in the
+    # message. Reuses MEMBER LOOKUP BY NAME's exact query -- same read-only
+    # lookup, just a different way of triggering it. A false hit on a
+    # capitalized non-name phrase (e.g. "Good Morning") just returns "No
+    # results found" since no member has that name -- no write, no risk.
+    if re.fullmatch(r"[A-Z][a-z'-]*(?:\s+[A-Z][a-z'-]*){1,3}", question.strip()):
+        name = question.strip().strip('.,?! ')
+        if name:
+            return (
+                f"SELECT m.name, m.email, m.phone, m.status, m.campus_preference, m.first_visit_date "
+                f"FROM members m "
+                f"WHERE m.name LIKE '%{name}%' AND m.active = 1 AND m.name NOT LIKE '%CAMPUS%' AND m.name NOT LIKE '%SYSTEM%' AND m.name NOT LIKE '%TEST%' "
+                f"ORDER BY m.name"
+            )
+
     # ACTIVE MEMBERS COUNT OR LIST
     if any(w in q for w in ['how many members', 'how many active', 'total members', 'member count',
                              'list all members', 'all active members', 'active members',
