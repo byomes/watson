@@ -92,3 +92,7 @@ incoming/
 
 # Deployment/build artifacts
 *.zip
+
+# Pre-migration safety backups — may contain plaintext data superseded by a
+# later encryption pass, never commit
+data/security_backups/

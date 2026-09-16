@@ -16,6 +16,7 @@ log = logging.getLogger(__name__)
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from cryptography.fernet import Fernet, InvalidToken
 from flask import Flask, Response, abort, g, jsonify, redirect, render_template, request, send_file, session, stream_with_context, url_for
 from flask_cors import CORS
 from jobs.people.api import congregation_list, people_create, people_delete, people_get, people_list, people_update
@@ -5459,8 +5460,43 @@ def lock_vault() -> None:
         log.error("lock_vault telegram notify failed: %s", exc)
 
 
+# Vault password field is encrypted at rest with a Fernet key (WATSON_VAULT_KEY in
+# .env, added 2026-09-16 after a security review found the `logins` table stored
+# passwords in plaintext with no auth on the read/unlock routes). All /api/logins*
+# routes require an admin session on top of that — the old "vault lock" boolean
+# alone was bypassable via a direct POST to /api/logins/unlock.
+_VAULT_KEY = os.getenv("WATSON_VAULT_KEY")
+_vault_fernet = Fernet(_VAULT_KEY.encode()) if _VAULT_KEY else None
+
+
+def _encrypt_vault_password(plain):
+    if not plain or not _vault_fernet:
+        return plain
+    return _vault_fernet.encrypt(plain.encode()).decode()
+
+
+def _decrypt_vault_password(value):
+    if not value or not _vault_fernet:
+        return value
+    try:
+        return _vault_fernet.decrypt(value.encode()).decode()
+    except InvalidToken:
+        # Pre-migration plaintext row, or key mismatch — surface as-is rather than 500.
+        return value
+
+
+def _decrypt_login_row(row):
+    d = dict(row)
+    if "password" in d:
+        d["password"] = _decrypt_vault_password(d["password"])
+    return d
+
+
 @app.route("/api/logins/status")
 def logins_status():
+    redir = _admin_required()
+    if redir:
+        return jsonify({"error": "not authenticated"}), 401
     row = _db().execute("SELECT locked FROM vault_status WHERE id = 1").fetchone()
     locked = bool(row["locked"]) if row else False
     return jsonify({"locked": locked})
@@ -5468,6 +5504,9 @@ def logins_status():
 
 @app.route("/api/logins/challenge")
 def logins_challenge():
+    redir = _admin_required()
+    if redir:
+        return jsonify({"error": "not authenticated"}), 401
     exclude = request.args.get("exclude", type=int)
     db = _db()
     if exclude is not None:
@@ -5490,6 +5529,9 @@ def logins_challenge():
 
 @app.route("/api/logins/challenge/verify", methods=["POST"])
 def logins_challenge_verify():
+    redir = _admin_required()
+    if redir:
+        return jsonify({"error": "not authenticated"}), 401
     data = request.get_json(force=True) or {}
     response = (data.get("response") or "").strip().lower()
     stored   = (_active_challenge.get("response") or "").strip().lower()
@@ -5504,6 +5546,9 @@ def logins_challenge_verify():
 
 @app.route("/api/logins/unlock", methods=["POST"])
 def logins_unlock():
+    redir = _admin_required()
+    if redir:
+        return jsonify({"error": "not authenticated"}), 401
     _db().execute("UPDATE vault_status SET locked = 0, locked_at = NULL WHERE id = 1")
     _db().commit()
     return jsonify({"ok": True})
@@ -5511,12 +5556,18 @@ def logins_unlock():
 
 @app.route("/api/logins/lock", methods=["POST"])
 def logins_lock():
+    redir = _admin_required()
+    if redir:
+        return jsonify({"error": "not authenticated"}), 401
     lock_vault()
     return jsonify({"ok": True})
 
 
 @app.route("/api/logins")
 def logins_list():
+    redir = _admin_required()
+    if redir:
+        return jsonify({"error": "not authenticated"}), 401
     row = _db().execute("SELECT locked FROM vault_status WHERE id = 1").fetchone()
     if row and row["locked"]:
         return jsonify({"locked": True})
@@ -5524,43 +5575,54 @@ def logins_list():
         "SELECT id, label, username, password, url, notes, created_at, updated_at "
         "FROM logins ORDER BY label COLLATE NOCASE"
     ).fetchall()
-    return jsonify([dict(r) for r in rows])
+    return jsonify([_decrypt_login_row(r) for r in rows])
 
 
 @app.route("/api/logins", methods=["POST"])
 def logins_create():
+    redir = _admin_required()
+    if redir:
+        return jsonify({"error": "not authenticated"}), 401
     data = request.get_json(force=True) or {}
     label = (data.get("label") or "").strip()
     if not label:
         return jsonify({"error": "label required"}), 400
     cur = _db().execute(
         "INSERT INTO logins (label, username, password, url, notes) VALUES (?, ?, ?, ?, ?)",
-        (label, data.get("username") or None, data.get("password") or None,
+        (label, data.get("username") or None, _encrypt_vault_password(data.get("password") or None),
          data.get("url") or None, data.get("notes") or None),
     )
     _db().commit()
     row = _db().execute("SELECT * FROM logins WHERE id = ?", (cur.lastrowid,)).fetchone()
-    return jsonify(dict(row)), 201
+    return jsonify(_decrypt_login_row(row)), 201
 
 
 @app.route("/api/logins/<int:login_id>", methods=["PUT"])
 def logins_update(login_id):
+    redir = _admin_required()
+    if redir:
+        return jsonify({"error": "not authenticated"}), 401
     data = request.get_json(force=True) or {}
     allowed = {"label", "username", "password", "url", "notes"}
     fields = {k: v for k, v in data.items() if k in allowed}
     if not fields:
         return jsonify({"error": "nothing to update"}), 400
+    if "password" in fields:
+        fields["password"] = _encrypt_vault_password(fields["password"])
     set_clause = ", ".join(f"{k} = ?" for k in fields) + ", updated_at = datetime('now')"
     _db().execute(
         f"UPDATE logins SET {set_clause} WHERE id = ?", (*fields.values(), login_id)
     )
     _db().commit()
     row = _db().execute("SELECT * FROM logins WHERE id = ?", (login_id,)).fetchone()
-    return jsonify(dict(row) if row else {"error": "not found"})
+    return jsonify(_decrypt_login_row(row) if row else {"error": "not found"})
 
 
 @app.route("/api/logins/<int:login_id>", methods=["DELETE"])
 def logins_delete(login_id):
+    redir = _admin_required()
+    if redir:
+        return jsonify({"error": "not authenticated"}), 401
     _db().execute("DELETE FROM logins WHERE id = ?", (login_id,))
     _db().commit()
     return jsonify({"ok": True})
