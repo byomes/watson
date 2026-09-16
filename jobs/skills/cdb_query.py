@@ -398,15 +398,22 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
     if _last_seen_m:
         name = _last_seen_m.group(1).strip()
         if name:
+            # deacon_visible_connect_cards, not the raw connect_cards table --
+            # jobs/analytics/data_chat.py's _ALLOWED_TABLES["attendance"]
+            # whitelists only the view (it nulls out a non-public
+            # prayer_request), so a query naming the raw table gets rejected
+            # by _validate_sql and silently falls through to the paid LLM
+            # path -- same service_date/campus columns either way, this
+            # query never touches prayer_request.
             return (
                 f"SELECT m.name, "
                 f"(SELECT MAX(service_date) FROM ("
                 f"  SELECT service_date FROM attendance WHERE member_id = m.id"
-                f"  UNION ALL SELECT service_date FROM connect_cards WHERE member_id = m.id"
+                f"  UNION ALL SELECT service_date FROM deacon_visible_connect_cards WHERE member_id = m.id"
                 f")) as last_attended, "
                 f"(SELECT campus FROM ("
                 f"  SELECT service_date, campus FROM attendance WHERE member_id = m.id"
-                f"  UNION ALL SELECT service_date, campus FROM connect_cards WHERE member_id = m.id"
+                f"  UNION ALL SELECT service_date, campus FROM deacon_visible_connect_cards WHERE member_id = m.id"
                 f") ORDER BY service_date DESC LIMIT 1) as campus "
                 f"FROM members m "
                 f"WHERE m.name LIKE '%{name}%' AND m.active = 1"
