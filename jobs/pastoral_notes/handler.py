@@ -130,13 +130,19 @@ def _append_skip_keyword(title: str) -> None:
         f.write(f"\n{keyword}")
 
 
-async def _send_telegram(text: str) -> None:
+async def _send_telegram(text: str) -> int | None:
     if vacation_gate("normal", "jobs.pastoral_notes.handler", text):
-        return
+        return None
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    await asyncio.to_thread(
+    resp = await asyncio.to_thread(
         requests.post, url, json={"chat_id": TELEGRAM_CHAT_ID, "text": text}, timeout=10
     )
+    try:
+        resp.raise_for_status()
+        return resp.json().get("result", {}).get("message_id")
+    except Exception as exc:
+        log.warning("Telegram send failed: %s", exc)
+        return None
 
 
 def _get_active_pending() -> dict | None:
@@ -304,7 +310,15 @@ async def _process_note_text(row: dict, note_text: str, share: bool = False) -> 
             "appointment_time": appointment_time,
             "share": share,
         }
-        await _send_telegram(f"Is this about {top['name']}? Reply yes or no.")
+        tg_msg_id = await _send_telegram(f"Is this about {top['name']}? Reply yes or no.")
+        if tg_msg_id:
+            try:
+                from jobs.telegram.pending import store_pending_action
+                store_pending_action(
+                    "pastoral_note_confirm", tg_msg_id, {"event_id": event_id},
+                )
+            except Exception as exc:
+                log.warning("Failed to store tg_pending_action for note confirmation: %s", exc)
         return  # Don't extract tasks yet — wait for confirmation
 
     else:
@@ -382,8 +396,18 @@ async def handle_confirmation_reply(reply_text: str, event_id: str) -> bool:
     return True
 
 
-async def handle_notes_reply(reply_text: str) -> None:
-    """Entry point called by the bot for any incoming text while a notes_pending row is active."""
+async def handle_notes_reply(reply_text: str, notes_pending_id: int | None = None) -> None:
+    """Entry point called by the bot for a reply to a pastoral-notes prompt.
+
+    `notes_pending_id` pins this to the specific notes_pending row Bill
+    actually replied to (from the reply-threaded tg_pending_actions
+    payload). Without it, two appointments ending back-to-back would both
+    queue a prompt, and a reply to either one would silently land on
+    whichever was most recently prompted -- wrong appointment, same bug
+    class as replies not being reply-gated at all. Only omitted for a
+    reply to the consolidated multi-item reminder, which has no single
+    row to pin to and instead falls back to the numbered/most-recent path.
+    """
     lower = reply_text.strip().lower()
 
     # Check if this is a yes/no response to any pending ambiguous match
@@ -398,8 +422,17 @@ async def handle_notes_reply(reply_text: str) -> None:
         await _handle_numbered_reply(parsed)
         return
 
-    # Single-row fallback
-    pending = _get_active_pending()
+    if notes_pending_id is not None:
+        with get_db() as conn:
+            pending = conn.execute(
+                """SELECT id, event_id, appointment_title, appointment_time
+                   FROM notes_pending
+                   WHERE id = ? AND status = 'pending'""",
+                (notes_pending_id,),
+            ).fetchone()
+    else:
+        # Single-row fallback (e.g. reply to the consolidated reminder)
+        pending = _get_active_pending()
     if not pending:
         return
 

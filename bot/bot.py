@@ -1265,17 +1265,15 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     chat_id = update.effective_chat.id
 
-    # Pastoral notes reply handling
-    from jobs.pastoral_notes.db import get_db
-    _notes_db = get_db()
-    _pending_note = _notes_db.execute(
-        "SELECT * FROM notes_pending WHERE status='pending' ORDER BY prompted_at DESC LIMIT 1"
-    ).fetchone()
-    if _pending_note:
-        from jobs.pastoral_notes.handler import handle_notes_reply
-        await handle_notes_reply(text_clean.strip())
-        log.info("DEBUG pre-check: pastoral notes reply")
-        return
+    # Pastoral notes are captured ONLY via the reply-threaded path above
+    # (action_type == "pastoral_note" / "pastoral_note_confirm" in
+    # _route_tg_pending_reply) -- i.e. only when Bill actually replies to
+    # the specific prompt/reminder/confirmation message Watson sent. There
+    # is deliberately no unconditional "a note is pending, so treat this
+    # message as its reply" fallback here: that used to swallow unrelated
+    # messages (e.g. attendance questions) sent while any appointment note
+    # was outstanding, routing them to pastoral_notes instead of the fast
+    # path / chat. See bug fixed 2026-09-16.
 
     # Email reply approval — "send" / "change: [text]" / "cancel"
     if text_lower.strip() == "go":
@@ -3876,8 +3874,15 @@ async def _route_tg_pending_reply(
 
     if action_type == "pastoral_note":
         from jobs.pastoral_notes.handler import handle_notes_reply
-        await handle_notes_reply(text)
+        await handle_notes_reply(text, notes_pending_id=payload.get("notes_pending_id"))
         mark_done(pending_id)
+        return True
+
+    if action_type == "pastoral_note_confirm":
+        from jobs.pastoral_notes.handler import handle_confirmation_reply
+        consumed = await handle_confirmation_reply(text, payload.get("event_id"))
+        if consumed:
+            mark_done(pending_id)
         return True
 
     if action_type == "archive_classify":
