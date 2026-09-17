@@ -7,20 +7,29 @@ regularly cover for each other when one is sick or traveling, and a scoped
 view would break that. See jobs/congregation/deacon_reports.py's docstring
 for the per-deacon EMAIL reports, which are scoped and remain unchanged.
 
-Auth: X-Watson-Key matching DEACONS_API_KEY (a DEDICATED key, not
-DEACON_ADMIN_API_KEY or any other consumer's, per this codebase's
-one-key-per-external-consumer convention). Like every other /cat/ tool, X-Watson-Key still gates this blueprint's
-routes at the service level (matching wtsn.me/cat/attendance and
-wtsn.me/cat/duplicates) -- unified roster access is unchanged.
+Auth is two independent layers, both required on every route except
+verify_pin/logout themselves:
+  1. X-Watson-Key matching DEACONS_API_KEY (a DEDICATED key, not
+     DEACON_ADMIN_API_KEY or any other consumer's, per this codebase's
+     one-key-per-external-consumer convention) -- proves the request came
+     from the Next.js app (or whoever holds that one static secret).
+  2. X-Deacon-Session, an opaque per-deacon token (deacon_sessions.py)
+     that can ONLY be minted as a side effect of a real PIN check inside
+     verify_pin below -- proves an actual deacon logged in. Added
+     2026-09-17 after a security review found layer 1 alone was
+     sufficient for full read/write access to the whole roster if
+     DEACONS_API_KEY ever leaked; see deacon_sessions.py's docstring.
 
-Per-deacon identity (2026-09-07) sits on top of that, one layer up: the
-Next.js app (deaconAuth.ts) now gates human login with a PIN checked
-against the deacon_pins table via /api/cat/deacons/verify_pin below, and
-attaches the logged-in deacon's name to deacon_notes.author_deacon so
-notes are attributable. Every deacon currently shares one PIN (1303) --
-verify_pin can return multiple matching names for one PIN, which the
-frontend resolves with a "who are you?" picker -- until Bill hands out
-individual PINs via jobs/congregation/set_deacon_pin.py.
+Per-deacon identity (2026-09-07) is what layer 2 is built on: the
+Next.js app (deaconAuth.ts) gates human login with a PIN checked against
+the deacon_pins table via /api/cat/deacons/verify_pin below, and every
+deacon now has their own individual PIN (jobs/congregation/
+set_deacon_pin.py) -- verify_pin can still return multiple matching
+names if two ever collide, which the frontend resolves with a "who are
+you?" picker, but that's no longer the expected case. deacon_notes.
+author_deacon and family_edit's sender are taken from the resolved
+X-Deacon-Session token, never a client-supplied name, so notes/family
+edits stay attributable even to someone holding a leaked API key alone.
 
 Because there is no per-user login, leadership-only prayer requests
 (prayer_requests.leadership_only = 1) are deliberately NEVER returned by
@@ -57,7 +66,7 @@ from flask import Blueprint, jsonify, request
 
 from jobs.connect_cards.reports import _conn
 from jobs.connect_cards.shepherding_report import _STEP_NAMES, _cutoff
-from jobs.congregation import deacon_login_lockout
+from jobs.congregation import deacon_login_lockout, deacon_sessions
 from jobs.congregation.deacon_reports import (
     EXCLUDED_DEACON_VALUES,
     _PRAYER_WINDOW_DAYS,
@@ -190,8 +199,30 @@ def _require_key(f):
     return wrapper
 
 
+def _require_deacon_session(f):
+    """Second, independent credential on top of _require_key -- see
+    deacon_sessions.py's module docstring. Resolves X-Deacon-Session to a
+    deacon_name and stashes it on `request.deacon_name` for the view to use
+    as the authoritative "who is doing this" instead of trusting whatever
+    a client-supplied `sender`/`author_deacon` field in the JSON body says.
+    Order matters: apply @_require_key OUTERMOST (checked first) so a
+    request with neither credential gets the same generic 401 either way,
+    not a different response depending on decorator order."""
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        token = request.headers.get("X-Deacon-Session", "")
+        with _conn() as conn:
+            deacon_name = deacon_sessions.resolve(conn, token)
+        if not deacon_name:
+            return jsonify({"error": "unauthorized"}), 401
+        request.deacon_name = deacon_name
+        return f(*args, **kwargs)
+    return wrapper
+
+
 @deacons_web_bp.route("/api/cat/deacons/roster", methods=["GET"])
 @_require_key
+@_require_deacon_session
 def get_roster():
     with _conn() as conn:
         rows = conn.execute(
@@ -206,6 +237,7 @@ def get_roster():
 
 @deacons_web_bp.route("/api/cat/deacons/list", methods=["GET"])
 @_require_key
+@_require_deacon_session
 def get_deacon_list():
     return jsonify(list_deacons()), 200
 
@@ -250,7 +282,14 @@ def verify_pin():
     security review found -- the 4-digit PIN alone is only 10,000
     combinations). A locked IP gets `locked: true` back with no matches,
     without even touching the deacon_pins table -- see that module's
-    docstring for how it's cleared."""
+    docstring for how it's cleared.
+
+    On a match, also mints one opaque session token per matched name
+    (deacon_sessions.py) and returns them keyed by name in
+    `session_tokens` -- this is the ONLY place a token is ever issued, so
+    every other route's X-Deacon-Session requirement can't be satisfied
+    by the API key alone (2026-09-17, closing the gap where that shared
+    key was the sole check on every route)."""
     data = request.get_json(force=True) or {}
     pin = (data.get("pin") or "").strip()
     client_ip = (data.get("client_ip") or "").strip() or "unknown"
@@ -264,9 +303,11 @@ def verify_pin():
             rows = conn.execute("SELECT deacon_name, pin_hash FROM deacon_pins").fetchall()
             matches = [row["deacon_name"] for row in rows if _check_pin(pin, row["pin_hash"])]
 
+        session_tokens = {}
         if matches:
             deacon_login_lockout.record_success(conn, client_ip)
             just_locked = False
+            session_tokens = {name: deacon_sessions.create_token(conn, name) for name in matches}
         else:
             just_locked = deacon_login_lockout.record_failure(conn, client_ip)
 
@@ -277,11 +318,28 @@ def verify_pin():
     # above) so the exact attempt that trips the lock already tells the
     # frontend "too many attempts" instead of one more misleading "Wrong
     # PIN" before the lock shows up on the next try.
-    return jsonify({"matches": matches, "locked": just_locked}), 200
+    return jsonify({"matches": matches, "locked": just_locked, "session_tokens": session_tokens}), 200
+
+
+@deacons_web_bp.route("/api/cat/deacons/logout", methods=["POST"])
+@_require_key
+def logout():
+    """Invalidates one session token so a signed-out cookie can't still
+    be replayed directly against the API for the rest of its 30-day
+    life. No X-Deacon-Session requirement here (that would make it
+    impossible to log out with an already-expired/invalidated token) --
+    just the shared key, same as verify_pin."""
+    data = request.get_json(force=True) or {}
+    token = (data.get("session_token") or "").strip()
+    if token:
+        with _conn() as conn:
+            deacon_sessions.invalidate(conn, token)
+    return jsonify({"ok": True}), 200
 
 
 @deacons_web_bp.route("/api/cat/deacons/member/<int:member_id>", methods=["PATCH"])
 @_require_key
+@_require_deacon_session
 def update_member(member_id):
     data = request.get_json(force=True) or {}
     fields = {k: v for k, v in data.items() if k in _UPDATABLE_FIELDS}
@@ -326,10 +384,13 @@ def update_member(member_id):
 
 @deacons_web_bp.route("/api/cat/deacons/member/<int:member_id>/note", methods=["POST"])
 @_require_key
+@_require_deacon_session
 def add_deacon_note(member_id):
     data = request.get_json(force=True) or {}
     note = (data.get("note") or "").strip()
-    author_deacon = (data.get("author_deacon") or "").strip() or None
+    # From the verified session, never the request body -- a client with
+    # just the API key could otherwise attribute a note to any deacon.
+    author_deacon = request.deacon_name
     if not note:
         return jsonify({"error": "note is required"}), 400
 
@@ -352,6 +413,7 @@ def add_deacon_note(member_id):
 
 @deacons_web_bp.route("/api/cat/deacons/member/<int:member_id>/note/<int:note_id>", methods=["PATCH"])
 @_require_key
+@_require_deacon_session
 def edit_deacon_note(member_id, note_id):
     """Per Bill's 2026-09-08 request: any deacon-app user can edit any
     deacon note, same "unified roster, not scoped to their own people"
@@ -380,6 +442,7 @@ def edit_deacon_note(member_id, note_id):
 
 @deacons_web_bp.route("/api/cat/deacons/member/<int:member_id>/note/<int:note_id>", methods=["DELETE"])
 @_require_key
+@_require_deacon_session
 def delete_deacon_note(member_id, note_id):
     with _conn() as conn:
         existing = conn.execute(
@@ -419,11 +482,12 @@ def _roster_rows(conn, member_ids: list[int]) -> list[dict]:
 # household_role model these write to.
 @deacons_web_bp.route("/api/cat/deacons/family/spouse", methods=["POST"])
 @_require_key
+@_require_deacon_session
 def mark_family_spouse():
     data = request.get_json(force=True) or {}
     member_id, spouse_id = data.get("member_id"), data.get("spouse_id")
     spouse_role = data.get("spouse_role")
-    sender = (data.get("sender") or "").strip() or "Deacon App"
+    sender = request.deacon_name
     if not isinstance(member_id, int) or not isinstance(spouse_id, int):
         return jsonify({"error": "member_id and spouse_id are required"}), 400
     if spouse_role not in ("husband", "wife"):
@@ -441,10 +505,11 @@ def mark_family_spouse():
 
 @deacons_web_bp.route("/api/cat/deacons/family/child", methods=["POST"])
 @_require_key
+@_require_deacon_session
 def mark_family_child():
     data = request.get_json(force=True) or {}
     child_id, parent_id = data.get("child_id"), data.get("parent_id")
-    sender = (data.get("sender") or "").strip() or "Deacon App"
+    sender = request.deacon_name
     if not isinstance(child_id, int) or not isinstance(parent_id, int):
         return jsonify({"error": "child_id and parent_id are required"}), 400
 
@@ -465,10 +530,11 @@ def mark_family_child():
 # removing a PARENT chip detaches the card's own member, not the parent).
 @deacons_web_bp.route("/api/cat/deacons/family/unlink", methods=["POST"])
 @_require_key
+@_require_deacon_session
 def unlink_family_member():
     data = request.get_json(force=True) or {}
     member_id = data.get("member_id")
-    sender = (data.get("sender") or "").strip() or "Deacon App"
+    sender = request.deacon_name
     if not isinstance(member_id, int):
         return jsonify({"error": "member_id is required"}), 400
 
@@ -487,10 +553,11 @@ def unlink_family_member():
 # no household context. See family_edit.py::create_member_by_deacon.
 @deacons_web_bp.route("/api/cat/deacons/member/create", methods=["POST"])
 @_require_key
+@_require_deacon_session
 def create_family_member():
     data = request.get_json(force=True) or {}
     name = data.get("name")
-    sender = (data.get("sender") or "").strip() or "Deacon App"
+    sender = request.deacon_name
     if not isinstance(name, str) or not name.strip():
         return jsonify({"error": "name is required"}), 400
 
