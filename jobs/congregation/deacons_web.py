@@ -273,7 +273,11 @@ def verify_pin():
     if just_locked:
         _alert_login_locked(client_ip)
 
-    return jsonify({"matches": matches}), 200
+    # just_locked is reported here too (not just on the early-return path
+    # above) so the exact attempt that trips the lock already tells the
+    # frontend "too many attempts" instead of one more misleading "Wrong
+    # PIN" before the lock shows up on the next try.
+    return jsonify({"matches": matches, "locked": just_locked}), 200
 
 
 @deacons_web_bp.route("/api/cat/deacons/member/<int:member_id>", methods=["PATCH"])
