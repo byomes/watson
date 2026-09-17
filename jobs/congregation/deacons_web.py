@@ -46,6 +46,7 @@ Mount on the Watson dashboard app:
     from jobs.congregation.deacons_web import deacons_web_bp
     app.register_blueprint(deacons_web_bp)
 """
+import logging
 import os
 from datetime import date
 from functools import wraps
@@ -56,6 +57,7 @@ from flask import Blueprint, jsonify, request
 
 from jobs.connect_cards.reports import _conn
 from jobs.connect_cards.shepherding_report import _STEP_NAMES, _cutoff
+from jobs.congregation import deacon_login_lockout
 from jobs.congregation.deacon_reports import (
     EXCLUDED_DEACON_VALUES,
     _PRAYER_WINDOW_DAYS,
@@ -63,6 +65,8 @@ from jobs.congregation.deacon_reports import (
     list_deacons,
 )
 from jobs.congregation.elder_shepherding_report import _bucket, _member_engagement_tiers
+
+log = logging.getLogger(__name__)
 
 deacons_web_bp = Blueprint("deacons_web", __name__)
 
@@ -206,6 +210,31 @@ def get_deacon_list():
     return jsonify(list_deacons()), 200
 
 
+def _alert_login_locked(client_ip: str) -> None:
+    """Pings the same recipients as the Elder Shepherding Report (Bill,
+    Jim Bouchat, Bill Crook) when an IP gets locked out -- any of them can
+    clear it by telling Watson "unlock deacon login" (bot.py). Best-effort:
+    a Telegram hiccup here must never break the login response itself."""
+    try:
+        from core.database import get_connection
+        from jobs.congregation.elder_shepherding_report import RECIPIENT_NAMES
+        from jobs.telegram.send_to_person import send_to_person
+
+        message = (
+            f"⚠️ Deacon app login locked after {deacon_login_lockout.MAX_FAILED_ATTEMPTS} "
+            f"failed PIN attempts from {client_ip}. Message me \"unlock deacon login\" to clear it. - Watson"
+        )
+        with get_connection() as conn:
+            for name in RECIPIENT_NAMES:
+                row = conn.execute(
+                    "SELECT id FROM people WHERE name = ? COLLATE NOCASE", (name,)
+                ).fetchone()
+                if row:
+                    send_to_person(row["id"], message)
+    except Exception:
+        log.exception("Failed to send deacon-login-lockout alert")
+
+
 @deacons_web_bp.route("/api/cat/deacons/verify_pin", methods=["POST"])
 @_require_key
 def verify_pin():
@@ -214,14 +243,36 @@ def verify_pin():
     interim shared-PIN period -- the frontend disambiguates with a
     name picker when that happens. Never 401s on a wrong PIN -- an empty
     matches list IS the "wrong PIN" answer, since this route only ever
-    checks digits, not who's asking."""
+    checks digits, not who's asking.
+
+    Locks the calling IP out after deacon_login_lockout.MAX_FAILED_ATTEMPTS
+    consecutive wrong PINs (2026-09-16, closing a brute-force gap a
+    security review found -- the 4-digit PIN alone is only 10,000
+    combinations). A locked IP gets `locked: true` back with no matches,
+    without even touching the deacon_pins table -- see that module's
+    docstring for how it's cleared."""
     data = request.get_json(force=True) or {}
     pin = (data.get("pin") or "").strip()
-    matches = []
-    if pin:
-        with _conn() as conn:
+    client_ip = (data.get("client_ip") or "").strip() or "unknown"
+
+    with _conn() as conn:
+        if deacon_login_lockout.is_locked(conn, client_ip):
+            return jsonify({"matches": [], "locked": True}), 200
+
+        matches = []
+        if pin:
             rows = conn.execute("SELECT deacon_name, pin_hash FROM deacon_pins").fetchall()
-        matches = [row["deacon_name"] for row in rows if _check_pin(pin, row["pin_hash"])]
+            matches = [row["deacon_name"] for row in rows if _check_pin(pin, row["pin_hash"])]
+
+        if matches:
+            deacon_login_lockout.record_success(conn, client_ip)
+            just_locked = False
+        else:
+            just_locked = deacon_login_lockout.record_failure(conn, client_ip)
+
+    if just_locked:
+        _alert_login_locked(client_ip)
+
     return jsonify({"matches": matches}), 200
 
 

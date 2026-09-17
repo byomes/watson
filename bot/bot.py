@@ -1009,6 +1009,16 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     and _looks_like_family_report_request(_msg_text)
                 )
             )
+            # Deacon-app login unlock, added 2026-09-16 -- open to every
+            # onboarded leader (see _looks_like_unlock_login_request).
+            _unlock_login = (
+                bool(
+                    not _add_child and not _bday_update and not _mark_spouse
+                    and not _mark_child and not _assign and not _assign_incomplete
+                    and not _family_report
+                    and _looks_like_unlock_login_request(_msg_text)
+                )
+            )
             from jobs.telegram.leader_tool_usage import log_usage as _log_leader_tool_usage
             with get_connection() as _lc:
                 _log_leader_tool_usage(
@@ -1019,7 +1029,9 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                 "mark_child" if _mark_child else (
                                     "deacon_assign" if _assign else (
                                         "deacon_assign_incomplete" if _assign_incomplete else (
-                                            "family_report" if _family_report else "team_chat"
+                                            "family_report" if _family_report else (
+                                                "unlock_login" if _unlock_login else "team_chat"
+                                            )
                                         )
                                     )
                                 )
@@ -1039,6 +1051,8 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await _handle_deacon_assign(update, _leader_name, *_assign)
             elif _family_report:
                 await _handle_family_report(update, _leader_name)
+            elif _unlock_login:
+                await _handle_unlock_login(update)
             elif _assign_incomplete:
                 await update.message.reply_text(
                     "Who would you like to assign, and to which deacon? "
@@ -2345,6 +2359,35 @@ async def _handle_fix_log(update: Update) -> None:
     from jobs.dev.fix_log import format_fixes_reply
     reply = await asyncio.to_thread(format_fixes_reply, 10)
     await update.message.reply_text(reply)
+
+
+def _looks_like_unlock_login_request(text: str) -> bool:
+    """Loose match, same reasoning as _looks_like_family_report_request
+    above -- a yes/no trigger for clearing the deacon app's PIN-login
+    lockout (jobs.congregation.deacon_login_lockout), added 2026-09-16
+    alongside the 5-consecutive-failed-attempt lockout itself. Open to
+    every onboarded leader, not restricted to an allowlist -- same
+    default as family relationship marking above, since clearing a
+    lockout doesn't grant anyone access, it only resets a counter."""
+    low = text.lower()
+    return "unlock" in low and ("login" in low or "log in" in low or "deacon app" in low or "pin" in low)
+
+
+async def _handle_unlock_login(update: Update) -> None:
+    from jobs.congregation import deacon_login_lockout
+    from jobs.connect_cards.reports import _conn
+
+    def _clear() -> int:
+        with _conn() as conn:
+            return deacon_login_lockout.clear_all(conn)
+
+    count = await asyncio.to_thread(_clear)
+    if count:
+        await update.message.reply_text(
+            f"Deacon app login unlocked ({count} locked-out device{'s' if count != 1 else ''} cleared). - Watson"
+        )
+    else:
+        await update.message.reply_text("Nothing was locked right now. - Watson")
 
 
 _DEACON_ASSIGN_VERBS = r"assign|reassign|move|put|add|switch|transfer"
