@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-09-16*
+*Generated: 2026-09-17*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -10,6 +10,7 @@
   progress.json
 .env
 .env.backup-20260713-112740
+.env.bak
 .env.bak.20260820
 .env.example
 .env.local
@@ -206,6 +207,8 @@ data/
   retreats_seen.json
   riddle_current.json
   riddle_history.json
+  security_backups/
+    watson.db.pre-vault-encrypt-20260916-123247
   sermon_calendar.json
   sermonshots_clips/
     746878.mp4
@@ -216,6 +219,12 @@ data/
     771336.mp4
     771371.mp4
     771402.mp4
+    783197.mp4
+    783201.mp4
+    783213.mp4
+    783225.mp4
+    783376.mp4
+    783399.mp4
   servantcare.db
   servantcare_images/
     100/
@@ -4688,8 +4697,6 @@ data/
   trading.db.bak-pre-sizing-fix-20260911073349
   trading.db.bak-pre-windows3-backfill-20260911110635
   watson.db
-  watson.db-shm
-  watson.db-wal
 deploy/
   .gitkeep
   apt-packages.txt
@@ -4759,6 +4766,7 @@ jobs/
     migrate_admin_preview.py
     password_recovery_check.py
     send_invite_email.py
+    send_launch_announcement.py
     send_manuscript_access_batch.py
     send_signup_confirmation.py
     send_twj_update.py
@@ -4852,11 +4860,15 @@ jobs/
     wordlist.txt
   congregation/
     __init__.py
+    _oneoff_donna_birthyear_note.py
+    age_groups.py
     attendance_web.py
     batch_intake.py
     birthday_daily_alert.py
     birthday_report.py
+    deacon_login_lockout.py
     deacon_reports.py
+    deacon_sessions.py
     deacons_web.py
     duplicate_review.py
     duplicates_weekly_notify.py
@@ -4867,6 +4879,7 @@ jobs/
     import_deacon_directory.py
     import_subsplash_contacts.py
     init_db.py
+    married_age_check.py
     member_match.py
     migrate_deacon_pins.py
     migrate_deacon_visible_views.py
@@ -6246,7 +6259,7 @@ prompts/
 requirements.txt
 run.sh
 scripts/
-  send_donna_zip_email_once.py
+  migrate_vault_encrypt.py
   watson_recover.sh
   wcky_meet_reauth.py
 tests/
@@ -7044,7 +7057,6 @@ src/
       deacons/
         DeaconBoard.tsx
         EditableSelect.tsx
-        page.tsx
       duplicates/
         DuplicateReviewBoard.tsx
         page.tsx
@@ -7079,6 +7091,7 @@ src/
         page.tsx
     page.tsx
   lib/
+    clientIp.ts
     deaconAuth.ts
     deaconNotes.ts
     deaconTheme.ts
