@@ -1,6 +1,6 @@
 # Watson Project Backlog
 _Auto-generated nightly from project_backlog. Source of truth is the database — do not hand-edit this file, changes will be overwritten._
-Last generated: 2026-09-16 02:10
+Last generated: 2026-09-17 02:10
 
 ## Planned (30)
 | ID | Title | Summary | Added |
@@ -39,4 +39,3 @@ Last generated: 2026-09-16 02:10
 ## Done (last 30 days)
 | ID | Title | Summary | Added |
 |---|---|---|---|
-| 36 | jobs/comms/api.py import collision pending (Kit->Brevo vs Comms Desk batch import) | Local main (unpushed) has 32d019d "Add local Brevo mirror" which deletes the brevo_contacts import lines in jobs/comms/api.py; PR #27 (merged) adds "from jobs.design import svg_generator" immediately after those same lines. | 2026-08-17 |

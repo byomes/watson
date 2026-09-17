@@ -1,10 +1,11 @@
 # Watson Bug Tracker
 _Auto-generated nightly from bug_tracker. Source of truth is the database — do not hand-edit this file, changes will be overwritten._
-Last generated: 2026-09-16 02:10
+Last generated: 2026-09-17 02:10
 
-## Open (49)
+## Open (50)
 | ID | Title | Repo | Discovered |
 |---|---|---|---|
+| 181 | Password vault stored plaintext + auth bypass | watson | 2026-09-16 16:34:17 |
 | 147 | jobs.browser: goto_safe failed for https://www.beenverified.com/people/mikhaela-molanders/de/ | watson | 2026-09-08 09:31:18 |
 | 146 | jobs.browser: goto_safe failed for https://www.beenverified.com/people/emily-yomes/de/ | watson | 2026-09-08 09:31:03 |
 | 145 | jobs.browser: goto_safe failed for https://www.beenverified.com/people/micah-yomes/de/ | watson | 2026-09-08 09:30:47 |
@@ -58,6 +59,11 @@ Last generated: 2026-09-16 02:10
 ## Recently Resolved (last 30 days)
 | ID | Title | Repo | Resolved | Commit |
 |---|---|---|---|---|
+| 180 | Team Chat LAST ATTENDED query rejected -- referenced raw connect_cards, not the whitelisted view | watson | 2026-09-16 10:19:24 | 74bcb89 |
+| 179 | bot.py _extract_team_lookup (Bill's own DM path) rejects "when is" phrasing -- same bug as cdb_query.py, different file | watson | 2026-09-16 10:17:21 | fa38f91 |
+| 178 | LAST ATTENDED/LAST MISSED BY NAME fast path rejects "when is" phrasing | watson | 2026-09-16 10:14:44 | 2a9d825 |
+| 177 | fast_path_suggestions auto-merge exception applied to routing changes, not just lookups | watson | 2026-09-16 10:08:16 | 90966ec |
+| 176 | Team Chat pings Bill / burns a paid Claude call on explicit no-reply-needed test messages | watson | 2026-09-16 10:04:10 | 671fe8c |
 | 175 | fast_path_suggestions auto-apply can insert a dead bracket-literal trigger | watson | 2026-09-15 21:35:50 | 21f8148 |
 | 174 | Deacon app FamilySection picker hides already-grouped household mates as spouse candidates | watson-tools | 2026-09-15 18:19:23 | 2ad6efa |
 | 173 | Spouse-marking phrasings ("make X Y's wife", "X and Y are married") not recognized | watson | 2026-09-15 18:12:48 | 775e49a |
@@ -126,4 +132,3 @@ Last generated: 2026-09-16 02:10
 | 90 | calendar_query skill unregistered — 'what's on my calendar' always failed | watson | 2026-08-23 17:37:02 | 0fc99348a250987762bdf38b287db0962285791c |
 | 75 | Privacy Guard scan: goto_safe() fails OPEN on robots.txt 403/non-200 instead of fail-closed | watson | 2026-08-21 13:52:28 | 98367e7 |
 | 74 | Privacy Guard scan: bug_tracker logging fails with "database is locked" mid-run | watson | 2026-08-21 13:52:28 | 98367e7 |
-| 63 | Comms Desk Facebook posts never dispatched | watson | 2026-08-17 19:41:44 | cd04825 |
