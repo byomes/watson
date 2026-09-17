@@ -6,8 +6,13 @@ Per Bill (2026-09-16): a married role is trustworthy on its own, so
 the role -- this is the standing version of that one-off rule, not a
 duplicate of it. Sends nothing when there's nothing to flag.
 
-Cron (Tuesday 7:35am, next to weekly_changes_report's 7:30am slot):
-  35 7 * * 2  PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python3 \
+Runs Tuesday 9am per Bill's 2026-09-16 rule that any email to Donna
+goes out Tue/Wed/Thu at 9am (moved off the original 7:35am slot to
+match; Tuesday is still one of the allowed days, so only the time
+changed).
+
+Cron:
+  0 9 * * 2  PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python3 \
     -m jobs.congregation.married_age_check \
     >> /home/billyomes/watson/logs/married_age_check.log 2>&1
 """

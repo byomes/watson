@@ -4,8 +4,9 @@ birth years (both are married adult women but their birthdate on file
 computes to age 2 and age 10 -- Bill confirmed the role is right and
 the year is what's wrong, 2026-09-16). Self-deletes crontab line + this
 file after sending, same pattern as the 2026-09-11 Donna Redman one-off
-and the trading week-1 summary one-off. Scheduled 2026-09-17 09:30 ET
-per Bill.
+and the trading week-1 summary one-off. Scheduled 2026-09-17 09:00 ET
+per Bill -- Donna emails go out Tue/Wed/Thu at 9am (rule added
+2026-09-16, after this one was first queued for 9:30am).
 """
 import subprocess
 
