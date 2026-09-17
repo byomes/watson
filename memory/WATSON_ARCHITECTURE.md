@@ -4102,3 +4102,46 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - ea08fc0 Add "+" button to create a new person, from header and relation pickers
 - 8c79c0e Add remove ("x") button to Family section chips
 - 5f58606 Redesign deacon app Family section with add-buttons and name chips
+
+---
+
+## Recent Changes — 2026-09-17
+
+### ~/watson
+- 08a68c5 docs: bugs/backlog export 2026-09-17
+- 214f06c docs: file map 2026-09-17
+- 5aded18 Move Donna emails to the Tue/Wed/Thu 9am cadence Bill set
+- aef0571 Add kid/teen/adult headcount helper and married-age data-quality check
+- cf56d98 Require a real deacon session, not just the API key, on every route
+- 935e3e8 Report locked:true on the exact attempt that trips the lockout
+- 1ccda55 Lock out the deacon-app PIN login after 5 failed attempts, unlock via Telegram
+- e499cba Add Connected/Consistency bucket+engagement to deacon roster API
+- 5551148 Add ARC launch announcement email (The Wrong Jesus)
+- 6114981 fix: bind dashboard to loopback, not Tailscale IP, to restore Funnel
+- 7138a52 security: bind dashboard to Tailscale interface only, not 0.0.0.0
+- 545492f security: require admin auth on password vault routes, encrypt at rest
+- 1ca17cb Silence httpx's per-request INFO log to stop leaking the bot token
+- 597c645 Require an actual reply before capturing a pastoral note
+- 99e46cd Add "last six weeks" fast-path phrase to attendance trend over time
+- 0e8f81b Remove em dashes from user-facing text across bot/dashboard/reports
+- 6c2fe92 Remove em dashes from attendance reply text
+- 097004a Generalize attendance date-range parsing to any week count and calendar months
+- 4be609a Shorten combined/cumulative attendance reply wording
+- 414a85f Fix "how many people (have) attended" phrasing gap in attendance fast path
+- feb92ba Add combined + cumulative attendance fast path for "attendance for N weeks"
+- 74bcb89 Query deacon_visible_connect_cards, not raw connect_cards, in LAST ATTENDED
+- fa38f91 Accept "when is" in bot.py's _extract_team_lookup, the actual live path
+- 2a9d825 Accept "when is" (not just "was"/"did") in last-attended/missed lookups
+- 90966ec Scope fast-path auto-merge to lookup-only PRs, require review otherwise
+- 671fe8c Add no-reply-needed fast path to Team Chat (#62)
+- bdc9407 docs: architecture update 2026-09-16
+
+### ~/watson-tools
+- 521b362 Show kid/teen/adult age label on Children chips in the deacon app
+- c7db20b Forward a per-deacon session token to Watson, not just the API key
+- 31b3bab Pass caller IP to verify_pin and surface the new lockout state
+- fbecd12 Require deacon login on the roster's read/write API routes
+- 9f58fa9 Put List tab badges on their own line below the name
+- 7556b23 Move Connected/Consistency badges next to the name on the List tab
+- 87418ce Sync Connected/Consistency badges between deacon List tab and Report tab
+- 3e7391d Load Report tab first in deacon app
