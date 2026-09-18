@@ -673,6 +673,42 @@ def _try_pattern_match_events(question: str) -> str | None:
     return pattern_match(question)
 
 
+# PIN PURPOSE FAQ -- "What do I use the pin for?", a real Team Chat question
+# (2026-09-17) that isn't a data question about any member row at all: "the
+# pin" is the per-deacon Deacon App login PIN (deacon_pins table, checked by
+# jobs/congregation/deacons_web.py's verify_pin route), not anything stored
+# in this domain's whitelisted tables -- PINs are scrypt-hashed and never
+# queryable in plaintext, so there's no SQL answer to generate and this
+# can't be a _try_pattern_match block the way SPOUSE LOOKUP etc. are. Static
+# informational answer instead, checked here the same way
+# _try_resolve_pending_clarification is above: a tuple[bool, str] | None
+# short-circuit before SQL generation ever runs.
+_PIN_WORD_RE = re.compile(r"\bpins?\b")
+_PIN_PURPOSE_ANSWER = (
+    "Your PIN logs you into the Deacon App (wtsn.me/cat/deacons) — that's "
+    "where you can look up the roster, see who you're shepherding, and add "
+    "deacon notes. If you don't have one yet or forgot it, ask Dr. Bill to "
+    "set or reset it."
+)
+
+
+def _try_pin_faq(question: str) -> tuple[bool, str | None] | None:
+    """Returns the (True, reply) short-circuit for a "what's the pin for"
+    style question, or None if this isn't one. Loose substring match, same
+    reasoning as bot.py's _looks_like_unlock_login_request and friends --
+    this is a yes/no trigger with nothing to extract, so a targeted
+    substring check is more robust than trying to anchor a single regex
+    against every way of asking it."""
+    q = question.lower()
+    if not _PIN_WORD_RE.search(q):
+        return None
+    if not any(w in q for w in ("what", "why")):
+        return None
+    if not any(w in q for w in ("for", "use", "used", "purpose", "have")):
+        return None
+    return True, _PIN_PURPOSE_ANSWER
+
+
 def answer_data_question(
     question: str, asker_name: str, allow_contact_info: bool = True
 ) -> tuple[bool, str | None]:
@@ -693,6 +729,12 @@ def answer_data_question(
     resolved = _try_resolve_pending_clarification(asker_name, question)
     if resolved is not None:
         return resolved
+
+    # "What do I use the pin for?" and friends -- see _try_pin_faq's
+    # docstring for why this is a static answer, not a SQL block.
+    pin_faq = _try_pin_faq(question)
+    if pin_faq is not None:
+        return pin_faq
 
     # Found 2026-09-02 debugging Donna's "who is in Bill Crook's deacon
     # group?" -- cdb_query._pattern_match()'s 'who is'/'tell me about'
