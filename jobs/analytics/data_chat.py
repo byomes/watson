@@ -291,7 +291,7 @@ SQL: SELECT m.name, f.note FROM follow_ups f JOIN members m ON m.id = f.member_i
 
 Q: how many people have signed up for the picnic?
 DOMAIN: events
-SQL: SELECT SUM(r.num_tickets) FROM event_registrations r JOIN church_events e ON e.id = r.event_id WHERE e.event_name LIKE '%picnic%'
+SQL: SELECT COALESCE(SUM(r.num_tickets), 0) FROM event_registrations r JOIN church_events e ON e.id = r.event_id WHERE e.event_name LIKE '%picnic%'
 
 Q: who's registered for the picnic so far?
 DOMAIN: events
@@ -610,10 +610,15 @@ def _events_not_tracked_reply() -> str:
     """Bill Crook asked about the 75th anniversary celebration on
     2026-09-17 (telegram_log ids 477-480) and got the generic "didn't turn
     up any matching data" -- indistinguishable from a real query bug. An
-    empty-result EVENTS query almost always means the named event isn't in
-    church_events at all (a LIKE '%...%' that matches nothing), so it's
-    worth being explicit rather than vague, and naming what IS tracked
-    saves the asker a round trip."""
+    empty-result EVENTS query means either the named event isn't in
+    church_events at all (a LIKE '%...%' that matches nothing), OR it is
+    tracked but has zero registrations so far -- the two are
+    indistinguishable from rows alone, and asserting "I'm not tracking
+    that" is an outright false claim in the second case (caught 2026-09-18
+    asking about a just-created event with no signups yet). So this stays
+    deliberately non-committal about which case it is and just lists what
+    IS tracked, so the asker can tell for themselves rather than being
+    told something that might be wrong."""
     try:
         conn = sqlite3.connect(f"file:{WATSON_DB_PATH}?mode=ro", uri=True, timeout=5)
         conn.row_factory = sqlite3.Row
@@ -625,9 +630,9 @@ def _events_not_tracked_reply() -> str:
     except Exception:
         rows = []
     if not rows:
-        return "I'm not currently tracking that event, and I don't have any events set up right now."
+        return "I don't have any events set up right now, so there's no registration data to check."
     tracked = ", ".join(_fmt_tracked_event(r) for r in rows)
-    return f"I'm not currently tracking that event. Events I do track: {tracked}."
+    return f"I didn't find any matching registrations. If you meant one of these, let me know: {tracked}."
 
 
 def _fmt_tracked_event(row: dict) -> str:

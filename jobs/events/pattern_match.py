@@ -132,8 +132,14 @@ def pattern_match(question: str) -> str | None:
         event_id = _resolve_event_id(q)
         if event_id is None:
             return None
+        # COALESCE to 0 -- a bare SUM() is SQL NULL when the event has zero
+        # registrations so far (a real, common state right after an event is
+        # created), and _format_rows/_fmt_value renders a lone NULL value as
+        # a bare "—" with no surrounding sentence, which reads as a broken
+        # reply instead of "0 signed up" -- confirmed live 2026-09-18 asking
+        # about Hayride and Bonfire before its first registration landed.
         return (
-            "SELECT SUM(num_tickets) FROM event_registrations "
+            "SELECT COALESCE(SUM(num_tickets), 0) FROM event_registrations "
             f"WHERE event_id = {event_id}"
         )
 
