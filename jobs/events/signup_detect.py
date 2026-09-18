@@ -173,6 +173,7 @@ def handle_event_signup_email(
     who = f"{(detection.get('first_name') or '').strip()} {(detection.get('last_name') or '').strip()}".strip() or sender_email
 
     conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
     matched = find_active_event(conn, name_guess, f"{subject}\n{body}")
 
     if matched:
