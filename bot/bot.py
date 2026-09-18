@@ -1019,6 +1019,17 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     and _looks_like_unlock_login_request(_msg_text)
                 )
             )
+            # New-event notice, added 2026-09-17 -- restricted to
+            # _EVENT_CREATE_ALLOWLIST (Kaci Gravatt), not every leader.
+            _new_event = (
+                _extract_new_event_notice(_msg_text)
+                if (
+                    _leader_name in _EVENT_CREATE_ALLOWLIST
+                    and not _add_child and not _bday_update and not _mark_spouse
+                    and not _mark_child and not _assign and not _assign_incomplete
+                    and not _family_report and not _unlock_login
+                ) else None
+            )
             from jobs.telegram.leader_tool_usage import log_usage as _log_leader_tool_usage
             with get_connection() as _lc:
                 _log_leader_tool_usage(
@@ -1030,7 +1041,9 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                     "deacon_assign" if _assign else (
                                         "deacon_assign_incomplete" if _assign_incomplete else (
                                             "family_report" if _family_report else (
-                                                "unlock_login" if _unlock_login else "team_chat"
+                                                "unlock_login" if _unlock_login else (
+                                                    "new_event" if _new_event else "team_chat"
+                                                )
                                             )
                                         )
                                     )
@@ -1053,6 +1066,8 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await _handle_family_report(update, _leader_name)
             elif _unlock_login:
                 await _handle_unlock_login(update)
+            elif _new_event:
+                await _handle_new_event_notice(update, _leader_name, _new_event)
             elif _assign_incomplete:
                 await update.message.reply_text(
                     "Who would you like to assign, and to which deacon? "
@@ -2390,6 +2405,72 @@ async def _handle_unlock_login(update: Update) -> None:
         await update.message.reply_text("Nothing was locked right now. - Watson")
 
 
+# Per Bill's 2026-09-17 explicit decision: the only people authorized to add
+# a new tracked event are Kaci Gravatt and Dr. Bill -- hardcoded rather than
+# opened to every onboarded leader, same convention as
+# _DEACON_ASSIGN_ALLOWLIST/_FAMILY_REPORT_ALLOWLIST above. Bill's own chat
+# needs no allowlist check (see _handle_general); this gates Kaci's. This is
+# a proactive notice-based path -- Kaci tells Watson she's setting up an
+# event before any registration has come in -- distinct from
+# jobs.events.signup_detect's reactive "I don't recognize this signup
+# email, start tracking it?" Telegram prompt (still Bill-only, unchanged,
+# since it's triggered by an inbound email rather than a chat message).
+_EVENT_CREATE_ALLOWLIST = frozenset({"Kaci Gravatt"})
+
+# Requires an explicit creation verb alongside "new event" -- bare "event"
+# mentions are common in ordinary questions ("how many signed up for the
+# anniversary event?") and must NOT trip this, since a false positive here
+# creates a real church_events row rather than just answering wrong.
+_NEW_EVENT_RE = re.compile(
+    r"\b(?:creat(?:e|ing)|set(?:ting)?\s+up|start(?:ing)?(?:\s+tracking)?|add(?:ing)?)\s+"
+    r"(?:a\s+)?new\s+event\b\s*(?:is\s+)?(?:called|named|for|titled)?\s*[:\-]?\s*(.*)",
+    re.IGNORECASE,
+)
+_NEW_EVENT_LEADING_RE = re.compile(r"^new\s+event\b\s*[:\-]?\s*(.*)", re.IGNORECASE)
+
+# Cuts the captured name off before a trailing clause about registrations/
+# testing in the same message ("Fall Retreat, registrations will come to
+# your email" -> "Fall Retreat") rather than swallowing the whole sentence.
+_EVENT_NAME_STOP_RE = re.compile(
+    r"[.;\n]|,\s*(?:regist|rsvp|sign[\s-]?up|ticket|test)", re.IGNORECASE
+)
+
+
+def _extract_new_event_notice(text: str) -> str | None:
+    """Kaci (or Bill) telling Watson she's setting up a new church event,
+    e.g. "I'm creating a new event called Fall Retreat" or "New event:
+    Trunk or Treat" -- returns the event name, or None if the message
+    doesn't match. See _EVENT_CREATE_ALLOWLIST above for who this is
+    wired to."""
+    m = _NEW_EVENT_RE.search(text) or _NEW_EVENT_LEADING_RE.match(text.strip())
+    if not m:
+        return None
+    name = m.group(1).strip(" :-\"'“”")
+    name = _EVENT_NAME_STOP_RE.split(name)[0].strip(" .!\"'“”")
+    name = re.sub(r"^(?:the|a|an)\s+", "", name, flags=re.IGNORECASE)
+    return name or None
+
+
+async def _handle_new_event_notice(update: Update, sender_name: str, event_name: str) -> None:
+    def _create() -> int:
+        with get_connection() as conn:
+            cur = conn.execute(
+                "INSERT INTO church_events (event_name, start_date, tracking_active) "
+                "VALUES (?, date('now'), 1)",
+                (event_name,),
+            )
+            conn.commit()
+            return cur.lastrowid
+
+    event_id = await asyncio.to_thread(_create)
+    log.info("new_event_notice: sender=%s event_id=%s name=%r", sender_name, event_id, event_name)
+    await update.message.reply_text(
+        f"Got it, now tracking “{event_name}”. I'll watch for registration emails and "
+        f"match them to it automatically; let me know when you send that test registration. "
+        f"Start date/details can be edited from the Events tab. - Watson"
+    )
+
+
 _DEACON_ASSIGN_VERBS = r"assign|reassign|move|put|add|switch|transfer"
 
 # Anchored at the start of the message (unlike _extract_deacon_assign's
@@ -3623,6 +3704,14 @@ async def _handle_general(update: Update, context: ContextTypes.DEFAULT_TYPE, te
     # it has no place in the leader-facing Team Chat surface.
     if _looks_like_fix_log_request(text):
         await _handle_fix_log(update)
+        return ""
+
+    # New-event notice, added 2026-09-17 -- Dr. Bill's own chat needs no
+    # allowlist check (only ever reached from his authorized chat); Kaci
+    # Gravatt's parallel path is _handle_text_body's _EVENT_CREATE_ALLOWLIST.
+    _new_event = _extract_new_event_notice(text)
+    if _new_event:
+        await _handle_new_event_notice(update, "Bill Yomes", _new_event)
         return ""
 
     # Deacon reassignment via chat, extended to Dr. Bill's own chat 2026-09-08
