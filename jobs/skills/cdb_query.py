@@ -545,6 +545,57 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
                 )
             return f"SELECT name, phone FROM members WHERE name LIKE '%{name}%' AND active = 1"
 
+    # ADDRESS LOOKUP -- checked before MEMBER LOOKUP BY NAME for the same
+    # reason as PHONE NUMBER LOOKUP above: a bare "X's address" or "X
+    # address" (no "who is"/"look up" trigger phrase) doesn't fit MEMBER
+    # LOOKUP BY NAME's prefix-strip mechanism, which assumes the trigger
+    # phrase is a prefix left behind once removed -- it needs its own
+    # name-then-field extraction instead. members.address is already a
+    # whitelisted contact column for Team Chat (see
+    # jobs/analytics/data_chat.py's _CONTACT_COLUMN_WORDS) -- same tier as
+    # phone, just a different field. Added 2026-09-17 after a real Team Chat
+    # message, "Maybe Andrea valentines address" (no "what is", no
+    # possessive apostrophe, just a name run straight into "address"), fell
+    # through to the paid LLM path with no fast, free answer. Excludes
+    # 'email address'/'ip address', which name no person and aren't this
+    # column.
+    if 'email address' not in q and 'ip address' not in q:
+        _address_m = re.search(r"what(?:'s| is)\s+(\w+(?:\s+\w+)?)'s\s+(?:home\s+|mailing\s+|street\s+)?address\b", q)
+        if not _address_m:
+            _address_m = re.search(r"what(?:'s| is)\s+(\w+(?:\s+\w+)?)\s+(?:home\s+|mailing\s+|street\s+)?address\b", q)
+        if not _address_m:
+            _address_m = re.search(r"(?:home\s+|mailing\s+|street\s+)?address\s+(?:for|of)\s+(\w+(?:\s+\w+)?)\b", q)
+        if not _address_m:
+            _address_m = re.search(r"(\w+(?:\s+\w+)?)'s\s+(?:home\s+|mailing\s+|street\s+)?address\b", q)
+        if not _address_m:
+            # Bare "X address" with no possessive apostrophe and no "what
+            # is"/"for"/"of" -- the exact shape of the message that
+            # motivated this block. Anchored to the end of the message (up
+            # to 3 words captured) so it can't fire mid-sentence on an
+            # unrelated later mention of the word "address".
+            _address_m = re.search(r"(\w+(?:\s+\w+){0,2})\s+(?:home\s+|mailing\s+|street\s+)?address\W*$", q)
+        if _address_m:
+            name = _address_m.group(1).strip()
+            # Strip leading filler words picked up by the bare end-anchored
+            # pattern above (e.g. "Maybe Andrea Valentines address") -- same
+            # spirit as DEACON GROUP MEMBERSHIP's stopword strip elsewhere
+            # in this file.
+            _address_stopwords = ('maybe', 'the', 'a', 'an', 'is', 'does', 'anyone', 'know',
+                                   'have', 'get', 'send', 'me', 'please', 'looking', 'for', 'need')
+            name = " ".join(w for w in name.split() if w not in _address_stopwords)
+        if _address_m and name:
+            if name.endswith('s') and len(name) > 1 and not name.endswith('ss'):
+                # Try both the literal capture and an informal-possessive-
+                # stripped form ("valentines" -> "valentine") since there's
+                # no way to tell from text alone whether the trailing s is
+                # part of the real name or a dropped apostrophe -- same
+                # PHONE NUMBER LOOKUP fallback above.
+                return (
+                    f"SELECT name, address FROM members WHERE "
+                    f"(name LIKE '%{name}%' OR name LIKE '%{name[:-1]}%') AND active = 1"
+                )
+            return f"SELECT name, address FROM members WHERE name LIKE '%{name}%' AND active = 1"
+
     # AGE LOOKUP -- mirrors bot.py's DM-only "how old is X" -> age field
     # (_extract_team_lookup, added 2026-09-12); missing here meant this
     # question fell through to MEMBER LOOKUP BY NAME instead, which returns

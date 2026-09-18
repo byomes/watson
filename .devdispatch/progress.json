@@ -1,1 +1,1 @@
-{"step": 5, "total": 5, "label": "Reporting", "detail": "Committing fast-path fix for no-reply-needed test messages in Team Chat"}
+{"step": 5, "total": 5, "label": "Reporting", "detail": "Committing the ADDRESS LOOKUP fast-path addition to jobs/skills/cdb_query.py."}
