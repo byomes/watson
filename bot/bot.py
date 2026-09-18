@@ -2432,13 +2432,18 @@ async def _handle_unlock_login(update: Update) -> None:
 # since it's triggered by an inbound email rather than a chat message).
 _EVENT_CREATE_ALLOWLIST = frozenset({"Kaci Gravatt"})
 
-# Requires an explicit creation verb alongside "new event" -- bare "event"
+# Requires an explicit creation verb alongside "event" -- bare "event"
 # mentions are common in ordinary questions ("how many signed up for the
 # anniversary event?") and must NOT trip this, since a false positive here
-# creates a real church_events row rather than just answering wrong.
+# creates a real church_events row rather than just answering wrong. Covers
+# past tense too ("I just created an event called X" -- Kaci's actual
+# 2026-09-18 phrasing, which the original present/gerund-only verb list and
+# "a new event" (excluding "an event") both missed -- see bug #185) and
+# "an"/"a" articles, with "new" itself optional since the verb already
+# disambiguates from ordinary questions.
 _NEW_EVENT_RE = re.compile(
-    r"\b(?:creat(?:e|ing)|set(?:ting)?\s+up|start(?:ing)?(?:\s+tracking)?|add(?:ing)?)\s+"
-    r"(?:a\s+)?new\s+event\b\s*(?:is\s+)?(?:called|named|for|titled)?\s*[:\-]?\s*(.*)",
+    r"\b(?:creat(?:e|ed|ing)|set(?:ting)?\s+up|start(?:ed|ing)?(?:\s+tracking)?|add(?:ed|ing)?)\s+"
+    r"(?:an?\s+)?(?:new\s+)?event\b\s*(?:is\s+)?(?:called|named|for|titled)?\s*[:\-]?\s*(.*)",
     re.IGNORECASE,
 )
 _NEW_EVENT_LEADING_RE = re.compile(r"^new\s+event\b\s*[:\-]?\s*(.*)", re.IGNORECASE)
@@ -2446,9 +2451,14 @@ _NEW_EVENT_LEADING_RE = re.compile(r"^new\s+event\b\s*[:\-]?\s*(.*)", re.IGNOREC
 # Cuts the captured name off before a trailing clause about registrations/
 # testing/date/time in the same message ("Fall Retreat, registrations will
 # come to your email" -> "Fall Retreat") rather than swallowing the whole
-# sentence.
+# sentence. The "for ... track registrations" branch (no comma required)
+# covers the same directly-appended phrasing as Kaci's real message ("...
+# called Hayride and Bonfire for you to track registrations." -- see bug
+# #185), since _EVENT_NAME_STOP_RE's comma branch only fires when that
+# clause is comma-separated.
 _EVENT_NAME_STOP_RE = re.compile(
-    r"[.;\n]|,\s*(?:regist|rsvp|sign[\s-]?up|ticket|test)", re.IGNORECASE
+    r"[.;\n]|,\s*(?:regist|rsvp|sign[\s-]?up|ticket|test)"
+    r"|\s+for\s+(?:you\s+to\s+|me\s+to\s+)?track(?:ing)?\s+regist", re.IGNORECASE
 )
 
 _MONTH_NAMES_RE = (
