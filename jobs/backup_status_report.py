@@ -86,14 +86,14 @@ def _check_onedrive_leg():
     """Returns (ok, detail) for the OneDrive leg."""
     try:
         result = subprocess.run(
-            ["rclone", "lsl", f"{REMOTE}/.env"],
+            ["rclone", "lsl", f"{REMOTE}/.env.gpg"],
             capture_output=True, text=True, timeout=CHECK_TIMEOUT,
         )
     except Exception as e:
         return False, f"rclone check failed to run: {e}"
 
     if result.returncode != 0 or not result.stdout.strip():
-        return False, f"rclone lsl .env failed: {result.stderr.strip()[:200]}"
+        return False, f"rclone lsl .env.gpg failed: {result.stderr.strip()[:200]}"
 
     # rclone lsl format: "<size> <date> <time> <path>"
     parts = result.stdout.strip().split()
