@@ -23,9 +23,8 @@ harder without S2_API_KEY), OpenAlex, and CrossRef. Every candidate still
 goes through the same fetch-a-real-page-and-pull-a-verbatim-quote gate
 below, so a DOI landing page that turns out to be paywalled just yields no
 quote rather than a fabricated one. Google Scholar is deliberately NOT a
-source here -- scraping it violates its robots.txt and ToS (see
-jobs/research/academic_search.py's search_scholar, which is kept for
-reference but never called from this pipeline).
+source here -- it has no API, and scraping it violates its robots.txt and
+ToS, risking Watson getting blocked.
 """
 import logging
 import re

@@ -1,8 +1,17 @@
-"""jobs/research/academic_search.py — search arXiv and Google Scholar."""
+"""jobs/research/academic_search.py — search arXiv and Semantic Scholar.
+
+Google Scholar is deliberately not a source here -- it has no API, and
+scraping it violates its robots.txt and ToS, risking Watson's IP getting
+blocked."""
 import logging
+import os
 import re
 
+import requests
+
 log = logging.getLogger(__name__)
+
+SEMANTIC_SCHOLAR_URL = "https://api.semanticscholar.org/graph/v1/paper/search"
 
 
 def search_arxiv(query: str, max_results: int = 5) -> list:
@@ -25,33 +34,45 @@ def search_arxiv(query: str, max_results: int = 5) -> list:
         return []
 
 
-def search_scholar(query: str, max_results: int = 5) -> list:
+def search_semantic_scholar(query: str, max_results: int = 5, timeout: int = 10) -> list:
+    headers = {}
+    api_key = os.getenv("S2_API_KEY")
+    if api_key:
+        headers["x-api-key"] = api_key
+
     try:
-        from scholarly import scholarly as _scholarly
-        results = []
-        gen = _scholarly.search_pubs(query)
-        for _ in range(max_results):
-            try:
-                pub = next(gen)
-                bib = pub.get("bib", {})
-                results.append({
-                    "title": bib.get("title", ""),
-                    "authors": bib.get("author", []),
-                    "abstract": bib.get("abstract", "")[:300],
-                    "url": pub.get("pub_url", ""),
-                    "year": bib.get("pub_year", ""),
-                })
-            except StopIteration:
-                break
-        return results
+        resp = requests.get(
+            SEMANTIC_SCHOLAR_URL,
+            params={
+                "query": query,
+                "limit": max_results,
+                "fields": "title,abstract,authors,year,url,citationCount",
+            },
+            headers=headers,
+            timeout=timeout,
+        )
+        resp.raise_for_status()
+        data = resp.json()
     except Exception as exc:
-        log.error("Scholar search failed: %s", exc)
+        log.error("Semantic Scholar search failed: %s", exc)
         return []
+
+    results = []
+    for paper in data.get("data", [])[:max_results]:
+        results.append({
+            "title": paper.get("title", ""),
+            "authors": [a.get("name", "") for a in paper.get("authors", [])],
+            "abstract": (paper.get("abstract") or "")[:300],
+            "url": paper.get("url", ""),
+            "year": paper.get("year", ""),
+            "citations": paper.get("citationCount", 0),
+        })
+    return results
 
 
 def run(message: str = None) -> str:
     if not message:
-        return "Academic search ready. Ask me to search arXiv or Google Scholar."
+        return "Academic search ready. Ask me to search arXiv or Semantic Scholar."
 
     query = re.sub(r"(?i)(search arxiv|find academic papers|scholarly search|research papers on|search scholar)\s*:?\s*", "", message).strip()
     if not query:
@@ -68,15 +89,13 @@ def run(message: str = None) -> str:
     else:
         lines.append("arXiv: no results.")
 
-    scholar_results = search_scholar(query)
-    if scholar_results:
-        lines.append("\nGoogle Scholar:")
-        for p in scholar_results:
-            authors = p["authors"]
-            if isinstance(authors, list):
-                authors = ", ".join(authors[:2])
-            lines.append(f"  • {p['title']} ({authors}, {p['year']})\n    {p['url']}")
+    s2_results = search_semantic_scholar(query)
+    if s2_results:
+        lines.append("\nSemantic Scholar:")
+        for p in s2_results:
+            authors = ", ".join(p["authors"][:2])
+            lines.append(f"  • {p['title']} ({authors}, {p['year']}, {p['citations']} citations)\n    {p['url']}")
     else:
-        lines.append("\nGoogle Scholar: no results.")
+        lines.append("\nSemantic Scholar: no results.")
 
     return "\n".join(lines)
