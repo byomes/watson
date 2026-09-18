@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-09-17*
+*Generated: 2026-09-18*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -100,8 +100,6 @@ data/
     66e0844b7fab4e0a8bb386db8504deac.png
     9eca6f54ecff491dbed2470fd0b3d196.png
   congregation.db
-  congregation.db-shm
-  congregation.db-wal
   congregation.db.bak_before_orphan_delete_20260906_070048
   congregation.db.bak_zipcheck_20260915
   cover_images/
@@ -3513,8 +3511,23 @@ data/
         guardrails-new-chapters-field-research.md
         guardrails-thesis-content-mining.md
         transcript.md
+      20260914-113036-ch-5-6-reconciliation-locked-new-chapter-interview/
+        transcript.md
+      20260914-135406-interview-session-watson-build-stories-claude-code/
+        transcript.md
       20260914-201203-guardrails-master-outline-read-through-ch-1-fresh/
         ch1-thing-nobody-worries-about.md
+        transcript.md
+      20260917-082148-theology-of-tools-thesis-locked-ai-explanation-cha/
+        transcript.md
+      20260917-082533-tokenization-example-for-lay-readers-genesis-1-1-c/
+        transcript.md
+      20260917-144359-new-workflow-step-per-chapter-dictation-outlines-c/
+        transcript.md
+      20260917-144436-theology-of-tools-thesis-locked-ai-explanation-cha/
+        transcript.md
+      20260917-145945-added-erlc-2019-evangelical-ai-statement-to-field/
+        combined-field-research.md
         transcript.md
     ideas-to-be-developed/
       20260826-013954-expanding-concept-ideas/
@@ -4078,9 +4091,7 @@ data/
     trust-issues/
       20260910-144925-trust-issues-ch-1-8-word-count-audit-vs-new-4k-flo/
         transcript.md
-      20260914-113036-ch-5-6-reconciliation-locked-new-chapter-interview/
-        transcript.md
-      20260914-135406-interview-session-watson-build-stories-claude-code/
+      20260917-145159-added-erlc-2019-evangelical-ai-statement-to-field/
         transcript.md
     wcky-book-launch-project/
       20260826-013953-sending-giving-statements-in-tithely/
@@ -4860,13 +4871,14 @@ jobs/
     wordlist.txt
   congregation/
     __init__.py
-    _oneoff_donna_birthyear_note.py
     age_groups.py
     attendance_web.py
     batch_intake.py
     birthday_daily_alert.py
     birthday_report.py
+    collect_deacon_pins.py
     deacon_login_lockout.py
+    deacon_pin_auth.py
     deacon_reports.py
     deacon_sessions.py
     deacons_web.py
@@ -4893,6 +4905,7 @@ jobs/
       migrate_reparse.py
     notify_subsplash_fuzzy_review.py
     papercards_web.py
+    pin_collection.py
     set_deacon_pin.py
     shepherding_report_ready.py
     weekly_changes_report.py
@@ -5184,6 +5197,7 @@ jobs/
     migrate_telegram_claim_code.py
     nicknames.py
     pending_lookup.py
+    pending_reply.py
     registry.py
     server.py
   privacy/
@@ -5217,6 +5231,7 @@ jobs/
     article_reader.py
     benchmark_check.py
     feed_reader.py
+    field_research.py
     gutenberg.py
     isbn_lookup.py
     language_detector.py
@@ -5375,6 +5390,8 @@ jobs/
     spell_checker.py
     style_checker.py
     wordcloud_generator.py
+  writing_digest/
+    nightly_digest.py
   writing_room/
     __init__.py
     api.py
