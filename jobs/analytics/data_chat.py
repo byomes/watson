@@ -603,8 +603,34 @@ def _fmt_value(v):
     return "—" if v is None else v
 
 
-def _format_rows(rows: list[dict]) -> str:
+def _events_not_tracked_reply() -> str:
+    """Bill Crook asked about the 75th anniversary celebration on
+    2026-09-17 (telegram_log ids 477-480) and got the generic "didn't turn
+    up any matching data" -- indistinguishable from a real query bug. An
+    empty-result EVENTS query almost always means the named event isn't in
+    church_events at all (a LIKE '%...%' that matches nothing), so it's
+    worth being explicit rather than vague, and naming what IS tracked
+    saves the asker a round trip."""
+    try:
+        conn = sqlite3.connect(f"file:{WATSON_DB_PATH}?mode=ro", uri=True, timeout=5)
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            "SELECT event_name, start_date FROM church_events "
+            "WHERE tracking_active = 1 ORDER BY start_date"
+        ).fetchall()
+        conn.close()
+    except Exception:
+        rows = []
     if not rows:
+        return "I'm not currently tracking that event, and I don't have any events set up right now."
+    tracked = ", ".join(f"{r['event_name']} ({r['start_date']})" for r in rows)
+    return f"I'm not currently tracking that event. Events I do track: {tracked}."
+
+
+def _format_rows(rows: list[dict], domain: str | None = None) -> str:
+    if not rows:
+        if domain == "events":
+            return _events_not_tracked_reply()
         return "That didn't turn up any matching data."
     # LAST ATTENDED / LAST MISSED BY NAME (cdb_query.py's _pattern_match)
     # name these exact column shapes so this generic formatter can route them
@@ -737,4 +763,4 @@ def answer_data_question(
 
     log.info("data_chat: domain=%s asker=%s q=%r sql=%r rows=%d", domain, asker_name, question, validated, len(rows))
     clarify = _clarify_if_ambiguous_person(validated, rows, question, asker_name)
-    return True, clarify or _format_rows(rows)
+    return True, clarify or _format_rows(rows, domain)
