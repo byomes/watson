@@ -758,6 +758,18 @@ def answer_data_question(
         if rows:
             log.info("data_chat: events pattern-match hit, asker=%s q=%r sql=%r rows=%d", asker_name, question, pm_events_sql, len(rows))
             return True, _format_rows(rows)
+        if rows == []:
+            # Query ran fine and the event resolved, it just has no
+            # registrations yet -- a real answer, not a miss. See
+            # jobs/events/pattern_match.py's empty_reply docstring.
+            try:
+                from jobs.events.pattern_match import empty_reply
+                reply = empty_reply(question)
+            except Exception:
+                reply = None
+            if reply:
+                log.info("data_chat: events pattern-match hit (no registrations yet), asker=%s q=%r", asker_name, question)
+                return True, reply
         log.info("data_chat: events pattern-match matched but found nothing (rows=%s), falling through to generation: q=%r sql=%r", rows, question, pm_events_sql)
 
     domain, sql = _generate(question, asker_name, allow_contact_info)

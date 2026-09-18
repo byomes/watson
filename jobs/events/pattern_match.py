@@ -43,8 +43,8 @@ def _norm(name_l: str) -> str:
 _EVENT_REF_RE = re.compile(r"\b(?:for|to|about)\s+(?:the\s+)?([a-z][a-z0-9' -]*?)(?:[?.!]|$)", re.IGNORECASE)
 
 
-def _resolve_event_id(question: str) -> int | None:
-    """Which tracking_active event the question is about.
+def _resolve_event(question: str) -> tuple[int, str] | None:
+    """Which tracking_active event the question is about, as (id, name).
 
     If the question names something after for/to/about ("...for the
     retreat"), that phrase MUST match a tracked event's name (verbatim, or
@@ -81,9 +81,14 @@ def _resolve_event_id(question: str) -> int | None:
                 _norm(r["event_name"].lower()) in phrase_norm or phrase_norm in _norm(r["event_name"].lower())
             ))
         ]
-        return matches[0]["id"] if len(matches) == 1 else None
+        return (matches[0]["id"], matches[0]["event_name"]) if len(matches) == 1 else None
 
-    return rows[0]["id"] if len(rows) == 1 else None
+    return (rows[0]["id"], rows[0]["event_name"]) if len(rows) == 1 else None
+
+
+def _resolve_event_id(question: str) -> int | None:
+    found = _resolve_event(question)
+    return found[0] if found else None
 
 
 # Checked first, independent of any specific event — a question about what's
@@ -133,7 +138,7 @@ def pattern_match(question: str) -> str | None:
         if event_id is None:
             return None
         return (
-            "SELECT SUM(num_tickets) FROM event_registrations "
+            "SELECT COALESCE(SUM(num_tickets), 0) FROM event_registrations "
             f"WHERE event_id = {event_id}"
         )
 
@@ -149,3 +154,25 @@ def pattern_match(question: str) -> str | None:
         )
 
     return None
+
+
+def empty_reply(question: str) -> str | None:
+    """Direct answer for a registration list question about a real tracked
+    event that simply has no registrations yet, or None if the question
+    isn't that shape.
+
+    Found 2026-09-18: "Who's registered for the Hayride and Bonfire so
+    far?" resolved to the right event, but the event had just been created
+    and had zero registrations, so pattern_match()'s list query returned no
+    rows. data_chat.py treats an empty fast-path result as "false positive,
+    fall through to generation" (see its attendance-block comment) -- which
+    here meant a paid LLM call that could only conclude the same thing.
+    Zero registrations for a resolved event is a real answer, not a miss.
+    """
+    q = question.strip()
+    if not q or _TRACKED_RE.search(q) or _COUNT_RE.search(q) or not _LIST_RE.search(q):
+        return None
+    found = _resolve_event(q)
+    if found is None:
+        return None
+    return f"Nobody has registered for {found[1]} yet."
