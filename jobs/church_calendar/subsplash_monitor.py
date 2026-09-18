@@ -24,7 +24,14 @@ registrations to (tracking_active=1, created_by='Kaci Gravatt') -- from
 there everything else (signup-email matching) works unchanged. Answering
 "no" (or not answering) just leaves the event untracked.
 
-Cron: every 30 min, offset from the hour -- see the cron file.
+If the scrape itself fails 3 runs in a row (page unreachable, or the
+embed's markup changed enough that no event cards parse) Bill gets a
+one-time Telegram alert -- see _record_scrape_result. It doesn't fire
+again on every failed run after that (would just spam him hourly), only
+when a fresh streak first crosses the threshold; a single success resets
+the streak.
+
+Cron: hourly, offset from the top of the hour -- see the cron file.
 """
 import logging
 import re
@@ -33,7 +40,7 @@ from datetime import datetime
 import requests
 from playwright.sync_api import sync_playwright
 
-from config.settings import TELEGRAM_BOT_TOKEN
+from config.settings import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 from core.database import get_connection
 from core.vacation import vacation_gate
 from jobs.events.schema import create_tables as create_event_tables
@@ -46,6 +53,9 @@ CALENDAR_URL = "https://subsplash.com/+9tjq/lb/ca/+b7md4wp?embed&branding"
 KACI_PERSON_NAME = "Kaci Gravatt"
 
 _EVENT_LINK_RE = re.compile(r"/lb/ev/(\+[a-z0-9]+)")
+
+_FAIL_STREAK_KEY = "subsplash_monitor_fail_streak"
+_FAIL_ALERT_THRESHOLD = 3  # alert once failures reach this many in a row ("more than twice")
 
 
 class ScrapeError(Exception):
@@ -157,16 +167,65 @@ def _tg_send_to_kaci(text: str, keyboard: dict) -> int | None:
         return None
 
 
+def _get_fail_streak() -> int:
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT value FROM system_settings WHERE key = ?", (_FAIL_STREAK_KEY,)
+        ).fetchone()
+    return int(row["value"]) if row else 0
+
+
+def _set_fail_streak(n: int) -> None:
+    with get_connection() as conn:
+        conn.execute(
+            """INSERT INTO system_settings (key, value, updated_at) VALUES (?, ?, datetime('now'))
+               ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at""",
+            (_FAIL_STREAK_KEY, str(n)),
+        )
+
+
+def _alert_bill_fail_streak(streak: int, error: str) -> None:
+    # "system_failure" priority always sends, even during vacation mode --
+    # same convention as jobs/dev/ollama_monitor.py and the other
+    # infra-health alerts in this codebase (see core/vacation.py).
+    if vacation_gate("system_failure", "jobs.church_calendar.subsplash_monitor", "fail streak"):
+        return
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        log.error("no Telegram credentials -- cannot send fail-streak alert")
+        return
+    text = (
+        f"⚠️ Subsplash calendar monitor has failed {streak} runs in a row.\n"
+        f"Latest error: {error}\n\n"
+        f"Check logs/subsplash_monitor.log -- the embed's page markup may have changed. - Watson"
+    )
+    try:
+        requests.post(
+            f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+            json={"chat_id": TELEGRAM_CHAT_ID, "text": text},
+            timeout=15,
+        ).raise_for_status()
+    except Exception as exc:
+        log.error("failed to send fail-streak alert: %s", exc)
+
+
 def run() -> dict:
     """Called by cron. Never raises -- scrape failures are logged and
     returned as {success: False, error}, same convention as
-    jobs/thesis_tracker/scrape.py."""
+    jobs/thesis_tracker/scrape.py. A run that fails 3+ times in a row
+    (_FAIL_ALERT_THRESHOLD) alerts Bill once per streak; any successful
+    run resets the streak."""
     create_event_tables()
     try:
         events = _scrape_events()
     except Exception as exc:
         log.error("scrape failed: %s", exc)
+        streak = _get_fail_streak() + 1
+        _set_fail_streak(streak)
+        if streak == _FAIL_ALERT_THRESHOLD:
+            _alert_bill_fail_streak(streak, str(exc))
         return {"success": False, "error": str(exc)}
+
+    _set_fail_streak(0)
 
     with get_connection() as conn:
         known_ids = {
