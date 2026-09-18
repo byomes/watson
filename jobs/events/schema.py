@@ -5,6 +5,11 @@ Adds:
   church_events.tracking_active — 1 while new signups should auto-attach to
     this event (email detection and the team-chat Q&A both filter on this),
     0 once Bill considers the event closed out.
+  church_events.event_time — free-text time/time-range ("6:00pm - 8:00pm"),
+    separate from attendance_notes (post-event session notes, a different
+    thing) -- added 2026-09-17 for the Telegram new-event-notice path
+    (bot.py's _handle_new_event_notice), which only requires a name; date
+    and time are optional and may arrive later as a follow-up message.
   event_registrations — one row per registrant/signup for an event.
 """
 import sqlite3
@@ -16,6 +21,10 @@ def create_tables() -> None:
     conn = sqlite3.connect(DB_PATH)
     try:
         conn.execute("ALTER TABLE church_events ADD COLUMN tracking_active INTEGER DEFAULT 1")
+    except sqlite3.OperationalError:
+        pass  # column already exists
+    try:
+        conn.execute("ALTER TABLE church_events ADD COLUMN event_time TEXT")
     except sqlite3.OperationalError:
         pass  # column already exists
     conn.execute("""

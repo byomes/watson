@@ -2236,8 +2236,9 @@ async function moreLoadEvents() {
       html += '<div class="empty">No events logged yet.</div>';
     } else {
       html += events.map(ev => {
-        let dateRange = ev.start_date;
+        let dateRange = ev.start_date || 'No date set yet';
         if (ev.end_date && ev.end_date !== ev.start_date) dateRange += ' – ' + ev.end_date;
+        if (ev.event_time) dateRange += ' · ' + ev.event_time;
         const hasDetail = ev.description || ev.attendance_notes || ev.registration_count > 0;
         return `
           <div class="mpn-card" id="mevt-card-${ev.id}">

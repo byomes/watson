@@ -174,8 +174,11 @@ engagement_sheet_metrics(tab TEXT, section TEXT, metric_label TEXT, month TEXT, 
 """.strip()
 
 _EVENTS_SCHEMA = """
-church_events(id INTEGER, event_name TEXT, start_date TEXT, end_date TEXT, description TEXT, tracking_active INTEGER)
+church_events(id INTEGER, event_name TEXT, start_date TEXT, end_date TEXT, event_time TEXT, description TEXT, tracking_active INTEGER)
   -- one row per church event (picnic, retreat, class, etc). tracking_active=1 means Watson is still auto-attaching new signups to it.
+  -- start_date can be an empty string if the event was created via Telegram before a date was set (Kaci/Bill can only add
+  -- one, may add the other later) -- treat '' the same as "no date yet", never as a real date. event_time is free text
+  -- ("6:00pm - 8:00pm") and can likewise be NULL/empty if not set yet.
 event_registrations(id INTEGER, event_id INTEGER, first_name TEXT, last_name TEXT, email TEXT, phone TEXT, ticket_type TEXT, num_tickets INTEGER, submitted_at TEXT, source TEXT)
   -- one row per person/registration for an event. num_tickets is how many people that single registration covers -- SUM(num_tickets), not COUNT(*), for "how many people are coming".
   -- join event_registrations.event_id = church_events.id for a specific event's signups. source is 'csv_import', 'email', or 'manual'.
@@ -615,7 +618,7 @@ def _events_not_tracked_reply() -> str:
         conn = sqlite3.connect(f"file:{WATSON_DB_PATH}?mode=ro", uri=True, timeout=5)
         conn.row_factory = sqlite3.Row
         rows = conn.execute(
-            "SELECT event_name, start_date FROM church_events "
+            "SELECT event_name, start_date, event_time FROM church_events "
             "WHERE tracking_active = 1 ORDER BY start_date"
         ).fetchall()
         conn.close()
@@ -623,8 +626,16 @@ def _events_not_tracked_reply() -> str:
         rows = []
     if not rows:
         return "I'm not currently tracking that event, and I don't have any events set up right now."
-    tracked = ", ".join(f"{r['event_name']} ({r['start_date']})" for r in rows)
+    tracked = ", ".join(_fmt_tracked_event(r) for r in rows)
     return f"I'm not currently tracking that event. Events I do track: {tracked}."
+
+
+def _fmt_tracked_event(row: dict) -> str:
+    """One tracked event as "name (date, time)" -- omits the parenthetical
+    (or just the missing half) when start_date/event_time weren't set yet,
+    which the Telegram new-event-notice path (bot.py) allows."""
+    when = ", ".join(p for p in (row["start_date"] or None, row["event_time"] or None) if p)
+    return f"{row['event_name']} ({when})" if when else row["event_name"]
 
 
 def _format_rows(rows: list[dict], domain: str | None = None) -> str:

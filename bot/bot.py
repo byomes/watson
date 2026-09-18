@@ -1030,6 +1030,17 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     and not _family_report and not _unlock_login
                 ) else None
             )
+            # Later date/time addition for an event created without one --
+            # same allowlist/priority slot as _new_event above.
+            _event_update = (
+                _extract_event_date_time_update(_msg_text)
+                if (
+                    _leader_name in _EVENT_CREATE_ALLOWLIST
+                    and not _add_child and not _bday_update and not _mark_spouse
+                    and not _mark_child and not _assign and not _assign_incomplete
+                    and not _family_report and not _unlock_login and not _new_event
+                ) else None
+            )
             from jobs.telegram.leader_tool_usage import log_usage as _log_leader_tool_usage
             with get_connection() as _lc:
                 _log_leader_tool_usage(
@@ -1042,7 +1053,9 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                         "deacon_assign_incomplete" if _assign_incomplete else (
                                             "family_report" if _family_report else (
                                                 "unlock_login" if _unlock_login else (
-                                                    "new_event" if _new_event else "team_chat"
+                                                    "new_event" if _new_event else (
+                                                        "event_date_time_update" if _event_update else "team_chat"
+                                                    )
                                                 )
                                             )
                                         )
@@ -1067,7 +1080,9 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
             elif _unlock_login:
                 await _handle_unlock_login(update)
             elif _new_event:
-                await _handle_new_event_notice(update, _leader_name, _new_event)
+                await _handle_new_event_notice(update, _leader_name, *_new_event)
+            elif _event_update:
+                await _handle_event_date_time_update(update, _leader_name, *_event_update, _msg_text)
             elif _assign_incomplete:
                 await update.message.reply_text(
                     "Who would you like to assign, and to which deacon? "
@@ -2429,45 +2444,210 @@ _NEW_EVENT_RE = re.compile(
 _NEW_EVENT_LEADING_RE = re.compile(r"^new\s+event\b\s*[:\-]?\s*(.*)", re.IGNORECASE)
 
 # Cuts the captured name off before a trailing clause about registrations/
-# testing in the same message ("Fall Retreat, registrations will come to
-# your email" -> "Fall Retreat") rather than swallowing the whole sentence.
+# testing/date/time in the same message ("Fall Retreat, registrations will
+# come to your email" -> "Fall Retreat") rather than swallowing the whole
+# sentence.
 _EVENT_NAME_STOP_RE = re.compile(
     r"[.;\n]|,\s*(?:regist|rsvp|sign[\s-]?up|ticket|test)", re.IGNORECASE
 )
 
+_MONTH_NAMES_RE = (
+    r"jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?"
+    r"|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?"
+)
 
-def _extract_new_event_notice(text: str) -> str | None:
+# Deliberately narrow -- requires a month name WITH a day number (or a fully
+# numeric date), never a bare month name alone, so an event named e.g.
+# "August Gathering" can't be misread as a date. False negatives here just
+# mean Bill/Kaci get asked to add the date some other way; false positives
+# would silently write a wrong date into a real church_events row.
+_EVENT_DATE_RE = re.compile(
+    rf"\b(?:{_MONTH_NAMES_RE})\.?\s+\d{{1,2}}(?:st|nd|rd|th)?(?:,?\s+\d{{4}})?\b"
+    rf"|\b\d{{1,2}}(?:st|nd|rd|th)?\s+(?:of\s+)?(?:{_MONTH_NAMES_RE})\.?(?:,?\s+\d{{4}})?\b"
+    rf"|\b\d{{1,2}}/\d{{1,2}}(?:/\d{{2,4}})?\b"
+    rf"|\b\d{{4}}-\d{{2}}-\d{{2}}\b",
+    re.IGNORECASE,
+)
+
+_EVENT_TIME_RANGE_RE = re.compile(
+    # am/pm on the START time is optional ("6-8pm" implicitly means
+    # 6pm-8pm) but required on the END time, so this can't accidentally
+    # match an unrelated plain number range like "10-15 people".
+    r"\b\d{1,2}(?::\d{2})?\s*(?:am|pm)?\s*(?:-|to|–|until)\s*\d{1,2}(?::\d{2})?\s*(?:am|pm)\b",
+    re.IGNORECASE,
+)
+_EVENT_TIME_SINGLE_RE = re.compile(
+    r"\b(?:at\s+)?\d{1,2}(?::\d{2})?\s*(?:am|pm)\b",
+    re.IGNORECASE,
+)
+
+
+def _extract_event_date(text: str) -> str | None:
+    """First recognizable date in `text`, normalized to YYYY-MM-DD, or None.
+    A missing year defaults to the current year (dashboard editing is the
+    fallback if that guess is wrong -- same "edit it later" safety valve
+    the confirmation message already points to)."""
+    m = _EVENT_DATE_RE.search(text)
+    if not m:
+        return None
+    from dateutil import parser as _dateutil_parser
+    try:
+        parsed = _dateutil_parser.parse(m.group(0), fuzzy=True, default=datetime(date.today().year, 1, 1))
+    except (ValueError, OverflowError):
+        return None
+    return parsed.date().isoformat()
+
+
+def _extract_event_time(text: str) -> str | None:
+    """First recognizable time or time range in `text`, as the matched
+    text verbatim (this is a free-text display field, not parsed into a
+    structured type -- "6pm" and "6:00pm-8:00pm" are both stored as-is)."""
+    m = _EVENT_TIME_RANGE_RE.search(text)
+    if m:
+        return m.group(0).strip()
+    m = _EVENT_TIME_SINGLE_RE.search(text)
+    if m:
+        return re.sub(r"^at\s+", "", m.group(0).strip(), flags=re.IGNORECASE)
+    return None
+
+
+def _strip_trailing_date_time(name: str) -> str:
+    """Cuts an event name off before an inline date/time that follows it
+    with no comma ("Trunk or Treat on October 31st at 6pm" -> "Trunk or
+    Treat") -- _EVENT_NAME_STOP_RE only catches a comma-separated trailing
+    clause, not this directly-appended form."""
+    cut = len(name)
+    for rx in (_EVENT_DATE_RE, _EVENT_TIME_RANGE_RE, _EVENT_TIME_SINGLE_RE):
+        m = rx.search(name)
+        if m and m.start() < cut:
+            cut = m.start()
+    trimmed = re.sub(r"\b(?:on|at|starting|from)\s*$", "", name[:cut], flags=re.IGNORECASE)
+    return trimmed.strip(" ,.-")
+
+
+def _extract_new_event_notice(text: str) -> tuple[str, str | None, str | None] | None:
     """Kaci (or Bill) telling Watson she's setting up a new church event,
     e.g. "I'm creating a new event called Fall Retreat" or "New event:
-    Trunk or Treat" -- returns the event name, or None if the message
-    doesn't match. See _EVENT_CREATE_ALLOWLIST above for who this is
-    wired to."""
+    Trunk or Treat on October 31st at 6pm" -- returns (event_name,
+    date_or_None, time_or_None), or None if the message doesn't look like
+    a new-event notice at all. Per Bill's 2026-09-17 decision, only the
+    name is required; date and time are optional and may be added in this
+    same message or a later one (see _extract_event_date_time_update
+    below). See _EVENT_CREATE_ALLOWLIST above for who this is wired to."""
     m = _NEW_EVENT_RE.search(text) or _NEW_EVENT_LEADING_RE.match(text.strip())
     if not m:
         return None
     name = m.group(1).strip(" :-\"'“”")
     name = _EVENT_NAME_STOP_RE.split(name)[0].strip(" .!\"'“”")
     name = re.sub(r"^(?:the|a|an)\s+", "", name, flags=re.IGNORECASE)
-    return name or None
+    name = _strip_trailing_date_time(name)
+    if not name:
+        return None
+    return name, _extract_event_date(text), _extract_event_time(text)
 
 
-async def _handle_new_event_notice(update: Update, sender_name: str, event_name: str) -> None:
+async def _handle_new_event_notice(
+    update: Update, sender_name: str, event_name: str, event_date: str | None, event_time: str | None
+) -> None:
     def _create() -> int:
+        from jobs.events.schema import create_tables
+        create_tables()
         with get_connection() as conn:
             cur = conn.execute(
-                "INSERT INTO church_events (event_name, start_date, tracking_active) "
-                "VALUES (?, date('now'), 1)",
-                (event_name,),
+                "INSERT INTO church_events (event_name, start_date, event_time, tracking_active) "
+                "VALUES (?, ?, ?, 1)",
+                (event_name, event_date or "", event_time),
             )
             conn.commit()
             return cur.lastrowid
 
     event_id = await asyncio.to_thread(_create)
-    log.info("new_event_notice: sender=%s event_id=%s name=%r", sender_name, event_id, event_name)
+    log.info(
+        "new_event_notice: sender=%s event_id=%s name=%r date=%r time=%r",
+        sender_name, event_id, event_name, event_date, event_time,
+    )
+    when = ", ".join(p for p in (event_date, event_time) if p)
+    when_clause = f" ({when})" if when else " -- let me know the date/time whenever you have them"
     await update.message.reply_text(
-        f"Got it, now tracking “{event_name}”. I'll watch for registration emails and "
-        f"match them to it automatically; let me know when you send that test registration. "
-        f"Start date/details can be edited from the Events tab. - Watson"
+        f"Got it, now tracking “{event_name}”{when_clause}. I'll watch for registration emails "
+        f"and match them to it automatically; let me know when you send that test registration. "
+        f"Details can be edited from the Events tab. - Watson"
+    )
+
+
+# Kaci/Bill adding a date and/or time to an event AFTER it was already
+# created with just a name -- e.g. "the date for Trunk or Treat is October
+# 31st" or "Trunk or Treat's time is 6-8pm". Requires the explicit
+# date/time keyword rather than a bare "X is <date>" (too easy to collide
+# with an unrelated sentence, and a false positive here silently rewrites a
+# real event's date) -- same false-positive-averse posture as
+# _EVENT_DATE_RE above.
+_EVENT_UPDATE_RE = re.compile(
+    r"\b(date|time)\s+for\s+(.+?)\s+(?:is|will\s+be)\s*[:\-]?\s*(.+)"
+    r"|\b(.+?)['’]s\s+(date|time)\s+(?:is|will\s+be)\s*[:\-]?\s*(.+)",
+    re.IGNORECASE,
+)
+
+
+def _extract_event_date_time_update(text: str) -> tuple[str, str | None, str | None] | None:
+    """Returns (event_name_guess, date_or_None, time_or_None) for a later
+    date/time notice, or None if `text` doesn't match. event_name_guess
+    still has to resolve to exactly one tracking_active event via
+    jobs.events.matching.find_active_event before anything is written --
+    this function only extracts, it never confirms the event exists."""
+    m = _EVENT_UPDATE_RE.search(text)
+    if not m:
+        return None
+    if m.group(1):
+        kind, name_guess, rest = m.group(1), m.group(2), m.group(3)
+    else:
+        name_guess, kind, rest = m.group(4), m.group(5), m.group(6)
+    name_guess = name_guess.strip(" \"'“”")
+    event_date = _extract_event_date(rest) if kind.lower() == "date" else _extract_event_date(text)
+    event_time = _extract_event_time(rest) if kind.lower() == "time" else _extract_event_time(text)
+    if not event_date and not event_time:
+        return None
+    return name_guess, event_date, event_time
+
+
+async def _handle_event_date_time_update(
+    update: Update, sender_name: str, name_guess: str, event_date: str | None, event_time: str | None, full_text: str
+) -> None:
+    from jobs.events.matching import find_active_event
+
+    def _update() -> dict | None:
+        with get_connection() as conn:
+            row = find_active_event(conn, name_guess, full_text)
+            if not row:
+                return None
+            # find_active_event's own SELECT doesn't include event_time, so
+            # this only overwrites a field that was actually extracted --
+            # COALESCE/NULLIF leaves the other column exactly as it was
+            # rather than needing to read it back first.
+            conn.execute(
+                "UPDATE church_events SET "
+                "start_date = COALESCE(NULLIF(?, ''), start_date), "
+                "event_time = COALESCE(?, event_time) "
+                "WHERE id = ?",
+                (event_date or "", event_time, row["id"]),
+            )
+            conn.commit()
+            return row
+
+    row = await asyncio.to_thread(_update)
+    if not row:
+        await update.message.reply_text(
+            f"I couldn't find a tracked event matching \"{name_guess}\" to update. "
+            f"Tell me its exact name, or start tracking it first. - Watson"
+        )
+        return
+    log.info(
+        "event_date_time_update: sender=%s event_id=%s name=%r date=%r time=%r",
+        sender_name, row["id"], row["event_name"], event_date, event_time,
+    )
+    when = ", ".join(p for p in (event_date, event_time) if p)
+    await update.message.reply_text(
+        f"Updated “{row['event_name']}” with {when}. - Watson"
     )
 
 
@@ -3711,7 +3891,14 @@ async def _handle_general(update: Update, context: ContextTypes.DEFAULT_TYPE, te
     # Gravatt's parallel path is _handle_text_body's _EVENT_CREATE_ALLOWLIST.
     _new_event = _extract_new_event_notice(text)
     if _new_event:
-        await _handle_new_event_notice(update, "Bill Yomes", _new_event)
+        await _handle_new_event_notice(update, "Bill Yomes", *_new_event)
+        return ""
+
+    # Later date/time addition for an event created without one -- same
+    # reasoning as _new_event above.
+    _event_update = _extract_event_date_time_update(text)
+    if _event_update:
+        await _handle_event_date_time_update(update, "Bill Yomes", *_event_update, text)
         return ""
 
     # Deacon reassignment via chat, extended to Dr. Bill's own chat 2026-09-08

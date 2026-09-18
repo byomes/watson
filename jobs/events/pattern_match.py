@@ -124,7 +124,7 @@ def pattern_match(question: str) -> str | None:
 
     if _TRACKED_RE.search(q):
         return (
-            "SELECT event_name, start_date FROM church_events "
+            "SELECT event_name, start_date, event_time FROM church_events "
             "WHERE tracking_active = 1 ORDER BY start_date"
         )
 

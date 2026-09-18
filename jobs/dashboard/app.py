@@ -2356,7 +2356,7 @@ def pastoral_notes_delete(note_id):
 @app.route("/api/events")
 def events_list():
     rows = _db().execute("""
-        SELECT e.id, e.event_name, e.start_date, e.end_date,
+        SELECT e.id, e.event_name, e.start_date, e.end_date, e.event_time,
                e.description, e.attendance_notes, e.created_at, e.tracking_active,
                COUNT(DISTINCT f.id) as file_count,
                COUNT(DISTINCT r.id) as registration_count,
