@@ -157,6 +157,36 @@ def _insert_registration(conn: sqlite3.Connection, event_id: int, detection: dic
     return cur.lastrowid
 
 
+def _notify_creator_on_first_match(conn: sqlite3.Connection, event_id: int, event_name: str, registrant: str) -> None:
+    """Tells the leader who set up this event (church_events.created_by --
+    set by bot.py's _handle_new_event_notice) once their event's first
+    registration actually matches, since that leader almost always sends a
+    test registration right after creating the event and otherwise never
+    hears back whether it worked. Fires only once per event (creator_notified
+    guards it) so real congregant signups after the first don't keep pinging
+    them. Silently no-ops if there's no creator on record or the creator
+    isn't an onboarded Telegram person -- this is a nice-to-have confirmation,
+    never something a registration should be blocked or delayed on."""
+    row = conn.execute(
+        "SELECT created_by, creator_notified FROM church_events WHERE id = ?", (event_id,)
+    ).fetchone()
+    if not row or not row["created_by"] or row["creator_notified"]:
+        return
+    person = conn.execute(
+        "SELECT id FROM people WHERE name = ?", (row["created_by"],)
+    ).fetchone()
+    if not person:
+        return
+    from jobs.telegram.send_to_person import send_to_person
+    sent = send_to_person(
+        person["id"],
+        f"Good news, \"{event_name}\" just picked up a registration ({registrant}). "
+        f"Tracking is working. - Watson",
+    )
+    if sent:
+        conn.execute("UPDATE church_events SET creator_notified = 1 WHERE id = ?", (event_id,))
+
+
 def handle_event_signup_email(
     msg_id: str, sender_email: str, subject: str, body: str, received_at: str
 ) -> str | None:
@@ -178,6 +208,7 @@ def handle_event_signup_email(
 
     if matched:
         _insert_registration(conn, matched["id"], detection, received_at)
+        _notify_creator_on_first_match(conn, matched["id"], matched["event_name"], who)
         conn.commit()
         conn.close()
         log.info(

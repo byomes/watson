@@ -2564,9 +2564,9 @@ async def _handle_new_event_notice(
         create_tables()
         with get_connection() as conn:
             cur = conn.execute(
-                "INSERT INTO church_events (event_name, start_date, event_time, tracking_active) "
-                "VALUES (?, ?, ?, 1)",
-                (event_name, event_date or "", event_time),
+                "INSERT INTO church_events (event_name, start_date, event_time, tracking_active, created_by) "
+                "VALUES (?, ?, ?, 1, ?)",
+                (event_name, event_date or "", event_time, sender_name),
             )
             conn.commit()
             return cur.lastrowid

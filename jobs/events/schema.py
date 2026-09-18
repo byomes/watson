@@ -10,6 +10,13 @@ Adds:
     thing) -- added 2026-09-17 for the Telegram new-event-notice path
     (bot.py's _handle_new_event_notice), which only requires a name; date
     and time are optional and may arrive later as a follow-up message.
+  church_events.created_by / creator_notified — the leader name from the
+    Telegram new-event-notice path (bot.py's _handle_new_event_notice) and
+    whether they've been sent the "first registration matched" Telegram
+    confirmation yet -- added 2026-09-18 so the person who just told
+    Watson to track an event (almost always followed by a test signup)
+    hears back once it actually works, without pinging them again on every
+    later real registrant. See jobs/events/signup_detect.py.
   event_registrations — one row per registrant/signup for an event.
 """
 import sqlite3
@@ -25,6 +32,14 @@ def create_tables() -> None:
         pass  # column already exists
     try:
         conn.execute("ALTER TABLE church_events ADD COLUMN event_time TEXT")
+    except sqlite3.OperationalError:
+        pass  # column already exists
+    try:
+        conn.execute("ALTER TABLE church_events ADD COLUMN created_by TEXT")
+    except sqlite3.OperationalError:
+        pass  # column already exists
+    try:
+        conn.execute("ALTER TABLE church_events ADD COLUMN creator_notified INTEGER NOT NULL DEFAULT 0")
     except sqlite3.OperationalError:
         pass  # column already exists
     conn.execute("""
