@@ -13,6 +13,19 @@ and "how many people are registered for the church picnic?" via Telegram —
 both cost a real Claude API call (core/claude_tier.py, ~$0.011 each,
 claude_tier_spend_log ids 84-85) because no events-domain fast path existed;
 data_chat.py's existing pattern-match reuse only covers attendance.
+
+Extended 2026-09-17 after a Team Chat leader asked "Who signed up for the
+75th anniversary" — a real signup-list question (matches _LIST_RE below) for
+an event that simply isn't in church_events at all, so _resolve_event_id
+came back None and the question fell all the way through to a paid Claude
+call, which could only ever reach the same "nothing to report" conclusion.
+_names_untracked_event() below recognizes that specific shape — a signup
+question that names a specific event phrase matching NONE of the tracked
+events — and returns an honest, free, instant answer instead. It
+deliberately does NOT fire on a vague/generic reference ("who signed up for
+that", "...for the event") or on an ambiguous phrase matching 2+ events,
+since either of those genuinely needs the smarter LLM path's conversation
+history or judgment, not a flat "not tracked" answer.
 """
 import re
 import sqlite3
@@ -43,14 +56,36 @@ def _norm(name_l: str) -> str:
 _EVENT_REF_RE = re.compile(r"\b(?:for|to|about)\s+(?:the\s+)?([a-z][a-z0-9' -]*?)(?:[?.!]|$)", re.IGNORECASE)
 
 
+def _event_phrase(q: str) -> str | None:
+    """Whatever the question names after for/to/about ("...for the
+    retreat"), or None if it doesn't name anything that way."""
+    m = None
+    for m in _EVENT_REF_RE.finditer(q):
+        pass  # take the last for/to/about clause — closest to the actual object
+    return (m.group(1).strip().strip("?.!,") if m else None) or None
+
+
+def _matching_events(q: str, phrase: str, rows: list) -> list:
+    """Tracked events whose name matches `phrase` (verbatim anywhere in the
+    full question `q`, or with stopwords like "church"/"the" stripped from
+    both sides)."""
+    phrase_norm = _norm(phrase)
+    return [
+        r for r in rows
+        if r["event_name"].lower() in q
+        or (_norm(r["event_name"].lower()) and (
+            _norm(r["event_name"].lower()) in phrase_norm or phrase_norm in _norm(r["event_name"].lower())
+        ))
+    ]
+
+
 def _resolve_event_id(question: str) -> int | None:
     """Which tracking_active event the question is about.
 
     If the question names something after for/to/about ("...for the
-    retreat"), that phrase MUST match a tracked event's name (verbatim, or
-    with stopwords like "church"/"the" stripped) — a name that matches
-    nothing returns None even if exactly one event happens to be active,
-    since defaulting there would silently answer a question about an
+    retreat"), that phrase MUST match a tracked event's name — a name that
+    matches nothing returns None even if exactly one event happens to be
+    active, since defaulting there would silently answer a question about an
     untracked event with a different event's numbers. Only when no such
     phrase is present at all does "exactly one active event" apply as the
     implicit subject (the common case: a bare "how many are registered?"
@@ -67,23 +102,50 @@ def _resolve_event_id(question: str) -> int | None:
         return None
 
     q = question.lower()
-    m = None
-    for m in _EVENT_REF_RE.finditer(q):
-        pass  # take the last for/to/about clause — closest to the actual object
-    phrase = (m.group(1).strip().strip("?.!,") if m else None) or None
+    phrase = _event_phrase(q)
 
     if phrase:
-        phrase_norm = _norm(phrase)
-        matches = [
-            r for r in rows
-            if r["event_name"].lower() in q
-            or (_norm(r["event_name"].lower()) and (
-                _norm(r["event_name"].lower()) in phrase_norm or phrase_norm in _norm(r["event_name"].lower())
-            ))
-        ]
+        matches = _matching_events(q, phrase, rows)
         return matches[0]["id"] if len(matches) == 1 else None
 
     return rows[0]["id"] if len(rows) == 1 else None
+
+
+# A phrase this generic isn't naming a specific event at all -- "who signed
+# up for that"/"...for the event" is a vague or contextual reference (often
+# a follow-up leaning on conversation history data_chat.py's LLM path has
+# access to but this fast path doesn't), not a real event name. Firing the
+# untracked-event answer on one of these would be a confident wrong answer,
+# not a graceful "we don't have that" -- so these are excluded from
+# _names_untracked_event below rather than treated as a zero-match name.
+_GENERIC_EVENT_REF_WORDS = {"event", "that", "it", "one", "them", "there"}
+
+
+def _names_untracked_event(question: str) -> bool:
+    """True only when the question names a specific event (the same
+    for/to/about phrase _resolve_event_id looks for) that matches NONE of
+    the tracked events at all -- distinct from a phrase that's just generic
+    (see _GENERIC_EVENT_REF_WORDS) or ambiguous (matches 2+ events), both of
+    which still fall through to the smarter LLM path rather than getting a
+    flat "not tracked" answer. Checked against ALL rows in church_events,
+    not just tracking_active=1 ones, so a real but no-longer-active past
+    event (which may still have real registration history worth answering
+    from the LLM path) is never misreported as untracked."""
+    try:
+        conn = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True, timeout=5)
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute("SELECT id, event_name FROM church_events").fetchall()
+        conn.close()
+    except Exception:
+        return False
+
+    q = question.lower()
+    phrase = _event_phrase(q)
+    if not phrase:
+        return False
+    if _norm(phrase) in _GENERIC_EVENT_REF_WORDS:
+        return False
+    return not _matching_events(q, phrase, rows)
 
 
 # Checked first, independent of any specific event — a question about what's
@@ -128,24 +190,42 @@ def pattern_match(question: str) -> str | None:
             "WHERE tracking_active = 1 ORDER BY start_date"
         )
 
-    if _COUNT_RE.search(q):
+    is_count = _COUNT_RE.search(q)
+    is_list = _LIST_RE.search(q)
+    if is_count or is_list:
         event_id = _resolve_event_id(q)
-        if event_id is None:
-            return None
-        return (
-            "SELECT SUM(num_tickets) FROM event_registrations "
-            f"WHERE event_id = {event_id}"
-        )
-
-    if _LIST_RE.search(q):
-        event_id = _resolve_event_id(q)
-        if event_id is None:
-            return None
-        return (
-            "SELECT first_name || ' ' || last_name || "
-            "CASE WHEN num_tickets > 1 THEN ' (' || num_tickets || ' tickets)' ELSE '' END "
-            "AS registrant FROM event_registrations "
-            f"WHERE event_id = {event_id} ORDER BY first_name, last_name"
-        )
+        if event_id is not None:
+            if is_count:
+                return (
+                    "SELECT SUM(num_tickets) FROM event_registrations "
+                    f"WHERE event_id = {event_id}"
+                )
+            return (
+                "SELECT first_name || ' ' || last_name || "
+                "CASE WHEN num_tickets > 1 THEN ' (' || num_tickets || ' tickets)' ELSE '' END "
+                "AS registrant FROM event_registrations "
+                f"WHERE event_id = {event_id} ORDER BY first_name, last_name"
+            )
+        # No tracked event matched the name the question gave -- give an
+        # honest, free, instant answer for the clearly-untracked case (see
+        # _names_untracked_event's docstring) instead of falling through to
+        # a paid Claude call that would very likely reach the same
+        # conclusion. The literal message still has to come back through a
+        # whitelisted table (data_chat.py's _validate_sql rejects any SELECT
+        # with no FROM/JOIN clause naming an allowed table) -- the subquery
+        # guarantees exactly one row regardless of how many rows
+        # church_events actually has, so the message is never silently
+        # dropped by an empty-table edge case.
+        if _names_untracked_event(q):
+            # No literal "--" here (or anywhere else in this string) --
+            # data_chat.py's _FORBIDDEN_SQL_RE rejects ANY occurrence of a
+            # SQL line-comment marker, including inside an otherwise-safe
+            # string literal, so a double-hyphen in the message text itself
+            # would get this whole query rejected as unsafe.
+            return (
+                "SELECT 'Watson is not tracking signups for that event yet. "
+                "Try rephrasing, or ask Dr. Bill.' AS message "
+                "FROM (SELECT 1 AS x FROM church_events UNION ALL SELECT 1) LIMIT 1"
+            )
 
     return None
