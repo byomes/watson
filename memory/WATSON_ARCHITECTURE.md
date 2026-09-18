@@ -425,6 +425,7 @@ A skill marked **disabled** below is registered but intentionally turned off —
 | Skill | Status | Interfaces | Trigger phrases | What it does |
 |---|---|---|---|---|
 | **Citation Manager** (`citation_manager`) | ready | telegram, dashboard | `format citation`, `cite this`, `create a citation`, `bibliography` | Format and manage citations. |
+| **Field Research** (`field_research`) | ready | telegram, dashboard | `field research on`, `field research for`, `run field research`, `field research:`, `field research skill` | Search for real, verbatim field-engagement quotes and statistics on a given topic for a writing project (currently Guardrails) -- extracts exact source text, never paraphrases, always flagged unverified pending Bill's own confirmation. |
 | **Grammar Check** (`grammar_checker`) | ready | telegram, dashboard | `check grammar`, `grammar check`, `proofread`, `fix my grammar` | Check grammar and style of any text. |
 | **Polish Text** (`polish`) | ready | telegram, dashboard | `polish this:` | Polish text in the voice of Dr. William C.K. Yomes — pastoral-scholarly prose, first-person plural, Jesus pronouns capitalized. |
 | **Readability Check** (`readability`) | ready | telegram, dashboard | `check readability`, `readability score`, `how readable is` | Score the readability of any text. |
