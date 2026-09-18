@@ -4907,6 +4907,56 @@ async def handle_event_new_callback(update: Update, context: ContextTypes.DEFAUL
     await query.edit_message_text(msg, reply_markup=None)
 
 
+async def handle_subsplash_event_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """subs_yes/subs_no -- Kaci's reply to
+    jobs/church_calendar/subsplash_monitor.py's "should Watson track this
+    event?" prompt. That prompt is sent only to Kaci's own chat, so (unlike
+    every other button flow in this file, gated to Bill's chat via
+    _is_authorized) this checks the tap came from Kaci's chat specifically."""
+    query = update.callback_query
+    await query.answer()
+
+    with get_connection() as conn:
+        kaci = conn.execute(
+            "SELECT telegram_chat_id FROM people WHERE name = 'Kaci Gravatt'"
+        ).fetchone()
+    if not kaci or not kaci["telegram_chat_id"] or str(update.effective_chat.id) != str(kaci["telegram_chat_id"]):
+        return
+
+    data = query.data
+    if data.startswith("subs_yes:"):
+        pending_id = int(data[len("subs_yes:"):])
+    elif data.startswith("subs_no:"):
+        pending_id = int(data[len("subs_no:"):])
+    else:
+        return
+
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT id, type, payload FROM tg_pending_actions WHERE id=? AND status='pending'",
+            (pending_id,),
+        ).fetchone()
+
+    if not row:
+        await query.edit_message_text("⚠️ Action expired or already resolved.", reply_markup=None)
+        return
+
+    import json as _json
+    payload = _json.loads(row["payload"])
+
+    import asyncio
+    if data.startswith("subs_yes:"):
+        from jobs.church_calendar.subsplash_monitor import handle_subsplash_new_event_yes
+        msg = await asyncio.to_thread(handle_subsplash_new_event_yes, payload)
+    else:
+        from jobs.church_calendar.subsplash_monitor import handle_subsplash_new_event_no
+        msg = await asyncio.to_thread(handle_subsplash_new_event_no, payload)
+
+    with get_connection() as conn:
+        conn.execute("UPDATE tg_pending_actions SET status='done' WHERE id=?", (pending_id,))
+    await query.edit_message_text(msg, reply_markup=None)
+
+
 async def handle_command_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
 
@@ -6829,6 +6879,7 @@ def main():
     app.add_handler(CallbackQueryHandler(handle_privacy_captcha_callback, pattern=r"^priv_captcha_(ready|cancel):"))
     app.add_handler(CallbackQueryHandler(handle_email_triage_callback, pattern=r"^et_"))
     app.add_handler(CallbackQueryHandler(handle_event_new_callback, pattern=r"^evnew_(yes|no):"))
+    app.add_handler(CallbackQueryHandler(handle_subsplash_event_callback, pattern=r"^subs_(yes|no):"))
     app.add_handler(CallbackQueryHandler(handle_carrier_callback, pattern=r"^carrier_"))
     app.add_handler(CallbackQueryHandler(handle_archive_classify_callback, pattern=r"^arch_(keep|chg):"))
     app.add_handler(CallbackQueryHandler(handle_email_callback, pattern=r"^email_"))
