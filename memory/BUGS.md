@@ -1,10 +1,11 @@
 # Watson Bug Tracker
 _Auto-generated nightly from bug_tracker. Source of truth is the database — do not hand-edit this file, changes will be overwritten._
-Last generated: 2026-09-17 02:10
+Last generated: 2026-09-18 02:10
 
-## Open (50)
+## Open (51)
 | ID | Title | Repo | Discovered |
 |---|---|---|---|
+| 182 | devdispatch auto-merge fails on draft PRs | watson | 2026-09-18 00:18:48 |
 | 181 | Password vault stored plaintext + auth bypass | watson | 2026-09-16 16:34:17 |
 | 147 | jobs.browser: goto_safe failed for https://www.beenverified.com/people/mikhaela-molanders/de/ | watson | 2026-09-08 09:31:18 |
 | 146 | jobs.browser: goto_safe failed for https://www.beenverified.com/people/emily-yomes/de/ | watson | 2026-09-08 09:31:03 |
@@ -59,6 +60,7 @@ Last generated: 2026-09-17 02:10
 ## Recently Resolved (last 30 days)
 | ID | Title | Repo | Resolved | Commit |
 |---|---|---|---|---|
+| 183 | Team Chat event-signup question fell through to paid LLM when no tracked event matched | watson | 2026-09-18 03:35:09 | a32977d |
 | 180 | Team Chat LAST ATTENDED query rejected -- referenced raw connect_cards, not the whitelisted view | watson | 2026-09-16 10:19:24 | 74bcb89 |
 | 179 | bot.py _extract_team_lookup (Bill's own DM path) rejects "when is" phrasing -- same bug as cdb_query.py, different file | watson | 2026-09-16 10:17:21 | fa38f91 |
 | 178 | LAST ATTENDED/LAST MISSED BY NAME fast path rejects "when is" phrasing | watson | 2026-09-16 10:14:44 | 2a9d825 |
