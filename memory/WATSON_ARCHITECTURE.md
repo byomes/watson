@@ -139,7 +139,7 @@ Watson acts on Dr. Bill's behalf under his supervision. Always identified openly
 | FMS site | `github.com/byomes/fms` | `~/fms` (planned) | Vercel auto on push |
 | bodyrec | `github.com/byomes/bodyrec` | `~/bodyrec` | Vercel auto on push |
 | Watson Tools | `github.com/byomes/watson-tools` | `~/watson-tools` | Vercel auto on push |
-| Watson Review | `github.com/byomes/watson-review` | `~/watson-review` | Manual only — context drop-zone, not a mirror of `watson` (deliberately no shared git history) or a deploy target. Public repo. Files land in `context/` via `~/watson-review/send_context.sh <file>`, which prints a `raw.githubusercontent.com` URL to hand to Claude.ai. Manual/on-demand only, no cron. |
+| Watson Review | `github.com/byomes/watson-review` | `~/watson-review` | Mostly manual — context drop-zone, not a mirror of `watson` (deliberately no shared git history) or a deploy target. Public repo. Files land in `context/` via `~/watson-review/send_context.sh <file>`, which prints a `raw.githubusercontent.com` URL to hand to Claude.ai. One automated exception (added 2026-09-17): `jobs/writing_digest/nightly_digest.py` (cron) commits/pushes `context/<project>-master.md` and `context/<project>/archives/<id>.md` nightly per enabled book project — see that job's docstring. |
 
 **All web development happens on the Beelink.** Claude Code builds on the Beelink, commits, pushes to GitHub, Vercel deploys automatically.
 
@@ -4145,3 +4145,19 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - 7556b23 Move Connected/Consistency badges next to the name on the List tab
 - 87418ce Sync Connected/Consistency badges between deacon List tab and Report tab
 - 3e7391d Load Report tab first in deacon app
+
+---
+
+## Recent Changes — 2026-09-18
+
+### ~/watson
+- a1cfc94 docs: bugs/backlog export 2026-09-18
+- 0563f13 docs: file map 2026-09-18
+- f450fee Support optional event date/time in the Telegram new-event-notice flow
+- aa20371 Let Kaci and Dr. Bill create tracked events via Telegram notice
+- 9055e55 Reply clearly when an events question names an untracked event
+- c98a21b Remove Trading, Privacy Guard, and Publishing tiles from dashboard More menu
+- 87cbfc7 Add ADDRESS LOOKUP fast path to cdb_query.py (#63)
+- 43077fb Add "what's the attendance count?" fast-path phrase to count of who attended a service
+- 7dca4b6 Add "how many people have been to church in the last six weeks" fast-path phrase to attendance trend over time
+- 66acefb docs: architecture update 2026-09-17
