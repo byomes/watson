@@ -1563,10 +1563,6 @@ function renderMore() {
     </div>
     <div id="vacation-suppressed-list" style="display:none;padding:0 16px 12px"></div>
     <div class="mgrid">
-      <button class="mtile" id="mtile-publishing" onclick="moreToggle('publishing')">
-        <span class="mtile-label">Publishing</span>
-        <span class="mtile-chev">›</span>
-      </button>
       <button class="mtile" id="mtile-thesis" onclick="moreToggle('thesis')">
         <span class="mtile-label">Thesis Tracker</span>
         <span class="mtile-chev">›</span>
@@ -1595,14 +1591,6 @@ function renderMore() {
         <span class="mtile-label">Telegram Log</span>
         <span class="mtile-chev">›</span>
       </button>
-      <button class="mtile" id="mtile-privacy-guard" onclick="moreToggle('privacy-guard')">
-        <span class="mtile-label">Privacy Guard</span>
-        <span class="mtile-chev">›</span>
-      </button>
-      <button class="mtile" id="mtile-trading" onclick="window.location.href='/trading'">
-        <span class="mtile-label">Trading</span>
-        <span class="mtile-chev">›</span>
-      </button>
       <button class="mtile" id="mtile-location" onclick="window.location.href='/location'">
         <span class="mtile-label">Location</span>
         <span class="mtile-chev">›</span>
@@ -1617,9 +1605,6 @@ function renderMore() {
       </button>
     </div>
     <div id="more-expand-area">
-      <div class="msec-body" id="msec-body-publishing">
-        <div class="msec-inner" id="msec-inner-publishing"><div class="loading">Loading&hellip;</div></div>
-      </div>
       <div class="msec-body" id="msec-body-thesis">
         <div class="mth-pull-row">
           <button class="mbtn mbtn-p mbtn-sm" id="mth-pull-btn" onclick="thesisPullNew()">Pull New Data</button>
@@ -1635,9 +1620,6 @@ function renderMore() {
       </div>
       <div class="msec-body" id="msec-body-telegram-log">
         <div class="msec-inner" id="msec-inner-telegram-log"></div>
-      </div>
-      <div class="msec-body" id="msec-body-privacy-guard">
-        <div class="msec-inner" id="msec-inner-privacy-guard"></div>
       </div>
       <div class="msec-body" id="msec-body-covercomps">
         <div class="msec-inner" id="msec-inner-covercomps"></div>
@@ -1716,12 +1698,10 @@ function moreToggle(sec) {
   if (isOpen && !_moreSecLoaded[sec]) {
     _moreSecLoaded[sec] = true;
     if (sec === 'reading')  moreLoadReading();
-    if (sec === 'publishing') publishingLoad();
     if (sec === 'thesis')   moreLoadThesis();
     if (sec === 'api')      moreLoadApiSpending();
     if (sec === 'email-activity') moreLoadEmailActivity();
     if (sec === 'telegram-log') moreLoadTelegramLog();
-    if (sec === 'privacy-guard') moreLoadPrivacyGuard();
     if (sec === 'covercomps') coverCompsLoad();
     if (sec === 'savings') savingsLoad();
     if (sec === 'house-calls') moreLoadHouseCalls();
