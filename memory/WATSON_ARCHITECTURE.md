@@ -4162,3 +4162,24 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - 43077fb Add "what's the attendance count?" fast-path phrase to count of who attended a service
 - 7dca4b6 Add "how many people have been to church in the last six weeks" fast-path phrase to attendance trend over time
 - 66acefb docs: architecture update 2026-09-17
+
+---
+
+## Recent Changes — 2026-09-19
+
+### ~/watson
+- 50b8b25 docs: bugs/backlog export 2026-09-19
+- 974025f docs: file map 2026-09-19
+- 2538eb4 Add ARC review-reminder email job
+- d72d0f9 Alert Bill if the Subsplash calendar monitor fails 3 runs in a row
+- 6cee9bc Monitor Subsplash calendar and ask Kaci to track new events
+- 82379bb Fix bare em-dash and false "not tracking" reply for a zero-signup event
+- b089fce Also notify Bill when a leader's first test registration comes through
+- 210fe29 Notify the leader who created an event once its first registration matches
+- ebd6daf Fix crash in event-signup matching when any event is actively tracked
+- 5e363e4 Fix new-event notice regex to catch past tense and "an event" phrasing
+- b909362 Remove Google Scholar scraping from academic_search
+- 7470d02 Wire free scholarly search sources into field_research skill
+- e57de8a Fix false OneDrive backup failure alerts in status report
+- 24222ea docs: regenerate Skills & Capabilities Catalog
+- 1c5c3dd docs: architecture update 2026-09-18
