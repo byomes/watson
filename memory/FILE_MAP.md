@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-09-18*
+*Generated: 2026-09-19*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -100,6 +100,8 @@ data/
     66e0844b7fab4e0a8bb386db8504deac.png
     9eca6f54ecff491dbed2470fd0b3d196.png
   congregation.db
+  congregation.db-shm
+  congregation.db-wal
   congregation.db.bak_before_orphan_delete_20260906_070048
   congregation.db.bak_zipcheck_20260915
   cover_images/
@@ -3529,6 +3531,9 @@ data/
       20260917-145945-added-erlc-2019-evangelical-ai-statement-to-field/
         combined-field-research.md
         transcript.md
+      20260918-100720-ai-theology-field-research-imago-dei-personhood-pa/
+        guardrails-ai-theology-field-research.md
+        transcript.md
     ideas-to-be-developed/
       20260826-013954-expanding-concept-ideas/
         transcript.md
@@ -4708,6 +4713,8 @@ data/
   trading.db.bak-pre-sizing-fix-20260911073349
   trading.db.bak-pre-windows3-backfill-20260911110635
   watson.db
+  watson.db-shm
+  watson.db-wal
 deploy/
   .gitkeep
   apt-packages.txt
@@ -4779,6 +4786,7 @@ jobs/
     send_invite_email.py
     send_launch_announcement.py
     send_manuscript_access_batch.py
+    send_review_reminder.py
     send_signup_confirmation.py
     send_twj_update.py
     templates/
@@ -4846,6 +4854,9 @@ jobs/
     schema.py
     test_dispatch.py
     weekly_digest.py
+  church_calendar/
+    __init__.py
+    subsplash_monitor.py
   church_social/
     __init__.py
     api.py
@@ -5230,6 +5241,7 @@ jobs/
     academic_search.py
     article_reader.py
     benchmark_check.py
+    crossref.py
     feed_reader.py
     field_research.py
     gutenberg.py
@@ -5238,8 +5250,10 @@ jobs/
     migrate_benchmark_sources.py
     migrate_web_benchmark_sources.py
     news_search.py
+    openalex.py
     semantic_search.py
     summarizer.py
+    unpaywall.py
     web_benchmark_check.py
     web_search.py
   retreats/
@@ -5339,7 +5353,6 @@ jobs/
   trading/
     HOLDOUT_WINDOWS.md
     __init__.py
-    _oneoff_live_loop_week1_summary.py
     alpaca_client.py
     backtest.py
     data.py
