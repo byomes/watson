@@ -1,6 +1,6 @@
 # Watson Bug Tracker
 _Auto-generated nightly from bug_tracker. Source of truth is the database — do not hand-edit this file, changes will be overwritten._
-Last generated: 2026-09-18 02:10
+Last generated: 2026-09-19 02:10
 
 ## Open (51)
 | ID | Title | Repo | Discovered |
@@ -60,6 +60,12 @@ Last generated: 2026-09-18 02:10
 ## Recently Resolved (last 30 days)
 | ID | Title | Repo | Resolved | Commit |
 |---|---|---|---|---|
+| 189 | Team Chat event registration question with zero registrations fell through to paid LLM | watson | 2026-09-18 19:12:01 | e508122 |
+| 188 | Events Q&A falsely claims a tracked event with 0 registrants isn't tracked | watson | 2026-09-18 19:09:37 | 82379bb |
+| 187 | Event signup COUNT returns bare em dash instead of 0 for zero-registrant events | watson | 2026-09-18 19:09:37 | 82379bb |
+| 186 | Event-signup matching crashes whenever any event is tracking_active | watson | 2026-09-18 18:17:20 | ebd6daf |
+| 185 | New-event notice regex misses past-tense phrasing, silently drops Kaci's event | watson | 2026-09-18 17:37:33 | 5e363e4 |
+| 184 | False OneDrive backup failure alerts | watson | 2026-09-18 10:56:15 | e57de8a |
 | 183 | Team Chat event-signup question fell through to paid LLM when no tracked event matched | watson | 2026-09-18 03:35:09 | a32977d |
 | 180 | Team Chat LAST ATTENDED query rejected -- referenced raw connect_cards, not the whitelisted view | watson | 2026-09-16 10:19:24 | 74bcb89 |
 | 179 | bot.py _extract_team_lookup (Bill's own DM path) rejects "when is" phrasing -- same bug as cdb_query.py, different file | watson | 2026-09-16 10:17:21 | fa38f91 |
