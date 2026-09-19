@@ -52,6 +52,15 @@ log = logging.getLogger(__name__)
 CALENDAR_URL = "https://subsplash.com/+9tjq/lb/ca/+b7md4wp?embed&branding"
 KACI_PERSON_NAME = "Kaci Gravatt"
 
+# Subsplash's CloudFront/WAF started 403ing Playwright's default UA (which
+# advertises itself as "HeadlessChrome") sometime around 2026-09-19 -- a
+# plain browser UA still gets a normal 200, so pin one for the browser
+# context. Not a markup change; the page itself is unchanged.
+_BROWSER_USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+)
+
 _EVENT_LINK_RE = re.compile(r"/lb/ev/(\+[a-z0-9]+)")
 
 _FAIL_STREAK_KEY = "subsplash_monitor_fail_streak"
@@ -81,7 +90,8 @@ _bootstrap()
 def _scrape_events() -> list[dict]:
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
-        page = browser.new_page()
+        context = browser.new_context(user_agent=_BROWSER_USER_AGENT)
+        page = context.new_page()
         try:
             page.goto(CALENDAR_URL, wait_until="networkidle", timeout=30000)
         except Exception as exc:
