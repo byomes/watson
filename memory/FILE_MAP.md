@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-09-19*
+*Generated: 2026-09-20*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -100,8 +100,6 @@ data/
     66e0844b7fab4e0a8bb386db8504deac.png
     9eca6f54ecff491dbed2470fd0b3d196.png
   congregation.db
-  congregation.db-shm
-  congregation.db-wal
   congregation.db.bak_before_orphan_delete_20260906_070048
   congregation.db.bak_zipcheck_20260915
   cover_images/
