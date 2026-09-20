@@ -23,7 +23,7 @@ from dotenv import load_dotenv
 
 from config.settings import DB_PATH, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 from core.vacation import vacation_gate
-from jobs.events.matching import find_active_event, find_member_id
+from jobs.events.matching import find_active_event, find_member_id, find_member_name
 from jobs.events.schema import create_tables
 from jobs.telegram.pending import store_pending_action
 
@@ -133,6 +133,20 @@ def _insert_registration(conn: sqlite3.Connection, event_id: int, detection: dic
     email = (detection.get("email") or "").strip()
     phone = (detection.get("phone") or "").strip()
     member_id = find_member_id(email, phone)
+    first_name = (detection.get("first_name") or "").strip()
+    last_name = (detection.get("last_name") or "").strip()
+    if not first_name and not last_name and member_id:
+        # The classifier sometimes has nothing to go on (e.g. a Subsplash
+        # notification whose body never spells out the registrant's name),
+        # but find_member_id still matched them by email/phone -- use the
+        # congregation.db name rather than leaving the registrant blank.
+        # Confirmed live 2026-09-18/20: Hayride and Bonfire registrations
+        # both landed with empty first/last name despite a real member_id.
+        member_name = find_member_name(member_id)
+        if member_name:
+            parts = member_name.split(" ", 1)
+            first_name = parts[0]
+            last_name = parts[1] if len(parts) > 1 else ""
     try:
         num_tickets = int(detection.get("num_tickets") or 1)
     except (TypeError, ValueError):
@@ -144,8 +158,8 @@ def _insert_registration(conn: sqlite3.Connection, event_id: int, detection: dic
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'email', ?)""",
         (
             event_id,
-            (detection.get("first_name") or "").strip(),
-            (detection.get("last_name") or "").strip(),
+            first_name,
+            last_name,
             email or None,
             phone,
             (detection.get("ticket_type") or "").strip(),

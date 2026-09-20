@@ -45,6 +45,22 @@ def find_member_id(email: str, phone: str) -> int | None:
     return None
 
 
+def find_member_name(member_id: int) -> str | None:
+    """Read-only lookup of a matched member's full name, for backfilling a
+    registrant's first/last name when the signup email's own classification
+    came back blank but find_member_id still matched them by email/phone —
+    e.g. a Subsplash notification with no name in the body at all."""
+    if not member_id:
+        return None
+    try:
+        conn = sqlite3.connect(f"file:{CONG_DB}?mode=ro", uri=True, timeout=5)
+        row = conn.execute("SELECT name FROM members WHERE id = ?", (member_id,)).fetchone()
+        conn.close()
+        return row[0] if row and row[0] else None
+    except Exception:
+        return None
+
+
 def find_active_event(conn: sqlite3.Connection, name_guess: str, text: str) -> dict | None:
     """Match name_guess/text against tracking_active=1 church_events rows.
 
