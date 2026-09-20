@@ -289,7 +289,21 @@ def _trigger_fast_path_review(spend_log_id: int, asker_name: str, question: str)
     a crash or slow run in the reviewer must never affect the caller that
     triggered it. Mirrors the exact invocation the existing nightly cron
     uses (PYTHONPATH inlined, venv's own python), just with --single instead
-    of a bare run."""
+    of a bare run.
+
+    Found 2026-09-19: a developer manually exercising analytics.data_chat
+    against a throwaway test persona ("what do you know about me?" from
+    "Watson QA Tester") got auto-dispatched as a real fastpath/* Claude Code
+    coding job and opened a real PR (#67, closed unmerged) -- this trigger
+    has no way to distinguish deliberate dev/test traffic from a real
+    leader's question. Set WATSON_DISABLE_FASTPATH_AUTODISPATCH=1 (shell env,
+    not .env -- this is meant to be a temporary per-session guard while
+    testing Telegram/team-chat code locally, not a standing config change)
+    to skip this launch entirely; call_claude() itself, spend logging, and
+    everything else in this module are unaffected."""
+    if os.getenv("WATSON_DISABLE_FASTPATH_AUTODISPATCH"):
+        log.info("claude_tier: WATSON_DISABLE_FASTPATH_AUTODISPATCH set, skipping fast-path review for spend_log_id=%s", spend_log_id)
+        return
     try:
         repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         python_bin = os.path.join(repo_root, "venv", "bin", "python")
