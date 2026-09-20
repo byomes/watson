@@ -20,7 +20,7 @@ import sqlite3
 import sys
 
 from config.settings import DB_PATH
-from jobs.events.matching import find_member_id
+from jobs.events.matching import find_member_id, find_member_name
 from jobs.events.schema import create_tables
 
 _HEADER_MAP = {
@@ -99,6 +99,19 @@ def import_csv(csv_path: str, event_name: str, start_date: str) -> dict:
 
             member_id = find_member_id(email, known.get("phone", ""))
 
+            first_name = known.get("first_name", "")
+            last_name = known.get("last_name", "")
+            if not first_name and not last_name and member_id:
+                # Same gap as jobs/events/signup_detect.py: a platform export
+                # missing name columns (or blank cells) shouldn't leave a
+                # registrant blank when the row still matched an existing
+                # congregation.db member by email/phone.
+                member_name = find_member_name(member_id)
+                if member_name:
+                    parts = member_name.split(" ", 1)
+                    first_name = parts[0]
+                    last_name = parts[1] if len(parts) > 1 else ""
+
             conn.execute(
                 """INSERT INTO event_registrations
                    (event_id, first_name, last_name, email, phone, ticket_type,
@@ -106,8 +119,8 @@ def import_csv(csv_path: str, event_name: str, start_date: str) -> dict:
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'csv_import', ?)""",
                 (
                     event_id,
-                    known.get("first_name", ""),
-                    known.get("last_name", ""),
+                    first_name,
+                    last_name,
                     email or None,
                     known.get("phone", ""),
                     known.get("ticket_type", ""),
