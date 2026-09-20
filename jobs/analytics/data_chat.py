@@ -78,6 +78,7 @@ import requests
 
 from config.settings import DB_PATH as _WATSON_DB_PATH
 from core.claude_tier import call_claude
+from core.database import get_connection
 import core.llm_log  # noqa: F401 -- installs Ollama call logging, see core/llm_log.py
 
 log = logging.getLogger(__name__)
@@ -416,6 +417,85 @@ def remember_conversation_turn(asker_name: str, role: str, content: str) -> None
         oldest_asker = min(_conversation_buffers, key=lambda k: _conversation_buffers[k]["last_at"])
         if oldest_asker != asker_name:
             _conversation_buffers.pop(oldest_asker, None)
+
+
+# Durable per-leader role/self-description note -- the v2 idea flagged (not
+# built) in notes/team_chat_conversational_memory_spec.md §6: Kaci's "I
+# handle digital communications and event registrations for Catalyst" only
+# lived in the 30-minute rolling buffer above, so it was gone by her next
+# real conversation days later. This survives restarts and the buffer's TTL
+# by living in watson.db instead of in-process memory -- one row per leader,
+# overwritten (not appended) each time a new self-description is heard, since
+# the goal is "what does Watson currently know about this person," not a
+# growing transcript.
+#
+# Deliberately auto-saved with no confirm-before-save round trip (the spec's
+# §6 "probably a confirm step" caveat) -- a leader's own plainly-stated
+# description of their own role is low-stakes, and adding a Yes/No
+# confirmation round trip for it would be a second Telegram exchange just to
+# store a sentence the leader already chose to say to Watson.
+_ROLE_STATEMENT_RE = re.compile(
+    r"\b(i handle|i work (?:on|in|with)|i manage|i(?:'m| am)\s+(?:the|in charge of|responsible for)|"
+    r"my (?:role|job) is|i (?:run|lead|oversee|coordinate))\b",
+    re.IGNORECASE,
+)
+_LEADER_NOTE_MAX_CHARS = 300
+
+
+def _bootstrap_leader_notes() -> None:
+    with get_connection() as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS leader_notes (
+                asker_name TEXT PRIMARY KEY,
+                note       TEXT NOT NULL,
+                updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+            )
+        """)
+
+
+_bootstrap_leader_notes()
+
+
+def get_leader_note(asker_name: str) -> str | None:
+    """The most recent self-description `asker_name` has given Watson, if
+    any -- None if they've never said anything that matched
+    _ROLE_STATEMENT_RE."""
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT note FROM leader_notes WHERE asker_name = ?", (asker_name,)
+        ).fetchone()
+    return row["note"] if row else None
+
+
+def leader_note_context(asker_name: str) -> str:
+    """A ready-to-append system-prompt suffix carrying `asker_name`'s durable
+    note, or "" if there isn't one -- both _generate below and bot.py's
+    _get_team_reply_sync append this to their system message so the model
+    still knows a leader's stated role even after the rolling conversation
+    buffer above has gone stale or the bot has restarted."""
+    note = get_leader_note(asker_name)
+    if not note:
+        return ""
+    return f"\n\nWhat {asker_name} has told you about their role, from an earlier conversation: {note}"
+
+
+def maybe_learn_leader_note(asker_name: str, text: str) -> None:
+    """Saves `text` as asker_name's durable leader_notes row if it looks like
+    a real self-description (_ROLE_STATEMENT_RE), overwriting any prior note
+    -- called once per incoming team-chat message, before routing, so it
+    fires regardless of which reply path (lookup/data_chat/general chat)
+    ends up handling the message."""
+    text = (text or "").strip()
+    if not text or not _ROLE_STATEMENT_RE.search(text):
+        return
+    note = text[:_LEADER_NOTE_MAX_CHARS]
+    with get_connection() as conn:
+        conn.execute(
+            """INSERT INTO leader_notes (asker_name, note, updated_at) VALUES (?, ?, datetime('now'))
+               ON CONFLICT(asker_name) DO UPDATE SET note = excluded.note, updated_at = excluded.updated_at""",
+            (asker_name, note),
+        )
+    log.info("data_chat: learned leader note for %s: %r", asker_name, note)
 
 
 def _matching_candidates(reply_text: str, rows: list[dict], name_key: str) -> list[dict]:

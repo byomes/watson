@@ -3130,13 +3130,13 @@ def _get_team_reply_sync(text: str, asker_name: str) -> tuple[str, bool]:
     lets _handle_team_chat alert Bill per his 2026-09-01 decision to review
     these and judge whether they're worth building a real lookup for."""
     import requests as _req
-    from jobs.analytics.data_chat import get_conversation_turns
+    from jobs.analytics.data_chat import get_conversation_turns, leader_note_context
     try:
         resp = _req.post(
             "http://localhost:11434/api/chat",
             json={
                 "model": "llama3.2:3b",
-                "messages": [{"role": "system", "content": TEAM_CHAT_SYSTEM}]
+                "messages": [{"role": "system", "content": TEAM_CHAT_SYSTEM + leader_note_context(asker_name)}]
                 + get_conversation_turns(asker_name)
                 + [{"role": "user", "content": text}],
                 "stream": False,
@@ -3746,6 +3746,13 @@ async def compute_team_chat_reply(name: str, text: str) -> str | None:
     if _is_no_reply_needed(text):
         log.info("compute_team_chat_reply: %s said no reply needed, skipping (q=%r)", name, text)
         return None
+
+    # Durable per-leader role note (jobs.analytics.data_chat) -- a no-op
+    # unless `text` looks like a real self-description; checked once here,
+    # ahead of routing, so it fires no matter which reply path below ends up
+    # handling the message. See notes/team_chat_conversational_memory_spec.md §6.
+    from jobs.analytics.data_chat import maybe_learn_leader_note
+    await asyncio.to_thread(maybe_learn_leader_note, name, text)
 
     # A bare follow-up naming one of the candidates from a prior "I found
     # more than one match" question (e.g. "Jennifer") resumes THAT question
