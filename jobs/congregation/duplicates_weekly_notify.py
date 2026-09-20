@@ -9,8 +9,9 @@ duplicate_review.py's scan + the wtsn.me/cat/duplicates web review UI).
 This job just triggers the same scan and points Dr. Bill at the page,
 rather than re-sending one Telegram message per candidate.
 
-Cron (Sunday 4pm):
-  0 16 * * 0  PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python \
+Cron (Sunday 2pm — moved from 4pm 2026-09-20 so the scan lands before
+attendance_link_reminder.py's 3pm correction text, not after it):
+  0 14 * * 0  PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python \
     /home/billyomes/watson/jobs/congregation/duplicates_weekly_notify.py \
     >> /home/billyomes/watson/logs/duplicates_weekly_notify.log 2>&1
 """
