@@ -158,6 +158,71 @@ def _mentions_extra_field(question_lower: str, event_id: int) -> bool:
     return False
 
 
+# "who's bringing dessert to the picnic" -- a question about ONE specific
+# answer to an event's custom sign-up-form question (see _mentions_extra_field
+# above), phrased with a verb that has nothing to do with signing up, so
+# neither _COUNT_RE nor _LIST_RE recognized it and it fell through to a paid
+# LLM call (found 2026-09-20, a Team Chat leader's exact question). Also
+# accepts "who signed up to bring X". Group 1 is the candidate answer text
+# (article stripped), matched against the event's REAL stored answers below
+# rather than trusted as-is.
+_BRINGING_RE = re.compile(
+    r"\bwho(?:['\u2019]?s|\s+is|\s+are)?(?:\s+all)?\s+"
+    r"(?:(?:signed|signing)[\s-]?up\s+to\s+)?"
+    r"(?:bring(?:ing)?|brought|make|making|cook(?:ing)?|provid(?:e|ing))\s+"
+    r"(?:(?:a|an|the|some|any)\s+)?([a-z][a-z' -]*?)"
+    r"\s+(?:to|for|at)\b",
+    re.IGNORECASE,
+)
+
+
+def _singular(word: str) -> str:
+    """Crude plural fold so "desserts"/"side dishes" match a stored
+    "Dessert"/"Side Dish". Only ever used to compare two strings against
+    each other, never to display anything."""
+    word = word.strip().lower()
+    if re.search(r"(sh|ch|x|ss)es$", word):
+        return word[:-2]
+    if word.endswith("s") and not word.endswith("ss"):
+        return word[:-1]
+    return word
+
+
+def _bringing_answer(candidate: str, event_id: int) -> str | None:
+    """The event's actual stored extra_fields ANSWER (exact spelling from the
+    DB) that `candidate` refers to, or None if it doesn't match any answer
+    that event has on file -- in which case the caller must NOT guess and
+    should fall through to the LLM path instead. Comparing against real
+    stored values (not the user's words) is what keeps the SQL built from
+    this safe to interpolate and correct for any event's custom form."""
+    try:
+        conn = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True, timeout=5)
+        rows = conn.execute(
+            "SELECT DISTINCT extra_fields FROM event_registrations "
+            "WHERE event_id = ? AND extra_fields IS NOT NULL AND extra_fields != ''",
+            (event_id,),
+        ).fetchall()
+        conn.close()
+    except Exception:
+        return None
+    want = _singular(candidate)
+    if not want:
+        return None
+    found = set()
+    for (raw,) in rows:
+        try:
+            data = json.loads(raw)
+        except (TypeError, ValueError):
+            continue
+        if not isinstance(data, dict):
+            continue
+        for value in data.values():
+            if isinstance(value, str) and _singular(value) == want:
+                found.add(value)
+    # Two answers differing only by case/plural would be ambiguous -- don't guess.
+    return found.pop() if len(found) == 1 else None
+
+
 def pattern_match(question: str) -> str | None:
     """Return a single-line SELECT for the events domain, or None if the
     question doesn't match a recognized phrasing — bypasses both Ollama and
@@ -170,6 +235,24 @@ def pattern_match(question: str) -> str | None:
         return (
             "SELECT event_name, start_date, event_time FROM church_events "
             "WHERE tracking_active = 1 ORDER BY start_date"
+        )
+
+    m = _BRINGING_RE.search(q)
+    if m:
+        event_id = _resolve_event_id(q)
+        if event_id is None:
+            return None
+        answer = _bringing_answer(m.group(1), event_id)
+        if answer is None:
+            return None
+        safe_answer = answer.replace("'", "''")
+        return (
+            "SELECT first_name || ' ' || last_name || "
+            "CASE WHEN num_tickets > 1 THEN ' (' || num_tickets || ' tickets)' ELSE '' END "
+            "AS registrant FROM event_registrations "
+            f"WHERE event_id = {event_id} AND json_valid(extra_fields) AND EXISTS "
+            "(SELECT 1 FROM json_each(event_registrations.extra_fields) je "
+            f"WHERE je.value = '{safe_answer}') ORDER BY first_name, last_name"
         )
 
     if _COUNT_RE.search(q):
