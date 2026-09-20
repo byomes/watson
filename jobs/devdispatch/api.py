@@ -70,6 +70,7 @@ import secrets
 import shutil
 import subprocess
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlencode
@@ -945,6 +946,46 @@ def _merge_claude_code_job(job_id) -> dict:
         pr = gh_repo.get_pull(pr_number)
     except Exception as exc:
         return {"error": f"could not fetch PR #{pr_number}: {exc}"}
+
+    # bug_tracker #182: a dispatched Claude Code session's own end-of-task
+    # convention sometimes opens its PR as a draft (_open_pr above never
+    # creates one itself — see its docstring — so this only happens when the
+    # session's own `gh pr create` ran first and _open_pr just looked the
+    # existing PR up). GitHub rejects pr.merge() on a draft with a 405 "Pull
+    # Request is still a draft", which surfaced as job 53/PR 63 sitting
+    # unmerged despite being correctly identified as safe to auto-merge —
+    # fixed by hand at the time (`gh pr ready 63 && gh pr merge 63`).
+    #
+    # Shells out to the gh CLI rather than PyGithub's mark_ready_for_review()
+    # -- confirmed live 2026-09-19 against a real disposable draft PR that
+    # PyGithub's call (GraphQL markPullRequestReadyForReview) gets a 403 from
+    # this module's GITHUB_TOKEN, while `gh pr ready` succeeds using gh's own
+    # separately-configured auth (the exact tool the manual fix above used).
+    #
+    # Also confirmed live: GitHub's REST v3 API (what pr.draft/get_pull below
+    # read) lags a few seconds behind gh's GraphQL-based conversion -- an
+    # immediate re-fetch still showed draft=True for ~2-4s after `gh pr
+    # ready` had already succeeded. A single re-fetch would have raced this
+    # and let pr.merge() below hit the exact same 405 this fix exists to
+    # avoid, so this polls (short, bounded) until REST agrees instead of
+    # trusting one read.
+    if pr.draft:
+        try:
+            ready_proc = subprocess.run(
+                ["gh", "pr", "ready", str(pr_number), "--repo", f"{owner}/{repo_name}"],
+                capture_output=True, text=True, timeout=30,
+            )
+            if ready_proc.returncode != 0:
+                return {"error": f"PR #{pr_number} is a draft and `gh pr ready` failed: {ready_proc.stderr.strip()}"}
+            for _ in range(10):
+                time.sleep(1)
+                pr = gh_repo.get_pull(pr_number)
+                if not pr.draft:
+                    break
+            else:
+                return {"error": f"PR #{pr_number}: `gh pr ready` succeeded but GitHub's REST API still shows it as a draft after 10s"}
+        except Exception as exc:
+            return {"error": f"PR #{pr_number} is a draft and could not be marked ready for review: {exc}"}
 
     # (a) PR must still be open — unless GitHub already shows it merged,
     # in which case reconcile our local state instead of erroring.
