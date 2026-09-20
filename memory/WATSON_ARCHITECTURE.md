@@ -4184,3 +4184,22 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - e57de8a Fix false OneDrive backup failure alerts in status report
 - 24222ea docs: regenerate Skills & Capabilities Catalog
 - 1c5c3dd docs: architecture update 2026-09-18
+
+---
+
+## Recent Changes — 2026-09-20
+
+### ~/watson
+- 8bad29f docs: bugs/backlog export 2026-09-20
+- b319f91 docs: file map 2026-09-20
+- 1fe3cef Fill in commit hash for dashboard-chat retirement note
+- 6d347a2 Retire dashboard chat (/api/chat/stream, /api/chat, session CRUD)
+- 0875c29 Fix devdispatch auto-merge failing on draft PRs (bug #182)
+- a8eb175 Remove test scratch file from bug #182 verification
+- 84e303c Merge branch 'main' of https://github.com/byomes/watson
+- d9bf942 TEST3: full end-to-end draft-PR auto-merge verification (bug #182) (#70)
+- 58a8971 Add kill switch for fast-path auto-dispatch during dev/testing
+- fe99f23 Add durable per-leader role note to team chat (spec §6 v2)
+- edcf732 fix: pin browser UA for subsplash calendar monitor scrape
+- d2e3d33 backup: exclude sermonshots_clips from OneDrive leg; capture uncommitted GPG encryption fix
+- ddfa6d4 docs: architecture update 2026-09-19
