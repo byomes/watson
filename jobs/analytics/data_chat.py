@@ -180,9 +180,20 @@ church_events(id INTEGER, event_name TEXT, start_date TEXT, end_date TEXT, event
   -- start_date can be an empty string if the event was created via Telegram before a date was set (Kaci/Bill can only add
   -- one, may add the other later) -- treat '' the same as "no date yet", never as a real date. event_time is free text
   -- ("6:00pm - 8:00pm") and can likewise be NULL/empty if not set yet.
-event_registrations(id INTEGER, event_id INTEGER, first_name TEXT, last_name TEXT, email TEXT, phone TEXT, ticket_type TEXT, num_tickets INTEGER, submitted_at TEXT, source TEXT)
+event_registrations(id INTEGER, event_id INTEGER, first_name TEXT, last_name TEXT, email TEXT, phone TEXT, ticket_type TEXT, num_tickets INTEGER, extra_fields TEXT, submitted_at TEXT, source TEXT)
   -- one row per person/registration for an event. num_tickets is how many people that single registration covers -- SUM(num_tickets), not COUNT(*), for "how many people are coming".
   -- join event_registrations.event_id = church_events.id for a specific event's signups. source is 'csv_import', 'email', or 'manual'.
+  -- extra_fields holds any custom sign-up-form question(s) for that event as a JSON object string, e.g.
+  -- {"Please choose to bring a side dish or dessert:": "Dessert"}. Different events have different custom
+  -- questions/answers (or none -- extra_fields is NULL/empty for a plain registration), so never assume a key
+  -- name; match on the ANSWER text instead. IMPORTANT: the question text itself often contains the same words
+  -- as its possible answers (e.g. the key above literally contains the word "dessert"), so a bare
+  -- `LIKE '%Dessert%'` matches that key too and silently counts EVERYONE who answered the question, not just
+  -- the ones who picked Dessert. Always wrap the answer in the JSON quoting to match the VALUE only:
+  -- `extra_fields LIKE '%"Dessert"%'` (the literal double-quote characters around the word, escaped for SQL as
+  -- '' if needed) -- this matches only a quoted JSON value, never a key's sentence. Use this whenever a
+  -- question asks about a specific signup-form choice (what they're bringing, a session/group they picked, a
+  -- t-shirt size, etc), not just num_tickets.
 """.strip()
 
 _SYSTEM_TEMPLATE = """You are a SQL query generator for a church's internal Telegram assistant. \
@@ -297,6 +308,14 @@ SQL: SELECT COALESCE(SUM(r.num_tickets), 0) FROM event_registrations r JOIN chur
 Q: who's registered for the picnic so far?
 DOMAIN: events
 SQL: SELECT r.first_name || ' ' || r.last_name || CASE WHEN r.num_tickets > 1 THEN ' (' || r.num_tickets || ' tickets)' ELSE '' END AS registrant FROM event_registrations r JOIN church_events e ON e.id = r.event_id WHERE e.event_name LIKE '%picnic%'
+
+Q: how many people signed up to bring dessert for the picnic?
+DOMAIN: events
+SQL: SELECT COALESCE(SUM(r.num_tickets), 0) FROM event_registrations r JOIN church_events e ON e.id = r.event_id WHERE e.event_name LIKE '%picnic%' AND r.extra_fields LIKE '%"Dessert"%'
+
+Q: who's bringing a side dish to the picnic?
+DOMAIN: events
+SQL: SELECT r.first_name || ' ' || r.last_name FROM event_registrations r JOIN church_events e ON e.id = r.event_id WHERE e.event_name LIKE '%picnic%' AND r.extra_fields LIKE '%"Side Dish"%'
 {contact_example}"""
 
 _CONTACT_ALLOWED_EXAMPLE = """

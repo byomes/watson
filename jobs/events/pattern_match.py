@@ -14,6 +14,7 @@ both cost a real Claude API call (core/claude_tier.py, ~$0.011 each,
 claude_tier_spend_log ids 84-85) because no events-domain fast path existed;
 data_chat.py's existing pattern-match reuse only covers attendance.
 """
+import json
 import re
 import sqlite3
 
@@ -114,6 +115,49 @@ _LIST_RE = re.compile(
 )
 
 
+def _mentions_extra_field(question_lower: str, event_id: int) -> bool:
+    """True if the question seems to reference a specific answer to one of
+    this event's custom sign-up-form questions (e.g. "dessert"/"side dish"
+    for a picnic, a t-shirt size, a session choice -- whatever that
+    particular event's form asked) rather than a plain headcount/list.
+
+    Found 2026-09-20: Tara asked "how many signed up for side dish" and
+    "...for dessert" about the picnic and got the SAME blind
+    SUM(num_tickets)/list-everyone answer both times (11) -- this fast
+    path has no idea what a "side dish" is, it just resolves the event
+    name and ignores the rest of the question. Rather than hardcode a
+    vocabulary of known field values (fragile, and only covers this one
+    event's form), check the actual extra_fields JSON on file for this
+    event and bail to the caller's LLM-generated-SQL fallback (which
+    knows how to filter on extra_fields, see jobs/analytics/data_chat.py's
+    _EVENTS_SCHEMA) whenever the question mentions one of that event's own
+    custom question keys/answers. A false-positive bail just costs one
+    LLM call instead of a wrong fast-path answer -- the safe direction."""
+    try:
+        conn = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True, timeout=5)
+        rows = conn.execute(
+            "SELECT DISTINCT extra_fields FROM event_registrations "
+            "WHERE event_id = ? AND extra_fields IS NOT NULL AND extra_fields != ''",
+            (event_id,),
+        ).fetchall()
+        conn.close()
+    except Exception:
+        return False
+    for (raw,) in rows:
+        try:
+            data = json.loads(raw)
+        except (TypeError, ValueError):
+            continue
+        if not isinstance(data, dict):
+            continue
+        for key, value in data.items():
+            for token in (key, value):
+                token = str(token).strip().lower().rstrip(":?")
+                if len(token) >= 3 and token in question_lower:
+                    return True
+    return False
+
+
 def pattern_match(question: str) -> str | None:
     """Return a single-line SELECT for the events domain, or None if the
     question doesn't match a recognized phrasing — bypasses both Ollama and
@@ -132,6 +176,8 @@ def pattern_match(question: str) -> str | None:
         event_id = _resolve_event_id(q)
         if event_id is None:
             return None
+        if _mentions_extra_field(q.lower(), event_id):
+            return None
         # COALESCE to 0 -- a bare SUM() is SQL NULL when the event has zero
         # registrations so far (a real, common state right after an event is
         # created), and _format_rows/_fmt_value renders a lone NULL value as
@@ -146,6 +192,8 @@ def pattern_match(question: str) -> str | None:
     if _LIST_RE.search(q):
         event_id = _resolve_event_id(q)
         if event_id is None:
+            return None
+        if _mentions_extra_field(q.lower(), event_id):
             return None
         return (
             "SELECT first_name || ' ' || last_name || "
