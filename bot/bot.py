@@ -3717,6 +3717,26 @@ def _is_no_reply_needed(text: str) -> bool:
     return any(phrase in lowered for phrase in _NO_REPLY_NEEDED_PHRASES)
 
 
+def _dispatch_pending_directed_reply(kind: str, context: dict, asker: str, text: str) -> str | None:
+    """Resolves a reply against a jobs.people.pending_reply directed ask
+    (see that module's docstring for why this is durable/cross-process,
+    unlike _try_resolve_pending_person below). One elif branch per kind,
+    same dispatch style as the lookup/classroom/calendar/web_metric
+    branches in compute_team_chat_reply. Returns None if `text` doesn't
+    look like an attempt at the pending ask at all -- the caller then
+    leaves the pending state untouched and falls through to normal
+    routing, so an unrelated message doesn't get swallowed just because
+    something is outstanding. A malformed or rejected attempt returns a
+    re-ask string without clearing the pending row; success clears it."""
+    if kind == "pin_collection":
+        from jobs.congregation.pin_collection import handle_reply, looks_like_attempt
+
+        if not looks_like_attempt(text):
+            return None
+        return handle_reply(asker, text, context)
+    return None
+
+
 def _remember_team_chat_turns(name: str, text: str, reply: str | None) -> None:
     """Records both sides of a team-chat exchange into the shared per-leader
     conversation buffer (jobs.analytics.data_chat) -- called from every
@@ -3753,6 +3773,23 @@ async def compute_team_chat_reply(name: str, text: str) -> str | None:
     # handling the message. See notes/team_chat_conversational_memory_spec.md §6.
     from jobs.analytics.data_chat import maybe_learn_leader_note
     await asyncio.to_thread(maybe_learn_leader_note, name, text)
+
+    # A directed ask Watson sent from OUTSIDE this conversation (e.g. a
+    # one-off script DMing someone to pick a PIN) takes priority over the
+    # in-conversation pending-clarification resume just below -- see
+    # jobs/people/pending_reply.py. If the reply doesn't look like an
+    # attempt at it, the pending state is left alone and this falls
+    # through to normal routing.
+    from jobs.people import pending_reply
+    pending_directed = await asyncio.to_thread(pending_reply.peek, name)
+    if pending_directed is not None:
+        directed_reply = await asyncio.to_thread(
+            _dispatch_pending_directed_reply, pending_directed["kind"], pending_directed["context"], name, text,
+        )
+        if directed_reply is not None:
+            _log_tg('out', directed_reply, recipient=name)
+            _remember_team_chat_turns(name, text, directed_reply)
+            return directed_reply
 
     # A bare follow-up naming one of the candidates from a prior "I found
     # more than one match" question (e.g. "Jennifer") resumes THAT question
@@ -4204,6 +4241,13 @@ async def _route_tg_pending_reply(
         # jobs/events/signup_detect.py's handle_event_new_reply().
         from jobs.events.signup_detect import handle_event_new_reply
         result = await asyncio.to_thread(handle_event_new_reply, payload, text)
+        await update.message.reply_text(result)
+        mark_done(pending_id)
+        return True
+
+    if action_type == "fms_giving_update":
+        from jobs.givebutter.monthly_update import handle_reply
+        result = await asyncio.to_thread(handle_reply, payload, text)
         await update.message.reply_text(result)
         mark_done(pending_id)
         return True

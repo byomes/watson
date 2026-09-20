@@ -338,6 +338,7 @@ is considered fully confirmed.
 | `jobs/pastoral_notes/reminder.py` | Every 15 min | Pastoral note reminders |
 | `jobs/givebutter/sync.py` | Daily 6am | Donor sync |
 | `jobs/givebutter/notify.py` | Daily 6:15am | Donor thank-you notifications |
+| `jobs/givebutter/monthly_update.py` | Daily 8am, no-ops except first Monday | Asks Bill via Telegram for anything new to fold into this month's FMS giving emails; his reply (or a month with no reply) drives the dynamic paragraph in `jobs/givebutter/templates.py` — see the module's docstring. Added 2026-09-20 after a stale "book launching Sept 15" paragraph went out days after the book had already launched. |
 | `jobs/writing_room/monitor.py` | Every 5 min | Writing Room activity alerts |
 | `jobs/writing_room/remind.py` | Every 15 min | Writing Room call reminders |
 | `jobs/skillbuilder/audit.py` | Mon 7am | Skill audit |
