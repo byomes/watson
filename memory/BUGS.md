@@ -1,65 +1,67 @@
 # Watson Bug Tracker
 _Auto-generated nightly from bug_tracker. Source of truth is the database — do not hand-edit this file, changes will be overwritten._
-Last generated: 2026-09-19 02:10
+Last generated: 2026-09-20 02:10
 
-## Open (51)
+## Open (7)
 | ID | Title | Repo | Discovered |
 |---|---|---|---|
-| 182 | devdispatch auto-merge fails on draft PRs | watson | 2026-09-18 00:18:48 |
-| 181 | Password vault stored plaintext + auth bypass | watson | 2026-09-16 16:34:17 |
-| 147 | jobs.browser: goto_safe failed for https://www.beenverified.com/people/mikhaela-molanders/de/ | watson | 2026-09-08 09:31:18 |
-| 146 | jobs.browser: goto_safe failed for https://www.beenverified.com/people/emily-yomes/de/ | watson | 2026-09-08 09:31:03 |
-| 145 | jobs.browser: goto_safe failed for https://www.beenverified.com/people/micah-yomes/de/ | watson | 2026-09-08 09:30:47 |
-| 144 | jobs.browser: goto_safe failed for https://www.beenverified.com/people/melanie-yomes/de/ | watson | 2026-09-08 09:30:32 |
-| 143 | jobs.browser: goto_safe failed for https://www.beenverified.com/people/william-yomes/de/ | watson | 2026-09-08 09:30:16 |
-| 141 | jobs.browser: goto_safe failed for https://www.beenverified.com/people/mikhaela-molanders/de/ | watson | 2026-09-07 09:31:05 |
-| 140 | jobs.browser: goto_safe failed for https://www.beenverified.com/people/emily-yomes/de/ | watson | 2026-09-07 09:30:50 |
-| 139 | jobs.browser: goto_safe failed for https://www.beenverified.com/people/micah-yomes/de/ | watson | 2026-09-07 09:30:34 |
-| 138 | jobs.browser: goto_safe failed for https://www.beenverified.com/people/melanie-yomes/de/ | watson | 2026-09-07 09:30:19 |
-| 137 | jobs.browser: goto_safe failed for https://www.beenverified.com/people/emily-yomes/de/ | watson | 2026-09-06 09:31:03 |
-| 136 | jobs.browser: goto_safe failed for https://www.beenverified.com/people/micah-yomes/de/ | watson | 2026-09-06 09:30:47 |
-| 135 | jobs.browser: goto_safe failed for https://www.beenverified.com/people/melanie-yomes/de/ | watson | 2026-09-06 09:30:32 |
-| 134 | jobs.browser: goto_safe failed for https://www.beenverified.com/people/william-yomes/de/ | watson | 2026-09-06 09:30:17 |
 | 124 | Privacy Guard: _migrate_removals_status_check rebuild would drop ack_received_at/ack_snippet on a stale (pre-2026-08-21) DB | watson | 2026-09-05 11:59:21 |
 | 123 | jobs.browser: privacy.remove form submit failed for https://suppression.peopleconnect.us/?brand=USSearch | watson | 2026-09-05 11:56:51 |
-| 116 | Team-chat "when did X last attend" regex over-captures the word "last" into the person name | watson | 2026-09-03 10:36:34 |
-| 115 | Telegram: LOW-confidence general intent produced a pointless confirm prompt; write intents double-confirmed | watson | 2026-09-03 03:46:06 |
-| 114 | Telegram intent classifier misroutes reflective/advice questions into calendar actions | watson | 2026-09-03 03:46:06 |
-| 87 | jobs.browser: goto_safe failed for https://nuwber.com/search?name=mikhaela+molanders&state=de | watson | 2026-08-21 13:46:22 |
-| 86 | jobs.browser: goto_safe failed for https://nuwber.com/search?name=emily+yomes&state=de | watson | 2026-08-21 13:45:53 |
-| 85 | jobs.browser: goto_safe failed for https://www.mylife.com/emily-yomes/de | watson | 2026-08-21 13:45:33 |
-| 84 | jobs.browser: goto_safe failed for https://nuwber.com/search?name=micah+yomes&state=de | watson | 2026-08-21 13:45:11 |
-| 83 | jobs.browser: goto_safe failed for https://nuwber.com/search?name=melanie+yomes&state=de | watson | 2026-08-21 13:44:43 |
-| 82 | jobs.browser: goto_safe failed for https://www.mylife.com/melanie-yomes/de | watson | 2026-08-21 13:44:23 |
-| 81 | jobs.browser: goto_safe failed for https://nuwber.com/search?name=william+yomes&state=de | watson | 2026-08-21 13:44:00 |
-| 80 | jobs.browser: goto_safe failed for https://www.mylife.com/william-yomes/de | watson | 2026-08-21 13:43:39 |
-| 79 | jobs.browser: goto_safe failed for https://www.mylife.com/melanie-yomes/de | watson | 2026-08-21 09:31:27 |
-| 78 | jobs.browser: goto_safe failed for https://nuwber.com/search?name=william+yomes&state=de | watson | 2026-08-21 09:31:05 |
-| 77 | jobs.browser: goto_safe failed for https://www.ussearch.com/people/william-yomes/de/ | watson | 2026-08-21 09:30:49 |
-| 76 | jobs.browser: goto_safe failed for https://www.mylife.com/william-yomes/de | watson | 2026-08-21 09:30:25 |
-| 73 | jobs.browser: goto_safe failed for https://www.mylife.com/melanie-yomes/de | watson | 2026-08-20 15:03:13 |
-| 72 | jobs.browser: goto_safe failed for https://nuwber.com/search?name=william+yomes&state=de | watson | 2026-08-20 15:02:51 |
-| 71 | jobs.browser: goto_safe failed for https://www.ussearch.com/people/william-yomes/de/ | watson | 2026-08-20 15:02:36 |
-| 70 | jobs.browser: goto_safe failed for https://www.mylife.com/william-yomes/de | watson | 2026-08-20 15:02:11 |
-| 69 | jobs.browser: goto_safe failed for https://www.peoplefinders.com/manage | watson | 2026-08-20 12:43:12 |
-| 68 | jobs.browser: goto_safe failed for https://www.intelius.com/opt-out | watson | 2026-08-20 12:42:45 |
-| 67 | jobs.browser: goto_safe failed for https://nuwber.com/removal/link | watson | 2026-08-20 12:42:23 |
-| 66 | jobs.browser: goto_safe failed for https://control.radaris.com/ | watson | 2026-08-20 12:42:17 |
-| 65 | jobs.browser: goto_safe failed for https://www.ussearch.com/opt-out/ | watson | 2026-08-20 12:42:02 |
-| 64 | jobs.browser: goto_safe failed for https://radaris.com/page/how-to-remove | watson | 2026-08-20 12:41:52 |
 | 58 | missed_report.py cron path missing slash, silently failed weekly | watson | 2026-08-04 13:14:38 |
 | 55 | watson-codeagent.service is live but broken and undocumented | watson | 2026-08-04 02:27:18 |
-| 46 | jobs.browser: goto_safe failed for https://this-domain-does-not-exist-watson-test-12345.invalid/ | watson | 2026-07-22 14:27:51 |
-| 40 | Backlog: dashboard chat has no durable session/history -- session_id never sent to /api/chat/stream by any caller | watson | 2026-07-18 15:34:53 |
-| 24 | Dashboard chat runs on Ollama by design (no ANTHROPIC_API_KEY) — stale claude-sonnet-4-6 model strings need updating if Claude is ever reactivated | watson | 2026-07-17 20:10:51 |
 | 23 | qwen2.5:14b concurrent-load risk unresolved — do not route to Beelink jobs without testing classify() contention first | watson | 2026-07-17 20:02:00 |
 | 22 | Ollama OLLAMA_MAX_LOADED_MODELS=1 forces single-model residency, causing classifier/general-chat model thrash | watson | 2026-07-17 17:36:22 |
 | 21 | Ollama/gemma3:4b transient severe slowdown under rapid back-to-back requests (10-42s), self-resolving | watson | 2026-07-17 17:36:05 |
-| 10 | chat_stream() missing polish this:/kb:/shepherding: directive intercepts (present in /api/terminal, absent in /api/chat/stream — falls through to Ollama chat) | watson | 2026-07-11 16:12:30 |
 
 ## Recently Resolved (last 30 days)
 | ID | Title | Repo | Resolved | Commit |
 |---|---|---|---|---|
+| 40 | Backlog: dashboard chat has no durable session/history -- session_id never sent to /api/chat/stream by any caller | watson | 2026-09-20 01:42:26 | 6d347a2 |
+| 24 | Dashboard chat runs on Ollama by design (no ANTHROPIC_API_KEY) — stale claude-sonnet-4-6 model strings need updating if Claude is ever reactivated | watson | 2026-09-20 01:42:26 | 6d347a2 |
+| 10 | chat_stream() missing polish this:/kb:/shepherding: directive intercepts (present in /api/terminal, absent in /api/chat/stream — falls through to Ollama chat) | watson | 2026-09-20 01:42:26 | 6d347a2 |
+| 182 | devdispatch auto-merge fails on draft PRs | watson | 2026-09-20 01:32:46 | 0875c29 |
+| 181 | Password vault stored plaintext + auth bypass | watson | 2026-09-20 01:25:26 | 545492f |
+| 116 | Team-chat "when did X last attend" regex over-captures the word "last" into the person name | watson | 2026-09-20 01:25:09 | d16a99de |
+| 115 | Telegram: LOW-confidence general intent produced a pointless confirm prompt; write intents double-confirmed | watson | 2026-09-20 01:25:09 | 3afff17d |
+| 114 | Telegram intent classifier misroutes reflective/advice questions into calendar actions | watson | 2026-09-20 01:25:09 | 3afff17d |
+| 147 | jobs.browser: goto_safe failed for https://www.beenverified.com/people/mikhaela-molanders/de/ | watson | 2026-09-20 01:22:46 | 0cb8e656/3074151f |
+| 146 | jobs.browser: goto_safe failed for https://www.beenverified.com/people/emily-yomes/de/ | watson | 2026-09-20 01:22:46 | 0cb8e656/3074151f |
+| 145 | jobs.browser: goto_safe failed for https://www.beenverified.com/people/micah-yomes/de/ | watson | 2026-09-20 01:22:46 | 0cb8e656/3074151f |
+| 144 | jobs.browser: goto_safe failed for https://www.beenverified.com/people/melanie-yomes/de/ | watson | 2026-09-20 01:22:46 | 0cb8e656/3074151f |
+| 143 | jobs.browser: goto_safe failed for https://www.beenverified.com/people/william-yomes/de/ | watson | 2026-09-20 01:22:46 | 0cb8e656/3074151f |
+| 141 | jobs.browser: goto_safe failed for https://www.beenverified.com/people/mikhaela-molanders/de/ | watson | 2026-09-20 01:22:46 | 0cb8e656/3074151f |
+| 140 | jobs.browser: goto_safe failed for https://www.beenverified.com/people/emily-yomes/de/ | watson | 2026-09-20 01:22:46 | 0cb8e656/3074151f |
+| 139 | jobs.browser: goto_safe failed for https://www.beenverified.com/people/micah-yomes/de/ | watson | 2026-09-20 01:22:46 | 0cb8e656/3074151f |
+| 138 | jobs.browser: goto_safe failed for https://www.beenverified.com/people/melanie-yomes/de/ | watson | 2026-09-20 01:22:46 | 0cb8e656/3074151f |
+| 137 | jobs.browser: goto_safe failed for https://www.beenverified.com/people/emily-yomes/de/ | watson | 2026-09-20 01:22:46 | 0cb8e656/3074151f |
+| 136 | jobs.browser: goto_safe failed for https://www.beenverified.com/people/micah-yomes/de/ | watson | 2026-09-20 01:22:46 | 0cb8e656/3074151f |
+| 135 | jobs.browser: goto_safe failed for https://www.beenverified.com/people/melanie-yomes/de/ | watson | 2026-09-20 01:22:46 | 0cb8e656/3074151f |
+| 134 | jobs.browser: goto_safe failed for https://www.beenverified.com/people/william-yomes/de/ | watson | 2026-09-20 01:22:46 | 0cb8e656/3074151f |
+| 87 | jobs.browser: goto_safe failed for https://nuwber.com/search?name=mikhaela+molanders&state=de | watson | 2026-09-20 01:22:46 | 0cb8e656/3074151f |
+| 86 | jobs.browser: goto_safe failed for https://nuwber.com/search?name=emily+yomes&state=de | watson | 2026-09-20 01:22:46 | 0cb8e656/3074151f |
+| 85 | jobs.browser: goto_safe failed for https://www.mylife.com/emily-yomes/de | watson | 2026-09-20 01:22:46 | 0cb8e656/3074151f |
+| 84 | jobs.browser: goto_safe failed for https://nuwber.com/search?name=micah+yomes&state=de | watson | 2026-09-20 01:22:46 | 0cb8e656/3074151f |
+| 83 | jobs.browser: goto_safe failed for https://nuwber.com/search?name=melanie+yomes&state=de | watson | 2026-09-20 01:22:46 | 0cb8e656/3074151f |
+| 82 | jobs.browser: goto_safe failed for https://www.mylife.com/melanie-yomes/de | watson | 2026-09-20 01:22:46 | 0cb8e656/3074151f |
+| 81 | jobs.browser: goto_safe failed for https://nuwber.com/search?name=william+yomes&state=de | watson | 2026-09-20 01:22:46 | 0cb8e656/3074151f |
+| 80 | jobs.browser: goto_safe failed for https://www.mylife.com/william-yomes/de | watson | 2026-09-20 01:22:46 | 0cb8e656/3074151f |
+| 79 | jobs.browser: goto_safe failed for https://www.mylife.com/melanie-yomes/de | watson | 2026-09-20 01:22:46 | 0cb8e656/3074151f |
+| 78 | jobs.browser: goto_safe failed for https://nuwber.com/search?name=william+yomes&state=de | watson | 2026-09-20 01:22:46 | 0cb8e656/3074151f |
+| 77 | jobs.browser: goto_safe failed for https://www.ussearch.com/people/william-yomes/de/ | watson | 2026-09-20 01:22:46 | 0cb8e656/3074151f |
+| 76 | jobs.browser: goto_safe failed for https://www.mylife.com/william-yomes/de | watson | 2026-09-20 01:22:46 | 0cb8e656/3074151f |
+| 73 | jobs.browser: goto_safe failed for https://www.mylife.com/melanie-yomes/de | watson | 2026-09-20 01:22:46 | 0cb8e656/3074151f |
+| 72 | jobs.browser: goto_safe failed for https://nuwber.com/search?name=william+yomes&state=de | watson | 2026-09-20 01:22:46 | 0cb8e656/3074151f |
+| 71 | jobs.browser: goto_safe failed for https://www.ussearch.com/people/william-yomes/de/ | watson | 2026-09-20 01:22:46 | 0cb8e656/3074151f |
+| 70 | jobs.browser: goto_safe failed for https://www.mylife.com/william-yomes/de | watson | 2026-09-20 01:22:46 | 0cb8e656/3074151f |
+| 69 | jobs.browser: goto_safe failed for https://www.peoplefinders.com/manage | watson | 2026-09-20 01:22:46 | 0cb8e656/3074151f |
+| 68 | jobs.browser: goto_safe failed for https://www.intelius.com/opt-out | watson | 2026-09-20 01:22:46 | 0cb8e656/3074151f |
+| 67 | jobs.browser: goto_safe failed for https://nuwber.com/removal/link | watson | 2026-09-20 01:22:46 | 0cb8e656/3074151f |
+| 66 | jobs.browser: goto_safe failed for https://control.radaris.com/ | watson | 2026-09-20 01:22:46 | 0cb8e656/3074151f |
+| 65 | jobs.browser: goto_safe failed for https://www.ussearch.com/opt-out/ | watson | 2026-09-20 01:22:46 | 0cb8e656/3074151f |
+| 64 | jobs.browser: goto_safe failed for https://radaris.com/page/how-to-remove | watson | 2026-09-20 01:22:46 | 0cb8e656/3074151f |
+| 46 | jobs.browser: goto_safe failed for https://this-domain-does-not-exist-watson-test-12345.invalid/ | watson | 2026-09-20 01:22:46 | 0cb8e656/3074151f |
+| 191 | Subsplash calendar monitor 403s on Playwright HeadlessChrome UA | watson | 2026-09-19 18:31:12 | edcf732 |
+| 190 | False OneDrive-backup-FAILED alert from status-check race against growing sermonshots_clips data | watson | 2026-09-19 11:28:42 | d2e3d33 |
 | 189 | Team Chat event registration question with zero registrations fell through to paid LLM | watson | 2026-09-18 19:12:01 | e508122 |
 | 188 | Events Q&A falsely claims a tracked event with 0 registrants isn't tracked | watson | 2026-09-18 19:09:37 | 82379bb |
 | 187 | Event signup COUNT returns bare em dash instead of 0 for zero-registrant events | watson | 2026-09-18 19:09:37 | 82379bb |
