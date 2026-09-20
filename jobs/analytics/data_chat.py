@@ -688,7 +688,7 @@ def _format_rows(rows: list[dict], domain: str | None = None) -> str:
     return "\n".join(lines)
 
 
-def _try_pattern_match(question: str) -> str | None:
+def _try_pattern_match(question: str, asker_name: str | None = None) -> str | None:
     """Bill's own cdb_query.py pattern-match layer, reused as a free
     LLM-free fast path for the common attendance phrasings it already
     recognizes. Its output still goes through _validate_sql() in the
@@ -698,7 +698,7 @@ def _try_pattern_match(question: str) -> str | None:
     except Exception:
         return None
     weeks = [(date.today() - timedelta(weeks=i)).strftime("%Y-%m-%d") for i in range(1, 13)]
-    return _pattern_match(question, _last_sunday(), weeks)
+    return _pattern_match(question, _last_sunday(), weeks, asker_name=asker_name)
 
 
 def _try_pattern_match_events(question: str) -> str | None:
@@ -746,7 +746,7 @@ def answer_data_question(
     # gave the smarter model-generated query below a chance to try. Only
     # short-circuit on the fast path when it actually found something --
     # zero rows (or an execution error) falls through to generation instead.
-    pm_sql = _validate_sql("attendance", _try_pattern_match(question), allow_contact_info)
+    pm_sql = _validate_sql("attendance", _try_pattern_match(question, asker_name), allow_contact_info)
     if pm_sql:
         rows = _run("attendance", pm_sql)
         if rows:

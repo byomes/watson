@@ -125,8 +125,12 @@ def _last_sunday() -> str:
     return last_sun.strftime("%Y-%m-%d")
 
 
-def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
-    """Return a SQL query for common patterns — bypasses Ollama entirely."""
+def _pattern_match(question: str, last_sun: str, weeks: list, asker_name: str | None = None) -> str | None:
+    """Return a SQL query for common patterns — bypasses Ollama entirely.
+
+    asker_name is the Team Chat leader asking (jobs/analytics/data_chat.py);
+    only the SELF LOOKUP block below uses it, and it stays None for every
+    caller that has no idea who is asking (dashboard run(), etc.)."""
     q = question.lower().strip()
 
     # Campus filter
@@ -634,6 +638,38 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
                 f"WHERE active = 1 AND name NOT LIKE '%CAMPUS%' AND name NOT LIKE '%SYSTEM%' AND name NOT LIKE '%TEST%' "
                 f"AND birthdate IS NOT NULL AND CAST(strftime('%m', birthdate) AS INTEGER) = {month_num} "
                 f"ORDER BY CAST(strftime('%d', birthdate) AS INTEGER)"
+            )
+
+    # SELF LOOKUP -- checked before MEMBER LOOKUP BY NAME below, whose 'tell me
+    # about' trigger would otherwise swallow "tell me about me" as a name
+    # search for the literal string "me" (LIKE '%me%' matches half the roster).
+    # "What do you know about me?" names no one -- the person is the asker, so
+    # this needs asker_name from jobs/analytics/data_chat.py (the only caller
+    # that knows who is asking). Found 2026-09-19 when a Team Chat leader asked
+    # exactly that and it fell through to a paid LLM call. Same read-only
+    # columns as MEMBER LOOKUP BY NAME (plus deacon), so nothing new is
+    # exposed. Conservative on purpose: end-anchored so a longer question
+    # ("...about me and my group") isn't half-answered; asker_name is
+    # sanitized (interpolated into SQL); and the record must match exactly one
+    # active member -- if asker_name is ambiguous or absent from members the
+    # query returns zero rows and data_chat falls through to the LLM path
+    # rather than showing someone else's record as "you".
+    if asker_name and re.fullmatch(r"[A-Za-z][A-Za-z .'-]{0,60}", asker_name.strip()):
+        _self_m = re.search(
+            r"what\s+(?:all\s+)?(?:do|does|can)\s+you\s+(?:know|have|got)\s+(?:on|about|for)\s+(?:me|myself)\W*$", q)
+        if not _self_m:
+            _self_m = re.search(
+                r"what\s+(?:info|information|details|data)\s+(?:do\s+you\s+have|is\s+there)\s+(?:on|about|for)\s+(?:me|myself)\W*$", q)
+        if not _self_m:
+            _self_m = re.search(r"(?:tell|show)\s+me\s+(?:everything\s+)?(?:about|on)\s+(?:me|myself)\W*$", q)
+        if _self_m:
+            me = asker_name.strip().replace("'", "''")
+            return (
+                f"SELECT m.name, m.email, m.phone, m.status, m.campus_preference, m.first_visit_date, m.deacon "
+                f"FROM members m "
+                f"WHERE m.name LIKE '%{me}%' AND m.active = 1 AND m.name NOT LIKE '%CAMPUS%' AND m.name NOT LIKE '%SYSTEM%' AND m.name NOT LIKE '%TEST%' "
+                f"AND (SELECT COUNT(*) FROM members WHERE name LIKE '%{me}%' AND active = 1 "
+                f"AND name NOT LIKE '%CAMPUS%' AND name NOT LIKE '%SYSTEM%' AND name NOT LIKE '%TEST%') = 1"
             )
 
     # MEMBER LOOKUP BY NAME
