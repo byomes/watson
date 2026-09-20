@@ -101,6 +101,14 @@ _ALLOWED_TABLES = {
     "events": {"church_events", "event_registrations"},
 }
 
+# SQLite table-valued functions, not real tables -- they only ever operate
+# on whatever string is passed as their argument (an already-allowed
+# column, per the extra_fields-unpacking guidance in _EVENTS_SCHEMA), never
+# reach outside the domain's real tables on their own. Allowed in every
+# domain's FROM/JOIN so _validate_sql's table-allowlist check below doesn't
+# reject them as an unrecognized table.
+_ALWAYS_ALLOWED_TABLES = {"json_each", "json_tree"}
+
 # Per Bill's 2026-09-02 follow-ups ("only key leaders get Watson access, we
 # don't need to worry too much about access" -> "allow birthdates, keep
 # notes locked"), email/phone/address/birthdate are allowed for team-chat
@@ -223,6 +231,13 @@ event_name LIKE '%picnic%'). When the answer is a LIST OF PEOPLE (e.g. "who's re
 -- concatenate them with SQL string concatenation into ONE readable text column instead (e.g. \
 `first_name || ' ' || last_name || CASE WHEN num_tickets > 1 THEN ' (' || num_tickets || ' tickets)' ELSE '' END`), \
 so each row reads as a single natural line rather than a raw field dump. \
+A LIST of event_registrations must always include ALL available data Watson has for each person, never just \
+name/tickets -- if extra_fields is set for that row, append what they answered on the custom sign-up-form \
+question too, e.g. `... || CASE WHEN extra_fields IS NOT NULL AND extra_fields != '' THEN ' — ' || \
+(SELECT group_concat(je.value, ', ') FROM json_each(event_registrations.extra_fields) je) ELSE '' END`. This \
+applies even when the question asks to be filtered down to one specific answer ("who's bringing dessert") -- \
+filter the WHERE clause on that answer (see extra_fields matching rule below) but still show each matched \
+person's full row (name, tickets, and their extra_fields answer), not just their name. \
 When a question asks for a headcount "on both campuses" or "across both campuses" for a SINGLE service/date \
 (e.g. "how many attended on both campuses this past Sunday"), that means the COMBINED total across Wilmington \
 and Online for that one date -- COUNT(DISTINCT member_id) with no campus filter, never \
@@ -307,7 +322,7 @@ SQL: SELECT COALESCE(SUM(r.num_tickets), 0) FROM event_registrations r JOIN chur
 
 Q: who's registered for the picnic so far?
 DOMAIN: events
-SQL: SELECT r.first_name || ' ' || r.last_name || CASE WHEN r.num_tickets > 1 THEN ' (' || r.num_tickets || ' tickets)' ELSE '' END AS registrant FROM event_registrations r JOIN church_events e ON e.id = r.event_id WHERE e.event_name LIKE '%picnic%'
+SQL: SELECT r.first_name || ' ' || r.last_name || CASE WHEN r.num_tickets > 1 THEN ' (' || r.num_tickets || ' tickets)' ELSE '' END || CASE WHEN r.extra_fields IS NOT NULL AND r.extra_fields != '' THEN ' — ' || (SELECT group_concat(je.value, ', ') FROM json_each(r.extra_fields) je) ELSE '' END AS registrant FROM event_registrations r JOIN church_events e ON e.id = r.event_id WHERE e.event_name LIKE '%picnic%'
 
 Q: how many people signed up to bring dessert for the picnic?
 DOMAIN: events
@@ -315,7 +330,7 @@ SQL: SELECT COALESCE(SUM(r.num_tickets), 0) FROM event_registrations r JOIN chur
 
 Q: who's bringing a side dish to the picnic?
 DOMAIN: events
-SQL: SELECT r.first_name || ' ' || r.last_name FROM event_registrations r JOIN church_events e ON e.id = r.event_id WHERE e.event_name LIKE '%picnic%' AND r.extra_fields LIKE '%"Side Dish"%'
+SQL: SELECT r.first_name || ' ' || r.last_name || CASE WHEN r.num_tickets > 1 THEN ' (' || r.num_tickets || ' tickets)' ELSE '' END || ' — ' || (SELECT group_concat(je.value, ', ') FROM json_each(r.extra_fields) je) AS registrant FROM event_registrations r JOIN church_events e ON e.id = r.event_id WHERE e.event_name LIKE '%picnic%' AND r.extra_fields LIKE '%"Side Dish"%'
 {contact_example}"""
 
 _CONTACT_ALLOWED_EXAMPLE = """
@@ -671,7 +686,7 @@ def _validate_sql(domain: str, sql: str | None, allow_contact_info: bool) -> str
         log.warning("data_chat: rejected SQL (forbidden token), domain=%s: %s", domain, sql)
         return None
     tables = {(m.group(1) or m.group(2)).lower() for m in _TABLE_RE.finditer(sql)}
-    if not tables or not tables.issubset(_ALLOWED_TABLES[domain]):
+    if not tables or not tables.issubset(_ALLOWED_TABLES[domain] | _ALWAYS_ALLOWED_TABLES):
         log.warning("data_chat: rejected SQL (tables %s not subset of %s): %s", tables, _ALLOWED_TABLES[domain], sql)
         return None
     if "members" in tables:

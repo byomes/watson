@@ -193,11 +193,22 @@ def pattern_match(question: str) -> str | None:
         event_id = _resolve_event_id(q)
         if event_id is None:
             return None
+        # A plain "who's signed up" still lists everyone with ALL available
+        # data per registration (tickets + whatever they answered on any
+        # custom sign-up-form question, e.g. side dish vs dessert for the
+        # picnic) -- Bill's 2026-09-20 standing rule: the list should never
+        # hide data Watson actually has. But a question naming a SPECIFIC
+        # answer ("who's bringing dessert") is asking to be filtered down to
+        # just that answer, which this fast path doesn't do -- bail to the
+        # LLM path for that case, same as the COUNT branch above.
         if _mentions_extra_field(q.lower(), event_id):
             return None
         return (
             "SELECT first_name || ' ' || last_name || "
-            "CASE WHEN num_tickets > 1 THEN ' (' || num_tickets || ' tickets)' ELSE '' END "
+            "CASE WHEN num_tickets > 1 THEN ' (' || num_tickets || ' tickets)' ELSE '' END || "
+            "CASE WHEN extra_fields IS NOT NULL AND extra_fields != '' THEN "
+            "' — ' || (SELECT group_concat(je.value, ', ') FROM json_each(event_registrations.extra_fields) je) "
+            "ELSE '' END "
             "AS registrant FROM event_registrations "
             f"WHERE event_id = {event_id} ORDER BY first_name, last_name"
         )
