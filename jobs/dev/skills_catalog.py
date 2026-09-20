@@ -172,8 +172,7 @@ def build_section() -> str:
         "instead; a manual edit here will be overwritten on the next regeneration.",
         "",
         "**How to trigger a skill.** Talk to Watson via the Telegram bot "
-        "(`@wckyWatsonbot`) or the dashboard chat tab "
-        "(`https://watson.tail0243ff.ts.net`). Two ways to invoke:",
+        "(`@wckyWatsonbot`). Two ways to invoke:",
         "",
         "1. **Natural language** — say what you want in plain English close to the "
         "skill's description; `jobs/skillbuilder/router.py` matches known trigger "
