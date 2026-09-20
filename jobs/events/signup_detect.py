@@ -129,7 +129,12 @@ def _tg_send(text: str, keyboard: dict | None = None) -> int | None:
         return None
 
 
-def _insert_registration(conn: sqlite3.Connection, event_id: int, detection: dict, received_at: str) -> int:
+def _insert_registration(
+    conn: sqlite3.Connection, event_id: int, detection: dict, received_at: str
+) -> tuple[int, str, str, int | None]:
+    """Returns (row_id, first_name, last_name, member_id) -- the final,
+    post-fallback values -- so callers can tell whether the registrant ended
+    up genuinely nameless (see _unmatched_alert below)."""
     email = (detection.get("email") or "").strip()
     phone = (detection.get("phone") or "").strip()
     member_id = find_member_id(email, phone)
@@ -168,7 +173,29 @@ def _insert_registration(conn: sqlite3.Connection, event_id: int, detection: dic
             received_at,
         ),
     )
-    return cur.lastrowid
+    return cur.lastrowid, first_name, last_name, member_id
+
+
+def _alert_unmatched_signup(
+    event_name: str, sender_email: str, subject: str, row_id: int
+) -> None:
+    """Bill asked (2026-09-20) to hear about this directly: the classifier
+    found no name AND find_member_id found no congregation.db match either,
+    so the registration landed with no name at all and nothing to fall back
+    to -- most likely a first-time visitor whose very first interaction with
+    the church was signing up for this event, before any connect card or
+    other record of them exists. Rare (the classifier or the member match
+    alone usually gives us something), but silent otherwise -- Bill would
+    only ever find it by noticing a nameless row on the dashboard."""
+    _tg_send(
+        f"⚠️ Unmatched signup for \"{event_name}\": no name could be extracted "
+        f"and no existing member matched their email/phone.\n\n"
+        f"From: {sender_email}\n"
+        f"Subject: {subject}\n"
+        f"event_registrations id: {row_id}\n\n"
+        f"Likely a first-time visitor — check the raw email and add their "
+        f"name on the Events tab. - Watson"
+    )
 
 
 def _notify_creator_on_first_match(conn: sqlite3.Connection, event_id: int, event_name: str, registrant: str) -> None:
@@ -234,7 +261,9 @@ def handle_event_signup_email(
     matched = find_active_event(conn, name_guess, f"{subject}\n{body}")
 
     if matched:
-        _insert_registration(conn, matched["id"], detection, received_at)
+        row_id, first_name, last_name, member_id = _insert_registration(
+            conn, matched["id"], detection, received_at
+        )
         _notify_creator_on_first_match(conn, matched["id"], matched["event_name"], who)
         conn.commit()
         conn.close()
@@ -242,6 +271,8 @@ def handle_event_signup_email(
             "Event signup matched — event=%r registrant=%s tickets=%s",
             matched["event_name"], who, detection.get("num_tickets"),
         )
+        if not first_name and not last_name and not member_id:
+            _alert_unmatched_signup(matched["event_name"], sender_email, subject, row_id)
         return "read"
 
     conn.close()
