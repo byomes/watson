@@ -1,7 +1,7 @@
 """jobs/trip/propose.py — Romantic 3-Day Trip Finder.
 
-Proposes flight+hotel getaway options for Bill and Donna, delivered by
-private Telegram DM only (never Kaci, Donna herself, or any group — this is
+Proposes flight+hotel getaway options for Bill and Melanie, delivered by
+private Telegram DM only (never Kaci, Melanie herself, or any group — this is
 a personal trip, not a church matter). Watson proposes, never books:
 'approved' just marks a proposal starred, there is no downstream booking
 call anywhere in this module.
