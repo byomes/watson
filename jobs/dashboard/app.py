@@ -2436,6 +2436,36 @@ def fixes_list():
     return jsonify(recent_fixes(limit))
 
 
+@app.route("/api/network-devices")
+def network_devices_list():
+    from jobs.network_monitor.db import all_devices, init_db, online_cutoff
+    init_db()
+    cutoff = online_cutoff()
+    devices = []
+    for r in all_devices():
+        d = dict(r)
+        d["online"] = bool(d["last_seen"] and d["last_seen"] >= cutoff)
+        devices.append(d)
+    return jsonify(devices)
+
+
+@app.route("/api/network-devices/<mac>", methods=["PATCH"])
+def network_devices_update(mac):
+    from jobs.network_monitor.db import update_device
+    data = request.get_json(force=True) or {}
+    label = (data.get("label") or "").strip() or None
+    assigned_to = (data.get("assigned_to") or "").strip() or None
+    update_device(mac, label, assigned_to)
+    return jsonify({"ok": True})
+
+
+@app.route("/api/network-devices/<mac>", methods=["DELETE"])
+def network_devices_delete(mac):
+    from jobs.network_monitor.db import delete_device
+    delete_device(mac)
+    return jsonify({"ok": True})
+
+
 @app.route("/api/house-calls")
 def house_calls_list():
     from jobs.house_calls.db import init_db, all_calls

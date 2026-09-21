@@ -1603,6 +1603,10 @@ function renderMore() {
         <span class="mtile-label">House Calls</span>
         <span class="mtile-chev">›</span>
       </button>
+      <button class="mtile" id="mtile-network-devices" onclick="moreToggle('network-devices')">
+        <span class="mtile-label">Network Devices</span>
+        <span class="mtile-chev">›</span>
+      </button>
     </div>
     <div id="more-expand-area">
       <div class="msec-body" id="msec-body-thesis">
@@ -1629,6 +1633,9 @@ function renderMore() {
       </div>
       <div class="msec-body" id="msec-body-house-calls">
         <div class="msec-inner" id="msec-inner-house-calls"><div class="loading">Loading&hellip;</div></div>
+      </div>
+      <div class="msec-body" id="msec-body-network-devices">
+        <div class="msec-inner" id="msec-inner-network-devices"><div class="loading">Loading&hellip;</div></div>
       </div>
     </div>`);
   moreLoadVacationStatus();
@@ -1705,6 +1712,7 @@ function moreToggle(sec) {
     if (sec === 'covercomps') coverCompsLoad();
     if (sec === 'savings') savingsLoad();
     if (sec === 'house-calls') moreLoadHouseCalls();
+    if (sec === 'network-devices') moreLoadNetworkDevices();
   }
 }
 
@@ -2497,6 +2505,160 @@ async function houseCallDelete(id) {
     await api(`/api/house-calls/${id}`, { method: 'DELETE' });
     _houseCallEditId = null;
     moreLoadHouseCalls();
+  } catch {
+    alert('Failed to delete.');
+  }
+}
+
+// ── Network Devices (home LAN presence log, jobs/network_monitor) ──────────
+
+let _networkDevicesData = [];
+let _ndShowUnknownOnly = false;
+
+async function moreLoadNetworkDevices() {
+  const el = document.getElementById('msec-inner-network-devices');
+  if (!el) return;
+  el.innerHTML = '<div class="loading">Loading&hellip;</div>';
+  try {
+    _networkDevicesData = await api('/api/network-devices');
+    _networkDevicesRender();
+  } catch {
+    el.innerHTML = '<div class="empty">Could not load network devices.</div>';
+  }
+}
+
+function _ndAgoLabel(seenAt) {
+  if (!seenAt) return 'never';
+  const then = new Date(seenAt.replace(' ', 'T') + 'Z');
+  const mins = Math.round((Date.now() - then.getTime()) / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.round(hrs / 24)}d ago`;
+}
+
+function _networkDevicesRender() {
+  const el = document.getElementById('msec-inner-network-devices');
+  if (!el) return;
+  const rows = _networkDevicesData || [];
+  const online = rows.filter(r => r.online).length;
+  const unknown = rows.filter(r => !r.known).length;
+
+  let html = `
+    <div class="mth-stats">
+      <div class="mth-stat">
+        <div class="mth-stat-num">${online}</div>
+        <div class="mth-stat-lbl">Online Now</div>
+      </div>
+      <div class="mth-stat">
+        <div class="mth-stat-num">${unknown}</div>
+        <div class="mth-stat-lbl">Unidentified</div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <div class="mlabel" style="margin-top:0">Devices</div>
+      <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted)">
+        <input type="checkbox" ${_ndShowUnknownOnly ? 'checked' : ''} onchange="ndToggleUnknownFilter(this.checked)">
+        Unidentified only
+      </label>
+    </div>`;
+
+  const shown = _ndShowUnknownOnly ? rows.filter(r => !r.known) : rows;
+  html += shown.length ? shown.map(_ndRow).join('') : '<div class="empty">No devices seen yet.</div>';
+
+  el.innerHTML = html;
+}
+
+function ndToggleUnknownFilter(checked) {
+  _ndShowUnknownOnly = checked;
+  _networkDevicesRender();
+}
+
+function _ndRow(r) {
+  const title = esc(r.label || r.hostname || r.ip || r.mac);
+  const sub = [
+    r.assigned_to ? esc(r.assigned_to) : null,
+    r.online ? `<span style="color:var(--green)">online</span>` : `last seen ${_ndAgoLabel(r.last_seen)}`,
+    esc(r.ip || ''),
+  ].filter(Boolean).join(' · ');
+  return `
+    <div class="mpn-card" id="nd-card-${_ndDomId(r.mac)}" style="padding:8px 12px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+        <div style="min-width:0">
+          <div style="font-size:13px;font-weight:500">${title}</div>
+          <div style="font-size:11px;color:var(--muted)">${sub}</div>
+          <div style="font-size:10px;color:var(--muted);font-family:monospace">${esc(r.mac)}</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button class="mbtn mbtn-sm" onclick="ndToggleEdit('${r.mac}')">Edit</button>
+        <button class="mbtn mbtn-sm" onclick="ndDelete('${r.mac}')">Delete</button>
+      </div>
+      <div id="nd-edit-${_ndDomId(r.mac)}" style="display:none"></div>
+    </div>`;
+}
+
+function _ndDomId(mac) {
+  return mac.replace(/:/g, '');
+}
+
+let _ndEditMac = null;
+
+function ndToggleEdit(mac) {
+  const expEl = document.getElementById(`nd-edit-${_ndDomId(mac)}`);
+  if (!expEl) return;
+  if (_ndEditMac === mac) {
+    expEl.style.display = 'none';
+    expEl.innerHTML = '';
+    _ndEditMac = null;
+    return;
+  }
+  if (_ndEditMac !== null) {
+    const prev = document.getElementById(`nd-edit-${_ndDomId(_ndEditMac)}`);
+    if (prev) { prev.style.display = 'none'; prev.innerHTML = ''; }
+  }
+  _ndEditMac = mac;
+  const r = (_networkDevicesData || []).find(x => x.mac === mac);
+  if (!r) return;
+  const domId = _ndDomId(mac);
+  expEl.innerHTML = `
+    <div class="mform" style="margin-top:8px">
+      <input id="nd-label-${domId}" type="text" value="${esc(r.label || '')}" placeholder="Device name (e.g. Bill's iPhone)">
+      <input id="nd-assigned-${domId}" type="text" value="${esc(r.assigned_to || '')}" placeholder="Assigned to (family member)">
+      <div class="mfrow">
+        <button class="mbtn mbtn-p mbtn-sm" onclick="ndSaveEdit('${mac}')">Save</button>
+        <button class="mbtn mbtn-sm" onclick="ndToggleEdit('${mac}')">Cancel</button>
+      </div>
+    </div>`;
+  expEl.style.display = 'block';
+}
+
+async function ndSaveEdit(mac) {
+  const domId = _ndDomId(mac);
+  const label = document.getElementById(`nd-label-${domId}`).value || '';
+  const assignedTo = document.getElementById(`nd-assigned-${domId}`).value || '';
+  try {
+    await api(`/api/network-devices/${encodeURIComponent(mac)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ label, assigned_to: assignedTo }),
+    });
+    _ndEditMac = null;
+    moreLoadNetworkDevices();
+  } catch {
+    alert('Failed to save changes.');
+  }
+}
+
+async function ndDelete(mac) {
+  const r = (_networkDevicesData || []).find(x => x.mac === mac);
+  const label = r ? (r.label || r.hostname || r.ip || mac) : mac;
+  if (!confirm(`Delete ${label}? This removes its whole activity history and cannot be undone.`)) return;
+  try {
+    await api(`/api/network-devices/${encodeURIComponent(mac)}`, { method: 'DELETE' });
+    _ndEditMac = null;
+    moreLoadNetworkDevices();
   } catch {
     alert('Failed to delete.');
   }
