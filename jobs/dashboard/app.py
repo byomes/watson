@@ -2466,6 +2466,12 @@ def network_devices_delete(mac):
     return jsonify({"ok": True})
 
 
+@app.route("/api/network-devices/<mac>/sessions")
+def network_devices_sessions(mac):
+    from jobs.network_monitor.db import device_sessions
+    return jsonify(device_sessions(mac))
+
+
 @app.route("/api/house-calls")
 def house_calls_list():
     from jobs.house_calls.db import init_db, all_calls

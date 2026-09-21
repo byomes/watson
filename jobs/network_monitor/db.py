@@ -132,6 +132,39 @@ def recent_sightings(mac: str, limit: int = 200) -> list[sqlite3.Row]:
         ).fetchall()
 
 
+def device_sessions(mac: str, gap_minutes: int = ONLINE_WINDOW_MINUTES, limit: int = 30) -> list[dict]:
+    """Collapses the raw sighting log into online/offline sessions — a run of
+    sightings with no gap larger than `gap_minutes` is one session. Returns
+    at most `limit` sessions, most recent first; the most recent one has
+    ongoing=True (and no end) if its last sighting is still within the
+    online window."""
+    with conn() as c:
+        rows = c.execute(
+            "SELECT seen_at FROM network_sightings WHERE mac = ? ORDER BY seen_at ASC",
+            (mac,),
+        ).fetchall()
+    if not rows:
+        return []
+
+    gap = timedelta(minutes=gap_minutes)
+    sessions: list[dict] = []
+    start = prev = datetime.fromisoformat(rows[0]["seen_at"])
+    for row in rows[1:]:
+        t = datetime.fromisoformat(row["seen_at"])
+        if t - prev > gap:
+            sessions.append({"start": start.isoformat(sep=" "), "end": prev.isoformat(sep=" ")})
+            start = t
+        prev = t
+    sessions.append({"start": start.isoformat(sep=" "), "end": prev.isoformat(sep=" ")})
+
+    cutoff = datetime.strptime(online_cutoff(), "%Y-%m-%d %H:%M:%S")
+    sessions[-1]["ongoing"] = prev >= cutoff
+    for s in sessions[:-1]:
+        s["ongoing"] = False
+
+    return list(reversed(sessions))[:limit]
+
+
 def online_cutoff() -> str:
     """UTC, to match sqlite's `datetime('now')` default that last_seen uses."""
     return (datetime.now(timezone.utc) - timedelta(minutes=ONLINE_WINDOW_MINUTES)).strftime("%Y-%m-%d %H:%M:%S")

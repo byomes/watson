@@ -2593,9 +2593,11 @@ function _ndRow(r) {
       </div>
       <div style="display:flex;gap:8px;margin-top:8px">
         <button class="mbtn mbtn-sm" onclick="ndToggleEdit('${r.mac}')">Edit</button>
+        <button class="mbtn mbtn-sm" onclick="ndToggleHistory('${r.mac}')">History</button>
         <button class="mbtn mbtn-sm" onclick="ndDelete('${r.mac}')">Delete</button>
       </div>
       <div id="nd-edit-${_ndDomId(r.mac)}" style="display:none"></div>
+      <div id="nd-hist-${_ndDomId(r.mac)}" style="display:none"></div>
     </div>`;
 }
 
@@ -2661,6 +2663,69 @@ async function ndDelete(mac) {
     moreLoadNetworkDevices();
   } catch {
     alert('Failed to delete.');
+  }
+}
+
+let _ndHistMac = null;
+
+function _ndDateTimeLabel(s) {
+  // "2026-09-21 18:22:05" -> "Sep 21, 6:22 PM"
+  const [datePart, timePart] = String(s || '').split(' ');
+  if (!datePart) return s || '';
+  const [y, m, d] = datePart.split('-').map(Number);
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  let label = `${months[m - 1]} ${d}`;
+  if (timePart) {
+    let [hh, mm] = timePart.split(':').map(Number);
+    const ampm = hh >= 12 ? 'PM' : 'AM';
+    hh = hh % 12 || 12;
+    label += `, ${hh}:${String(mm).padStart(2, '0')} ${ampm}`;
+  }
+  return label;
+}
+
+function _ndDurationLabel(startS, endS) {
+  const start = new Date(startS.replace(' ', 'T') + 'Z');
+  const end = new Date(endS.replace(' ', 'T') + 'Z');
+  const mins = Math.max(1, Math.round((end.getTime() - start.getTime()) / 60000));
+  if (mins < 60) return `${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  const rem = mins % 60;
+  return rem ? `${hrs}h ${rem}m` : `${hrs}h`;
+}
+
+async function ndToggleHistory(mac) {
+  const expEl = document.getElementById(`nd-hist-${_ndDomId(mac)}`);
+  if (!expEl) return;
+  if (_ndHistMac === mac) {
+    expEl.style.display = 'none';
+    expEl.innerHTML = '';
+    _ndHistMac = null;
+    return;
+  }
+  if (_ndHistMac !== null) {
+    const prev = document.getElementById(`nd-hist-${_ndDomId(_ndHistMac)}`);
+    if (prev) { prev.style.display = 'none'; prev.innerHTML = ''; }
+  }
+  _ndHistMac = mac;
+  expEl.style.display = 'block';
+  expEl.innerHTML = '<div class="loading" style="margin-top:8px">Loading&hellip;</div>';
+  try {
+    const sessions = await api(`/api/network-devices/${encodeURIComponent(mac)}/sessions`);
+    if (!sessions.length) {
+      expEl.innerHTML = '<div class="empty" style="margin-top:8px">No activity history yet.</div>';
+      return;
+    }
+    expEl.innerHTML = `
+      <div style="margin-top:8px;border-top:1px solid var(--border);padding-top:8px">
+        ${sessions.map(s => `
+          <div style="display:flex;justify-content:space-between;font-size:11px;padding:3px 0;color:var(--muted)">
+            <span>${s.ongoing ? `<span style="color:var(--green)">online now</span> since ${esc(_ndDateTimeLabel(s.start))}` : esc(_ndDateTimeLabel(s.start))}</span>
+            <span>${s.ongoing ? '' : esc(_ndDurationLabel(s.start, s.end))}</span>
+          </div>`).join('')}
+      </div>`;
+  } catch {
+    expEl.innerHTML = '<div class="empty" style="margin-top:8px">Could not load history.</div>';
   }
 }
 
