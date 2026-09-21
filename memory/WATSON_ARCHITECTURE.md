@@ -4204,3 +4204,22 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - edcf732 fix: pin browser UA for subsplash calendar monitor scrape
 - d2e3d33 backup: exclude sermonshots_clips from OneDrive leg; capture uncommitted GPG encryption fix
 - ddfa6d4 docs: architecture update 2026-09-19
+
+---
+
+## Recent Changes — 2026-09-21
+
+### ~/watson
+- 0699ef1 docs: bugs/backlog export 2026-09-21
+- 4543ecf docs: file map 2026-09-21
+- 1e24982 Show full registration data (tickets + custom field) in event signup lists
+- 0183531 Fix event signup Q&A to track custom sign-up-form fields (extra_fields)
+- 70eb555 Add "nursery attendance" fast-path phrase to count of who attended a service
+- 4ef233c feat(legal): ingest IP rights assignment agreement into new 'legal' KB collection
+- d28ac02 Add Donna Redman and Jim Bouchat to the duplicate-digest notification
+- 4c1d23a Move weekly duplicate-member scan from 4pm to 2pm Sunday
+- 45f8d16 Telegram-alert Bill when a signup lands with no name and no member match
+- 3c6bcb0 Wire the same member-name fallback into import_csv.py
+- 6fbc2fe Backfill registrant name from member match when signup email has none
+- dfcdfa8 feat: monthly FMS giving-email content ask, fix stale campaign paragraph
+- b6673e0 docs: architecture update 2026-09-20
