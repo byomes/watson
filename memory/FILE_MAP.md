@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-09-20*
+*Generated: 2026-09-21*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -109,6 +109,7 @@ data/
     cover_8.jpg
   cron_backups/
     crontab_20260905-223718.txt
+    crontab_20260920-042001.txt
   curator.db
   dev/
     historical_activity_backfill.json
@@ -5101,6 +5102,7 @@ jobs/
   generate.py
   givebutter/
     __init__.py
+    monthly_update.py
     notify.py
     sync.py
     templates.py
@@ -6010,6 +6012,9 @@ kb/
     Maturity Cycle.txt
     Worldviews Worksheet - w Spanish.txt
     Worldviews Worksheet.txt
+  legal/
+    agreements/
+      2017-09-01-Intellectual-Property-Rights-Assignment-Agreement-Reedswood-Christian-Church.txt
   sermon-notes/
     00 - Introduction to the book of Joshua.md
     00 - Introduction to the book of Joshua.txt
