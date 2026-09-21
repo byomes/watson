@@ -1,6 +1,6 @@
 # Watson Bug Tracker
 _Auto-generated nightly from bug_tracker. Source of truth is the database — do not hand-edit this file, changes will be overwritten._
-Last generated: 2026-09-20 02:10
+Last generated: 2026-09-21 02:10
 
 ## Open (7)
 | ID | Title | Repo | Discovered |
@@ -16,6 +16,7 @@ Last generated: 2026-09-20 02:10
 ## Recently Resolved (last 30 days)
 | ID | Title | Repo | Resolved | Commit |
 |---|---|---|---|---|
+| 192 | Event signups store blank registrant name when signup email has none | watson | 2026-09-20 19:00:10 | 6fbc2fee56c8ebe5dca7baded54026fed3748376 |
 | 40 | Backlog: dashboard chat has no durable session/history -- session_id never sent to /api/chat/stream by any caller | watson | 2026-09-20 01:42:26 | 6d347a2 |
 | 24 | Dashboard chat runs on Ollama by design (no ANTHROPIC_API_KEY) — stale claude-sonnet-4-6 model strings need updating if Claude is ever reactivated | watson | 2026-09-20 01:42:26 | 6d347a2 |
 | 10 | chat_stream() missing polish this:/kb:/shepherding: directive intercepts (present in /api/terminal, absent in /api/chat/stream — falls through to Ollama chat) | watson | 2026-09-20 01:42:26 | 6d347a2 |
@@ -140,5 +141,3 @@ Last generated: 2026-09-20 02:10
 | 92 | Dashboard 'state of church report' quick-command didn't reach the report generator | watson | 2026-08-23 17:37:02 | 0fc99348a250987762bdf38b287db0962285791c |
 | 91 | Dashboard 'check logs' command tailed a log file that no longer exists | watson | 2026-08-23 17:37:02 | 0fc99348a250987762bdf38b287db0962285791c |
 | 90 | calendar_query skill unregistered — 'what's on my calendar' always failed | watson | 2026-08-23 17:37:02 | 0fc99348a250987762bdf38b287db0962285791c |
-| 75 | Privacy Guard scan: goto_safe() fails OPEN on robots.txt 403/non-200 instead of fail-closed | watson | 2026-08-21 13:52:28 | 98367e7 |
-| 74 | Privacy Guard scan: bug_tracker logging fails with "database is locked" mid-run | watson | 2026-08-21 13:52:28 | 98367e7 |
