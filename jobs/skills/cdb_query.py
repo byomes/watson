@@ -617,6 +617,23 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
                 f"FROM members WHERE name LIKE '%{name}%' AND active = 1 AND birthdate IS NOT NULL"
             )
 
+    # SERVING TENURE LOOKUP -- mirrors bot.py's DM-only "how long has X been
+    # serving" -> serving field (_extract_team_lookup, added 2026-09-22 for
+    # Bill's banquet length-of-service tracking on started_serving_date).
+    # Without this it would fall through to MEMBER LOOKUP BY NAME / the LLM
+    # path and return the raw date instead of a computed tenure.
+    _serving_m = re.search(r"how\s+long\s+has\s+(\w+(?:\s+\w+)?)\s+(?:been\s+serving|served)\b", q)
+    if _serving_m:
+        name = _serving_m.group(1).strip()
+        if name:
+            return (
+                f"SELECT name, started_serving_date, "
+                f"CAST((julianday('now') - julianday(started_serving_date)) / 365.25 AS INTEGER) AS years_serving, "
+                f"CAST(((julianday('now') - julianday(started_serving_date)) / 30.44) "
+                f" - CAST((julianday('now') - julianday(started_serving_date)) / 365.25 AS INTEGER) * 12 AS INTEGER) AS extra_months "
+                f"FROM members WHERE name LIKE '%{name}%' AND active = 1 AND started_serving_date IS NOT NULL"
+            )
+
     # BIRTHDAYS -- a month-wide list ("birthdays in October", "who has a
     # birthday this month"), distinct from a single person's own birthday
     # (that's bot.py's _extract_team_lookup "X's birthday" fast path instead).

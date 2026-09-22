@@ -138,7 +138,13 @@ def _attendance_schema(allow_contact_info: bool) -> str:
         "  -- one row per person per service actually attended. campus is 'Wilmington' or 'Online'.\n"
         "classroom_attendance(date TEXT, kids_nursery, adults_nursery, kids_toddlers, adults_toddlers, kids_prek, adults_prek, kids_elementary, adults_elementary INTEGER)\n"
         "  -- one row per Sunday with headcounts for each of the 4 kids' classrooms.\n"
-        f"members(id INTEGER, name TEXT, deacon TEXT, status TEXT, member_status TEXT, campus_preference TEXT, first_visit_date TEXT, active INTEGER, partnership_status TEXT, household_id TEXT, household_role TEXT, gender TEXT{contact_cols})\n"
+        f"members(id INTEGER, name TEXT, deacon TEXT, status TEXT, member_status TEXT, campus_preference TEXT, first_visit_date TEXT, active INTEGER, partnership_status TEXT, household_id TEXT, household_role TEXT, gender TEXT, started_serving_date TEXT{contact_cols})\n"
+        "  -- started_serving_date is when that person began serving/volunteering (banquet length-of-service\n"
+        "  -- tracking) -- NULL for anyone who isn't a serving volunteer. A question about how LONG someone has\n"
+        "  -- been serving (not just the raw date) means computing tenure in the SQL itself, the same way age is\n"
+        "  -- computed from birthdate, e.g.\n"
+        "  -- `CAST((julianday('now') - julianday(started_serving_date)) / 365.25 AS INTEGER) AS years_serving` --\n"
+        "  -- never just return the bare date for a \"how long\"/\"length of service\" question.\n"
         "  -- deacon holds the free-text NAME of the deacon shepherding that member -- \"who's in <X>'s deacon group\" means WHERE deacon LIKE '%X%' DIRECTLY.\n"
         "  -- Never look up X's own row and reuse ITS deacon value instead -- deacons/elders themselves are tagged with a\n"
         "  -- leadership bucket there (e.g. 'Elders & Deacons'), shared by every deacon/elder and their spouse, not their own\n"
@@ -331,6 +337,10 @@ SQL: SELECT COALESCE(SUM(r.num_tickets), 0) FROM event_registrations r JOIN chur
 Q: who's bringing a side dish to the picnic?
 DOMAIN: events
 SQL: SELECT r.first_name || ' ' || r.last_name || CASE WHEN r.num_tickets > 1 THEN ' (' || r.num_tickets || ' tickets)' ELSE '' END || ' — ' || (SELECT group_concat(je.value, ', ') FROM json_each(r.extra_fields) je) AS registrant FROM event_registrations r JOIN church_events e ON e.id = r.event_id WHERE e.event_name LIKE '%picnic%' AND r.extra_fields LIKE '%"Side Dish"%'
+
+Q: who has been serving the longest?
+DOMAIN: attendance
+SQL: SELECT name, started_serving_date, CAST((julianday('now') - julianday(started_serving_date)) / 365.25 AS INTEGER) AS years_serving FROM members WHERE started_serving_date IS NOT NULL ORDER BY started_serving_date ASC LIMIT 10
 {contact_example}"""
 
 _CONTACT_ALLOWED_EXAMPLE = """

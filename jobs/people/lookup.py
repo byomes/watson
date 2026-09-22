@@ -139,7 +139,7 @@ _LAST_SEEN_NEVER = "1900-01-01"
 # include -- there's no campus for a service someone wasn't at, so it doesn't
 # get one.
 _DETAIL_FIELDS = (
-    "m.name, m.email, m.phone, m.address, m.birthdate, "
+    "m.name, m.email, m.phone, m.address, m.birthdate, m.started_serving_date, "
     "COALESCE((SELECT MAX(service_date) FROM ("
     "  SELECT service_date FROM connect_cards WHERE member_id = m.id"
     "  UNION ALL SELECT service_date FROM attendance WHERE member_id = m.id"

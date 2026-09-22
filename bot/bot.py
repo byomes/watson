@@ -3163,6 +3163,16 @@ _TEAM_LOOKUP_FIELD_WORDS = {
     "street address": "address",
     "birthday": "birthday", "birthdate": "birthday", "date of birth": "birthday", "dob": "birthday",
     "age": "age",
+    # Serving tenure (started_serving_date, added 2026-09-22 for the banquet
+    # length-of-service tracking -- see jobs/congregation/ started_serving_date
+    # import). Mirrors the birthday/age split: "serving_date" is the raw
+    # start date, "serving" is the computed tenure (years/months), same
+    # distinction _compute_age draws for birthdate/age below.
+    "started serving": "serving_date", "serving since": "serving_date",
+    "serving start": "serving_date", "serving start date": "serving_date",
+    "service start date": "serving_date", "start serving date": "serving_date",
+    "length of service": "serving", "years of service": "serving",
+    "years serving": "serving", "time serving": "serving",
     # Family fields (2026-09-12, alongside household_role -- see
     # jobs/congregation/family_edit.py / jobs/people/lookup.py's
     # lookup_member_family). "deacon" is NOT here -- "X's deacon GROUP" is a
@@ -3277,6 +3287,27 @@ def _extract_team_lookup(text: str) -> tuple[str, str] | None:
         name = _strip_team_lookup_stopwords(m.group(1))
         if name:
             return name, "birthday"
+    # "how long has X been serving/served" -- same shape/reasoning as "how
+    # old is X" above: doesn't fit the "X's field" possessive pattern, and
+    # without this it would fall through to data_chat.py's LLM SQL, which
+    # would just return the raw started_serving_date -- correct data, wrong
+    # question answered. Added 2026-09-22 per Bill's banquet length-of-
+    # service request.
+    m = re.search(
+        r"how\s+long\s+has\s+(\w+(?:\s+\w+)?)\s+(?:been\s+serving|served)\b",
+        text, re.IGNORECASE,
+    )
+    if m:
+        name = _strip_team_lookup_stopwords(m.group(1))
+        if name:
+            return name, "serving"
+    # "when did X start serving" -- raw-date counterpart to the tenure
+    # question above, same "birthday" vs "age" split.
+    m = re.search(r"when\s+did\s+(\w+(?:\s+\w+)?)\s+start\s+serving\b", text, re.IGNORECASE)
+    if m:
+        name = _strip_team_lookup_stopwords(m.group(1))
+        if name:
+            return name, "serving_date"
     # "who is X married to" / "is X married" -- added 2026-09-12 alongside
     # household_role (see jobs/congregation/family_edit.py). Kept separate
     # from the generic "X's spouse" field word above since this shape has no
@@ -3351,6 +3382,29 @@ def _compute_age(birthdate: str) -> int | None:
     return today.year - born.year - ((today.month, today.day) < (born.month, born.day))
 
 
+def _compute_service_tenure(started_serving_date: str) -> str | None:
+    """Years/months of service as a human string ("3 years, 2 months"),
+    same current-date-relative math as _compute_age but for
+    started_serving_date -- the banquet length-of-service figure Bill asked
+    for 2026-09-22, mirrors birthdate -> age exactly."""
+    try:
+        started = date.fromisoformat(started_serving_date)
+    except (ValueError, TypeError):
+        return None
+    today = date.today()
+    months = (today.year - started.year) * 12 + (today.month - started.month)
+    if today.day < started.day:
+        months -= 1
+    months = max(months, 0)
+    years, rem_months = divmod(months, 12)
+    parts = []
+    if years:
+        parts.append(f"{years} year{'s' if years != 1 else ''}")
+    if rem_months or not years:
+        parts.append(f"{rem_months} month{'s' if rem_months != 1 else ''}")
+    return ", ".join(parts)
+
+
 _FAMILY_LOOKUP_FIELDS = {"deacon", "spouse", "children", "parent"}
 
 
@@ -3396,6 +3450,13 @@ def _format_team_lookup_reply(person_name: str, field: str, asker: str = "Bill Y
         if age is None:
             return f"{m['name']}'s birthdate isn't on file, so I can't tell you their age."
         return f"{m['name']} is {age} years old."
+    if field == "serving_date":
+        return f"{m['name']} started serving: {m.get('started_serving_date') or 'not on file.'}"
+    if field == "serving":
+        tenure = _compute_service_tenure(m["started_serving_date"]) if m.get("started_serving_date") else None
+        if tenure is None:
+            return f"{m['name']}'s serving start date isn't on file, so I can't tell you their length of service."
+        return f"{m['name']} has been serving for {tenure}."
     if field == "deacon":
         return f"{m['name']}'s deacon: {m.get('deacon') or 'not assigned.'}"
     if field == "spouse":
