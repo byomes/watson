@@ -28,14 +28,40 @@ same convention attendance_web.py itself follows) but returns structured
 JSON (candidates list) rather than a formatted Telegram reply string, since
 the frontend needs to render a picker for an ambiguous match rather than
 just display text.
+
+Also backs wtsn.me/cat/serving (added 2026-09-22, Bill's "who actually
+served on Sunday" request): a weekly check-off of who from each team's
+roster actually showed up, distinct from the general congregation
+attendance table (that one tracks who was AT church; this tracks who
+SERVED on their team that Sunday). New serving_attendance table -- one row
+per (member, team, service_date) actually served, presence-only, same
+"no row = didn't serve" convention as the main `attendance` table (see
+attendance_web.py's module docstring). The expected roster for a given
+Sunday is just team_memberships itself, per Bill's "the roster of regularly
+expected positions and teams" -- no separate weekly-schedule/rotation
+concept exists yet.
 """
 import os
 import sqlite3
+from datetime import date, timedelta
 from functools import wraps
 
 from flask import Blueprint, jsonify, request
 
 DB_PATH = os.path.expanduser("~/watson/data/congregation.db")
+
+_RECENT_SUNDAYS_COUNT = 10
+
+
+def _most_recent_sunday() -> date:
+    today = date.today()
+    days_since_sunday = (today.weekday() + 1) % 7
+    return today - timedelta(days=days_since_sunday)
+
+
+def _recent_sundays(count: int) -> list[str]:
+    latest = _most_recent_sunday()
+    return [(latest - timedelta(weeks=i)).isoformat() for i in range(count)]
 
 servants_web_bp = Blueprint("servants_web", __name__)
 
@@ -265,3 +291,100 @@ def remove_servant():
         conn.commit()
 
     return jsonify({"member_id": member_id, "team_name": team_name, "removed": True}), 200
+
+
+@servants_web_bp.route("/api/cat/serving/state", methods=["GET"])
+@_require_key
+def get_serving_state():
+    requested = request.args.get("date", "").strip()
+    valid_dates = set(_recent_sundays(_RECENT_SUNDAYS_COUNT))
+    service_date = requested if requested in valid_dates else _most_recent_sunday().isoformat()
+
+    with _conn() as conn:
+        rows = conn.execute(
+            """SELECT tm.team_name, tm.position, m.id AS member_id, m.name
+               FROM team_memberships tm JOIN members m ON m.id = tm.member_id
+               WHERE m.active = 1 AND tm.active = 1
+               ORDER BY tm.team_name"""
+        ).fetchall()
+        served_keys = {
+            (row["member_id"], row["team_name"])
+            for row in conn.execute(
+                "SELECT member_id, team_name FROM serving_attendance WHERE service_date = ?",
+                (service_date,),
+            )
+        }
+
+    teams: dict[str, list[dict]] = {}
+    for r in rows:
+        teams.setdefault(r["team_name"], []).append({
+            "id": r["member_id"],
+            "name": r["name"],
+            "position": r["position"],
+            "served": (r["member_id"], r["team_name"]) in served_keys,
+        })
+    for members in teams.values():
+        members.sort(
+            key=lambda m: (
+                0 if "leader" in (m["position"] or "").lower() else 1,
+                _last_name_key(m["name"]),
+                m["name"] or "",
+            )
+        )
+
+    team_list = [
+        {"team_name": name, "members": members}
+        for name, members in sorted(teams.items())
+    ]
+    return jsonify({
+        "service_date": service_date,
+        "recent_sundays": _recent_sundays(_RECENT_SUNDAYS_COUNT),
+        "teams": team_list,
+    }), 200
+
+
+@servants_web_bp.route("/api/cat/serving/toggle", methods=["POST"])
+@_require_key
+def toggle_serving():
+    data = request.get_json(force=True) or {}
+    member_id = data.get("member_id")
+    team_name = (data.get("team_name") or "").strip()
+    service_date = (data.get("service_date") or "").strip()
+    served = bool(data.get("served"))
+
+    valid_dates = set(_recent_sundays(_RECENT_SUNDAYS_COUNT))
+    if not isinstance(member_id, int):
+        return jsonify({"error": "member_id (int) is required"}), 400
+    if not team_name:
+        return jsonify({"error": "team_name is required"}), 400
+    if service_date not in valid_dates:
+        return jsonify({"error": "service_date must be one of the recent Sundays"}), 400
+
+    with _conn() as conn:
+        existing = conn.execute(
+            "SELECT 1 FROM team_memberships WHERE member_id = ? AND team_name = ?",
+            (member_id, team_name),
+        ).fetchone()
+        if not existing:
+            return jsonify({"error": "that person isn't on this team"}), 404
+
+        already_served = conn.execute(
+            "SELECT 1 FROM serving_attendance WHERE member_id = ? AND team_name = ? AND service_date = ?",
+            (member_id, team_name, service_date),
+        ).fetchone() is not None
+
+        if served and not already_served:
+            conn.execute(
+                "INSERT INTO serving_attendance (member_id, team_name, service_date) VALUES (?, ?, ?)",
+                (member_id, team_name, service_date),
+            )
+        elif not served and already_served:
+            conn.execute(
+                "DELETE FROM serving_attendance WHERE member_id = ? AND team_name = ? AND service_date = ?",
+                (member_id, team_name, service_date),
+            )
+        conn.commit()
+
+    return jsonify({
+        "member_id": member_id, "team_name": team_name, "service_date": service_date, "served": served,
+    }), 200
