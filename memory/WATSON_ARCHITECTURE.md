@@ -4223,3 +4223,17 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - 6fbc2fe Backfill registrant name from member match when signup email has none
 - dfcdfa8 feat: monthly FMS giving-email content ask, fix stale campaign paragraph
 - b6673e0 docs: architecture update 2026-09-20
+
+---
+
+## Recent Changes — 2026-09-22
+
+### ~/watson
+- 0e2b179 docs: bugs/backlog export 2026-09-22
+- da41f81 docs: file map 2026-09-22
+- c634c31 kb: sync 2 transcript(s) to kb/documents (same-day)
+- feb0fa4 Add Open Library fallback to kb_search when the sermon KB has no relevant match
+- 98631f3 Fix stale Donna reference in trip proposer docstring
+- 0898f8e feat: per-device online/offline history on Network Devices card
+- abe3215 feat: home LAN device presence monitor + dashboard card
+- 4011eca docs: architecture update 2026-09-21
