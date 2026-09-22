@@ -3292,11 +3292,20 @@ def _extract_team_lookup(text: str) -> tuple[str, str] | None:
     # without this it would fall through to data_chat.py's LLM SQL, which
     # would just return the raw started_serving_date -- correct data, wrong
     # question answered. Added 2026-09-22 per Bill's banquet length-of-
-    # service request.
+    # service request. Two word orders: "how long HAS X been serving"
+    # (direct question) and "how long X HAS been serving" (embedded/
+    # indirect question -- Donna's actual phrasing, "can you tell me how
+    # long Donna Redman has been serving", caught this fast path missing
+    # 2026-09-22 since English inverts has/subject only in the direct form).
     m = re.search(
         r"how\s+long\s+has\s+(\w+(?:\s+\w+)?)\s+(?:been\s+serving|served)\b",
         text, re.IGNORECASE,
     )
+    if not m:
+        m = re.search(
+            r"how\s+long\s+(\w+(?:\s+\w+)?)\s+has\s+(?:been\s+serving|served)\b",
+            text, re.IGNORECASE,
+        )
     if m:
         name = _strip_team_lookup_stopwords(m.group(1))
         if name:

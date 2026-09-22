@@ -621,8 +621,14 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
     # serving" -> serving field (_extract_team_lookup, added 2026-09-22 for
     # Bill's banquet length-of-service tracking on started_serving_date).
     # Without this it would fall through to MEMBER LOOKUP BY NAME / the LLM
-    # path and return the raw date instead of a computed tenure.
+    # path and return the raw date instead of a computed tenure. Two word
+    # orders, same as bot.py: "how long HAS X been serving" (direct) and
+    # "how long X HAS been serving" (embedded/indirect -- Donna's actual
+    # phrasing "can you tell me how long Donna Redman has been serving"
+    # missed the direct-only pattern, caught live 2026-09-22).
     _serving_m = re.search(r"how\s+long\s+has\s+(\w+(?:\s+\w+)?)\s+(?:been\s+serving|served)\b", q)
+    if not _serving_m:
+        _serving_m = re.search(r"how\s+long\s+(\w+(?:\s+\w+)?)\s+has\s+(?:been\s+serving|served)\b", q)
     if _serving_m:
         name = _serving_m.group(1).strip()
         if name:
