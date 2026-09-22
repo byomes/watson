@@ -33,6 +33,7 @@ def init_db() -> None:
                 mac         TEXT PRIMARY KEY,
                 ip          TEXT,
                 hostname    TEXT,
+                vendor      TEXT,
                 label       TEXT,
                 assigned_to TEXT,
                 known       INTEGER NOT NULL DEFAULT 0,
@@ -40,6 +41,9 @@ def init_db() -> None:
                 last_seen   TEXT NOT NULL DEFAULT (datetime('now'))
             )
         """)
+        cols = [r[1] for r in c.execute("PRAGMA table_info(network_devices)").fetchall()]
+        if "vendor" not in cols:
+            c.execute("ALTER TABLE network_devices ADD COLUMN vendor TEXT")
         c.execute("""
             CREATE TABLE IF NOT EXISTS network_sightings (
                 id      INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -85,6 +89,18 @@ def record_sighting(mac: str, ip: str, hostname: str | None) -> bool:
         return existing is None
 
 
+def set_vendor(mac: str, vendor: str) -> None:
+    """MAC OUI resolves once and never changes, unlike hostname — called
+    only for a device that doesn't have one yet (see scan.py)."""
+    with conn() as c:
+        c.execute("UPDATE network_devices SET vendor = ? WHERE mac = ?", (vendor, mac))
+
+
+def devices_missing_vendor() -> list[sqlite3.Row]:
+    with conn() as c:
+        return c.execute("SELECT mac FROM network_devices WHERE vendor IS NULL").fetchall()
+
+
 def device_count() -> int:
     with conn() as c:
         return c.execute("SELECT COUNT(*) FROM network_devices").fetchone()[0]
@@ -95,7 +111,7 @@ def all_devices() -> list[sqlite3.Row]:
     recently active first within each group."""
     with conn() as c:
         return c.execute(
-            "SELECT mac, ip, hostname, label, assigned_to, known, first_seen, last_seen "
+            "SELECT mac, ip, hostname, vendor, label, assigned_to, known, first_seen, last_seen "
             "FROM network_devices "
             "ORDER BY (assigned_to IS NULL), assigned_to, last_seen DESC"
         ).fetchall()

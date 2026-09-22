@@ -2576,9 +2576,11 @@ function ndToggleUnknownFilter(checked) {
 }
 
 function _ndRow(r) {
-  const title = esc(r.label || r.hostname || r.ip || r.mac);
+  const titleSrc = r.label || r.hostname || r.vendor || r.ip || r.mac;
+  const title = esc(titleSrc);
   const sub = [
     r.assigned_to ? esc(r.assigned_to) : null,
+    (r.vendor && r.vendor !== titleSrc) ? esc(r.vendor) : null,
     r.online ? `<span style="color:var(--green)">online</span>` : `last seen ${_ndAgoLabel(r.last_seen)}`,
     esc(r.ip || ''),
   ].filter(Boolean).join(' · ');
