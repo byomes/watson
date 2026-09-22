@@ -98,7 +98,7 @@ def get_state():
         rows = conn.execute(
             """SELECT tm.team_name, tm.position, m.id AS member_id, m.name, m.started_serving_date
                FROM team_memberships tm JOIN members m ON m.id = tm.member_id
-               WHERE m.active = 1
+               WHERE m.active = 1 AND tm.active = 1
                ORDER BY tm.team_name"""
         ).fetchall()
 
@@ -204,9 +204,13 @@ def add_servant():
             row = candidates[0]
             member_id = row["id"]
 
+        # ON CONFLICT also resets active=1 -- this is also how "add person"
+        # brings someone back who was previously marked no-longer-serving on
+        # this team (see remove_servant below, which sets active=0 rather
+        # than deleting the row).
         conn.execute(
-            "INSERT INTO team_memberships (member_id, team_name, position) VALUES (?, ?, ?) "
-            "ON CONFLICT(member_id, team_name) DO UPDATE SET position = excluded.position",
+            "INSERT INTO team_memberships (member_id, team_name, position, active) VALUES (?, ?, ?, 1) "
+            "ON CONFLICT(member_id, team_name) DO UPDATE SET position = excluded.position, active = 1",
             (member_id, team_name, position),
         )
         if started_serving_date:
@@ -228,11 +232,16 @@ def add_servant():
 @servants_web_bp.route("/api/cat/servants/remove", methods=["POST"])
 @_require_key
 def remove_servant():
-    """"Mark as no longer serving" from the frontend -- removes this one
-    team_memberships row (this team only; a person on multiple teams keeps
-    their other rows, matching the per-team review scope of this page).
-    Does NOT touch members.started_serving_date or the member row itself --
-    that's tenure/identity data independent of any one team assignment."""
+    """"Mark as no longer serving" from the frontend -- sets this one
+    team_memberships row's active flag to 0 rather than deleting it (Bill's
+    2026-09-22 correction: the original delete-on-click behavior lost the
+    person's serving history on this team; classifying them as no-longer-
+    serving keeps the row, just excludes it from get_state's roster).
+    Scoped to this team only -- a person on multiple teams keeps their
+    other rows untouched. Does NOT touch members.started_serving_date or
+    the member row itself -- that's tenure/identity data independent of
+    any one team assignment. Re-adding the same person via /add (see the
+    ON CONFLICT clause above) resets active back to 1."""
     data = request.get_json(force=True) or {}
     member_id = data.get("member_id")
     team_name = (data.get("team_name") or "").strip()
@@ -244,13 +253,13 @@ def remove_servant():
 
     with _conn() as conn:
         existing = conn.execute(
-            "SELECT 1 FROM team_memberships WHERE member_id = ? AND team_name = ?",
+            "SELECT 1 FROM team_memberships WHERE member_id = ? AND team_name = ? AND active = 1",
             (member_id, team_name),
         ).fetchone()
         if not existing:
             return jsonify({"error": "not found"}), 404
         conn.execute(
-            "DELETE FROM team_memberships WHERE member_id = ? AND team_name = ?",
+            "UPDATE team_memberships SET active = 0 WHERE member_id = ? AND team_name = ?",
             (member_id, team_name),
         )
         conn.commit()
