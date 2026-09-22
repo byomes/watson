@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-09-21*
+*Generated: 2026-09-22*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -100,6 +100,8 @@ data/
     66e0844b7fab4e0a8bb386db8504deac.png
     9eca6f54ecff491dbed2470fd0b3d196.png
   congregation.db
+  congregation.db-shm
+  congregation.db-wal
   congregation.db.bak_before_orphan_delete_20260906_070048
   congregation.db.bak_zipcheck_20260915
   cover_images/
@@ -4916,6 +4918,7 @@ jobs/
     notify_subsplash_fuzzy_review.py
     papercards_web.py
     pin_collection.py
+    scam_alert_email.py
     set_deacon_pin.py
     shepherding_report_ready.py
     weekly_changes_report.py
@@ -5189,6 +5192,10 @@ jobs/
     __init__.py
     log_watch.py
     weather_every_morning.py
+  network_monitor/
+    __init__.py
+    db.py
+    scan.py
   newsletter/
     __init__.py
     api.py
@@ -5250,6 +5257,7 @@ jobs/
     migrate_benchmark_sources.py
     migrate_web_benchmark_sources.py
     news_search.py
+    open_library.py
     openalex.py
     semantic_search.py
     summarizer.py
@@ -5997,6 +6005,7 @@ kb/
     2026-09-08-where-joy-actually-comes-from.md
     2026-09-10-chains-and-confidence.md
     2026-09-12-partners-not-spectators.md
+    2026-09-15-when-the-wrong-motive-still-preaches-the-truth.md
     the-flashlight-of-your-focus.md
     where-your-treasure-is.md
   handouts/
