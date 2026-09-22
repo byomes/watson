@@ -407,6 +407,71 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
                 f"ORDER BY name"
             )
 
+    # TEAM ROSTER MEMBERSHIP -- who's on a GIVEN team (team_memberships,
+    # added 2026-09-22 alongside the Team Members List Export import).
+    # Checked before MEMBER LOOKUP BY NAME for the same reason as DEACON
+    # GROUP MEMBERSHIP above -- "who's on the worship team" would otherwise
+    # get swallowed as a literal (always-empty) name search for someone
+    # named "the worship team". LIKE-matches team_name on whatever partial
+    # phrase the asker used (team names in the DB are inconsistent about
+    # whether "TEAM" is part of the name -- "WORSHIP TEAM" vs "NURSERY" vs
+    # "DEACONS" -- so a partial match is more reliable than requiring the
+    # literal word "team").
+    _team_roster_m = re.search(r"who(?:'s|\s+is)\s+(?:on|in)\s+(?:the\s+)?(\w+(?:\s+\w+){0,3}?)\s*team\b", q)
+    if not _team_roster_m:
+        _team_roster_m = re.search(r"members?\s+of\s+(?:the\s+)?(\w+(?:\s+\w+){0,3}?)\s*team\b", q)
+    if not _team_roster_m:
+        _team_roster_m = re.search(r"(\w+(?:\s+\w+){0,3}?)\s*team\s+roster\b", q)
+    if not _team_roster_m:
+        _team_roster_m = re.search(r"roster\s+for\s+(?:the\s+)?(\w+(?:\s+\w+){0,3}?)\s*team\b", q)
+    if not _team_roster_m:
+        # Real team names that DON'T naturally get called "the X TEAM" in
+        # speech (e.g. "DEACONS", "NURSERY", "SECURITY" in the DB, not
+        # "deacons team"/"nursery team") -- a bounded keyword alternation
+        # rather than a generic "who's in the X" capture, which would
+        # misfire on ordinary sentences ("who's in the meeting/room/
+        # office") that have nothing to do with a team roster. See
+        # [[feedback_fastpath_phrasing_collisions]]-style caution: a
+        # generic capture group here is exactly the kind of thing that's
+        # bitten this file before.
+        _team_roster_m = re.search(
+            r"who(?:'s|\s+is)\s+(?:on|in)\s+(?:the\s+)?"
+            r"(deacons?|nursery|security|hospitality|missions|communications|toddlers?|"
+            r"white\s+rose|woven\s+ladies|catalyst\s+leaders|small\s+group\s+leaders?|"
+            r"building\s+lock\s*up|building\s*(?:&|and)?\s*maintenance|"
+            r"budget\s*(?:&|and)?\s*stewardship|celebrate\s+recovery|"
+            r"elementary\s+kids\s+church|men'?s\s+fraternity|shift)\b",
+            q,
+        )
+    if _team_roster_m:
+        team_words = [w for w in _team_roster_m.group(1).strip().split()]
+        _team_stopwords = ('the', 'a', 'is', 'for', 'list', 'show', 'me', 'give', 'display', 'tell', 'on', 'in')
+        while team_words and team_words[0].lower() in _team_stopwords:
+            team_words.pop(0)
+        team_phrase = " ".join(team_words)
+        if team_phrase:
+            return (
+                f"SELECT m.name FROM team_memberships tm JOIN members m ON m.id = tm.member_id "
+                f"WHERE tm.team_name LIKE '%{team_phrase}%' AND m.active = 1 ORDER BY m.name"
+            )
+
+    # WHAT TEAM(S) IS X ON -- mirrors AGE LOOKUP's reasoning: doesn't fit
+    # MEMBER LOOKUP BY NAME's raw-row shape, so without this it would just
+    # fall through to the LLM (or worse, an empty-looking name search).
+    # Distinct from TEAM ROSTER MEMBERSHIP just above, which lists everyone
+    # on a GIVEN team -- this answers what team(s) ONE named person is on.
+    _person_teams_m = re.search(r"what\s+teams?\s+(?:is|does)\s+(\w+(?:\s+\w+)?)\s+(?:on|serve(?:s|ing)?\s+on)\b", q)
+    if not _person_teams_m:
+        _person_teams_m = re.search(r"is\s+(\w+(?:\s+\w+)?)\s+on\s+(?:a|any)\s+teams?\b", q)
+    if _person_teams_m:
+        name = _person_teams_m.group(1).strip()
+        if name:
+            return (
+                f"SELECT m.name, "
+                f"(SELECT group_concat(team_name, ', ') FROM team_memberships WHERE member_id = m.id) AS teams "
+                f"FROM members m WHERE m.name LIKE '%{name}%' AND m.active = 1"
+            )
+
     # SPOUSE LOOKUP -- checked before MEMBER LOOKUP BY NAME below, whose
     # generic 'who is' trigger would otherwise swallow "who is X married to"
     # as a literal (always-empty) name search for someone named "X married

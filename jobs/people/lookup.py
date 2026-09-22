@@ -140,6 +140,7 @@ _LAST_SEEN_NEVER = "1900-01-01"
 # get one.
 _DETAIL_FIELDS = (
     "m.name, m.email, m.phone, m.address, m.birthdate, m.started_serving_date, "
+    "(SELECT group_concat(team_name, ', ') FROM team_memberships WHERE member_id = m.id) AS teams, "
     "COALESCE((SELECT MAX(service_date) FROM ("
     "  SELECT service_date FROM connect_cards WHERE member_id = m.id"
     "  UNION ALL SELECT service_date FROM attendance WHERE member_id = m.id"

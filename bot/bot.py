@@ -3173,6 +3173,14 @@ _TEAM_LOOKUP_FIELD_WORDS = {
     "service start date": "serving_date", "start serving date": "serving_date",
     "length of service": "serving", "years of service": "serving",
     "years serving": "serving", "time serving": "serving",
+    # Team/roster membership (team_memberships, added 2026-09-22 alongside
+    # the Team Members List Export import). "team"/"teams" answers what
+    # team(s) a GIVEN person is on -- listing WHO is on a given team is a
+    # different (roster) question, handled by its own regex below, same
+    # split as DEACON GROUP MEMBERSHIP vs MEMBER'S OWN DEACON in
+    # cdb_query.py.
+    "team": "teams", "teams": "teams", "team membership": "teams",
+    "what team": "teams", "what teams": "teams",
     # Family fields (2026-09-12, alongside household_role -- see
     # jobs/congregation/family_edit.py / jobs/people/lookup.py's
     # lookup_member_family). "deacon" is NOT here -- "X's deacon GROUP" is a
@@ -3317,6 +3325,25 @@ def _extract_team_lookup(text: str) -> tuple[str, str] | None:
         name = _strip_team_lookup_stopwords(m.group(1))
         if name:
             return name, "serving_date"
+    # "what team(s) is/does X (serve/serving) on" -- doesn't fit the "X's
+    # field"/"field for X" shapes the _TEAM_LOOKUP_FIELD_WORDS "team"/"teams"
+    # entries already cover (added 2026-09-22 alongside team_memberships,
+    # see the Team Members List Export import). Listing WHO is on a GIVEN
+    # team is a different (roster) question -- handled by cdb_query.py's
+    # fast path, same split as DEACON GROUP MEMBERSHIP vs this file's
+    # per-person deacon lookup.
+    m = re.search(
+        r"what\s+teams?\s+(?:is|does)\s+(\w+(?:\s+\w+)?)\s+(?:on|serve(?:s|ing)?\s+on)\b",
+        text, re.IGNORECASE,
+    )
+    if not m:
+        m = re.search(r"is\s+(\w+(?:\s+\w+)?)\s+on\s+(?:a|any)\s+teams?\b", text, re.IGNORECASE)
+    if not m:
+        m = re.search(r"does\s+(\w+(?:\s+\w+)?)\s+serve\s+on\s+(?:a|any)\s+teams?\b", text, re.IGNORECASE)
+    if m:
+        name = _strip_team_lookup_stopwords(m.group(1))
+        if name:
+            return name, "teams"
     # "who is X married to" / "is X married" -- added 2026-09-12 alongside
     # household_role (see jobs/congregation/family_edit.py). Kept separate
     # from the generic "X's spouse" field word above since this shape has no
@@ -3459,6 +3486,9 @@ def _format_team_lookup_reply(person_name: str, field: str, asker: str = "Bill Y
         if age is None:
             return f"{m['name']}'s birthdate isn't on file, so I can't tell you their age."
         return f"{m['name']} is {age} years old."
+    if field == "teams":
+        teams = m.get("teams")
+        return f"{m['name']}'s teams: {teams if teams else 'not on any team.'}"
     if field == "serving_date":
         return f"{m['name']} started serving: {m.get('started_serving_date') or 'not on file.'}"
     if field == "serving":

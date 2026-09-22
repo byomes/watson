@@ -96,6 +96,7 @@ _ALLOWED_TABLES = {
         "attendance", "classroom_attendance", "members",
         "deacon_notes", "next_steps", "follow_ups",
         "deacon_visible_prayer_requests", "deacon_visible_connect_cards",
+        "team_memberships",
     },
     "web": {"engagement_sheet_metrics"},
     "events": {"church_events", "event_registrations"},
@@ -175,7 +176,14 @@ def _attendance_schema(allow_contact_info: bool) -> str:
         "  -- the submitter marked leadership-only, which this view already excludes). join member_id = members.id.\n"
         "deacon_visible_connect_cards(member_id INTEGER, service_date TEXT, campus TEXT, questions_comments TEXT, next_steps TEXT, is_first_visit INTEGER, prayer_request TEXT)\n"
         "  -- a submitted connect card. Use this view, NEVER the raw connect_cards table (not queryable -- its prayer_request column\n"
-        "  -- can hold non-public content this view already nulls out). is_first_visit=1 means it was that person's first visit. join member_id = members.id."
+        "  -- can hold non-public content this view already nulls out). is_first_visit=1 means it was that person's first visit. join member_id = members.id.\n"
+        "team_memberships(id INTEGER, member_id INTEGER, team_name TEXT, position TEXT)\n"
+        "  -- which volunteer/serving team(s) a member is on (Nursery, Worship Team, Security, Deacons, etc, from the\n"
+        "  -- Team Members List Export, added 2026-09-22) -- NOT the same thing as members.deacon (who SHEPHERDS a\n"
+        "  -- member) or leadership_roles (staff/elder/deacon office). position is their role WITHIN that team (e.g.\n"
+        "  -- 'Nursery Caretaker', 'Vocalist') and can be NULL. join member_id = members.id. Team names are\n"
+        "  -- inconsistently suffixed (\"WORSHIP TEAM\" but plain \"NURSERY\", \"DEACONS\", \"SECURITY\") so always match\n"
+        "  -- with team_name LIKE '%partial%', never exact equality, using whatever phrase the asker used."
     )
 
 _WEB_SCHEMA = """
@@ -341,6 +349,14 @@ SQL: SELECT r.first_name || ' ' || r.last_name || CASE WHEN r.num_tickets > 1 TH
 Q: who has been serving the longest?
 DOMAIN: attendance
 SQL: SELECT name, started_serving_date, CAST((julianday('now') - julianday(started_serving_date)) / 365.25 AS INTEGER) AS years_serving FROM members WHERE started_serving_date IS NOT NULL ORDER BY started_serving_date ASC LIMIT 10
+
+Q: who's on the worship team?
+DOMAIN: attendance
+SQL: SELECT m.name FROM team_memberships tm JOIN members m ON m.id = tm.member_id WHERE tm.team_name LIKE '%worship%' AND m.active = 1 ORDER BY m.name
+
+Q: what team is Gary Tabor on?
+DOMAIN: attendance
+SQL: SELECT m.name, (SELECT group_concat(team_name, ', ') FROM team_memberships WHERE member_id = m.id) AS teams FROM members m WHERE m.name LIKE '%Gary Tabor%' AND m.active = 1
 {contact_example}"""
 
 _CONTACT_ALLOWED_EXAMPLE = """
