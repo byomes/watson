@@ -51,6 +51,12 @@ def _get_active_readers(conn: sqlite3.Connection, reader_id: int | None = None,
     return [dict(r) for r in rows]
 
 
+_REVIEW_LINK = (
+    "https://www.amazon.com/review/create-review/ref=cm_cr_arp_mb_wr_but"
+    "?ie=UTF8&channel=awUDPv3&asin=B0HFDND93G"
+)
+
+
 def _build_body(first_name: str) -> str:
     return (
         f"Hi {first_name},\n\n"
@@ -60,8 +66,8 @@ def _build_body(first_name: str) -> str:
         "A few fellow ARC readers have already posted their reviews, and it's "
         "made a real difference in helping new readers discover the book. If "
         "you've had a chance to finish it, Dr. Bill would be so grateful if "
-        "you could head over to Amazon, search for \"The Wrong Jesus,\" and "
-        "leave an honest review.\n\n"
+        "you could leave an honest review here:\n"
+        f"{_REVIEW_LINK}\n\n"
         "No pressure at all if you're not there yet or things have been busy. "
         "Even a short review goes a long way toward helping more people find "
         "the book, and your early support means a great deal.\n\n"
