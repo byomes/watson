@@ -986,16 +986,55 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 _extract_mark_child(_msg_text)
                 if (not _add_child and not _bday_update and not _mark_spouse) else None
             )
+            # Serving-date/pin/team edits, added 2026-09-22 -- see
+            # _SERVING_TEAMS_EDIT_ALLOWLIST above. _team_add/_team_remove
+            # are checked HERE, before _assign (deacon reassignment) below,
+            # even though they're logically a separate feature -- required
+            # because "add <name> to <team>" is structurally identical to
+            # _extract_deacon_assign's "add/assign/move/put/switch/transfer
+            # <person> to <deacon>" pattern, which is broader/unscoped and
+            # would otherwise claim it first (see _extract_team_add's
+            # docstring). _looks_like_team_phrase's bounded keyword/"team"-
+            # suffix requirement is what keeps this from instead swallowing
+            # genuine deacon-reassignment phrases that have nothing to do
+            # with a team.
+            _is_serving_teams_editor = _leader_name in _SERVING_TEAMS_EDIT_ALLOWLIST
+            _serving_date_update = (
+                _extract_serving_date_update(_msg_text)
+                if (_is_serving_teams_editor and not _add_child and not _bday_update
+                    and not _mark_spouse and not _mark_child) else None
+            )
+            _pin_update = (
+                _extract_pin_update(_msg_text)
+                if (_is_serving_teams_editor and not _add_child and not _bday_update
+                    and not _mark_spouse and not _mark_child and not _serving_date_update) else None
+            )
+            _team_add = (
+                _extract_team_add(_msg_text)
+                if (_is_serving_teams_editor and not _add_child and not _bday_update
+                    and not _mark_spouse and not _mark_child
+                    and not _serving_date_update and not _pin_update) else None
+            )
+            _team_remove = (
+                _extract_team_remove(_msg_text)
+                if (_is_serving_teams_editor and not _add_child and not _bday_update
+                    and not _mark_spouse and not _mark_child and not _serving_date_update
+                    and not _pin_update and not _team_add) else None
+            )
             _is_assigner = _leader_name in _DEACON_ASSIGN_ALLOWLIST
             _assign = (
                 _extract_deacon_assign(_msg_text)
                 if (_is_assigner and not _add_child and not _bday_update
-                    and not _mark_spouse and not _mark_child) else None
+                    and not _mark_spouse and not _mark_child
+                    and not _serving_date_update and not _pin_update
+                    and not _team_add and not _team_remove) else None
             )
             _assign_incomplete = (
                 bool(
                     _assign is None and _is_assigner and not _add_child and not _bday_update
                     and not _mark_spouse and not _mark_child
+                    and not _serving_date_update and not _pin_update
+                    and not _team_add and not _team_remove
                     and _DEACON_ASSIGN_INCOMPLETE_RE.match(_msg_text.strip())
                 )
             )
@@ -1005,7 +1044,9 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 bool(
                     _leader_name in _FAMILY_REPORT_ALLOWLIST
                     and not _add_child and not _bday_update and not _mark_spouse
-                    and not _mark_child and not _assign and not _assign_incomplete
+                    and not _mark_child and not _serving_date_update and not _pin_update
+                    and not _team_add and not _team_remove
+                    and not _assign and not _assign_incomplete
                     and _looks_like_family_report_request(_msg_text)
                 )
             )
@@ -1014,7 +1055,9 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
             _unlock_login = (
                 bool(
                     not _add_child and not _bday_update and not _mark_spouse
-                    and not _mark_child and not _assign and not _assign_incomplete
+                    and not _mark_child and not _serving_date_update and not _pin_update
+                    and not _team_add and not _team_remove
+                    and not _assign and not _assign_incomplete
                     and not _family_report
                     and _looks_like_unlock_login_request(_msg_text)
                 )
@@ -1026,7 +1069,9 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 if (
                     _leader_name in _EVENT_CREATE_ALLOWLIST
                     and not _add_child and not _bday_update and not _mark_spouse
-                    and not _mark_child and not _assign and not _assign_incomplete
+                    and not _mark_child and not _serving_date_update and not _pin_update
+                    and not _team_add and not _team_remove
+                    and not _assign and not _assign_incomplete
                     and not _family_report and not _unlock_login
                 ) else None
             )
@@ -1037,7 +1082,9 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 if (
                     _leader_name in _EVENT_CREATE_ALLOWLIST
                     and not _add_child and not _bday_update and not _mark_spouse
-                    and not _mark_child and not _assign and not _assign_incomplete
+                    and not _mark_child and not _serving_date_update and not _pin_update
+                    and not _team_add and not _team_remove
+                    and not _assign and not _assign_incomplete
                     and not _family_report and not _unlock_login and not _new_event
                 ) else None
             )
@@ -1049,12 +1096,21 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         "update_birthdate" if _bday_update else (
                             "mark_spouse" if _mark_spouse else (
                                 "mark_child" if _mark_child else (
-                                    "deacon_assign" if _assign else (
-                                        "deacon_assign_incomplete" if _assign_incomplete else (
-                                            "family_report" if _family_report else (
-                                                "unlock_login" if _unlock_login else (
-                                                    "new_event" if _new_event else (
-                                                        "event_date_time_update" if _event_update else "team_chat"
+                                    "serving_date_update" if _serving_date_update else (
+                                        "pin_update" if _pin_update else (
+                                            "team_add" if _team_add else (
+                                                "team_remove" if _team_remove else (
+                                                    "deacon_assign" if _assign else (
+                                                        "deacon_assign_incomplete" if _assign_incomplete else (
+                                                            "family_report" if _family_report else (
+                                                                "unlock_login" if _unlock_login else (
+                                                                    "new_event" if _new_event else (
+                                                                        "event_date_time_update"
+                                                                        if _event_update else "team_chat"
+                                                                    )
+                                                                )
+                                                            )
+                                                        )
                                                     )
                                                 )
                                             )
@@ -1073,6 +1129,14 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await _handle_mark_spouse(update, _leader_name, *_mark_spouse)
             elif _mark_child:
                 await _handle_mark_child(update, _leader_name, *_mark_child)
+            elif _serving_date_update:
+                await _handle_serving_date_update(update, _leader_name, *_serving_date_update)
+            elif _pin_update:
+                await _handle_pin_update(update, _leader_name, *_pin_update)
+            elif _team_add:
+                await _handle_team_add(update, _leader_name, *_team_add)
+            elif _team_remove:
+                await _handle_team_remove(update, _leader_name, *_team_remove)
             elif _assign:
                 await _handle_deacon_assign(update, _leader_name, *_assign)
             elif _family_report:
@@ -2727,6 +2791,14 @@ def _extract_deacon_assign(text: str) -> tuple[str, str] | None:
 # that branch entirely, same split as _DEACON_ASSIGN_ALLOWLIST above).
 _FAMILY_EDIT_ALLOWLIST = frozenset({"Bill Crook", "Jim Bouchat", "Donna Redman"})
 
+# Per Bill's 2026-09-22 request ("Donna and myself" full edit access over
+# serving-date/pin/team-roster data) -- Donna Redman here for
+# _handle_text_body's onboarded-leader branch, plus Bill Yomes wired
+# separately (no allowlist needed) in _handle_general, same split as
+# _FAMILY_EDIT_ALLOWLIST above. Deliberately narrower than that allowlist
+# (no Bill Crook/Jim Bouchat) since only Donna and Dr. Bill were named.
+_SERVING_TEAMS_EDIT_ALLOWLIST = frozenset({"Donna Redman"})
+
 
 def _extract_add_child(text: str) -> tuple[str, str, str] | None:
     """Recognize "add child <name> to <parent>, born/dob <date>" or
@@ -2800,6 +2872,170 @@ async def _handle_add_child(update: Update, sender_name: str, child_name: str, p
 async def _handle_birthday_update(update: Update, sender_name: str, name_query: str, date_raw: str) -> None:
     from jobs.congregation.family_edit import update_birthdate
     reply = await asyncio.to_thread(update_birthdate, name_query, date_raw, sender_name)
+    await update.message.reply_text(reply)
+
+
+# Serving-date/pin/team edits (jobs/congregation/serving_edit.py), added
+# 2026-09-22 per Bill's request that he and Donna Redman have full edit
+# access over banquet length-of-service tracking -- same two-wiring
+# pattern (allowlist-gated in _handle_text_body, unguarded in
+# _handle_general) as add_child/update_birthdate above. See
+# [[project_servant_banquet_tracking]].
+_SERVING_DATE_WORD_ALTS = r"serving start date|serving date|serving start|started serving date|started serving"
+
+
+def _extract_serving_date_update(text: str) -> tuple[str, str] | None:
+    """Recognize "<name>'s serving (start) date is <date>", "update/set/fix/
+    correct <name>'s serving (start) date to <date>", or "<name> started
+    serving <date>" and return (name_query, date_raw), or None. Mirrors
+    _extract_birthday_update's three-pattern shape exactly."""
+    text = text.strip()
+    m = re.search(
+        rf"(?:update|set|fix|correct)\s+(.+?)(?:'s)?\s+(?:{_SERVING_DATE_WORD_ALTS})\s+(?:to|is)\s+(?:on\s+)?(.+?)[.!]?$",
+        text, re.IGNORECASE,
+    )
+    if not m:
+        m = re.search(rf"(.+?)'s\s+(?:{_SERVING_DATE_WORD_ALTS})\s+is\s+(?:on\s+)?(.+?)[.!]?$", text, re.IGNORECASE)
+    if not m:
+        m = re.search(r"(.+?)\s+started\s+serving\s+(?:on\s+)?(.+?)[.!]?$", text, re.IGNORECASE)
+    if not m:
+        return None
+    name = m.group(1).strip(" .,")
+    date_raw = m.group(2).strip(" .,")
+    return (name, date_raw) if name and date_raw else None
+
+
+_PIN_WORD_ALTS = r"pin notes|pin note|pin"
+
+
+def _extract_pin_update(text: str) -> tuple[str, str] | None:
+    """Recognize "<name>'s pin (notes) is <text>", "update/set/fix/correct/
+    record <name>'s pin (notes) to <text>", or "give <name> a <X> pin" and
+    return (name_query, pin_text), or None. The "give ... a <X> pin" shape
+    doesn't fit the other two (no possessive, "pin" is both the trigger
+    word and part of the reconstructed value) so it gets its own branch,
+    reconstructing pin_text as "<X> Pin" to match the sheet's own
+    vocabulary ("2yr Pin", "5yr Pin", etc)."""
+    text = text.strip()
+    m = re.search(
+        rf"(?:update|set|fix|correct|record)\s+(.+?)(?:'s)?\s+(?:{_PIN_WORD_ALTS})\s+(?:to|is|as)\s+(.+?)[.!]?$",
+        text, re.IGNORECASE,
+    )
+    if m:
+        name = m.group(1).strip(" .,")
+        pin_text = m.group(2).strip(" .,")
+        return (name, pin_text) if name and pin_text else None
+    m = re.search(rf"(.+?)'s\s+(?:{_PIN_WORD_ALTS})\s+is\s+(.+?)[.!]?$", text, re.IGNORECASE)
+    if m:
+        name = m.group(1).strip(" .,")
+        pin_text = m.group(2).strip(" .,")
+        return (name, pin_text) if name and pin_text else None
+    m = re.search(r"give\s+(.+?)\s+a\s+(.+?)\s+pin\b", text, re.IGNORECASE)
+    if m:
+        name = m.group(1).strip(" .,")
+        prefix = m.group(2).strip(" .,")
+        return (name, f"{prefix} Pin") if name and prefix else None
+    return None
+
+
+# Bounded to an unambiguous team signal -- either the captured phrase ends
+# in the literal word "team", or it's one of these known team names that
+# aren't naturally called "team" in speech (DEACONS, NURSERY, SECURITY,
+# etc, same list as jobs/skills/cdb_query.py's TEAM ROSTER MEMBERSHIP
+# block). Required because "add <name> to <team>" is structurally
+# IDENTICAL to _extract_deacon_assign's "add/assign/move/put/switch/
+# transfer <person> to <deacon>" pattern (found 2026-09-22 wiring this in:
+# without this guard, "add Gary Tabor to the worship team" would get
+# claimed by deacon-assign first -- it's checked earlier in the dispatch
+# chain and its regex doesn't care what "the worship team" actually is --
+# and fail as "couldn't find a deacon matching that" instead of ever
+# reaching this function). An unrestricted "add X to Y" here would also
+# risk swallowing OTHER unrelated "add X to Y" phrasings Bill/Donna use
+# for reasons that have nothing to do with a team.
+_KNOWN_TEAM_KEYWORDS = (
+    r"deacons?|nursery|security|hospitality|missions|communications|toddlers?|"
+    r"white\s+rose|woven\s+ladies|catalyst\s+leaders|small\s+group\s+leaders?|"
+    r"building\s+lock\s*up|building\s*(?:&|and)?\s*maintenance|"
+    r"budget\s*(?:&|and)?\s*stewardship|celebrate\s+recovery|"
+    r"elementary\s+kids\s+church|men'?s\s+fraternity|shift"
+)
+_TEAM_PHRASE_RE = re.compile(rf"(?:the\s+)?(?:{_KNOWN_TEAM_KEYWORDS}|.+?\s+team)$", re.IGNORECASE)
+
+
+def _looks_like_team_phrase(phrase: str) -> bool:
+    return bool(_TEAM_PHRASE_RE.match(phrase.strip()))
+
+
+def _extract_team_add(text: str) -> tuple[str, str, str | None] | None:
+    """Recognize "add <name> to (the) <team>(as <position>)", "put <name>
+    on (the) <team>(as <position>)" and return (name_query, team_query,
+    position_or_None) -- but only when the captured team phrase actually
+    looks like a team (see _looks_like_team_phrase), never a bare "add X
+    to Y"/"put X on Y" with no team signal at all. The optional "as
+    <position>" clause is tried first (longest-match-first, same reasoning
+    as _TEAM_LOOKUP_FIELD_ALTS elsewhere in this file) so it isn't
+    swallowed into the team phrase."""
+    text = text.strip()
+    m = re.search(r"add\s+(.+?)\s+to\s+(?:the\s+)?(.+?)\s+as\s+(.+?)[.!]?$", text, re.IGNORECASE)
+    if m:
+        name, team, position = (g.strip(" .,") for g in m.groups())
+        return (name, team, position) if name and team and _looks_like_team_phrase(team) else None
+    m = re.search(r"add\s+(.+?)\s+to\s+(?:the\s+)?(.+?)[.!]?$", text, re.IGNORECASE)
+    if m:
+        name, team = (g.strip(" .,") for g in m.groups())
+        return (name, team, None) if name and team and _looks_like_team_phrase(team) else None
+    m = re.search(r"put\s+(.+?)\s+on\s+(?:the\s+)?(.+?)\s+as\s+(.+?)[.!]?$", text, re.IGNORECASE)
+    if m:
+        name, team, position = (g.strip(" .,") for g in m.groups())
+        return (name, team, position) if name and team and _looks_like_team_phrase(team) else None
+    m = re.search(r"put\s+(.+?)\s+on\s+(?:the\s+)?(.+?)[.!]?$", text, re.IGNORECASE)
+    if m:
+        name, team = (g.strip(" .,") for g in m.groups())
+        return (name, team, None) if name and team and _looks_like_team_phrase(team) else None
+    return None
+
+
+def _extract_team_remove(text: str) -> tuple[str, str] | None:
+    """Recognize "remove <name> from (the) <team>", "take <name> off (the)
+    <team>" and return (name_query, team_query) -- same
+    _looks_like_team_phrase guard as _extract_team_add above, for
+    consistency (no known collision for these two verbs today, but an
+    unrestricted capture risks misfiring on unrelated "remove X from Y"
+    phrasing all the same)."""
+    text = text.strip()
+    m = re.search(r"remove\s+(.+?)\s+from\s+(?:the\s+)?(.+?)[.!]?$", text, re.IGNORECASE)
+    if not m:
+        m = re.search(r"take\s+(.+?)\s+off\s+(?:the\s+)?(.+?)[.!]?$", text, re.IGNORECASE)
+    if not m:
+        return None
+    name = m.group(1).strip(" .,")
+    team = m.group(2).strip(" .,")
+    return (name, team) if name and team and _looks_like_team_phrase(team) else None
+
+
+async def _handle_serving_date_update(update: Update, sender_name: str, name_query: str, date_raw: str) -> None:
+    from jobs.congregation.serving_edit import update_serving_date
+    reply = await asyncio.to_thread(update_serving_date, name_query, date_raw, sender_name)
+    await update.message.reply_text(reply)
+
+
+async def _handle_pin_update(update: Update, sender_name: str, name_query: str, pin_text: str) -> None:
+    from jobs.congregation.serving_edit import update_pin_notes
+    reply = await asyncio.to_thread(update_pin_notes, name_query, pin_text, sender_name)
+    await update.message.reply_text(reply)
+
+
+async def _handle_team_add(
+    update: Update, sender_name: str, name_query: str, team_query: str, position: str | None
+) -> None:
+    from jobs.congregation.serving_edit import add_to_team
+    reply = await asyncio.to_thread(add_to_team, name_query, team_query, sender_name, position)
+    await update.message.reply_text(reply)
+
+
+async def _handle_team_remove(update: Update, sender_name: str, name_query: str, team_query: str) -> None:
+    from jobs.congregation.serving_edit import remove_from_team
+    reply = await asyncio.to_thread(remove_from_team, name_query, team_query, sender_name)
     await update.message.reply_text(reply)
 
 
@@ -4010,6 +4246,31 @@ async def _handle_general(update: Update, context: ContextTypes.DEFAULT_TYPE, te
     _bday_update = _extract_birthday_update(text)
     if _bday_update:
         await _handle_birthday_update(update, "Bill Yomes", *_bday_update)
+        return ""
+
+    # Serving-date/pin/team edits, added 2026-09-22 -- Dr. Bill's own chat
+    # needs no allowlist check (only ever reached from his authorized
+    # chat); Donna Redman's parallel path is _handle_text_body's
+    # _SERVING_TEAMS_EDIT_ALLOWLIST. Checked in the same order as that
+    # branch (date, then pin, then add, then remove).
+    _serving_date_update = _extract_serving_date_update(text)
+    if _serving_date_update:
+        await _handle_serving_date_update(update, "Bill Yomes", *_serving_date_update)
+        return ""
+
+    _pin_update = _extract_pin_update(text)
+    if _pin_update:
+        await _handle_pin_update(update, "Bill Yomes", *_pin_update)
+        return ""
+
+    _team_add = _extract_team_add(text)
+    if _team_add:
+        await _handle_team_add(update, "Bill Yomes", *_team_add)
+        return ""
+
+    _team_remove = _extract_team_remove(text)
+    if _team_remove:
+        await _handle_team_remove(update, "Bill Yomes", *_team_remove)
         return ""
 
     # Spouse/child relationship marking, extended to Dr. Bill's own chat the
