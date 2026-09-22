@@ -1,15 +1,32 @@
+import logging
+
 import chromadb
 from chromadb.utils import embedding_functions
 import requests
 import os
 import core.llm_log  # noqa: F401 -- installs Ollama call logging, see core/llm_log.py
 from jobs.build_kb import boosted_distance, GHOSTWRITTEN_SOURCE_TYPE
+from jobs.research.open_library import search as search_open_library
+
+log = logging.getLogger(__name__)
 
 CHROMA_PATH = "/home/billyomes/watson/data/chroma"
 COLLECTION_NAME = "sermons"
 OLLAMA_URL = "http://localhost:11434/api/generate"
 MODEL = "llama3.2:3b"
 RESULT_COUNT = 3
+# Cosine distance above which the closest KB match is too weak to call a real
+# answer (ChromaDB always returns its k-nearest neighbors regardless of
+# relevance, so an empty result set never actually happens with a populated
+# collection -- this is what decides "no good match" instead). Chosen
+# empirically 2026-09-21 against the live sermons collection: genuinely
+# on-topic queries ("forgiveness and reconciliation" 0.28, "prayer and faith"
+# 0.39, "grief and loss" 0.48) all land well under this; clearly unrelated
+# ones ("xyzzy nonexistent quantum bagpipe therapy topic" 0.79, "python
+# programming syntax error" 0.77, "delaware public library card renewal"
+# 0.69) land at or above it. Not a hard science -- retune if the library
+# fallback fires too often or too rarely in practice.
+MAX_RELEVANT_DISTANCE = 0.7
 # Over-fetch so the year-based re-rank (jobs.build_kb.boosted_distance) has
 # room to pull 2022+ sermon chunks above equally-relevant older ones before
 # cutting to RESULT_COUNT. Only meaningful for the "sermons" collection —
@@ -78,15 +95,27 @@ def search_kb(query: str, collection_name: str = COLLECTION_NAME, sermons_only: 
         scored = [(boosted_distance(d, m.get("year")), m, doc) for doc, m, d in zip(docs, metas, dists)]
         scored.sort(key=lambda row: row[0])
         top = scored[:RESULT_COUNT]
+        top_distance = top[0][0] if top else None
         docs = [doc for _, _, doc in top]
         metas = [m for _, m, _ in top]
     else:
+        top_distance = dists[0] if dists else None
         docs, metas = docs[:RESULT_COUNT], metas[:RESULT_COUNT]
 
-    if not docs:
-        return {"synopsis": f"No results found for '{query}'.", "sources": [], "query": query,
-                "collection": collection_name, "sermons_only": sermons_only,
-                "ghostwritten_only": ghostwritten_only}
+    if not docs or top_distance is None or top_distance > MAX_RELEVANT_DISTANCE:
+        # Watson's own KB has nothing relevant on this -- fall back to the
+        # public library catalog (Open Library) so the reply is still useful
+        # instead of forcing a synopsis out of an unrelated nearest-neighbor
+        # match. Never lets a fallback failure (network, etc.) break the KB
+        # search itself.
+        try:
+            library_hits = search_open_library(query, limit=5)
+        except Exception as exc:
+            log.warning("Open Library fallback search failed for %r: %s", query, exc)
+            library_hits = []
+        return {"synopsis": f"No results found for '{query}' in Watson's KB.", "sources": [],
+                "query": query, "collection": collection_name, "sermons_only": sermons_only,
+                "ghostwritten_only": ghostwritten_only, "library_fallback": library_hits}
 
     chunks = [_trim_excerpt(c, query) for c in docs]
     sources = list(dict.fromkeys([m["title"] for m in metas]))
@@ -105,6 +134,17 @@ def search_kb(query: str, collection_name: str = COLLECTION_NAME, sermons_only: 
             "ghostwritten_only": ghostwritten_only}
 
 def format_result(result: dict) -> str:
+    library_hits = result.get("library_fallback")
+    if library_hits is not None:
+        if not library_hits:
+            return result["synopsis"]
+        lines = [result["synopsis"], "", "The public library catalog has:"]
+        for hit in library_hits:
+            year = hit["first_publish_year"] or "?"
+            borrow = " (borrowable on Archive.org)" if hit["borrowable_on_archive"] else ""
+            lines.append(f"• {hit['title']} — {hit['authors']} ({year}){borrow}")
+        return "\n".join(lines)
+
     sources_list = "\n".join(f"• {s}" for s in result["sources"])
     out = f"{result['synopsis']}\n\nSources:\n{sources_list}"
     if sources_list:
