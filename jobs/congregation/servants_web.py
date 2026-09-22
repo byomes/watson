@@ -110,8 +110,20 @@ def get_state():
             "position": r["position"],
             "started_serving_date": r["started_serving_date"],
         })
+    # Leaders float to the top of their team's list (Bill's 2026-09-22
+    # request), everyone else stays sorted by last name below them. "Leader"
+    # is read straight off team_memberships.position (e.g. "Leader",
+    # "Elementary Kids Leader", "Remix Adult Leader") -- the actual free-text
+    # values already in the Team Members List Export import, not a separate
+    # role enum.
     for members in teams.values():
-        members.sort(key=lambda m: (_last_name_key(m["name"]), m["name"] or ""))
+        members.sort(
+            key=lambda m: (
+                0 if "leader" in (m["position"] or "").lower() else 1,
+                _last_name_key(m["name"]),
+                m["name"] or "",
+            )
+        )
 
     team_list = [
         {"team_name": name, "members": members}
@@ -211,3 +223,36 @@ def add_servant():
         "position": position,
         "started_serving_date": started_serving_date,
     }), 200
+
+
+@servants_web_bp.route("/api/cat/servants/remove", methods=["POST"])
+@_require_key
+def remove_servant():
+    """"Mark as no longer serving" from the frontend -- removes this one
+    team_memberships row (this team only; a person on multiple teams keeps
+    their other rows, matching the per-team review scope of this page).
+    Does NOT touch members.started_serving_date or the member row itself --
+    that's tenure/identity data independent of any one team assignment."""
+    data = request.get_json(force=True) or {}
+    member_id = data.get("member_id")
+    team_name = (data.get("team_name") or "").strip()
+
+    if not isinstance(member_id, int):
+        return jsonify({"error": "member_id (int) is required"}), 400
+    if not team_name:
+        return jsonify({"error": "team_name is required"}), 400
+
+    with _conn() as conn:
+        existing = conn.execute(
+            "SELECT 1 FROM team_memberships WHERE member_id = ? AND team_name = ?",
+            (member_id, team_name),
+        ).fetchone()
+        if not existing:
+            return jsonify({"error": "not found"}), 404
+        conn.execute(
+            "DELETE FROM team_memberships WHERE member_id = ? AND team_name = ?",
+            (member_id, team_name),
+        )
+        conn.commit()
+
+    return jsonify({"member_id": member_id, "team_name": team_name, "removed": True}), 200
