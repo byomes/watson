@@ -345,6 +345,9 @@ app.register_blueprint(attendance_web_bp)
 from jobs.congregation.servants_web import servants_web_bp
 app.register_blueprint(servants_web_bp)
 
+from jobs.congregation.catalystdb_web import catalystdb_web_bp
+app.register_blueprint(catalystdb_web_bp)
+
 from jobs.congregation.elder_shepherding_report_web import elder_shepherding_report_web_bp
 app.register_blueprint(elder_shepherding_report_web_bp)
 
