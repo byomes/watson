@@ -11,7 +11,18 @@ import core.llm_log  # noqa: F401 -- installs Ollama call logging, see core/llm_
 log = logging.getLogger(__name__)
 
 _OLLAMA_URL = "http://localhost:11434/api/generate"
-_MODEL = "gemma3:4b"
+# gemma4:e4b, not gemma3:4b -- routed 2026-09-23 per Bill's direct request
+# after overnight candidate testing (memory/model_benchmark_20260903.md-style
+# harness, tests/model_qualify/candidate_results_20260923/). PROVISIONAL:
+# that test measured a generic 17-label single-word classification prompt,
+# NOT this file's actual 10-intent structured-JSON prompt below -- the two
+# tasks are meaningfully different, so the 85-90% accuracy number is a
+# signal this model is worth trying, not proof it matches or beats
+# gemma3:4b on the real classify() task. Watch real classify() output for
+# a few days (wrong intents, malformed JSON) before considering this
+# confirmed rather than provisional. keep_warm.py imports _MODEL from here,
+# so it follows automatically -- no separate edit needed there.
+_MODEL = "gemma4:e4b"
 _KEEP_ALIVE = "30m"
 
 _SYSTEM_PROMPT = """

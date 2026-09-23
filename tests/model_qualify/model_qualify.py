@@ -29,11 +29,22 @@ Message: {prompt}
 Label:"""
 
 
+def _needs_think_false(model: str) -> bool:
+    # qwen3-family hybrid-reasoning models (qwen3:8b, qwen3.5:4b, ...) default to
+    # thinking-mode ON, which is unusably slow for short classification/drafting
+    # prompts and can blow past a normal timeout entirely. Same hard requirement
+    # already enforced in jobs/memory/reflect.py and jobs/skillbuilder/audit.py.
+    return "qwen3" in model.lower()
+
+
 def call_ollama(model: str, prompt: str) -> tuple[str, float, dict]:
     start = time.time()
+    payload = {"model": model, "prompt": prompt, "stream": False}
+    if _needs_think_false(model):
+        payload["think"] = False
     resp = requests.post(
         OLLAMA_URL,
-        json={"model": model, "prompt": prompt, "stream": False},
+        json=payload,
         timeout=120,
     )
     elapsed = time.time() - start
@@ -106,21 +117,29 @@ def main():
 
     for model in args.models:
         print(f"\n=== Testing {model} ===")
-        print("Battery A (intent classification)...")
-        battery_a = run_battery_a(model, test_set["battery_a_intent"])
-        print(f"  Accuracy: {battery_a['accuracy']}  Avg latency: {battery_a['avg_latency_sec']}s")
+        try:
+            print("Battery A (intent classification)...")
+            battery_a = run_battery_a(model, test_set["battery_a_intent"])
+            print(f"  Accuracy: {battery_a['accuracy']}  Avg latency: {battery_a['avg_latency_sec']}s")
 
-        print("Battery B (reasoning)...")
-        battery_b = run_battery_b(model, test_set["battery_b_reasoning"])
-        print(f"  {len(battery_b['cases'])} cases logged for manual grading")
+            print("Battery B (reasoning)...")
+            battery_b = run_battery_b(model, test_set["battery_b_reasoning"])
+            print(f"  {len(battery_b['cases'])} cases logged for manual grading")
 
-        all_results[model] = {
-            "battery_a_intent": battery_a,
-            "battery_b_reasoning": battery_b,
-        }
+            all_results[model] = {
+                "battery_a_intent": battery_a,
+                "battery_b_reasoning": battery_b,
+            }
+        except Exception as exc:
+            print(f"  ERROR testing {model}: {exc}")
+            all_results[model] = {"error": str(exc)}
 
-    with open(out_path, "w") as f:
-        json.dump(all_results, f, indent=2)
+        # Write after every model so a later model's crash can't erase earlier,
+        # already-successful results (bug found 2026-09-23: a qwen3.5:4b timeout
+        # killed the whole run before the single end-of-run json.dump, losing
+        # gemma4:e2b/e4b's completed results too).
+        with open(out_path, "w") as f:
+            json.dump(all_results, f, indent=2)
 
     print(f"\nResults written to {out_path}")
     print("Next: review Battery B responses manually or paste results_*.json into Claude for grading.")
