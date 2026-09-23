@@ -152,7 +152,7 @@ def get_elder_emails() -> list[tuple[str, str]]:
             SELECT m.name, m.email
             FROM members m
             JOIN leadership_roles lr ON lr.member_id = m.id
-            WHERE lr.role = 'elder' AND m.member_status = 'active'
+            WHERE lr.role = 'elder' AND lr.is_active = 1 AND m.member_status = 'active'
               AND m.email IS NOT NULL AND m.email != ''
             ORDER BY m.name
             """

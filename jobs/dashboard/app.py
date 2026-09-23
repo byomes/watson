@@ -1522,7 +1522,7 @@ def member_roles_list_api(member_id):
     try:
         c = _cong_conn()
         rows = c.execute(
-            "SELECT role FROM leadership_roles WHERE member_id = ? ORDER BY role",
+            "SELECT role FROM leadership_roles WHERE member_id = ? AND is_active = 1 ORDER BY role",
             (member_id,),
         ).fetchall()
         c.close()
@@ -1544,12 +1544,15 @@ def member_roles_add_api(member_id):
             c.close()
             return jsonify({"error": "not found"}), 404
         c.execute(
-            "INSERT OR IGNORE INTO leadership_roles (member_id, role) VALUES (?, ?)",
+            """
+            INSERT INTO leadership_roles (member_id, role, is_active) VALUES (?, ?, 1)
+            ON CONFLICT(member_id, role) DO UPDATE SET is_active = 1
+            """,
             (member_id, role),
         )
         c.commit()
         rows = c.execute(
-            "SELECT role FROM leadership_roles WHERE member_id = ? ORDER BY role",
+            "SELECT role FROM leadership_roles WHERE member_id = ? AND is_active = 1 ORDER BY role",
             (member_id,),
         ).fetchall()
         c.close()
@@ -1564,12 +1567,12 @@ def member_roles_delete_api(member_id, role):
     try:
         c = _cong_conn()
         c.execute(
-            "DELETE FROM leadership_roles WHERE member_id = ? AND role = ?",
+            "UPDATE leadership_roles SET is_active = 0 WHERE member_id = ? AND role = ?",
             (member_id, role),
         )
         c.commit()
         rows = c.execute(
-            "SELECT role FROM leadership_roles WHERE member_id = ? ORDER BY role",
+            "SELECT role FROM leadership_roles WHERE member_id = ? AND is_active = 1 ORDER BY role",
             (member_id,),
         ).fetchall()
         c.close()
