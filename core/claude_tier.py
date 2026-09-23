@@ -53,6 +53,7 @@ JOB_LABELS = {
     "research.field_research": "Field research quote finder",
     "pastoral_notes.handler": "Pastoral notes processing",
     "analytics.fast_path_suggestions": "Weekly fast-path suggestion review",
+    "email_intake.escalate": "Email triage escalation (Telegram button)",
 }
 
 # $ per 1M tokens (input, output) — only the models this tier is expected to use.

@@ -623,8 +623,8 @@ def _handle_bill_email(sender, subject, body, received_at, msg_id):
 
 def _has_pending_triage(uid: str) -> bool:
     """True if an unresolved email_triage action already exists for this Gmail
-    UID. Bot.py's et_ingest/et_markread/et_delete callbacks are the only things
-    that flip an email_triage row's status off 'pending', so 'pending' is the
+    UID. Bot.py's et_ingest/et_markread/et_delete/et_escalate callbacks are the
+    only things that flip an email_triage row's status off 'pending', so 'pending' is the
     only open state to check. Without this, every poll cycle re-triages and
     re-alerts on the same still-unread message (bug: pending_id 143-155, all
     the same uid=487, 13 alerts in 13 minutes)."""
@@ -754,10 +754,15 @@ def _send_triage_prompt(
     second_btn_data = f"et_delete:{pending_id}" if is_spam else f"et_markread:{pending_id}"
 
     keyboard = {
-        "inline_keyboard": [[
-            {"text": "✅ Ingest and work", "callback_data": f"et_ingest:{pending_id}"},
-            {"text": second_btn_text, "callback_data": second_btn_data},
-        ]]
+        "inline_keyboard": [
+            [
+                {"text": "✅ Ingest and work", "callback_data": f"et_ingest:{pending_id}"},
+                {"text": second_btn_text, "callback_data": second_btn_data},
+            ],
+            [
+                {"text": "🚀 Escalate to API", "callback_data": f"et_escalate:{pending_id}"},
+            ],
+        ]
     }
 
     try:
@@ -931,6 +936,69 @@ def handle_ingest_action(payload: dict) -> str:
         return "🗑️ Deleted (spam)"
 
     return f"✅ Logged — {sender_name}"
+
+
+def handle_escalate_action(payload: dict) -> str:
+    """Route email after Bill taps 'Escalate to API' — the local Ollama triage
+    either failed or landed on 'unknown', so re-triage with Claude (budget-gated
+    via core.claude_tier.call_claude, WATSON_CLAUDE_BUDGET_KEY) and route the
+    result through the exact same logic handle_ingest_action uses. Bill's tap
+    IS the per-call cost authorization; nothing here calls Claude on its own,
+    and a None return (no key / tier off / budget exhausted) is reported back
+    rather than silently falling through to anything else."""
+    sender_name  = payload.get("sender_name", "") or payload.get("sender_email", "")
+    sender_email = payload.get("sender_email", "")
+    subject      = payload.get("subject", "")
+    body         = payload.get("body", "")
+
+    from core.claude_tier import call_claude
+    system = (
+        "You are Watson, an AI assistant for Dr. Bill Yomes, a church pastor. "
+        "A smaller local model already failed or was unsure how to triage this "
+        "email. Read it carefully and triage it for real."
+    )
+    user = _TRIAGE_PROMPT.format(
+        sender_name=sender_name,
+        sender_email=sender_email,
+        subject=subject,
+        body_snippet=body[:2000],
+    )
+    raw = call_claude(
+        system=system,
+        user=user,
+        job_name="email_intake.escalate",
+        message=f"Escalated triage: {subject[:200]}",
+    )
+    if raw is None:
+        return (
+            "⚠️ Escalation unavailable right now (Claude tier is off, has no "
+            "key, or this month's budget is exhausted) — handle manually or "
+            "tap Ingest/Mark as read."
+        )
+
+    try:
+        cleaned = raw.replace("```json", "").replace("```", "").strip()
+        result = json.loads(cleaned)
+    except Exception as exc:
+        log.error("Escalated triage returned unparseable JSON: %s", exc)
+        return f"⚠️ Claude answered but not in the expected format: {raw[:300]}"
+
+    category = result.get("category", "unknown")
+    if category not in _VALID_CATEGORIES:
+        category = "unknown"
+
+    escalated_payload = dict(payload)
+    escalated_payload["category"]         = category
+    escalated_payload["summary"]          = result.get("summary", "")
+    escalated_payload["suggested_action"] = result.get("suggested_action", "")
+    escalated_payload["reply_warranted"]  = bool(result.get("reply_warranted", False))
+
+    action_result = handle_ingest_action(escalated_payload)
+    return (
+        f"🚀 Escalated to Claude — category: {category}\n"
+        f"{escalated_payload['summary']}\n\n"
+        f"{action_result}"
+    )
 
 
 def handle_markread_action(payload: dict) -> str:

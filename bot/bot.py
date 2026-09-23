@@ -5234,6 +5234,8 @@ async def handle_email_triage_callback(update: Update, context: ContextTypes.DEF
         pending_id = int(data[len("et_markread:"):])
     elif data.startswith("et_delete:"):
         pending_id = int(data[len("et_delete:"):])
+    elif data.startswith("et_escalate:"):
+        pending_id = int(data[len("et_escalate:"):])
     else:
         return
 
@@ -5270,6 +5272,14 @@ async def handle_email_triage_callback(update: Update, context: ContextTypes.DEF
         import asyncio
         from jobs.email_intake import handle_delete_action
         msg = await asyncio.to_thread(handle_delete_action, payload)
+        with get_connection() as conn:
+            conn.execute("UPDATE tg_pending_actions SET status='done' WHERE id=?", (pending_id,))
+        await query.edit_message_text(msg, reply_markup=None)
+
+    elif data.startswith("et_escalate:"):
+        import asyncio
+        from jobs.email_intake import handle_escalate_action
+        msg = await asyncio.to_thread(handle_escalate_action, payload)
         with get_connection() as conn:
             conn.execute("UPDATE tg_pending_actions SET status='done' WHERE id=?", (pending_id,))
         await query.edit_message_text(msg, reply_markup=None)
