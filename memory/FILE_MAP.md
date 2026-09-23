@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-09-22*
+*Generated: 2026-09-23*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -102,7 +102,12 @@ data/
   congregation.db
   congregation.db-shm
   congregation.db-wal
+  congregation.db.bak_after_serving_attendance_table_20260922_140259
+  congregation.db.bak_after_team_active_column_20260922_134207
   congregation.db.bak_before_orphan_delete_20260906_070048
+  congregation.db.bak_before_pin_import_20260922_122311
+  congregation.db.bak_before_serving_date_import_20260922_121801
+  congregation.db.bak_before_teams_import_20260922_124921
   congregation.db.bak_zipcheck_20260915
   cover_images/
     cover_1.jpg
@@ -4868,12 +4873,6 @@ jobs/
     social_web.py
   cleanup.py
   cleanup_library.ps1
-  code_agent/
-    __init__.py
-    agent.py
-    confirm.py
-    prompts/
-      build.md
   comms/
     __init__.py
     api.py
@@ -4883,6 +4882,8 @@ jobs/
     wordlist.txt
   congregation/
     __init__.py
+    _oneoff_donna_catalyst_leaders_request.py
+    _oneoff_staff_serving_announcement.py
     age_groups.py
     attendance_web.py
     batch_intake.py
@@ -4909,6 +4910,7 @@ jobs/
     migrate_deacon_visible_views.py
     migrate_gender_and_spouse_roles.py
     migrate_household_role.py
+    migrate_leadership_role_active.py
     migrations_archive/
       migrate_deacon_directory.py
       migrate_deacon_notes.py
@@ -4919,6 +4921,9 @@ jobs/
     papercards_web.py
     pin_collection.py
     scam_alert_email.py
+    servants_web.py
+    serving_edit.py
+    serving_reminder.py
     set_deacon_pin.py
     shepherding_report_ready.py
     weekly_changes_report.py
@@ -4997,6 +5002,7 @@ jobs/
     svg_generator.py
   dev/
     __init__.py
+    _oneoff_model_candidate_report_9am.py
     auto_fixer.py
     backlog.py
     bugs_backlog_sync.py
@@ -5004,7 +5010,6 @@ jobs/
     build_pipeline.py
     claude_api_final_review.py
     claude_debug.py
-    code_agent.py
     code_analyzer.py
     code_editor.py
     code_quality.py
@@ -6307,12 +6312,26 @@ scripts/
 tests/
   audit_concurrency_test.py
   model_qualify/
+    candidate_results_20260923/
+      DONE
+      mixed_baseline.log
+      mixed_gemma4_e2b.log
+      mixed_gemma4_e4b.log
+      mixed_qwen3_5_4b.log
+      nohup_outer.log
+      run.log
+      stress_baseline.log
+      stress_gemma4_e2b.log
+      stress_gemma4_e4b.log
+      stress_qwen3_5_4b.log
+      tier1.log
     model_qualification_spec.md
     model_qualify.py
     results_part1.json
     results_part2.json
     results_remaining.json
     run.log
+    run_overnight_candidates.sh
     test_set.json
   ollama_lock_concurrency_test.py
   ollama_parallel_candidate_test.py
@@ -7030,6 +7049,20 @@ src/
         papercards/
           submit/
             route.ts
+        servants/
+          add/
+            route.ts
+          lookup/
+            route.ts
+          remove/
+            route.ts
+          state/
+            route.ts
+        serving/
+          state/
+            route.ts
+          toggle/
+            route.ts
         shepherdingreport/
           lastseen/
             route.ts
@@ -7104,6 +7137,12 @@ src/
         page.tsx
       papercards/
         PaperCardForm.tsx
+        page.tsx
+      servants/
+        ServantsBoard.tsx
+        page.tsx
+      serving/
+        ServingBoard.tsx
         page.tsx
       shepherdingreport/
         AutoThemeShell.tsx
