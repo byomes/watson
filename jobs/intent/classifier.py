@@ -11,18 +11,16 @@ import core.llm_log  # noqa: F401 -- installs Ollama call logging, see core/llm_
 log = logging.getLogger(__name__)
 
 _OLLAMA_URL = "http://localhost:11434/api/generate"
-# gemma4:e4b, not gemma3:4b -- routed 2026-09-23 per Bill's direct request
-# after overnight candidate testing (memory/model_benchmark_20260903.md-style
-# harness, tests/model_qualify/candidate_results_20260923/). PROVISIONAL:
-# that test measured a generic 17-label single-word classification prompt,
-# NOT this file's actual 10-intent structured-JSON prompt below -- the two
-# tasks are meaningfully different, so the 85-90% accuracy number is a
-# signal this model is worth trying, not proof it matches or beats
-# gemma3:4b on the real classify() task. Watch real classify() output for
-# a few days (wrong intents, malformed JSON) before considering this
-# confirmed rather than provisional. keep_warm.py imports _MODEL from here,
-# so it follows automatically -- no separate edit needed there.
-_MODEL = "gemma4:e4b"
+# Reverted to gemma3:4b 2026-09-23 (bug_tracker: see gemma4:e4b stuck-runner
+# entry). gemma4:e4b was routed in earlier the same day after overnight
+# candidate testing, but produced two orphaned/stuck llama-server runners
+# within a few hours of real classify() traffic (client hit its 55s timeout,
+# server-side generation kept grinding on CPU with no client attached).
+# Two incidents in one afternoon is disqualifying regardless of the
+# accuracy numbers from the benchmark harness. Don't re-route to gemma4:e4b
+# without root-causing the stall first. keep_warm.py imports _MODEL from
+# here, so it follows automatically -- no separate edit needed there.
+_MODEL = "gemma3:4b"
 _KEEP_ALIVE = "30m"
 
 _SYSTEM_PROMPT = """
