@@ -1,21 +1,20 @@
 # Watson Bug Tracker
 _Auto-generated nightly from bug_tracker. Source of truth is the database — do not hand-edit this file, changes will be overwritten._
-Last generated: 2026-09-22 02:10
+Last generated: 2026-09-23 02:10
 
-## Open (7)
+## Open (2)
 | ID | Title | Repo | Discovered |
 |---|---|---|---|
-| 124 | Privacy Guard: _migrate_removals_status_check rebuild would drop ack_received_at/ack_snippet on a stale (pre-2026-08-21) DB | watson | 2026-09-05 11:59:21 |
-| 123 | jobs.browser: privacy.remove form submit failed for https://suppression.peopleconnect.us/?brand=USSearch | watson | 2026-09-05 11:56:51 |
-| 58 | missed_report.py cron path missing slash, silently failed weekly | watson | 2026-08-04 13:14:38 |
-| 55 | watson-codeagent.service is live but broken and undocumented | watson | 2026-08-04 02:27:18 |
-| 23 | qwen2.5:14b concurrent-load risk unresolved — do not route to Beelink jobs without testing classify() contention first | watson | 2026-07-17 20:02:00 |
-| 22 | Ollama OLLAMA_MAX_LOADED_MODELS=1 forces single-model residency, causing classifier/general-chat model thrash | watson | 2026-07-17 17:36:22 |
+| 194 | Picnic event_registrations row with blank name | watson | 2026-09-23 02:29:23 |
 | 21 | Ollama/gemma3:4b transient severe slowdown under rapid back-to-back requests (10-42s), self-resolving | watson | 2026-07-17 17:36:05 |
 
 ## Recently Resolved (last 30 days)
 | ID | Title | Repo | Resolved | Commit |
 |---|---|---|---|---|
+| 22 | Ollama OLLAMA_MAX_LOADED_MODELS=1 forces single-model residency, causing classifier/general-chat model thrash | watson | 2026-09-23 02:55:28 |  |
+| 55 | watson-codeagent.service is live but broken and undocumented | watson | 2026-09-23 02:51:36 |  |
+| 58 | missed_report.py cron path missing slash, silently failed weekly | watson | 2026-09-23 02:45:53 | 02a8855 |
+| 193 | Event-signup fast path missed questions with glued filler prefix | watson | 2026-09-23 02:29:23 | 9b1d397 |
 | 192 | Event signups store blank registrant name when signup email has none | watson | 2026-09-20 19:00:10 | 6fbc2fee56c8ebe5dca7baded54026fed3748376 |
 | 40 | Backlog: dashboard chat has no durable session/history -- session_id never sent to /api/chat/stream by any caller | watson | 2026-09-20 01:42:26 | 6d347a2 |
 | 24 | Dashboard chat runs on Ollama by design (no ANTHROPIC_API_KEY) — stale claude-sonnet-4-6 model strings need updating if Claude is ever reactivated | watson | 2026-09-20 01:42:26 | 6d347a2 |
@@ -134,10 +133,3 @@ Last generated: 2026-09-22 02:10
 | 100 | MCP run_watson_skill fails on kb/kb_search: missing positional argument | watson | 2026-08-24 13:09:59 | e6f674b |
 | 99 | connect_cards intake truncates multi-line question/comment field | watson | 2026-08-24 13:09:59 | a90d6d5 |
 | 96 | run_watson_skill/list_watson_skills MCP tools were live in production but never committed to git | watson | 2026-08-24 12:21:16 | eb40d7c |
-| 95 | devdispatch: dispatched session deviating from -w worktree branch loses/misreports real work (wcky retreats cluster, 2026-08-16) | watson | 2026-08-24 01:53:25 | c78ff9d8a29f21d6ad14e01502f3465429c154fe |
-| 89 | email_reply/reader.py replied to Connect Card submissions | watson | 2026-08-23 21:11:57 | 5709440 |
-| 94 | skill_tester.py audit harness gave false failures for 7+ skills | watson | 2026-08-23 17:37:02 | 0fc99348a250987762bdf38b287db0962285791c |
-| 93 | pastoral_notes skill registered against a nonexistent function | watson | 2026-08-23 17:37:02 | 0fc99348a250987762bdf38b287db0962285791c |
-| 92 | Dashboard 'state of church report' quick-command didn't reach the report generator | watson | 2026-08-23 17:37:02 | 0fc99348a250987762bdf38b287db0962285791c |
-| 91 | Dashboard 'check logs' command tailed a log file that no longer exists | watson | 2026-08-23 17:37:02 | 0fc99348a250987762bdf38b287db0962285791c |
-| 90 | calendar_query skill unregistered — 'what's on my calendar' always failed | watson | 2026-08-23 17:37:02 | 0fc99348a250987762bdf38b287db0962285791c |
