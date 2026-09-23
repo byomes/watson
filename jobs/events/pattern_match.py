@@ -158,11 +158,22 @@ def _mentions_extra_field(question_lower: str, event_id: int) -> bool:
     return False
 
 
+# A leading filler interjection ("Mmm", "Hmm", "Umm", "uh,") — sometimes
+# glued straight onto the first real word by voice dictation or a fast
+# typist. Found 2026-09-22: a Team Chat leader asked "Mmmwho has signed up
+# for the church picnic" and it fell through to a paid LLM call only
+# because "Mmmwho" has no word boundary before "who", so _LIST_RE's \bwho
+# never matched. The glued form requires a doubled "m" ("mm", "umm",
+# "hmm") so it can't eat the start of a real word like "umbrella"; the
+# short forms ("um", "uh", "hm", "er", "erm") only strip as whole words.
+_FILLER_RE = re.compile(r"^\s*(?:(?:u+|h+)?m{2,}|(?:um|uh|hm|erm?)\b)[\s,.…-]*", re.IGNORECASE)
+
+
 def pattern_match(question: str) -> str | None:
     """Return a single-line SELECT for the events domain, or None if the
     question doesn't match a recognized phrasing — bypasses both Ollama and
     the Claude budget tier entirely for the common cases."""
-    q = question.strip()
+    q = _FILLER_RE.sub("", question).strip()
     if not q:
         return None
 
