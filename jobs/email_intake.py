@@ -43,6 +43,13 @@ WHITELIST = [
     "bill@faithmakessense.com",
 ]
 
+# Per Bill's 2026-09-23 directive: Donna Redman has standing authority over
+# congregation.db by email or Telegram -- see core.congregation_admin. Her
+# emails skip the generic Ollama triage entirely and go straight to that
+# planner; a None result (not a database directive at all) falls back to
+# the normal triage flow below.
+CONGREGATION_ADMIN_EMAILS = {"donna@catalyst302.com"}
+
 OLLAMA_URL = "http://localhost:11434/api/generate"
 OLLAMA_MODEL = "llama3.2:3b"
 TELEGRAM_CHAR_LIMIT = 4000
@@ -794,6 +801,19 @@ def _handle_non_whitelist(
     if _has_pending_triage(msg_id):
         log.info("Skipping re-triage — pending action already open for uid=%s", msg_id)
         return
+
+    if sender_email.strip().lower() in CONGREGATION_ADMIN_EMAILS:
+        from core.congregation_admin import handle_directive
+        admin_result = handle_directive(sender_name or sender_email, "email", body, source_uid=msg_id)
+        if admin_result is not None:
+            log.info("Admin-directive result for uid=%s: %s", msg_id, admin_result.splitlines()[0])
+            if admin_result.startswith("✅") or admin_result.startswith("ℹ️ "):
+                try:
+                    mark_as_read(msg_id)
+                except Exception as exc:
+                    log.error("mark_as_read failed after admin directive: %s", exc)
+            return
+        log.info("Donna's email uid=%s wasn't a database directive — falling back to normal triage", msg_id)
 
     # Cross-reference sender against congregation + people tables
     matched_name, matched_member_id, match_source = _cross_reference_sender(sender_email)

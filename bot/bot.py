@@ -1152,6 +1152,22 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     "Who would you like to assign, and to which deacon? "
                     "Try something like \"assign Emily Taylor to Bill Crook\"."
                 )
+            elif _is_serving_teams_editor:
+                # Bill's 2026-09-23 directive: Donna has standing authority
+                # to direct congregation.db changes by Telegram too, not
+                # just the structured phrasings the extractors above catch
+                # (e.g. a bulk list of leader titles, or "remove these 8
+                # teams from Sunday Serve"). Tried only after every
+                # structured extractor above has already had first crack --
+                # those are cheaper and more precise when they match. A None
+                # result means Claude decided this wasn't a database
+                # directive at all, so fall back to normal team chat.
+                from core.congregation_admin import handle_directive
+                _admin_result = await asyncio.to_thread(handle_directive, _leader_name, "telegram", _msg_text)
+                if _admin_result is None:
+                    await _handle_team_chat(update, _leader_name, _msg_text)
+                else:
+                    await update.message.reply_text(_admin_result)
             else:
                 await _handle_team_chat(update, _leader_name, _msg_text)
         return
@@ -5285,6 +5301,31 @@ async def handle_email_triage_callback(update: Update, context: ContextTypes.DEF
         await query.edit_message_text(msg, reply_markup=None)
 
 
+async def handle_congregation_admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """adx_yes/adx_no — Approve/Reject buttons on core.congregation_admin's
+    "flagged risky, not executed yet" private alert to Bill (see
+    [[project_email_triage_escalate_button]] / Bill's 2026-09-23 "Donna has
+    full authority... but tell me first if risky" directive). Bill-only:
+    _is_authorized already restricts this whole chat to his own DM."""
+    query = update.callback_query
+    await query.answer()
+    if not _is_authorized(update):
+        return
+    data = query.data
+    if data.startswith("adx_yes:"):
+        pending_id = int(data[len("adx_yes:"):])
+        approved = True
+    elif data.startswith("adx_no:"):
+        pending_id = int(data[len("adx_no:"):])
+        approved = False
+    else:
+        return
+    import asyncio
+    from core.congregation_admin import resolve_approval
+    msg = await asyncio.to_thread(resolve_approval, pending_id, approved)
+    await query.edit_message_text(msg, reply_markup=None)
+
+
 async def handle_event_new_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """evnew_yes/evnew_no — same pending-action pattern as
     handle_email_triage_callback above, for jobs/events/signup_detect.py's
@@ -7300,6 +7341,7 @@ def main():
     # the fb_img_ vs fb_ ordering convention regardless for anyone scanning this list.
     app.add_handler(CallbackQueryHandler(handle_privacy_captcha_callback, pattern=r"^priv_captcha_(ready|cancel):"))
     app.add_handler(CallbackQueryHandler(handle_email_triage_callback, pattern=r"^et_"))
+    app.add_handler(CallbackQueryHandler(handle_congregation_admin_callback, pattern=r"^adx_"))
     app.add_handler(CallbackQueryHandler(handle_event_new_callback, pattern=r"^evnew_(yes|no):"))
     app.add_handler(CallbackQueryHandler(handle_subsplash_event_callback, pattern=r"^subs_(yes|no):"))
     app.add_handler(CallbackQueryHandler(handle_carrier_callback, pattern=r"^carrier_"))
