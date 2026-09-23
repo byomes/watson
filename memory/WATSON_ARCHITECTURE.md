@@ -4259,3 +4259,35 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - 0898f8e feat: per-device online/offline history on Network Devices card
 - abe3215 feat: home LAN device presence monitor + dashboard card
 - 4011eca docs: architecture update 2026-09-21
+
+---
+
+## Recent Changes — 2026-09-23
+
+### ~/watson
+- f5756ab docs: bugs/backlog export 2026-09-23
+- 8ac9683 docs: file map 2026-09-23
+- fedc9dc Document Privacy Guard + code_agent retirements, drop stale docstring ref
+- 6744c66 Retire dead code_agent pipeline (superseded by Claude Code / Dev Dispatch)
+- dd5d9f1 congregation: weekly serving reminder job + staff announcement email
+- 6a255cf congregation: one-off email asking Donna for full Catalyst leaders list
+- 0d1281d congregation: add is_active tracking to leadership_roles
+- 5094fde arc: include direct Amazon review link in review reminder email
+- f52022d Add wtsn.me/cat/serving backend: who actually served Sunday
+- 150b961 Classify as no-longer-serving instead of deleting team_memberships row
+- 825a54f Add remove endpoint, sort leaders to top of each team roster
+- c2c6c2f Add wtsn.me/cat/servants backend: team roster review + add-person
+- 61767e8 Give Bill and Donna Telegram edit access to serving/team data
+- c7cbb90 Wire team/roster questions into team chat; queue Donna cleanup email
+- 4e17281 Catch embedded-question phrasing for serving-tenure lookup
+- 9a39916 Add length-of-service tenure from started_serving_date
+- abe37a5 Add MAC vendor lookup to network monitor for device identification
+- dbe6d1a docs: architecture update 2026-09-22
+
+### ~/watson-tools
+- 16b05e1 Add Who Served Sunday page (wtsn.me/cat/serving)
+- b7fe40f Tap a name to edit, lighter outlined X button
+- d7aa3c2 Make "no longer serving" a visible red X button, add usage note
+- e96db93 Servant Teams page: headers, edit/remove per person, leaders on top
+- 684fadd Add Servant Teams roster page (wtsn.me/cat/servants)
+- 08c5058 Add a help tray to the deacon app
