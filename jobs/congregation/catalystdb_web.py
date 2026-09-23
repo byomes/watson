@@ -2,8 +2,17 @@
 wtsn.me/cat/catalystdb full members-database admin screen (Bill's
 2026-09-23 request: a single screen for Bill and Donna to search, filter,
 edit, and batch-edit every member field). Same shared-key auth pattern as
-servants_web.py -- header X-Watson-Key matching CATALYSTDB_API_KEY -- plus
-a PIN gate on the Next.js side (see watson-tools/src/lib/catalystdbAuth.ts).
+servants_web.py -- header X-Watson-Key matching CATALYSTDB_API_KEY -- gates
+every route, PLUS per-person PIN login (catalystdb_pins table, scrypt hash
+via deacon_pin_auth.hash_pin/check_pin -- reused as-is, the algorithm has
+no deacon-specific coupling) added 2026-09-23 replacing the original
+single shared PIN. verify_pin below mirrors deacons_web.py's route closely
+but without that app's session-token layer -- catalystdb has exactly two
+known users, not a whole deacon roster, so a signed cookie naming which of
+them logged in is enough; see watson-tools/src/lib/catalystdbAuth.ts.
+Locks the calling IP out after catalystdb_login_lockout.MAX_FAILED_ATTEMPTS
+(3) consecutive wrong PINs -- tighter than the deacon app's 5, since this
+PIN gates write access to every member field, not just a roster view.
 
 Editable columns are allowlisted (_EDITABLE_COLUMNS) so the update/batch
 endpoint can never write to an arbitrary column name from the request body.
@@ -46,6 +55,81 @@ def _require_key(f):
             return jsonify({"error": "unauthorized"}), 401
         return f(*args, **kwargs)
     return wrapper
+
+
+def _ensure_pins_table(conn) -> None:
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS catalystdb_pins (
+            person_name TEXT PRIMARY KEY,
+            pin_hash    TEXT NOT NULL,
+            updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+        """
+    )
+
+
+def _alert_login_locked(client_ip: str) -> None:
+    """Pings Bill directly (this tool has exactly two users) when an IP
+    gets locked out -- same one-line-alert pattern as core.congregation_admin's
+    _notify_bill. Best-effort: a Telegram hiccup here must never break the
+    login response itself."""
+    try:
+        import requests
+        from jobs.congregation.catalystdb_login_lockout import MAX_FAILED_ATTEMPTS
+
+        token = os.getenv("WATSON_BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
+        chat_id = os.getenv("WATSON_CHAT_ID") or os.getenv("TELEGRAM_CHAT_ID")
+        if not token or not chat_id:
+            return
+        text = (
+            f"⚠️ Catalyst Database login locked after {MAX_FAILED_ATTEMPTS} failed PIN "
+            f"attempts from {client_ip}. Message me \"unlock login\" to clear it. - Watson"
+        )
+        requests.post(
+            f"https://api.telegram.org/bot{token}/sendMessage",
+            json={"chat_id": chat_id, "text": text},
+            timeout=10,
+        )
+    except Exception:
+        pass
+
+
+@catalystdb_web_bp.route("/api/cat/catalystdb/verify_pin", methods=["POST"])
+@_require_key
+def verify_pin():
+    """Returns every person_name whose stored PIN matches -- normally at
+    most one, since PINs are assigned unique. Never 401s on a wrong PIN --
+    an empty matches list IS the "wrong PIN" answer. Locks the calling IP
+    out after catalystdb_login_lockout.MAX_FAILED_ATTEMPTS consecutive
+    wrong PINs, mirroring deacons_web.py's verify_pin exactly."""
+    from jobs.congregation import catalystdb_login_lockout
+    from jobs.congregation.deacon_pin_auth import check_pin
+
+    data = request.get_json(force=True) or {}
+    pin = (data.get("pin") or "").strip()
+    client_ip = (data.get("client_ip") or "").strip() or "unknown"
+
+    with _conn() as conn:
+        _ensure_pins_table(conn)
+        if catalystdb_login_lockout.is_locked(conn, client_ip):
+            return jsonify({"matches": [], "locked": True}), 200
+
+        matches = []
+        if pin:
+            rows = conn.execute("SELECT person_name, pin_hash FROM catalystdb_pins").fetchall()
+            matches = [row["person_name"] for row in rows if check_pin(pin, row["pin_hash"])]
+
+        if matches:
+            catalystdb_login_lockout.record_success(conn, client_ip)
+            just_locked = False
+        else:
+            just_locked = catalystdb_login_lockout.record_failure(conn, client_ip)
+
+    if just_locked:
+        _alert_login_locked(client_ip)
+
+    return jsonify({"matches": matches, "locked": just_locked}), 200
 
 
 @catalystdb_web_bp.route("/api/cat/catalystdb/state", methods=["GET"])

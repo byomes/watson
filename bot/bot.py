@@ -2473,9 +2473,12 @@ async def _handle_fix_log(update: Update) -> None:
 
 def _looks_like_unlock_login_request(text: str) -> bool:
     """Loose match, same reasoning as _looks_like_family_report_request
-    above -- a yes/no trigger for clearing the deacon app's PIN-login
-    lockout (jobs.congregation.deacon_login_lockout), added 2026-09-16
-    alongside the 5-consecutive-failed-attempt lockout itself. Open to
+    above -- a yes/no trigger for clearing a PIN-login lockout. Added
+    2026-09-16 for the deacon app's 5-consecutive-failed-attempt lockout
+    (jobs.congregation.deacon_login_lockout); 2026-09-23 extended to also
+    clear the Catalyst Database's 3-attempt lockout
+    (jobs.congregation.catalystdb_login_lockout) -- see
+    _handle_unlock_login, which clears both on this same phrase. Open to
     every onboarded leader, not restricted to an allowlist -- same
     default as family relationship marking above, since clearing a
     lockout doesn't grant anyone access, it only resets a counter."""
@@ -2484,17 +2487,27 @@ def _looks_like_unlock_login_request(text: str) -> bool:
 
 
 async def _handle_unlock_login(update: Update) -> None:
-    from jobs.congregation import deacon_login_lockout
+    """Clears BOTH the deacon app's and the Catalyst Database's PIN-login
+    lockouts on the same phrase -- one generic "unlock login"/"unlock pin"
+    ask, not two separate commands, since a person locked out rarely knows
+    or cares which lockout table technically caught them."""
+    from jobs.congregation import catalystdb_login_lockout, deacon_login_lockout
     from jobs.connect_cards.reports import _conn
 
-    def _clear() -> int:
+    def _clear() -> tuple[int, int]:
         with _conn() as conn:
-            return deacon_login_lockout.clear_all(conn)
+            return deacon_login_lockout.clear_all(conn), catalystdb_login_lockout.clear_all(conn)
 
-    count = await asyncio.to_thread(_clear)
-    if count:
+    deacon_count, catalystdb_count = await asyncio.to_thread(_clear)
+    total = deacon_count + catalystdb_count
+    if total:
+        parts = []
+        if deacon_count:
+            parts.append(f"{deacon_count} deacon app")
+        if catalystdb_count:
+            parts.append(f"{catalystdb_count} Catalyst Database")
         await update.message.reply_text(
-            f"Deacon app login unlocked ({count} locked-out device{'s' if count != 1 else ''} cleared). - Watson"
+            f"Login unlocked ({', '.join(parts)} locked-out device{'s' if total != 1 else ''} cleared). - Watson"
         )
     else:
         await update.message.reply_text("Nothing was locked right now. - Watson")
