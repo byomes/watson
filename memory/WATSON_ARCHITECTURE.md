@@ -990,13 +990,35 @@ client as of 2026-08-04, using this full root-proxy + OAuth stack.
 ### Superseded prior art
 
 `jobs/code_agent/` (email+CONFIRM spec pipeline) and `jobs/dev/code_agent.py`
-were audited and discarded, not extended — both dead (zero successful runs
-since 2026-06-05, entry points unreachable). `watson-codeagent.service`
-(the systemd unit running `jobs/code_agent/confirm.py`) is still live and
-enabled but has been failing every 60s on a Gmail 403/insufficient-scope
-error since inception; disabling it needs a sudo grant beyond the current
-restart-only scope (see Development Conventions), so it's flagged in
-`bug_tracker` (#55) rather than acted on directly.
+were dead code (zero successful runs since 2026-06-05, entry points
+unreachable) — Claude Code + Dev Sandbox/Watson Dev Dispatch cover the same
+need directly. Retired 2026-09-22 at Bill's request: both files deleted, the
+one dead import in `jobs/email_intake.py` removed. `watson-codeagent.service`
+had been crash-looping on a Gmail 403/insufficient-scope error since
+inception; stopping/disabling/removing the systemd unit needs a sudo grant
+beyond the current restart-only scope (see Development Conventions), so that
+last step is still pending Bill running it manually — tracked in
+`bug_tracker` (#55).
+
+### Privacy Guard — retired
+
+`jobs/privacy/` (family data-broker removal automation: `scan.py`,
+`discover.py`, `remove.py`, `confirm.py`, `captcha_assist.py`, `email_ack.py`,
+`peoplefinders_reminder.py`, `add_family_member.py`, `verify.py`,
+`schema.py`, `dashboard_api.py`) did not deliver on its goal and was retired
+2026-09-22 at Bill's request. The dashboard tile was already removed earlier
+(commit `c98a21b`); this pass disabled the last live automation — the three
+cron entries (`jobs.privacy.scan`, `jobs.privacy.discover`,
+`jobs.privacy.peoplefinders_reminder`) are commented out
+(`# RETIRED 2026-09-22`) rather than deleted, so they're reversible. The code
+itself, and its integration points in `core/database.py`, `bot/bot.py`,
+`jobs/email_intake.py`, `jobs/browser/browser_service.py`, and
+`jobs/events/signup_detect.py`, were left in place (dormant, not called by
+anything now that the cron is off) rather than torn out — that's a much
+larger, riskier surgery across shared infra (`browser_service.py` in
+particular is used by other jobs) than stopping the automation, and wasn't
+asked for. `bug_tracker` #123/#124 (Privacy Guard bugs) closed `wontfix` as
+moot.
 
 ---
 

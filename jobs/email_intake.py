@@ -28,7 +28,6 @@ from config.settings import DB_PATH, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 from core.vacation import vacation_gate
 from jobs.sms.carrier_lookup import normalize_phone
 from jobs.team.inbound import is_forwarded_email, process_inbound
-import jobs.code_agent.agent as code_agent
 import core.llm_log  # noqa: F401 -- installs Ollama call logging, see core/llm_log.py
 
 load_dotenv(os.path.expanduser("~/watson/.env"))

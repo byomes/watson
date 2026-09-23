@@ -10,7 +10,7 @@ This module never raises into a caller and never blocks a job from running.
 Uses WATSON_CLAUDE_BUDGET_KEY, NOT ANTHROPIC_API_KEY — several other dormant
 Watson features (jobs/dev/command_executor.py, jobs/dev/claude_debug.py,
 jobs/dev/build_pipeline.py, jobs/dev/claude_api_final_review.py,
-jobs/code_agent/agent.py, jobs/dashboard/app.py, jobs/skillbuilder/build.py)
+jobs/dashboard/app.py, jobs/skillbuilder/build.py)
 already read ANTHROPIC_API_KEY and would silently reactivate — with zero
 budget awareness — the moment that var is set. Setting WATSON_CLAUDE_BUDGET_KEY
 instead activates ONLY this tier.
@@ -50,6 +50,7 @@ JOB_LABELS = {
     "email_send.send": "Sending an email",
     "skillbuilder.audit": "Weekly skill gap audit",
     "skillbuilder.acquire": "Acquiring a new skill",
+    "research.field_research": "Field research quote finder",
     "pastoral_notes.handler": "Pastoral notes processing",
     "analytics.fast_path_suggestions": "Weekly fast-path suggestion review",
 }
