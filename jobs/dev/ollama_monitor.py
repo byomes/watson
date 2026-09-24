@@ -9,6 +9,7 @@ starving unrelated requests (e.g. the Telegram intent classifier).
 This does not kill anything — it only alerts, since a false positive
 (flagging a real long-running job) is worse than a missed one here.
 """
+import json
 import os
 import re
 import subprocess
@@ -27,6 +28,20 @@ from core.vacation import vacation_gate  # noqa: E402
 MANIFESTS_DIR = Path("/usr/share/ollama/.ollama/models/manifests/registry.ollama.ai/library")
 CPU_PCT_THRESHOLD = 15.0
 SAMPLE_INTERVAL_SECONDS = 2
+STATE_PATH = Path(__file__).resolve().parents[2] / "data" / "dev" / "ollama_monitor_state.json"
+COOLDOWN_SECONDS = 30 * 60
+
+
+def _load_state() -> dict:
+    try:
+        return json.loads(STATE_PATH.read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+def _save_state(state: dict) -> None:
+    STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    STATE_PATH.write_text(json.dumps(state))
 
 
 def _model_name_for_blob(blob_hash: str) -> str:
@@ -122,8 +137,20 @@ def main() -> None:
     if not flagged:
         return
 
+    now = time.time()
+    live_pids = {p["pid"] for p in procs}
+    state = {pid: ts for pid, ts in _load_state().items() if int(pid) in live_pids}
+
+    to_alert = [f for f in flagged if now - state.get(str(f["pid"]), 0) >= COOLDOWN_SECONDS]
+    for f in to_alert:
+        state[str(f["pid"])] = now
+    _save_state(state)
+
+    if not to_alert:
+        return
+
     lines = ["Ollama watchdog: possible stuck runner(s) — busy CPU, no active client connection."]
-    for f in flagged:
+    for f in to_alert:
         lines.append(
             f"  pid={f['pid']} model={f['model']} port={f['port']} cpu~{f['cpu_pct']:.0f}%"
         )
