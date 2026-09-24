@@ -7,12 +7,12 @@ card shows: attendance status (last seen, with an At Risk / Critical flag
 once they've missed 3+ / 6+ weeks), any prayer requests from the last 90
 days, and any next steps they've taken in the last 90 days. There is no
 "First-Time Visitors" section anywhere in this module -- a first-time
-visitor is by definition still unassigned (deacon IS NULL/blank), so they
+visitor is by definition still unassigned (deacon = '--', the blank-value convention (was NULL/blank pre-2026-09-24)), so they
 only ever show up in the Unassigned pool, never under a deacon.
 
 Scopes:
   - one deacon's assigned people (members.deacon)                   -> Deacon Report
-  - the unassigned pool (deacon IS NULL/blank)                      -> Unassigned Report
+  - the unassigned pool (deacon = '--', the blank-value convention (was NULL/blank pre-2026-09-24))                      -> Unassigned Report
   - Jim Bouchat's own list, then every other deacon's list, then
     the unassigned pool (Jim is the elder over shepherding)         -> Master Shepherding Report
   - the 7 deacons' own households (deacon + spouse, via
@@ -131,7 +131,7 @@ def deacon_counts() -> list[dict]:
         ).fetchall()
         unassigned = conn.execute(
             "SELECT COUNT(*) AS c FROM members "
-            "WHERE deacon IS NULL OR TRIM(deacon) = '' OR LOWER(TRIM(deacon)) = 'none'"
+            "WHERE deacon = '--' OR deacon IS NULL OR TRIM(deacon) = '' OR LOWER(TRIM(deacon)) = 'none'"
         ).fetchone()["c"]
 
     out = [
@@ -162,10 +162,16 @@ def deacon_counts() -> list[dict]:
 
 
 def _deacon_clause(deacon: str | None) -> tuple[str, tuple]:
-    """SQL fragment + params scoping m.deacon to one deacon, or the unassigned pool
-    (true NULL/blank, and the literal text "None" some source rows carry)."""
+    """SQL fragment + params scoping m.deacon to one deacon, or the unassigned
+    pool ('--', the 2026-09-24 blank-value convention -- deacon is never
+    NULL/blank/"None" in live data anymore, but those checks stay as a
+    defensive fallback)."""
     if deacon is None:
-        return "(m.deacon IS NULL OR TRIM(m.deacon) = '' OR LOWER(TRIM(m.deacon)) = 'none')", ()
+        return (
+            "(m.deacon = '--' OR m.deacon IS NULL OR TRIM(m.deacon) = '' "
+            "OR LOWER(TRIM(m.deacon)) = 'none')",
+            (),
+        )
     return "m.deacon = ?", (deacon,)
 
 
@@ -211,12 +217,22 @@ _LAST_SEEN_NEVER = "1900-01-01"
 _PRAYER_WINDOW_DAYS = 90
 _STEPS_WINDOW_DAYS = 90
 
-_STATUS_LABELS = {
-    "disconnected": "Disconnected",
-    "non_local": "Non-local",
-    "snowbird": "Snowbird",
-    "deceased": "Deceased",
-}
+def _status_badge_label(active_v2, residency) -> str | None:
+    """Same four-way badge _STATUS_LABELS used to show from the single
+    member_status enum, now split across active_v2/residency (2026-09-24,
+    see ~/.claude/plans/zesty-cuddling-robin.md). The two columns are
+    independent now (unlike member_status, which could only ever hold one
+    value), so active_v2's deceased/disconnected takes priority over
+    residency's non-local/snowbird in the rare case both would apply."""
+    if active_v2 == "deceased":
+        return "Deceased"
+    if active_v2 == "disconnected":
+        return "Disconnected"
+    if residency == "non-local":
+        return "Non-local"
+    if residency == "snowbird":
+        return "Snowbird"
+    return None
 
 
 def _surname(r) -> str:
@@ -243,9 +259,11 @@ def _person_card(r, prayers: list, steps: list) -> str:
     contact = " · ".join(x for x in (r["email"], r["phone"]) if x) or "—"
 
     badges = ""
-    if r["deacon_status"]:
-        badges += f"<span class='badge campus' style='margin-left:6px'>{r['deacon_status']}</span>"
-    status_label = _STATUS_LABELS.get(r["member_status"] or "")
+    # deacon_status badge replaced by partner (2026-09-24) -- deacon_status
+    # is retired and no longer written, so it would just show stale data.
+    if r["partner"] == "partner":
+        badges += "<span class='badge campus' style='margin-left:6px'>Partner</span>"
+    status_label = _status_badge_label(r["active_v2"], r["residency"])
     if status_label:
         badges += f"<span class='badge private' style='margin-left:6px'>{status_label}</span>"
 
@@ -305,7 +323,7 @@ def _build_roster(clause: str, clause_params: tuple, include_leadership_only: bo
     with _conn() as conn:
         rows = conn.execute(
             f"""
-            SELECT m.id, m.name, m.email, m.phone, m.deacon_status, m.member_status,
+            SELECT m.id, m.name, m.email, m.phone, m.partner, m.active_v2, m.residency,
                    m.household_id,
                    MAX(
                      COALESCE((SELECT MAX(service_date) FROM connect_cards WHERE member_id = m.id), '{_LAST_SEEN_NEVER}'),
@@ -313,7 +331,7 @@ def _build_roster(clause: str, clause_params: tuple, include_leadership_only: bo
                    ) AS last_seen
             FROM members m
             WHERE {clause}
-              AND (m.member_status IS NULL OR m.member_status != 'deceased')
+              AND m.active_v2 != 'deceased'
             GROUP BY m.id
             ORDER BY m.name
             """,
@@ -359,10 +377,13 @@ def _build_roster(clause: str, clause_params: tuple, include_leadership_only: bo
     # shared surname (a blended household sorts under its earliest surname).
     groups.sort(key=lambda g: min((_surname(r) for r in g), default=""))
 
-    # Inactive Partner families sort last -- a family with even one still-active
+    # Inactive families sort last -- a family with even one still-active
     # member stays in normal order; only fully-inactive families are pushed down.
     # (Stable sort: alphabetical order from above is preserved within each bucket.)
-    groups.sort(key=lambda g: all(r["deacon_status"] == "Inactive Partner" for r in g))
+    # 2026-09-24: was `deacon_status == "Inactive Partner"` (retired column) --
+    # active_v2 is the direct equivalent and, as a side effect, now also
+    # catches the plain (non-partner) "Inactive" rows the old check missed.
+    groups.sort(key=lambda g: all(r["active_v2"] in ("disconnected", "deceased") for r in g))
 
     critical_count = 0
     at_risk_count = 0

@@ -40,7 +40,7 @@ def _load_households(conn) -> list[list[dict]]:
         """
         SELECT id, name, household_id, household_role
         FROM members
-        WHERE active = 1 AND household_id IS NOT NULL
+        WHERE active_v2 NOT IN ('disconnected', 'deceased') AND household_id IS NOT NULL
         ORDER BY household_id
         """
     ).fetchall()

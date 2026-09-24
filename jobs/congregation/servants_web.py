@@ -99,7 +99,7 @@ def _cascade_members(conn, query: str) -> list[dict]:
         val = term if exact else f"%{term}%"
         rows = conn.execute(
             "SELECT id, name, started_serving_date FROM members"
-            f" WHERE active = 1 AND name {op} COLLATE NOCASE ORDER BY name",
+            f" WHERE active_v2 NOT IN ('disconnected', 'deceased') AND name {op} COLLATE NOCASE ORDER BY name",
             (val,),
         ).fetchall()
         return [dict(r) for r in rows]
@@ -124,7 +124,7 @@ def get_state():
         rows = conn.execute(
             """SELECT tm.team_name, tm.position, m.id AS member_id, m.name, m.started_serving_date
                FROM team_memberships tm JOIN members m ON m.id = tm.member_id
-               WHERE m.active = 1 AND tm.active = 1
+               WHERE m.active_v2 NOT IN ('disconnected', 'deceased') AND tm.active = 1
                ORDER BY tm.team_name"""
         ).fetchall()
 
@@ -203,7 +203,7 @@ def add_servant():
     with _conn() as conn:
         if member_id is not None:
             row = conn.execute(
-                "SELECT id, name FROM members WHERE id = ? AND active = 1", (member_id,)
+                "SELECT id, name FROM members WHERE id = ? AND active_v2 NOT IN ('disconnected', 'deceased')", (member_id,)
             ).fetchone()
             if not row:
                 return jsonify({"error": "that member_id was not found"}), 404
@@ -310,7 +310,7 @@ def get_serving_state():
         rows = conn.execute(
             """SELECT tm.team_name, tm.position, m.id AS member_id, m.name
                FROM team_memberships tm JOIN members m ON m.id = tm.member_id
-               WHERE m.active = 1 AND tm.active = 1
+               WHERE m.active_v2 NOT IN ('disconnected', 'deceased') AND tm.active = 1
                  AND tm.team_name NOT IN (SELECT team_name FROM serving_excluded_teams)
                ORDER BY tm.team_name"""
         ).fetchall()

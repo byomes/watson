@@ -169,8 +169,9 @@ def merge_members(
 ) -> dict:
     """Reassigns merge_id's history onto keep_id, fills blank contact fields
     on keep_id from merge_id, then deletes the merge_id member row. Does not
-    touch status/member_status/partnership_status -- those are a judgment
-    call the reviewer makes separately, not inferred here.
+    touch active_v2/partner (formerly status/member_status/partnership_status)
+    -- those are a judgment call the reviewer makes separately, not inferred
+    here.
 
     add_alias=True also records merge_id's pre-merge name in member_aliases
     against keep_id, so a future connect card submitted under that name
@@ -259,8 +260,9 @@ def _member_summary(conn, member_id: int) -> dict:
         "email": m["email"],
         "phone": m["phone"],
         "campus_preference": m["campus_preference"],
-        "status": m["status"],
-        "member_status": m["member_status"],
+        "partner": m["partner"],
+        "active_v2": m["active_v2"],
+        "residency": m["residency"],
         "first_visit_date": m["first_visit_date"],
         "history_count": history,
     }

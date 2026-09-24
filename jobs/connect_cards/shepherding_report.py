@@ -129,9 +129,9 @@ def _build_at_risk_section() -> tuple[str, int]:
                          COALESCE((SELECT MAX(service_date) FROM attendance  WHERE member_id = m.id), '1900-01-01')
                        ) AS last_seen
                 FROM members m
-                WHERE m.status != 'inactive'
+                WHERE m.active_v2 NOT IN ('disconnected', 'deceased')
+                  AND (m.residency IS NULL OR m.residency = 'local')
                   AND (m.shepherding_exempt IS NULL OR m.shepherding_exempt = 0)
-                  AND (m.member_status IS NULL OR m.member_status NOT IN ('deceased', 'disconnected', 'non_local', 'snowbird'))
                   AND (
                     EXISTS (SELECT 1 FROM connect_cards WHERE member_id = m.id)
                     OR EXISTS (SELECT 1 FROM attendance WHERE member_id = m.id)
@@ -201,9 +201,9 @@ def _build_critical_section() -> tuple[str, int]:
                          )
                        ) AS visit_count
                 FROM members m
-                WHERE m.status != 'inactive'
+                WHERE m.active_v2 NOT IN ('disconnected', 'deceased')
+                  AND (m.residency IS NULL OR m.residency = 'local')
                   AND (m.shepherding_exempt IS NULL OR m.shepherding_exempt = 0)
-                  AND (m.member_status IS NULL OR m.member_status NOT IN ('deceased', 'disconnected', 'non_local', 'snowbird'))
                   AND (
                     EXISTS (SELECT 1 FROM connect_cards WHERE member_id = m.id)
                     OR EXISTS (SELECT 1 FROM attendance WHERE member_id = m.id)
@@ -271,7 +271,8 @@ def _build_visitors_section() -> tuple[str, int]:
             FROM members m
             JOIN connect_cards cc ON cc.member_id = m.id
             WHERE (m.shepherding_exempt IS NULL OR m.shepherding_exempt = 0)
-              AND (m.member_status IS NULL OR m.member_status NOT IN ('deceased', 'disconnected', 'non_local', 'snowbird'))
+              AND m.active_v2 NOT IN ('disconnected', 'deceased')
+              AND (m.residency IS NULL OR m.residency = 'local')
             GROUP BY m.id
             HAVING COUNT(cc.id) = 1
               AND MAX(cc.service_date) >= date('now', '-21 days')

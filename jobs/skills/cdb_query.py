@@ -195,7 +195,7 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
         return (
             f"SELECT m.name, MAX(a.service_date) as last_seen "
             f"FROM members m JOIN attendance a ON a.member_id = m.id "
-            f"WHERE m.active = 1 AND m.name NOT LIKE '%CAMPUS%' AND m.name NOT LIKE '%SYSTEM%' AND m.name NOT LIKE '%TEST%' "
+            f"WHERE m.active_v2 NOT IN ('disconnected', 'deceased') AND m.name NOT LIKE '%CAMPUS%' AND m.name NOT LIKE '%SYSTEM%' AND m.name NOT LIKE '%TEST%' "
             f"AND m.id IN (SELECT DISTINCT member_id FROM attendance WHERE service_date >= '{w12}' AND service_date <= '{w5}'{campus_sub}) "
             f"AND m.id NOT IN (SELECT DISTINCT member_id FROM attendance WHERE service_date >= '{w4}'{campus_sub}) "
             f"GROUP BY m.id, m.name ORDER BY last_seen DESC"
@@ -225,7 +225,7 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
     if any(w in q for w in ["how many missed", "how many didn't", "how many were absent", "how many did not", "how many were missing", "miss count"]):
         return (
             f"SELECT COUNT(DISTINCT m.id) as missed_count FROM members m "
-            f"WHERE m.active = 1 AND m.name NOT LIKE '%CAMPUS%' AND m.name NOT LIKE '%SYSTEM%' AND m.name NOT LIKE '%TEST%' AND m.id NOT IN ("
+            f"WHERE m.active_v2 NOT IN ('disconnected', 'deceased') AND m.name NOT LIKE '%CAMPUS%' AND m.name NOT LIKE '%SYSTEM%' AND m.name NOT LIKE '%TEST%' AND m.id NOT IN ("
             f"SELECT DISTINCT member_id FROM attendance WHERE {s_date}{campus_sub})"
         )
 
@@ -233,7 +233,7 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
     if any(w in q for w in ["who missed", "who didn't attend", "who wasn't there", "who was absent", "who didn't come", "who did not attend", "who did not come", "absent", "who no-showed", "no shows", "didn't make it"]):
         return (
             f"SELECT m.name FROM members m "
-            f"WHERE m.active = 1 AND m.name NOT LIKE '%CAMPUS%' AND m.name NOT LIKE '%SYSTEM%' AND m.name NOT LIKE '%TEST%' AND m.id NOT IN ("
+            f"WHERE m.active_v2 NOT IN ('disconnected', 'deceased') AND m.name NOT LIKE '%CAMPUS%' AND m.name NOT LIKE '%SYSTEM%' AND m.name NOT LIKE '%TEST%' AND m.id NOT IN ("
             f"SELECT DISTINCT member_id FROM attendance WHERE {s_date}{campus_sub}) "
             f"ORDER BY m.name"
         )
@@ -326,7 +326,7 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
         return (
             f"SELECT m.name, m.email, m.phone "
             f"FROM members m "
-            f"WHERE m.active = 1 AND m.name NOT LIKE '%CAMPUS%' AND m.name NOT LIKE '%SYSTEM%' AND m.name NOT LIKE '%TEST%' "
+            f"WHERE m.active_v2 NOT IN ('disconnected', 'deceased') AND m.name NOT LIKE '%CAMPUS%' AND m.name NOT LIKE '%SYSTEM%' AND m.name NOT LIKE '%TEST%' "
             f"AND m.id NOT IN ("
             f"SELECT DISTINCT member_id FROM attendance "
             f"WHERE service_date >= '{cutoff}'"
@@ -341,7 +341,11 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
         return (
             f"SELECT name, email, phone, first_visit_date "
             f"FROM members "
-            f"WHERE status = 'visitor' AND name NOT LIKE '%CAMPUS%' AND name NOT LIKE '%SYSTEM%' AND name NOT LIKE '%TEST%' "
+            # status='visitor' dropped 2026-09-24 (retired, inconsistent
+            # across insert paths anyway -- see
+            # ~/.claude/plans/zesty-cuddling-robin.md) -- first_visit_date
+            # was already the real signal here.
+            f"WHERE name NOT LIKE '%CAMPUS%' AND name NOT LIKE '%SYSTEM%' AND name NOT LIKE '%TEST%' "
             f"AND first_visit_date >= '{cutoff}' "
             f"ORDER BY first_visit_date DESC"
         )
@@ -356,7 +360,7 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
             start = today - timedelta(days=today.weekday())
             return (
                 f"SELECT name, email, phone, created_at FROM members "
-                f"WHERE active = 1 AND name NOT LIKE '%CAMPUS%' AND name NOT LIKE '%SYSTEM%' AND name NOT LIKE '%TEST%' AND created_at >= '{start.strftime('%Y-%m-%d')}' "
+                f"WHERE active_v2 NOT IN ('disconnected', 'deceased') AND name NOT LIKE '%CAMPUS%' AND name NOT LIKE '%SYSTEM%' AND name NOT LIKE '%TEST%' AND created_at >= '{start.strftime('%Y-%m-%d')}' "
                 f"ORDER BY created_at DESC"
             )
         elif 'last month' in q:
@@ -365,7 +369,7 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
             lm_end = first_of_this - timedelta(days=1)
             return (
                 f"SELECT name, email, phone, created_at FROM members "
-                f"WHERE active = 1 AND name NOT LIKE '%CAMPUS%' AND name NOT LIKE '%SYSTEM%' AND name NOT LIKE '%TEST%' "
+                f"WHERE active_v2 NOT IN ('disconnected', 'deceased') AND name NOT LIKE '%CAMPUS%' AND name NOT LIKE '%SYSTEM%' AND name NOT LIKE '%TEST%' "
                 f"AND created_at >= '{lm_start.strftime('%Y-%m-%d')}' "
                 f"AND created_at <= '{lm_end.strftime('%Y-%m-%d')}' "
                 f"ORDER BY created_at DESC"
@@ -374,7 +378,7 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
             start = today.replace(day=1) if 'this month' in q else today - timedelta(days=30)
             return (
                 f"SELECT name, email, phone, created_at FROM members "
-                f"WHERE active = 1 AND name NOT LIKE '%CAMPUS%' AND name NOT LIKE '%SYSTEM%' AND name NOT LIKE '%TEST%' AND created_at >= '{start.strftime('%Y-%m-%d')}' "
+                f"WHERE active_v2 NOT IN ('disconnected', 'deceased') AND name NOT LIKE '%CAMPUS%' AND name NOT LIKE '%SYSTEM%' AND name NOT LIKE '%TEST%' AND created_at >= '{start.strftime('%Y-%m-%d')}' "
                 f"ORDER BY created_at DESC"
             )
 
@@ -402,7 +406,7 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
         if deacon_name:
             return (
                 f"SELECT name FROM members "
-                f"WHERE deacon LIKE '%{deacon_name}%' AND active = 1 "
+                f"WHERE deacon LIKE '%{deacon_name}%' AND active_v2 NOT IN ('disconnected', 'deceased') "
                 f"AND name NOT LIKE '%CAMPUS%' AND name NOT LIKE '%SYSTEM%' AND name NOT LIKE '%TEST%' "
                 f"ORDER BY name"
             )
@@ -452,7 +456,7 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
         if team_phrase:
             return (
                 f"SELECT m.name FROM team_memberships tm JOIN members m ON m.id = tm.member_id "
-                f"WHERE tm.team_name LIKE '%{team_phrase}%' AND m.active = 1 ORDER BY m.name"
+                f"WHERE tm.team_name LIKE '%{team_phrase}%' AND m.active_v2 NOT IN ('disconnected', 'deceased') ORDER BY m.name"
             )
 
     # WHAT TEAM(S) IS X ON -- mirrors AGE LOOKUP's reasoning: doesn't fit
@@ -469,7 +473,7 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
             return (
                 f"SELECT m.name, "
                 f"(SELECT group_concat(team_name, ', ') FROM team_memberships WHERE member_id = m.id) AS teams "
-                f"FROM members m WHERE m.name LIKE '%{name}%' AND m.active = 1"
+                f"FROM members m WHERE m.name LIKE '%{name}%' AND m.active_v2 NOT IN ('disconnected', 'deceased')"
             )
 
     # SPOUSE LOOKUP -- checked before MEMBER LOOKUP BY NAME below, whose
@@ -494,7 +498,7 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
         if spouse_name:
             return (
                 f"SELECT m2.name FROM members m1 JOIN members m2 ON m2.household_id = m1.household_id "
-                f"AND m2.id != m1.id WHERE m1.name LIKE '%{spouse_name}%' AND m1.active = 1 "
+                f"AND m2.id != m1.id WHERE m1.name LIKE '%{spouse_name}%' AND m1.active_v2 NOT IN ('disconnected', 'deceased') "
                 f"AND m1.household_role IN ('husband','wife') AND m2.household_role IN ('husband','wife')"
             )
 
@@ -510,7 +514,7 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
     if _member_deacon_m:
         member_name = _member_deacon_m.group(1).strip()
         if member_name:
-            return f"SELECT name, deacon FROM members WHERE name LIKE '%{member_name}%' AND active = 1"
+            return f"SELECT name, deacon FROM members WHERE name LIKE '%{member_name}%' AND active_v2 NOT IN ('disconnected', 'deceased')"
 
     # LAST ATTENDED / LAST MISSED BY NAME -- checked before MEMBER LOOKUP BY
     # NAME for the same reason as SPOUSE LOOKUP above. Distinct from MEMBERS
@@ -547,7 +551,7 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
                 f" WHERE d.service_date NOT IN (SELECT service_date FROM attendance WHERE member_id = m.id)"
                 f") as last_missed "
                 f"FROM members m "
-                f"WHERE m.name LIKE '%{name}%' AND m.active = 1"
+                f"WHERE m.name LIKE '%{name}%' AND m.active_v2 NOT IN ('disconnected', 'deceased')"
             )
 
     _last_seen_m = re.search(
@@ -577,7 +581,7 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
                 f"  UNION ALL SELECT service_date, campus FROM deacon_visible_connect_cards WHERE member_id = m.id"
                 f") ORDER BY service_date DESC LIMIT 1) as campus "
                 f"FROM members m "
-                f"WHERE m.name LIKE '%{name}%' AND m.active = 1"
+                f"WHERE m.name LIKE '%{name}%' AND m.active_v2 NOT IN ('disconnected', 'deceased')"
             )
 
     # PHONE NUMBER LOOKUP -- checked before MEMBER LOOKUP BY NAME for the
@@ -606,9 +610,9 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
                 # real name or a dropped apostrophe.
                 return (
                     f"SELECT name, phone FROM members WHERE "
-                    f"(name LIKE '%{name}%' OR name LIKE '%{name[:-1]}%') AND active = 1"
+                    f"(name LIKE '%{name}%' OR name LIKE '%{name[:-1]}%') AND active_v2 NOT IN ('disconnected', 'deceased')"
                 )
-            return f"SELECT name, phone FROM members WHERE name LIKE '%{name}%' AND active = 1"
+            return f"SELECT name, phone FROM members WHERE name LIKE '%{name}%' AND active_v2 NOT IN ('disconnected', 'deceased')"
 
     # ADDRESS LOOKUP -- checked before MEMBER LOOKUP BY NAME for the same
     # reason as PHONE NUMBER LOOKUP above: a bare "X's address" or "X
@@ -657,9 +661,9 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
                 # PHONE NUMBER LOOKUP fallback above.
                 return (
                     f"SELECT name, address FROM members WHERE "
-                    f"(name LIKE '%{name}%' OR name LIKE '%{name[:-1]}%') AND active = 1"
+                    f"(name LIKE '%{name}%' OR name LIKE '%{name[:-1]}%') AND active_v2 NOT IN ('disconnected', 'deceased')"
                 )
-            return f"SELECT name, address FROM members WHERE name LIKE '%{name}%' AND active = 1"
+            return f"SELECT name, address FROM members WHERE name LIKE '%{name}%' AND active_v2 NOT IN ('disconnected', 'deceased')"
 
     # AGE LOOKUP -- mirrors bot.py's DM-only "how old is X" -> age field
     # (_extract_team_lookup, added 2026-09-12); missing here meant this
@@ -679,7 +683,7 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
                 f"SELECT name, birthdate, "
                 f"CAST(strftime('%Y', 'now') AS INTEGER) - CAST(strftime('%Y', birthdate) AS INTEGER) "
                 f"- (CAST(strftime('%m%d', 'now') AS INTEGER) < CAST(strftime('%m%d', birthdate) AS INTEGER)) AS age "
-                f"FROM members WHERE name LIKE '%{name}%' AND active = 1 AND birthdate IS NOT NULL"
+                f"FROM members WHERE name LIKE '%{name}%' AND active_v2 NOT IN ('disconnected', 'deceased') AND birthdate IS NOT NULL"
             )
 
     # SERVING TENURE LOOKUP -- mirrors bot.py's DM-only "how long has X been
@@ -702,7 +706,7 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
                 f"CAST((julianday('now') - julianday(started_serving_date)) / 365.25 AS INTEGER) AS years_serving, "
                 f"CAST(((julianday('now') - julianday(started_serving_date)) / 30.44) "
                 f" - CAST((julianday('now') - julianday(started_serving_date)) / 365.25 AS INTEGER) * 12 AS INTEGER) AS extra_months "
-                f"FROM members WHERE name LIKE '%{name}%' AND active = 1 AND started_serving_date IS NOT NULL"
+                f"FROM members WHERE name LIKE '%{name}%' AND active_v2 NOT IN ('disconnected', 'deceased') AND started_serving_date IS NOT NULL"
             )
 
     # BIRTHDAYS -- a month-wide list ("birthdays in October", "who has a
@@ -719,7 +723,7 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
         if month_num:
             return (
                 f"SELECT name, birthdate FROM members "
-                f"WHERE active = 1 AND name NOT LIKE '%CAMPUS%' AND name NOT LIKE '%SYSTEM%' AND name NOT LIKE '%TEST%' "
+                f"WHERE active_v2 NOT IN ('disconnected', 'deceased') AND name NOT LIKE '%CAMPUS%' AND name NOT LIKE '%SYSTEM%' AND name NOT LIKE '%TEST%' "
                 f"AND birthdate IS NOT NULL AND CAST(strftime('%m', birthdate) AS INTEGER) = {month_num} "
                 f"ORDER BY CAST(strftime('%d', birthdate) AS INTEGER)"
             )
@@ -747,9 +751,9 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
         name = name.strip('.,?! ')
         if name:
             return (
-                f"SELECT m.name, m.email, m.phone, m.status, m.campus_preference, m.first_visit_date "
+                f"SELECT m.name, m.email, m.phone, m.partner, m.active_v2, m.campus_preference, m.first_visit_date "
                 f"FROM members m "
-                f"WHERE m.name LIKE '%{name}%' AND m.active = 1 AND m.name NOT LIKE '%CAMPUS%' AND m.name NOT LIKE '%SYSTEM%' AND m.name NOT LIKE '%TEST%' "
+                f"WHERE m.name LIKE '%{name}%' AND m.active_v2 NOT IN ('disconnected', 'deceased') AND m.name NOT LIKE '%CAMPUS%' AND m.name NOT LIKE '%SYSTEM%' AND m.name NOT LIKE '%TEST%' "
                 f"ORDER BY m.name"
             )
 
@@ -818,9 +822,9 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
         name = question.strip().strip('.,?! ')
         if name:
             return (
-                f"SELECT m.name, m.email, m.phone, m.status, m.campus_preference, m.first_visit_date "
+                f"SELECT m.name, m.email, m.phone, m.partner, m.active_v2, m.campus_preference, m.first_visit_date "
                 f"FROM members m "
-                f"WHERE m.name LIKE '%{name}%' AND m.active = 1 AND m.name NOT LIKE '%CAMPUS%' AND m.name NOT LIKE '%SYSTEM%' AND m.name NOT LIKE '%TEST%' "
+                f"WHERE m.name LIKE '%{name}%' AND m.active_v2 NOT IN ('disconnected', 'deceased') AND m.name NOT LIKE '%CAMPUS%' AND m.name NOT LIKE '%SYSTEM%' AND m.name NOT LIKE '%TEST%' "
                 f"ORDER BY m.name"
             )
 
@@ -829,8 +833,8 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
                              'list all members', 'all active members', 'active members',
                              'membership count', 'roster', 'how many people do we have']):
         if any(w in q for w in ['how many', 'total', 'count']):
-            return "SELECT COUNT(*) as total FROM members WHERE active = 1"
-        return "SELECT name, email, campus_preference FROM members WHERE active = 1 AND name NOT LIKE '%CAMPUS%' AND name NOT LIKE '%SYSTEM%' AND name NOT LIKE '%TEST%' ORDER BY name"
+            return "SELECT COUNT(*) as total FROM members WHERE active_v2 NOT IN ('disconnected', 'deceased')"
+        return "SELECT name, email, campus_preference FROM members WHERE active_v2 NOT IN ('disconnected', 'deceased') AND name NOT LIKE '%CAMPUS%' AND name NOT LIKE '%SYSTEM%' AND name NOT LIKE '%TEST%' ORDER BY name"
 
     return None
 
@@ -886,7 +890,7 @@ def run(question: str) -> str:
 IMPORTANT JOIN RULES:
 - To get member names from attendance: JOIN members m ON a.member_id = m.id — use m.name
 - attendance has columns: id, member_id, service_date, campus, card_id, created_at
-- members has columns: id, name, email, phone, campus_preference, status, active
+- members has columns: id, name, email, phone, campus_preference, partner, active_v2, residency, deacon
 - connect_cards has columns: id, member_id, service_date, campus, prayer_request, next_steps
 - NEVER use t1.name or t2.name — attendance and connect_cards have no name column
 - campus values are exactly 'Online' or 'Wilmington' (capital first letter) — always use exact case

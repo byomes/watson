@@ -89,7 +89,8 @@ def get_state():
 
     with _conn() as conn:
         members = conn.execute(
-            "SELECT id, name, campus_preference FROM members WHERE member_status = 'active'"
+            "SELECT id, name, campus_preference FROM members "
+            "WHERE active_v2 NOT IN ('disconnected', 'deceased') AND residency = 'local'"
         ).fetchall()
         members = sorted(members, key=lambda m: (_last_name_key(m["name"]), m["name"] or ""))
         present_ids = {

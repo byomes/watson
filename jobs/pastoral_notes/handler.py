@@ -71,7 +71,7 @@ def _find_member_id_by_name(name: str) -> int | None:
     separate registries with no shared key, so name is all we have."""
     with _congregation_conn() as conn:
         rows = conn.execute(
-            "SELECT id FROM members WHERE name = ? COLLATE NOCASE AND active = 1",
+            "SELECT id FROM members WHERE name = ? COLLATE NOCASE AND active_v2 NOT IN ('disconnected', 'deceased')",
             (name,),
         ).fetchall()
     return rows[0]["id"] if len(rows) == 1 else None

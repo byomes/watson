@@ -119,9 +119,19 @@ _ALWAYS_ALLOWED_TABLES = {"json_each", "json_tree"}
 # info. carrier/household_id/snowbird_return/deacon_status/status_reason
 # have no contact-info or attendance meaning either way, so they stay
 # blocked too.
+#
+# 2026-09-24: status/member_status/partnership_status/deacon_status columns
+# are being retired for partner/active_v2/residency (see
+# ~/.claude/plans/zesty-cuddling-robin.md) -- partner/active_v2 are exposed
+# below the same way member_status/partnership_status were (not sensitive on
+# their own). residency added here alongside snowbird_return/deacon_status/
+# status_reason/status_note -- same reasoning as snowbird_return, it reveals
+# whether someone is non-local/seasonal. The old columns' words stay blocked
+# too even though schema no longer advertises them, as a defense-in-depth
+# belt-and-suspenders measure while they still physically exist pre-Phase-6.
 _CONTACT_COLUMN_WORDS = {"email", "phone", "address", "birthdate"}
 _ALWAYS_BLOCKED_COLUMN_WORDS = {
-    "notes", "carrier", "status_note",
+    "notes", "carrier", "status_note", "residency",
     "snowbird_return", "deacon_status", "status_reason", "ssn",
 }
 # household_id/household_role (added 2026-09-12, see
@@ -139,7 +149,7 @@ def _attendance_schema(allow_contact_info: bool) -> str:
         "  -- one row per person per service actually attended. campus is 'Wilmington' or 'Online'.\n"
         "classroom_attendance(date TEXT, kids_nursery, adults_nursery, kids_toddlers, adults_toddlers, kids_prek, adults_prek, kids_elementary, adults_elementary INTEGER)\n"
         "  -- one row per Sunday with headcounts for each of the 4 kids' classrooms.\n"
-        f"members(id INTEGER, name TEXT, deacon TEXT, status TEXT, member_status TEXT, campus_preference TEXT, first_visit_date TEXT, active INTEGER, partnership_status TEXT, household_id TEXT, household_role TEXT, gender TEXT, started_serving_date TEXT{contact_cols})\n"
+        f"members(id INTEGER, name TEXT, deacon TEXT, campus_preference TEXT, first_visit_date TEXT, active_v2 TEXT, partner TEXT, household_id TEXT, household_role TEXT, gender TEXT, started_serving_date TEXT{contact_cols})\n"
         "  -- started_serving_date is when that person began serving/volunteering (banquet length-of-service\n"
         "  -- tracking) -- NULL for anyone who isn't a serving volunteer. A question about how LONG someone has\n"
         "  -- been serving (not just the raw date) means computing tenure in the SQL itself, the same way age is\n"
@@ -162,9 +172,12 @@ def _attendance_schema(allow_contact_info: bool) -> str:
         "  -- single parent's kids still need to find their one parent. Never use household_id alone (matching last\n"
         "  -- name or address) to answer a spouse/parent/child question -- siblings and parent/child pairs can share a\n"
         "  -- household_id too, and household_role is what actually distinguishes the relationship.\n"
-        "  -- partnership_status is a category, one of exactly 'Partner', 'Guest', 'Regular Attender' -- to filter\n"
-        "  -- to just partners use partnership_status = 'Partner', NEVER partnership_status IS NOT NULL (that matches\n"
-        "  -- everyone, since the column is always populated with one of the three values above).\n"
+        "  -- partner is a category, one of exactly 'partner', 'np' -- to filter to just partners use\n"
+        "  -- partner = 'partner', NEVER partner IS NOT NULL (that matches everyone, the column is always populated).\n"
+        "  -- active_v2 is a category, one of exactly 'active', 'non-active', 'disconnected', 'deceased' -- to filter\n"
+        "  -- to the normal/current roster (excluding only disconnected/deceased -- non-active members, meaning 8+\n"
+        "  -- weeks absent, still count as part of the roster for this purpose) use\n"
+        "  -- active_v2 NOT IN ('disconnected', 'deceased').\n"
         "deacon_notes(member_id INTEGER, note TEXT, status TEXT, created_at TEXT, author_deacon TEXT)\n"
         "  -- a deacon's own logged follow-up note about a member. status is 'open' or resolved/closed. join member_id = members.id.\n"
         "next_steps(member_id INTEGER, step TEXT, date TEXT)\n"
@@ -311,7 +324,7 @@ SQL: SELECT name FROM members WHERE deacon LIKE '%Bill Crook%'
 
 Q: which partners haven't been assigned to a deacon yet?
 DOMAIN: attendance
-SQL: SELECT name FROM members WHERE partnership_status = 'Partner' AND (deacon IS NULL OR deacon = '')
+SQL: SELECT name FROM members WHERE partner = 'partner' AND deacon = '--'
 
 Q: who is Kaci Gravatt's spouse?
 DOMAIN: attendance

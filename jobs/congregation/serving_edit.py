@@ -42,7 +42,7 @@ def _cascade(conn, query: str, columns: str) -> list[dict]:
         val = term if exact else f"%{term}%"
         rows = conn.execute(
             f"SELECT {columns} FROM members"
-            f" WHERE active = 1 AND name {op} COLLATE NOCASE ORDER BY name",
+            f" WHERE active_v2 NOT IN ('disconnected', 'deceased') AND name {op} COLLATE NOCASE ORDER BY name",
             (val,),
         ).fetchall()
         return [dict(r) for r in rows]

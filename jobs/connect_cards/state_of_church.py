@@ -160,8 +160,8 @@ def _members_not_seen(conn: sqlite3.Connection) -> list[dict]:
         SELECT m.name, m.campus_preference, MAX(a.service_date) as last_seen
         FROM members m
         LEFT JOIN attendance a ON a.member_id = m.id
-        WHERE m.active = 1
-          AND (m.member_status IS NULL OR m.member_status = 'active')
+        WHERE m.active_v2 NOT IN ('disconnected', 'deceased')
+          AND (m.residency IS NULL OR m.residency = 'local')
         GROUP BY m.id
         HAVING last_seen IS NULL OR last_seen < date('now', '-14 days')
         ORDER BY last_seen ASC
@@ -172,17 +172,29 @@ def _members_not_seen(conn: sqlite3.Connection) -> list[dict]:
 
 
 def _members_excluded_counts(conn: sqlite3.Connection) -> dict:
-    """Count active members excluded from reporting by member_status."""
-    rows = conn.execute(
-        """
-        SELECT member_status, COUNT(*) as cnt
-        FROM members
-        WHERE active = 1
-          AND member_status IN ('deceased', 'disconnected', 'non_local', 'snowbird')
-        GROUP BY member_status
-        """,
-    ).fetchall()
-    return {r["member_status"]: r["cnt"] for r in rows}
+    """Count members excluded from reporting, by category. Keys match the
+    caller's hardcoded lookup list (deacon/disconnected/non_local/snowbird)
+    -- 'deceased'/'disconnected' come from active_v2, 'non_local'/'snowbird'
+    from residency (2026-09-24, see
+    ~/.claude/plans/zesty-cuddling-robin.md)."""
+    active_v2_counts = dict(
+        conn.execute(
+            "SELECT active_v2, COUNT(*) FROM members "
+            "WHERE active_v2 IN ('deceased', 'disconnected') GROUP BY active_v2"
+        ).fetchall()
+    )
+    residency_counts = dict(
+        conn.execute(
+            "SELECT residency, COUNT(*) FROM members "
+            "WHERE residency IN ('non-local', 'snowbird') GROUP BY residency"
+        ).fetchall()
+    )
+    return {
+        "deceased": active_v2_counts.get("deceased", 0),
+        "disconnected": active_v2_counts.get("disconnected", 0),
+        "non_local": residency_counts.get("non-local", 0),
+        "snowbird": residency_counts.get("snowbird", 0),
+    }
 
 
 def _special_events() -> list[dict]:
@@ -242,7 +254,7 @@ def _engagement_tiers(conn: sqlite3.Connection) -> dict:
                 SUM(CASE WHEN a.service_date IN (SELECT service_date FROM last24) THEN 1 ELSE 0 END) AS last24_count
             FROM members m
             LEFT JOIN attendance a ON a.member_id = m.id
-            WHERE m.active = 1
+            WHERE m.active_v2 NOT IN ('disconnected', 'deceased')
             GROUP BY m.id
         )
         SELECT

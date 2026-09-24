@@ -28,8 +28,8 @@ missing one Sunday isn't a pastoral concern but missing two is):
             for the Unassigned row)
 
 Same base filters as shepherding_report.py's at-risk/critical sections:
-members.active = 1, not shepherding_exempt, member_status not in
-(deceased/disconnected/non_local/snowbird), and at least one connect_cards
+members.active_v2 not in (disconnected, deceased), residency = local, not
+shepherding_exempt, and at least one connect_cards
 or attendance row on file. Same deacon-bucket exclusions as deacon_reports.py
 (EXCLUDED_DEACON_VALUES) -- "Elders & Deacons" / "~ Admin" / "P Bill Yomes" /
 "Inactive" are group labels, not addressable deacons, and are skipped here
@@ -126,7 +126,14 @@ def _raw_rows() -> list:
     _member_engagement_tiers() below already correctly checks -- meaning
     someone marked Inactive would silently vanish from Consistency but
     keep showing up here. Switched to `m.active = 1` so both sections of
-    the report agree on who counts as active."""
+    the report agree on who counts as active.
+
+    2026-09-24: `m.active = 1` further replaced with
+    `m.active_v2 NOT IN ('disconnected', 'deceased')` (the new 4-value
+    column, see ~/.claude/plans/zesty-cuddling-robin.md) plus a separate
+    `m.residency = 'local'` check -- previously this also filtered on
+    member_status excluding non_local/snowbird, which residency now
+    covers on its own."""
     with _conn() as conn:
         return conn.execute(
             """
@@ -143,9 +150,9 @@ def _raw_rows() -> list:
                      )
                    ) AS visit_count
             FROM members m
-            WHERE m.active = 1
+            WHERE m.active_v2 NOT IN ('disconnected', 'deceased')
+              AND (m.residency IS NULL OR m.residency = 'local')
               AND (m.shepherding_exempt IS NULL OR m.shepherding_exempt = 0)
-              AND (m.member_status IS NULL OR m.member_status NOT IN ('deceased', 'disconnected', 'non_local', 'snowbird'))
               AND (
                 EXISTS (SELECT 1 FROM connect_cards WHERE member_id = m.id)
                 OR EXISTS (SELECT 1 FROM attendance WHERE member_id = m.id)
@@ -240,7 +247,7 @@ def _member_engagement_tiers(conn) -> dict:
             SUM(CASE WHEN v.service_date IN (SELECT service_date FROM last8)  THEN 1 ELSE 0 END) AS last8_count
         FROM members m
         LEFT JOIN visits v ON v.member_id = m.id
-        WHERE m.active = 1
+        WHERE m.active_v2 NOT IN ('disconnected', 'deceased')
         GROUP BY m.id
         """
     ).fetchall()

@@ -213,7 +213,7 @@ def get_roster():
     with _conn() as conn:
         rows = conn.execute(
             f"SELECT {_ROSTER_FIELDS} FROM members m "
-            f"WHERE m.member_status IS NULL OR m.member_status != 'deceased' "
+            f"WHERE m.active_v2 != 'deceased' "
             f"GROUP BY m.id ORDER BY m.name COLLATE NOCASE"
         ).fetchall()
         people = [dict(r) for r in rows]

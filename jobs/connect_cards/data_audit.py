@@ -1,5 +1,11 @@
 """
 Data audit: duplicate member detection and field inconsistency correction.
+
+2026-09-24: _member_rows() dropped a `WHERE m.status != 'inactive'` clause --
+a no-op (status is never 'inactive', see elder_shepherding_report.py's
+2026-09-16 bugfix note), and this scan is deliberately over every member
+regardless of active/disconnected/deceased status, since a name-hygiene or
+duplicate issue can exist on an inactive record just as easily.
 """
 
 import difflib
@@ -53,7 +59,6 @@ def _member_rows(conn) -> list[dict]:
                  COALESCE((SELECT MAX(service_date) FROM attendance  WHERE member_id = m.id), '')
                ) AS last_seen
         FROM members m
-        WHERE m.status != 'inactive'
         ORDER BY m.id
         """
     ).fetchall()

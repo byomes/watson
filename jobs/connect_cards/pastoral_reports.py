@@ -81,7 +81,14 @@ def missed_weeks_report(weeks: int = 3) -> tuple[str, str]:
                        AS weeks_absent
             FROM members m
             JOIN connect_cards cc ON cc.member_id = m.id
-            WHERE m.status != 'inactive'
+            -- was `m.status != 'inactive'`, a no-op (status is never
+            -- 'inactive' -- see elder_shepherding_report.py's 2026-09-16
+            -- bugfix note). Unlike shepherding_report.py, there was no
+            -- working filter alongside it here, so replacing rather than
+            -- just deleting it (2026-09-24) -- every sibling pastoral-care
+            -- report excludes disconnected/deceased and this one plainly
+            -- intended to as well.
+            WHERE m.active_v2 NOT IN ('disconnected', 'deceased')
             GROUP BY m.id
             HAVING MAX(cc.service_date) < ?
             ORDER BY weeks_absent DESC

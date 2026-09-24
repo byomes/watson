@@ -1312,7 +1312,16 @@ def members_update_api(member_id):
                 (member_id, last_seen_input),
             ).fetchone()
             if not dup:
-                campus = fields.get("campus_preference") or existing["campus_preference"] or "Wilmington"
+                # '--' (the blank-value convention) must fall back to
+                # Wilmington too, same as None/blank/empty.
+                _blank_campus = (None, "", "--")
+                campus = (
+                    fields.get("campus_preference")
+                    if fields.get("campus_preference") not in _blank_campus
+                    else existing["campus_preference"]
+                    if existing["campus_preference"] not in _blank_campus
+                    else "Wilmington"
+                )
                 c.execute(
                     "INSERT INTO attendance (member_id, service_date, campus, card_id) VALUES (?, ?, ?, NULL)",
                     (member_id, last_seen_input, campus),
@@ -3497,7 +3506,9 @@ def shepherding_checkin():
             conn.close()
             return jsonify({"error": "member not found"}), 404
         name   = row["name"]
-        campus = row["campus_preference"] or "Wilmington"
+        # '--' (the blank-value convention) must fall back to Wilmington
+        # too, same as None/blank/empty.
+        campus = row["campus_preference"] if row["campus_preference"] not in (None, "", "--") else "Wilmington"
         conn.execute(
             "INSERT INTO attendance (member_id, service_date, campus, card_id) VALUES (?, ?, ?, NULL)",
             (member_id, prev_sunday, campus),

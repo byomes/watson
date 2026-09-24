@@ -384,7 +384,10 @@ def commit_batch_update(field: str, value, resolved_member_ids: list[int], actor
                 old_value = conn.execute(
                     "SELECT MAX(service_date) as d FROM attendance WHERE member_id = ?", (member_id,)
                 ).fetchone()["d"]
-                campus = row["campus_preference"] or "Wilmington"
+                # '--' (the blank-value convention) must fall back to
+                # Wilmington too, same as None/blank -- it's not a real
+                # campus, and attendance.campus must always be a real one.
+                campus = row["campus_preference"] if row["campus_preference"] not in (None, "", "--") else "Wilmington"
                 conn.execute(
                     "INSERT INTO attendance (member_id, service_date, campus, card_id, source) "
                     "VALUES (?, ?, ?, NULL, 'manual_batch')",

@@ -30,9 +30,10 @@ Schema used (confirmed via .schema before build):
                   Sunday attended. Duplicate (member_id, service_date) rows
                   exist (multiple cards same Sunday) — every query dedupes
                   via SELECT DISTINCT before counting.
-  members:        active member set = active = 1 AND (member_status IS NULL
-                  OR member_status = 'active') — same filter state_of_church.py
-                  / missed_report.py use. campus_preference (Wilmington/
+  members:        active member set = active_v2 NOT IN (disconnected, deceased)
+                  AND residency = 'local' (2026-09-24, replaces active = 1 AND
+                  member_status) — same filter state_of_church.py /
+                  missed_report.py use. campus_preference (Wilmington/
                   Online/Hybrid) and first_visit_date (tenure — populated for
                   156/158 members) both usable directly.
   next_steps:     member_id, card_id, step, date, created_at — 47 rows, step
@@ -116,8 +117,11 @@ OLLAMA_MODEL = "qwen2.5:7b"
 # start rather than waiting to hit the same failure.
 OLLAMA_TIMEOUT = 600
 
-_ACTIVE_FILTER = "active = 1 AND (member_status IS NULL OR member_status = 'active')"
-_NON_ACTIVE_STATUSES = ("disconnected", "non_local", "snowbird")
+# 2026-09-24: replaced active = 1 / member_status with the new active_v2/
+# residency columns (see ~/.claude/plans/zesty-cuddling-robin.md) -- same
+# effective "active member set" scope as before.
+_ACTIVE_FILTER = "active_v2 NOT IN ('disconnected', 'deceased') AND residency = 'local'"
+_NON_ACTIVE_STATUSES = ("disconnected", "non-local", "snowbird")
 
 _TIER_ORDER = ["Highly engaged", "Partially engaged", "Not engaged", "Disengaged"]
 _TIER_DISPLAY = {
@@ -151,16 +155,20 @@ def _active_members(conn) -> list[dict]:
 
 
 def _non_active_counts(conn) -> list[tuple[str, int]]:
-    rows = conn.execute(
-        f"""
-        SELECT member_status, COUNT(*) FROM members
-        WHERE active = 1 AND member_status IN ({",".join("?" * len(_NON_ACTIVE_STATUSES))})
-        GROUP BY member_status
-        """,
-        _NON_ACTIVE_STATUSES,
-    ).fetchall()
-    found = {r[0]: r[1] for r in rows}
-    return [(status, found.get(status, 0)) for status in _NON_ACTIVE_STATUSES]
+    # 'disconnected' comes from active_v2, 'non-local'/'snowbird' from
+    # residency -- previously one member_status column carried all three.
+    counts = {
+        "disconnected": conn.execute(
+            "SELECT COUNT(*) FROM members WHERE active_v2 = 'disconnected'"
+        ).fetchone()[0],
+        "non-local": conn.execute(
+            "SELECT COUNT(*) FROM members WHERE residency = 'non-local'"
+        ).fetchone()[0],
+        "snowbird": conn.execute(
+            "SELECT COUNT(*) FROM members WHERE residency = 'snowbird'"
+        ).fetchone()[0],
+    }
+    return [(status, counts[status]) for status in _NON_ACTIVE_STATUSES]
 
 
 def _campus_snapshot(active_members: list[dict]) -> list[tuple[str, int]]:

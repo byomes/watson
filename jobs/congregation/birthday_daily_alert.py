@@ -6,7 +6,8 @@ look-ahead digest to the deacons, scoped to their own groups); this one
 is same-day, congregation-wide, and goes to Dr. Bill, Jim Bouchat, and
 Bill Crook.
 
-Scope: members.active = 1 AND member_status = 'active' AND birthdate's
+Scope: members.active_v2 NOT IN (disconnected, deceased) AND residency = 'local'
+(2026-09-24, replaces active = 1 AND member_status = 'active') AND birthdate's
 month/day matches today. Includes phone number (when on file) so Dr.
 Bill can act on the message directly without a lookup.
 
@@ -48,8 +49,8 @@ def _todays_birthdays() -> list[tuple[str, int, str | None]]:
             """
             SELECT name, birthdate, phone
             FROM members
-            WHERE active = 1
-              AND member_status = 'active'
+            WHERE active_v2 NOT IN ('disconnected', 'deceased')
+              AND residency = 'local'
               AND birthdate IS NOT NULL
               AND birthdate != ''
               AND substr(birthdate, 6, 5) = ?
