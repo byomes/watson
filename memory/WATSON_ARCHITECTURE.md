@@ -4294,3 +4294,32 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - e96db93 Servant Teams page: headers, edit/remove per person, leaders on top
 - 684fadd Add Servant Teams roster page (wtsn.me/cat/servants)
 - 08c5058 Add a help tray to the deacon app
+
+---
+
+## Recent Changes — 2026-09-24
+
+### ~/watson
+- 6cc942e docs: bugs/backlog export 2026-09-24
+- 9850ffe docs: file map 2026-09-24
+- 33f2cc4 Move intent.classifier to Haiku 4.5
+- 0725fa3 Switch Catalyst Database to per-person PINs with 3-attempt lockout
+- 3d5412e Add congregation.db members admin API for /cat/catalystdb
+- b1f532a Give Donna standing authority to direct congregation.db changes
+- a9e27a1 Add Escalate to API button to email triage
+- 0943370 Revert intent classifier to gemma3:4b after gemma4:e4b stuck-runner incidents
+- 4579215 Document gemma4:e4b classifier routing in LLM Stack, fix stale code_agent ref
+- 42eced7 Route intent classifier to gemma4:e4b (provisional), fix model_qualify crash
+- 0aeea2e docs: architecture update 2026-09-23
+
+### ~/watson-tools
+- 18d4eba Bump header name/logout text size (xs -> sm)
+- 7b74794 Fix header dark mode, double bar height and toggle icon size
+- 38530c1 Move header left, thicken bar, add dark mode toggle to /cat/catalystdb
+- 3cbc83e Use the Catalyst logo as /cat/catalystdb's favicon
+- 97f9546 Sort by last name; add mobile card-list view
+- 23f0669 Add full-record detail card to /cat/catalystdb
+- 2d21b1e Switch /cat/catalystdb to per-person PINs
+- b46e4ad Add /cat/catalystdb: full members-database admin screen
+- 922e456 Add /cat/scratch: shared-PIN team review area on the live domain
+- c2d13cb Add family birthdays & anniversaries section to the connect card
