@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-09-23*
+*Generated: 2026-09-24*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -55,6 +55,7 @@ config/
 core/
   __init__.py
   claude_tier.py
+  congregation_admin.py
   database.py
   db_backup.py
   fetcher.py
@@ -2372,6 +2373,13 @@ data/
     christmas-apologetics-conference-book/
       20260826-002207-new-project-christmas-apologetics-book-from-family/
         transcript.md
+    church-systems/
+      20260923-205847-church-systems-kickoff-multi-bot-research-prompt-c/
+        transcript.md
+      20260923-210146-church-systems-kickoff-multi-bot-research-prompt-c/
+        transcript.md
+      20260923-214316-shepherding-system-design-care-standard-absence-la/
+        transcript.md
     claude-account-import/
       20260826-015822-analyzing-student-access-patterns-in-online-course/
         transcript.md
@@ -3539,6 +3547,14 @@ data/
         transcript.md
       20260918-100720-ai-theology-field-research-imago-dei-personhood-pa/
         guardrails-ai-theology-field-research.md
+        transcript.md
+      20260923-080416-corruption-no-way-home-scripture-spine-genesis-3-j/
+        transcript.md
+      20260923-081436-ch-2-thesis-replacement-lock-hamartiology-anchor-g/
+        transcript.md
+      20260923-151232-title-locked-as-guardrails-end-of-october-target-c/
+        transcript.md
+      20260923-195257-pre-compaction-morning-session-title-conflict-chec/
         transcript.md
     ideas-to-be-developed/
       20260826-013954-expanding-concept-ideas/
@@ -4719,8 +4735,6 @@ data/
   trading.db.bak-pre-sizing-fix-20260911073349
   trading.db.bak-pre-windows3-backfill-20260911110635
   watson.db
-  watson.db-shm
-  watson.db-wal
 deploy/
   .gitkeep
   apt-packages.txt
@@ -4882,13 +4896,13 @@ jobs/
     wordlist.txt
   congregation/
     __init__.py
-    _oneoff_donna_catalyst_leaders_request.py
-    _oneoff_staff_serving_announcement.py
     age_groups.py
     attendance_web.py
     batch_intake.py
     birthday_daily_alert.py
     birthday_report.py
+    catalystdb_login_lockout.py
+    catalystdb_web.py
     collect_deacon_pins.py
     deacon_login_lockout.py
     deacon_pin_auth.py
@@ -5002,7 +5016,6 @@ jobs/
     svg_generator.py
   dev/
     __init__.py
-    _oneoff_model_candidate_report_9am.py
     auto_fixer.py
     backlog.py
     bugs_backlog_sync.py
@@ -6325,6 +6338,8 @@ tests/
       stress_gemma4_e4b.log
       stress_qwen3_5_4b.log
       tier1.log
+      tier1_rerun.log
+      tier1_results.json
     model_qualification_spec.md
     model_qualify.py
     results_part1.json
@@ -7014,6 +7029,15 @@ src/
             route.ts
           toggle/
             route.ts
+        catalystdb/
+          create/
+            route.ts
+          deactivate/
+            route.ts
+          state/
+            route.ts
+          update/
+            route.ts
         connect/
           route.ts
         deacons/
@@ -7114,6 +7138,21 @@ src/
       attendance/
         AttendanceBoard.tsx
         page.tsx
+      catalystdb/
+        (gated)/
+          CatalystDBBoard.tsx
+          MemberDetail.tsx
+          ThemeToggleButton.tsx
+          columns.ts
+          layout.tsx
+          page.tsx
+        ThemeShell.tsx
+        actions.ts
+        apple-icon.jpg
+        icon.jpg
+        login/
+          page.tsx
+          pin-pad.tsx
       connect/
         ConnectCardForm.tsx
         layout.tsx
@@ -7138,6 +7177,14 @@ src/
       papercards/
         PaperCardForm.tsx
         page.tsx
+      scratch/
+        (gated)/
+          layout.tsx
+          page.tsx
+        actions.ts
+        login/
+          page.tsx
+          pin-pad.tsx
       servants/
         ServantsBoard.tsx
         page.tsx
@@ -7172,11 +7219,14 @@ src/
         page.tsx
     page.tsx
   lib/
+    catalystdbAuth.ts
+    catalystdbTheme.ts
     clientIp.ts
     deaconAuth.ts
     deaconNotes.ts
     deaconTheme.ts
     requireLiveTool.ts
+    scratchAuth.ts
     shepherdingReport.ts
     shepherdingReportShared.ts
     socialAuth.ts
