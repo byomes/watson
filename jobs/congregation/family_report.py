@@ -61,8 +61,14 @@ def build_report() -> tuple[str, str]:
     with _conn() as conn:
         households = _load_households(conn)
 
-    complete = [h for h in households if all(m["household_role"] for m in h)]
-    needs_review = [h for h in households if not all(m["household_role"] for m in h)]
+    # '--' (2026-09-24 blank-value convention, see [[project_catalystdb]])
+    # is a real stored value, not a Python falsy value, so it must be
+    # excluded explicitly here alongside None/blank.
+    def _has_role(m) -> bool:
+        return bool(m["household_role"]) and m["household_role"] != "--"
+
+    complete = [h for h in households if all(_has_role(m) for m in h)]
+    needs_review = [h for h in households if not all(_has_role(m) for m in h)]
 
     text_lines = ["FAMILY UNITS", ""]
     html_lines = ['<h2 style="margin-bottom:4px;">Family Units</h2>']

@@ -340,7 +340,7 @@ def _mark_child_core(conn, child: dict, parent: dict, sender_name: str) -> tuple
     if merge_error:
         return False, merge_error
 
-    if not parent["household_role"]:
+    if not parent["household_role"] or parent["household_role"] == "--":
         conn.execute("UPDATE members SET household_role = 'head' WHERE id = ?", (parent["id"],))
     conn.execute("UPDATE members SET household_role = 'child' WHERE id = ?", (child["id"],))
 

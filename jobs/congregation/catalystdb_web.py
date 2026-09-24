@@ -69,12 +69,14 @@ _CONNECTED_CURRENT_DAYS_MAX = 13
 _CONNECTED_AT_RISK_DAYS_MAX = 27
 
 
-def _connected(conn, member_id: int, today: date) -> str | None:
+def _connected(conn, member_id: int, today: date) -> str:
     """Partner/Connected/Active/Deacon/Residency redesign's Connected ladder --
     built fresh from jobs.congregation.attendance only (not connect_cards),
     per Bill's 2026-09-24 call ("brand new section, from attendance data").
-    Returns None (no value) for a member with zero attendance rows -- the
-    ladder has nothing to say about someone who's never actually attended.
+    Returns '--' (the same blank-value convention as deacon/gender/
+    household_role/campus_preference) for a member with zero attendance
+    rows -- the ladder has nothing to say about someone who's never
+    actually attended.
 
     regular = 6+ attendances in the trailing rolling 8-calendar-week window
     ending *today*. at_risk/critical only apply to someone who has reached
@@ -91,7 +93,7 @@ def _connected(conn, member_id: int, today: date) -> str | None:
     ).fetchall()
     dates = [date.fromisoformat(r[0]) for r in rows]
     if not dates:
-        return None
+        return "--"
 
     visit_count = len(dates)
     last_seen = dates[-1]

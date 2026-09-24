@@ -26,6 +26,16 @@ _BLANK_DEACON_VALUES set, restoring the original NULL/blank-based behavior).
 'Elders & Deacons' and 'P Bill Yomes' are deliberately left alone -- both are
 non-name bucket values Bill wants kept distinct rather than folded into '--'.
 
+Same '--' blank convention also applied in place (no schema change) to three
+other select-type columns in the catalystdb grid: gender, household_role,
+campus_preference. Each of those has exactly one place in the live codebase
+that branches on the column being Python-falsy (blank/NULL) -- since '--' is
+a real truthy string, not blank, each of those call sites got an explicit
+`or x == '--'` fix alongside this backfill: family_report.py's
+household-completeness check, family_edit.py's mark_child auto-head-assign,
+and attendance_intake.py's campus auto-fill-on-first-real-visit. gender had
+no such dependency (grep-verified) and needed no code change.
+
 Usage:
   python3 jobs/congregation/migrate_partner_connected_active.py
 """
@@ -151,6 +161,19 @@ def _backfill_residency(conn):
     print(f"  [backfilled] residency: {counts}")
 
 
+def _backfill_blank_convention(conn):
+    """gender/household_role/campus_preference: NULL or empty -> '--'. Each
+    call site that depended on Python-falsy blank has already been updated
+    (see module docstring) to also treat '--' as blank."""
+    for col in ("gender", "household_role", "campus_preference"):
+        conn.execute(
+            f"UPDATE members SET {col} = '--' WHERE {col} IS NULL OR TRIM({col}) = ''"
+        )
+        conn.commit()
+        counts = dict(conn.execute(f"SELECT {col}, COUNT(*) FROM members GROUP BY {col}").fetchall())
+        print(f"  [backfilled] {col}: {counts}")
+
+
 def main():
     conn = sqlite3.connect(DB_PATH)
     try:
@@ -159,7 +182,8 @@ def main():
         _backfill_active_v2(conn)
         _backfill_deacon(conn)
         _backfill_residency(conn)
-        print("Done: partner/active_v2/residency ready, deacon cleaned up.")
+        _backfill_blank_convention(conn)
+        print("Done: partner/active_v2/residency ready, deacon/gender/household_role/campus_preference blanks cleaned up.")
     finally:
         conn.close()
 

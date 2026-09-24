@@ -135,7 +135,10 @@ def _find_or_create_member(conn: sqlite3.Connection, name: str, campus: str, ser
 
     if row:
         member_id = row["id"]
-        if not row["campus_preference"]:
+        # '--' (2026-09-24 blank-value convention) is a real stored value,
+        # not a Python falsy value -- must be excluded explicitly so a
+        # member with no campus on file still gets auto-filled here.
+        if not row["campus_preference"] or row["campus_preference"] == "--":
             conn.execute(
                 "UPDATE members SET campus_preference = ?, updated_at = datetime('now') WHERE id = ?",
                 (campus, member_id),
