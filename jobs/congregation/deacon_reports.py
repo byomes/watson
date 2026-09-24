@@ -73,7 +73,7 @@ DEACON_NAME_ALIASES = {"Tom Smith": "Thomas Smith"}
 # The source spreadsheet wrote the literal text "None" (not a blank cell) for
 # 10 Inactive Partner rows -- treat it the same as a true NULL/blank deacon,
 # not as a deacon named "None".
-_BLANK_DEACON_VALUES = {"none"}
+_BLANK_DEACON_VALUES = {"none", "--"}
 
 _DEACON_HEADER_STYLE = (
     "background:#1e3a5f;color:#fff;padding:10px 16px;border-radius:4px;"

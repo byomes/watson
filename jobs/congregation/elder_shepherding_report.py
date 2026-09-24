@@ -90,7 +90,7 @@ log = logging.getLogger(__name__)
 RECIPIENT_NAMES = ("Bill Yomes", "Jim Bouchat", "Bill Crook")
 REPORT_URL = "https://wtsn.me/cat/shepherdingreport"
 
-_BLANK_DEACON_VALUES = {"none"}
+_BLANK_DEACON_VALUES = {"none", "--"}
 
 # Bill's ruling 2026-09-15: missing one Sunday isn't a concern (Current),
 # missing two starts to matter (At Risk), four+ is Critical. Days are

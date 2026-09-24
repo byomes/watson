@@ -18,9 +18,13 @@ New columns:
   residency  TEXT  'local' | 'non-local' | 'snowbird'
 
 deacon is cleaned up in place (no schema change): blanks and the old
-'Inactive' bucket value collapse to 'Unassigned'. 'Elders & Deacons' and
-'P Bill Yomes' are deliberately left alone -- both are non-name bucket
-values Bill wants kept distinct rather than folded into Unassigned.
+'Inactive' bucket value collapse to '--' (Bill's 2026-09-24 rename from the
+original 'Unassigned', after it turned out to collide with
+deacon_reports.py/elder_shepherding_report.py's list_deacons()/_group_key()
+blank-detection -- both now also treat '--' as blank via their
+_BLANK_DEACON_VALUES set, restoring the original NULL/blank-based behavior).
+'Elders & Deacons' and 'P Bill Yomes' are deliberately left alone -- both are
+non-name bucket values Bill wants kept distinct rather than folded into '--'.
 
 Usage:
   python3 jobs/congregation/migrate_partner_connected_active.py
@@ -119,14 +123,14 @@ def _days_since(iso_date):
 def _backfill_deacon(conn):
     before = dict(conn.execute("SELECT deacon, COUNT(*) FROM members GROUP BY deacon").fetchall())
     conn.execute(
-        "UPDATE members SET deacon = 'Unassigned' "
-        "WHERE deacon IS NULL OR TRIM(deacon) = '' OR deacon = 'Inactive'"
+        "UPDATE members SET deacon = '--' "
+        "WHERE deacon IS NULL OR TRIM(deacon) = '' OR deacon IN ('Inactive', 'Unassigned')"
     )
     conn.commit()
     after_unassigned = conn.execute(
-        "SELECT COUNT(*) FROM members WHERE deacon = 'Unassigned'"
+        "SELECT COUNT(*) FROM members WHERE deacon = '--'"
     ).fetchone()[0]
-    print(f"  [backfilled] deacon: {after_unassigned} now Unassigned (was {before})")
+    print(f"  [backfilled] deacon: {after_unassigned} now '--' (was {before})")
 
 
 def _backfill_residency(conn):
