@@ -102,6 +102,7 @@ def classify(message_text: str, system_prompt: str = "") -> dict:
     claude_result = call_claude(
         system=system_prompt, user=prompt,
         job_name="intent.classifier", max_tokens=256,
+        model="claude-haiku-4-5",
         person="Bill Yomes", message=message_text,
     )
     if claude_result:
