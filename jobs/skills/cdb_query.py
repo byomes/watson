@@ -499,7 +499,7 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
             return (
                 f"SELECT m2.name FROM members m1 JOIN members m2 ON m2.household_id = m1.household_id "
                 f"AND m2.id != m1.id WHERE m1.name LIKE '%{spouse_name}%' AND m1.active NOT IN ('disconnected', 'deceased') "
-                f"AND m1.household_role IN ('husband','wife') AND m2.household_role IN ('husband','wife')"
+                f"AND m1.household_role IN ('husband','wife','widow','widower') AND m2.household_role IN ('husband','wife','widow','widower')"
             )
 
     # MEMBER'S OWN DEACON -- checked before MEMBER LOOKUP BY NAME for the
