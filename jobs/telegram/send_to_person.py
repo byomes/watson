@@ -46,6 +46,43 @@ def send_to_person(person_id: int, message: str) -> bool:
     return True
 
 
+def send_document_to_person(person_id: int, file_path: str, caption: str = "") -> bool:
+    """Same contract as send_to_person above but for a file (e.g. a PDF
+    report) rather than a text message -- added 2026-09-24 for the service
+    awards report going to Donna, generalized since any future job that
+    needs to hand an onboarded person a document will want the same
+    lookup/gate rather than reimplementing it (see bot.py's own
+    send_document usage for the same pattern applied to Bill's chat)."""
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT name, telegram_chat_id FROM people WHERE id = ?", (person_id,)
+        ).fetchone()
+
+    chat_id = row["telegram_chat_id"] if row else None
+    if not chat_id:
+        log.error(
+            "send_document_to_person: person_id=%s has no telegram_chat_id yet -- not onboarded",
+            person_id,
+        )
+        return False
+
+    try:
+        with open(file_path, "rb") as f:
+            resp = requests.post(
+                f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendDocument",
+                data={"chat_id": chat_id, "caption": caption},
+                files={"document": f},
+                timeout=30,
+            )
+        resp.raise_for_status()
+    except Exception as exc:
+        log.error("send_document_to_person: send failed for person_id=%s: %s", person_id, exc)
+        return False
+
+    _log_sent(row["name"], caption or f"[document: {file_path}]")
+    return True
+
+
 def _log_sent(recipient: str, message: str) -> None:
     """Best-effort entry in telegram_log for the dashboard's Telegram Log tile."""
     try:

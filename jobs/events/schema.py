@@ -17,7 +17,19 @@ Adds:
     Watson to track an event (almost always followed by a test signup)
     hears back once it actually works, without pinging them again on every
     later real registrant. See jobs/events/signup_detect.py.
+  church_events.rsvp_tracking — added 2026-09-24 for the annual Servant
+    Leaders Banquet. 0 (default) means signup emails for this event are
+    handled the old way by jobs/events/signup_detect.py (every registration
+    email = one attendee, no decline concept). 1 means the event's RSVP
+    form can reply either yes or no, and jobs/events/banquet_rsvp.py (not
+    signup_detect.py) owns its incoming emails -- see that file for why
+    this needed a separate handler instead of extending signup_detect.py.
   event_registrations — one row per registrant/signup for an event.
+    rsvp_status / child_count (added 2026-09-24, both nullable/optional --
+    ONLY meaningful for rsvp_tracking=1 events) -- see
+    jobs/events/banquet_rsvp.py's module docstring for what they mean and
+    why child_count is tracked as its own column instead of folded into
+    num_tickets.
 """
 import sqlite3
 
@@ -42,6 +54,10 @@ def create_tables() -> None:
         conn.execute("ALTER TABLE church_events ADD COLUMN creator_notified INTEGER NOT NULL DEFAULT 0")
     except sqlite3.OperationalError:
         pass  # column already exists
+    try:
+        conn.execute("ALTER TABLE church_events ADD COLUMN rsvp_tracking INTEGER NOT NULL DEFAULT 0")
+    except sqlite3.OperationalError:
+        pass  # column already exists
     conn.execute("""
         CREATE TABLE IF NOT EXISTS event_registrations (
             id            INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -60,6 +76,14 @@ def create_tables() -> None:
             created_at    TEXT NOT NULL DEFAULT (datetime('now'))
         )
     """)
+    try:
+        conn.execute("ALTER TABLE event_registrations ADD COLUMN rsvp_status TEXT")
+    except sqlite3.OperationalError:
+        pass  # column already exists
+    try:
+        conn.execute("ALTER TABLE event_registrations ADD COLUMN child_count INTEGER NOT NULL DEFAULT 0")
+    except sqlite3.OperationalError:
+        pass  # column already exists
     conn.execute("""
         CREATE INDEX IF NOT EXISTS idx_event_registrations_event_id
         ON event_registrations(event_id)

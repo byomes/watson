@@ -1156,6 +1156,22 @@ def run():
             mark_as_read(msg_id)
             continue
 
+        # RSVP-form submission (yes/no, not just "attending") for a
+        # church_events row with rsvp_tracking=1 -- e.g. the annual Servant
+        # Leaders Banquet. Must run before the generic signup detector
+        # below, or an RSVP notification would also satisfy that detector's
+        # own keyword prefilter and get recorded as a plain "attending"
+        # registration, losing the yes/no distinction. See
+        # jobs/events/banquet_rsvp.py's module docstring for why this is a
+        # separate handler. No-ops (returns None) unless an rsvp_tracking
+        # event is actively open, so this is inert for every other email.
+        from jobs.events.banquet_rsvp import handle_banquet_rsvp_email
+        rsvp_result = handle_banquet_rsvp_email(msg_id, addr, subject, body, received_at)
+        if rsvp_result is not None:
+            if rsvp_result == "read":
+                mark_as_read(msg_id)
+            continue
+
         # Event signup notification (Subsplash, same platform that forwards
         # connect cards via snappages.com below — a picnic/event registration
         # notification may share that sender domain, so this MUST run before

@@ -1050,6 +1050,30 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     and _looks_like_family_report_request(_msg_text)
                 )
             )
+            # Servant Leaders Banquet, added 2026-09-24 -- restricted to
+            # _BANQUET_ALLOWLIST (Donna Redman), not every leader.
+            _banquet_status = (
+                bool(
+                    _leader_name in _BANQUET_ALLOWLIST
+                    and not _add_child and not _bday_update and not _mark_spouse
+                    and not _mark_child and not _serving_date_update and not _pin_update
+                    and not _team_add and not _team_remove
+                    and not _assign and not _assign_incomplete
+                    and not _family_report
+                    and _looks_like_banquet_status_request(_msg_text)
+                )
+            )
+            _banquet_awards = (
+                bool(
+                    _leader_name in _BANQUET_ALLOWLIST
+                    and not _add_child and not _bday_update and not _mark_spouse
+                    and not _mark_child and not _serving_date_update and not _pin_update
+                    and not _team_add and not _team_remove
+                    and not _assign and not _assign_incomplete
+                    and not _family_report and not _banquet_status
+                    and _looks_like_banquet_awards_request(_msg_text)
+                )
+            )
             # Deacon-app login unlock, added 2026-09-16 -- open to every
             # onboarded leader (see _looks_like_unlock_login_request).
             _unlock_login = (
@@ -1058,7 +1082,7 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     and not _mark_child and not _serving_date_update and not _pin_update
                     and not _team_add and not _team_remove
                     and not _assign and not _assign_incomplete
-                    and not _family_report
+                    and not _family_report and not _banquet_status and not _banquet_awards
                     and _looks_like_unlock_login_request(_msg_text)
                 )
             )
@@ -1072,7 +1096,8 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     and not _mark_child and not _serving_date_update and not _pin_update
                     and not _team_add and not _team_remove
                     and not _assign and not _assign_incomplete
-                    and not _family_report and not _unlock_login
+                    and not _family_report and not _banquet_status and not _banquet_awards
+                    and not _unlock_login
                 ) else None
             )
             # Later date/time addition for an event created without one --
@@ -1085,7 +1110,8 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     and not _mark_child and not _serving_date_update and not _pin_update
                     and not _team_add and not _team_remove
                     and not _assign and not _assign_incomplete
-                    and not _family_report and not _unlock_login and not _new_event
+                    and not _family_report and not _banquet_status and not _banquet_awards
+                    and not _unlock_login and not _new_event
                 ) else None
             )
             from jobs.telegram.leader_tool_usage import log_usage as _log_leader_tool_usage
@@ -1103,10 +1129,14 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                                     "deacon_assign" if _assign else (
                                                         "deacon_assign_incomplete" if _assign_incomplete else (
                                                             "family_report" if _family_report else (
-                                                                "unlock_login" if _unlock_login else (
-                                                                    "new_event" if _new_event else (
-                                                                        "event_date_time_update"
-                                                                        if _event_update else "team_chat"
+                                                                "banquet_status" if _banquet_status else (
+                                                                    "banquet_awards" if _banquet_awards else (
+                                                                        "unlock_login" if _unlock_login else (
+                                                                            "new_event" if _new_event else (
+                                                                                "event_date_time_update"
+                                                                                if _event_update else "team_chat"
+                                                                            )
+                                                                        )
                                                                     )
                                                                 )
                                                             )
@@ -1141,6 +1171,10 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await _handle_deacon_assign(update, _leader_name, *_assign)
             elif _family_report:
                 await _handle_family_report(update, _leader_name)
+            elif _banquet_status:
+                await _handle_banquet_status(update)
+            elif _banquet_awards:
+                await _handle_banquet_awards_send(update)
             elif _unlock_login:
                 await _handle_unlock_login(update)
             elif _new_event:
@@ -2449,6 +2483,79 @@ async def _handle_family_report(update: Update, sender_name: str) -> None:
     from jobs.congregation.family_report import send_family_report
     ok, message = await asyncio.to_thread(send_family_report, sender_name)
     await update.message.reply_text(message if not ok else f"\U0001F4E7 {message}")
+
+
+# Servant Leaders Banquet (added 2026-09-24, Bill's request) -- restricted
+# to Dr. Bill and Donna Redman, same reasoning as _FAMILY_REPORT_ALLOWLIST:
+# Bill's own chat needs no allowlist check (see _handle_general); this
+# gates Donna's.
+_BANQUET_ALLOWLIST = frozenset({"Donna Redman"})
+
+
+def _looks_like_banquet_status_request(text: str) -> bool:
+    low = text.lower()
+    return "banquet" in low and (
+        "rsvp" in low or "status" in low or "headcount" in low or "responded" in low
+    )
+
+
+async def _handle_banquet_status(update: Update) -> None:
+    from jobs.congregation.banquet_report import (
+        find_rsvp_tracking_event, format_rsvp_summary, rsvp_status_report,
+    )
+    event = await asyncio.to_thread(find_rsvp_tracking_event)
+    if not event:
+        await update.message.reply_text(
+            "I'm not tracking an active RSVP-enabled banquet event right now. - Watson"
+        )
+        return
+    report = await asyncio.to_thread(rsvp_status_report, event["id"])
+    await update.message.reply_text(format_rsvp_summary(event["event_name"], report))
+
+
+def _looks_like_banquet_awards_request(text: str) -> bool:
+    low = text.lower()
+    return ("service award" in low or "award pin" in low or "pin report" in low) and (
+        "donna" in low or "banquet" in low or "send" in low
+    )
+
+
+async def _handle_banquet_awards_send(update: Update) -> None:
+    import os
+    import tempfile
+
+    from core.database import get_connection
+    from jobs.congregation.banquet_report import build_service_awards_pdf
+    from jobs.telegram.send_to_person import send_document_to_person
+
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT id FROM people WHERE name = 'Donna Redman'"
+        ).fetchone()
+    if not row:
+        await update.message.reply_text(
+            "Donna Redman isn't onboarded to Telegram yet, so I can't send her the report. - Watson"
+        )
+        return
+
+    fd, path = tempfile.mkstemp(suffix=".pdf")
+    os.close(fd)
+    try:
+        await asyncio.to_thread(build_service_awards_pdf, path)
+        ok = await asyncio.to_thread(
+            send_document_to_person, row["id"], path,
+            "Service Awards Reference — Servant Leaders Banquet, sorted by years served within each team.",
+        )
+    finally:
+        try:
+            os.unlink(path)
+        except OSError:
+            pass
+
+    if ok:
+        await update.message.reply_text("\U0001F4C4 Sent the service awards list to Donna. - Watson")
+    else:
+        await update.message.reply_text("Failed to send the service awards list to Donna. - Watson")
 
 
 def _looks_like_fix_log_request(text: str) -> bool:
@@ -4320,6 +4427,17 @@ async def _handle_general(update: Update, context: ContextTypes.DEFAULT_TYPE, te
     # Redman's parallel path is _handle_text_body's _FAMILY_REPORT_ALLOWLIST.
     if _looks_like_family_report_request(text):
         await _handle_family_report(update, "Bill Yomes")
+        return ""
+
+    # Servant Leaders Banquet, added 2026-09-24 -- Dr. Bill's own chat needs
+    # no allowlist check; Donna Redman's parallel path is
+    # _handle_text_body's _BANQUET_ALLOWLIST.
+    if _looks_like_banquet_status_request(text):
+        await _handle_banquet_status(update)
+        return ""
+
+    if _looks_like_banquet_awards_request(text):
+        await _handle_banquet_awards_send(update)
         return ""
 
     # Fix log ("what fixes have been made", "recent fixes"), added

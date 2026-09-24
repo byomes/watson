@@ -197,14 +197,25 @@ engagement_sheet_metrics(tab TEXT, section TEXT, metric_label TEXT, month TEXT, 
 """.strip()
 
 _EVENTS_SCHEMA = """
-church_events(id INTEGER, event_name TEXT, start_date TEXT, end_date TEXT, event_time TEXT, description TEXT, tracking_active INTEGER)
+church_events(id INTEGER, event_name TEXT, start_date TEXT, end_date TEXT, event_time TEXT, description TEXT, tracking_active INTEGER, rsvp_tracking INTEGER)
   -- one row per church event (picnic, retreat, class, etc). tracking_active=1 means Watson is still auto-attaching new signups to it.
+  -- rsvp_tracking=1 (added 2026-09-24) means this event's registrations carry a real rsvp_status yes/no (see
+  -- event_registrations below) instead of every registration meaning "attending" by default.
   -- start_date can be an empty string if the event was created via Telegram before a date was set (Kaci/Bill can only add
   -- one, may add the other later) -- treat '' the same as "no date yet", never as a real date. event_time is free text
   -- ("6:00pm - 8:00pm") and can likewise be NULL/empty if not set yet.
-event_registrations(id INTEGER, event_id INTEGER, first_name TEXT, last_name TEXT, email TEXT, phone TEXT, ticket_type TEXT, num_tickets INTEGER, extra_fields TEXT, submitted_at TEXT, source TEXT)
+event_registrations(id INTEGER, event_id INTEGER, first_name TEXT, last_name TEXT, email TEXT, phone TEXT, ticket_type TEXT, num_tickets INTEGER, rsvp_status TEXT, child_count INTEGER, extra_fields TEXT, submitted_at TEXT, source TEXT)
   -- one row per person/registration for an event. num_tickets is how many people that single registration covers -- SUM(num_tickets), not COUNT(*), for "how many people are coming".
   -- join event_registrations.event_id = church_events.id for a specific event's signups. source is 'csv_import', 'email', or 'manual'.
+  -- rsvp_status (added 2026-09-24, e.g. for the annual Servant Leaders Banquet) is 'yes', 'no', or NULL. NULL means
+  -- this event doesn't use RSVP tracking (an ordinary signup/ticket event, e.g. the picnic) -- treat NULL rows as
+  -- attending, same as before this column existed. When rsvp_status IS NOT NULL, a headcount question ("how many
+  -- people are coming") must filter `rsvp_status = 'yes'` -- a 'no' row is someone who declined, NOT an attendee,
+  -- and must never be included in SUM(num_tickets). child_count (added 2026-09-24) is a SEPARATE headcount of
+  -- children needing paid childcare for that event -- it is NOT part of num_tickets and must never be added to it;
+  -- a childcare/children question sums child_count, a meal/adult/"how many people" question sums num_tickets
+  -- (both filtered to rsvp_status = 'yes' when that column is in use), and these two totals are always reported
+  -- separately, never combined into one number.
   -- extra_fields holds any custom sign-up-form question(s) for that event as a JSON object string, e.g.
   -- {"Please choose to bring a side dish or dessert:": "Dessert"}. Different events have different custom
   -- questions/answers (or none -- extra_fields is NULL/empty for a plain registration), so never assume a key

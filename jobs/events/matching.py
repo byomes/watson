@@ -45,6 +45,38 @@ def find_member_id(email: str, phone: str) -> int | None:
     return None
 
 
+def find_member_id_by_name(first_name: str, last_name: str) -> int | None:
+    """Fallback for when a signup/RSVP email carries no email/phone that
+    matches congregation.db (or the classifier failed to extract one) --
+    added 2026-09-24 for jobs/events/banquet_rsvp.py, whose invite-roster
+    cross-reference (jobs/congregation/banquet_report.py) depends on every
+    respondent who IS an active servant actually getting a member_id, not
+    just the ones who happened to give a matchable email/phone. Exact
+    "first last" match only (no fuzzy/partial matching, unlike
+    serving_edit.py's cascade) -- this is a read-only informational
+    cross-reference, not an edit, so a wrong match here would silently
+    misattribute someone's RSVP rather than just fail loudly like a typo'd
+    edit command would. Ambiguous (more than one member with the same
+    full name) is treated as no match, same reasoning as
+    find_active_event's ambiguous-match handling below."""
+    first_name = (first_name or "").strip()
+    last_name = (last_name or "").strip()
+    if not first_name or not last_name:
+        return None
+    full_name = f"{first_name} {last_name}"
+    try:
+        conn = sqlite3.connect(f"file:{CONG_DB}?mode=ro", uri=True, timeout=5)
+        rows = conn.execute(
+            "SELECT id FROM members WHERE LOWER(name) = LOWER(?) LIMIT 2", (full_name,)
+        ).fetchall()
+        conn.close()
+        if len(rows) == 1:
+            return rows[0][0]
+    except Exception:
+        return None
+    return None
+
+
 def find_member_name(member_id: int) -> str | None:
     """Read-only lookup of a matched member's full name, for backfilling a
     registrant's first/last name when the signup email's own classification
