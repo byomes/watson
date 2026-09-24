@@ -6729,10 +6729,20 @@ async def handle_merge_conflict_callback(update: Update, context: ContextTypes.D
 
     now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
     _RELATED_TABLES = ("connect_cards", "attendance", "next_steps", "prayer_requests", "follow_ups")
+    # status_reason/status_note/snowbird_return dropped, residency added
+    # (2026-09-24, see ~/.claude/plans/zesty-cuddling-robin.md) -- residency
+    # is the new column that carries what those three used to.
     _COPYABLE_FIELDS = (
         "email", "phone", "campus_preference", "first_visit_date",
-        "notes", "carrier", "status_reason", "status_note", "snowbird_return",
+        "notes", "carrier", "residency",
     )
+
+    def _blank(v) -> bool:
+        # '--' is a real stored value (the blank-value convention, see
+        # migrate_partner_connected_active.py), not Python-falsy -- must be
+        # treated as blank explicitly here too, same gotcha the deacon
+        # rename caught in deacon_reports.py/elder_shepherding_report.py.
+        return not v or v == "--"
 
     conn = sqlite3.connect(str(_CONG_DB))
     conn.row_factory = sqlite3.Row
@@ -6790,7 +6800,7 @@ async def handle_merge_conflict_callback(update: Update, context: ContextTypes.D
             for field in _COPYABLE_FIELDS:
                 new_val = new_row[field] if field in new_row.keys() else None
                 old_val = old_row[field] if field in old_row.keys() else None
-                if new_val and not old_val:
+                if not _blank(new_val) and _blank(old_val):
                     updates[field] = new_val
             if updates:
                 set_clause = ", ".join(f"{f}=?" for f in updates)
@@ -6821,7 +6831,7 @@ async def handle_merge_conflict_callback(update: Update, context: ContextTypes.D
             for field in _COPYABLE_FIELDS:
                 old_val = old_row[field] if field in old_row.keys() else None
                 new_val = new_row[field] if field in new_row.keys() else None
-                if old_val and not new_val:
+                if not _blank(old_val) and _blank(new_val):
                     updates[field] = old_val
             if updates:
                 set_clause = ", ".join(f"{f}=?" for f in updates)

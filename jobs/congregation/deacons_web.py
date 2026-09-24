@@ -59,14 +59,13 @@ import logging
 import os
 from datetime import date
 from functools import wraps
-from hashlib import scrypt
-from hmac import compare_digest
 
 from flask import Blueprint, jsonify, request
 
 from jobs.connect_cards.reports import _conn
 from jobs.connect_cards.shepherding_report import _STEP_NAMES, _cutoff
 from jobs.congregation import deacon_login_lockout, deacon_sessions
+from jobs.congregation.deacon_pin_auth import check_pin as _check_pin
 from jobs.congregation.deacon_reports import (
     EXCLUDED_DEACON_VALUES,
     _PRAYER_WINDOW_DAYS,
@@ -92,7 +91,10 @@ _ROSTER_FIELDS = (
     ") AS last_seen"
 )
 
-_UPDATABLE_FIELDS = {"name", "deacon", "deacon_status", "email", "phone", "address", "birthdate"}
+# deacon_status removed 2026-09-24 (retired in favor of the new
+# Partner/Active columns, see ~/.claude/plans/zesty-cuddling-robin.md) --
+# that edit control is gone from this app's own UI, nothing replaces it here.
+_UPDATABLE_FIELDS = {"name", "deacon", "email", "phone", "address", "birthdate"}
 
 # EXCLUDED_DEACON_VALUES (from deacon_reports.py) also contains "Inactive" --
 # that exclusion is about keeping it out of list_deacons()/Master Report
@@ -100,22 +102,6 @@ _UPDATABLE_FIELDS = {"name", "deacon", "deacon_status", "email", "phone", "addre
 # is meant to set someone to "Inactive" (or move them back off it), so only
 # the three truly-reserved bucket labels are blocked from being PATCHed.
 _BLOCKED_DEACON_VALUES = EXCLUDED_DEACON_VALUES - {"Inactive"}
-
-_PIN_SCRYPT_PARAMS = dict(n=16384, r=8, p=1, dklen=32)
-
-
-def _check_pin(pin: str, stored_hash: str) -> bool:
-    """stored_hash is `salt_hex:digest_hex`, matching the format written by
-    migrate_deacon_pins.py / set_deacon_pin.py."""
-    salt, _, expected_hex = stored_hash.partition(":")
-    if not salt or not expected_hex:
-        return False
-    try:
-        expected = bytes.fromhex(expected_hex)
-    except ValueError:
-        return False
-    candidate = scrypt(pin.encode(), salt=salt.encode(), **_PIN_SCRYPT_PARAMS)
-    return compare_digest(candidate, expected)
 
 
 def _attach_shepherding_info(conn, people: list[dict]) -> None:
@@ -365,7 +351,9 @@ def update_member(member_id):
         deacon_val = (fields["deacon"] or "").strip()
         if deacon_val in _BLOCKED_DEACON_VALUES:
             return jsonify({"error": f"{deacon_val!r} is a reserved label, not an individual deacon"}), 400
-        fields["deacon"] = deacon_val or None
+        # '--' (not None/NULL) is the blank-value convention as of 2026-09-24
+        # -- see migrate_partner_connected_active.py.
+        fields["deacon"] = deacon_val or "--"
 
     with _conn() as conn:
         existing = conn.execute("SELECT id FROM members WHERE id = ?", (member_id,)).fetchone()

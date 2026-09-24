@@ -156,11 +156,18 @@ def add_child(child_name: str, parent_query: str, date_raw: str, sender_name: st
                 f'"{exact[0]["name"]}\'s birthday is {birthdate}" instead if that\'s wrong.'
             )
 
+        # status/member_status omitted -- schema defaults ('visitor'/'active')
+        # cover them identically during the Partner/Connected/Active/Deacon/
+        # Residency transition (see ~/.claude/plans/zesty-cuddling-robin.md).
+        # active kept (still authoritative until Phase 6); active_v2/partner/
+        # residency are the new columns; gender defaults to the '--' blank
+        # convention since nothing here knows the child's gender.
         conn.execute(
             """
-            INSERT INTO members (name, campus_preference, status, active, member_status,
-                                  address, household_id, deacon, birthdate, household_role)
-            VALUES (?, ?, 'visitor', 1, 'active', ?, ?, ?, ?, 'child')
+            INSERT INTO members (name, campus_preference, active, active_v2, partner,
+                                  residency, gender, address, household_id, deacon,
+                                  birthdate, household_role)
+            VALUES (?, ?, 1, 'active', 'np', 'local', '--', ?, ?, ?, ?, 'child')
             """,
             (child_name, parent["campus_preference"], parent["address"],
              parent["household_id"], parent["deacon"], birthdate),
@@ -479,10 +486,16 @@ def create_member_by_deacon(
         if exact:
             return False, f"{exact[0]['name']} is already on file — search for them instead of adding a duplicate.", None
 
+        # See mark_child_by_id's INSERT above for why status/member_status are
+        # omitted (schema defaults cover them) and campus_preference/deacon/
+        # gender/household_role get the explicit '--' blank convention here
+        # (this insert has no source record to inherit any of them from).
         conn.execute(
             """
-            INSERT INTO members (name, email, phone, address, birthdate, status, active, member_status)
-            VALUES (?, ?, ?, ?, ?, 'visitor', 1, 'active')
+            INSERT INTO members (name, email, phone, address, birthdate, active,
+                                  active_v2, partner, residency, campus_preference,
+                                  deacon, gender, household_role)
+            VALUES (?, ?, ?, ?, ?, 1, 'active', 'np', 'local', '--', '--', '--', '--')
             """,
             (name, (email or "").strip() or None, (phone or "").strip() or None,
              (address or "").strip() or None, birthdate),

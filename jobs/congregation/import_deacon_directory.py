@@ -8,10 +8,12 @@ each row:
 
   1. Match against an existing member via jobs/congregation/member_match.py's
      priority-ordered logic (email -> phone -> fuzzy name >= 0.82).
-  2. On match: always overwrite address/household_id/deacon/deacon_status
-     from the spreadsheet (it's the authoritative deacon-care source);
-     phone/email only fill blanks, per member_match.py's existing
-     find_or_create_member behavior.
+  2. On match: always overwrite address/household_id/deacon from the
+     spreadsheet (it's the authoritative deacon-care source); phone/email
+     only fill blanks, per member_match.py's existing find_or_create_member
+     behavior. The spreadsheet's deacon_status column, if present, is read
+     but no longer written -- that members column was retired 2026-09-24
+     (see ~/.claude/plans/zesty-cuddling-robin.md).
   3. On no match: insert a new member (name = full_name) via
      find_or_create_member, then set the four new fields the same way.
 
@@ -149,8 +151,12 @@ def run(csv_path: str, apply: bool = False) -> None:
             phone = (row.get("phone") or "").strip()
             email = (row.get("email") or "").strip()
             address = (row.get("address") or "").strip() or None
-            deacon = (row.get("deacon") or "").strip() or None
-            deacon_status = (row.get("deacon_status") or "").strip() or None
+            # '--' (not None), matching the 2026-09-24 blank-value convention
+            # -- see migrate_partner_connected_active.py. deacon_status is no
+            # longer written at all (retired column, see
+            # ~/.claude/plans/zesty-cuddling-robin.md); the spreadsheet's own
+            # deacon_status column, if present, is simply ignored now.
+            deacon = (row.get("deacon") or "").strip() or "--"
             notes = (row.get("notes") or "").strip() or None
 
             if not full_name:
@@ -215,14 +221,13 @@ def run(csv_path: str, apply: bool = False) -> None:
             conn.execute(
                 """
                 UPDATE members
-                SET address = ?, household_id = ?, deacon = ?, deacon_status = ?, updated_at = ?
+                SET address = ?, household_id = ?, deacon = ?, updated_at = ?
                 WHERE id = ?
                 """,
-                (address, household_id, deacon, deacon_status, _now(), member_id),
+                (address, household_id, deacon, _now(), member_id),
             )
             log_lines.append(
-                f"  set address/household_id/deacon/deacon_status "
-                f"(deacon={deacon!r}, status={deacon_status!r})"
+                f"  set address/household_id/deacon (deacon={deacon!r})"
             )
 
         members_after = conn.execute("SELECT COUNT(*) FROM members").fetchone()[0]

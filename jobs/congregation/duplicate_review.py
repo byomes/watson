@@ -44,12 +44,22 @@ _FUZZY_NAME_THRESHOLD = 0.86  # stricter than FUZZY_THRESHOLD (0.82) -- this
 
 _LINKED_TABLES = ("attendance", "connect_cards", "follow_ups", "deacon_notes", "prayer_requests", "next_steps")
 
-# Filled on the kept record only if it's currently null/blank.
+# Filled on the kept record only if it's currently null/blank ('--' counts
+# as blank too, see _blank() below). deacon_status/status_reason/
+# status_note/snowbird_return dropped, residency added (2026-09-24, see
+# ~/.claude/plans/zesty-cuddling-robin.md) -- residency is the new column
+# that carries what those four used to.
 _FILL_IF_BLANK_FIELDS = (
     "email", "phone", "campus_preference", "notes", "carrier", "address",
-    "household_id", "deacon", "deacon_status", "status_reason", "status_note",
-    "snowbird_return",
+    "household_id", "deacon", "residency",
 )
+
+
+def _blank(v) -> bool:
+    """'--' is a real stored value (the blank-value convention), not an
+    empty string -- must be treated as blank explicitly, same gotcha the
+    deacon rename caught elsewhere (deacon_reports.py, bot.py, etc.)."""
+    return not (v or "").strip() or (v or "").strip() == "--"
 
 
 def _conn():
@@ -199,7 +209,7 @@ def merge_members(
 
     fills = {}
     for field in _FILL_IF_BLANK_FIELDS:
-        if not (keep[field] or "").strip() and (merge[field] or "").strip():
+        if _blank(keep[field]) and not _blank(merge[field]):
             fills[field] = merge[field]
 
     keep_visit = keep["first_visit_date"]

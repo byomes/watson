@@ -145,10 +145,17 @@ def _find_or_create_member(conn: sqlite3.Connection, name: str, campus: str, ser
             )
         return member_id
 
+    # status kept (schema default would give 'visitor', but this path is
+    # specifically first-time-attendee intake, so 'member' is the correct,
+    # deliberate value -- unlike family_edit.py's inserts, which genuinely
+    # have no better answer than the default). active_v2/partner/residency
+    # are the new columns; gender/deacon default to the '--' blank
+    # convention since nothing here knows either.
     conn.execute(
         """
-        INSERT INTO members (name, status, campus_preference, first_visit_date)
-        VALUES (?, 'member', ?, ?)
+        INSERT INTO members (name, status, campus_preference, first_visit_date,
+                              active_v2, partner, residency, gender, deacon)
+        VALUES (?, 'member', ?, ?, 'active', 'np', 'local', '--', '--')
         """,
         (name, campus, service_date),
     )
@@ -194,14 +201,19 @@ def _process_email(msg, conn: sqlite3.Connection) -> tuple[int, int, list[str]]:
                     "INSERT INTO attendance (member_id, service_date, campus, card_id) VALUES (?, ?, ?, NULL)",
                     (member_id, service_date, campus),
                 )
-                # Auto-reinstate disconnected members
+                # Auto-reinstate disconnected members -- deliberately kept as
+                # the one exception to active_v2's "disconnected/deceased are
+                # sticky/manual" rule (Bill's 2026-09-24 call: real attendance
+                # is a strong enough signal to auto-flip it back and just
+                # notify, same as today). Never fires for 'deceased'.
                 try:
                     status_row = conn.execute(
-                        "SELECT name, member_status FROM members WHERE id = ?", (member_id,)
+                        "SELECT name, member_status, active_v2 FROM members WHERE id = ?", (member_id,)
                     ).fetchone()
-                    if status_row and status_row["member_status"] == "disconnected":
+                    if status_row and status_row["active_v2"] == "disconnected":
                         conn.execute(
-                            "UPDATE members SET member_status = 'active', status_reason = NULL, status_note = NULL WHERE id = ?",
+                            "UPDATE members SET member_status = 'active', active_v2 = 'active', "
+                            "active = 1, status_reason = NULL, status_note = NULL WHERE id = ?",
                             (member_id,),
                         )
                         member_name = status_row["name"] or name

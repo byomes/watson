@@ -398,6 +398,25 @@ def commit_batch_update(field: str, value, resolved_member_ids: list[int], actor
                     (1 if value else 0, member_id),
                 )
                 new_value = bool(value)
+            elif field == "member_status":
+                # member_status's 5 values actually span two independent new
+                # columns (active_v2, residency) -- see
+                # ~/.claude/plans/zesty-cuddling-robin.md. Route to the right
+                # one(s), dual-writing member_status/active too so nothing
+                # unmigrated (Phase 5) goes stale. Command syntax/vocabulary
+                # ("mark status disconnected: ...") is unchanged.
+                old_value = row["member_status"]
+                if value in ("active", "disconnected", "deceased"):
+                    conn.execute(
+                        "UPDATE members SET member_status = ?, active_v2 = ?, active = ? WHERE id = ?",
+                        (value, value, 0 if value in ("disconnected", "deceased") else 1, member_id),
+                    )
+                else:  # non_local / snowbird
+                    conn.execute(
+                        "UPDATE members SET member_status = ?, residency = ? WHERE id = ?",
+                        (value, "non-local" if value == "non_local" else "snowbird", member_id),
+                    )
+                new_value = value
             else:
                 old_value = row[field]
                 conn.execute(f"UPDATE members SET {field} = ? WHERE id = ?", (value, member_id))

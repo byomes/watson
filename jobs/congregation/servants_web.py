@@ -208,8 +208,14 @@ def add_servant():
             if not row:
                 return jsonify({"error": "that member_id was not found"}), 404
         elif create_new:
+            # status/member_status dropped (schema default now covers status;
+            # active_v2/partner/residency are the new columns -- see
+            # family_edit.py's inserts for the same pattern). gender/
+            # campus_preference/deacon default to the '--' blank convention
+            # since a servant added here has none of that on file yet.
             cur = conn.execute(
-                "INSERT INTO members (name, status, member_status) VALUES (?, 'active', 'active')",
+                "INSERT INTO members (name, active_v2, partner, residency, gender, "
+                "campus_preference, deacon) VALUES (?, 'active', 'np', 'local', '--', '--', '--')",
                 (name,),
             )
             member_id = cur.lastrowid
@@ -305,6 +311,7 @@ def get_serving_state():
             """SELECT tm.team_name, tm.position, m.id AS member_id, m.name
                FROM team_memberships tm JOIN members m ON m.id = tm.member_id
                WHERE m.active = 1 AND tm.active = 1
+                 AND tm.team_name NOT IN (SELECT team_name FROM serving_excluded_teams)
                ORDER BY tm.team_name"""
         ).fetchall()
         served_keys = {
