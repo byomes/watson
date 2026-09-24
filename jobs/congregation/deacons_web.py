@@ -84,7 +84,7 @@ _LAST_SEEN_NEVER = "1900-01-01"
 
 _ROSTER_FIELDS = (
     "m.id, m.name, m.email, m.phone, m.address, m.birthdate, m.household_id, m.household_role, "
-    "m.deacon, m.deacon_status, m.member_status, "
+    "m.deacon, m.active, "
     "MAX("
     f"  COALESCE((SELECT MAX(service_date) FROM connect_cards WHERE member_id = m.id), '{_LAST_SEEN_NEVER}'),"
     f"  COALESCE((SELECT MAX(service_date) FROM attendance  WHERE member_id = m.id), '{_LAST_SEEN_NEVER}')"
@@ -213,7 +213,7 @@ def get_roster():
     with _conn() as conn:
         rows = conn.execute(
             f"SELECT {_ROSTER_FIELDS} FROM members m "
-            f"WHERE m.active_v2 != 'deceased' "
+            f"WHERE m.active != 'deceased' "
             f"GROUP BY m.id ORDER BY m.name COLLATE NOCASE"
         ).fetchall()
         people = [dict(r) for r in rows]

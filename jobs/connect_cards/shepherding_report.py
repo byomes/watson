@@ -31,7 +31,7 @@ load_dotenv(os.path.expanduser("~/watson/.env"))
 
 # shepherding_exempt column (and this module's own _ensure_schema() that
 # originally added it) retired 2026-09-24 -- exclusion from shepherding
-# reports is expressed via active_v2 = 'disconnected' now, see
+# reports is expressed via active = 'disconnected' now, see
 # migrate_catalystdb_grid_cleanup.py.
 
 DB_PATH    = os.path.expanduser("~/watson/data/congregation.db")
@@ -122,7 +122,7 @@ def _build_at_risk_section() -> tuple[str, int]:
                          COALESCE((SELECT MAX(service_date) FROM attendance  WHERE member_id = m.id), '1900-01-01')
                        ) AS last_seen
                 FROM members m
-                WHERE m.active_v2 NOT IN ('disconnected', 'deceased')
+                WHERE m.active NOT IN ('disconnected', 'deceased')
                   AND (m.residency IS NULL OR m.residency = 'local')
                   AND (
                     EXISTS (SELECT 1 FROM connect_cards WHERE member_id = m.id)
@@ -193,7 +193,7 @@ def _build_critical_section() -> tuple[str, int]:
                          )
                        ) AS visit_count
                 FROM members m
-                WHERE m.active_v2 NOT IN ('disconnected', 'deceased')
+                WHERE m.active NOT IN ('disconnected', 'deceased')
                   AND (m.residency IS NULL OR m.residency = 'local')
                   AND (
                     EXISTS (SELECT 1 FROM connect_cards WHERE member_id = m.id)
@@ -261,7 +261,7 @@ def _build_visitors_section() -> tuple[str, int]:
                        AS weeks_since
             FROM members m
             JOIN connect_cards cc ON cc.member_id = m.id
-            WHERE m.active_v2 NOT IN ('disconnected', 'deceased')
+            WHERE m.active NOT IN ('disconnected', 'deceased')
               AND (m.residency IS NULL OR m.residency = 'local')
             GROUP BY m.id
             HAVING COUNT(cc.id) = 1

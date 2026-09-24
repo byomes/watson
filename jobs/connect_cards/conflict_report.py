@@ -51,7 +51,7 @@ DOMAIN_DISTANCE_THRESHOLD = 2
 def _fetch_active_members(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     return conn.execute(
         "SELECT id, name, email FROM members "
-        "WHERE active_v2 NOT IN ('disconnected', 'deceased') AND residency = 'local'"
+        "WHERE active NOT IN ('disconnected', 'deceased') AND residency = 'local'"
     ).fetchall()
 
 

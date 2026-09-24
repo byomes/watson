@@ -217,16 +217,16 @@ _LAST_SEEN_NEVER = "1900-01-01"
 _PRAYER_WINDOW_DAYS = 90
 _STEPS_WINDOW_DAYS = 90
 
-def _status_badge_label(active_v2, residency) -> str | None:
+def _status_badge_label(active, residency) -> str | None:
     """Same four-way badge _STATUS_LABELS used to show from the single
-    member_status enum, now split across active_v2/residency (2026-09-24,
+    member_status enum, now split across active/residency (2026-09-24,
     see ~/.claude/plans/zesty-cuddling-robin.md). The two columns are
     independent now (unlike member_status, which could only ever hold one
-    value), so active_v2's deceased/disconnected takes priority over
+    value), so active's deceased/disconnected takes priority over
     residency's non-local/snowbird in the rare case both would apply."""
-    if active_v2 == "deceased":
+    if active == "deceased":
         return "Deceased"
-    if active_v2 == "disconnected":
+    if active == "disconnected":
         return "Disconnected"
     if residency == "non-local":
         return "Non-local"
@@ -263,7 +263,7 @@ def _person_card(r, prayers: list, steps: list) -> str:
     # is retired and no longer written, so it would just show stale data.
     if r["partner"] == "partner":
         badges += "<span class='badge campus' style='margin-left:6px'>Partner</span>"
-    status_label = _status_badge_label(r["active_v2"], r["residency"])
+    status_label = _status_badge_label(r["active"], r["residency"])
     if status_label:
         badges += f"<span class='badge private' style='margin-left:6px'>{status_label}</span>"
 
@@ -323,7 +323,7 @@ def _build_roster(clause: str, clause_params: tuple, include_leadership_only: bo
     with _conn() as conn:
         rows = conn.execute(
             f"""
-            SELECT m.id, m.name, m.email, m.phone, m.partner, m.active_v2, m.residency,
+            SELECT m.id, m.name, m.email, m.phone, m.partner, m.active, m.residency,
                    m.household_id,
                    MAX(
                      COALESCE((SELECT MAX(service_date) FROM connect_cards WHERE member_id = m.id), '{_LAST_SEEN_NEVER}'),
@@ -331,7 +331,7 @@ def _build_roster(clause: str, clause_params: tuple, include_leadership_only: bo
                    ) AS last_seen
             FROM members m
             WHERE {clause}
-              AND m.active_v2 != 'deceased'
+              AND m.active != 'deceased'
             GROUP BY m.id
             ORDER BY m.name
             """,
@@ -381,9 +381,9 @@ def _build_roster(clause: str, clause_params: tuple, include_leadership_only: bo
     # member stays in normal order; only fully-inactive families are pushed down.
     # (Stable sort: alphabetical order from above is preserved within each bucket.)
     # 2026-09-24: was `deacon_status == "Inactive Partner"` (retired column) --
-    # active_v2 is the direct equivalent and, as a side effect, now also
+    # active is the direct equivalent and, as a side effect, now also
     # catches the plain (non-partner) "Inactive" rows the old check missed.
-    groups.sort(key=lambda g: all(r["active_v2"] in ("disconnected", "deceased") for r in g))
+    groups.sort(key=lambda g: all(r["active"] in ("disconnected", "deceased") for r in g))
 
     critical_count = 0
     at_risk_count = 0

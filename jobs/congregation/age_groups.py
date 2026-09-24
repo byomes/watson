@@ -33,7 +33,7 @@ def age_group_counts(member_ids: list[int] | None = None) -> dict:
     list). A missing birthdate falls back to 'adult', except for
     household_role='child' with no birthdate, which falls back to
     'unknown' -- that role alone doesn't say kid vs teen."""
-    where = ["active_v2 NOT IN ('disconnected', 'deceased')"]
+    where = ["active NOT IN ('disconnected', 'deceased')"]
     params: list = []
     if member_ids:
         where.append(f"id IN ({','.join('?' * len(member_ids))})")
@@ -72,7 +72,7 @@ def find_implausible_marriages() -> list[dict]:
     with _conn() as conn:
         rows = conn.execute(
             f"SELECT id, name, birthdate, household_role, {_AGE_EXPR} AS age "
-            f"FROM members WHERE active_v2 NOT IN ('disconnected', 'deceased') AND household_role IN ('husband', 'wife') "
+            f"FROM members WHERE active NOT IN ('disconnected', 'deceased') AND household_role IN ('husband', 'wife') "
             f"AND birthdate IS NOT NULL AND {_AGE_EXPR} < 18"
         ).fetchall()
     return [dict(r) for r in rows]

@@ -17,7 +17,7 @@ for on-demand use (e.g. someone explicitly asking for all of a given
 month's birthdays) -- not wired to a bot command as of 2026-09-08, just
 callable.
 
-Scope: members.active_v2 NOT IN (disconnected, deceased) AND residency = 'local'
+Scope: members.active NOT IN (disconnected, deceased) AND residency = 'local'
 (2026-09-24, replaces active = 1 AND member_status = 'active' -- same
 effective scope). No shepherding/
 attendance-history gate like deacon_reports.py's at-risk sections -- a
@@ -62,7 +62,7 @@ def _birthdays_for_month(month: int, deacon_name: str | None = None) -> list[tup
     query = """
         SELECT name, birthdate
         FROM members
-        WHERE active_v2 NOT IN ('disconnected', 'deceased')
+        WHERE active NOT IN ('disconnected', 'deceased')
           AND residency = 'local'
           AND birthdate IS NOT NULL
           AND birthdate != ''
@@ -91,7 +91,7 @@ def _missing_birthdates(deacon_name: str) -> list[str]:
             """
             SELECT name
             FROM members
-            WHERE active_v2 NOT IN ('disconnected', 'deceased')
+            WHERE active NOT IN ('disconnected', 'deceased')
               AND residency = 'local'
               AND deacon = ?
               AND (birthdate IS NULL OR birthdate = '')

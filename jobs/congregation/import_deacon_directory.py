@@ -343,7 +343,7 @@ def _print_and_write_report(
 
     lines.append("## Verification Checklist")
     lines.append("")
-    lines.append("- [ ] `PRAGMA table_info(members)` shows address/household_id/deacon/deacon_status")
+    lines.append("- [ ] `PRAGMA table_info(members)` shows address/household_id/deacon")
     lines.append("- [ ] Rows accounted for matches source row count (see Summary above)")
     lines.append("- [ ] Spot-check in dashboard Member Management: Donna Redman, Jim Bouchat, Bill Crook")
     lines.append("")

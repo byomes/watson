@@ -120,19 +120,19 @@ def _find_fuzzy(conn, name):
 
 def _insert_member(conn, name, email, phone, dob, address, partnership, note, first_visit_date) -> int:
     # partner (2026-09-24, see ~/.claude/plans/zesty-cuddling-robin.md) is
-    # the new binary column replacing partnership_status -- same mapping
-    # rule as the original backfill: only the literal 'Partner' value maps
-    # to 'partner', everything else (including no Subsplash data at all)
-    # maps to 'np'.
+    # the binary column that replaced partnership_status (dropped entirely
+    # in Phase 6) -- same mapping rule as the original backfill: only the
+    # literal 'Partner' value maps to 'partner', everything else (including
+    # no Subsplash data at all) maps to 'np'.
     partner_val = "partner" if partnership == "Partner" else "np"
     conn.execute(
         """
         INSERT INTO members
-            (name, email, phone, birthdate, address, partnership_status, partner,
+            (name, email, phone, birthdate, address, partner,
              notes, first_visit_date, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
-        (name, email or None, phone or None, dob, address, partnership, partner_val,
+        (name, email or None, phone or None, dob, address, partner_val,
          note, first_visit_date, _now()),
     )
     return conn.execute("SELECT last_insert_rowid()").fetchone()[0]
@@ -140,7 +140,7 @@ def _insert_member(conn, name, email, phone, dob, address, partnership, note, fi
 
 def _fill_blanks(conn, member_id, email, phone, dob, address, partnership, note_addition):
     row = conn.execute(
-        "SELECT email, phone, birthdate, address, partnership_status, partner, notes "
+        "SELECT email, phone, birthdate, address, partner, notes "
         "FROM members WHERE id = ?",
         (member_id,),
     ).fetchone()
@@ -154,8 +154,6 @@ def _fill_blanks(conn, member_id, email, phone, dob, address, partnership, note_
         updates["birthdate"] = dob
     if not (row["address"] or "").strip() and address:
         updates["address"] = address
-    if not (row["partnership_status"] or "").strip() and partnership:
-        updates["partnership_status"] = partnership
     # partner: only ever fills a genuinely NULL value (every existing member
     # already has 'partner'/'np' from the 2026-09-24 backfill, so this is
     # mainly defensive) -- same mapping rule as _insert_member above.
@@ -195,7 +193,7 @@ def run(csv_path: str, apply: bool) -> None:
         "fields_filled": 0,
         "birthdates_filled": 0,
         "addresses_filled": 0,
-        "partnership_status_filled": 0,
+        "partner_filled": 0,
         "skipped_no_name": 0,
         "connecting_point_invite_tags_seen": 0,
     }
@@ -257,7 +255,6 @@ def run(csv_path: str, apply: bool) -> None:
                 updates = {
                     k: v for k, v in {
                         "email": email, "phone": phone, "birthdate": dob, "address": address,
-                        "partnership_status": partnership,
                     }.items() if v
                 }
 
@@ -267,8 +264,8 @@ def run(csv_path: str, apply: bool) -> None:
                     stats["birthdates_filled"] += 1
                 if "address" in updates:
                     stats["addresses_filled"] += 1
-                if "partnership_status" in updates:
-                    stats["partnership_status_filled"] += 1
+                if "partner" in updates:
+                    stats["partner_filled"] += 1
 
             if apply:
                 conn.commit()

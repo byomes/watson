@@ -3720,12 +3720,14 @@ function _memberRenderStats() {
   const el = document.getElementById('mmem-stats');
   if (!el) return;
   const total        = _moreAllMembers.length;
-  const active       = _moreAllMembers.filter(m => !m.member_status || m.member_status === 'active').length;
-  const deceased     = _moreAllMembers.filter(m => m.member_status === 'deceased').length;
-  const disconnected = _moreAllMembers.filter(m => m.member_status === 'disconnected').length;
-  const non_local    = _moreAllMembers.filter(m => m.member_status === 'non_local').length;
-  const snowbird     = _moreAllMembers.filter(m => m.member_status === 'snowbird').length;
+  const active       = _moreAllMembers.filter(m => !m.active || m.active === 'active').length;
+  const nonActive     = _moreAllMembers.filter(m => m.active === 'non-active').length;
+  const deceased     = _moreAllMembers.filter(m => m.active === 'deceased').length;
+  const disconnected = _moreAllMembers.filter(m => m.active === 'disconnected').length;
+  const non_local    = _moreAllMembers.filter(m => m.residency === 'non-local').length;
+  const snowbird     = _moreAllMembers.filter(m => m.residency === 'snowbird').length;
   const parts = [`Total: ${total}`, `Active: ${active}`];
+  if (nonActive)    parts.push(`\u{26AA} ${nonActive}`);
   if (deceased)     parts.push(`\u{1F7E4} ${deceased}`);
   if (disconnected) parts.push(`\u{1F534} ${disconnected}`);
   if (non_local)    parts.push(`\u{1F535} ${non_local}`);
@@ -3733,10 +3735,14 @@ function _memberRenderStats() {
   el.textContent = parts.join(' · ');
 }
 
-function _memberStatusBadge(status) {
-  if (!status || status === 'active') return '';
-  const map = { deceased: '\u{1F7E4} Deceased', disconnected: '\u{1F534} Disconnected', non_local: '\u{1F535} Non-local', snowbird: '\u{1F7E1} Snowbird' };
-  return `<span style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted)">${esc(map[status] || status)}</span>`;
+function _memberStatusBadge(active, residency) {
+  const map = { 'non-active': '\u{26AA} Non-active', deceased: '\u{1F7E4} Deceased', disconnected: '\u{1F534} Disconnected' };
+  const bits = [];
+  if (active && active !== 'active' && map[active]) bits.push(map[active]);
+  if (residency === 'non-local') bits.push('\u{1F535} Non-local');
+  if (residency === 'snowbird') bits.push('\u{1F7E1} Snowbird');
+  if (!bits.length) return '';
+  return `<span style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted)">${esc(bits.join(' '))}</span>`;
 }
 
 function _memberRenderList() {
@@ -3753,7 +3759,7 @@ function _memberRenderList() {
       <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;-webkit-tap-highlight-color:transparent"
            onclick="moreExpandMember(${m.id})">
         <span id="mmem-name-label-${m.id}" style="font-size:13px;font-weight:500">${esc(m.name || '')}</span>
-        <span id="mmem-badge-${m.id}">${_memberStatusBadge(m.member_status)}</span>
+        <span id="mmem-badge-${m.id}">${_memberStatusBadge(m.active, m.residency)}</span>
       </div>
       <div id="mmem-exp-${m.id}" style="display:none"></div>
     </div>`).join('');
@@ -3828,10 +3834,10 @@ function moreExpandMember(id) {
   _expandedMemberId = id;
   const m = _moreAllMembers.find(x => x.id === id);
   if (!m) return;
-  const status = m.member_status || 'active';
+  const status = m.active || 'active';
   const opts = [
-    ['active', 'Active'], ['deceased', 'Deceased'], ['disconnected', 'Disconnected'],
-    ['non_local', 'Non-local'], ['snowbird', 'Snowbird'],
+    ['active', 'Active'], ['non-active', 'Non-active'], ['disconnected', 'Disconnected'],
+    ['deceased', 'Deceased'],
   ].map(([v, l]) => `<option value="${v}"${status === v ? ' selected' : ''}>${l}</option>`).join('');
   expEl.innerHTML = `
     <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
@@ -3849,8 +3855,8 @@ function moreExpandMember(id) {
         ${!m.phone ? '<div style="font-size:11px;color:var(--muted);margin-top:4px">No phone on file — carrier can\'t be saved.</div>' : ''}
       </div>
       <div style="margin-bottom:8px">
-        <label style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);display:block;margin-bottom:4px">STATUS</label>
-        <select id="mmem-status-${id}" onchange="memberStatusChange(${id})"
+        <label style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);display:block;margin-bottom:4px">ACTIVE</label>
+        <select id="mmem-status-${id}"
           style="width:100%;padding:7px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:13px;outline:none">${opts}</select>
       </div>
       <div style="margin-bottom:8px">
@@ -3863,18 +3869,12 @@ function moreExpandMember(id) {
         </select>
       </div>
       <div style="margin-bottom:8px">
-        <label style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);display:block;margin-bottom:4px">PARTNERSHIP STATUS</label>
+        <label style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);display:block;margin-bottom:4px">PARTNER</label>
         <select id="mmem-partnership-${id}"
           style="width:100%;padding:7px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:13px;outline:none">
-          <option value="Guest"${(m.partnership_status||'Guest')==='Guest'?' selected':''}>Guest</option>
-          <option value="Regular Attender"${(m.partnership_status||'')==='Regular Attender'?' selected':''}>Regular Attender</option>
-          <option value="Partner"${(m.partnership_status||'')==='Partner'?' selected':''}>Partner</option>
+          <option value="np"${(m.partner||'np')==='np'?' selected':''}>Not a Partner</option>
+          <option value="partner"${(m.partner||'')==='partner'?' selected':''}>Partner</option>
         </select>
-      </div>
-      <div id="mmem-snowbird-wrap-${id}" style="margin-bottom:8px${status === 'snowbird' ? '' : ';display:none'}">
-        <label style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);display:block;margin-bottom:4px">EXPECTED RETURN</label>
-        <input type="date" id="mmem-return-${id}" value="${esc(m.snowbird_return || '')}"
-          style="width:100%;padding:7px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:13px;outline:none;box-sizing:border-box;color-scheme:dark">
       </div>
       <div style="margin-bottom:8px">
         <label style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);display:block;margin-bottom:4px">LAST SEEN</label>
@@ -3885,7 +3885,7 @@ function moreExpandMember(id) {
         <label style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);display:block;margin-bottom:4px">NOTES</label>
         <textarea id="mmem-note-${id}" rows="2"
           style="display:block;width:100%;padding:7px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:13px;outline:none;resize:vertical;box-sizing:border-box"
-          placeholder="Optional note&hellip;">${esc(m.status_note || '')}</textarea>
+          placeholder="Optional note&hellip;">${esc(m.notes || '')}</textarea>
       </div>
       <div style="margin-bottom:10px">
         <label style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);display:block;margin-bottom:4px">ROLES</label>
@@ -3980,17 +3980,10 @@ async function memberRemoveRole(id, role) {
   } catch { alert('Failed to remove role.'); }
 }
 
-function memberStatusChange(id) {
-  const sel = document.getElementById(`mmem-status-${id}`);
-  const wrap = document.getElementById(`mmem-snowbird-wrap-${id}`);
-  if (sel && wrap) wrap.style.display = sel.value === 'snowbird' ? 'block' : 'none';
-}
-
 async function memberSave(id) {
   const sel        = document.getElementById(`mmem-status-${id}`);
   const nameEl     = document.getElementById(`mmem-name-${id}`);
   const noteEl     = document.getElementById(`mmem-note-${id}`);
-  const retEl      = document.getElementById(`mmem-return-${id}`);
   const lastSeenEl = document.getElementById(`mmem-lastseen-${id}`);
   const carrierEl  = document.getElementById(`mmem-carrier-${id}`);
   const savedEl    = document.getElementById(`mmem-saved-${id}`);
@@ -4004,11 +3997,10 @@ async function memberSave(id) {
 
   const body = {
     name,
-    member_status:   status,
-    status_note:     (noteEl?.value || '').trim() || null,
-    snowbird_return:   (status === 'snowbird' && retEl?.value) ? retEl.value : null,
+    active:            status,
+    notes:             (noteEl?.value || '').trim() || null,
     campus_preference: document.getElementById(`mmem-campus-${id}`)?.value || 'Wilmington',
-    partnership_status: document.getElementById(`mmem-partnership-${id}`)?.value || 'Guest',
+    partner:           document.getElementById(`mmem-partnership-${id}`)?.value || 'np',
     last_seen:         lastSeenEl?.value || '',
   };
   if (carrierEl && carrierEl.value !== carrierEl.dataset.loaded) {
@@ -4024,7 +4016,7 @@ async function memberSave(id) {
     if (idx !== -1) Object.assign(_moreAllMembers[idx], updated);
     _memberRenderStats();
     const badgeEl = document.getElementById(`mmem-badge-${id}`);
-    if (badgeEl) badgeEl.innerHTML = _memberStatusBadge(status);
+    if (badgeEl) badgeEl.innerHTML = _memberStatusBadge(updated.active, updated.residency);
     const nameLabelEl = document.getElementById(`mmem-name-label-${id}`);
     if (nameLabelEl) nameLabelEl.textContent = name;
     if (carrierEl && updated.carrier_result) carrierEl.dataset.loaded = carrierEl.value;

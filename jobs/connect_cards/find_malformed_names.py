@@ -22,7 +22,7 @@ def find_malformed_names() -> list[dict]:
     conn.row_factory = sqlite3.Row
     try:
         rows = conn.execute(
-            "SELECT id, name, campus_preference, email, partner, active_v2 FROM members"
+            "SELECT id, name, campus_preference, email, partner, active FROM members"
         ).fetchall()
     finally:
         conn.close()
@@ -44,5 +44,5 @@ if __name__ == "__main__":
                 f"  id={r['id']:<5} name={r['name']!r:<30} "
                 f"campus={(r['campus_preference'] or '—'):<12} "
                 f"email={(r['email'] or '—'):<35} "
-                f"partner={(r['partner'] or '—'):<8} active={r['active_v2'] or '—'}"
+                f"partner={(r['partner'] or '—'):<8} active={r['active'] or '—'}"
             )

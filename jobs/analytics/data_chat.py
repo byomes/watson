@@ -114,30 +114,21 @@ _ALWAYS_ALLOWED_TABLES = {"json_each", "json_tree"}
 # don't need to worry too much about access" -> "allow birthdates, keep
 # notes locked"), email/phone/address/birthdate are allowed for team-chat
 # (allow_contact_info=True) -- toggled per-caller in bot.py, not a blanket
-# unblock. notes/status_note stay blocked unconditionally -- explicitly kept
-# locked since they can hold pastoral/prayer content well beyond contact
-# info. household_id/snowbird_return/deacon_status/status_reason have no
-# contact-info or attendance meaning either way, so they stay blocked too.
+# unblock. notes stays blocked unconditionally -- explicitly kept locked
+# since it can hold pastoral/prayer content well beyond contact info.
 #
-# 2026-09-24: status/member_status/partnership_status/deacon_status columns
-# are being retired for partner/active_v2/residency (see
-# ~/.claude/plans/zesty-cuddling-robin.md) -- partner/active_v2 are exposed
-# below the same way member_status/partnership_status were (not sensitive on
-# their own). residency added here alongside snowbird_return/deacon_status/
-# status_reason/status_note -- same reasoning as snowbird_return, it reveals
-# whether someone is non-local/seasonal. The old columns' words stay blocked
-# too even though schema no longer advertises them, as a defense-in-depth
-# belt-and-suspenders measure while they still physically exist pre-Phase-6.
-# carrier removed from this set -- that column is gone entirely (not just
-# unadvertised), see migrate_catalystdb_grid_cleanup.py.
+# 2026-09-24 Phase 6: status/member_status/partnership_status/deacon_status/
+# status_reason/status_since/status_note/snowbird_return columns dropped
+# entirely (see ~/.claude/plans/zesty-cuddling-robin.md) -- partner/active
+# are exposed below (not sensitive on their own); residency stays blocked,
+# same reasoning snowbird_return had, it reveals whether someone is
+# non-local/seasonal. carrier removed from this set earlier (grid cleanup,
+# see migrate_catalystdb_grid_cleanup.py) -- that column's gone too.
 _CONTACT_COLUMN_WORDS = {"email", "phone", "address", "birthdate"}
-_ALWAYS_BLOCKED_COLUMN_WORDS = {
-    "notes", "status_note", "residency",
-    "snowbird_return", "deacon_status", "status_reason", "ssn",
-}
+_ALWAYS_BLOCKED_COLUMN_WORDS = {"notes", "residency", "ssn"}
 # household_id/household_role (added 2026-09-12, see
 # jobs/congregation/migrate_household_role.py) are deliberately NOT in the
-# blocked set above -- unlike carrier/deacon_status/etc, they're the whole
+# blocked set above -- they're the whole
 # point of the spouse/child/parent self-join examples below, and they carry
 # no contact-info meaning of their own (no address, no phone), so leaving
 # them queryable doesn't need allow_contact_info either.
@@ -150,7 +141,7 @@ def _attendance_schema(allow_contact_info: bool) -> str:
         "  -- one row per person per service actually attended. campus is 'Wilmington' or 'Online'.\n"
         "classroom_attendance(date TEXT, kids_nursery, adults_nursery, kids_toddlers, adults_toddlers, kids_prek, adults_prek, kids_elementary, adults_elementary INTEGER)\n"
         "  -- one row per Sunday with headcounts for each of the 4 kids' classrooms.\n"
-        f"members(id INTEGER, name TEXT, deacon TEXT, campus_preference TEXT, first_visit_date TEXT, active_v2 TEXT, partner TEXT, household_id TEXT, household_role TEXT, gender TEXT, started_serving_date TEXT{contact_cols})\n"
+        f"members(id INTEGER, name TEXT, deacon TEXT, campus_preference TEXT, first_visit_date TEXT, active TEXT, partner TEXT, household_id TEXT, household_role TEXT, gender TEXT, started_serving_date TEXT{contact_cols})\n"
         "  -- started_serving_date is when that person began serving/volunteering (banquet length-of-service\n"
         "  -- tracking) -- NULL for anyone who isn't a serving volunteer. A question about how LONG someone has\n"
         "  -- been serving (not just the raw date) means computing tenure in the SQL itself, the same way age is\n"
@@ -175,10 +166,10 @@ def _attendance_schema(allow_contact_info: bool) -> str:
         "  -- household_id too, and household_role is what actually distinguishes the relationship.\n"
         "  -- partner is a category, one of exactly 'partner', 'np' -- to filter to just partners use\n"
         "  -- partner = 'partner', NEVER partner IS NOT NULL (that matches everyone, the column is always populated).\n"
-        "  -- active_v2 is a category, one of exactly 'active', 'non-active', 'disconnected', 'deceased' -- to filter\n"
+        "  -- active is a category, one of exactly 'active', 'non-active', 'disconnected', 'deceased' -- to filter\n"
         "  -- to the normal/current roster (excluding only disconnected/deceased -- non-active members, meaning 8+\n"
         "  -- weeks absent, still count as part of the roster for this purpose) use\n"
-        "  -- active_v2 NOT IN ('disconnected', 'deceased').\n"
+        "  -- active NOT IN ('disconnected', 'deceased').\n"
         "deacon_notes(member_id INTEGER, note TEXT, status TEXT, created_at TEXT, author_deacon TEXT)\n"
         "  -- a deacon's own logged follow-up note about a member. status is 'open' or resolved/closed. join member_id = members.id.\n"
         "next_steps(member_id INTEGER, step TEXT, date TEXT)\n"

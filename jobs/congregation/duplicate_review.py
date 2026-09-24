@@ -170,7 +170,7 @@ def merge_members(
 ) -> dict:
     """Reassigns merge_id's history onto keep_id, fills blank contact fields
     on keep_id from merge_id, then deletes the merge_id member row. Does not
-    touch active_v2/partner (formerly status/member_status/partnership_status)
+    touch active/partner (formerly status/member_status/partnership_status)
     -- those are a judgment call the reviewer makes separately, not inferred
     here.
 
@@ -262,7 +262,7 @@ def _member_summary(conn, member_id: int) -> dict:
         "phone": m["phone"],
         "campus_preference": m["campus_preference"],
         "partner": m["partner"],
-        "active_v2": m["active_v2"],
+        "active": m["active"],
         "residency": m["residency"],
         "first_visit_date": m["first_visit_date"],
         "history_count": history,

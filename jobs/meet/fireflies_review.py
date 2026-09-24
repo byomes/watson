@@ -154,7 +154,7 @@ def get_elder_emails() -> list[tuple[str, str]]:
             FROM members m
             JOIN leadership_roles lr ON lr.member_id = m.id
             WHERE lr.role = 'elder' AND lr.is_active = 1
-              AND m.active_v2 NOT IN ('disconnected', 'deceased') AND m.residency = 'local'
+              AND m.active NOT IN ('disconnected', 'deceased') AND m.residency = 'local'
               AND m.email IS NOT NULL AND m.email != ''
             ORDER BY m.name
             """
@@ -172,7 +172,7 @@ def get_active_members() -> list[dict]:
     conn.row_factory = sqlite3.Row
     try:
         rows = conn.execute(
-            "SELECT id, name FROM members WHERE active_v2 NOT IN ('disconnected', 'deceased') "
+            "SELECT id, name FROM members WHERE active NOT IN ('disconnected', 'deceased') "
             "AND residency = 'local' ORDER BY name COLLATE NOCASE"
         ).fetchall()
         return [dict(r) for r in rows]

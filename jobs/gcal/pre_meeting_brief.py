@@ -136,7 +136,7 @@ def _lookup_member(name: str) -> dict | None:
         return member
 
     all_members = conn.execute(
-        "SELECT id, name FROM members WHERE active_v2 NOT IN ('disconnected', 'deceased')"
+        "SELECT id, name FROM members WHERE active NOT IN ('disconnected', 'deceased')"
     ).fetchall()
     best_ratio, best_id = 0.0, None
     for mid, mname in all_members:

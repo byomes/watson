@@ -217,7 +217,7 @@ def lookup_member_family(query: str) -> list[dict]:
         val = term if exact else f"%{term}%"
         rows = conn.execute(
             "SELECT id, name, deacon, household_id, household_role FROM members"
-            f" WHERE active_v2 NOT IN ('disconnected', 'deceased') AND name {op} COLLATE NOCASE ORDER BY name",
+            f" WHERE active NOT IN ('disconnected', 'deceased') AND name {op} COLLATE NOCASE ORDER BY name",
             (val,),
         ).fetchall()
         return [dict(r) for r in rows]
@@ -241,7 +241,7 @@ def lookup_member_family(query: str) -> list[dict]:
                 mates = [
                     dict(r) for r in cong.execute(
                         "SELECT name, household_role FROM members"
-                        " WHERE household_id = ? AND id != ? AND active_v2 NOT IN ('disconnected', 'deceased')",
+                        " WHERE household_id = ? AND id != ? AND active NOT IN ('disconnected', 'deceased')",
                         (p["household_id"], p["id"]),
                     ).fetchall()
                 ]

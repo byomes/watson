@@ -1,8 +1,9 @@
 """
 batch_update.py — shared engine for batch member field updates
-(attendance, member_status, campus_preference). shepherding_exempt
-retired 2026-09-24 -- shepherding exclusion is now expressed via
-member_status/active_v2 = 'disconnected'.
+(attendance, member_status, campus_preference). member_status is a virtual
+field here, not a real column -- it spans active/residency, see
+commit_batch_update(). shepherding_exempt retired 2026-09-24 -- shepherding
+exclusion is now expressed via active = 'disconnected'.
 
 Never creates new members. Every write requires an explicit confirmation
 step: batch_update_members() only resolves/previews, commit_batch_update()
@@ -214,6 +215,12 @@ def _current_value(field: str, member: sqlite3.Row, conn: sqlite3.Connection):
             "SELECT MAX(service_date) as d FROM attendance WHERE member_id = ?", (member["id"],)
         ).fetchone()
         return row["d"] if row else None
+    if field == "member_status":
+        # "member_status" is a virtual field here, not a real column --
+        # it spans both active and residency (see commit_batch_update).
+        # active is the more central/representative one to show for a
+        # "what's their current status" preview.
+        return member["active"]
     return member[field]
 
 
@@ -273,7 +280,7 @@ def _ambiguous_entry(name: str, candidates: list[sqlite3.Row]) -> dict:
                 "member_id": m["id"],
                 "name": m["name"],
                 "campus": m["campus_preference"],
-                "status": m["member_status"],
+                "status": m["active"],
             }
             for m in candidates
         ],
@@ -298,7 +305,7 @@ def batch_update_members(field: str, value, names: list[str]) -> dict:
     conn = _cong_conn()
     try:
         members = conn.execute(
-            "SELECT id, name, campus_preference, member_status FROM members"
+            "SELECT id, name, campus_preference, active FROM members"
         ).fetchall()
         members_by_id = {m["id"]: m for m in members}
 
@@ -345,7 +352,15 @@ def commit_batch_update(field: str, value, resolved_member_ids: list[int], actor
     conn = _cong_conn()
     try:
         placeholders = ",".join("?" * len(resolved_member_ids))
-        select_col = "campus_preference" if field == "attendance" else field
+        # member_status is a virtual field (spans active/residency, not a
+        # real column) -- select active as its representative "current
+        # value" column, same as _current_value()/_ambiguous_entry().
+        if field == "attendance":
+            select_col = "campus_preference"
+        elif field == "member_status":
+            select_col = "active"
+        else:
+            select_col = field
         rows = conn.execute(
             f"SELECT id, name, {select_col} FROM members WHERE id IN ({placeholders})",
             resolved_member_ids,
@@ -375,22 +390,21 @@ def commit_batch_update(field: str, value, resolved_member_ids: list[int], actor
                 )
                 new_value = value
             elif field == "member_status":
-                # member_status's 5 values actually span two independent new
-                # columns (active_v2, residency) -- see
-                # ~/.claude/plans/zesty-cuddling-robin.md. Route to the right
-                # one(s), dual-writing member_status/active too so nothing
-                # unmigrated (Phase 5) goes stale. Command syntax/vocabulary
+                # member_status's 5 values actually span two independent
+                # columns (active, residency) -- see
+                # ~/.claude/plans/zesty-cuddling-robin.md. Route to the
+                # right one. Command syntax/vocabulary
                 # ("mark status disconnected: ...") is unchanged.
-                old_value = row["member_status"]
+                old_value = row["active"]
                 if value in ("active", "disconnected", "deceased"):
                     conn.execute(
-                        "UPDATE members SET member_status = ?, active_v2 = ?, active = ? WHERE id = ?",
-                        (value, value, 0 if value in ("disconnected", "deceased") else 1, member_id),
+                        "UPDATE members SET active = ? WHERE id = ?",
+                        (value, member_id),
                     )
                 else:  # non_local / snowbird
                     conn.execute(
-                        "UPDATE members SET member_status = ?, residency = ? WHERE id = ?",
-                        (value, "non-local" if value == "non_local" else "snowbird", member_id),
+                        "UPDATE members SET residency = ? WHERE id = ?",
+                        ("non-local" if value == "non_local" else "snowbird", member_id),
                     )
                 new_value = value
             else:
@@ -496,7 +510,7 @@ def resolve_current_ambiguous(pending_id: int, choice) -> dict:
         conn = _cong_conn()
         try:
             member_row = conn.execute(
-                "SELECT id, name, campus_preference, member_status "
+                "SELECT id, name, campus_preference, active "
                 "FROM members WHERE id = ?", (cand["member_id"],),
             ).fetchone()
             current_value = _current_value(pending["field"], member_row, conn) if member_row else None
@@ -689,7 +703,7 @@ def handle_alias_command(text: str, actor: str = "Bill") -> str:
     conn = _cong_conn()
     try:
         members = conn.execute(
-            "SELECT id, name, campus_preference, member_status FROM members"
+            "SELECT id, name, campus_preference, active FROM members"
         ).fetchall()
     finally:
         conn.close()

@@ -274,29 +274,13 @@ from jobs.events.schema import create_tables as _events_create_tables
 _events_create_tables()
 
 
-def _bootstrap_congregation():
-    """Add member_status columns to congregation.db members table."""
-    try:
-        c = sqlite3.connect(CONG_DB)
-        for col_sql in [
-            "ALTER TABLE members ADD COLUMN member_status TEXT DEFAULT 'active'",
-            "ALTER TABLE members ADD COLUMN status_reason TEXT",
-            "ALTER TABLE members ADD COLUMN status_since TEXT",
-            "ALTER TABLE members ADD COLUMN status_note TEXT",
-            "ALTER TABLE members ADD COLUMN snowbird_return TEXT",
-        ]:
-            try:
-                c.execute(col_sql)
-            except Exception:
-                pass
-        c.execute("UPDATE members SET member_status = 'active' WHERE member_status IS NULL")
-        c.commit()
-        c.close()
-    except Exception as exc:
-        log.warning("congregation.db migration: %s", exc)
-
-
-_bootstrap_congregation()
+# _bootstrap_congregation() (originally added member_status/status_reason/
+# status_since/status_note/snowbird_return on every app.py import) removed
+# 2026-09-24 -- those columns are retired for good (see
+# ~/.claude/plans/zesty-cuddling-robin.md and
+# migrate_drop_legacy_status_columns.py). Leaving this function in place
+# would have silently resurrected the columns (with blank/default data) on
+# the very next dashboard restart.
 
 from jobs.writing_room.api import writing_room_bp
 from jobs.writing_room import bootstrap_db as _wr_bootstrap
@@ -1162,9 +1146,8 @@ def congregation_list_api():
 
 
 _MEMBER_FIELDS = (
-    "m.id, m.name, m.email, m.phone, m.campus_preference, m.partnership_status, m.active, "
-    "m.member_status, m.status_reason, m.status_since, m.status_note, m.snowbird_return, "
-    "m.partner, m.active_v2, m.residency, "
+    "m.id, m.name, m.email, m.phone, m.campus_preference, m.notes, "
+    "m.partner, m.active, m.residency, "
     "(SELECT MAX(service_date) FROM ("
     "  SELECT service_date FROM connect_cards WHERE member_id = m.id "
     "  UNION "
@@ -1255,14 +1238,11 @@ def members_search_api():
 @app.route("/api/members/<int:member_id>", methods=["PATCH"])
 def members_update_api(member_id):
     data = request.get_json(force=True) or {}
-    # partner/active_v2/residency (2026-09-24) are the new columns replacing
-    # member_status/partnership_status; both old and new stay writable here
-    # during the transition since this dashboard's own frontend still edits
-    # the old ones -- see ~/.claude/plans/zesty-cuddling-robin.md.
-    allowed = {
-        "member_status", "status_reason", "status_since", "status_note", "snowbird_return",
-        "campus_preference", "partnership_status", "name", "partner", "active_v2", "residency",
-    }
+    # partner/active/residency (2026-09-24) are the only member-status-ish
+    # columns now -- member_status/partnership_status/status_reason/
+    # status_since/status_note/snowbird_return dropped entirely, see
+    # ~/.claude/plans/zesty-cuddling-robin.md.
+    allowed = {"campus_preference", "name", "partner", "active", "residency", "notes"}
     fields = {k: v for k, v in data.items() if k in allowed}
 
     if "name" in fields:
@@ -1349,19 +1329,19 @@ def members_update_api(member_id):
 
 # ── Members CSV export / import (update-only, id is the match key) ────────────
 #
-# 2026-09-24: switched from member_status/partnership_status to the new
-# active_v2/partner/residency columns (see
+# 2026-09-24: switched from member_status/partnership_status (both dropped
+# entirely) to active/partner/residency (see
 # ~/.claude/plans/zesty-cuddling-robin.md). connected is exported for
 # reference but is NOT a _CSV_DIFF_FIELDS entry -- it's computed live from
 # attendance, not a stored column, so it's never diffed or imported even if
 # someone edits that cell in the spreadsheet.
 
-_CSV_ACTIVE_V2_VALUES = {"active", "non-active", "disconnected", "deceased"}
+_CSV_ACTIVE_VALUES = {"active", "non-active", "disconnected", "deceased"}
 _CSV_RESIDENCY_VALUES = {"local", "non-local", "snowbird"}
 _CSV_PARTNER_VALUES = {"partner", "np"}
 _CSV_CAMPUS_VALUES = {"Wilmington", "Online", "Hybrid", "--"}
-_CSV_EXPORT_COLUMNS = ["id", "name", "email", "phone", "partner", "connected", "active_v2", "residency", "campus_preference"]
-_CSV_DIFF_FIELDS = ["name", "email", "phone", "partner", "active_v2", "residency", "campus_preference"]
+_CSV_EXPORT_COLUMNS = ["id", "name", "email", "phone", "partner", "connected", "active", "residency", "campus_preference"]
+_CSV_DIFF_FIELDS = ["name", "email", "phone", "partner", "active", "residency", "campus_preference"]
 
 
 @app.route("/api/members/export")
@@ -1373,7 +1353,7 @@ def members_export_api():
     try:
         c = _cong_conn()
         rows = c.execute(
-            "SELECT id, name, email, phone, partner, active_v2, residency, campus_preference "
+            "SELECT id, name, email, phone, partner, active, residency, campus_preference "
             "FROM members ORDER BY name COLLATE NOCASE"
         ).fetchall()
         today = _date.today()
@@ -1398,7 +1378,7 @@ def _parse_members_import_csv(file_storage):
     """Parse an uploaded members CSV, match rows to existing members by id, validate
     enums, and diff changed fields against current DB values. Read-only — never writes.
 
-    Blank cells in name/email/phone/partner/active_v2/residency/campus_preference
+    Blank cells in name/email/phone/partner/active/residency/campus_preference
     are treated as "leave unchanged" rather than a value to apply, so a stray blank
     cell in a bulk edit can't silently wipe a field (name is NOT NULL and the other
     fields are true enums with no blank member -- '--' is campus_preference's own
@@ -1430,7 +1410,7 @@ def _parse_members_import_csv(file_storage):
             continue
 
         existing = c.execute(
-            "SELECT id, name, email, phone, partner, active_v2, residency, campus_preference "
+            "SELECT id, name, email, phone, partner, active, residency, campus_preference "
             "FROM members WHERE id = ?", (member_id,),
         ).fetchone()
         if not existing:
@@ -1442,9 +1422,9 @@ def _parse_members_import_csv(file_storage):
             continue
 
         errors = []
-        incoming_active_v2 = (row.get("active_v2") or "").strip()
-        if incoming_active_v2 and incoming_active_v2 not in _CSV_ACTIVE_V2_VALUES:
-            errors.append(f"invalid active_v2: {incoming_active_v2!r}")
+        incoming_active = (row.get("active") or "").strip()
+        if incoming_active and incoming_active not in _CSV_ACTIVE_VALUES:
+            errors.append(f"invalid active: {incoming_active!r}")
         incoming_residency = (row.get("residency") or "").strip()
         if incoming_residency and incoming_residency not in _CSV_RESIDENCY_VALUES:
             errors.append(f"invalid residency: {incoming_residency!r}")
@@ -1533,18 +1513,10 @@ def members_import_confirm_api():
         prune_old_backups(CONG_DB)
         backup_created = True
 
-        from jobs.congregation.catalystdb_web import _ACTIVE_V2_TO_LEGACY_ACTIVE
-
         c = sqlite3.connect(CONG_DB)
         try:
             for r in to_update:
                 new_values = dict(r["new_values"])
-                # Keep the legacy active boolean in sync, same as
-                # catalystdb_web.py's /update endpoint, so an active_v2
-                # change via CSV import doesn't go stale for reports not
-                # yet migrated off it.
-                if "active_v2" in new_values and new_values["active_v2"] in _ACTIVE_V2_TO_LEGACY_ACTIVE:
-                    new_values["active"] = _ACTIVE_V2_TO_LEGACY_ACTIVE[new_values["active_v2"]]
                 set_clause = ", ".join(f"{field} = ?" for field in new_values)
                 values = list(new_values.values()) + [r["id"]]
                 c.execute(f"UPDATE members SET {set_clause} WHERE id = ?", values)

@@ -81,7 +81,7 @@ def _cascade(conn, query: str, columns: str) -> list[dict]:
         val = term if exact else f"%{term}%"
         rows = conn.execute(
             f"SELECT {columns} FROM members"
-            f" WHERE active_v2 NOT IN ('disconnected', 'deceased') AND name {op} COLLATE NOCASE ORDER BY name",
+            f" WHERE active NOT IN ('disconnected', 'deceased') AND name {op} COLLATE NOCASE ORDER BY name",
             (val,),
         ).fetchall()
         return [dict(r) for r in rows]
@@ -122,10 +122,10 @@ def split_member_pair(combined: str) -> tuple[str, str] | None:
             first = " ".join(words[:i])
             second = " ".join(words[i:])
             row1 = conn.execute(
-                "SELECT id FROM members WHERE active_v2 NOT IN ('disconnected', 'deceased') AND name = ? COLLATE NOCASE", (first,)
+                "SELECT id FROM members WHERE active NOT IN ('disconnected', 'deceased') AND name = ? COLLATE NOCASE", (first,)
             ).fetchone()
             row2 = conn.execute(
-                "SELECT id FROM members WHERE active_v2 NOT IN ('disconnected', 'deceased') AND name = ? COLLATE NOCASE", (second,)
+                "SELECT id FROM members WHERE active NOT IN ('disconnected', 'deceased') AND name = ? COLLATE NOCASE", (second,)
             ).fetchone()
             if row1 and row2 and row1["id"] != row2["id"]:
                 matches.append((first, second))
@@ -156,18 +156,14 @@ def add_child(child_name: str, parent_query: str, date_raw: str, sender_name: st
                 f'"{exact[0]["name"]}\'s birthday is {birthdate}" instead if that\'s wrong.'
             )
 
-        # status/member_status omitted -- schema defaults ('visitor'/'active')
-        # cover them identically during the Partner/Connected/Active/Deacon/
-        # Residency transition (see ~/.claude/plans/zesty-cuddling-robin.md).
-        # active kept (still authoritative until Phase 6); active_v2/partner/
-        # residency are the new columns; gender defaults to the '--' blank
-        # convention since nothing here knows the child's gender.
+        # gender defaults to the '--' blank convention since nothing here
+        # knows the child's gender (see ~/.claude/plans/zesty-cuddling-robin.md).
         conn.execute(
             """
-            INSERT INTO members (name, campus_preference, active, active_v2, partner,
+            INSERT INTO members (name, campus_preference, active, partner,
                                   residency, gender, address, household_id, deacon,
                                   birthdate, household_role)
-            VALUES (?, ?, 1, 'active', 'np', 'local', '--', ?, ?, ?, ?, 'child')
+            VALUES (?, ?, 'active', 'np', 'local', '--', ?, ?, ?, ?, 'child')
             """,
             (child_name, parent["campus_preference"], parent["address"],
              parent["household_id"], parent["deacon"], birthdate),
@@ -231,7 +227,7 @@ def _resolve_by_id(conn, member_id: int) -> dict | str:
     """Single active member by id (id/name/household_id/household_role), or
     an error string for the caller to return as-is."""
     row = conn.execute(
-        "SELECT id, name, household_id, household_role FROM members WHERE id = ? AND active_v2 NOT IN ('disconnected', 'deceased')",
+        "SELECT id, name, household_id, household_role FROM members WHERE id = ? AND active NOT IN ('disconnected', 'deceased')",
         (member_id,),
     ).fetchone()
     return dict(row) if row else f"No active member with id {member_id}."
@@ -274,7 +270,7 @@ def _other_role_holders(conn, household_id: str, role: str, exclude_ids: set[int
     placeholders = ",".join("?" for _ in exclude_ids) or "NULL"
     rows = conn.execute(
         f"SELECT name FROM members WHERE household_id = ? AND household_role = ? "
-        f"AND active_v2 NOT IN ('disconnected', 'deceased') AND id NOT IN ({placeholders})",
+        f"AND active NOT IN ('disconnected', 'deceased') AND id NOT IN ({placeholders})",
         (household_id, role, *exclude_ids),
     ).fetchall()
     return [r["name"] for r in rows]
@@ -486,16 +482,15 @@ def create_member_by_deacon(
         if exact:
             return False, f"{exact[0]['name']} is already on file — search for them instead of adding a duplicate.", None
 
-        # See mark_child_by_id's INSERT above for why status/member_status are
-        # omitted (schema defaults cover them) and campus_preference/deacon/
-        # gender/household_role get the explicit '--' blank convention here
-        # (this insert has no source record to inherit any of them from).
+        # campus_preference/deacon/gender/household_role get the explicit
+        # '--' blank convention here (this insert has no source record to
+        # inherit any of them from).
         conn.execute(
             """
             INSERT INTO members (name, email, phone, address, birthdate, active,
-                                  active_v2, partner, residency, campus_preference,
+                                  partner, residency, campus_preference,
                                   deacon, gender, household_role)
-            VALUES (?, ?, ?, ?, ?, 1, 'active', 'np', 'local', '--', '--', '--', '--')
+            VALUES (?, ?, ?, ?, ?, 'active', 'np', 'local', '--', '--', '--', '--')
             """,
             (name, (email or "").strip() or None, (phone or "").strip() or None,
              (address or "").strip() or None, birthdate),

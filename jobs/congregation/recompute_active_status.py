@@ -1,14 +1,14 @@
 """
-Recompute Active Status -- daily auto-maintenance of members.active_v2's
+Recompute Active Status -- daily auto-maintenance of members.active's
 'active' <-> 'non-active' states, based on attendance.
 
 Part of the Partner/Connected/Active/Deacon/Residency column redesign (see
 ~/.claude/plans/zesty-cuddling-robin.md and migrate_partner_connected_active.py,
-which creates active_v2 and does the one-time initial backfill). This job is
+which creates active and does the one-time initial backfill). This job is
 the ongoing equivalent, run nightly so the value stays current as attendance
 changes day to day.
 
-Scope: only touches rows where active_v2 is currently 'active' or
+Scope: only touches rows where active is currently 'active' or
 'non-active'. Never touches 'disconnected' or 'deceased' -- those are
 manual-only (set by an elder/pastor via the catalystdb admin screen) and must
 stay sticky; this job must never silently flip someone back to 'active' just
@@ -20,7 +20,7 @@ definition (attendance UNION connect_cards) as elder_shepherding_report.py's
 _raw_rows() and the migration's initial backfill, so all three agree.
 
 Cron (6am daily, ahead of birthday_daily_alert/other reports that read
-active_v2):
+active):
   0 6 * * * PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python3 \
     -m jobs.congregation.recompute_active_status \
     >> /home/billyomes/watson/logs/recompute_active_status.log 2>&1
@@ -43,13 +43,13 @@ _NON_ACTIVE_CUTOFF_DAYS = 56
 def _last_seen_rows(conn):
     return conn.execute(
         """
-        SELECT m.id, m.active_v2,
+        SELECT m.id, m.active,
                MAX(
                  COALESCE((SELECT MAX(service_date) FROM connect_cards WHERE member_id = m.id), '1900-01-01'),
                  COALESCE((SELECT MAX(service_date) FROM attendance  WHERE member_id = m.id), '1900-01-01')
                ) AS last_seen
         FROM members m
-        WHERE m.active_v2 IN ('active', 'non-active')
+        WHERE m.active IN ('active', 'non-active')
         """
     ).fetchall()
 
@@ -73,13 +73,13 @@ def recompute() -> tuple[int, int]:
         if to_non_active:
             placeholders = ",".join("?" for _ in to_non_active)
             conn.execute(
-                f"UPDATE members SET active_v2 = 'non-active' WHERE id IN ({placeholders})",
+                f"UPDATE members SET active = 'non-active' WHERE id IN ({placeholders})",
                 to_non_active,
             )
         if to_active:
             placeholders = ",".join("?" for _ in to_active)
             conn.execute(
-                f"UPDATE members SET active_v2 = 'active' WHERE id IN ({placeholders})",
+                f"UPDATE members SET active = 'active' WHERE id IN ({placeholders})",
                 to_active,
             )
         conn.commit()

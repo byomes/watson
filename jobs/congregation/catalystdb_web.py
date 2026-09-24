@@ -16,9 +16,10 @@ PIN gates write access to every member field, not just a roster view.
 
 Editable columns are allowlisted (_EDITABLE_COLUMNS) so the update/batch
 endpoint can never write to an arbitrary column name from the request body.
-No hard deletes -- /deactivate just sets active=0, consistent with the rest
-of this codebase's soft-delete convention (members.active already gates
-every other congregation.db view)."""
+No hard deletes -- /deactivate just sets active='disconnected' (or
+'deceased'), consistent with the rest of this codebase's soft-delete
+convention (members.active already gates every other congregation.db
+view)."""
 import os
 import sqlite3
 from datetime import date, timedelta
@@ -35,36 +36,17 @@ _API_KEY = lambda: os.getenv("CATALYSTDB_API_KEY", "")
 # Every members column Donna/Bill can edit from the grid. id/created_at are
 # intentionally excluded (immutable); everything else on the table is here.
 #
-# partner/active_v2/residency (added 2026-09-24, see
-# migrate_partner_connected_active.py and ~/.claude/plans/zesty-cuddling-robin.md)
-# are the new Partner/Active/Residency columns replacing status, member_status,
-# partnership_status, deacon_status, status_reason, status_since, status_note,
-# and snowbird_return. Those old columns are still listed and still editable
-# here during the transition -- nothing reads or writes them exclusively yet,
-# so leaving them live avoids breaking anything not yet migrated. They'll be
-# dropped from both this set and the table itself once every read/write site
-# is confirmed switched over (Phase 5/6 of the plan).
-#
-# 2026-09-24 grid cleanup: carrier and shepherding_exempt columns were
-# dropped entirely (see migrate_catalystdb_grid_cleanup.py) -- removed here
-# too. anniversary/unsubscribed added as new editable columns.
+# 2026-09-24 Phase 6: status, member_status, partnership_status,
+# deacon_status, status_reason, status_since, status_note, and
+# snowbird_return columns dropped entirely -- partner/active/residency
+# (see ~/.claude/plans/zesty-cuddling-robin.md) are now the only source of
+# truth. active_v2 was renamed to active (the old boolean active column was
+# dropped first) once every read/write site was confirmed switched over.
 _EDITABLE_COLUMNS = {
-    "name", "email", "phone", "campus_preference", "first_visit_date", "status",
-    "notes", "active", "member_status",
-    "status_reason", "status_since", "status_note", "snowbird_return",
-    "partnership_status", "address", "household_id", "deacon", "deacon_status",
+    "name", "email", "phone", "campus_preference", "first_visit_date",
+    "notes", "address", "household_id", "deacon",
     "birthdate", "household_role", "gender", "started_serving_date", "service_pin_notes",
-    "partner", "active_v2", "residency", "anniversary", "unsubscribed",
-}
-
-# active_v2 -> legacy boolean active, kept in sync on every write so reports
-# that haven't been migrated off the old column yet (Phase 5) still see a
-# consistent answer during the transition.
-_ACTIVE_V2_TO_LEGACY_ACTIVE = {
-    "active": 1,
-    "non-active": 1,
-    "disconnected": 0,
-    "deceased": 0,
+    "partner", "active", "residency", "anniversary", "unsubscribed",
 }
 
 _CONNECTED_REGULAR_MIN_VISITS = 6
@@ -231,7 +213,7 @@ def get_state():
 @catalystdb_web_bp.route("/api/cat/catalystdb/update", methods=["POST"])
 @_require_key
 def update():
-    """Single or batch edit: {"ids": [1,2,3], "field": "member_status", "value": "active"}."""
+    """Single or batch edit: {"ids": [1,2,3], "field": "active", "value": "active"}."""
     data = request.get_json(silent=True) or {}
     ids = data.get("ids")
     field = data.get("field")
@@ -252,11 +234,6 @@ def update():
             f"WHERE id IN ({placeholders})",
             (value, *ids),
         )
-        if field == "active_v2" and value in _ACTIVE_V2_TO_LEGACY_ACTIVE:
-            conn.execute(
-                f"UPDATE members SET active = ? WHERE id IN ({placeholders})",
-                (_ACTIVE_V2_TO_LEGACY_ACTIVE[value], *ids),
-            )
     return jsonify({"updated": len(ids), "field": field})
 
 
@@ -290,11 +267,11 @@ def create():
 @catalystdb_web_bp.route("/api/cat/catalystdb/deactivate", methods=["POST"])
 @_require_key
 def deactivate():
-    """Soft-delete: sets active_v2 (default 'disconnected', or 'deceased' if
-    given) plus the legacy active=0 for the given ids, in step. No hard
-    deletes from this screen. {"ids": [1,2,3], "target": "deceased"} to mark
-    deceased instead of disconnected; target defaults to 'disconnected',
-    matching this endpoint's pre-2026-09-24 behavior most closely."""
+    """Soft-delete: sets active (default 'disconnected', or 'deceased' if
+    given) for the given ids. No hard deletes from this screen.
+    {"ids": [1,2,3], "target": "deceased"} to mark deceased instead of
+    disconnected; target defaults to 'disconnected', matching this
+    endpoint's pre-2026-09-24 behavior most closely."""
     data = request.get_json(silent=True) or {}
     ids = data.get("ids")
     target = data.get("target", "disconnected")
@@ -310,7 +287,7 @@ def deactivate():
     with _conn() as conn:
         placeholders = ",".join("?" * len(ids))
         conn.execute(
-            f"UPDATE members SET active = 0, active_v2 = ?, updated_at = datetime('now') "
+            f"UPDATE members SET active = ?, updated_at = datetime('now') "
             f"WHERE id IN ({placeholders})",
             (target, *ids),
         )

@@ -30,7 +30,7 @@ Schema used (confirmed via .schema before build):
                   Sunday attended. Duplicate (member_id, service_date) rows
                   exist (multiple cards same Sunday) — every query dedupes
                   via SELECT DISTINCT before counting.
-  members:        active member set = active_v2 NOT IN (disconnected, deceased)
+  members:        active member set = active NOT IN (disconnected, deceased)
                   AND residency = 'local' (2026-09-24, replaces active = 1 AND
                   member_status) — same filter state_of_church.py /
                   missed_report.py use. campus_preference (Wilmington/
@@ -117,10 +117,10 @@ OLLAMA_MODEL = "qwen2.5:7b"
 # start rather than waiting to hit the same failure.
 OLLAMA_TIMEOUT = 600
 
-# 2026-09-24: replaced active = 1 / member_status with the new active_v2/
+# 2026-09-24: replaced active = 1 / member_status with the new active/
 # residency columns (see ~/.claude/plans/zesty-cuddling-robin.md) -- same
 # effective "active member set" scope as before.
-_ACTIVE_FILTER = "active_v2 NOT IN ('disconnected', 'deceased') AND residency = 'local'"
+_ACTIVE_FILTER = "active NOT IN ('disconnected', 'deceased') AND residency = 'local'"
 _NON_ACTIVE_STATUSES = ("disconnected", "non-local", "snowbird")
 
 _TIER_ORDER = ["Highly engaged", "Partially engaged", "Not engaged", "Disengaged"]
@@ -155,11 +155,11 @@ def _active_members(conn) -> list[dict]:
 
 
 def _non_active_counts(conn) -> list[tuple[str, int]]:
-    # 'disconnected' comes from active_v2, 'non-local'/'snowbird' from
+    # 'disconnected' comes from active, 'non-local'/'snowbird' from
     # residency -- previously one member_status column carried all three.
     counts = {
         "disconnected": conn.execute(
-            "SELECT COUNT(*) FROM members WHERE active_v2 = 'disconnected'"
+            "SELECT COUNT(*) FROM members WHERE active = 'disconnected'"
         ).fetchone()[0],
         "non-local": conn.execute(
             "SELECT COUNT(*) FROM members WHERE residency = 'non-local'"

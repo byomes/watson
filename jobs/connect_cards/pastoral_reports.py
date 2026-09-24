@@ -88,7 +88,7 @@ def missed_weeks_report(weeks: int = 3) -> tuple[str, str]:
             -- just deleting it (2026-09-24) -- every sibling pastoral-care
             -- report excludes disconnected/deceased and this one plainly
             -- intended to as well.
-            WHERE m.active_v2 NOT IN ('disconnected', 'deceased')
+            WHERE m.active NOT IN ('disconnected', 'deceased')
             GROUP BY m.id
             HAVING MAX(cc.service_date) < ?
             ORDER BY weeks_absent DESC

@@ -28,7 +28,7 @@ missing one Sunday isn't a pastoral concern but missing two is):
             for the Unassigned row)
 
 Same base filters as shepherding_report.py's at-risk/critical sections:
-members.active_v2 not in (disconnected, deceased), residency = local, and
+members.active not in (disconnected, deceased), residency = local, and
 at least one connect_cards
 or attendance row on file. Same deacon-bucket exclusions as deacon_reports.py
 (EXCLUDED_DEACON_VALUES) -- "Elders & Deacons" / "~ Admin" / "P Bill Yomes" /
@@ -129,7 +129,7 @@ def _raw_rows() -> list:
     the report agree on who counts as active.
 
     2026-09-24: `m.active = 1` further replaced with
-    `m.active_v2 NOT IN ('disconnected', 'deceased')` (the new 4-value
+    `m.active NOT IN ('disconnected', 'deceased')` (the new 4-value
     column, see ~/.claude/plans/zesty-cuddling-robin.md) plus a separate
     `m.residency = 'local'` check -- previously this also filtered on
     member_status excluding non_local/snowbird, which residency now
@@ -150,7 +150,7 @@ def _raw_rows() -> list:
                      )
                    ) AS visit_count
             FROM members m
-            WHERE m.active_v2 NOT IN ('disconnected', 'deceased')
+            WHERE m.active NOT IN ('disconnected', 'deceased')
               AND (m.residency IS NULL OR m.residency = 'local')
               AND (
                 EXISTS (SELECT 1 FROM connect_cards WHERE member_id = m.id)
@@ -246,7 +246,7 @@ def _member_engagement_tiers(conn) -> dict:
             SUM(CASE WHEN v.service_date IN (SELECT service_date FROM last8)  THEN 1 ELSE 0 END) AS last8_count
         FROM members m
         LEFT JOIN visits v ON v.member_id = m.id
-        WHERE m.active_v2 NOT IN ('disconnected', 'deceased')
+        WHERE m.active NOT IN ('disconnected', 'deceased')
         GROUP BY m.id
         """
     ).fetchall()
