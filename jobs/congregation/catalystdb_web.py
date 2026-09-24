@@ -21,6 +21,7 @@ of this codebase's soft-delete convention (members.active already gates
 every other congregation.db view)."""
 import os
 import sqlite3
+from datetime import date, timedelta
 from functools import wraps
 
 from flask import Blueprint, jsonify, request
@@ -33,13 +34,89 @@ _API_KEY = lambda: os.getenv("CATALYSTDB_API_KEY", "")
 
 # Every members column Donna/Bill can edit from the grid. id/created_at are
 # intentionally excluded (immutable); everything else on the table is here.
+#
+# partner/active_v2/residency (added 2026-09-24, see
+# migrate_partner_connected_active.py and ~/.claude/plans/zesty-cuddling-robin.md)
+# are the new Partner/Active/Residency columns replacing status, member_status,
+# partnership_status, deacon_status, status_reason, status_since, status_note,
+# and snowbird_return. Those old columns are still listed and still editable
+# here during the transition -- nothing reads or writes them exclusively yet,
+# so leaving them live avoids breaking anything not yet migrated. They'll be
+# dropped from both this set and the table itself once every read/write site
+# is confirmed switched over (Phase 5/6 of the plan).
 _EDITABLE_COLUMNS = {
     "name", "email", "phone", "campus_preference", "first_visit_date", "status",
     "notes", "carrier", "active", "shepherding_exempt", "member_status",
     "status_reason", "status_since", "status_note", "snowbird_return",
     "partnership_status", "address", "household_id", "deacon", "deacon_status",
     "birthdate", "household_role", "gender", "started_serving_date", "service_pin_notes",
+    "partner", "active_v2", "residency",
 }
+
+# active_v2 -> legacy boolean active, kept in sync on every write so reports
+# that haven't been migrated off the old column yet (Phase 5) still see a
+# consistent answer during the transition.
+_ACTIVE_V2_TO_LEGACY_ACTIVE = {
+    "active": 1,
+    "non-active": 1,
+    "disconnected": 0,
+    "deceased": 0,
+}
+
+_CONNECTED_REGULAR_MIN_VISITS = 6
+_CONNECTED_WINDOW_DAYS = 56  # 8 weeks, inclusive
+_CONNECTED_CURRENT_DAYS_MAX = 13
+_CONNECTED_AT_RISK_DAYS_MAX = 27
+
+
+def _connected(conn, member_id: int, today: date) -> str | None:
+    """Partner/Connected/Active/Deacon/Residency redesign's Connected ladder --
+    built fresh from jobs.congregation.attendance only (not connect_cards),
+    per Bill's 2026-09-24 call ("brand new section, from attendance data").
+    Returns None (no value) for a member with zero attendance rows -- the
+    ladder has nothing to say about someone who's never actually attended.
+
+    regular = 6+ attendances in the trailing rolling 8-calendar-week window
+    ending *today*. at_risk/critical only apply to someone who has reached
+    regular at some point in their history (checked via a sliding window
+    ending on each of their own attendance dates, since that's always where
+    a window's count is maximized) -- gate confirmed with Bill. A former
+    regular who attended within the last 13 days but has since dipped under
+    the 6-in-8wk bar is still shown 'regular' rather than falling into a gap
+    the original spec didn't cover (mirrors elder_shepherding_report.py's
+    _bucket() 0-13-day 'current' cutoff for the same population)."""
+    rows = conn.execute(
+        "SELECT DISTINCT service_date FROM attendance WHERE member_id = ? ORDER BY service_date",
+        (member_id,),
+    ).fetchall()
+    dates = [date.fromisoformat(r[0]) for r in rows]
+    if not dates:
+        return None
+
+    visit_count = len(dates)
+    last_seen = dates[-1]
+    days_since = (today - last_seen).days
+
+    window_start_now = today - timedelta(days=_CONNECTED_WINDOW_DAYS - 1)
+    regular_now = sum(1 for d in dates if window_start_now <= d <= today) >= _CONNECTED_REGULAR_MIN_VISITS
+
+    def _count_window_ending(anchor: date) -> int:
+        start = anchor - timedelta(days=_CONNECTED_WINDOW_DAYS - 1)
+        return sum(1 for d in dates if start <= d <= anchor)
+
+    ever_regular = regular_now or any(
+        _count_window_ending(d) >= _CONNECTED_REGULAR_MIN_VISITS for d in dates
+    )
+
+    if regular_now or (ever_regular and days_since <= _CONNECTED_CURRENT_DAYS_MAX):
+        return "regular"
+    if ever_regular:
+        return "at risk" if days_since <= _CONNECTED_AT_RISK_DAYS_MAX else "critical"
+    if visit_count == 1:
+        return "1st time"
+    if visit_count == 2:
+        return "2nd time"
+    return "guest"
 
 
 def _conn():
@@ -135,9 +212,15 @@ def verify_pin():
 @catalystdb_web_bp.route("/api/cat/catalystdb/state", methods=["GET"])
 @_require_key
 def get_state():
+    today = date.today()
     with _conn() as conn:
         rows = conn.execute("SELECT * FROM members ORDER BY name").fetchall()
-    return jsonify({"members": [dict(r) for r in rows]})
+        members = []
+        for r in rows:
+            m = dict(r)
+            m["connected"] = _connected(conn, m["id"], today)
+            members.append(m)
+    return jsonify({"members": members})
 
 
 @catalystdb_web_bp.route("/api/cat/catalystdb/update", methods=["POST"])
@@ -164,6 +247,11 @@ def update():
             f"WHERE id IN ({placeholders})",
             (value, *ids),
         )
+        if field == "active_v2" and value in _ACTIVE_V2_TO_LEGACY_ACTIVE:
+            conn.execute(
+                f"UPDATE members SET active = ? WHERE id IN ({placeholders})",
+                (_ACTIVE_V2_TO_LEGACY_ACTIVE[value], *ids),
+            )
     return jsonify({"updated": len(ids), "field": field})
 
 
@@ -197,11 +285,18 @@ def create():
 @catalystdb_web_bp.route("/api/cat/catalystdb/deactivate", methods=["POST"])
 @_require_key
 def deactivate():
-    """Soft-delete: sets active=0 for the given ids. No hard deletes from this screen."""
+    """Soft-delete: sets active_v2 (default 'disconnected', or 'deceased' if
+    given) plus the legacy active=0 for the given ids, in step. No hard
+    deletes from this screen. {"ids": [1,2,3], "target": "deceased"} to mark
+    deceased instead of disconnected; target defaults to 'disconnected',
+    matching this endpoint's pre-2026-09-24 behavior most closely."""
     data = request.get_json(silent=True) or {}
     ids = data.get("ids")
+    target = data.get("target", "disconnected")
     if not isinstance(ids, list) or not ids:
         return jsonify({"error": "ids (non-empty list) is required"}), 400
+    if target not in ("disconnected", "deceased"):
+        return jsonify({"error": "target must be 'disconnected' or 'deceased'"}), 400
     try:
         ids = [int(i) for i in ids]
     except (TypeError, ValueError):
@@ -210,7 +305,8 @@ def deactivate():
     with _conn() as conn:
         placeholders = ",".join("?" * len(ids))
         conn.execute(
-            f"UPDATE members SET active = 0, updated_at = datetime('now') WHERE id IN ({placeholders})",
-            ids,
+            f"UPDATE members SET active = 0, active_v2 = ?, updated_at = datetime('now') "
+            f"WHERE id IN ({placeholders})",
+            (target, *ids),
         )
-    return jsonify({"deactivated": len(ids)})
+    return jsonify({"deactivated": len(ids), "target": target})
