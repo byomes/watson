@@ -47,7 +47,22 @@ _EDITABLE_COLUMNS = {
     "notes", "address", "household_id", "deacon",
     "birthdate", "household_role", "gender", "started_serving_date", "service_pin_notes",
     "partner", "active", "residency", "anniversary", "unsubscribed",
+    "connected",
 }
+
+# "connected" is a virtual field, not a real column -- Connected is computed
+# live from attendance (_connected() below) for everyone by default. Editing
+# it (2026-09-24, Bill's request -- some old one-off attendees, e.g.
+# anniversary-service guests we know aren't coming back, need a permanent
+# manual reclassification) writes to connected_override instead, which
+# _connected_or_override() then prefers over the computed value. '--' clears
+# the override (writes NULL), handing the member back to Watson's normal
+# attendance-based computation -- this never touches or disables that
+# computation for anyone else, including the still-live auto-reinstatement
+# rule in attendance_intake.py (a disconnected member who attends still
+# flips back to active; that's the separate `active` column, untouched by
+# any of this).
+_CONNECTED_REAL_COLUMN = "connected_override"
 
 _CONNECTED_REGULAR_MIN_VISITS = 6
 _CONNECTED_WINDOW_DAYS = 56  # 8 weeks, inclusive
@@ -104,6 +119,14 @@ def _connected(conn, member_id: int, today: date) -> str:
     if visit_count == 2:
         return "2nd time"
     return "guest"
+
+
+def _connected_or_override(conn, member_id: int, override: str | None, today: date) -> str:
+    """The value GET /state actually returns for Connected: the manual
+    override if one's set, else the live computation. Kept separate from
+    _connected() itself so the pure-computation function stays easy to
+    reason about/test on its own."""
+    return override if override else _connected(conn, member_id, today)
 
 
 def _conn():
@@ -205,7 +228,7 @@ def get_state():
         members = []
         for r in rows:
             m = dict(r)
-            m["connected"] = _connected(conn, m["id"], today)
+            m["connected"] = _connected_or_override(conn, m["id"], m.get(_CONNECTED_REAL_COLUMN), today)
             members.append(m)
     return jsonify({"members": members})
 
@@ -227,12 +250,19 @@ def update():
     except (TypeError, ValueError):
         return jsonify({"error": "ids must be integers"}), 400
 
+    # "connected" is virtual -- see _CONNECTED_REAL_COLUMN's comment above.
+    # '--' clears the override (NULL), handing the member back to the live
+    # computation instead of literally storing the string '--' as a rung on
+    # the ladder.
+    write_field = _CONNECTED_REAL_COLUMN if field == "connected" else field
+    write_value = None if (field == "connected" and value == "--") else value
+
     with _conn() as conn:
         placeholders = ",".join("?" * len(ids))
         conn.execute(
-            f"UPDATE members SET {field} = ?, updated_at = datetime('now') "
+            f"UPDATE members SET {write_field} = ?, updated_at = datetime('now') "
             f"WHERE id IN ({placeholders})",
-            (value, *ids),
+            (write_value, *ids),
         )
     return jsonify({"updated": len(ids), "field": field})
 
@@ -250,7 +280,14 @@ def create():
         if col == "name":
             continue
         if col in data and data[col] not in (None, ""):
-            fields.append(col)
+            # "connected" is virtual -- see _CONNECTED_REAL_COLUMN's comment
+            # above. '--' means "no override", i.e. nothing to write here.
+            if col == "connected":
+                if data[col] == "--":
+                    continue
+                fields.append(_CONNECTED_REAL_COLUMN)
+            else:
+                fields.append(col)
             placeholders.append("?")
             values.append(data[col])
 
@@ -261,7 +298,9 @@ def create():
         )
         new_id = cur.lastrowid
         row = conn.execute("SELECT * FROM members WHERE id = ?", (new_id,)).fetchone()
-    return jsonify({"member": dict(row)}), 201
+        member = dict(row)
+        member["connected"] = _connected_or_override(conn, new_id, member.get(_CONNECTED_REAL_COLUMN), date.today())
+    return jsonify({"member": member}), 201
 
 
 @catalystdb_web_bp.route("/api/cat/catalystdb/deactivate", methods=["POST"])
