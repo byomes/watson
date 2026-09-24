@@ -28,8 +28,8 @@ missing one Sunday isn't a pastoral concern but missing two is):
             for the Unassigned row)
 
 Same base filters as shepherding_report.py's at-risk/critical sections:
-members.active_v2 not in (disconnected, deceased), residency = local, not
-shepherding_exempt, and at least one connect_cards
+members.active_v2 not in (disconnected, deceased), residency = local, and
+at least one connect_cards
 or attendance row on file. Same deacon-bucket exclusions as deacon_reports.py
 (EXCLUDED_DEACON_VALUES) -- "Elders & Deacons" / "~ Admin" / "P Bill Yomes" /
 "Inactive" are group labels, not addressable deacons, and are skipped here
@@ -152,7 +152,6 @@ def _raw_rows() -> list:
             FROM members m
             WHERE m.active_v2 NOT IN ('disconnected', 'deceased')
               AND (m.residency IS NULL OR m.residency = 'local')
-              AND (m.shepherding_exempt IS NULL OR m.shepherding_exempt = 0)
               AND (
                 EXISTS (SELECT 1 FROM connect_cards WHERE member_id = m.id)
                 OR EXISTS (SELECT 1 FROM attendance WHERE member_id = m.id)

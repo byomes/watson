@@ -116,9 +116,8 @@ _ALWAYS_ALLOWED_TABLES = {"json_each", "json_tree"}
 # (allow_contact_info=True) -- toggled per-caller in bot.py, not a blanket
 # unblock. notes/status_note stay blocked unconditionally -- explicitly kept
 # locked since they can hold pastoral/prayer content well beyond contact
-# info. carrier/household_id/snowbird_return/deacon_status/status_reason
-# have no contact-info or attendance meaning either way, so they stay
-# blocked too.
+# info. household_id/snowbird_return/deacon_status/status_reason have no
+# contact-info or attendance meaning either way, so they stay blocked too.
 #
 # 2026-09-24: status/member_status/partnership_status/deacon_status columns
 # are being retired for partner/active_v2/residency (see
@@ -129,9 +128,11 @@ _ALWAYS_ALLOWED_TABLES = {"json_each", "json_tree"}
 # whether someone is non-local/seasonal. The old columns' words stay blocked
 # too even though schema no longer advertises them, as a defense-in-depth
 # belt-and-suspenders measure while they still physically exist pre-Phase-6.
+# carrier removed from this set -- that column is gone entirely (not just
+# unadvertised), see migrate_catalystdb_grid_cleanup.py.
 _CONTACT_COLUMN_WORDS = {"email", "phone", "address", "birthdate"}
 _ALWAYS_BLOCKED_COLUMN_WORDS = {
-    "notes", "carrier", "status_note", "residency",
+    "notes", "status_note", "residency",
     "snowbird_return", "deacon_status", "status_reason", "ssn",
 }
 # household_id/household_role (added 2026-09-12, see

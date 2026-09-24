@@ -1,6 +1,8 @@
 """
 batch_update.py — shared engine for batch member field updates
-(attendance, member_status, campus_preference, shepherding_exempt).
+(attendance, member_status, campus_preference). shepherding_exempt
+retired 2026-09-24 -- shepherding exclusion is now expressed via
+member_status/active_v2 = 'disconnected'.
 
 Never creates new members. Every write requires an explicit confirmation
 step: batch_update_members() only resolves/previews, commit_batch_update()
@@ -33,13 +35,12 @@ log = logging.getLogger(__name__)
 CONG_DB = Path(__file__).resolve().parents[2] / "data" / "congregation.db"
 WATSON_DB = Path(__file__).resolve().parents[2] / "data" / "watson.db"
 
-FIELDS = ("attendance", "member_status", "campus_preference", "shepherding_exempt")
+FIELDS = ("attendance", "member_status", "campus_preference")
 
 FIELD_LABELS = {
     "attendance": "Attendance",
     "member_status": "Status",
     "campus_preference": "Campus",
-    "shepherding_exempt": "Shepherding Exempt",
 }
 
 MEMBER_STATUS_VALUES = {"active", "deceased", "disconnected", "non_local", "snowbird"}
@@ -141,8 +142,6 @@ def parse_mark_command(text: str) -> dict | None:
       mark attended 7/13: Jane Smith, Bob Wilson
       mark status deceased: John Doe
       mark campus Online: Jane Smith, Bob Wilson
-      mark shepherding exempt: Mel Yomes, Kaci Gravatt
-      mark shepherding unexempt: Mel Yomes
 
     Returns None if `text` isn't a mark command at all (caller should fall
     through to other handling). Returns {"error": "..."} for a recognized
@@ -186,20 +185,6 @@ def parse_mark_command(text: str) -> dict | None:
             return {"error": "No names provided."}
         return {"field": "campus_preference", "value": campus, "value_display": campus, "names": names}
 
-    m = re.match(r"^shepherding\s+(exempt|unexempt)\s*:\s*(.+)$", body, re.IGNORECASE)
-    if m:
-        mode, names_str = m.group(1).strip().lower(), m.group(2).strip()
-        value = mode == "exempt"
-        names = _split_names(names_str)
-        if not names:
-            return {"error": "No names provided."}
-        return {
-            "field": "shepherding_exempt",
-            "value": value,
-            "value_display": "Exempt" if value else "Not Exempt",
-            "names": names,
-        }
-
     return {"error": f"Unrecognized mark command: {body!r}"}
 
 
@@ -216,9 +201,6 @@ def validate_value(field: str, value) -> str | None:
     elif field == "campus_preference":
         if value not in CAMPUS_VALUES.values():
             return f"Invalid campus_preference: {value!r}. Valid: Wilmington, Online, Hybrid"
-    elif field == "shepherding_exempt":
-        if not isinstance(value, bool):
-            return f"Invalid shepherding_exempt: {value!r} (expected true/false)"
     else:
         return f"Unknown field: {field!r}"
     return None
@@ -232,8 +214,6 @@ def _current_value(field: str, member: sqlite3.Row, conn: sqlite3.Connection):
             "SELECT MAX(service_date) as d FROM attendance WHERE member_id = ?", (member["id"],)
         ).fetchone()
         return row["d"] if row else None
-    if field == "shepherding_exempt":
-        return bool(member["shepherding_exempt"])
     return member[field]
 
 
@@ -318,7 +298,7 @@ def batch_update_members(field: str, value, names: list[str]) -> dict:
     conn = _cong_conn()
     try:
         members = conn.execute(
-            "SELECT id, name, campus_preference, member_status, shepherding_exempt FROM members"
+            "SELECT id, name, campus_preference, member_status FROM members"
         ).fetchall()
         members_by_id = {m["id"]: m for m in members}
 
@@ -394,13 +374,6 @@ def commit_batch_update(field: str, value, resolved_member_ids: list[int], actor
                     (member_id, value, campus),
                 )
                 new_value = value
-            elif field == "shepherding_exempt":
-                old_value = bool(row["shepherding_exempt"])
-                conn.execute(
-                    "UPDATE members SET shepherding_exempt = ? WHERE id = ?",
-                    (1 if value else 0, member_id),
-                )
-                new_value = bool(value)
             elif field == "member_status":
                 # member_status's 5 values actually span two independent new
                 # columns (active_v2, residency) -- see
@@ -523,7 +496,7 @@ def resolve_current_ambiguous(pending_id: int, choice) -> dict:
         conn = _cong_conn()
         try:
             member_row = conn.execute(
-                "SELECT id, name, campus_preference, member_status, shepherding_exempt "
+                "SELECT id, name, campus_preference, member_status "
                 "FROM members WHERE id = ?", (cand["member_id"],),
             ).fetchone()
             current_value = _current_value(pending["field"], member_row, conn) if member_row else None
@@ -716,7 +689,7 @@ def handle_alias_command(text: str, actor: str = "Bill") -> str:
     conn = _cong_conn()
     try:
         members = conn.execute(
-            "SELECT id, name, campus_preference, member_status, shepherding_exempt FROM members"
+            "SELECT id, name, campus_preference, member_status FROM members"
         ).fetchall()
     finally:
         conn.close()

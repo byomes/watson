@@ -71,19 +71,20 @@ def _normalize_phone(raw: str) -> str | None:
 
 
 def _pick_partnership(raw: str) -> tuple[str | None, str | None]:
-    """Return (enum_value_or_None, leftover_note_or_None)."""
+    """Return (enum_value_or_None, leftover_note_or_None). Non-enum ("leftover")
+    tags used to get stuffed into notes as "Subsplash tag: X, Y" -- dropped
+    entirely as of 2026-09-24 (Bill's call: clean the Notes column of import
+    clutter, and stop it from coming back on the next import run)."""
     tokens = [t.strip() for t in (raw or "").split(";") if t.strip()]
     if not tokens:
         return None, None
     enum_hits = [t for t in tokens if t in PARTNERSHIP_ENUM]
-    leftover = [t for t in tokens if t not in PARTNERSHIP_ENUM]
     chosen = None
     for candidate in PARTNERSHIP_PRIORITY:
         if candidate in enum_hits:
             chosen = candidate
             break
-    note = f"Subsplash tag: {', '.join(leftover)}" if leftover else None
-    return chosen, note
+    return chosen, None
 
 
 def _build_address(zip_code, state, city, line2, line1) -> str | None:

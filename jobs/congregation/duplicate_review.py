@@ -48,9 +48,10 @@ _LINKED_TABLES = ("attendance", "connect_cards", "follow_ups", "deacon_notes", "
 # as blank too, see _blank() below). deacon_status/status_reason/
 # status_note/snowbird_return dropped, residency added (2026-09-24, see
 # ~/.claude/plans/zesty-cuddling-robin.md) -- residency is the new column
-# that carries what those four used to.
+# that carries what those four used to. carrier dropped (column gone
+# entirely, see migrate_catalystdb_grid_cleanup.py).
 _FILL_IF_BLANK_FIELDS = (
-    "email", "phone", "campus_preference", "notes", "carrier", "address",
+    "email", "phone", "campus_preference", "notes", "address",
     "household_id", "deacon", "residency",
 )
 

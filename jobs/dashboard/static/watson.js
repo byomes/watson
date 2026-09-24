@@ -1960,7 +1960,6 @@ async function moreRunShepReport() {
               <td>${esc(p.last_contact || 'Never')}</td>
               <td style="white-space:nowrap">
                 <button class="mbtn mbtn-sm" onclick="moreShepCheckin(${p.id})">Check in</button>
-                <button class="mbtn mbtn-sm" onclick="moreShepExempt(${p.id})">Exempt</button>
               </td>
             </tr>`).join('')}
         </table></div>`;
@@ -1982,13 +1981,6 @@ async function moreShepCheckin(personId) {
     await api(`/api/shepherding/checkin/${personId}`, { method: 'POST' });
     moreRunShepReport();
   } catch { alert('Failed to record check-in.'); }
-}
-
-async function moreShepExempt(personId) {
-  try {
-    await api(`/api/shepherding/exempt/${personId}`, { method: 'POST' });
-    moreRunShepReport();
-  } catch { alert('Failed to set exempt.'); }
 }
 
 async function moreShepTelegram() {
@@ -3449,7 +3441,6 @@ function batchShowForm() {
         <option value="attendance">Attendance</option>
         <option value="member_status">Status</option>
         <option value="campus_preference">Campus</option>
-        <option value="shepherding_exempt">Shepherding Exempt</option>
       </select>
       <div id="mbatch-value-wrap" style="margin-bottom:10px"></div>
       <button class="mbtn mbtn-p mbtn-sm" onclick="batchPreview()">Preview</button>
@@ -3481,12 +3472,6 @@ function batchFieldChange() {
         <option value="Wilmington">Wilmington</option>
         <option value="Online">Online</option>
         <option value="Hybrid">Hybrid</option>
-      </select>`;
-  } else if (field === 'shepherding_exempt') {
-    wrap.innerHTML = `<label style="${labelStyle}">EXEMPT</label>
-      <select id="mbatch-value" style="${inputStyle}">
-        <option value="true">Exempt</option>
-        <option value="false">Not Exempt</option>
       </select>`;
   }
 }

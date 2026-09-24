@@ -29,17 +29,10 @@ from jobs.email_job.brevo_send import send_email
 load_dotenv(os.path.expanduser("~/watson/.env"))
 
 
-def _ensure_schema():
-    try:
-        with _conn() as db:
-            db.execute(
-                "ALTER TABLE members ADD COLUMN shepherding_exempt INTEGER NOT NULL DEFAULT 0"
-            )
-    except Exception:
-        pass
-
-
-_ensure_schema()
+# shepherding_exempt column (and this module's own _ensure_schema() that
+# originally added it) retired 2026-09-24 -- exclusion from shepherding
+# reports is expressed via active_v2 = 'disconnected' now, see
+# migrate_catalystdb_grid_cleanup.py.
 
 DB_PATH    = os.path.expanduser("~/watson/data/congregation.db")
 BILL_EMAIL = os.getenv("BILL_EMAIL", "bill.yomes@gmail.com")
@@ -131,7 +124,6 @@ def _build_at_risk_section() -> tuple[str, int]:
                 FROM members m
                 WHERE m.active_v2 NOT IN ('disconnected', 'deceased')
                   AND (m.residency IS NULL OR m.residency = 'local')
-                  AND (m.shepherding_exempt IS NULL OR m.shepherding_exempt = 0)
                   AND (
                     EXISTS (SELECT 1 FROM connect_cards WHERE member_id = m.id)
                     OR EXISTS (SELECT 1 FROM attendance WHERE member_id = m.id)
@@ -203,7 +195,6 @@ def _build_critical_section() -> tuple[str, int]:
                 FROM members m
                 WHERE m.active_v2 NOT IN ('disconnected', 'deceased')
                   AND (m.residency IS NULL OR m.residency = 'local')
-                  AND (m.shepherding_exempt IS NULL OR m.shepherding_exempt = 0)
                   AND (
                     EXISTS (SELECT 1 FROM connect_cards WHERE member_id = m.id)
                     OR EXISTS (SELECT 1 FROM attendance WHERE member_id = m.id)
@@ -270,8 +261,7 @@ def _build_visitors_section() -> tuple[str, int]:
                        AS weeks_since
             FROM members m
             JOIN connect_cards cc ON cc.member_id = m.id
-            WHERE (m.shepherding_exempt IS NULL OR m.shepherding_exempt = 0)
-              AND m.active_v2 NOT IN ('disconnected', 'deceased')
+            WHERE m.active_v2 NOT IN ('disconnected', 'deceased')
               AND (m.residency IS NULL OR m.residency = 'local')
             GROUP BY m.id
             HAVING COUNT(cc.id) = 1

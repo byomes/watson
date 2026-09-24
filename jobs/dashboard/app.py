@@ -1162,7 +1162,7 @@ def congregation_list_api():
 
 
 _MEMBER_FIELDS = (
-    "m.id, m.name, m.email, m.phone, m.campus_preference, m.partnership_status, m.active, m.shepherding_exempt, "
+    "m.id, m.name, m.email, m.phone, m.campus_preference, m.partnership_status, m.active, "
     "m.member_status, m.status_reason, m.status_since, m.status_note, m.snowbird_return, "
     "m.partner, m.active_v2, m.residency, "
     "(SELECT MAX(service_date) FROM ("
@@ -1659,8 +1659,6 @@ def members_batch_update_api():
 
     if field not in _BU_FIELDS:
         return jsonify({"error": f"invalid field: {field!r}"}), 400
-    if field == "shepherding_exempt" and isinstance(value, str):
-        value = value.strip().lower() in ("true", "1", "yes", "exempt")
     if not names:
         return jsonify({"error": "no names provided"}), 400
 
@@ -1683,8 +1681,6 @@ def members_batch_update_confirm_api():
     data = request.get_json(force=True) or {}
     field = (data.get("field") or "").strip()
     value = data.get("value")
-    if field == "shepherding_exempt" and isinstance(value, str):
-        value = value.strip().lower() in ("true", "1", "yes", "exempt")
 
     try:
         member_ids = [int(x) for x in (data.get("member_ids") or [])]
@@ -3457,29 +3453,6 @@ def shepherding_report():
         return jsonify({"html": body})
     except Exception as exc:
         log.error("shepherding/report failed: %s", exc)
-        return jsonify({"error": str(exc)}), 500
-
-
-@app.route("/api/shepherding/exempt", methods=["POST"])
-def shepherding_exempt():
-    CONG_DB = os.path.expanduser("~/watson/data/congregation.db")
-    data = request.get_json(force=True) or {}
-    member_id = data.get("member_id")
-    if not member_id:
-        return jsonify({"error": "member_id required"}), 400
-    try:
-        conn = sqlite3.connect(CONG_DB)
-        conn.row_factory = sqlite3.Row
-        conn.execute(
-            "UPDATE members SET shepherding_exempt = 1 WHERE id = ?", (member_id,)
-        )
-        conn.commit()
-        row = conn.execute("SELECT name FROM members WHERE id = ?", (member_id,)).fetchone()
-        conn.close()
-        name = row["name"] if row else str(member_id)
-        return jsonify({"ok": True, "name": name})
-    except Exception as exc:
-        log.error("shepherding/exempt failed: %s", exc)
         return jsonify({"error": str(exc)}), 500
 
 

@@ -44,13 +44,17 @@ _API_KEY = lambda: os.getenv("CATALYSTDB_API_KEY", "")
 # so leaving them live avoids breaking anything not yet migrated. They'll be
 # dropped from both this set and the table itself once every read/write site
 # is confirmed switched over (Phase 5/6 of the plan).
+#
+# 2026-09-24 grid cleanup: carrier and shepherding_exempt columns were
+# dropped entirely (see migrate_catalystdb_grid_cleanup.py) -- removed here
+# too. anniversary/unsubscribed added as new editable columns.
 _EDITABLE_COLUMNS = {
     "name", "email", "phone", "campus_preference", "first_visit_date", "status",
-    "notes", "carrier", "active", "shepherding_exempt", "member_status",
+    "notes", "active", "member_status",
     "status_reason", "status_since", "status_note", "snowbird_return",
     "partnership_status", "address", "household_id", "deacon", "deacon_status",
     "birthdate", "household_role", "gender", "started_serving_date", "service_pin_notes",
-    "partner", "active_v2", "residency",
+    "partner", "active_v2", "residency", "anniversary", "unsubscribed",
 }
 
 # active_v2 -> legacy boolean active, kept in sync on every write so reports
@@ -73,10 +77,9 @@ def _connected(conn, member_id: int, today: date) -> str:
     """Partner/Connected/Active/Deacon/Residency redesign's Connected ladder --
     built fresh from jobs.congregation.attendance only (not connect_cards),
     per Bill's 2026-09-24 call ("brand new section, from attendance data").
-    Returns '--' (the same blank-value convention as deacon/gender/
-    household_role/campus_preference) for a member with zero attendance
-    rows -- the ladder has nothing to say about someone who's never
-    actually attended.
+    Returns 'neighbor' (2026-09-24, Bill's call) for a member with zero
+    attendance rows -- someone in the database who has never actually
+    attended a service.
 
     regular = 6+ attendances in the trailing rolling 8-calendar-week window
     ending *today*. at_risk/critical only apply to someone who has reached
@@ -93,7 +96,7 @@ def _connected(conn, member_id: int, today: date) -> str:
     ).fetchall()
     dates = [date.fromisoformat(r[0]) for r in rows]
     if not dates:
-        return "--"
+        return "neighbor"
 
     visit_count = len(dates)
     last_seen = dates[-1]

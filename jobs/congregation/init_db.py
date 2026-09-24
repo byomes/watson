@@ -10,7 +10,6 @@ TABLES = {
             name TEXT NOT NULL,
             email TEXT,
             phone TEXT,
-            carrier TEXT,
             campus_preference TEXT,
             first_visit_date TEXT,
             status TEXT DEFAULT 'visitor',
@@ -121,12 +120,8 @@ def init_db():
     for ddl in INDEXES:
         cursor.execute(ddl)
 
-    # Idempotent column migrations
-    member_cols = {row[1] for row in cursor.execute("PRAGMA table_info(members)").fetchall()}
-    for col, defn in [("carrier", "TEXT")]:
-        if col not in member_cols:
-            cursor.execute(f"ALTER TABLE members ADD COLUMN {col} {defn}")
-            print(f"  [migrated] members.{col}")
+    # Idempotent column migrations (carrier removed 2026-09-24 -- see
+    # migrate_catalystdb_grid_cleanup.py; nothing added back here for it)
 
     conn.commit()
     conn.close()

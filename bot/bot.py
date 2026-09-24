@@ -6731,10 +6731,11 @@ async def handle_merge_conflict_callback(update: Update, context: ContextTypes.D
     _RELATED_TABLES = ("connect_cards", "attendance", "next_steps", "prayer_requests", "follow_ups")
     # status_reason/status_note/snowbird_return dropped, residency added
     # (2026-09-24, see ~/.claude/plans/zesty-cuddling-robin.md) -- residency
-    # is the new column that carries what those three used to.
+    # is the new column that carries what those three used to. carrier
+    # dropped (column gone entirely, see migrate_catalystdb_grid_cleanup.py).
     _COPYABLE_FIELDS = (
         "email", "phone", "campus_preference", "first_visit_date",
-        "notes", "carrier", "residency",
+        "notes", "residency",
     )
 
     def _blank(v) -> bool:
