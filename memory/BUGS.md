@@ -1,10 +1,11 @@
 # Watson Bug Tracker
 _Auto-generated nightly from bug_tracker. Source of truth is the database — do not hand-edit this file, changes will be overwritten._
-Last generated: 2026-09-23 02:10
+Last generated: 2026-09-24 02:10
 
-## Open (2)
+## Open (3)
 | ID | Title | Repo | Discovered |
 |---|---|---|---|
+| 195 | gemma4:e4b intent classifier produced stuck/orphaned llama-server runners | watson | 2026-09-23 16:13:22 |
 | 194 | Picnic event_registrations row with blank name | watson | 2026-09-23 02:29:23 |
 | 21 | Ollama/gemma3:4b transient severe slowdown under rapid back-to-back requests (10-42s), self-resolving | watson | 2026-07-17 17:36:05 |
 
@@ -130,6 +131,3 @@ Last generated: 2026-09-23 02:10
 | 103 | cat/connect API route was unguarded — direct-POST-able while draft, real Brevo creds active | watson-tools | 2026-08-28 04:28:26 | 7f7071b |
 | 102 | cat/connect draft gate was decorative — custom-type page never checked public_tools.status | watson-tools | 2026-08-28 04:28:26 | 741eb17 |
 | 101 | get_archive skill trigger too strict, silently unroutable from Claude.ai | watson | 2026-08-26T09:12:36 | 3b9235d |
-| 100 | MCP run_watson_skill fails on kb/kb_search: missing positional argument | watson | 2026-08-24 13:09:59 | e6f674b |
-| 99 | connect_cards intake truncates multi-line question/comment field | watson | 2026-08-24 13:09:59 | a90d6d5 |
-| 96 | run_watson_skill/list_watson_skills MCP tools were live in production but never committed to git | watson | 2026-08-24 12:21:16 | eb40d7c |
