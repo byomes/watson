@@ -4323,3 +4323,54 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - b46e4ad Add /cat/catalystdb: full members-database admin screen
 - 922e456 Add /cat/scratch: shared-PIN team review area on the live domain
 - c2d13cb Add family birthdays & anniversaries section to the connect card
+
+---
+
+## Recent Changes — 2026-09-25
+
+### ~/watson
+- 5862405 docs: bugs/backlog export 2026-09-25
+- 61810d9 docs: file map 2026-09-25
+- 0a15872 Remove leftover Getaway Search links from dashboard
+- 47421a5 Remove ServantCARE Hospitality Homes search tool
+- e5ae4a5 Remove Getaway Search / beachhouse tool
+- 2f8af68 fix: correct one-off script cron self-delete matching
+- c0334fd State of the Church synthesis attributes pastoral follow-up to shepherds, not Bill
+- 1a115fb Ground State of the Church reasoning in the real Catalyst Google Calendar
+- 66ad91b Wire up scheduled Claude Code dispatch from a timed Telegram instruction
+- a02e89e Fast-path prayer-escalation notes by chat, not just reply-to
+- 5dd931b Add optional deacon note on pastor escalation; fix escalation crash
+- d3bd020 Add pastor escalation button and shepcheck accountability report API
+- 78d8fb5 Add deacon prayer-request notifications with accountability buttons
+- 0601a4f Add widow/widower household roles
+- acb763b Make Connected editable/batch-editable via a manual override column
+- bf15cf7 Phase 6: drop status/member_status/partnership_status/deacon_status/status_reason/status_since/status_note/snowbird_return, rename active_v2 to active
+- d657e18 Catalyst DB grid cleanup: drop carrier/shepherding_exempt, add anniversary/unsubscribed, neighbor Connected value, clean Subsplash notes
+- 9568457 Phase 5: migrate read sites off status/member_status/partnership_status/deacon_status
+- aa38f9e Phase 4: migrate write sites off status/member_status/partnership_status/deacon_status
+- 51a7954 Extend '--' blank-value convention to gender/household_role/campus_preference/connected
+- d9019b4 Rename deacon 'Unassigned' bucket to '--'
+- 6b1e2bd Add Partner/Connected/Active/Residency columns (Phase 1-3)
+- da8a561 Add RSVP yes/no + childcare tracking and service-awards report for the Servant Leaders Banquet
+- 2b1d053 Remove weekly newsletter email draft job (cron + script)
+- b435c3f Add 30-min cooldown to ollama watchdog so it doesn't re-alert every 5 min on the same stuck pid
+- eed4855 docs: architecture update 2026-09-24
+
+### ~/watson-tools
+- c2c8c5a Remove ServantCARE Hospitality Homes search page and API routes
+- 8f04e14 Remove Getaway Search (beachhouse) page and API routes
+- 95843db Hide residency/campus/anniversary/unsubscribed from Catalyst DB default view
+- a604dad Show the deacon's escalation note on the Shepherding Check-In report
+- 2a6655c Use the Catalyst logo for shepcheck's favicon, matching catalystdb/deaconapp
+- ca89c12 Add elder-level Shepherding Check-In report at /cat/shepcheck
+- d457360 Close Columns picker on outside click; add widow/widower to Household Role
+- 18c5f78 Fix Active column showing blank for everyone (stale active_v2 key)
+- 8b928d7 Make Connected editable/batch-editable
+- c527096 Add Reset Filters button, fix stale active_v2 sort key
+- ef53786 Move Columns button next to search bar
+- 2381e1f Grid cleanup: drop legacy columns/carrier/shepherding_exempt, add anniversary/unsubscribed
+- 67f5bb6 Remove deacon_status editable field from the deacon app
+- a217652 Add -- as a selectable/filterable blank option to 4 more columns
+- 81adb97 Rename deacon column's Unassigned option to --
+- d54d33f Add Partner/Connected/Active/Residency columns to catalystdb admin grid
+- ab79a8a Point /m/task rewrite at self-hosted micah-tasks on the Beelink
