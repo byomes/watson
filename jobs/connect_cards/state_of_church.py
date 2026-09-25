@@ -20,7 +20,8 @@ import sqlite3
 import statistics
 import sys
 from collections import defaultdict
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import requests
 from dotenv import load_dotenv
@@ -29,6 +30,7 @@ from core.claude_tier import call_claude
 from core.ollama_context import size_num_ctx
 from jobs.connect_cards.utils import _display_name
 from jobs.email_job.brevo_send import send_email
+from jobs.gcal.gcal_service import CHURCH_CALENDAR_ID, get_events
 import core.llm_log  # noqa: F401 -- installs Ollama call logging, see core/llm_log.py
 
 load_dotenv(os.path.expanduser("~/watson/.env"))
@@ -46,6 +48,7 @@ BENCHMARKS_DOC = os.path.expanduser("~/watson/memory/projects/benchmarks.md")
 OLLAMA_URL   = "http://localhost:11434/api/generate"
 OLLAMA_MODEL = "qwen2.5:7b"
 OLLAMA_TIMEOUT = 240
+NY = ZoneInfo("America/New_York")
 
 
 # ── Date helpers ───────────────────────────────────────────────────────────────
@@ -197,26 +200,46 @@ def _members_excluded_counts(conn: sqlite3.Connection) -> dict:
     }
 
 
-def _special_events() -> list[dict]:
-    """Return church_events from watson.db with any date in the past 14 days."""
-    watson_db = os.path.expanduser("~/watson/data/watson.db")
+def _special_events(this_sunday: date) -> list[dict]:
+    """Real events from the Catalyst Community Church Google Calendar (source
+    of truth — the hand-curated church_events table in watson.db is sparse
+    and lags behind; it missed the 75th-anniversary Sunday/luncheon on
+    2026-09-20 that actually explained that week's attendance spike, 2026-09-24).
+
+    Pulls a window from 21 days before through 14 days after `this_sunday`.
+    Each event is tagged `occurred` (start_date <= this_sunday) or not, so
+    callers/reasoning can be told plainly which events could plausibly explain
+    already-observed attendance and which are still ahead and must not be
+    cited as a cause for it."""
+    start = datetime.combine(this_sunday - timedelta(days=21), datetime.min.time(), tzinfo=NY)
+    end = datetime.combine(this_sunday + timedelta(days=14), datetime.min.time(), tzinfo=NY)
     try:
-        conn = sqlite3.connect(f"file:{watson_db}?mode=ro", uri=True)
-        conn.row_factory = sqlite3.Row
-        rows = conn.execute(
-            """
-            SELECT event_name, start_date, end_date, attendance_notes
-            FROM church_events
-            WHERE start_date >= date('now', '-14 days')
-               OR (end_date IS NOT NULL AND end_date >= date('now', '-14 days'))
-            ORDER BY start_date DESC
-            """,
-        ).fetchall()
-        conn.close()
-        return [dict(r) for r in rows]
+        events = get_events(start, end, calendar_id=CHURCH_CALENDAR_ID)
     except Exception as exc:
-        log.warning("church_events query failed: %s", exc)
+        log.warning("church calendar fetch failed: %s", exc)
         return []
+
+    out = []
+    for ev in events:
+        if ev.get("recurring"):
+            # Skip standing weekly-series instances (Sunday Worship, Remix, Celebrate
+            # Recovery, Staff Meeting, etc.) -- only one-off events are "special"
+            # enough to matter for attendance reasoning.
+            continue
+        try:
+            ev_date = date.fromisoformat(ev["start"][:10])
+        except Exception:
+            continue
+        end_raw = ev.get("end") or ""
+        out.append({
+            "event_name": ev["summary"],
+            "start_date": ev["start"][:10],
+            "end_date": end_raw[:10] if end_raw else None,
+            "attendance_notes": "",
+            "occurred": ev_date <= this_sunday,
+        })
+    out.sort(key=lambda e: e["start_date"], reverse=True)
+    return out
 
 
 def _rolling_data(conn: sqlite3.Connection) -> list[dict]:
@@ -307,7 +330,12 @@ def _ollama_synthesis(condensed: str, benchmarks_context: str) -> str | None:
         "d. Do not imply continuous week-over-week growth is the expected baseline — a plateau is "
         "healthy, not a symptom.\n"
         "e. Report the numbers plainly. Only add interpretive or diagnostic language when it's grounded "
-        "in the benchmarks context above or a real sustained deviation; otherwise describe, don't diagnose.\n\n"
+        "in the benchmarks context above or a real sustained deviation; otherwise describe, don't diagnose.\n"
+        "f. EVENTS ALREADY OCCURRED below are real church-calendar events on or before this week's "
+        "Sunday — these are the only events you may credit for explaining this week's attendance (e.g. "
+        "an anniversary service or major outreach event drawing a crowd). UPCOMING EVENTS have NOT "
+        "happened yet as of this week's Sunday — never cite one of them as a reason for this week's "
+        "attendance numbers, since they haven't occurred.\n\n"
         "Also comment on engagement health (what the Consistent/Active/Occasional/Lapsed distribution "
         "reveals), areas of concern, and who may need attention. Do not include a summary paragraph at "
         "the end. Do not repeat yourself. "
@@ -954,7 +982,14 @@ def build_report() -> tuple[str, str, str]:
     prayer_names = ", ".join(p["name"].split()[0] for p in prayers) if prayers else "none"
     absent_names = ", ".join(m["name"].split()[0] for m in missing) if missing else "none"
 
-    special_events = _special_events()
+    all_events = _special_events(this_sunday)
+    occurred_events = [e for e in all_events if e["occurred"]]
+    upcoming_events = [e for e in all_events if not e["occurred"]]
+    # Events shown in the report body: occurred, within the past 14 days (same window as before).
+    special_events = [
+        e for e in occurred_events
+        if (this_sunday - date.fromisoformat(e["start_date"])).days <= 14
+    ]
 
     wil4  = int(round(campus_trends.get("Wilmington", {}).get("avg4", 0)))
     wil8  = int(round(campus_trends.get("Wilmington", {}).get("avg8", 0)))
@@ -963,7 +998,14 @@ def build_report() -> tuple[str, str, str]:
     wil_d = campus_trends.get("Wilmington", {}).get("direction", "Stable")
     onl_d = campus_trends.get("Online",     {}).get("direction", "Stable")
 
-    ev_names = ", ".join(e["event_name"] for e in special_events) if special_events else "none"
+    occurred_names = (
+        ", ".join(f'{e["event_name"]} ({e["start_date"]})' for e in occurred_events)
+        if occurred_events else "none"
+    )
+    upcoming_names = (
+        ", ".join(f'{e["event_name"]} ({e["start_date"]})' for e in upcoming_events)
+        if upcoming_events else "none"
+    )
     _excl_parts = []
     for _s, _l in [("deceased", "deceased"), ("disconnected", "disconnected"), ("non_local", "non-local"), ("snowbird", "snowbird")]:
         if excluded_counts.get(_s, 0) > 0:
@@ -982,7 +1024,8 @@ def build_report() -> tuple[str, str, str]:
         f"SEASONAL CAVEAT: {seasonal_caveat}\n"
         f"ENGAGEMENT: Consistent {engagement['consistent']}, Active {engagement['active']}, "
         f"Occasional {engagement['occasional']}, Lapsed {engagement['lapsed']}\n"
-        f"SPECIAL EVENTS (past 14 days): {len(special_events)}, {ev_names}\n"
+        f"EVENTS ALREADY OCCURRED (may explain this week's attendance): {occurred_names}\n"
+        f"UPCOMING EVENTS (context only — have NOT happened yet, never cite as a cause for this week's attendance): {upcoming_names}\n"
         f"FIRST-TIME VISITORS: {len(visitors)}\n"
         f"OPEN FOLLOW-UPS: {len(followups)}\n"
         f"PRAYER REQUESTS: {len(prayers)} requests from: {prayer_names}\n"

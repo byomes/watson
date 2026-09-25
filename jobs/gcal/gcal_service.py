@@ -10,6 +10,7 @@ from googleapiclient.discovery import build
 
 NY = ZoneInfo("America/New_York")
 CALENDAR_ID = "bill.yomes@gmail.com"
+CHURCH_CALENDAR_ID = "a2s4ofivps61vc8va9fp7kfd7k@group.calendar.google.com"  # Catalyst Community Church public calendar
 TOKEN_FILE = Path.home() / "watson" / "config" / "token.json"
 CREDENTIALS_FILE = Path.home() / "watson" / "config" / "credentials.json"
 SCOPES = [
@@ -54,13 +55,14 @@ def _parse_event(event: dict) -> dict:
         "start":   start,
         "end":     end,
         "status":  event.get("status", "confirmed"),
+        "recurring": event.get("recurringEventId") is not None,
     }
 
 
-def get_events(date_start: datetime, date_end: datetime) -> list:
+def get_events(date_start: datetime, date_end: datetime, calendar_id: str = CALENDAR_ID) -> list:
     svc = get_service()
     result = svc.events().list(
-        calendarId=CALENDAR_ID,
+        calendarId=calendar_id,
         timeMin=_to_rfc3339(date_start),
         timeMax=_to_rfc3339(date_end),
         singleEvents=True,
