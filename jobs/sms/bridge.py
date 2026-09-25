@@ -13,7 +13,7 @@ import os
 import sqlite3
 
 from core.database import get_connection
-from jobs.sms import gateway_client
+from jobs.sms import gateway_client, push
 from jobs.sms.carrier_lookup import normalize_phone
 
 log = logging.getLogger(__name__)
@@ -89,6 +89,21 @@ def poll_inbound() -> int:
                 (text, thread_id),
             )
             ingested += 1
+
+            thread_row = conn.execute(
+                "SELECT contact_name, phone FROM sms_threads WHERE id = ?", (thread_id,)
+            ).fetchone()
+            title = thread_row["contact_name"] or thread_row["phone"]
+            body = text if len(text) <= 120 else text[:117] + "..."
+            try:
+                push.send_push_to_all({
+                    "title": title,
+                    "body": body,
+                    "thread_id": thread_id,
+                    "url": f"/sms?thread={thread_id}",
+                })
+            except Exception as exc:  # noqa: BLE001 — a push failure must never break ingestion
+                log.warning("poll_inbound: push notify failed for thread_id=%s: %s", thread_id, exc)
 
         conn.commit()
     finally:

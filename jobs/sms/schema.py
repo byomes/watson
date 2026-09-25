@@ -53,7 +53,17 @@ CREATE TABLE IF NOT EXISTS sms_gateway_heartbeat (
 );
 """
 
-ALL_TABLES = [CREATE_THREADS, CREATE_MESSAGES, CREATE_TEMPLATES, CREATE_HEARTBEAT]
+CREATE_PUSH_SUBSCRIPTIONS = """
+CREATE TABLE IF NOT EXISTS sms_push_subscriptions (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    endpoint   TEXT NOT NULL UNIQUE,
+    p256dh     TEXT NOT NULL,
+    auth       TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+"""
+
+ALL_TABLES = [CREATE_THREADS, CREATE_MESSAGES, CREATE_TEMPLATES, CREATE_HEARTBEAT, CREATE_PUSH_SUBSCRIPTIONS]
 
 # Bill's own wording, drafted during the design conversation (2026-09-25) —
 # Watson merges {first_name} into these, never originates new phrasing. See

@@ -19,7 +19,7 @@ from functools import wraps
 from flask import Blueprint, jsonify, request
 
 from core.database import get_connection
-from jobs.sms import gateway_client
+from jobs.sms import gateway_client, push
 from jobs.sms.bridge import poll_inbound
 
 log = logging.getLogger(__name__)
@@ -28,6 +28,7 @@ sms_bp = Blueprint("sms", __name__, url_prefix="/api/sms")
 
 _API_KEY = lambda: os.getenv("SMS_APP_API_KEY", "")
 _GATEWAY_MODE = lambda: os.getenv("GATEWAY_MODE", "mock").strip().lower()
+_VAPID_PUBLIC_KEY = lambda: os.getenv("VAPID_PUBLIC_KEY", "")
 
 
 def _require_key(f):
@@ -245,3 +246,51 @@ def mock_inject():
     gateway_client.mock_queue_push(phone, text, name=data.get("name"))
     ingested = poll_inbound()
     return jsonify({"ok": True, "ingested": ingested})
+
+
+@sms_bp.route("/push/vapid-public-key", methods=["GET"])
+@_require_key
+def push_vapid_public_key():
+    return jsonify({"publicKey": _VAPID_PUBLIC_KEY()})
+
+
+@sms_bp.route("/push/subscribe", methods=["POST"])
+@_require_key
+def push_subscribe():
+    data = request.get_json(force=True) or {}
+    endpoint = (data.get("endpoint") or "").strip()
+    keys = data.get("keys") or {}
+    p256dh = keys.get("p256dh")
+    auth = keys.get("auth")
+    if not endpoint or not p256dh or not auth:
+        return jsonify({"error": "endpoint and keys.p256dh/keys.auth are required"}), 400
+
+    conn = get_connection()
+    try:
+        conn.execute(
+            """INSERT INTO sms_push_subscriptions (endpoint, p256dh, auth)
+               VALUES (?, ?, ?)
+               ON CONFLICT(endpoint) DO UPDATE SET p256dh = excluded.p256dh, auth = excluded.auth""",
+            (endpoint, p256dh, auth),
+        )
+        conn.commit()
+        return jsonify({"ok": True})
+    finally:
+        conn.close()
+
+
+@sms_bp.route("/push/unsubscribe", methods=["POST"])
+@_require_key
+def push_unsubscribe():
+    data = request.get_json(force=True) or {}
+    endpoint = (data.get("endpoint") or "").strip()
+    if not endpoint:
+        return jsonify({"error": "endpoint is required"}), 400
+
+    conn = get_connection()
+    try:
+        conn.execute("DELETE FROM sms_push_subscriptions WHERE endpoint = ?", (endpoint,))
+        conn.commit()
+        return jsonify({"ok": True})
+    finally:
+        conn.close()
