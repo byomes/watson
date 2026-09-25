@@ -63,9 +63,55 @@ def ensure_schema(conn) -> None:
         ("parent_log_id", "ALTER TABLE prayer_contact_log ADD COLUMN parent_log_id INTEGER"),
         ("escalated_to_log_id", "ALTER TABLE prayer_contact_log ADD COLUMN escalated_to_log_id INTEGER"),
         ("escalated_at", "ALTER TABLE prayer_contact_log ADD COLUMN escalated_at TEXT"),
+        ("escalation_note", "ALTER TABLE prayer_contact_log ADD COLUMN escalation_note TEXT"),
     ):
         if col not in existing:
             conn.execute(ddl)
+
+    # deacon_name was NOT NULL in the table's original (pre-escalation)
+    # definition. An escalation row (header set, deacon_name left NULL)
+    # violates that and crashes the INSERT with an IntegrityError -- hit
+    # live 2026-09-24 when Jim's escalation never reached Bill. SQLite can't
+    # drop a NOT NULL constraint via ALTER TABLE, so rebuild the table.
+    deacon_name_notnull = next(
+        (row[3] for row in conn.execute("PRAGMA table_info(prayer_contact_log)").fetchall() if row[1] == "deacon_name"),
+        0,
+    )
+    if deacon_name_notnull:
+        conn.executescript("""
+            CREATE TABLE prayer_contact_log_new (
+                id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+                prayer_request_id   INTEGER NOT NULL REFERENCES prayer_requests(id),
+                deacon_name         TEXT,
+                header              TEXT,
+                deacon_person_id    INTEGER NOT NULL,
+                telegram_chat_id    TEXT NOT NULL,
+                telegram_message_id INTEGER,
+                status              TEXT NOT NULL DEFAULT 'pending',
+                can_escalate        INTEGER NOT NULL DEFAULT 1,
+                parent_log_id       INTEGER REFERENCES prayer_contact_log(id),
+                escalated_to_log_id INTEGER REFERENCES prayer_contact_log(id),
+                escalation_note     TEXT,
+                sent_at             TEXT NOT NULL DEFAULT (datetime('now')),
+                contacted_at        TEXT,
+                remind_at           TEXT,
+                snooze_hours        INTEGER,
+                escalated_at        TEXT,
+                created_at          TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            INSERT INTO prayer_contact_log_new (
+                id, prayer_request_id, deacon_name, header, deacon_person_id, telegram_chat_id,
+                telegram_message_id, status, can_escalate, parent_log_id, escalated_to_log_id,
+                escalation_note, sent_at, contacted_at, remind_at, snooze_hours, escalated_at, created_at
+            )
+            SELECT
+                id, prayer_request_id, deacon_name, header, deacon_person_id, telegram_chat_id,
+                telegram_message_id, status, can_escalate, parent_log_id, escalated_to_log_id,
+                escalation_note, sent_at, contacted_at, remind_at, snooze_hours, escalated_at, created_at
+            FROM prayer_contact_log;
+            DROP TABLE prayer_contact_log;
+            ALTER TABLE prayer_contact_log_new RENAME TO prayer_contact_log;
+        """)
 
 
 def _pronoun(gender: str | None) -> str:

@@ -148,6 +148,7 @@ def get_state():
                 "remind_at": row["remind_at"],
                 "snooze_hours": row["snooze_hours"],
                 "escalated_at": row["escalated_at"],
+                "escalation_note": row["escalation_note"],
             }
 
         requests_out = []

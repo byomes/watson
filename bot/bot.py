@@ -4773,6 +4773,37 @@ async def _route_tg_pending_reply(
             mark_done(pending_id)
         return True
 
+    if action_type == "prayer_escalate_note":
+        # Optional follow-up to a pr_escalate tap (handle_prayer_contact_callback).
+        # Bill's already been notified of the escalation itself -- this just
+        # forwards an optional note, so a skipped or never-answered prompt
+        # never blocks anything.
+        escalate_log_id = payload.get("log_id")
+        note = None if text_lower in ("skip", "no", "none", "no thanks", "nvm") else text.strip()
+
+        if note:
+            with sqlite3.connect(_PRAYER_DB_PATH) as conn:
+                conn.execute(
+                    "UPDATE prayer_contact_log SET escalation_note = ? WHERE id = ?",
+                    (note, escalate_log_id),
+                )
+            escalate_row = _prayer_log_row(escalate_log_id)
+            bill_row = _prayer_log_row(escalate_row["escalated_to_log_id"]) if escalate_row and escalate_row["escalated_to_log_id"] else None
+            if bill_row:
+                from jobs.telegram.send_to_person import send_to_person
+                send_to_person(
+                    bill_row["deacon_person_id"],
+                    f'📝 Note from {escalate_row["deacon_name"] or "the deacon"} on the prayer request they just escalated: {note}',
+                )
+                await update.message.reply_text("✅ Sent to Pastor Bill.")
+            else:
+                await update.message.reply_text("Saved the note, but I couldn't find Bill's escalation message to forward it to.")
+        else:
+            await update.message.reply_text("No problem, no note added.")
+
+        mark_done(pending_id)
+        return True
+
     if action_type == "archive_classify":
         archive_id = payload.get("archive_id")
         new_project = text.strip()
@@ -7207,6 +7238,17 @@ async def handle_prayer_contact_callback(update: Update, context: ContextTypes.D
                     "UPDATE prayer_contact_log SET escalated_to_log_id = ? WHERE id = ?",
                     (new_log_id, log_id),
                 )
+
+        # Note is optional and asynchronous -- Bill's already been notified
+        # above, so a deacon who never replies here hasn't blocked anything.
+        # Threaded via the shared tg_pending_actions reply mechanism
+        # (jobs/telegram/pending.py), same pattern as the pastoral_note flow.
+        from jobs.telegram.pending import store_pending_action
+        prompt = await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text='Want to add a note for Pastor Bill? Reply here with it, or reply "skip".',
+        )
+        store_pending_action("prayer_escalate_note", prompt.message_id, {"log_id": log_id})
 
 
 async def handle_prayer_remind_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
