@@ -1579,10 +1579,6 @@ function renderMore() {
         <span class="mtile-label">BodyRec</span>
         <span class="mtile-chev">›</span>
       </button>
-      <button class="mtile" id="mtile-beachhouse" onclick="window.open('https://wtsn.me/p/beachhouse', '_blank', 'noopener,noreferrer')">
-        <span class="mtile-label">Getaway Search</span>
-        <span class="mtile-chev">›</span>
-      </button>
       <button class="mtile" id="mtile-email-activity" onclick="moreToggle('email-activity')">
         <span class="mtile-label">Email Activity</span>
         <span class="mtile-chev">›</span>
