@@ -48,8 +48,10 @@ from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 
+from core.vacation import vacation_gate
 from jobs.congregation.family_dates import record_anniversaries, record_birthdays
 from jobs.congregation.member_match import find_or_create_member
+from jobs.telegram.send_to_person import send_to_person
 
 load_dotenv(os.path.expanduser("~/watson/.env"))
 
@@ -112,6 +114,12 @@ NEXT_STEP_SUBSTRINGS = [
 # job needs its own copy of the same block list.
 BLOCKED_PHONE_DIGITS = {"8006696607"}
 BLOCKED_EMAILS = {"ziecr@aol.com"}
+
+# people.id for Donna Redman (see jobs/congregation/pin_collection.py's own
+# copy of this mapping) -- unmatched-birthday summaries go to her via
+# Telegram (she prefers it over email, see feedback_donna_prefers_telegram
+# memory), not a new person on every run.
+DONNA_PERSON_ID = 12
 
 
 def _normalize_phone_digits(value: str) -> str:
@@ -513,7 +521,9 @@ def _resolve_member(
 
 # ── Process one email ─────────────────────────────────────────────────────────
 
-def _process_email(msg, dry_run: bool, conn: sqlite3.Connection) -> bool:
+def _process_email(
+    msg, dry_run: bool, conn: sqlite3.Connection, unmatched_birthdays: list | None = None
+) -> bool:
     from_addr = email.utils.parseaddr(msg.get("From", ""))[1].lower()
 
     raw_subject = msg.get("Subject", "")
@@ -618,7 +628,10 @@ def _process_email(msg, dry_run: bool, conn: sqlite3.Connection) -> bool:
             (card_id, conflict_row_id),
         )
 
-    record_birthdays(conn, card_id, member_id, fields.get("family_birthdays") or [])
+    new_unmatched = record_birthdays(conn, card_id, member_id, fields.get("family_birthdays") or [])
+    if unmatched_birthdays is not None:
+        for entry in new_unmatched:
+            unmatched_birthdays.append({**entry, "submitted_by": name, "card_id": card_id})
     record_anniversaries(conn, card_id, member_id, fields.get("anniversaries") or [])
 
     # attendance -- keyed by (member_id, service_date) only (matching
@@ -724,6 +737,33 @@ def _build_search_query() -> str:
     return query
 
 
+def _notify_donna_unmatched_birthdays(entries: list[dict]) -> None:
+    """Texts Donna (Telegram) a summary of this run's unmatched Family
+    Birthdays entries -- names typed into a connect card that couldn't be
+    confidently matched to an existing member (a new child, a typo, someone
+    not yet in the system). They're still saved in connect_card_birthdays
+    either way; this just means she doesn't have to think to go query it."""
+    n = len(entries)
+    lines = [
+        f"🎂 {n} birthday submission{'s' if n != 1 else ''} from this batch of connect cards "
+        "didn't match anyone on file:",
+        "",
+    ]
+    for e in entries:
+        date_str = e["birth_date"] or "(no date given)"
+        who = e["submitted_name"] or "(no name given)"
+        lines.append(f"• {who} — {date_str} (submitted by {e['submitted_by']})")
+    lines += ["", "Take a look and add them if they're new, or let me know who they match."]
+    text = "\n".join(lines)
+
+    if vacation_gate("normal", "jobs.connect_cards.intake.unmatched_birthdays", text):
+        return
+    if send_to_person(DONNA_PERSON_ID, text):
+        log.info("Sent unmatched-birthday summary to Donna (%d entries).", n)
+    else:
+        log.warning("Failed to send unmatched-birthday summary to Donna (not onboarded?).")
+
+
 def run(dry_run: bool = False) -> None:
     _migrate_columns()
     if not GMAIL_ADDR or not GMAIL_PASS:
@@ -741,6 +781,7 @@ def run(dry_run: bool = False) -> None:
         conn = sqlite3.connect(DB_PATH)
         conn.row_factory = sqlite3.Row
         processed = inserted = 0
+        unmatched_birthdays: list = []
 
         try:
             # Gmail occasionally spam-filters a legitimate connect-card email
@@ -770,7 +811,7 @@ def run(dry_run: bool = False) -> None:
                         continue
                     msg = email.message_from_bytes(msg_data[0][1])
                     try:
-                        result = _process_email(msg, dry_run, conn)
+                        result = _process_email(msg, dry_run, conn, unmatched_birthdays)
                     except Exception as exc:
                         log.exception("Error processing email id %s in %s: %s", eid, mailbox, exc)
                         result = False
@@ -790,6 +831,9 @@ def run(dry_run: bool = False) -> None:
             conn.close()
 
         log.info("Done: %d processed, %d inserted.", processed, inserted)
+
+        if unmatched_birthdays and not dry_run:
+            _notify_donna_unmatched_birthdays(unmatched_birthdays)
 
     finally:
         try:

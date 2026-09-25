@@ -96,7 +96,11 @@ def _apply_date(conn: sqlite3.Connection, member_id: int, column: str, value: st
 
 def record_birthdays(
     conn: sqlite3.Connection, card_id: int, submitter_member_id: int | None, entries: list[dict]
-) -> None:
+) -> list[dict]:
+    """Returns the entries that landed as 'unmatched' (submitted_name,
+    birth_date), so a caller can notify someone rather than let them sit
+    silently in connect_card_birthdays until someone thinks to query it."""
+    unmatched: list[dict] = []
     for entry in entries:
         name = (entry.get("name") or "").strip()
         birth_date = entry.get("date")
@@ -109,6 +113,7 @@ def record_birthdays(
             status = "matched"
         else:
             status = "unmatched"
+            unmatched.append({"submitted_name": name, "birth_date": birth_date})
         conn.execute(
             """
             INSERT INTO connect_card_birthdays
@@ -117,6 +122,7 @@ def record_birthdays(
             """,
             (card_id, name or None, birth_date, matched_id, status),
         )
+    return unmatched
 
 
 def record_anniversaries(
