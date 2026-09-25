@@ -7106,6 +7106,100 @@ async def handle_dup_flag_callback(update: Update, context: ContextTypes.DEFAULT
         await query.edit_message_text(f"❌ Error: {exc}", reply_markup=None)
 
 
+# ── Deacon prayer-contact accountability (jobs/telegram/prayer_notify.py) ────
+
+_PRAYER_DB_PATH = os.path.expanduser("~/watson/data/congregation.db")
+
+
+def _prayer_log_row(log_id: int):
+    with sqlite3.connect(_PRAYER_DB_PATH) as conn:
+        conn.row_factory = sqlite3.Row
+        return conn.execute(
+            "SELECT * FROM prayer_contact_log WHERE id = ?", (log_id,)
+        ).fetchone()
+
+
+def _prayer_done_later_keyboard(log_id: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([[
+        InlineKeyboardButton("✅ Logged / Done", callback_data=f"pr_done:{log_id}"),
+        InlineKeyboardButton("⏰ Remind me later", callback_data=f"pr_later:{log_id}"),
+    ]])
+
+
+async def handle_prayer_contact_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle pr_done:/pr_later:/pr_back: taps on a deacon prayer-contact
+    notification (jobs/telegram/prayer_notify.py). Not gated behind
+    _is_authorized -- instead each notification's telegram_chat_id is
+    checked against whoever pressed the button, so a deacon can act on
+    their own notifications without being Bill."""
+    query = update.callback_query
+    action, _, log_id_str = (query.data or "").partition(":")
+    try:
+        log_id = int(log_id_str)
+    except ValueError:
+        await query.answer()
+        return
+
+    row = _prayer_log_row(log_id)
+    if not row or str(update.effective_chat.id) != str(row["telegram_chat_id"]):
+        await query.answer("This isn't your notification.", show_alert=True)
+        return
+
+    await query.answer()
+
+    if action == "pr_done":
+        with sqlite3.connect(_PRAYER_DB_PATH) as conn:
+            conn.execute(
+                "UPDATE prayer_contact_log SET status = 'done', contacted_at = datetime('now') WHERE id = ?",
+                (log_id,),
+            )
+        await query.edit_message_text(query.message.text + "\n\n✅ Logged as contacted.", reply_markup=None)
+
+    elif action == "pr_later":
+        from jobs.telegram.prayer_notify import REMIND_HOURS
+        rows = [
+            InlineKeyboardButton(f"{h}h", callback_data=f"pr_remind:{log_id}:{h}")
+            for h in REMIND_HOURS
+        ]
+        keyboard = InlineKeyboardMarkup([rows[:2], rows[2:], [
+            InlineKeyboardButton("‹ Back", callback_data=f"pr_back:{log_id}"),
+        ]])
+        await query.edit_message_reply_markup(reply_markup=keyboard)
+
+    elif action == "pr_back":
+        await query.edit_message_reply_markup(reply_markup=_prayer_done_later_keyboard(log_id))
+
+
+async def handle_prayer_remind_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle pr_remind:<log_id>:<hours> snooze picks."""
+    query = update.callback_query
+    try:
+        _, log_id_str, hours_str = (query.data or "").split(":")
+        log_id, hours = int(log_id_str), int(hours_str)
+    except ValueError:
+        await query.answer()
+        return
+
+    row = _prayer_log_row(log_id)
+    if not row or str(update.effective_chat.id) != str(row["telegram_chat_id"]):
+        await query.answer("This isn't your notification.", show_alert=True)
+        return
+
+    await query.answer(f"Reminder set for {hours} hours.")
+
+    with sqlite3.connect(_PRAYER_DB_PATH) as conn:
+        conn.execute(
+            "UPDATE prayer_contact_log SET status = 'snoozed', snooze_hours = ?, "
+            "remind_at = datetime('now', ? || ' hours') WHERE id = ?",
+            (hours, str(hours), log_id),
+        )
+
+    await query.edit_message_text(
+        query.message.text + f"\n\n⏰ Reminder set, Watson will follow up in {hours} hours.",
+        reply_markup=None,
+    )
+
+
 # ── Batch member update (cdb: mark ...) ──────────────────────────────────────
 
 def _batch_update_message(pending_id: int):
@@ -7459,6 +7553,8 @@ def main():
     app.add_handler(CallbackQueryHandler(handle_web_benchmark_callback, pattern=r"^webbench_(update|ignore):\d+$"))
     app.add_handler(CallbackQueryHandler(handle_member_conflict_callback, pattern=r"^mc_"))
     app.add_handler(CallbackQueryHandler(handle_dup_flag_callback, pattern=r"^dupf_(merge|alias|sep|skip):"))
+    app.add_handler(CallbackQueryHandler(handle_prayer_contact_callback, pattern=r"^pr_(done|later|back):\d+$"))
+    app.add_handler(CallbackQueryHandler(handle_prayer_remind_callback, pattern=r"^pr_remind:\d+:\d+$"))
     app.add_handler(CallbackQueryHandler(handle_batch_update_callback, pattern=r"^bu_"))
     app.add_handler(CallbackQueryHandler(handle_command_callback, pattern=r"^cmd_"))
     app.add_handler(CallbackQueryHandler(handle_vault_callback,   pattern=r"^vault_"))
