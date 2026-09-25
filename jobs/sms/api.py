@@ -150,6 +150,38 @@ def list_templates():
         conn.close()
 
 
+@sms_bp.route("/templates", methods=["POST"])
+@_require_key
+def create_template():
+    data = request.get_json(force=True) or {}
+    label = (data.get("label") or "").strip()
+    body = (data.get("body") or "").strip()
+    if not label or not body:
+        return jsonify({"error": "label and body are required"}), 400
+
+    import re
+    slug = re.sub(r"[^a-z0-9]+", "_", label.lower()).strip("_") or "template"
+
+    conn = get_connection()
+    try:
+        template_id = slug
+        suffix = 2
+        while conn.execute("SELECT 1 FROM sms_templates WHERE id = ?", (template_id,)).fetchone():
+            template_id = f"{slug}_{suffix}"
+            suffix += 1
+
+        conn.execute(
+            "INSERT INTO sms_templates (id, label, body, updated_at) VALUES (?, ?, ?, datetime('now'))",
+            (template_id, label, body),
+        )
+        conn.commit()
+
+        row = conn.execute("SELECT * FROM sms_templates WHERE id = ?", (template_id,)).fetchone()
+        return jsonify({"id": row["id"], "label": row["label"], "body": row["body"], "updated_at": row["updated_at"]}), 201
+    finally:
+        conn.close()
+
+
 @sms_bp.route("/templates/<template_id>", methods=["PUT"])
 @_require_key
 def update_template(template_id):
