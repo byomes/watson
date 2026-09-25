@@ -426,10 +426,6 @@ app.register_blueprint(trading_bp)
 from jobs.location.routes import location_web_bp
 app.register_blueprint(location_web_bp)
 
-from jobs.servantcare.servantcare_web import servantcare_web_bp
-from jobs.servantcare.schema import create_tables as _servantcare_create_tables
-_servantcare_create_tables()
-app.register_blueprint(servantcare_web_bp)
 
 
 # ── Admin template filters ────────────────────────────────────────────────────
