@@ -17,6 +17,7 @@ _TABLES = [
     "members", "connect_cards", "attendance", "follow_ups", "deacon_notes",
     "prayer_requests", "next_steps", "duplicate_flags",
     "audit_exemptions", "member_conflicts",
+    "connect_card_birthdays", "connect_card_anniversaries",
 ]
 
 _SYSTEM = (

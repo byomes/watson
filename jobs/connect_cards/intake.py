@@ -14,6 +14,13 @@ this job silently stopped seeing new submissions -- discovered 2026-08-02.
 Switched to searching INBOX directly so a label/filter change can never
 silently break intake again.
 
+The form (watson-tools' src/app/cat/connect) added optional "Family
+Birthdays" / "Anniversaries" entries 2026-09-25 for a several-week
+birthdate/anniversary collection push. Those are matched read-only against
+members and staged in connect_card_birthdays / connect_card_anniversaries --
+see jobs/congregation/family_dates.py for why they aren't written straight
+to members.
+
 Configuration:
   WATSON_GMAIL_ADDRESS      Gmail login address
   WATSON_GMAIL_APP_PASSWORD Gmail app password (not account password)
@@ -41,6 +48,7 @@ from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 
+from jobs.congregation.family_dates import record_anniversaries, record_birthdays
 from jobs.congregation.member_match import find_or_create_member
 
 load_dotenv(os.path.expanduser("~/watson/.env"))
@@ -154,6 +162,31 @@ def _migrate_columns() -> None:
             SELECT email_id, 'inserted' FROM connect_cards
             WHERE email_id IS NOT NULL AND email_id != ''
         """)
+        # "Family Birthdays" / "Anniversaries" fields added to the connect
+        # card form 2026-09-25 -- see jobs/congregation/family_dates.py for
+        # why these are staged here rather than written straight to members.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS connect_card_birthdays (
+                id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+                card_id            INTEGER NOT NULL,
+                submitted_name     TEXT,
+                birth_date         TEXT,
+                matched_member_id  INTEGER,
+                status             TEXT NOT NULL DEFAULT 'unmatched',
+                created_at         TEXT DEFAULT (datetime('now'))
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS connect_card_anniversaries (
+                id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+                card_id             INTEGER NOT NULL,
+                submitted_names     TEXT,
+                anniversary_date    TEXT,
+                matched_member_ids  TEXT,
+                status              TEXT NOT NULL DEFAULT 'unmatched',
+                created_at          TEXT DEFAULT (datetime('now'))
+            )
+        """)
         existing = {row[1] for row in conn.execute("PRAGMA table_info(connect_cards)").fetchall()}
         for col, defn in [
             ("prayer_request",        "TEXT"),
@@ -175,6 +208,47 @@ def _match_next_step(value: str) -> str | None:
         if substr in v:
             return key
     return None
+
+
+_MONTH_NUM = {
+    name: i + 1
+    for i, name in enumerate([
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December",
+    ])
+}
+_DISPLAY_DATE_RE = re.compile(r"^([A-Za-z]+)\s+(\d{1,2}),\s*(\d{4})$")
+_NAME_DATE_LINE_RE = re.compile(r"^(.*?),\s*([A-Za-z]+ \d{1,2},\s*\d{4})\s*$")
+_NO_NAME_PLACEHOLDERS = {"(no name given)", "(no names given)"}
+
+
+def _parse_display_date(display: str) -> str | None:
+    """Parse 'Month D, YYYY' (watson-tools route.ts formatDateDisplay's
+    output) into 'YYYY-MM-DD'. None if it doesn't look like that."""
+    m = _DISPLAY_DATE_RE.match(display.strip())
+    if not m:
+        return None
+    month_name, day, year = m.groups()
+    month_num = _MONTH_NUM.get(month_name)
+    if month_num is None:
+        return None
+    return f"{int(year):04d}-{month_num:02d}-{int(day):02d}"
+
+
+def _parse_name_date_line(line: str) -> dict:
+    """Split one 'Name, Month D, YYYY' line (Family Birthdays / Anniversaries
+    field, one line per entry) into {name, date}. Either half can be missing
+    -- a blank name renders as the route's own '(no name(s) given)' filler,
+    and a blank date fails the trailing-date match entirely -- so callers
+    must treat both as optional."""
+    m = _NAME_DATE_LINE_RE.match(line.strip())
+    if not m:
+        return {"name": line.strip(), "date": None}
+    name_part, date_part = m.groups()
+    name_part = name_part.strip()
+    if name_part in _NO_NAME_PLACEHOLDERS:
+        name_part = ""
+    return {"name": name_part, "date": _parse_display_date(date_part)}
 
 
 # ── HTML extraction ───────────────────────────────────────────────────────────
@@ -259,6 +333,8 @@ def _parse_html(html: str) -> dict | None:
         "prayer_leadership_only": False,
         "prayer_request":         None,
         "prayer_request_public":  1,
+        "family_birthdays":       [],
+        "anniversaries":          [],
     }
 
     campus_raw = get_one("where did you attend")
@@ -309,6 +385,12 @@ def _parse_html(html: str) -> dict | None:
     if any(v.strip() for v in leadership_vals):
         fields["prayer_request_public"] = 0
         fields["prayer_leadership_only"] = True
+
+    # "Family Birthdays" / "Anniversaries" -- one line per entry (see
+    # buildHtmlBody in watson-tools' src/app/api/cat/connect/route.ts),
+    # omitted from the email entirely when the submitter added none.
+    fields["family_birthdays"] = [_parse_name_date_line(v) for v in get("family birthdays")]
+    fields["anniversaries"]    = [_parse_name_date_line(v) for v in get("anniversaries")]
 
     return fields
 
@@ -535,6 +617,9 @@ def _process_email(msg, dry_run: bool, conn: sqlite3.Connection) -> bool:
             "UPDATE member_conflicts SET new_card_id = ? WHERE id = ?",
             (card_id, conflict_row_id),
         )
+
+    record_birthdays(conn, card_id, member_id, fields.get("family_birthdays") or [])
+    record_anniversaries(conn, card_id, member_id, fields.get("anniversaries") or [])
 
     # attendance -- keyed by (member_id, service_date) only (matching
     # attendance_web.py's data model note and attendance_intake.py's same
