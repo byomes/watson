@@ -64,7 +64,7 @@ ensure_schema()
 _REPO_KEYWORDS = [
     ("watson-tools", (
         "catalyst db", "catalystdb", "wtsn.me", "deacon app", "deaconapp",
-        "micah tasks", "ham prep", "curator", "watson-tools", "beachhouse",
+        "micah tasks", "ham prep", "curator", "watson-tools",
         "shepherding report", "comms desk", "comms-desk",
     )),
     ("wcky", (

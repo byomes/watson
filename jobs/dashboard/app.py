@@ -431,10 +431,6 @@ from jobs.servantcare.schema import create_tables as _servantcare_create_tables
 _servantcare_create_tables()
 app.register_blueprint(servantcare_web_bp)
 
-from jobs.beachhouse.beachhouse_web import beachhouse_web_bp
-from jobs.beachhouse.schema import create_tables as _beachhouse_create_tables
-_beachhouse_create_tables()
-app.register_blueprint(beachhouse_web_bp)
 
 # ── Admin template filters ────────────────────────────────────────────────────
 
