@@ -1345,6 +1345,21 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 log.info("DEBUG pre-check: reply-threaded (%s)", tg_pending['type'])
                 return
 
+    # Fallback for the prayer-escalation note prompt: a deacon typing a
+    # follow-up rarely uses Telegram's native Reply gesture, so the
+    # reply-to match above finds nothing and the note used to fall all the
+    # way through to the paid-LLM skill router instead of reaching Bill.
+    # Match by chat instead, within a short window right after the
+    # escalate tap (jobs/telegram/pending.py::get_latest_pending_for_chat).
+    from jobs.telegram.pending import get_latest_pending_for_chat
+    _escalate_pending = get_latest_pending_for_chat(update.effective_chat.id, "prayer_escalate_note")
+    if _escalate_pending:
+        handled = await _route_tg_pending_reply(update, context, text_clean, _escalate_pending)
+        if handled:
+            _log_telegram_exchange(text_clean, "[chat-threaded: prayer_escalate_note]")
+            log.info("DEBUG pre-check: chat-threaded (prayer_escalate_note)")
+            return
+
     # Store every incoming message for resend capability
     from jobs.telegram.resend_last import store_message, get_last_message
     if text_lower != 'resend':
@@ -7248,7 +7263,10 @@ async def handle_prayer_contact_callback(update: Update, context: ContextTypes.D
             chat_id=update.effective_chat.id,
             text='Want to add a note for Pastor Bill? Reply here with it, or reply "skip".',
         )
-        store_pending_action("prayer_escalate_note", prompt.message_id, {"log_id": log_id})
+        store_pending_action(
+            "prayer_escalate_note", prompt.message_id, {"log_id": log_id},
+            chat_id=update.effective_chat.id,
+        )
 
 
 async def handle_prayer_remind_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):

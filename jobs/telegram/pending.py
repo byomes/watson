@@ -23,19 +23,53 @@ def _bootstrap() -> None:
             CREATE INDEX IF NOT EXISTS idx_tg_pending_msgid
             ON tg_pending_actions(telegram_message_id, status)
         """)
+        cols = {row[1] for row in conn.execute("PRAGMA table_info(tg_pending_actions)").fetchall()}
+        if "chat_id" not in cols:
+            conn.execute("ALTER TABLE tg_pending_actions ADD COLUMN chat_id INTEGER")
 
 
 _bootstrap()
 
 
-def store_pending_action(action_type: str, telegram_message_id: int, payload: dict | None = None) -> int:
+def store_pending_action(
+    action_type: str,
+    telegram_message_id: int,
+    payload: dict | None = None,
+    chat_id: int | None = None,
+) -> int:
     with get_connection() as conn:
         cur = conn.execute(
-            """INSERT INTO tg_pending_actions (type, telegram_message_id, payload)
-               VALUES (?, ?, ?)""",
-            (action_type, telegram_message_id, json.dumps(payload or {})),
+            """INSERT INTO tg_pending_actions (type, telegram_message_id, payload, chat_id)
+               VALUES (?, ?, ?, ?)""",
+            (action_type, telegram_message_id, json.dumps(payload or {}), chat_id),
         )
         return cur.lastrowid
+
+
+def get_latest_pending_for_chat(chat_id: int, action_type: str, ttl_minutes: int = 10) -> dict | None:
+    """Fallback for flows that ask for a free-text follow-up in the same chat
+    rather than requiring Telegram's native Reply gesture (most people just
+    type the next message) -- matches on chat_id instead of reply-to, within
+    a short window so it can't hijack an unrelated later message. Only
+    matches pending actions stored with a chat_id (older/other call sites
+    that don't pass one are unaffected)."""
+    with get_connection() as conn:
+        row = conn.execute(
+            """SELECT id, type, telegram_message_id, payload
+               FROM tg_pending_actions
+               WHERE chat_id = ? AND type = ? AND status = 'pending'
+                 AND created_at >= datetime('now', ?)
+               ORDER BY id DESC LIMIT 1""",
+            (chat_id, action_type, f"-{ttl_minutes} minutes"),
+        ).fetchone()
+    if not row:
+        return None
+    return {
+        "id": row["id"],
+        "type": row["type"],
+        "telegram_message_id": row["telegram_message_id"],
+        "payload": json.loads(row["payload"]),
+    }
 
 
 def get_pending_by_message_id(telegram_message_id: int) -> dict | None:
