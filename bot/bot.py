@@ -1333,6 +1333,48 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
             log.info("DEBUG directive: %s", _dpfx)
             return
 
+    # "At <time> [today/tomorrow] give the following instruction to Claude
+    # Code: <spec>" -- Bill's own phrasing (2026-09-24) for holding an
+    # instruction and firing a real headless Claude Code job later, instead
+    # of Watson just generating a conversational reply that looks like it
+    # relayed the instruction but never actually dispatched anything (see
+    # jobs/devdispatch/scheduled.py). Checked before the skill router since
+    # this must never fall through to the paid-LLM fallback.
+    _sched_match = _SCHEDULE_CLAUDE_RE.match(text_clean.strip())
+    if _sched_match:
+        from jobs.devdispatch.schema import ALLOWED_REPOS
+        from jobs.devdispatch.scheduled import (
+            create_scheduled_job, infer_repo, parse_schedule_time,
+        )
+        from jobs.telegram.pending import store_pending_action
+
+        _sched_when = parse_schedule_time(_sched_match.group("time"), _sched_match.group("date"))
+        _sched_spec = _sched_match.group("spec").strip().strip("\"“”‘’'")
+        if _sched_when is None:
+            await update.message.reply_text(
+                f'Couldn\'t parse a time out of "{_sched_match.group("time")}" — try like "at 4:52pm today".'
+            )
+            return
+        _sched_repo = infer_repo(_sched_spec)
+        _sched_job_id = create_scheduled_job(_sched_spec, _sched_when, update.effective_chat.id, repo=_sched_repo)
+        _sched_when_str = _sched_when.strftime("%-I:%M%p on %b %-d").lower()
+        if _sched_repo:
+            await update.message.reply_text(
+                f"⏰ Got it — I'll give Claude Code that instruction at {_sched_when_str} against the "
+                f"{_sched_repo} repo. It'll open a PR for you to review; I'll ping you when it's done."
+            )
+        else:
+            _sched_prompt = await update.message.reply_text(
+                f"⏰ Scheduled for {_sched_when_str} — I couldn't tell which repo this is for. "
+                f"Reply with one of: {', '.join(ALLOWED_REPOS)}."
+            )
+            store_pending_action(
+                "scheduled_job_repo", _sched_prompt.message_id, {"job_id": _sched_job_id},
+                chat_id=update.effective_chat.id,
+            )
+        _log_telegram_exchange(text_clean, f"[scheduled claude code job {_sched_job_id} for {_sched_when_str}]")
+        return
+
     # Reply-threading: route replies to Watson-sent messages before any other logic
     if update.message.reply_to_message:
         replied_id = update.message.reply_to_message.message_id
@@ -1345,20 +1387,21 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 log.info("DEBUG pre-check: reply-threaded (%s)", tg_pending['type'])
                 return
 
-    # Fallback for the prayer-escalation note prompt: a deacon typing a
-    # follow-up rarely uses Telegram's native Reply gesture, so the
-    # reply-to match above finds nothing and the note used to fall all the
-    # way through to the paid-LLM skill router instead of reaching Bill.
-    # Match by chat instead, within a short window right after the
-    # escalate tap (jobs/telegram/pending.py::get_latest_pending_for_chat).
+    # Fallback for prompts that expect a plain follow-up in the same chat:
+    # people rarely use Telegram's native Reply gesture, so the reply-to
+    # match above finds nothing and the follow-up used to fall all the way
+    # through to the paid-LLM skill router (e.g. a deacon's prayer-escalation
+    # note never reaching Bill). Match by chat instead, within a short
+    # window (jobs/telegram/pending.py::get_latest_pending_for_chat).
     from jobs.telegram.pending import get_latest_pending_for_chat
-    _escalate_pending = get_latest_pending_for_chat(update.effective_chat.id, "prayer_escalate_note")
-    if _escalate_pending:
-        handled = await _route_tg_pending_reply(update, context, text_clean, _escalate_pending)
-        if handled:
-            _log_telegram_exchange(text_clean, "[chat-threaded: prayer_escalate_note]")
-            log.info("DEBUG pre-check: chat-threaded (prayer_escalate_note)")
-            return
+    for _chat_fallback_type in ("prayer_escalate_note", "scheduled_job_repo"):
+        _chat_pending = get_latest_pending_for_chat(update.effective_chat.id, _chat_fallback_type)
+        if _chat_pending:
+            handled = await _route_tg_pending_reply(update, context, text_clean, _chat_pending)
+            if handled:
+                _log_telegram_exchange(text_clean, f"[chat-threaded: {_chat_fallback_type}]")
+                log.info("DEBUG pre-check: chat-threaded (%s)", _chat_fallback_type)
+                return
 
     # Store every incoming message for resend capability
     from jobs.telegram.resend_last import store_message, get_last_message
@@ -2656,6 +2699,17 @@ _EVENT_CREATE_ALLOWLIST = frozenset({"Kaci Gravatt"})
 # "a new event" (excluding "an event") both missed -- see bug #185) and
 # "an"/"a" articles, with "new" itself optional since the verb already
 # disambiguates from ordinary questions.
+# "At <time> [today/tomorrow] give the following instruction to Claude
+# Code: <spec>" -- see jobs/devdispatch/scheduled.py and the pre-check in
+# _handle_text_body that matches this. DOTALL so a multi-line/quoted spec
+# (Bill's actual usage) is captured whole.
+_SCHEDULE_CLAUDE_RE = re.compile(
+    r"^at\s+(?P<time>\d{1,2}(?::\d{2})?\s*(?:am|pm)?)\s*(?P<date>today|tomorrow)?\s*,?\s*"
+    r"(?:please\s+)?give\s+(?:the\s+following\s+instruction|this\s+instruction|the\s+instruction)"
+    r"\s+to\s+claude\s*code\s*:?\s*(?P<spec>.+)$",
+    re.IGNORECASE | re.DOTALL,
+)
+
 _NEW_EVENT_RE = re.compile(
     r"\b(?:creat(?:e|ed|ing)|set(?:ting)?\s+up|start(?:ed|ing)?(?:\s+tracking)?|add(?:ed|ing)?)\s+"
     r"(?:an?\s+)?(?:new\s+)?event\b\s*(?:is\s+)?(?:called|named|for|titled)?\s*[:\-]?\s*(.*)",
@@ -4816,6 +4870,22 @@ async def _route_tg_pending_reply(
         else:
             await update.message.reply_text("No problem, no note added.")
 
+        mark_done(pending_id)
+        return True
+
+    if action_type == "scheduled_job_repo":
+        # Follow-up to a scheduled "at <time> give this instruction to
+        # Claude Code" message that Watson couldn't infer a repo for (see
+        # jobs/devdispatch/scheduled.py). Left pending (no mark_done) on an
+        # invalid answer so Bill can just retry in the same thread/chat.
+        from jobs.devdispatch.schema import ALLOWED_REPOS
+        from jobs.devdispatch.scheduled import set_repo
+        candidate = text_lower
+        if candidate not in ALLOWED_REPOS:
+            await update.message.reply_text(f"That's not one of: {', '.join(ALLOWED_REPOS)}. Which repo?")
+            return True
+        set_repo(payload.get("job_id"), candidate)
+        await update.message.reply_text(f"Got it — will dispatch to {candidate} at the scheduled time.")
         mark_done(pending_id)
         return True
 
