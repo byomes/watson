@@ -1,6 +1,6 @@
 # Watson Bug Tracker
 _Auto-generated nightly from bug_tracker. Source of truth is the database — do not hand-edit this file, changes will be overwritten._
-Last generated: 2026-09-24 02:10
+Last generated: 2026-09-25 02:10
 
 ## Open (3)
 | ID | Title | Repo | Discovered |
@@ -12,6 +12,8 @@ Last generated: 2026-09-24 02:10
 ## Recently Resolved (last 30 days)
 | ID | Title | Repo | Resolved | Commit |
 |---|---|---|---|---|
+| 197 | Stale Getaway Search links left in dashboard after tool deletion | watson | 2026-09-25 03:01:52 | 0a15872 |
+| 196 | State of the Church cited future/unaware-of-past events for attendance reasoning | watson | 2026-09-25 01:21:29 | 1a115fb |
 | 22 | Ollama OLLAMA_MAX_LOADED_MODELS=1 forces single-model residency, causing classifier/general-chat model thrash | watson | 2026-09-23 02:55:28 |  |
 | 55 | watson-codeagent.service is live but broken and undocumented | watson | 2026-09-23 02:51:36 |  |
 | 58 | missed_report.py cron path missing slash, silently failed weekly | watson | 2026-09-23 02:45:53 | 02a8855 |
