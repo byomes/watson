@@ -158,6 +158,61 @@ def _mentions_extra_field(question_lower: str, event_id: int) -> bool:
     return False
 
 
+def _is_rsvp_event(event_id: int) -> bool:
+    """True if this event uses yes/no RSVP tracking (church_events.rsvp_tracking=1,
+    e.g. the Servant Leaders Banquet -- see jobs/events/banquet_rsvp.py). Its
+    registrations are responses, not signups: a rsvp_status='no' row is
+    someone who DECLINED, so the plain signup list/SUM(num_tickets) below
+    would wrongly present them as attending."""
+    try:
+        conn = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True, timeout=5)
+        row = conn.execute(
+            "SELECT rsvp_tracking FROM church_events WHERE id = ?", (event_id,)
+        ).fetchone()
+        conn.close()
+    except Exception:
+        return False
+    return bool(row and row[0])
+
+
+def _rsvp_count_sql(event_id: int) -> str:
+    """Attending/declined/children as three separate numbers -- never one
+    combined total (see _EVENTS_SCHEMA in jobs/analytics/data_chat.py):
+    num_tickets only for 'yes' rows, declines counted separately, and
+    child_count (children/teens listed on the form) reported on its own."""
+    return (
+        "SELECT COALESCE(SUM(CASE WHEN rsvp_status = 'yes' THEN num_tickets END), 0) AS attending, "
+        "COALESCE(SUM(CASE WHEN rsvp_status = 'no' THEN 1 END), 0) AS declined, "
+        "COALESCE(SUM(CASE WHEN rsvp_status = 'yes' THEN child_count END), 0) AS children_teens "
+        f"FROM event_registrations WHERE event_id = {event_id}"
+    )
+
+
+def _rsvp_list_sql(event_id: int) -> str:
+    """One line per respondent with their actual answer, attending first.
+
+    Built 2026-09-25 after "Who has rsvp'd for the servant leaders banquet?"
+    (Team Chat) fell through to a paid LLM call: _LIST_RE and
+    _resolve_event_id already matched it, but the banquet had zero RSVPs on
+    file yet, and data_chat.py treats a zero-row fast-path result as a
+    possible false-positive match and falls through to generation. Here the
+    event was resolved strictly (see _resolve_event_id), so "nobody yet" IS
+    the real answer -- the UNION ALL branch returns it as an explicit row
+    instead of an empty result."""
+    return (
+        "SELECT registrant FROM ("
+        "SELECT first_name || ' ' || last_name || ' — ' || "
+        "CASE rsvp_status WHEN 'yes' THEN 'attending' WHEN 'no' THEN 'not attending' ELSE 'response unclear' END || "
+        "CASE WHEN rsvp_status = 'yes' AND child_count > 0 THEN ' (+' || child_count || ' children/teens)' ELSE '' END "
+        "AS registrant, CASE rsvp_status WHEN 'yes' THEN 0 WHEN 'no' THEN 1 ELSE 2 END AS grp, "
+        "first_name AS fn, last_name AS ln "
+        f"FROM event_registrations WHERE event_id = {event_id} "
+        "UNION ALL SELECT 'No RSVPs received yet.', 0, '', '' "
+        f"WHERE NOT EXISTS (SELECT 1 FROM event_registrations WHERE event_id = {event_id})"
+        ") ORDER BY grp, fn, ln"
+    )
+
+
 def pattern_match(question: str) -> str | None:
     """Return a single-line SELECT for the events domain, or None if the
     question doesn't match a recognized phrasing — bypasses both Ollama and
@@ -178,6 +233,8 @@ def pattern_match(question: str) -> str | None:
             return None
         if _mentions_extra_field(q.lower(), event_id):
             return None
+        if _is_rsvp_event(event_id):
+            return _rsvp_count_sql(event_id)
         # COALESCE to 0 -- a bare SUM() is SQL NULL when the event has zero
         # registrations so far (a real, common state right after an event is
         # created), and _format_rows/_fmt_value renders a lone NULL value as
@@ -203,6 +260,8 @@ def pattern_match(question: str) -> str | None:
         # LLM path for that case, same as the COUNT branch above.
         if _mentions_extra_field(q.lower(), event_id):
             return None
+        if _is_rsvp_event(event_id):
+            return _rsvp_list_sql(event_id)
         return (
             "SELECT first_name || ' ' || last_name || "
             "CASE WHEN num_tickets > 1 THEN ' (' || num_tickets || ' tickets)' ELSE '' END || "
