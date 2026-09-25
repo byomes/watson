@@ -371,6 +371,11 @@ from jobs.campaigns.schema import create_tables as _campaigns_create_tables
 _campaigns_create_tables()
 app.register_blueprint(campaigns_bp)
 
+from jobs.sms.api import sms_bp
+from jobs.sms.schema import create_tables as _sms_create_tables
+_sms_create_tables()
+app.register_blueprint(sms_bp)
+
 from jobs.comms.api import comms_bp
 from jobs.comms import bootstrap_db as _comms_bootstrap_db
 _comms_bootstrap_db()
