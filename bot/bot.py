@@ -7119,17 +7119,20 @@ def _prayer_log_row(log_id: int):
         ).fetchone()
 
 
-def _prayer_done_later_keyboard(log_id: int) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup([[
+def _prayer_done_later_keyboard(log_id: int, can_escalate: bool = True) -> InlineKeyboardMarkup:
+    rows = [[
         InlineKeyboardButton("✅ Logged / Done", callback_data=f"pr_done:{log_id}"),
         InlineKeyboardButton("⏰ Remind me later", callback_data=f"pr_later:{log_id}"),
-    ]])
+    ]]
+    if can_escalate:
+        rows.append([InlineKeyboardButton("🚨 Escalate to Pastor", callback_data=f"pr_escalate:{log_id}")])
+    return InlineKeyboardMarkup(rows)
 
 
 async def handle_prayer_contact_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle pr_done:/pr_later:/pr_back: taps on a deacon prayer-contact
-    notification (jobs/telegram/prayer_notify.py). Not gated behind
-    _is_authorized -- instead each notification's telegram_chat_id is
+    """Handle pr_done:/pr_later:/pr_back:/pr_escalate: taps on a deacon
+    prayer-contact notification (jobs/telegram/prayer_notify.py). Not gated
+    behind _is_authorized -- instead each notification's telegram_chat_id is
     checked against whoever pressed the button, so a deacon can act on
     their own notifications without being Bill."""
     query = update.callback_query
@@ -7167,7 +7170,43 @@ async def handle_prayer_contact_callback(update: Update, context: ContextTypes.D
         await query.edit_message_reply_markup(reply_markup=keyboard)
 
     elif action == "pr_back":
-        await query.edit_message_reply_markup(reply_markup=_prayer_done_later_keyboard(log_id))
+        await query.edit_message_reply_markup(
+            reply_markup=_prayer_done_later_keyboard(log_id, bool(row["can_escalate"]))
+        )
+
+    elif action == "pr_escalate":
+        if not row["can_escalate"]:
+            await query.answer("Already at pastor level.", show_alert=True)
+            return
+
+        from jobs.telegram.prayer_notify import send_notification, bill_contact
+
+        with sqlite3.connect(_PRAYER_DB_PATH) as conn:
+            conn.execute(
+                "UPDATE prayer_contact_log SET status = 'escalated', escalated_at = datetime('now') WHERE id = ?",
+                (log_id,),
+            )
+        await query.edit_message_text(query.message.text + "\n\n🚨 Escalated to Pastor Bill.", reply_markup=None)
+
+        bill = bill_contact()
+        if bill is None:
+            log.error("prayer escalate: Bill has no telegram_chat_id on file, escalation not sent (log_id=%s)", log_id)
+            return
+        bill_person_id, bill_chat_id = bill
+        new_log_id = send_notification(
+            row["prayer_request_id"],
+            deacon_person_id=bill_person_id,
+            deacon_chat_id=bill_chat_id,
+            header=f'🚨 Escalated by {row["deacon_name"] or "a deacon"} — ',
+            can_escalate=False,
+            parent_log_id=log_id,
+        )
+        if new_log_id:
+            with sqlite3.connect(_PRAYER_DB_PATH) as conn:
+                conn.execute(
+                    "UPDATE prayer_contact_log SET escalated_to_log_id = ? WHERE id = ?",
+                    (new_log_id, log_id),
+                )
 
 
 async def handle_prayer_remind_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -7553,7 +7592,7 @@ def main():
     app.add_handler(CallbackQueryHandler(handle_web_benchmark_callback, pattern=r"^webbench_(update|ignore):\d+$"))
     app.add_handler(CallbackQueryHandler(handle_member_conflict_callback, pattern=r"^mc_"))
     app.add_handler(CallbackQueryHandler(handle_dup_flag_callback, pattern=r"^dupf_(merge|alias|sep|skip):"))
-    app.add_handler(CallbackQueryHandler(handle_prayer_contact_callback, pattern=r"^pr_(done|later|back):\d+$"))
+    app.add_handler(CallbackQueryHandler(handle_prayer_contact_callback, pattern=r"^pr_(done|later|back|escalate):\d+$"))
     app.add_handler(CallbackQueryHandler(handle_prayer_remind_callback, pattern=r"^pr_remind:\d+:\d+$"))
     app.add_handler(CallbackQueryHandler(handle_batch_update_callback, pattern=r"^bu_"))
     app.add_handler(CallbackQueryHandler(handle_command_callback, pattern=r"^cmd_"))

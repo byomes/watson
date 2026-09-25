@@ -335,6 +335,9 @@ app.register_blueprint(catalystdb_web_bp)
 from jobs.congregation.elder_shepherding_report_web import elder_shepherding_report_web_bp
 app.register_blueprint(elder_shepherding_report_web_bp)
 
+from jobs.congregation.shepcheck_web import shepcheck_web_bp
+app.register_blueprint(shepcheck_web_bp)
+
 from jobs.congregation.duplicate_review import duplicate_review_bp
 app.register_blueprint(duplicate_review_bp)
 
