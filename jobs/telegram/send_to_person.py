@@ -46,6 +46,45 @@ def send_to_person(person_id: int, message: str) -> bool:
     return True
 
 
+def send_buttons_to_person(person_id: int, message: str, inline_keyboard: list[list[dict]]) -> bool:
+    """Same lookup/gate as send_to_person above, plus a Telegram inline
+    keyboard (bot.py's CallbackQueryHandler side reads the taps -- e.g.
+    the sp_c/sp_r spouse-pairing review buttons from
+    jobs/congregation/family_dates.py). inline_keyboard is Telegram's raw
+    shape: a list of button rows, each row a list of
+    {"text": ..., "callback_data": ...} dicts."""
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT name, telegram_chat_id FROM people WHERE id = ?", (person_id,)
+        ).fetchone()
+
+    chat_id = row["telegram_chat_id"] if row else None
+    if not chat_id:
+        log.error(
+            "send_buttons_to_person: person_id=%s has no telegram_chat_id yet -- not onboarded",
+            person_id,
+        )
+        return False
+
+    try:
+        resp = requests.post(
+            f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+            json={
+                "chat_id": chat_id,
+                "text": message,
+                "reply_markup": {"inline_keyboard": inline_keyboard},
+            },
+            timeout=10,
+        )
+        resp.raise_for_status()
+    except Exception as exc:
+        log.error("send_buttons_to_person: send failed for person_id=%s: %s", person_id, exc)
+        return False
+
+    _log_sent(row["name"], message)
+    return True
+
+
 def send_document_to_person(person_id: int, file_path: str, caption: str = "") -> bool:
     """Same contract as send_to_person above but for a file (e.g. a PDF
     report) rather than a text message -- added 2026-09-24 for the service

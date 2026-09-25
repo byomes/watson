@@ -55,7 +55,7 @@ from dotenv import load_dotenv
 from core.vacation import vacation_gate
 from jobs.congregation.family_dates import record_anniversaries, record_birthdays
 from jobs.congregation.member_match import find_or_create_member
-from jobs.telegram.send_to_person import send_to_person
+from jobs.telegram.send_to_person import send_buttons_to_person, send_to_person
 
 load_dotenv(os.path.expanduser("~/watson/.env"))
 
@@ -539,6 +539,7 @@ def _process_email(
     conn: sqlite3.Connection,
     unmatched_birthdays: list | None = None,
     unmatched_anniversaries: list | None = None,
+    spouse_reviews: list | None = None,
 ) -> bool:
     from_addr = email.utils.parseaddr(msg.get("From", ""))[1].lower()
 
@@ -649,10 +650,15 @@ def _process_email(
         for entry in new_unmatched_bdays:
             unmatched_birthdays.append({**entry, "submitted_by": name, "card_id": card_id})
 
-    new_unmatched_annivs = record_anniversaries(conn, card_id, member_id, fields.get("anniversaries") or [])
+    new_unmatched_annivs, new_spouse_reviews = record_anniversaries(
+        conn, card_id, member_id, fields.get("anniversaries") or []
+    )
     if unmatched_anniversaries is not None:
         for entry in new_unmatched_annivs:
             unmatched_anniversaries.append({**entry, "submitted_by": name, "card_id": card_id})
+    if spouse_reviews is not None:
+        for entry in new_spouse_reviews:
+            spouse_reviews.append({**entry, "submitted_by": name, "card_id": card_id})
 
     # attendance -- keyed by (member_id, service_date) only (matching
     # attendance_web.py's data model note and attendance_intake.py's same
@@ -801,6 +807,55 @@ def _notify_donna_unmatched_family_dates(
         log.warning("Failed to send unmatched family-dates summary to Donna (not onboarded?).")
 
 
+_SPOUSE_REVIEW_REASON_TEXT = {
+    "skipped_child": "one of them is on file as a child in their household, so I didn't want to override that on my own",
+    "skipped_other": "I couldn't link their households automatically (they may already be in two different populated ones)",
+}
+
+
+def _spouse_review_keyboard(entry: dict) -> list[list[dict]]:
+    """Telegram inline_keyboard for one spouse-pairing review -- see
+    bot.py's CallbackQueryHandler(pattern=r"^sp_(c|r):") for the tap side."""
+    row_id = entry["anniv_row_id"]
+    a_name, b_name = entry["member_names"]
+    rows = []
+    for a_role, b_role in entry["options"]:
+        a_word = "Husband" if a_role == "husband" else "Wife"
+        b_word = "Husband" if b_role == "husband" else "Wife"
+        rows.append([{
+            "text": f"✅ {a_name} = {a_word}, {b_name} = {b_word}",
+            "callback_data": f"sp_c:{row_id}:{a_role}",
+        }])
+    rows.append([{"text": "🙅 Not married / skip", "callback_data": f"sp_r:{row_id}"}])
+    return rows
+
+
+def _notify_donna_spouse_reviews(entries: list[dict]) -> None:
+    """Texts Donna (Telegram) one message per uncertain spouse pairing from
+    this run, each with its own confirm/reject buttons -- one at a time,
+    same pattern as jobs/congregation/notify_subsplash_fuzzy_review.py's
+    duplicate-member review texts. A confident pairing (matching gender on
+    file) is applied automatically by family_dates.record_anniversaries and
+    never reaches here; this is only for the ones Watson itself is unsure
+    about."""
+    if vacation_gate("normal", "jobs.connect_cards.intake.spouse_review", f"{len(entries)} spouse pairing(s)"):
+        return
+    for e in entries:
+        a_name, b_name = e["member_names"]
+        reason_text = _SPOUSE_REVIEW_REASON_TEXT.get(
+            e["reason"], "I don't have gender on file for one or both of them"
+        )
+        text = (
+            f"💍 {a_name} and {b_name} gave the same anniversary date on a connect card "
+            f"({e['anniversary_date']}, submitted by {e['submitted_by']}) -- looks like they might be "
+            f"married, but {reason_text}. Can you confirm?"
+        )
+        if send_buttons_to_person(DONNA_PERSON_ID, text, _spouse_review_keyboard(e)):
+            log.info("Sent spouse-pairing review to Donna: %s / %s", a_name, b_name)
+        else:
+            log.warning("Failed to send spouse-pairing review to Donna (not onboarded?).")
+
+
 def run(dry_run: bool = False) -> None:
     _migrate_columns()
     if not GMAIL_ADDR or not GMAIL_PASS:
@@ -820,6 +875,7 @@ def run(dry_run: bool = False) -> None:
         processed = inserted = 0
         unmatched_birthdays: list = []
         unmatched_anniversaries: list = []
+        spouse_reviews: list = []
 
         try:
             # Gmail occasionally spam-filters a legitimate connect-card email
@@ -850,7 +906,7 @@ def run(dry_run: bool = False) -> None:
                     msg = email.message_from_bytes(msg_data[0][1])
                     try:
                         result = _process_email(
-                            msg, dry_run, conn, unmatched_birthdays, unmatched_anniversaries
+                            msg, dry_run, conn, unmatched_birthdays, unmatched_anniversaries, spouse_reviews
                         )
                     except Exception as exc:
                         log.exception("Error processing email id %s in %s: %s", eid, mailbox, exc)
@@ -874,6 +930,9 @@ def run(dry_run: bool = False) -> None:
 
         if (unmatched_birthdays or unmatched_anniversaries) and not dry_run:
             _notify_donna_unmatched_family_dates(unmatched_birthdays, unmatched_anniversaries)
+
+        if spouse_reviews and not dry_run:
+            _notify_donna_spouse_reviews(spouse_reviews)
 
     finally:
         try:

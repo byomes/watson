@@ -7233,6 +7233,95 @@ async def handle_dup_flag_callback(update: Update, context: ContextTypes.DEFAULT
         await query.edit_message_text(f"❌ Error: {exc}", reply_markup=None)
 
 
+# ── Connect-card spouse-pairing review (sp_c/sp_r ...) ───────────────────────
+
+_DONNA_PERSON_ID = 12  # see jobs/connect_cards/intake.py's own copy of this mapping
+
+
+def _spouse_review_authorized(update) -> bool:
+    """Bill's own chat, or Donna Redman's -- these buttons are only ever
+    texted to Donna (jobs/connect_cards/intake.py's
+    _notify_donna_spouse_reviews), but this looks her chat_id up live
+    rather than hardcoding it so a re-onboard can't silently break it."""
+    chat_id = update.effective_chat.id
+    if chat_id == _AUTHORIZED_ID:
+        return True
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT telegram_chat_id FROM people WHERE id = ?", (_DONNA_PERSON_ID,)
+        ).fetchone()
+    return bool(row and row["telegram_chat_id"] and str(chat_id) == str(row["telegram_chat_id"]))
+
+
+async def handle_spouse_pairing_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle sp_c/sp_r taps from jobs/connect_cards/intake.py's
+    _notify_donna_spouse_reviews -- confirms or rejects a husband/wife
+    pairing Watson wasn't confident enough to apply on its own from a
+    connect card's anniversary field (see jobs/congregation/family_dates.py
+    record_anniversaries' needs_review). Confirming reuses
+    family_edit._mark_spouse_core, the same logic behind the mark_spouse
+    Telegram command, so this writes household_id/household_role/gender
+    exactly like a leader typing "X and Y are married" would."""
+    query = update.callback_query
+    await query.answer()
+
+    if not _spouse_review_authorized(update):
+        return
+
+    from jobs.congregation.family_edit import _COMPLEMENT_ROLE, _conn, _mark_spouse_core, _resolve_by_id
+
+    parts = query.data.split(":")
+    action, row_id = parts[0], int(parts[1])
+
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT id, matched_member_ids, spouse_link_status FROM connect_card_anniversaries WHERE id = ?",
+            (row_id,),
+        ).fetchone()
+        if not row:
+            await query.edit_message_text("Couldn't find that review anymore.", reply_markup=None)
+            return
+        if row["spouse_link_status"] != "pending_review":
+            await query.edit_message_text("This one's already been handled.", reply_markup=None)
+            return
+
+        if action == "sp_r":
+            conn.execute(
+                "UPDATE connect_card_anniversaries SET spouse_link_status = 'rejected' WHERE id = ?",
+                (row_id,),
+            )
+            conn.commit()
+            await query.edit_message_text("🙅 Got it — not marking them as spouses.", reply_markup=None)
+            return
+
+        # sp_c:<row_id>:<a_role> -- b_role is a_role's complement; ids come
+        # from matched_member_ids in the same (a, b) order family_dates.py
+        # stored them in.
+        a_role = parts[2]
+        b_role = _COMPLEMENT_ROLE[a_role]
+        ids = [int(x) for x in (row["matched_member_ids"] or "").split(",") if x]
+        if len(ids) != 2:
+            await query.edit_message_text(
+                "Something's off with this review row — couldn't find both members.", reply_markup=None
+            )
+            return
+
+        a, b = _resolve_by_id(conn, ids[0]), _resolve_by_id(conn, ids[1])
+        if isinstance(a, str) or isinstance(b, str):
+            await query.edit_message_text(f"❌ {a if isinstance(a, str) else b}", reply_markup=None)
+            return
+
+        ok, message = _mark_spouse_core(conn, a, b, "Donna Redman (via Telegram)", a_role, b_role)
+        if ok:
+            conn.execute(
+                "UPDATE connect_card_anniversaries SET spouse_link_status = 'married' WHERE id = ?",
+                (row_id,),
+            )
+        conn.commit()
+
+    await query.edit_message_text(f"{'✅' if ok else '❌'} {message}", reply_markup=None)
+
+
 # ── Deacon prayer-contact accountability (jobs/telegram/prayer_notify.py) ────
 
 _PRAYER_DB_PATH = os.path.expanduser("~/watson/data/congregation.db")
@@ -7733,6 +7822,7 @@ def main():
     app.add_handler(CallbackQueryHandler(handle_web_benchmark_callback, pattern=r"^webbench_(update|ignore):\d+$"))
     app.add_handler(CallbackQueryHandler(handle_member_conflict_callback, pattern=r"^mc_"))
     app.add_handler(CallbackQueryHandler(handle_dup_flag_callback, pattern=r"^dupf_(merge|alias|sep|skip):"))
+    app.add_handler(CallbackQueryHandler(handle_spouse_pairing_callback, pattern=r"^sp_(c|r):"))
     app.add_handler(CallbackQueryHandler(handle_prayer_contact_callback, pattern=r"^pr_(done|later|back|escalate):\d+$"))
     app.add_handler(CallbackQueryHandler(handle_prayer_remind_callback, pattern=r"^pr_remind:\d+:\d+$"))
     app.add_handler(CallbackQueryHandler(handle_batch_update_callback, pattern=r"^bu_"))
