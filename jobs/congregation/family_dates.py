@@ -11,11 +11,26 @@ rows for a name someone mistyped. An entry that can't be matched with
 confidence is still recorded (as 'unmatched'), so the data isn't lost by
 silently writing nothing -- Dr. Bill/Donna can review via cdb_query
 (jobs/skills/cdb_query.py's _TABLES) or a direct query against these tables.
+
+Two matched members sharing one anniversary entry are a married couple by
+definition, so record_anniversaries also feeds that into the same
+household_id/household_role model jobs/congregation/family_edit.py already
+maintains for "who is X's spouse" (Team Chat, Telegram) -- reusing
+_mark_spouse_core rather than writing a second, divergent way to mark a
+marriage. That function requires the caller to say which of the two is the
+husband and which is the wife ("a role assignment is a deliberate human
+statement", per its own docstring); a submitted anniversary carries no
+gender, so this only fires when both matched members already have gender on
+file and it's a clean male/female pair -- anything else (gender missing, a
+same-gender pair, one of them on file as a child) is left alone rather than
+guessed.
 """
 
 import difflib
 import re
 import sqlite3
+
+from jobs.congregation.family_edit import _mark_spouse_core
 
 FUZZY_THRESHOLD = 0.82
 
@@ -125,9 +140,54 @@ def record_birthdays(
     return unmatched
 
 
+def _try_mark_spouses(conn: sqlite3.Connection, member_ids: list[int]) -> str:
+    """Best-effort: mark two matched members as spouses of each other via
+    _mark_spouse_core, using whatever gender is already on file to decide
+    who's husband/wife. Returns a short outcome for the anniversaries row:
+    'already_married', 'married', 'skipped_unknown_gender', or
+    'skipped_<reason from _mark_spouse_core>' (e.g. a child on file)."""
+    if len(member_ids) != 2:
+        return "skipped_not_a_pair"
+
+    rows = {}
+    for mid in member_ids:
+        row = conn.execute(
+            "SELECT id, name, household_id, household_role, gender FROM members WHERE id = ?", (mid,)
+        ).fetchone()
+        if not row:
+            return "skipped_not_found"
+        rows[mid] = dict(row)
+    a, b = (rows[member_ids[0]], rows[member_ids[1]])
+
+    if (
+        a["household_id"]
+        and a["household_id"] == b["household_id"]
+        and a["household_role"] in ("husband", "wife")
+        and b["household_role"] in ("husband", "wife")
+    ):
+        return "already_married"
+
+    if a["gender"] == "male" and b["gender"] == "female":
+        a_role, b_role = "husband", "wife"
+    elif a["gender"] == "female" and b["gender"] == "male":
+        a_role, b_role = "wife", "husband"
+    else:
+        return "skipped_unknown_gender"
+
+    ok, message = _mark_spouse_core(conn, a, b, "Connect card intake", a_role, b_role)
+    if ok:
+        return "married"
+    return "skipped_child" if "on file as a child" in message else "skipped_other"
+
+
 def record_anniversaries(
     conn: sqlite3.Connection, card_id: int, submitter_member_id: int | None, entries: list[dict]
-) -> None:
+) -> list[dict]:
+    """Returns the entries that landed as 'unmatched' (submitted_names,
+    anniversary_date), mirroring record_birthdays' return so a caller can
+    notify someone rather than let them sit silently in
+    connect_card_anniversaries."""
+    unmatched: list[dict] = []
     for entry in entries:
         names = (entry.get("name") or "").strip()
         anniv_date = entry.get("date")
@@ -135,6 +195,7 @@ def record_anniversaries(
             continue
         candidates = _split_couple_names(names) if names else []
         matched_ids = [mid for mid in (_match_name(conn, n, submitter_member_id) for n in candidates) if mid]
+        spouse_status = None
         if matched_ids and anniv_date:
             results = [_apply_date(conn, mid, "anniversary", anniv_date) for mid in matched_ids]
             if "conflict" in results:
@@ -143,15 +204,19 @@ def record_anniversaries(
                 status = "partial_match"
             else:
                 status = "applied" if "applied" in results else "no_change"
+            if status in ("applied", "no_change") and len(matched_ids) == 2:
+                spouse_status = _try_mark_spouses(conn, matched_ids)
         elif matched_ids:
             status = "matched"
         else:
             status = "unmatched"
+            unmatched.append({"submitted_names": names, "anniversary_date": anniv_date})
         conn.execute(
             """
             INSERT INTO connect_card_anniversaries
-              (card_id, submitted_names, anniversary_date, matched_member_ids, status)
-            VALUES (?, ?, ?, ?, ?)
+              (card_id, submitted_names, anniversary_date, matched_member_ids, status, spouse_link_status)
+            VALUES (?, ?, ?, ?, ?, ?)
             """,
-            (card_id, names or None, anniv_date, ",".join(str(i) for i in matched_ids) or None, status),
+            (card_id, names or None, anniv_date, ",".join(str(i) for i in matched_ids) or None, status, spouse_status),
         )
+    return unmatched

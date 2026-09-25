@@ -19,7 +19,11 @@ Birthdays" / "Anniversaries" entries 2026-09-25 for a several-week
 birthdate/anniversary collection push. Those are matched read-only against
 members and staged in connect_card_birthdays / connect_card_anniversaries --
 see jobs/congregation/family_dates.py for why they aren't written straight
-to members.
+to members. A matched anniversary shared by two members is also fed into
+family_edit.py's household_role/gender marriage model when it can be done
+without guessing (see family_dates._try_mark_spouses). Any entry from
+either field that can't be matched to a member gets texted to Donna Redman
+as a summary once the run finishes (_notify_donna_unmatched_family_dates).
 
 Configuration:
   WATSON_GMAIL_ADDRESS      Gmail login address
@@ -192,6 +196,7 @@ def _migrate_columns() -> None:
                 anniversary_date    TEXT,
                 matched_member_ids  TEXT,
                 status              TEXT NOT NULL DEFAULT 'unmatched',
+                spouse_link_status  TEXT,
                 created_at          TEXT DEFAULT (datetime('now'))
             )
         """)
@@ -205,6 +210,13 @@ def _migrate_columns() -> None:
             if col not in existing:
                 conn.execute(f"ALTER TABLE connect_cards ADD COLUMN {col} {defn}")
                 log.info("Migration: added column connect_cards.%s", col)
+        # spouse_link_status added after connect_card_anniversaries' initial
+        # CREATE TABLE above already shipped once -- ALTER it in for anyone
+        # who already has the table without it.
+        anniv_cols = {row[1] for row in conn.execute("PRAGMA table_info(connect_card_anniversaries)").fetchall()}
+        if "spouse_link_status" not in anniv_cols:
+            conn.execute("ALTER TABLE connect_card_anniversaries ADD COLUMN spouse_link_status TEXT")
+            log.info("Migration: added column connect_card_anniversaries.spouse_link_status")
         conn.commit()
     finally:
         conn.close()
@@ -522,7 +534,11 @@ def _resolve_member(
 # ── Process one email ─────────────────────────────────────────────────────────
 
 def _process_email(
-    msg, dry_run: bool, conn: sqlite3.Connection, unmatched_birthdays: list | None = None
+    msg,
+    dry_run: bool,
+    conn: sqlite3.Connection,
+    unmatched_birthdays: list | None = None,
+    unmatched_anniversaries: list | None = None,
 ) -> bool:
     from_addr = email.utils.parseaddr(msg.get("From", ""))[1].lower()
 
@@ -628,11 +644,15 @@ def _process_email(
             (card_id, conflict_row_id),
         )
 
-    new_unmatched = record_birthdays(conn, card_id, member_id, fields.get("family_birthdays") or [])
+    new_unmatched_bdays = record_birthdays(conn, card_id, member_id, fields.get("family_birthdays") or [])
     if unmatched_birthdays is not None:
-        for entry in new_unmatched:
+        for entry in new_unmatched_bdays:
             unmatched_birthdays.append({**entry, "submitted_by": name, "card_id": card_id})
-    record_anniversaries(conn, card_id, member_id, fields.get("anniversaries") or [])
+
+    new_unmatched_annivs = record_anniversaries(conn, card_id, member_id, fields.get("anniversaries") or [])
+    if unmatched_anniversaries is not None:
+        for entry in new_unmatched_annivs:
+            unmatched_anniversaries.append({**entry, "submitted_by": name, "card_id": card_id})
 
     # attendance -- keyed by (member_id, service_date) only (matching
     # attendance_web.py's data model note and attendance_intake.py's same
@@ -737,31 +757,48 @@ def _build_search_query() -> str:
     return query
 
 
-def _notify_donna_unmatched_birthdays(entries: list[dict]) -> None:
-    """Texts Donna (Telegram) a summary of this run's unmatched Family
-    Birthdays entries -- names typed into a connect card that couldn't be
-    confidently matched to an existing member (a new child, a typo, someone
-    not yet in the system). They're still saved in connect_card_birthdays
-    either way; this just means she doesn't have to think to go query it."""
-    n = len(entries)
-    lines = [
-        f"🎂 {n} birthday submission{'s' if n != 1 else ''} from this batch of connect cards "
-        "didn't match anyone on file:",
-        "",
-    ]
-    for e in entries:
-        date_str = e["birth_date"] or "(no date given)"
-        who = e["submitted_name"] or "(no name given)"
-        lines.append(f"• {who} — {date_str} (submitted by {e['submitted_by']})")
+def _notify_donna_unmatched_family_dates(
+    unmatched_birthdays: list[dict], unmatched_anniversaries: list[dict]
+) -> None:
+    """Texts Donna (Telegram) one summary of this run's unmatched Family
+    Birthdays / Anniversaries entries -- names typed into a connect card
+    that couldn't be confidently matched to an existing member (a new
+    child, a typo, someone not yet in the system). They're still saved in
+    connect_card_birthdays/connect_card_anniversaries either way; this just
+    means she doesn't have to think to go query it. One message covering
+    both sections rather than two separate texts."""
+    lines: list[str] = []
+
+    if unmatched_birthdays:
+        n = len(unmatched_birthdays)
+        lines.append(f"🎂 {n} birthday submission{'s' if n != 1 else ''} didn't match anyone on file:")
+        for e in unmatched_birthdays:
+            date_str = e["birth_date"] or "(no date given)"
+            who = e["submitted_name"] or "(no name given)"
+            lines.append(f"• {who} — {date_str} (submitted by {e['submitted_by']})")
+
+    if unmatched_anniversaries:
+        if lines:
+            lines.append("")
+        n = len(unmatched_anniversaries)
+        lines.append(f"💍 {n} anniversary submission{'s' if n != 1 else ''} didn't match anyone on file:")
+        for e in unmatched_anniversaries:
+            date_str = e["anniversary_date"] or "(no date given)"
+            who = e["submitted_names"] or "(no names given)"
+            lines.append(f"• {who} — {date_str} (submitted by {e['submitted_by']})")
+
     lines += ["", "Take a look and add them if they're new, or let me know who they match."]
     text = "\n".join(lines)
 
-    if vacation_gate("normal", "jobs.connect_cards.intake.unmatched_birthdays", text):
+    if vacation_gate("normal", "jobs.connect_cards.intake.unmatched_family_dates", text):
         return
     if send_to_person(DONNA_PERSON_ID, text):
-        log.info("Sent unmatched-birthday summary to Donna (%d entries).", n)
+        log.info(
+            "Sent unmatched family-dates summary to Donna (%d birthday(s), %d anniversary(ies)).",
+            len(unmatched_birthdays), len(unmatched_anniversaries),
+        )
     else:
-        log.warning("Failed to send unmatched-birthday summary to Donna (not onboarded?).")
+        log.warning("Failed to send unmatched family-dates summary to Donna (not onboarded?).")
 
 
 def run(dry_run: bool = False) -> None:
@@ -782,6 +819,7 @@ def run(dry_run: bool = False) -> None:
         conn.row_factory = sqlite3.Row
         processed = inserted = 0
         unmatched_birthdays: list = []
+        unmatched_anniversaries: list = []
 
         try:
             # Gmail occasionally spam-filters a legitimate connect-card email
@@ -811,7 +849,9 @@ def run(dry_run: bool = False) -> None:
                         continue
                     msg = email.message_from_bytes(msg_data[0][1])
                     try:
-                        result = _process_email(msg, dry_run, conn, unmatched_birthdays)
+                        result = _process_email(
+                            msg, dry_run, conn, unmatched_birthdays, unmatched_anniversaries
+                        )
                     except Exception as exc:
                         log.exception("Error processing email id %s in %s: %s", eid, mailbox, exc)
                         result = False
@@ -832,8 +872,8 @@ def run(dry_run: bool = False) -> None:
 
         log.info("Done: %d processed, %d inserted.", processed, inserted)
 
-        if unmatched_birthdays and not dry_run:
-            _notify_donna_unmatched_birthdays(unmatched_birthdays)
+        if (unmatched_birthdays or unmatched_anniversaries) and not dry_run:
+            _notify_donna_unmatched_family_dates(unmatched_birthdays, unmatched_anniversaries)
 
     finally:
         try:
