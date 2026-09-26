@@ -12,7 +12,6 @@ leave the email unread until Bill responds, matching this file's top-level
 rule), or None (not a signup email at all; caller's generic triage runs
 unchanged).
 """
-import json
 import logging
 import os
 import re
@@ -22,6 +21,7 @@ import requests
 from dotenv import load_dotenv
 
 from config.settings import DB_PATH, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+from core.ollama_json import generate_json
 from core.vacation import vacation_gate
 from jobs.events.matching import find_active_event, find_member_id, find_member_name
 from jobs.events.schema import create_tables
@@ -77,15 +77,7 @@ def _looks_like_signup(subject: str, body: str) -> bool:
 def _classify(subject: str, body: str) -> dict | None:
     prompt = _DETECT_PROMPT.format(subject=subject, body_snippet=body[:1200])
     try:
-        resp = requests.post(
-            OLLAMA_URL,
-            json={"model": OLLAMA_MODEL, "prompt": prompt, "stream": False},
-            timeout=60,
-        )
-        resp.raise_for_status()
-        raw = resp.json().get("response", "").strip()
-        raw = raw.replace("```json", "").replace("```", "").strip()
-        return json.loads(raw)
+        return generate_json(OLLAMA_URL, model=OLLAMA_MODEL, prompt=prompt, timeout=60, retries=1)
     except Exception as exc:
         log.error("Event signup classification failed: %s", exc)
         return None
@@ -105,6 +97,61 @@ def _has_pending_event_new(msg_id: str) -> bool:
     except Exception as exc:
         log.warning("event_new pending dedup check failed: %s", exc)
         return False
+
+
+def _resolve_stale_email_triage(msg_id: str, who: str, event_name: str) -> None:
+    """A signup email that failed this file's own _classify() on an earlier
+    poll cycle falls through to email_intake.py's generic non-whitelist
+    triage, which stores an 'email_triage' pending action and pages Bill on
+    Telegram to ask what to do with it. Since the email stays unread until
+    something marks it read, this file re-tries the same email every poll
+    (~1/min) and usually succeeds a cycle or two later -- but nothing was
+    cancelling that earlier Telegram prompt, leaving Bill an open "please
+    review" ask for a registration Watson had already silently finished
+    intaking. Confirmed live 2026-09-26 (bug_tracker) on two Church Picnic
+    registrations. Called only from the already-matched, already-inserted
+    path below; a genuinely new/unmatched signup still gets its own
+    intentional event_new prompt further down."""
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        row = conn.execute(
+            "SELECT id, telegram_message_id FROM tg_pending_actions "
+            "WHERE type='email_triage' AND status='pending' "
+            "AND json_extract(payload, '$.uid') = ? LIMIT 1",
+            (msg_id,),
+        ).fetchone()
+        conn.close()
+    except Exception as exc:
+        log.warning("Stale email_triage lookup failed for uid=%s: %s", msg_id, exc)
+        return
+    if not row:
+        return
+
+    from jobs.telegram.pending import mark_done
+    mark_done(row["id"])
+    log.info(
+        "Auto-resolved stale email_triage pending_id=%d for uid=%s (already logged as %s registration for %s)",
+        row["id"], msg_id, event_name, who,
+    )
+
+    tg_msg_id = row["telegram_message_id"]
+    if not tg_msg_id or not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        return
+    try:
+        requests.post(
+            f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/editMessageText",
+            json={
+                "chat_id": TELEGRAM_CHAT_ID,
+                "message_id": tg_msg_id,
+                "text": f"✅ Auto-resolved — this was a \"{event_name}\" registration for "
+                        f"{who}, already logged. (Watson's first pass on this email "
+                        f"couldn't parse it; a later retry caught it.)",
+            },
+            timeout=15,
+        )
+    except Exception as exc:
+        log.warning("Failed to edit stale triage message for uid=%s: %s", msg_id, exc)
 
 
 def _tg_send(text: str, keyboard: dict | None = None) -> int | None:
@@ -273,6 +320,7 @@ def handle_event_signup_email(
         )
         if not first_name and not last_name and not member_id:
             _alert_unmatched_signup(matched["event_name"], sender_email, subject, row_id)
+        _resolve_stale_email_triage(msg_id, who, matched["event_name"])
         return "read"
 
     conn.close()

@@ -25,6 +25,7 @@ from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 
 from config.settings import DB_PATH, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+from core.ollama_json import generate_json
 from core.vacation import vacation_gate
 from jobs.sms.carrier_lookup import normalize_phone
 from jobs.team.inbound import is_forwarded_email, process_inbound
@@ -693,15 +694,7 @@ def _triage_with_ollama(sender_name: str, sender_email: str, subject: str, body:
         body_snippet=body[:600],
     )
     try:
-        resp = requests.post(
-            OLLAMA_URL,
-            json={"model": OLLAMA_MODEL, "prompt": prompt, "stream": False},
-            timeout=60,
-        )
-        resp.raise_for_status()
-        raw = resp.json().get("response", "").strip()
-        raw = raw.replace("```json", "").replace("```", "").strip()
-        result = json.loads(raw)
+        result = generate_json(OLLAMA_URL, model=OLLAMA_MODEL, prompt=prompt, timeout=60, retries=1)
         if result.get("category") not in _VALID_CATEGORIES:
             result["category"] = "unknown"
         return result
@@ -997,8 +990,8 @@ def handle_escalate_action(payload: dict) -> str:
         )
 
     try:
-        cleaned = raw.replace("```json", "").replace("```", "").strip()
-        result = json.loads(cleaned)
+        from core.ollama_json import parse_json_response
+        result = parse_json_response(raw)
     except Exception as exc:
         log.error("Escalated triage returned unparseable JSON: %s", exc)
         return f"⚠️ Claude answered but not in the expected format: {raw[:300]}"
