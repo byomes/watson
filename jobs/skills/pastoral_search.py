@@ -7,6 +7,9 @@ import datetime
 import re
 import sqlite3
 
+from core.database import get_connection
+from jobs.sms.carrier_lookup import normalize_phone
+
 CONG_DB = "/home/billyomes/watson/data/congregation.db"
 
 
@@ -14,6 +17,35 @@ def _connect():
     conn = sqlite3.connect(CONG_DB)
     conn.row_factory = sqlite3.Row
     return conn
+
+
+def _recent_texts(phone: str | None) -> list[str]:
+    """Last 4 weeks of this member's Watson SMS thread (see
+    jobs/sms/schema.py's GUARDRAIL note -- this is Bill-only, same as the
+    rest of pastoral_search, never exposed through Team Chat/data_chat.py).
+    Returns [] if the member has no phone on file or no matching thread."""
+    phone_digits = normalize_phone(phone) if phone else None
+    if not phone_digits:
+        return []
+
+    conn = get_connection()
+    try:
+        thread = conn.execute("SELECT id FROM sms_threads WHERE phone = ?", (phone_digits,)).fetchone()
+        if not thread:
+            return []
+        rows = conn.execute(
+            """SELECT direction, body, created_at FROM sms_messages
+               WHERE thread_id = ? AND created_at >= datetime('now', '-28 days')
+               ORDER BY created_at DESC""",
+            (thread["id"],),
+        ).fetchall()
+        return [
+            f"- {r['created_at']} [{'sent' if r['direction'] == 'out' else 'received'}]: {r['body']}"
+            for r in rows
+            if r["body"] and r["body"].strip()
+        ]
+    finally:
+        conn.close()
 
 
 def run(message: str = None) -> str:
@@ -30,7 +62,7 @@ def run(message: str = None) -> str:
     try:
         # 1. Look up member
         member = conn.execute(
-            "SELECT id, name, campus_preference FROM members"
+            "SELECT id, name, campus_preference, phone FROM members"
             " WHERE name LIKE ? COLLATE NOCASE ORDER BY name LIMIT 1",
             (f"%{name}%",),
         ).fetchone()
@@ -130,6 +162,11 @@ def run(message: str = None) -> str:
     finally:
         conn.close()
 
+    # 7. Recent texts (last 28 days) -- Watson SMS, Bill-only (see
+    # jobs/sms/schema.py's GUARDRAIL note). Own connection to watson.db,
+    # separate from the congregation.db block above.
+    text_lines = _recent_texts(member["phone"])
+
     none = "None on record."
     parts = [
         f"*{display_name} — Pastoral Summary*\n",
@@ -142,5 +179,7 @@ def run(message: str = None) -> str:
         "\n".join(prayer_lines) if prayer_lines else none,
         "\n*Next Steps (last 4 weeks):*",
         "\n".join(step_lines) if step_lines else none,
+        "\n*Recent Texts (last 4 weeks):*",
+        "\n".join(text_lines) if text_lines else none,
     ]
     return "\n".join(parts)
