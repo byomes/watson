@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-09-25*
+*Generated: 2026-09-26*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -99,8 +99,6 @@ data/
     66e0844b7fab4e0a8bb386db8504deac.png
     9eca6f54ecff491dbed2470fd0b3d196.png
   congregation.db
-  congregation.db-shm
-  congregation.db-wal
   congregation.db.bak_after_serving_attendance_table_20260922_140259
   congregation.db.bak_after_team_active_column_20260922_134207
   congregation.db.bak_before_3mo_active_mark_20260924_125043
@@ -2939,6 +2937,7 @@ data/
       20260826-015833-amazon-bio-update-draft/
         transcript.md
   skill_audit.json
+  sms_mock_inbound_queue.json
   trading.db
   trading.db.bak-pre-donchian-20260911001022
   trading.db.bak-pre-holdout-batch-20260911000446
@@ -3123,6 +3122,7 @@ jobs/
     duplicates_weekly_notify.py
     elder_shepherding_report.py
     elder_shepherding_report_web.py
+    family_dates.py
     family_edit.py
     family_report.py
     import_deacon_directory.py
@@ -3546,7 +3546,14 @@ jobs/
     wdb_query.py
   sms/
     __init__.py
+    api.py
+    bridge.py
     carrier_lookup.py
+    gateway_client.py
+    heartbeat.py
+    push.py
+    scheduled_sender.py
+    schema.py
     sms_send.py
   social/
     __init__.py
@@ -5215,6 +5222,7 @@ tsconfig.json
 
 ```
 ~/watson-tools/
+.env
 .env.example
 .env.local
 .gitignore
@@ -5231,6 +5239,11 @@ package.json
 postcss.config.mjs
 public/
   catalyst-c-logo.jpg
+  manifest.sms.json
+  sms-apple-touch-icon.png
+  sms-icon-192.png
+  sms-icon-512.png
+  sw-sms.js
   watson-icon-navy.png
 src/
   app/
@@ -5318,6 +5331,49 @@ src/
             route.ts
           status/
             route.ts
+      sms/
+        contacts/
+          route.ts
+        heartbeat/
+          route.ts
+        media/
+          [filename]/
+            route.ts
+        mock/
+          inject/
+            route.ts
+        push/
+          subscribe/
+            route.ts
+          unsubscribe/
+            route.ts
+          vapid-public-key/
+            route.ts
+        schedule/
+          route.ts
+        scheduled/
+          [id]/
+            route.ts
+        search/
+          route.ts
+        send/
+          route.ts
+        templates/
+          [id]/
+            route.ts
+          route.ts
+        threads/
+          [id]/
+            context/
+              route.ts
+            messages/
+              route.ts
+            route.ts
+            scheduled/
+              route.ts
+            send/
+              route.ts
+          route.ts
     apple-icon.png
     cat/
       attendance/
@@ -5345,6 +5401,7 @@ src/
       deaconapp/
         DeaconAppTabs.tsx
         NotesFeed.tsx
+        ThemeInitScript.tsx
         ThemeShell.tsx
         actions.ts
         apple-icon.jpg
@@ -5406,6 +5463,16 @@ src/
     layout.tsx
     not-found.tsx
     page.tsx
+    sms/
+      (gated)/
+        SmsApp.tsx
+        layout.tsx
+        page.tsx
+      actions.ts
+      layout.tsx
+      login/
+        page.tsx
+        pin-pad.tsx
   lib/
     catalystdbAuth.ts
     catalystdbTheme.ts
@@ -5419,8 +5486,11 @@ src/
     shepcheckReport.ts
     shepherdingReport.ts
     shepherdingReportShared.ts
+    smsAuth.ts
     socialAuth.ts
     useAutoTheme.ts
+    useSmsPush.ts
+    useSmsTheme.ts
     validation.ts
     watson.ts
   proxy.ts
