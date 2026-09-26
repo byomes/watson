@@ -1040,6 +1040,26 @@
         "dashboard"
       ],
       "status": "ready"
+    },
+    {
+      "slug": "field_research",
+      "name": "Field Research",
+      "description": "Search for real, verbatim field-engagement quotes and statistics on a given topic for a writing project (currently Guardrails) -- extracts exact source text, never paraphrases, always flagged unverified pending Bill's own confirmation.",
+      "category": "Writing",
+      "triggers": [
+        "field research on",
+        "field research for",
+        "run field research",
+        "field research:",
+        "field research skill"
+      ],
+      "module": "jobs.research.field_research",
+      "function": "run",
+      "interfaces": [
+        "telegram",
+        "dashboard"
+      ],
+      "status": "ready"
     }
   ]
 }

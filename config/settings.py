@@ -56,6 +56,11 @@ ALPACA_BASE_URL   = os.getenv("ALPACA_BASE_URL", "https://paper-api.alpaca.marke
 AMADEUS_API_KEY    = os.getenv("AMADEUS_API_KEY")
 AMADEUS_API_SECRET = os.getenv("AMADEUS_API_SECRET")
 
+# Unpaywall / CrossRef "polite pool" contact email -- these free APIs ask
+# for a real email as courtesy identification, not authentication. Used by
+# jobs/research/unpaywall.py to find open-access mirrors for paywalled DOIs.
+RESEARCH_CONTACT_EMAIL = os.getenv("RESEARCH_CONTACT_EMAIL", "pastorbill@catalyst302.com")
+
 # Briefing schedule
 BRIEFING_HOUR   = int(os.getenv("BRIEFING_HOUR",   "6"))
 

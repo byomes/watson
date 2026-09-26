@@ -9,6 +9,10 @@
 
 ## Update Log
 *Newest entries on top. Each entry is additive — old entries are never deleted, only superseded in practice.*
+- **2026-09-24** — premierchristian.news: 34% of young adults are attending church more frequently. 21% report attending less often than they used to.
+- **2026-09-17** — kentuckytoday.com: Pastors report that approximately 72% of churches (22%, 27%, 32%, and 18%) fall into attendance categories with fewer than 50, 50-99, 100-249, or 250 or more people on a typical weekend.
+- **2026-09-17** — influencemagazine.com: 42% of Americans attended church in 2026, an increase from 39% in 2024.
+- **2026-09-17** — facebook.com: One-third of Gen Z and Millennials attend church more often than previously thought, with 34% reporting increased attendance.
 - **2026-09-03** — facebook.com: Weekly church attendance in the US has stabilized at approximately 26%, according to a 2025 study by the Pew Research Center.
 - **2026-09-03** — facebook.com: Around 52% of Protestant churches have experienced growth in worship service attendance over the last two years, from 2023-2025.
 - **2026-09-03** — research.lifeway.com: Pastor views report that church attendance is growing, but research shows that most unchurched newcomers are still not attending church services.

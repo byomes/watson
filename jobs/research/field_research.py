@@ -25,6 +25,22 @@ below, so a DOI landing page that turns out to be paywalled just yields no
 quote rather than a fabricated one. Google Scholar is deliberately NOT a
 source here -- it has no API, and scraping it violates its robots.txt and
 ToS, risking Watson getting blocked.
+
+Two additions (2026-09-18, after a side-by-side test against ChatGPT/
+Gemini/Perplexity on a Christian-theology-and-AI topic surfaced two real
+gaps):
+
+1. A denominational/magisterial site search (_DENOMINATIONAL_SITES) --
+   plain Serper web search rarely surfaces Vatican, SBC/ERLC, or similar
+   institutional statement pages even when they're the single best source
+   for this book's subject matter. All three external agents in that test
+   found the Vatican's "Antiqua et nova" note; Watson's general web search
+   alone did not.
+2. An Unpaywall fallback (jobs/research/unpaywall.py) for any OpenAlex/
+   CrossRef lead that carries a DOI: if the publisher landing page 403s
+   (ResearchGate and Taylor & Francis both did in that test), look up a
+   legal open-access mirror by DOI and retry the fetch there before giving
+   up on the candidate.
 """
 import logging
 import re
@@ -37,6 +53,7 @@ from jobs.research.web_search import search as serper_search
 from jobs.research.academic_search import search_arxiv, search_semantic_scholar
 from jobs.research.openalex import search as openalex_search
 from jobs.research.crossref import search as crossref_search
+from jobs.research.unpaywall import find_oa_url
 import core.llm_log  # noqa: F401 -- installs Ollama call logging, see core/llm_log.py
 
 log = logging.getLogger(__name__)
@@ -48,6 +65,16 @@ _MAX_SEARCH_RESULTS = 6
 _MAX_PER_SCHOLARLY_SOURCE = 3
 _MAX_QUOTES = 5
 _MIN_PAGE_TEXT_LEN = 200
+
+# High-signal Christian institutional/denominational sites that plain web
+# search under-surfaces relative to how often they turn out to be the best
+# source for this book's subject matter (Vatican, evangelical, Orthodox,
+# mainline). Not exhaustive -- add to this list as new gaps show up.
+_DENOMINATIONAL_SITES = [
+    "vatican.va", "erlc.com", "sbc.net", "umc.org", "oca.org",
+    "nae.org", "cslewisinstitute.org", "episcopalchurch.org",
+]
+_MAX_DENOMINATIONAL_RESULTS = 4
 
 _TRIGGER_STRIP_RE = re.compile(
     r"^\s*(watson[,:]?\s*)?(run\s+)?field research(\s+skill)?\s*(on|for|about)?\s*:?\s*",
@@ -132,9 +159,15 @@ def _gather_candidate_urls(topic: str) -> list[dict]:
             if not url or url in seen_urls:
                 continue
             seen_urls.add(url)
-            leads.append({"title": item.get("title", ""), "url": url})
+            leads.append({"title": item.get("title", ""), "url": url, "doi": item.get("doi", "")})
 
     _add(serper_search(topic, max_results=_MAX_SEARCH_RESULTS))
+
+    try:
+        sites = " OR ".join(f"site:{d}" for d in _DENOMINATIONAL_SITES)
+        _add(serper_search(f"{topic} ({sites})", max_results=_MAX_DENOMINATIONAL_RESULTS))
+    except Exception as exc:
+        log.warning("field_research: denominational site search failed: %s", exc)
 
     try:
         _add(openalex_search(topic, max_results=_MAX_PER_SCHOLARLY_SOURCE))
@@ -168,6 +201,14 @@ def research(topic: str) -> list[dict]:
     for lead in leads:
         url = lead["url"]
         page = fetch_article(url)
+
+        if len(page.get("text", "")) < _MIN_PAGE_TEXT_LEN and lead.get("doi"):
+            oa_url = find_oa_url(lead["doi"])
+            if oa_url and oa_url != url:
+                oa_page = fetch_article(oa_url)
+                if len(oa_page.get("text", "")) >= _MIN_PAGE_TEXT_LEN:
+                    page, url = oa_page, oa_url
+
         found = _pull_quote(topic, page.get("title") or lead.get("title", ""), page.get("text", ""), url)
         if found:
             candidates.append(found)
