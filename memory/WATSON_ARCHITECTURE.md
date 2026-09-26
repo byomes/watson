@@ -4374,3 +4374,57 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - 81adb97 Rename deacon column's Unassigned option to --
 - d54d33f Add Partner/Connected/Active/Residency columns to catalystdb admin grid
 - ab79a8a Point /m/task rewrite at self-hosted micah-tasks on the Beelink
+
+---
+
+## Recent Changes — 2026-09-26
+
+### ~/watson
+- 04adea5 docs: bugs/backlog export 2026-09-26
+- bdb2432 docs: file map 2026-09-26
+- dabf1f6 Add POST /api/sms/schedule and GET /api/sms/contacts
+- 2088041 Add POST /api/sms/send for starting a new conversation
+- 4e1e149 Add search, thread state, contact context, MMS, and delivery status to Watson SMS backend
+- 9d7d92a Add delayed/scheduled sending to Watson SMS backend
+- 10171d9 Let Donna confirm uncertain connect-card spouse pairings via Telegram buttons
+- 8f7b539 Text Donna unmatched anniversaries too, and infer spouse relationships
+- 09508a2 Text Donna a summary when a connect card's birthday doesn't match a member
+- 7824017 Ingest connect card birthday/anniversary entries into congregation.db
+- abdd50c Widen banquet fast-path phrasing to catch more natural wording
+- 5448383 Fix banquet_rsvp.py against real SnapPages RSVP sample
+- 2e8c715 Add Web Push notification backend for Watson SMS (jobs/sms/push.py)
+- 53a1a03 Add POST /api/sms/templates to create new templates
+- 6fea22c Add Watson SMS backend (jobs/sms/) — threads, messages, templates, mock gateway
+- 300c16c docs: architecture update 2026-09-25
+
+### ~/watson-tools
+- cbd5798 Increase icon-toolbar and send button size by 25%
+- 4f5860f Change templates button icon to a checkbox
+- d9667e6 Add contact search and date/time scheduling to New message window
+- 8b40ac9 Icon-only Templates/Archived buttons, add New message compose
+- a8c8687 Add search, archive/mute/snooze, contact context, MMS, and scheduled-edit to SMS app
+- 0dd0f23 Add delayed send (schedule for later) to SMS drafting
+- ceed0b0 Fix push notification setup hanging forever in SMS app
+- 1335a18 Fix notifications popover running off screen in SMS app
+- 025609a Change SMS app home-screen icon background to blue
+- cae6f71 Make SMS app refresh button also hard-refresh the page
+- da7e902 Increase SMS app icon sizes by 20%
+- faf4c39 Change SMS app log out to an icon button
+- cc1e8f9 Fix deacon app status bar by applying dark class before first paint
+- 68c0ad0 Add temporary debug banner showing theme cookie on deacon app launch
+- f3644fe Default deacon app to dark mode
+- 065adab Fix deacon app status bar not tracking dark mode on Home Screen icon
+- 789e0e8 Fix false "notifications are on" state, self-heal a missing subscription
+- a76259f Split the list header: icon buttons left, log out alone on the right
+- daba648 Drop the "Messages" title from the list header, buttons only
+- f285b63 Show which step notification setup is actually stuck on
+- ff9088f Request notification permission first, and surface real errors instead of hanging
+- 7bf34fa Fix push "enable" hanging forever on first activation
+- f879450 Add Web Push notifications to Watson SMS
+- dda524e Add on-screen polling refresh + a manual refresh button
+- 83f1191 Sync home-screen icon badge to unread count (iOS 16.4+ Badging API)
+- 1813df7 Replace placeholder icons with a real messaging-app icon
+- f886339 Replace emoji sun/moon glyphs with single-color SVG icons on the theme toggle
+- 2bc91fa Add a light/dark mode toggle to Watson SMS
+- fc8a3d2 Add a way to create new SMS templates, not just edit the seeded two
+- c03d3c3 Add Watson SMS app at /sms — PIN-gated 1:1 texting UI
