@@ -114,6 +114,21 @@ _LIST_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Imperative "give me / list / show ... names/people ... signed up" — the same
+# list question as _LIST_RE without a leading "who". Added 2026-09-26 after a
+# Team Chat leader asked "Give me all names of people signed up for the
+# picnic" and it fell through to a paid LLM call. Stricter than _LIST_RE on
+# purpose: needs a request verb, a people-noun, AND a past-tense signup verb
+# ("registered"/"signed up"/"RSVP'd", not bare "regist"/"ticket"), so
+# "give me the registration link for the picnic" or "show me how to sign up"
+# don't get answered with a registrant list.
+_LIST_REQUEST_RE = re.compile(
+    r"\b(?:give|list|show|send|tell|get|pull)\b.*"
+    r"\b(?:names?|people|everyone|everybody|folks)\b.*"
+    r"\b(?:registered|signed[\s-]?up|rsvp'?d)\b",
+    re.IGNORECASE,
+)
+
 
 def _mentions_extra_field(question_lower: str, event_id: int) -> bool:
     """True if the question seems to reference a specific answer to one of
@@ -189,7 +204,7 @@ def pattern_match(question: str) -> str | None:
             f"WHERE event_id = {event_id}"
         )
 
-    if _LIST_RE.search(q):
+    if _LIST_RE.search(q) or _LIST_REQUEST_RE.search(q):
         event_id = _resolve_event_id(q)
         if event_id is None:
             return None
