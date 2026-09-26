@@ -14,6 +14,7 @@ the human-facing PIN gate lives in watson-tools itself, not here.
 """
 import logging
 import os
+from datetime import datetime, timezone
 from functools import wraps
 
 from flask import Blueprint, jsonify, request
@@ -57,6 +58,17 @@ def _message_dict(row) -> dict:
         "direction": row["direction"],
         "body": row["body"],
         "created_at": row["created_at"],
+    }
+
+
+def _scheduled_dict(row) -> dict:
+    return {
+        "id": row["id"],
+        "thread_id": row["thread_id"],
+        "body": row["body"],
+        "send_at": row["send_at"],
+        "status": row["status"],
+        "error": row["error"],
     }
 
 
@@ -131,6 +143,66 @@ def send_to_thread(thread_id):
 
         message = conn.execute("SELECT * FROM sms_messages WHERE id = ?", (message_id,)).fetchone()
         return jsonify({"message": _message_dict(message)})
+    finally:
+        conn.close()
+
+
+@sms_bp.route("/threads/<int:thread_id>/scheduled", methods=["GET"])
+@_require_key
+def list_scheduled(thread_id):
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            "SELECT * FROM sms_scheduled_messages WHERE thread_id = ? ORDER BY send_at ASC",
+            (thread_id,),
+        ).fetchall()
+        return jsonify({"scheduled": [_scheduled_dict(r) for r in rows]})
+    finally:
+        conn.close()
+
+
+@sms_bp.route("/threads/<int:thread_id>/scheduled", methods=["POST"])
+@_require_key
+def create_scheduled(thread_id):
+    data = request.get_json(force=True) or {}
+    text = (data.get("text") or "").strip()
+    send_at = (data.get("send_at") or "").strip()
+    if not text:
+        return jsonify({"error": "text is required"}), 400
+
+    try:
+        parsed = datetime.strptime(send_at, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+    except ValueError:
+        return jsonify({"error": "send_at must be 'YYYY-MM-DD HH:MM:SS' UTC"}), 400
+    if parsed <= datetime.now(timezone.utc):
+        return jsonify({"error": "send_at must be in the future"}), 400
+
+    conn = get_connection()
+    try:
+        thread = conn.execute("SELECT * FROM sms_threads WHERE id = ?", (thread_id,)).fetchone()
+        if not thread:
+            return jsonify({"error": "not found"}), 404
+
+        cur = conn.execute(
+            "INSERT INTO sms_scheduled_messages (thread_id, body, send_at) VALUES (?, ?, ?)",
+            (thread_id, text, send_at),
+        )
+        conn.commit()
+
+        row = conn.execute("SELECT * FROM sms_scheduled_messages WHERE id = ?", (cur.lastrowid,)).fetchone()
+        return jsonify({"scheduled": _scheduled_dict(row)}), 201
+    finally:
+        conn.close()
+
+
+@sms_bp.route("/scheduled/<int:scheduled_id>", methods=["DELETE"])
+@_require_key
+def delete_scheduled(scheduled_id):
+    conn = get_connection()
+    try:
+        conn.execute("DELETE FROM sms_scheduled_messages WHERE id = ?", (scheduled_id,))
+        conn.commit()
+        return jsonify({"ok": True})
     finally:
         conn.close()
 

@@ -63,7 +63,29 @@ CREATE TABLE IF NOT EXISTS sms_push_subscriptions (
 );
 """
 
-ALL_TABLES = [CREATE_THREADS, CREATE_MESSAGES, CREATE_TEMPLATES, CREATE_HEARTBEAT, CREATE_PUSH_SUBSCRIPTIONS]
+# send_at is a UTC "YYYY-MM-DD HH:MM:SS" string, same convention as
+# reminders.due_datetime -- jobs/sms/scheduled_sender.py compares it
+# directly against SQLite's own datetime('now').
+CREATE_SCHEDULED_MESSAGES = """
+CREATE TABLE IF NOT EXISTS sms_scheduled_messages (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    thread_id  INTEGER NOT NULL REFERENCES sms_threads(id),
+    body       TEXT NOT NULL,
+    send_at    TEXT NOT NULL,
+    status     TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'failed')),
+    error      TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+"""
+
+ALL_TABLES = [
+    CREATE_THREADS,
+    CREATE_MESSAGES,
+    CREATE_TEMPLATES,
+    CREATE_HEARTBEAT,
+    CREATE_PUSH_SUBSCRIPTIONS,
+    CREATE_SCHEDULED_MESSAGES,
+]
 
 # Bill's own wording, drafted during the design conversation (2026-09-25) —
 # Watson merges {first_name} into these, never originates new phrasing. See
