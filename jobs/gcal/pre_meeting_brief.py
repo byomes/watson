@@ -18,6 +18,7 @@ import requests
 from dotenv import load_dotenv
 
 from jobs.gcal.gcal_service import get_service
+from jobs.skills.pastoral_search import _recent_texts
 from core.vacation import vacation_gate
 
 BASE_DIR = Path(__file__).resolve().parents[2]
@@ -206,7 +207,8 @@ def _get_pastoral_note(name: str) -> str | None:
 def _build_message(prefix: str, guest_name: str, start_dt: datetime,
                    location: str | None, meet_link: str | None,
                    pastoral: dict, pastoral_note: str | None,
-                   match_info: str, description: str | None = None) -> str:
+                   match_info: str, description: str | None = None,
+                   recent_texts: list[str] | None = None) -> str:
     loc_line = meet_link or location or "TBD"
     lines = [
         f"📅 *{prefix}: {guest_name}* in 30 minutes",
@@ -222,6 +224,11 @@ def _build_message(prefix: str, guest_name: str, start_dt: datetime,
         f"• Follow-up: {pastoral.get('followup') or 'none'}",
         f"• Notes: {pastoral_note or 'none'}",
     ]
+    if recent_texts:
+        # Bill-only context, same as the pastoral search skill this is
+        # borrowed from -- see jobs/sms/schema.py's GUARDRAIL note. Newest
+        # first from _recent_texts; cap at 3 lines so the brief stays short.
+        lines += ["", "*Recent Texts:*"] + recent_texts[:3]
     if match_info not in ("exact", "no record"):
         lines.append(f"\n_(name matched: {match_info})_")
     elif match_info == "no record":
@@ -304,14 +311,16 @@ def run() -> None:
             pastoral   = {}
             note       = None
             match_info = "no record"
+            texts: list[str] = []
             if member:
                 match_info = member.get("_match", "found")
                 pastoral   = _get_pastoral_data(member["id"])
                 note       = _get_pastoral_note(guest_name)
+                texts      = _recent_texts(member.get("phone"))
 
             text = _build_message(prefix, guest_name, start_dt, location,
                                   meet_link, pastoral, note, match_info,
-                                  event_description)
+                                  event_description, texts)
             try:
                 _send_telegram(text, meet_link)
                 _mark_briefed(watson_conn, event_id)
