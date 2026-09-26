@@ -410,6 +410,79 @@ def send_new():
         conn.close()
 
 
+@sms_bp.route("/schedule", methods=["POST"])
+@_require_key
+def schedule_new():
+    """Same phone-first get-or-create as send_new above, but for the
+    compose window's date/time picker -- schedules the first message to a
+    (possibly brand-new) contact instead of sending it immediately."""
+    data = request.get_json(force=True) or {}
+    phone_raw = (data.get("phone") or "").strip()
+    name = (data.get("name") or "").strip() or None
+    text = (data.get("text") or "").strip()
+    send_at = (data.get("send_at") or "").strip()
+    if not phone_raw:
+        return jsonify({"error": "phone is required"}), 400
+    if not text:
+        return jsonify({"error": "text is required"}), 400
+
+    phone_digits = normalize_phone(phone_raw)
+    if not phone_digits:
+        return jsonify({"error": "could not parse phone number"}), 400
+
+    error = _validate_send_at(send_at)
+    if error:
+        return jsonify({"error": error}), 400
+
+    conn = get_connection()
+    try:
+        thread_id = _get_or_create_thread(conn, phone_digits, name)
+        conn.commit()
+
+        cur = conn.execute(
+            "INSERT INTO sms_scheduled_messages (thread_id, body, send_at) VALUES (?, ?, ?)",
+            (thread_id, text, send_at),
+        )
+        conn.commit()
+
+        thread = conn.execute("SELECT * FROM sms_threads WHERE id = ?", (thread_id,)).fetchone()
+        scheduled = conn.execute("SELECT * FROM sms_scheduled_messages WHERE id = ?", (cur.lastrowid,)).fetchone()
+        return jsonify({"thread": _thread_dict(thread), "scheduled": _scheduled_dict(scheduled)}), 201
+    finally:
+        conn.close()
+
+
+@sms_bp.route("/contacts", methods=["GET"])
+@_require_key
+def search_contacts():
+    """Name-search over congregation.db members with a phone on file, for
+    the compose window's contact-picker. Returns at most 15 matches."""
+    q = (request.args.get("q") or "").strip()
+    if not q:
+        return jsonify({"contacts": []})
+
+    try:
+        cong = sqlite3.connect(CONGREGATION_DB)
+        cong.row_factory = sqlite3.Row
+    except sqlite3.Error as exc:
+        log.error("search_contacts: could not open congregation.db: %s", exc)
+        return jsonify({"contacts": []})
+
+    try:
+        rows = cong.execute(
+            """SELECT id, name, phone FROM members
+               WHERE phone IS NOT NULL AND phone != '' AND name LIKE ? ESCAPE '\\'
+               ORDER BY name
+               LIMIT 15""",
+            ("%" + q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%",),
+        ).fetchall()
+        return jsonify({
+            "contacts": [{"id": r["id"], "name": r["name"], "phone": r["phone"]} for r in rows]
+        })
+    finally:
+        cong.close()
+
+
 @sms_bp.route("/gateway/delivery", methods=["POST"])
 @_require_key
 def gateway_delivery_webhook():
