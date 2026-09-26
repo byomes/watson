@@ -13,16 +13,10 @@ error, since deacon_pins.deacon_name isn't foreign-keyed to anything.
 import os
 import sqlite3
 import sys
-from hashlib import scrypt
-from secrets import token_hex
+
+from jobs.congregation.deacon_pin_auth import hash_pin
 
 DB_PATH = os.path.expanduser("~/watson/data/congregation.db")
-
-
-def hash_pin(pin: str) -> str:
-    salt = token_hex(16)
-    digest = scrypt(pin.encode(), salt=salt.encode(), n=16384, r=8, p=1, dklen=32)
-    return f"{salt}:{digest.hex()}"
 
 
 def main():
