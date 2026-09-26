@@ -1,0 +1,84 @@
+/home/billyomes/watson/venv/lib/python3.12/site-packages/requests/__init__.py:109: RequestsDependencyWarning: urllib3 (2.21.902) or chardet (7.4.3)/charset_normalizer (3.4.4) doesn't match a supported version!
+  warnings.warn(
+
+=== Testing gemma4:e2b ===
+Battery A (intent classification)...
+  Accuracy: 0.8  Avg latency: 23.446s
+Battery B (reasoning)...
+  5 cases logged for manual grading
+
+=== Testing gemma4:e4b ===
+Battery A (intent classification)...
+  Accuracy: 0.9  Avg latency: 12.951s
+Battery B (reasoning)...
+  5 cases logged for manual grading
+
+=== Testing qwen3.5:4b ===
+Battery A (intent classification)...
+Traceback (most recent call last):
+  File "/home/billyomes/watson/venv/lib/python3.12/site-packages/urllib3/connectionpool.py", line 1439, in _make_request
+    response = conn.getresponse(
+               ^^^^^^^^^^^^^^^^^
+  File "/home/billyomes/watson/venv/lib/python3.12/site-packages/urllib3/connection.py", line 636, in getresponse
+    low_response = super().getresponse(
+                   ^^^^^^^^^^^^^^^^^^^^
+  File "/home/billyomes/watson/venv/lib/python3.12/site-packages/urllib3/backend/hface.py", line 1742, in getresponse
+    head_event: HeadersReceived | EarlyHeadersReceived = self.__exchange_until(  # type: ignore[assignment]
+                                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/billyomes/watson/venv/lib/python3.12/site-packages/urllib3/backend/hface.py", line 1040, in __exchange_until
+    data_in = sock.recv(blocksize)
+              ^^^^^^^^^^^^^^^^^^^^
+TimeoutError: timed out
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/billyomes/watson/venv/lib/python3.12/site-packages/requests/adapters.py", line 486, in send
+    resp = conn.urlopen(
+           ^^^^^^^^^^^^^
+  File "/home/billyomes/watson/venv/lib/python3.12/site-packages/urllib3/connectionpool.py", line 1900, in urlopen
+    retries = retries.increment(
+              ^^^^^^^^^^^^^^^^^^
+  File "/home/billyomes/watson/venv/lib/python3.12/site-packages/urllib3/util/retry.py", line 515, in increment
+    raise reraise(type(error), error, _stacktrace)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/billyomes/watson/venv/lib/python3.12/site-packages/urllib3/util/util.py", line 40, in reraise
+    raise value
+  File "/home/billyomes/watson/venv/lib/python3.12/site-packages/urllib3/connectionpool.py", line 1821, in urlopen
+    response = self._make_request(  # type: ignore[call-overload,misc]
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/billyomes/watson/venv/lib/python3.12/site-packages/urllib3/connectionpool.py", line 1445, in _make_request
+    self._raise_timeout(err=e, url=url, timeout_value=read_timeout)
+  File "/home/billyomes/watson/venv/lib/python3.12/site-packages/urllib3/connectionpool.py", line 847, in _raise_timeout
+    raise ReadTimeoutError(
+urllib3.exceptions.ReadTimeoutError: HTTPConnectionPool(host='localhost', port=11434): Read timed out. (read timeout=120)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/billyomes/watson/tests/model_qualify/model_qualify.py", line 130, in <module>
+    main()
+  File "/home/billyomes/watson/tests/model_qualify/model_qualify.py", line 110, in main
+    battery_a = run_battery_a(model, test_set["battery_a_intent"])
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/billyomes/watson/tests/model_qualify/model_qualify.py", line 51, in run_battery_a
+    response, elapsed, raw = call_ollama(model, prompt)
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/billyomes/watson/tests/model_qualify/model_qualify.py", line 34, in call_ollama
+    resp = requests.post(
+           ^^^^^^^^^^^^^^
+  File "/home/billyomes/watson/venv/lib/python3.12/site-packages/requests/api.py", line 115, in post
+    return request("post", url, data=data, json=json, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/billyomes/watson/venv/lib/python3.12/site-packages/requests/api.py", line 59, in request
+    return session.request(method=method, url=url, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/billyomes/watson/venv/lib/python3.12/site-packages/requests/sessions.py", line 589, in request
+    resp = self.send(prep, **send_kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/billyomes/watson/venv/lib/python3.12/site-packages/requests/sessions.py", line 703, in send
+    r = adapter.send(request, **kwargs)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/billyomes/watson/venv/lib/python3.12/site-packages/requests/adapters.py", line 532, in send
+    raise ReadTimeout(e, request=request)
+requests.exceptions.ReadTimeout: HTTPConnectionPool(host='localhost', port=11434): Read timed out. (read timeout=120)

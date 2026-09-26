@@ -1,0 +1,6 @@
+/home/billyomes/watson/venv/lib/python3.12/site-packages/requests/__init__.py:109: RequestsDependencyWarning: urllib3 (2.21.902) or chardet (7.4.3)/charset_normalizer (3.4.4) doesn't match a supported version!
+  warnings.warn(
+Baseline mode: no background call. Firing classify() solo...
+
+classify() result: {'intent': 'reminder_create', 'params': {'title': 'call John', 'due_datetime': 'tomorrow at 3pm'}, 'confidence': 'HIGH'}
+classify() elapsed: 2.78s

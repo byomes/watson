@@ -1,0 +1,36 @@
+/home/billyomes/watson/venv/lib/python3.12/site-packages/requests/__init__.py:109: RequestsDependencyWarning: urllib3 (2.21.902) or chardet (7.4.3)/charset_normalizer (3.4.4) doesn't match a supported version!
+  warnings.warn(
+Starting background qwen3.5:4b call (think=false: True)...
+
+--- loaded window (qwen3.5:4b mid-generation) ---
+$ ollama ps
+NAME          ID              SIZE      PROCESSOR    CONTEXT    UNTIL               
+gemma3:4b     a2af6cc3eb7f    3.3 GB    100% CPU     4096       28 minutes from now    
+gemma4:e4b    c6eb396dbd59    9.7 GB    100% CPU     4096       4 minutes from now     
+qwen3.5:4b    2a654d98e6fb    3.2 GB    100% CPU     4096       2 minutes from now     
+
+$ free -h
+               total        used        free      shared  buff/cache   available
+Mem:            31Gi        26Gi       299Mi        21Mi       5.1Gi       4.9Gi
+Swap:          2.0Gi       2.0Gi       112Ki
+
+Heavy call should be mid-generation now. Firing classify()...
+
+classify() result: {'intent': 'reminder_create', 'params': {'title': 'call John', 'due_datetime': 'tomorrow at 3pm'}, 'confidence': 'HIGH'}
+classify() elapsed: 2.46s
+(heavy call still running: True)
+heavy qwen3.5:4b call total elapsed: 86.79s
+heavy call eval stats: {'eval_count': 700, 'eval_duration_s': 84.531067, 'total_duration_s': 86.77253036, 'load_duration_s': 0.275784798}
+
+--- after heavy call finished ---
+$ ollama ps
+NAME          ID              SIZE      PROCESSOR    CONTEXT    UNTIL               
+gemma3:4b     a2af6cc3eb7f    3.3 GB    100% CPU     4096       27 minutes from now    
+qwen3.5:4b    2a654d98e6fb    3.2 GB    100% CPU     4096       4 minutes from now     
+gemma4:e4b    c6eb396dbd59    9.7 GB    100% CPU     4096       3 minutes from now     
+
+$ free -h
+               total        used        free      shared  buff/cache   available
+Mem:            31Gi        26Gi       287Mi        21Mi       5.0Gi       4.8Gi
+Swap:          2.0Gi       2.0Gi       112Ki
+

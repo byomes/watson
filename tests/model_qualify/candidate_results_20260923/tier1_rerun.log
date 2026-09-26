@@ -1,0 +1,23 @@
+/home/billyomes/watson/venv/lib/python3.12/site-packages/requests/__init__.py:109: RequestsDependencyWarning: urllib3 (2.21.902) or chardet (7.4.3)/charset_normalizer (3.4.4) doesn't match a supported version!
+  warnings.warn(
+
+=== Testing gemma4:e2b ===
+Battery A (intent classification)...
+  Accuracy: 0.9  Avg latency: 24.044s
+Battery B (reasoning)...
+  5 cases logged for manual grading
+
+=== Testing gemma4:e4b ===
+Battery A (intent classification)...
+  Accuracy: 0.85  Avg latency: 5.297s
+Battery B (reasoning)...
+  5 cases logged for manual grading
+
+=== Testing qwen3.5:4b ===
+Battery A (intent classification)...
+  Accuracy: 0.65  Avg latency: 4.674s
+Battery B (reasoning)...
+  5 cases logged for manual grading
+
+Results written to candidate_results_20260923/tier1_results.json
+Next: review Battery B responses manually or paste results_*.json into Claude for grading.

@@ -1,0 +1,131 @@
+/home/billyomes/watson/venv/lib/python3.12/site-packages/requests/__init__.py:109: RequestsDependencyWarning: urllib3 (2.21.902) or chardet (7.4.3)/charset_normalizer (3.4.4) doesn't match a supported version!
+  warnings.warn(
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Mixed-traffic test: duration=1200s, with_candidate=False (n/a)
+Schedule: 26 calls over 1200s
+[t+0s] classify (gemma3:4b) done in 2.57s, load_duration=0.0, OK
+[t+60s] chat_summarize (llama3.2:3b) done in 16.43s, load_duration=5.221617796, OK
+[t+90s] classify (gemma3:4b) done in 2.45s, load_duration=0.0, OK
+Loading weights:   0%|          | 0/103 [00:00<?, ?it/s]Loading weights: 100%|██████████| 103/103 [00:00<00:00, 3736.30it/s]
+[t+180s] classify (gemma3:4b) done in 2.23s, load_duration=0.0, OK
+[t+200s] background_qwen7b (qwen2.5:7b) done in 50.40s, load_duration=9.022921594, OK
+[t+270s] classify (gemma3:4b) done in 1.95s, load_duration=0.0, OK
+[t+300s] chat_summarize (llama3.2:3b) done in 26.09s, load_duration=5.974943929, OK
+[t+150s] kb_search (qwen2.5-coder:7b) done in 195.24s, load_duration=7.426334074, OK
+[t+360s] classify (gemma3:4b) done in 2.02s, load_duration=0.0, OK
+[t+450s] classify (gemma3:4b) done in 2.97s, load_duration=0.0, OK
+[t+450s] kb_search (qwen2.5-coder:7b) done in 26.42s, load_duration=0.233436578, OK
+[t+540s] classify (gemma3:4b) done in 1.94s, load_duration=0.0, OK
+[t+540s] chat_summarize (llama3.2:3b) done in 9.99s, load_duration=0.25690986, OK
+[t+630s] classify (gemma3:4b) done in 2.37s, load_duration=0.0, OK
+[t+600s] background_qwen7b (qwen2.5:7b) done in 37.59s, load_duration=7.717567998, OK
+[t+720s] classify (gemma3:4b) done in 2.09s, load_duration=0.0, OK
+[t+780s] chat_summarize (llama3.2:3b) done in 7.27s, load_duration=0.316258353, OK
+[t+810s] classify (gemma3:4b) done in 2.00s, load_duration=0.0, OK
+[t+900s] classify (gemma3:4b) done in 1.87s, load_duration=0.0, OK
+[t+750s] kb_search (qwen2.5-coder:7b) done in 172.08s, load_duration=7.443680591, OK
+[t+990s] classify (gemma3:4b) done in 12.14s, load_duration=0.0, OK
+[t+1020s] chat_summarize (llama3.2:3b) done in 10.37s, load_duration=0.235230422, OK
+[t+1000s] background_qwen7b (qwen2.5:7b) done in 39.17s, load_duration=7.706441692, OK
+[t+1080s] classify (gemma3:4b) done in 1.95s, load_duration=0.0, OK
+[t+1170s] classify (gemma3:4b) done in 2.28s, load_duration=0.0, OK
+[t+1050s] kb_search (qwen2.5-coder:7b) done in 182.82s, load_duration=7.188766449, OK
+
+=== Call log ===
+{'t': 0, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 2.57, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 60, 'kind': 'chat_summarize', 'model': 'llama3.2:3b', 'elapsed_s': 16.43, 'load_duration_s': 5.22, 'ok': True, 'note': None}
+{'t': 90, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 2.45, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 180, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 2.23, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 200, 'kind': 'background_qwen7b', 'model': 'qwen2.5:7b', 'elapsed_s': 50.4, 'load_duration_s': 9.02, 'ok': True, 'note': None}
+{'t': 270, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 1.95, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 300, 'kind': 'chat_summarize', 'model': 'llama3.2:3b', 'elapsed_s': 26.09, 'load_duration_s': 5.97, 'ok': True, 'note': None}
+{'t': 150, 'kind': 'kb_search', 'model': 'qwen2.5-coder:7b', 'elapsed_s': 195.24, 'load_duration_s': 7.43, 'ok': True, 'note': None}
+{'t': 360, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 2.02, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 450, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 2.97, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 450, 'kind': 'kb_search', 'model': 'qwen2.5-coder:7b', 'elapsed_s': 26.42, 'load_duration_s': 0.23, 'ok': True, 'note': None}
+{'t': 540, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 1.94, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 540, 'kind': 'chat_summarize', 'model': 'llama3.2:3b', 'elapsed_s': 9.99, 'load_duration_s': 0.26, 'ok': True, 'note': None}
+{'t': 630, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 2.37, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 600, 'kind': 'background_qwen7b', 'model': 'qwen2.5:7b', 'elapsed_s': 37.59, 'load_duration_s': 7.72, 'ok': True, 'note': None}
+{'t': 720, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 2.09, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 780, 'kind': 'chat_summarize', 'model': 'llama3.2:3b', 'elapsed_s': 7.27, 'load_duration_s': 0.32, 'ok': True, 'note': None}
+{'t': 810, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 2.0, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 900, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 1.87, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 750, 'kind': 'kb_search', 'model': 'qwen2.5-coder:7b', 'elapsed_s': 172.08, 'load_duration_s': 7.44, 'ok': True, 'note': None}
+{'t': 990, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 12.14, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 1020, 'kind': 'chat_summarize', 'model': 'llama3.2:3b', 'elapsed_s': 10.37, 'load_duration_s': 0.24, 'ok': True, 'note': None}
+{'t': 1000, 'kind': 'background_qwen7b', 'model': 'qwen2.5:7b', 'elapsed_s': 39.17, 'load_duration_s': 7.71, 'ok': True, 'note': None}
+{'t': 1080, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 1.95, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 1170, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 2.28, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 1050, 'kind': 'kb_search', 'model': 'qwen2.5-coder:7b', 'elapsed_s': 182.82, 'load_duration_s': 7.19, 'ok': True, 'note': None}
+
+=== ollama ps timeline ===
+t+0s: ['gemma3:4b', 'qwen3.5:4b', 'gemma4:e4b']
+t+20s: ['gemma3:4b', 'qwen3.5:4b', 'gemma4:e4b']
+t+40s: ['gemma3:4b', 'qwen3.5:4b', 'gemma4:e4b']
+t+60s: ['gemma3:4b', 'qwen3.5:4b', 'gemma4:e4b']
+t+80s: ['gemma3:4b', 'llama3.2:3b', 'qwen3.5:4b']
+t+100s: ['gemma3:4b', 'llama3.2:3b', 'qwen3.5:4b']
+t+120s: ['gemma3:4b', 'llama3.2:3b', 'qwen3.5:4b']
+t+140s: ['gemma3:4b', 'llama3.2:3b', 'qwen3.5:4b']
+t+160s: ['gemma3:4b', 'llama3.2:3b']
+t+180s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+200s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+220s: ['gemma3:4b', 'qwen2.5-coder:7b', 'qwen2.5:7b']
+t+240s: ['gemma3:4b', 'qwen2.5-coder:7b', 'qwen2.5:7b']
+t+260s: ['gemma3:4b', 'qwen2.5-coder:7b', 'qwen2.5:7b']
+t+280s: ['gemma3:4b', 'qwen2.5-coder:7b', 'qwen2.5:7b']
+t+300s: ['gemma3:4b', 'qwen2.5-coder:7b', 'qwen2.5:7b']
+t+320s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+340s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+360s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+380s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+400s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+420s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+440s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+460s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+480s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+500s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+520s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+540s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+560s: ['gemma3:4b', 'llama3.2:3b', 'qwen2.5-coder:7b']
+t+581s: ['gemma3:4b', 'llama3.2:3b', 'qwen2.5-coder:7b']
+t+601s: ['gemma3:4b', 'llama3.2:3b']
+t+621s: ['gemma3:4b', 'qwen2.5:7b', 'llama3.2:3b']
+t+641s: ['gemma3:4b', 'qwen2.5:7b', 'llama3.2:3b']
+t+661s: ['gemma3:4b', 'qwen2.5:7b', 'llama3.2:3b']
+t+681s: ['gemma3:4b', 'qwen2.5:7b', 'llama3.2:3b']
+t+701s: ['gemma3:4b', 'qwen2.5:7b', 'llama3.2:3b']
+t+721s: ['gemma3:4b', 'qwen2.5:7b', 'llama3.2:3b']
+t+741s: ['gemma3:4b', 'qwen2.5:7b', 'llama3.2:3b']
+t+761s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+781s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+801s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+821s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+841s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+861s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+881s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+901s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+921s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+941s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+961s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+981s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+1001s: ['gemma3:4b', 'llama3.2:3b']
+t+1021s: ['gemma3:4b', 'qwen2.5:7b', 'llama3.2:3b']
+t+1041s: ['gemma3:4b', 'qwen2.5:7b', 'llama3.2:3b']
+t+1061s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+1081s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+1101s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+1121s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+1141s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+1161s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+1181s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+1201s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+1221s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+
+=== Reload analysis (per model, calls after the first with load_duration > 1.0s) ===
+RELOAD at t+300s: llama3.2:3b (chat_summarize) load_duration=5.97s
+RELOAD at t+600s: qwen2.5:7b (background_qwen7b) load_duration=7.72s
+RELOAD at t+750s: qwen2.5-coder:7b (kb_search) load_duration=7.44s
+RELOAD at t+1000s: qwen2.5:7b (background_qwen7b) load_duration=7.71s
+RELOAD at t+1050s: qwen2.5-coder:7b (kb_search) load_duration=7.19s

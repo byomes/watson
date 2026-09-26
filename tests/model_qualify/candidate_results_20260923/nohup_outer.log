@@ -1,0 +1,1257 @@
+[23:07:55] === Overnight candidate run starting ===
+[23:07:55] --- Pulling remaining candidate model ---
+[?2026h[?25l[1Gpulling manifest ⠋ [K[?25h[?2026l[?2026h[?25l[1Gpulling manifest ⠙ [K[?25h[?2026l[?2026h[?25l[1Gpulling manifest ⠹ [K[?25h[?2026l[?2026h[?25l[1Gpulling manifest ⠸ [K[?25h[?2026l[?2026h[?25l[1Gpulling manifest ⠼ [K[?25h[?2026l[?2026h[?25l[1Gpulling manifest ⠴ [K[?25h[?2026l[?2026h[?25l[1Gpulling manifest [K
+pulling 81fb60c7daa8:   0% ▕                  ▏ 2.6 MB/3.4 GB                  [K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:   0% ▕                  ▏ 7.7 MB/3.4 GB                  [K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:   1% ▕                  ▏  20 MB/3.4 GB                  [K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:   1% ▕                  ▏  33 MB/3.4 GB                  [K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:   1% ▕                  ▏  43 MB/3.4 GB                  [K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:   2% ▕                  ▏  58 MB/3.4 GB                  [K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:   2% ▕                  ▏  72 MB/3.4 GB                  [K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:   2% ▕                  ▏  79 MB/3.4 GB                  [K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:   3% ▕                  ▏  93 MB/3.4 GB                  [K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:   3% ▕                  ▏ 106 MB/3.4 GB                  [K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:   3% ▕                  ▏ 113 MB/3.4 GB                  [K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:   4% ▕                  ▏ 127 MB/3.4 GB  117 MB/s     27s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:   4% ▕                  ▏ 140 MB/3.4 GB  117 MB/s     27s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:   4% ▕                  ▏ 147 MB/3.4 GB  117 MB/s     27s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:   5% ▕                  ▏ 161 MB/3.4 GB  117 MB/s     27s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:   5% ▕                  ▏ 175 MB/3.4 GB  117 MB/s     27s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:   5% ▕                  ▏ 182 MB/3.4 GB  117 MB/s     27s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:   6% ▕█                 ▏ 195 MB/3.4 GB  117 MB/s     27s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:   6% ▕█                 ▏ 209 MB/3.4 GB  117 MB/s     26s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:   6% ▕█                 ▏ 215 MB/3.4 GB  117 MB/s     26s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:   7% ▕█                 ▏ 229 MB/3.4 GB  117 MB/s     26s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:   7% ▕█                 ▏ 243 MB/3.4 GB  116 MB/s     26s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:   7% ▕█                 ▏ 250 MB/3.4 GB  116 MB/s     26s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:   8% ▕█                 ▏ 263 MB/3.4 GB  116 MB/s     26s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:   8% ▕█                 ▏ 277 MB/3.4 GB  116 MB/s     26s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:   8% ▕█                 ▏ 284 MB/3.4 GB  116 MB/s     26s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:   9% ▕█                 ▏ 297 MB/3.4 GB  116 MB/s     26s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:   9% ▕█                 ▏ 311 MB/3.4 GB  116 MB/s     26s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:   9% ▕█                 ▏ 318 MB/3.4 GB  116 MB/s     26s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  10% ▕█                 ▏ 331 MB/3.4 GB  116 MB/s     26s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  10% ▕█                 ▏ 345 MB/3.4 GB  116 MB/s     26s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  10% ▕█                 ▏ 352 MB/3.4 GB  116 MB/s     26s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  11% ▕█                 ▏ 365 MB/3.4 GB  116 MB/s     25s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  11% ▕██                ▏ 379 MB/3.4 GB  116 MB/s     25s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  11% ▕██                ▏ 386 MB/3.4 GB  116 MB/s     25s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  12% ▕██                ▏ 397 MB/3.4 GB  116 MB/s     25s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  12% ▕██                ▏ 412 MB/3.4 GB  116 MB/s     25s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  12% ▕██                ▏ 419 MB/3.4 GB  116 MB/s     25s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  13% ▕██                ▏ 433 MB/3.4 GB  116 MB/s     25s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  13% ▕██                ▏ 446 MB/3.4 GB  116 MB/s     25s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  13% ▕██                ▏ 453 MB/3.4 GB  116 MB/s     25s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  14% ▕██                ▏ 467 MB/3.4 GB  116 MB/s     25s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  14% ▕██                ▏ 480 MB/3.4 GB  116 MB/s     25s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  14% ▕██                ▏ 487 MB/3.4 GB  116 MB/s     24s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  15% ▕██                ▏ 500 MB/3.4 GB  116 MB/s     24s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  15% ▕██                ▏ 514 MB/3.4 GB  116 MB/s     24s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  15% ▕██                ▏ 521 MB/3.4 GB  116 MB/s     24s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  16% ▕██                ▏ 534 MB/3.4 GB  116 MB/s     24s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  16% ▕██                ▏ 539 MB/3.4 GB  116 MB/s     24s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  16% ▕██                ▏ 554 MB/3.4 GB  116 MB/s     24s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  17% ▕███               ▏ 568 MB/3.4 GB  116 MB/s     24s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  17% ▕███               ▏ 582 MB/3.4 GB  115 MB/s     24s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  17% ▕███               ▏ 589 MB/3.4 GB  115 MB/s     24s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  18% ▕███               ▏ 603 MB/3.4 GB  115 MB/s     24s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  18% ▕███               ▏ 616 MB/3.4 GB  115 MB/s     23s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  18% ▕███               ▏ 623 MB/3.4 GB  115 MB/s     23s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  19% ▕███               ▏ 637 MB/3.4 GB  115 MB/s     23s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  19% ▕███               ▏ 651 MB/3.4 GB  115 MB/s     23s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  19% ▕███               ▏ 657 MB/3.4 GB  115 MB/s     23s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  20% ▕███               ▏ 671 MB/3.4 GB  115 MB/s     23s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  20% ▕███               ▏ 685 MB/3.4 GB  115 MB/s     23s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  20% ▕███               ▏ 692 MB/3.4 GB  115 MB/s     23s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  21% ▕███               ▏ 705 MB/3.4 GB  116 MB/s     23s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  21% ▕███               ▏ 719 MB/3.4 GB  116 MB/s     23s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  21% ▕███               ▏ 726 MB/3.4 GB  116 MB/s     22s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  22% ▕███               ▏ 739 MB/3.4 GB  116 MB/s     22s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  22% ▕████              ▏ 753 MB/3.4 GB  116 MB/s     22s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  22% ▕████              ▏ 760 MB/3.4 GB  116 MB/s     22s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  23% ▕████              ▏ 773 MB/3.4 GB  116 MB/s     22s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  23% ▕████              ▏ 787 MB/3.4 GB  116 MB/s     22s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  23% ▕████              ▏ 794 MB/3.4 GB  116 MB/s     22s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  24% ▕████              ▏ 808 MB/3.4 GB  116 MB/s     22s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  24% ▕████              ▏ 821 MB/3.4 GB  116 MB/s     22s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  24% ▕████              ▏ 828 MB/3.4 GB  116 MB/s     22s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  25% ▕████              ▏ 841 MB/3.4 GB  116 MB/s     21s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  25% ▕████              ▏ 855 MB/3.4 GB  116 MB/s     21s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  25% ▕████              ▏ 862 MB/3.4 GB  116 MB/s     21s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  26% ▕████              ▏ 876 MB/3.4 GB  116 MB/s     21s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  26% ▕████              ▏ 889 MB/3.4 GB  116 MB/s     21s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  26% ▕████              ▏ 896 MB/3.4 GB  116 MB/s     21s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  27% ▕████              ▏ 909 MB/3.4 GB  116 MB/s     21s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  27% ▕████              ▏ 923 MB/3.4 GB  116 MB/s     21s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  27% ▕████              ▏ 930 MB/3.4 GB  115 MB/s     21s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  28% ▕█████             ▏ 944 MB/3.4 GB  115 MB/s     21s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  28% ▕█████             ▏ 957 MB/3.4 GB  115 MB/s     20s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  28% ▕█████             ▏ 964 MB/3.4 GB  115 MB/s     20s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  29% ▕█████             ▏ 978 MB/3.4 GB  115 MB/s     20s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  29% ▕█████             ▏ 991 MB/3.4 GB  115 MB/s     20s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  29% ▕█████             ▏ 998 MB/3.4 GB  115 MB/s     20s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  30% ▕█████             ▏ 1.0 GB/3.4 GB  115 MB/s     20s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  30% ▕█████             ▏ 1.0 GB/3.4 GB  115 MB/s     20s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  30% ▕█████             ▏ 1.0 GB/3.4 GB  115 MB/s     20s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  31% ▕█████             ▏ 1.0 GB/3.4 GB  115 MB/s     20s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  31% ▕█████             ▏ 1.1 GB/3.4 GB  115 MB/s     20s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  31% ▕█████             ▏ 1.1 GB/3.4 GB  115 MB/s     20s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  32% ▕█████             ▏ 1.1 GB/3.4 GB  115 MB/s     19s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  32% ▕█████             ▏ 1.1 GB/3.4 GB  115 MB/s     19s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  32% ▕█████             ▏ 1.1 GB/3.4 GB  115 MB/s     19s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  33% ▕█████             ▏ 1.1 GB/3.4 GB  115 MB/s     19s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  33% ▕█████             ▏ 1.1 GB/3.4 GB  115 MB/s     19s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  33% ▕██████            ▏ 1.1 GB/3.4 GB  115 MB/s     19s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  34% ▕██████            ▏ 1.1 GB/3.4 GB  115 MB/s     19s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  34% ▕██████            ▏ 1.2 GB/3.4 GB  115 MB/s     19s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  35% ▕██████            ▏ 1.2 GB/3.4 GB  115 MB/s     19s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  35% ▕██████            ▏ 1.2 GB/3.4 GB  115 MB/s     19s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  35% ▕██████            ▏ 1.2 GB/3.4 GB  115 MB/s     18s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  36% ▕██████            ▏ 1.2 GB/3.4 GB  115 MB/s     18s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  36% ▕██████            ▏ 1.2 GB/3.4 GB  115 MB/s     18s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  36% ▕██████            ▏ 1.2 GB/3.4 GB  115 MB/s     18s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  37% ▕██████            ▏ 1.2 GB/3.4 GB  115 MB/s     18s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  37% ▕██████            ▏ 1.3 GB/3.4 GB  115 MB/s     18s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  37% ▕██████            ▏ 1.3 GB/3.4 GB  115 MB/s     18s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  38% ▕██████            ▏ 1.3 GB/3.4 GB  115 MB/s     18s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  38% ▕██████            ▏ 1.3 GB/3.4 GB  115 MB/s     18s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  38% ▕██████            ▏ 1.3 GB/3.4 GB  115 MB/s     18s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  39% ▕██████            ▏ 1.3 GB/3.4 GB  115 MB/s     17s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  39% ▕███████           ▏ 1.3 GB/3.4 GB  115 MB/s     17s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  39% ▕███████           ▏ 1.3 GB/3.4 GB  115 MB/s     17s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  40% ▕███████           ▏ 1.3 GB/3.4 GB  115 MB/s     17s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  40% ▕███████           ▏ 1.4 GB/3.4 GB  115 MB/s     17s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  40% ▕███████           ▏ 1.4 GB/3.4 GB  115 MB/s     17s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  41% ▕███████           ▏ 1.4 GB/3.4 GB  115 MB/s     17s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  41% ▕███████           ▏ 1.4 GB/3.4 GB  115 MB/s     17s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  41% ▕███████           ▏ 1.4 GB/3.4 GB  116 MB/s     17s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  42% ▕███████           ▏ 1.4 GB/3.4 GB  116 MB/s     17s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  42% ▕███████           ▏ 1.4 GB/3.4 GB  116 MB/s     16s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  42% ▕███████           ▏ 1.4 GB/3.4 GB  116 MB/s     16s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  43% ▕███████           ▏ 1.4 GB/3.4 GB  116 MB/s     16s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  43% ▕███████           ▏ 1.5 GB/3.4 GB  116 MB/s     16s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  43% ▕███████           ▏ 1.5 GB/3.4 GB  116 MB/s     16s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  44% ▕███████           ▏ 1.5 GB/3.4 GB  116 MB/s     16s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  44% ▕███████           ▏ 1.5 GB/3.4 GB  116 MB/s     16s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  44% ▕███████           ▏ 1.5 GB/3.4 GB  116 MB/s     16s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  45% ▕████████          ▏ 1.5 GB/3.4 GB  115 MB/s     16s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  45% ▕████████          ▏ 1.5 GB/3.4 GB  115 MB/s     16s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  45% ▕████████          ▏ 1.5 GB/3.4 GB  115 MB/s     16s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  46% ▕████████          ▏ 1.5 GB/3.4 GB  115 MB/s     15s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  46% ▕████████          ▏ 1.6 GB/3.4 GB  115 MB/s     15s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  46% ▕████████          ▏ 1.6 GB/3.4 GB  115 MB/s     15s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  47% ▕████████          ▏ 1.6 GB/3.4 GB  115 MB/s     15s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  47% ▕████████          ▏ 1.6 GB/3.4 GB  115 MB/s     15s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  47% ▕████████          ▏ 1.6 GB/3.4 GB  115 MB/s     15s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  47% ▕████████          ▏ 1.6 GB/3.4 GB  115 MB/s     15s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  48% ▕████████          ▏ 1.6 GB/3.4 GB  115 MB/s     15s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  48% ▕████████          ▏ 1.6 GB/3.4 GB  115 MB/s     15s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  49% ▕████████          ▏ 1.6 GB/3.4 GB  115 MB/s     15s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  49% ▕████████          ▏ 1.7 GB/3.4 GB  115 MB/s     14s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  49% ▕████████          ▏ 1.7 GB/3.4 GB  115 MB/s     14s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  49% ▕████████          ▏ 1.7 GB/3.4 GB  115 MB/s     14s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  50% ▕████████          ▏ 1.7 GB/3.4 GB  115 MB/s     14s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  50% ▕█████████         ▏ 1.7 GB/3.4 GB  115 MB/s     14s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  50% ▕█████████         ▏ 1.7 GB/3.4 GB  115 MB/s     14s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  51% ▕█████████         ▏ 1.7 GB/3.4 GB  115 MB/s     14s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  51% ▕█████████         ▏ 1.7 GB/3.4 GB  115 MB/s     14s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  51% ▕█████████         ▏ 1.7 GB/3.4 GB  115 MB/s     14s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  52% ▕█████████         ▏ 1.8 GB/3.4 GB  115 MB/s     14s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  52% ▕█████████         ▏ 1.8 GB/3.4 GB  115 MB/s     14s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  52% ▕█████████         ▏ 1.8 GB/3.4 GB  115 MB/s     14s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  53% ▕█████████         ▏ 1.8 GB/3.4 GB  115 MB/s     13s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  53% ▕█████████         ▏ 1.8 GB/3.4 GB  115 MB/s     13s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  53% ▕█████████         ▏ 1.8 GB/3.4 GB  115 MB/s     13s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  54% ▕█████████         ▏ 1.8 GB/3.4 GB  115 MB/s     13s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  54% ▕█████████         ▏ 1.8 GB/3.4 GB  115 MB/s     13s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  54% ▕█████████         ▏ 1.8 GB/3.4 GB  115 MB/s     13s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  55% ▕█████████         ▏ 1.9 GB/3.4 GB  115 MB/s     13s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  55% ▕█████████         ▏ 1.9 GB/3.4 GB  115 MB/s     13s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  55% ▕█████████         ▏ 1.9 GB/3.4 GB  115 MB/s     13s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  56% ▕██████████        ▏ 1.9 GB/3.4 GB  115 MB/s     13s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  56% ▕██████████        ▏ 1.9 GB/3.4 GB  115 MB/s     12s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  56% ▕██████████        ▏ 1.9 GB/3.4 GB  115 MB/s     12s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  57% ▕██████████        ▏ 1.9 GB/3.4 GB  115 MB/s     12s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  57% ▕██████████        ▏ 1.9 GB/3.4 GB  115 MB/s     12s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  57% ▕██████████        ▏ 1.9 GB/3.4 GB  115 MB/s     12s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  58% ▕██████████        ▏ 2.0 GB/3.4 GB  115 MB/s     12s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  58% ▕██████████        ▏ 2.0 GB/3.4 GB  115 MB/s     12s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  58% ▕██████████        ▏ 2.0 GB/3.4 GB  115 MB/s     12s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  59% ▕██████████        ▏ 2.0 GB/3.4 GB  115 MB/s     12s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  59% ▕██████████        ▏ 2.0 GB/3.4 GB  115 MB/s     12s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  59% ▕██████████        ▏ 2.0 GB/3.4 GB  115 MB/s     11s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  60% ▕██████████        ▏ 2.0 GB/3.4 GB  115 MB/s     11s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  60% ▕██████████        ▏ 2.0 GB/3.4 GB  115 MB/s     11s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  60% ▕██████████        ▏ 2.0 GB/3.4 GB  115 MB/s     11s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  61% ▕██████████        ▏ 2.1 GB/3.4 GB  115 MB/s     11s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  61% ▕███████████       ▏ 2.1 GB/3.4 GB  115 MB/s     11s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  61% ▕███████████       ▏ 2.1 GB/3.4 GB  115 MB/s     11s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  62% ▕███████████       ▏ 2.1 GB/3.4 GB  115 MB/s     11s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  62% ▕███████████       ▏ 2.1 GB/3.4 GB  115 MB/s     11s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  62% ▕███████████       ▏ 2.1 GB/3.4 GB  115 MB/s     11s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  63% ▕███████████       ▏ 2.1 GB/3.4 GB  115 MB/s     10s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  63% ▕███████████       ▏ 2.1 GB/3.4 GB  115 MB/s     10s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  63% ▕███████████       ▏ 2.1 GB/3.4 GB  115 MB/s     10s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  64% ▕███████████       ▏ 2.2 GB/3.4 GB  115 MB/s     10s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  64% ▕███████████       ▏ 2.2 GB/3.4 GB  115 MB/s     10s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  64% ▕███████████       ▏ 2.2 GB/3.4 GB  115 MB/s     10s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  65% ▕███████████       ▏ 2.2 GB/3.4 GB  114 MB/s     10s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  65% ▕███████████       ▏ 2.2 GB/3.4 GB  114 MB/s     10s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  65% ▕███████████       ▏ 2.2 GB/3.4 GB  114 MB/s     10s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  66% ▕███████████       ▏ 2.2 GB/3.4 GB  114 MB/s     10s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  66% ▕███████████       ▏ 2.2 GB/3.4 GB  114 MB/s      9s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  66% ▕███████████       ▏ 2.3 GB/3.4 GB  114 MB/s      9s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  67% ▕████████████      ▏ 2.3 GB/3.4 GB  114 MB/s      9s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  67% ▕████████████      ▏ 2.3 GB/3.4 GB  114 MB/s      9s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  67% ▕████████████      ▏ 2.3 GB/3.4 GB  114 MB/s      9s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  68% ▕████████████      ▏ 2.3 GB/3.4 GB  114 MB/s      9s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  68% ▕████████████      ▏ 2.3 GB/3.4 GB  114 MB/s      9s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  68% ▕████████████      ▏ 2.3 GB/3.4 GB  114 MB/s      9s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  69% ▕████████████      ▏ 2.3 GB/3.4 GB  114 MB/s      9s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  69% ▕████████████      ▏ 2.3 GB/3.4 GB  114 MB/s      9s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  69% ▕████████████      ▏ 2.4 GB/3.4 GB  114 MB/s      9s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  70% ▕████████████      ▏ 2.4 GB/3.4 GB  114 MB/s      8s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  70% ▕████████████      ▏ 2.4 GB/3.4 GB  114 MB/s      8s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  70% ▕████████████      ▏ 2.4 GB/3.4 GB  114 MB/s      8s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  71% ▕████████████      ▏ 2.4 GB/3.4 GB  114 MB/s      8s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  71% ▕████████████      ▏ 2.4 GB/3.4 GB  114 MB/s      8s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  71% ▕████████████      ▏ 2.4 GB/3.4 GB  114 MB/s      8s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  72% ▕████████████      ▏ 2.4 GB/3.4 GB  114 MB/s      8s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  72% ▕█████████████     ▏ 2.5 GB/3.4 GB  114 MB/s      8s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  73% ▕█████████████     ▏ 2.5 GB/3.4 GB  114 MB/s      8s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  73% ▕█████████████     ▏ 2.5 GB/3.4 GB  114 MB/s      7s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  73% ▕█████████████     ▏ 2.5 GB/3.4 GB  114 MB/s      7s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  74% ▕█████████████     ▏ 2.5 GB/3.4 GB  114 MB/s      7s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  74% ▕█████████████     ▏ 2.5 GB/3.4 GB  114 MB/s      7s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  74% ▕█████████████     ▏ 2.5 GB/3.4 GB  114 MB/s      7s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  75% ▕█████████████     ▏ 2.5 GB/3.4 GB  114 MB/s      7s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  75% ▕█████████████     ▏ 2.5 GB/3.4 GB  114 MB/s      7s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  75% ▕█████████████     ▏ 2.6 GB/3.4 GB  115 MB/s      7s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  76% ▕█████████████     ▏ 2.6 GB/3.4 GB  115 MB/s      7s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  76% ▕█████████████     ▏ 2.6 GB/3.4 GB  115 MB/s      7s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  76% ▕█████████████     ▏ 2.6 GB/3.4 GB  115 MB/s      6s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  77% ▕█████████████     ▏ 2.6 GB/3.4 GB  115 MB/s      6s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  77% ▕█████████████     ▏ 2.6 GB/3.4 GB  115 MB/s      6s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  77% ▕█████████████     ▏ 2.6 GB/3.4 GB  115 MB/s      6s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  78% ▕█████████████     ▏ 2.6 GB/3.4 GB  115 MB/s      6s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  78% ▕██████████████    ▏ 2.6 GB/3.4 GB  115 MB/s      6s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  78% ▕██████████████    ▏ 2.7 GB/3.4 GB  115 MB/s      6s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  79% ▕██████████████    ▏ 2.7 GB/3.4 GB  115 MB/s      6s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  79% ▕██████████████    ▏ 2.7 GB/3.4 GB  115 MB/s      6s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  79% ▕██████████████    ▏ 2.7 GB/3.4 GB  115 MB/s      6s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  80% ▕██████████████    ▏ 2.7 GB/3.4 GB  115 MB/s      5s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  80% ▕██████████████    ▏ 2.7 GB/3.4 GB  115 MB/s      5s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  80% ▕██████████████    ▏ 2.7 GB/3.4 GB  115 MB/s      5s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  81% ▕██████████████    ▏ 2.7 GB/3.4 GB  115 MB/s      5s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  81% ▕██████████████    ▏ 2.7 GB/3.4 GB  115 MB/s      5s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  81% ▕██████████████    ▏ 2.8 GB/3.4 GB  115 MB/s      5s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  82% ▕██████████████    ▏ 2.8 GB/3.4 GB  115 MB/s      5s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  82% ▕██████████████    ▏ 2.8 GB/3.4 GB  116 MB/s      5s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  82% ▕██████████████    ▏ 2.8 GB/3.4 GB  116 MB/s      5s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  83% ▕██████████████    ▏ 2.8 GB/3.4 GB  116 MB/s      5s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  83% ▕██████████████    ▏ 2.8 GB/3.4 GB  116 MB/s      4s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  83% ▕███████████████   ▏ 2.8 GB/3.4 GB  116 MB/s      4s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  84% ▕███████████████   ▏ 2.8 GB/3.4 GB  116 MB/s      4s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  84% ▕███████████████   ▏ 2.8 GB/3.4 GB  116 MB/s      4s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  84% ▕███████████████   ▏ 2.9 GB/3.4 GB  116 MB/s      4s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  85% ▕███████████████   ▏ 2.9 GB/3.4 GB  116 MB/s      4s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  85% ▕███████████████   ▏ 2.9 GB/3.4 GB  116 MB/s      4s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  85% ▕███████████████   ▏ 2.9 GB/3.4 GB  116 MB/s      4s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  86% ▕███████████████   ▏ 2.9 GB/3.4 GB  116 MB/s      4s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  86% ▕███████████████   ▏ 2.9 GB/3.4 GB  116 MB/s      4s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  86% ▕███████████████   ▏ 2.9 GB/3.4 GB  116 MB/s      3s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  87% ▕███████████████   ▏ 2.9 GB/3.4 GB  116 MB/s      3s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  87% ▕███████████████   ▏ 3.0 GB/3.4 GB  116 MB/s      3s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  87% ▕███████████████   ▏ 3.0 GB/3.4 GB  116 MB/s      3s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  88% ▕███████████████   ▏ 3.0 GB/3.4 GB  116 MB/s      3s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  88% ▕███████████████   ▏ 3.0 GB/3.4 GB  116 MB/s      3s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  88% ▕███████████████   ▏ 3.0 GB/3.4 GB  116 MB/s      3s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  89% ▕███████████████   ▏ 3.0 GB/3.4 GB  116 MB/s      3s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  89% ▕████████████████  ▏ 3.0 GB/3.4 GB  116 MB/s      3s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  89% ▕████████████████  ▏ 3.0 GB/3.4 GB  116 MB/s      3s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  90% ▕████████████████  ▏ 3.0 GB/3.4 GB  116 MB/s      3s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  90% ▕████████████████  ▏ 3.1 GB/3.4 GB  116 MB/s      2s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  90% ▕████████████████  ▏ 3.1 GB/3.4 GB  116 MB/s      2s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  91% ▕████████████████  ▏ 3.1 GB/3.4 GB  116 MB/s      2s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  91% ▕████████████████  ▏ 3.1 GB/3.4 GB  116 MB/s      2s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  92% ▕████████████████  ▏ 3.1 GB/3.4 GB  116 MB/s      2s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  92% ▕████████████████  ▏ 3.1 GB/3.4 GB  116 MB/s      2s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  92% ▕████████████████  ▏ 3.1 GB/3.4 GB  116 MB/s      2s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  93% ▕████████████████  ▏ 3.1 GB/3.4 GB  116 MB/s      2s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  93% ▕████████████████  ▏ 3.1 GB/3.4 GB  116 MB/s      2s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  93% ▕████████████████  ▏ 3.2 GB/3.4 GB  116 MB/s      2s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  94% ▕████████████████  ▏ 3.2 GB/3.4 GB  116 MB/s      1s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  94% ▕████████████████  ▏ 3.2 GB/3.4 GB  116 MB/s      1s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  94% ▕████████████████  ▏ 3.2 GB/3.4 GB  116 MB/s      1s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  95% ▕█████████████████ ▏ 3.2 GB/3.4 GB  116 MB/s      1s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  95% ▕█████████████████ ▏ 3.2 GB/3.4 GB  116 MB/s      1s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  95% ▕█████████████████ ▏ 3.2 GB/3.4 GB  116 MB/s      1s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  96% ▕█████████████████ ▏ 3.2 GB/3.4 GB  116 MB/s      1s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  96% ▕█████████████████ ▏ 3.2 GB/3.4 GB  116 MB/s      1s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  96% ▕█████████████████ ▏ 3.3 GB/3.4 GB  116 MB/s      1s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  97% ▕█████████████████ ▏ 3.3 GB/3.4 GB  116 MB/s      0s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  97% ▕█████████████████ ▏ 3.3 GB/3.4 GB  116 MB/s      0s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  97% ▕█████████████████ ▏ 3.3 GB/3.4 GB  116 MB/s      0s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  98% ▕█████████████████ ▏ 3.3 GB/3.4 GB  116 MB/s      0s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  98% ▕█████████████████ ▏ 3.3 GB/3.4 GB  116 MB/s      0s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  98% ▕█████████████████ ▏ 3.3 GB/3.4 GB  116 MB/s      0s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  99% ▕█████████████████ ▏ 3.3 GB/3.4 GB  116 MB/s      0s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  99% ▕█████████████████ ▏ 3.3 GB/3.4 GB  116 MB/s      0s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8:  99% ▕█████████████████ ▏ 3.4 GB/3.4 GB  116 MB/s      0s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8: 100% ▕█████████████████ ▏ 3.4 GB/3.4 GB  116 MB/s      0s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8: 100% ▕█████████████████ ▏ 3.4 GB/3.4 GB  116 MB/s      0s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 81fb60c7daa8: 100% ▕█████████████████ ▏ 3.4 GB/3.4 GB  116 MB/s      0s[K
+pulling 7339fa418c9a: 100% ▕██████████████████▏  11 KB                         [K[?25h[?2026l[?2026h[?25l[A[A[1Gpulling manifest [K
+pulling 81fb60c7daa8: 100% ▕█████████████████ ▏ 3.4 GB/3.4 GB  116 MB/s      0s[K
+pulling 7339fa418c9a: 100% ▕██████████████████▏  11 KB                         [K[?25h[?2026l[?2026h[?25l[A[A[1Gpulling manifest [K
+pulling 81fb60c7daa8: 100% ▕█████████████████ ▏ 3.4 GB/3.4 GB  116 MB/s      0s[K
+pulling 7339fa418c9a: 100% ▕██████████████████▏  11 KB                         [K[?25h[?2026l[?2026h[?25l[A[A[1Gpulling manifest [K
+pulling 81fb60c7daa8: 100% ▕█████████████████ ▏ 3.4 GB/3.4 GB  116 MB/s      0s[K
+pulling 7339fa418c9a: 100% ▕██████████████████▏  11 KB                         [K
+pulling 9371364b27a5: 100% ▕██████████████████▏   65 B                         [K[?25h[?2026l[?2026h[?25l[A[A[A[1Gpulling manifest [K
+pulling 81fb60c7daa8: 100% ▕█████████████████ ▏ 3.4 GB/3.4 GB  116 MB/s      0s[K
+pulling 7339fa418c9a: 100% ▕██████████████████▏  11 KB                         [K
+pulling 9371364b27a5: 100% ▕██████████████████▏   65 B                         [K[?25h[?2026l[?2026h[?25l[A[A[A[1Gpulling manifest [K
+pulling 81fb60c7daa8: 100% ▕█████████████████ ▏ 3.4 GB/3.4 GB  116 MB/s      0s[K
+pulling 7339fa418c9a: 100% ▕██████████████████▏  11 KB                         [K
+pulling 9371364b27a5: 100% ▕██████████████████▏   65 B                         [K[?25h[?2026l[?2026h[?25l[A[A[A[1Gpulling manifest [K
+pulling 81fb60c7daa8: 100% ▕█████████████████ ▏ 3.4 GB/3.4 GB  116 MB/s      0s[K
+pulling 7339fa418c9a: 100% ▕██████████████████▏  11 KB                         [K
+pulling 9371364b27a5: 100% ▕██████████████████▏   65 B                         [K[?25h[?2026l[?2026h[?25l[A[A[A[1Gpulling manifest [K
+pulling 81fb60c7daa8: 100% ▕█████████████████ ▏ 3.4 GB/3.4 GB  116 MB/s      0s[K
+pulling 7339fa418c9a: 100% ▕██████████████████▏  11 KB                         [K
+pulling 9371364b27a5: 100% ▕██████████████████▏   65 B                         [K[?25h[?2026l[?2026h[?25l[A[A[A[1Gpulling manifest [K
+pulling 81fb60c7daa8: 100% ▕█████████████████ ▏ 3.4 GB/3.4 GB  116 MB/s      0s[K
+pulling 7339fa418c9a: 100% ▕██████████████████▏  11 KB                         [K
+pulling 9371364b27a5: 100% ▕██████████████████▏   65 B                         [K[?25h[?2026l[?2026h[?25l[A[A[A[1Gpulling manifest [K
+pulling 81fb60c7daa8: 100% ▕█████████████████ ▏ 3.4 GB/3.4 GB  116 MB/s      0s[K
+pulling 7339fa418c9a: 100% ▕██████████████████▏  11 KB                         [K
+pulling 9371364b27a5: 100% ▕██████████████████▏   65 B                         [K[?25h[?2026l[?2026h[?25l[A[A[A[1Gpulling manifest [K
+pulling 81fb60c7daa8: 100% ▕█████████████████ ▏ 3.4 GB/3.4 GB  116 MB/s      0s[K
+pulling 7339fa418c9a: 100% ▕██████████████████▏  11 KB                         [K
+pulling 9371364b27a5: 100% ▕██████████████████▏   65 B                         [K[?25h[?2026l[?2026h[?25l[A[A[A[1Gpulling manifest [K
+pulling 81fb60c7daa8: 100% ▕█████████████████ ▏ 3.4 GB/3.4 GB  116 MB/s      0s[K
+pulling 7339fa418c9a: 100% ▕██████████████████▏  11 KB                         [K
+pulling 9371364b27a5: 100% ▕██████████████████▏   65 B                         [K[?25h[?2026l[?2026h[?25l[A[A[A[1Gpulling manifest [K
+pulling 81fb60c7daa8: 100% ▕█████████████████ ▏ 3.4 GB/3.4 GB  116 MB/s      0s[K
+pulling 7339fa418c9a: 100% ▕██████████████████▏  11 KB                         [K
+pulling 9371364b27a5: 100% ▕██████████████████▏   65 B                         [K[?25h[?2026l[?2026h[?25l[A[A[A[1Gpulling manifest [K
+pulling 81fb60c7daa8: 100% ▕█████████████████ ▏ 3.4 GB/3.4 GB  116 MB/s      0s[K
+pulling 7339fa418c9a: 100% ▕██████████████████▏  11 KB                         [K
+pulling 9371364b27a5: 100% ▕██████████████████▏   65 B                         [K[?25h[?2026l[?2026h[?25l[A[A[A[1Gpulling manifest [K
+pulling 81fb60c7daa8: 100% ▕█████████████████ ▏ 3.4 GB/3.4 GB  116 MB/s      0s[K
+pulling 7339fa418c9a: 100% ▕██████████████████▏  11 KB                         [K
+pulling 9371364b27a5: 100% ▕██████████████████▏   65 B                         [K
+pulling de9fed2251b3: 100% ▕██████████████████▏  475 B                         [K[?25h[?2026l[?2026h[?25l[A[A[A[A[1Gpulling manifest [K
+pulling 81fb60c7daa8: 100% ▕█████████████████ ▏ 3.4 GB/3.4 GB  116 MB/s      0s[K
+pulling 7339fa418c9a: 100% ▕██████████████████▏  11 KB                         [K
+pulling 9371364b27a5: 100% ▕██████████████████▏   65 B                         [K
+pulling de9fed2251b3: 100% ▕██████████████████▏  475 B                         [K[?25h[?2026l[?2026h[?25l[A[A[A[A[1Gpulling manifest [K
+pulling 81fb60c7daa8: 100% ▕█████████████████ ▏ 3.4 GB/3.4 GB  116 MB/s      0s[K
+pulling 7339fa418c9a: 100% ▕██████████████████▏  11 KB                         [K
+pulling 9371364b27a5: 100% ▕██████████████████▏   65 B                         [K
+pulling de9fed2251b3: 100% ▕██████████████████▏  475 B                         [K[?25h[?2026l[?2026h[?25l[A[A[A[A[1Gpulling manifest [K
+pulling 81fb60c7daa8: 100% ▕█████████████████ ▏ 3.4 GB/3.4 GB  116 MB/s      0s[K
+pulling 7339fa418c9a: 100% ▕██████████████████▏  11 KB                         [K
+pulling 9371364b27a5: 100% ▕██████████████████▏   65 B                         [K
+pulling de9fed2251b3: 100% ▕██████████████████▏  475 B                         [K[?25h[?2026l[?2026h[?25l[A[A[A[A[1Gpulling manifest [K
+pulling 81fb60c7daa8: 100% ▕█████████████████ ▏ 3.4 GB/3.4 GB  116 MB/s      0s[K
+pulling 7339fa418c9a: 100% ▕██████████████████▏  11 KB                         [K
+pulling 9371364b27a5: 100% ▕██████████████████▏   65 B                         [K
+pulling de9fed2251b3: 100% ▕██████████████████▏  475 B                         [K[?25h[?2026l[?2026h[?25l[A[A[A[A[1Gpulling manifest [K
+pulling 81fb60c7daa8: 100% ▕█████████████████ ▏ 3.4 GB/3.4 GB  116 MB/s      0s[K
+pulling 7339fa418c9a: 100% ▕██████████████████▏  11 KB                         [K
+pulling 9371364b27a5: 100% ▕██████████████████▏   65 B                         [K
+pulling de9fed2251b3: 100% ▕██████████████████▏  475 B                         [K[?25h[?2026l[?2026h[?25l[A[A[A[A[1Gpulling manifest [K
+pulling 81fb60c7daa8: 100% ▕█████████████████ ▏ 3.4 GB/3.4 GB  116 MB/s      0s[K
+pulling 7339fa418c9a: 100% ▕██████████████████▏  11 KB                         [K
+pulling 9371364b27a5: 100% ▕██████████████████▏   65 B                         [K
+pulling de9fed2251b3: 100% ▕██████████████████▏  475 B                         [K[?25h[?2026l[?2026h[?25l[A[A[A[A[1Gpulling manifest [K
+pulling 81fb60c7daa8: 100% ▕█████████████████ ▏ 3.4 GB/3.4 GB  116 MB/s      0s[K
+pulling 7339fa418c9a: 100% ▕██████████████████▏  11 KB                         [K
+pulling 9371364b27a5: 100% ▕██████████████████▏   65 B                         [K
+pulling de9fed2251b3: 100% ▕██████████████████▏  475 B                         [K[?25h[?2026l[?2026h[?25l[A[A[A[A[1Gpulling manifest [K
+pulling 81fb60c7daa8: 100% ▕█████████████████ ▏ 3.4 GB/3.4 GB  116 MB/s      0s[K
+pulling 7339fa418c9a: 100% ▕██████████████████▏  11 KB                         [K
+pulling 9371364b27a5: 100% ▕██████████████████▏   65 B                         [K
+pulling de9fed2251b3: 100% ▕██████████████████▏  475 B                         [K[?25h[?2026l[?2026h[?25l[A[A[A[A[1Gpulling manifest [K
+pulling 81fb60c7daa8: 100% ▕█████████████████ ▏ 3.4 GB/3.4 GB  116 MB/s      0s[K
+pulling 7339fa418c9a: 100% ▕██████████████████▏  11 KB                         [K
+pulling 9371364b27a5: 100% ▕██████████████████▏   65 B                         [K
+pulling de9fed2251b3: 100% ▕██████████████████▏  475 B                         [K
+verifying sha256 digest ⠋ [K[?25h[?2026l[?2026h[?25l[A[A[A[A[A[1Gpulling manifest [K
+pulling 81fb60c7daa8: 100% ▕█████████████████ ▏ 3.4 GB/3.4 GB  116 MB/s      0s[K
+pulling 7339fa418c9a: 100% ▕██████████████████▏  11 KB                         [K
+pulling 9371364b27a5: 100% ▕██████████████████▏   65 B                         [K
+pulling de9fed2251b3: 100% ▕██████████████████▏  475 B                         [K
+verifying sha256 digest ⠙ [K[?25h[?2026l[?2026h[?25l[A[A[A[A[A[1Gpulling manifest [K
+pulling 81fb60c7daa8: 100% ▕█████████████████ ▏ 3.4 GB/3.4 GB  116 MB/s      0s[K
+pulling 7339fa418c9a: 100% ▕██████████████████▏  11 KB                         [K
+pulling 9371364b27a5: 100% ▕██████████████████▏   65 B                         [K
+pulling de9fed2251b3: 100% ▕██████████████████▏  475 B                         [K
+verifying sha256 digest ⠹ [K[?25h[?2026l[?2026h[?25l[A[A[A[A[A[1Gpulling manifest [K
+pulling 81fb60c7daa8: 100% ▕█████████████████ ▏ 3.4 GB/3.4 GB  116 MB/s      0s[K
+pulling 7339fa418c9a: 100% ▕██████████████████▏  11 KB                         [K
+pulling 9371364b27a5: 100% ▕██████████████████▏   65 B                         [K
+pulling de9fed2251b3: 100% ▕██████████████████▏  475 B                         [K
+verifying sha256 digest ⠸ [K[?25h[?2026l[?2026h[?25l[A[A[A[A[A[1Gpulling manifest [K
+pulling 81fb60c7daa8: 100% ▕█████████████████ ▏ 3.4 GB/3.4 GB  116 MB/s      0s[K
+pulling 7339fa418c9a: 100% ▕██████████████████▏  11 KB                         [K
+pulling 9371364b27a5: 100% ▕██████████████████▏   65 B                         [K
+pulling de9fed2251b3: 100% ▕██████████████████▏  475 B                         [K
+verifying sha256 digest ⠼ [K[?25h[?2026l[?2026h[?25l[A[A[A[A[A[1Gpulling manifest [K
+pulling 81fb60c7daa8: 100% ▕█████████████████ ▏ 3.4 GB/3.4 GB  116 MB/s      0s[K
+pulling 7339fa418c9a: 100% ▕██████████████████▏  11 KB                         [K
+pulling 9371364b27a5: 100% ▕██████████████████▏   65 B                         [K
+pulling de9fed2251b3: 100% ▕██████████████████▏  475 B                         [K
+verifying sha256 digest ⠴ [K[?25h[?2026l[?2026h[?25l[A[A[A[A[A[1Gpulling manifest [K
+pulling 81fb60c7daa8: 100% ▕█████████████████ ▏ 3.4 GB/3.4 GB  116 MB/s      0s[K
+pulling 7339fa418c9a: 100% ▕██████████████████▏  11 KB                         [K
+pulling 9371364b27a5: 100% ▕██████████████████▏   65 B                         [K
+pulling de9fed2251b3: 100% ▕██████████████████▏  475 B                         [K
+verifying sha256 digest ⠦ [K[?25h[?2026l[?2026h[?25l[A[A[A[A[A[1Gpulling manifest [K
+pulling 81fb60c7daa8: 100% ▕█████████████████ ▏ 3.4 GB/3.4 GB  116 MB/s      0s[K
+pulling 7339fa418c9a: 100% ▕██████████████████▏  11 KB                         [K
+pulling 9371364b27a5: 100% ▕██████████████████▏   65 B                         [K
+pulling de9fed2251b3: 100% ▕██████████████████▏  475 B                         [K
+verifying sha256 digest ⠧ [K[?25h[?2026l[?2026h[?25l[A[A[A[A[A[1Gpulling manifest [K
+pulling 81fb60c7daa8: 100% ▕█████████████████ ▏ 3.4 GB/3.4 GB  116 MB/s      0s[K
+pulling 7339fa418c9a: 100% ▕██████████████████▏  11 KB                         [K
+pulling 9371364b27a5: 100% ▕██████████████████▏   65 B                         [K
+pulling de9fed2251b3: 100% ▕██████████████████▏  475 B                         [K
+verifying sha256 digest ⠇ [K[?25h[?2026l[?2026h[?25l[A[A[A[A[A[1Gpulling manifest [K
+pulling 81fb60c7daa8: 100% ▕█████████████████ ▏ 3.4 GB/3.4 GB  116 MB/s      0s[K
+pulling 7339fa418c9a: 100% ▕██████████████████▏  11 KB                         [K
+pulling 9371364b27a5: 100% ▕██████████████████▏   65 B                         [K
+pulling de9fed2251b3: 100% ▕██████████████████▏  475 B                         [K
+verifying sha256 digest ⠏ [K[?25h[?2026l[?2026h[?25l[A[A[A[A[A[1Gpulling manifest [K
+pulling 81fb60c7daa8: 100% ▕█████████████████ ▏ 3.4 GB/3.4 GB  116 MB/s      0s[K
+pulling 7339fa418c9a: 100% ▕██████████████████▏  11 KB                         [K
+pulling 9371364b27a5: 100% ▕██████████████████▏   65 B                         [K
+pulling de9fed2251b3: 100% ▕██████████████████▏  475 B                         [K
+verifying sha256 digest ⠋ [K[?25h[?2026l[?2026h[?25l[A[A[A[A[A[1Gpulling manifest [K
+pulling 81fb60c7daa8: 100% ▕█████████████████ ▏ 3.4 GB/3.4 GB  116 MB/s      0s[K
+pulling 7339fa418c9a: 100% ▕██████████████████▏  11 KB                         [K
+pulling 9371364b27a5: 100% ▕██████████████████▏   65 B                         [K
+pulling de9fed2251b3: 100% ▕██████████████████▏  475 B                         [K
+verifying sha256 digest ⠙ [K[?25h[?2026l[?2026h[?25l[A[A[A[A[A[1Gpulling manifest [K
+pulling 81fb60c7daa8: 100% ▕█████████████████ ▏ 3.4 GB/3.4 GB  116 MB/s      0s[K
+pulling 7339fa418c9a: 100% ▕██████████████████▏  11 KB                         [K
+pulling 9371364b27a5: 100% ▕██████████████████▏   65 B                         [K
+pulling de9fed2251b3: 100% ▕██████████████████▏  475 B                         [K
+verifying sha256 digest ⠹ [K[?25h[?2026l[?2026h[?25l[A[A[A[A[A[1Gpulling manifest [K
+pulling 81fb60c7daa8: 100% ▕█████████████████ ▏ 3.4 GB/3.4 GB  116 MB/s      0s[K
+pulling 7339fa418c9a: 100% ▕██████████████████▏  11 KB                         [K
+pulling 9371364b27a5: 100% ▕██████████████████▏   65 B                         [K
+pulling de9fed2251b3: 100% ▕██████████████████▏  475 B                         [K
+verifying sha256 digest ⠸ [K[?25h[?2026l[?2026h[?25l[A[A[A[A[A[1Gpulling manifest [K
+pulling 81fb60c7daa8: 100% ▕█████████████████ ▏ 3.4 GB/3.4 GB  116 MB/s      0s[K
+pulling 7339fa418c9a: 100% ▕██████████████████▏  11 KB                         [K
+pulling 9371364b27a5: 100% ▕██████████████████▏   65 B                         [K
+pulling de9fed2251b3: 100% ▕██████████████████▏  475 B                         [K
+verifying sha256 digest ⠼ [K[?25h[?2026l[?2026h[?25l[A[A[A[A[A[1Gpulling manifest [K
+pulling 81fb60c7daa8: 100% ▕█████████████████ ▏ 3.4 GB/3.4 GB  116 MB/s      0s[K
+pulling 7339fa418c9a: 100% ▕██████████████████▏  11 KB                         [K
+pulling 9371364b27a5: 100% ▕██████████████████▏   65 B                         [K
+pulling de9fed2251b3: 100% ▕██████████████████▏  475 B                         [K
+verifying sha256 digest ⠴ [K[?25h[?2026l[?2026h[?25l[A[A[A[A[A[1Gpulling manifest [K
+pulling 81fb60c7daa8: 100% ▕█████████████████ ▏ 3.4 GB/3.4 GB  116 MB/s      0s[K
+pulling 7339fa418c9a: 100% ▕██████████████████▏  11 KB                         [K
+pulling 9371364b27a5: 100% ▕██████████████████▏   65 B                         [K
+pulling de9fed2251b3: 100% ▕██████████████████▏  475 B                         [K
+verifying sha256 digest ⠦ [K[?25h[?2026l[?2026h[?25l[A[A[A[A[A[1Gpulling manifest [K
+pulling 81fb60c7daa8: 100% ▕█████████████████ ▏ 3.4 GB/3.4 GB  116 MB/s      0s[K
+pulling 7339fa418c9a: 100% ▕██████████████████▏  11 KB                         [K
+pulling 9371364b27a5: 100% ▕██████████████████▏   65 B                         [K
+pulling de9fed2251b3: 100% ▕██████████████████▏  475 B                         [K
+verifying sha256 digest ⠧ [K[?25h[?2026l[?2026h[?25l[A[A[A[A[A[1Gpulling manifest [K
+pulling 81fb60c7daa8: 100% ▕█████████████████ ▏ 3.4 GB/3.4 GB  116 MB/s      0s[K
+pulling 7339fa418c9a: 100% ▕██████████████████▏  11 KB                         [K
+pulling 9371364b27a5: 100% ▕██████████████████▏   65 B                         [K
+pulling de9fed2251b3: 100% ▕██████████████████▏  475 B                         [K
+verifying sha256 digest ⠇ [K[?25h[?2026l[?2026h[?25l[A[A[A[A[A[1Gpulling manifest [K
+pulling 81fb60c7daa8: 100% ▕█████████████████ ▏ 3.4 GB/3.4 GB  116 MB/s      0s[K
+pulling 7339fa418c9a: 100% ▕██████████████████▏  11 KB                         [K
+pulling 9371364b27a5: 100% ▕██████████████████▏   65 B                         [K
+pulling de9fed2251b3: 100% ▕██████████████████▏  475 B                         [K
+verifying sha256 digest [K
+writing manifest [K
+success [K[?25h[?2026l
+NAME                ID              SIZE      MODIFIED               
+qwen3.5:4b          2a654d98e6fb    3.4 GB    Less than a second ago    
+gemma4:e4b          c6eb396dbd59    9.6 GB    4 minutes ago             
+gemma4:e2b          7fbdbf8f5e45    7.2 GB    6 minutes ago             
+qwen3:8b            500a1f067a9f    5.2 GB    2 weeks ago               
+qwen2.5vl:latest    5ced39dfa4ba    6.0 GB    2 months ago              
+gemma3:4b           a2af6cc3eb7f    3.3 GB    2 months ago              
+qwen2.5:7b          845dbda0ea48    4.7 GB    3 months ago              
+llama3.2:3b         a80c4f17acd5    2.0 GB    3 months ago              
+qwen2.5-coder:7b    dae161e27b0e    4.7 GB    3 months ago              
+[23:08:30] --- Tier 1: quality/accuracy qualification (model_qualify.py) ---
+/home/billyomes/watson/venv/lib/python3.12/site-packages/requests/__init__.py:109: RequestsDependencyWarning: urllib3 (2.21.902) or chardet (7.4.3)/charset_normalizer (3.4.4) doesn't match a supported version!
+  warnings.warn(
+
+=== Testing gemma4:e2b ===
+Battery A (intent classification)...
+  Accuracy: 0.8  Avg latency: 23.446s
+Battery B (reasoning)...
+  5 cases logged for manual grading
+
+=== Testing gemma4:e4b ===
+Battery A (intent classification)...
+  Accuracy: 0.9  Avg latency: 12.951s
+Battery B (reasoning)...
+  5 cases logged for manual grading
+
+=== Testing qwen3.5:4b ===
+Battery A (intent classification)...
+Traceback (most recent call last):
+  File "/home/billyomes/watson/venv/lib/python3.12/site-packages/urllib3/connectionpool.py", line 1439, in _make_request
+    response = conn.getresponse(
+               ^^^^^^^^^^^^^^^^^
+  File "/home/billyomes/watson/venv/lib/python3.12/site-packages/urllib3/connection.py", line 636, in getresponse
+    low_response = super().getresponse(
+                   ^^^^^^^^^^^^^^^^^^^^
+  File "/home/billyomes/watson/venv/lib/python3.12/site-packages/urllib3/backend/hface.py", line 1742, in getresponse
+    head_event: HeadersReceived | EarlyHeadersReceived = self.__exchange_until(  # type: ignore[assignment]
+                                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/billyomes/watson/venv/lib/python3.12/site-packages/urllib3/backend/hface.py", line 1040, in __exchange_until
+    data_in = sock.recv(blocksize)
+              ^^^^^^^^^^^^^^^^^^^^
+TimeoutError: timed out
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/billyomes/watson/venv/lib/python3.12/site-packages/requests/adapters.py", line 486, in send
+    resp = conn.urlopen(
+           ^^^^^^^^^^^^^
+  File "/home/billyomes/watson/venv/lib/python3.12/site-packages/urllib3/connectionpool.py", line 1900, in urlopen
+    retries = retries.increment(
+              ^^^^^^^^^^^^^^^^^^
+  File "/home/billyomes/watson/venv/lib/python3.12/site-packages/urllib3/util/retry.py", line 515, in increment
+    raise reraise(type(error), error, _stacktrace)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/billyomes/watson/venv/lib/python3.12/site-packages/urllib3/util/util.py", line 40, in reraise
+    raise value
+  File "/home/billyomes/watson/venv/lib/python3.12/site-packages/urllib3/connectionpool.py", line 1821, in urlopen
+    response = self._make_request(  # type: ignore[call-overload,misc]
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/billyomes/watson/venv/lib/python3.12/site-packages/urllib3/connectionpool.py", line 1445, in _make_request
+    self._raise_timeout(err=e, url=url, timeout_value=read_timeout)
+  File "/home/billyomes/watson/venv/lib/python3.12/site-packages/urllib3/connectionpool.py", line 847, in _raise_timeout
+    raise ReadTimeoutError(
+urllib3.exceptions.ReadTimeoutError: HTTPConnectionPool(host='localhost', port=11434): Read timed out. (read timeout=120)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/billyomes/watson/tests/model_qualify/model_qualify.py", line 130, in <module>
+    main()
+  File "/home/billyomes/watson/tests/model_qualify/model_qualify.py", line 110, in main
+    battery_a = run_battery_a(model, test_set["battery_a_intent"])
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/billyomes/watson/tests/model_qualify/model_qualify.py", line 51, in run_battery_a
+    response, elapsed, raw = call_ollama(model, prompt)
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/billyomes/watson/tests/model_qualify/model_qualify.py", line 34, in call_ollama
+    resp = requests.post(
+           ^^^^^^^^^^^^^^
+  File "/home/billyomes/watson/venv/lib/python3.12/site-packages/requests/api.py", line 115, in post
+    return request("post", url, data=data, json=json, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/billyomes/watson/venv/lib/python3.12/site-packages/requests/api.py", line 59, in request
+    return session.request(method=method, url=url, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/billyomes/watson/venv/lib/python3.12/site-packages/requests/sessions.py", line 589, in request
+    resp = self.send(prep, **send_kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/billyomes/watson/venv/lib/python3.12/site-packages/requests/sessions.py", line 703, in send
+    r = adapter.send(request, **kwargs)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/billyomes/watson/venv/lib/python3.12/site-packages/requests/adapters.py", line 532, in send
+    raise ReadTimeout(e, request=request)
+requests.exceptions.ReadTimeout: HTTPConnectionPool(host='localhost', port=11434): Read timed out. (read timeout=120)
+[23:30:54] --- Tier 2a: single-candidate concurrency stress test ---
+/home/billyomes/watson/venv/lib/python3.12/site-packages/requests/__init__.py:109: RequestsDependencyWarning: urllib3 (2.21.902) or chardet (7.4.3)/charset_normalizer (3.4.4) doesn't match a supported version!
+  warnings.warn(
+Baseline mode: no background call. Firing classify() solo...
+
+classify() result: {'intent': 'reminder_create', 'params': {'title': 'call John', 'due_datetime': 'tomorrow at 3pm'}, 'confidence': 'HIGH'}
+classify() elapsed: 2.78s
+[23:30:57] Stress test: gemma4:e2b
+/home/billyomes/watson/venv/lib/python3.12/site-packages/requests/__init__.py:109: RequestsDependencyWarning: urllib3 (2.21.902) or chardet (7.4.3)/charset_normalizer (3.4.4) doesn't match a supported version!
+  warnings.warn(
+Starting background gemma4:e2b call (think=false: True)...
+
+--- loaded window (gemma4:e2b mid-generation) ---
+$ ollama ps
+NAME          ID              SIZE      PROCESSOR    CONTEXT    UNTIL               
+gemma3:4b     a2af6cc3eb7f    3.3 GB    100% CPU     4096       27 minutes from now    
+qwen3.5:4b    2a654d98e6fb    3.2 GB    100% CPU     4096       4 minutes from now     
+
+$ free -h
+               total        used        free      shared  buff/cache   available
+Mem:            31Gi        18Gi       6.7Gi        21Mi       6.0Gi        12Gi
+Swap:          2.0Gi       2.0Gi       112Ki
+
+Heavy call should be mid-generation now. Firing classify()...
+
+classify() result: {'intent': 'reminder_create', 'params': {'title': 'call John', 'due_datetime': 'tomorrow at 3pm'}, 'confidence': 'HIGH'}
+classify() elapsed: 2.47s
+(heavy call still running: True)
+heavy gemma4:e2b call total elapsed: 58.12s
+heavy call eval stats: {'eval_count': 700, 'eval_duration_s': 47.527979, 'total_duration_s': 58.102640408, 'load_duration_s': 9.834120595}
+
+--- after heavy call finished ---
+$ ollama ps
+NAME          ID              SIZE      PROCESSOR    CONTEXT    UNTIL               
+gemma3:4b     a2af6cc3eb7f    3.3 GB    100% CPU     4096       26 minutes from now    
+gemma4:e2b    7fbdbf8f5e45    6.9 GB    100% CPU     4096       4 minutes from now     
+qwen3.5:4b    2a654d98e6fb    3.2 GB    100% CPU     4096       3 minutes from now     
+
+$ free -h
+               total        used        free      shared  buff/cache   available
+Mem:            31Gi        23Gi       323Mi        21Mi       7.9Gi       7.7Gi
+Swap:          2.0Gi       2.0Gi       112Ki
+
+[23:31:55] Stress test: gemma4:e4b
+/home/billyomes/watson/venv/lib/python3.12/site-packages/requests/__init__.py:109: RequestsDependencyWarning: urllib3 (2.21.902) or chardet (7.4.3)/charset_normalizer (3.4.4) doesn't match a supported version!
+  warnings.warn(
+Starting background gemma4:e4b call (think=false: True)...
+
+--- loaded window (gemma4:e4b mid-generation) ---
+$ ollama ps
+NAME          ID              SIZE      PROCESSOR    CONTEXT    UNTIL               
+gemma3:4b     a2af6cc3eb7f    3.3 GB    100% CPU     4096       26 minutes from now    
+qwen3.5:4b    2a654d98e6fb    3.2 GB    100% CPU     4096       3 minutes from now     
+
+$ free -h
+               total        used        free      shared  buff/cache   available
+Mem:            31Gi        18Gi       5.1Gi        21Mi       8.0Gi        12Gi
+Swap:          2.0Gi       2.0Gi       112Ki
+
+Heavy call should be mid-generation now. Firing classify()...
+
+classify() result: {'intent': 'reminder_create', 'params': {'title': 'call John', 'due_datetime': 'tomorrow at 3pm'}, 'confidence': 'HIGH'}
+classify() elapsed: 2.24s
+(heavy call still running: True)
+heavy gemma4:e4b call total elapsed: 99.43s
+heavy call eval stats: {'eval_count': 700, 'eval_duration_s': 84.046326, 'total_duration_s': 99.404019396, 'load_duration_s': 13.815591774}
+
+--- after heavy call finished ---
+$ ollama ps
+NAME          ID              SIZE      PROCESSOR    CONTEXT    UNTIL               
+gemma3:4b     a2af6cc3eb7f    3.3 GB    100% CPU     4096       28 minutes from now    
+gemma4:e4b    c6eb396dbd59    9.7 GB    100% CPU     4096       4 minutes from now     
+qwen3.5:4b    2a654d98e6fb    3.2 GB    100% CPU     4096       2 minutes from now     
+
+$ free -h
+               total        used        free      shared  buff/cache   available
+Mem:            31Gi        26Gi       394Mi        21Mi       5.1Gi       5.0Gi
+Swap:          2.0Gi       2.0Gi       112Ki
+
+[23:33:35] Stress test: qwen3.5:4b
+/home/billyomes/watson/venv/lib/python3.12/site-packages/requests/__init__.py:109: RequestsDependencyWarning: urllib3 (2.21.902) or chardet (7.4.3)/charset_normalizer (3.4.4) doesn't match a supported version!
+  warnings.warn(
+Starting background qwen3.5:4b call (think=false: True)...
+
+--- loaded window (qwen3.5:4b mid-generation) ---
+$ ollama ps
+NAME          ID              SIZE      PROCESSOR    CONTEXT    UNTIL               
+gemma3:4b     a2af6cc3eb7f    3.3 GB    100% CPU     4096       28 minutes from now    
+gemma4:e4b    c6eb396dbd59    9.7 GB    100% CPU     4096       4 minutes from now     
+qwen3.5:4b    2a654d98e6fb    3.2 GB    100% CPU     4096       2 minutes from now     
+
+$ free -h
+               total        used        free      shared  buff/cache   available
+Mem:            31Gi        26Gi       299Mi        21Mi       5.1Gi       4.9Gi
+Swap:          2.0Gi       2.0Gi       112Ki
+
+Heavy call should be mid-generation now. Firing classify()...
+
+classify() result: {'intent': 'reminder_create', 'params': {'title': 'call John', 'due_datetime': 'tomorrow at 3pm'}, 'confidence': 'HIGH'}
+classify() elapsed: 2.46s
+(heavy call still running: True)
+heavy qwen3.5:4b call total elapsed: 86.79s
+heavy call eval stats: {'eval_count': 700, 'eval_duration_s': 84.531067, 'total_duration_s': 86.77253036, 'load_duration_s': 0.275784798}
+
+--- after heavy call finished ---
+$ ollama ps
+NAME          ID              SIZE      PROCESSOR    CONTEXT    UNTIL               
+gemma3:4b     a2af6cc3eb7f    3.3 GB    100% CPU     4096       27 minutes from now    
+qwen3.5:4b    2a654d98e6fb    3.2 GB    100% CPU     4096       4 minutes from now     
+gemma4:e4b    c6eb396dbd59    9.7 GB    100% CPU     4096       3 minutes from now     
+
+$ free -h
+               total        used        free      shared  buff/cache   available
+Mem:            31Gi        26Gi       287Mi        21Mi       5.0Gi       4.8Gi
+Swap:          2.0Gi       2.0Gi       112Ki
+
+[23:35:02] --- Tier 2b: mixed-traffic eviction/thrash test (20 min baseline + 20 min x3 candidates) ---
+/home/billyomes/watson/venv/lib/python3.12/site-packages/requests/__init__.py:109: RequestsDependencyWarning: urllib3 (2.21.902) or chardet (7.4.3)/charset_normalizer (3.4.4) doesn't match a supported version!
+  warnings.warn(
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Mixed-traffic test: duration=1200s, with_candidate=False (n/a)
+Schedule: 26 calls over 1200s
+[t+0s] classify (gemma3:4b) done in 2.57s, load_duration=0.0, OK
+[t+60s] chat_summarize (llama3.2:3b) done in 16.43s, load_duration=5.221617796, OK
+[t+90s] classify (gemma3:4b) done in 2.45s, load_duration=0.0, OK
+Loading weights:   0%|          | 0/103 [00:00<?, ?it/s]Loading weights: 100%|██████████| 103/103 [00:00<00:00, 3736.30it/s]
+[t+180s] classify (gemma3:4b) done in 2.23s, load_duration=0.0, OK
+[t+200s] background_qwen7b (qwen2.5:7b) done in 50.40s, load_duration=9.022921594, OK
+[t+270s] classify (gemma3:4b) done in 1.95s, load_duration=0.0, OK
+[t+300s] chat_summarize (llama3.2:3b) done in 26.09s, load_duration=5.974943929, OK
+[t+150s] kb_search (qwen2.5-coder:7b) done in 195.24s, load_duration=7.426334074, OK
+[t+360s] classify (gemma3:4b) done in 2.02s, load_duration=0.0, OK
+[t+450s] classify (gemma3:4b) done in 2.97s, load_duration=0.0, OK
+[t+450s] kb_search (qwen2.5-coder:7b) done in 26.42s, load_duration=0.233436578, OK
+[t+540s] classify (gemma3:4b) done in 1.94s, load_duration=0.0, OK
+[t+540s] chat_summarize (llama3.2:3b) done in 9.99s, load_duration=0.25690986, OK
+[t+630s] classify (gemma3:4b) done in 2.37s, load_duration=0.0, OK
+[t+600s] background_qwen7b (qwen2.5:7b) done in 37.59s, load_duration=7.717567998, OK
+[t+720s] classify (gemma3:4b) done in 2.09s, load_duration=0.0, OK
+[t+780s] chat_summarize (llama3.2:3b) done in 7.27s, load_duration=0.316258353, OK
+[t+810s] classify (gemma3:4b) done in 2.00s, load_duration=0.0, OK
+[t+900s] classify (gemma3:4b) done in 1.87s, load_duration=0.0, OK
+[t+750s] kb_search (qwen2.5-coder:7b) done in 172.08s, load_duration=7.443680591, OK
+[t+990s] classify (gemma3:4b) done in 12.14s, load_duration=0.0, OK
+[t+1020s] chat_summarize (llama3.2:3b) done in 10.37s, load_duration=0.235230422, OK
+[t+1000s] background_qwen7b (qwen2.5:7b) done in 39.17s, load_duration=7.706441692, OK
+[t+1080s] classify (gemma3:4b) done in 1.95s, load_duration=0.0, OK
+[t+1170s] classify (gemma3:4b) done in 2.28s, load_duration=0.0, OK
+[t+1050s] kb_search (qwen2.5-coder:7b) done in 182.82s, load_duration=7.188766449, OK
+
+=== Call log ===
+{'t': 0, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 2.57, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 60, 'kind': 'chat_summarize', 'model': 'llama3.2:3b', 'elapsed_s': 16.43, 'load_duration_s': 5.22, 'ok': True, 'note': None}
+{'t': 90, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 2.45, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 180, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 2.23, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 200, 'kind': 'background_qwen7b', 'model': 'qwen2.5:7b', 'elapsed_s': 50.4, 'load_duration_s': 9.02, 'ok': True, 'note': None}
+{'t': 270, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 1.95, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 300, 'kind': 'chat_summarize', 'model': 'llama3.2:3b', 'elapsed_s': 26.09, 'load_duration_s': 5.97, 'ok': True, 'note': None}
+{'t': 150, 'kind': 'kb_search', 'model': 'qwen2.5-coder:7b', 'elapsed_s': 195.24, 'load_duration_s': 7.43, 'ok': True, 'note': None}
+{'t': 360, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 2.02, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 450, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 2.97, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 450, 'kind': 'kb_search', 'model': 'qwen2.5-coder:7b', 'elapsed_s': 26.42, 'load_duration_s': 0.23, 'ok': True, 'note': None}
+{'t': 540, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 1.94, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 540, 'kind': 'chat_summarize', 'model': 'llama3.2:3b', 'elapsed_s': 9.99, 'load_duration_s': 0.26, 'ok': True, 'note': None}
+{'t': 630, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 2.37, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 600, 'kind': 'background_qwen7b', 'model': 'qwen2.5:7b', 'elapsed_s': 37.59, 'load_duration_s': 7.72, 'ok': True, 'note': None}
+{'t': 720, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 2.09, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 780, 'kind': 'chat_summarize', 'model': 'llama3.2:3b', 'elapsed_s': 7.27, 'load_duration_s': 0.32, 'ok': True, 'note': None}
+{'t': 810, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 2.0, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 900, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 1.87, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 750, 'kind': 'kb_search', 'model': 'qwen2.5-coder:7b', 'elapsed_s': 172.08, 'load_duration_s': 7.44, 'ok': True, 'note': None}
+{'t': 990, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 12.14, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 1020, 'kind': 'chat_summarize', 'model': 'llama3.2:3b', 'elapsed_s': 10.37, 'load_duration_s': 0.24, 'ok': True, 'note': None}
+{'t': 1000, 'kind': 'background_qwen7b', 'model': 'qwen2.5:7b', 'elapsed_s': 39.17, 'load_duration_s': 7.71, 'ok': True, 'note': None}
+{'t': 1080, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 1.95, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 1170, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 2.28, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 1050, 'kind': 'kb_search', 'model': 'qwen2.5-coder:7b', 'elapsed_s': 182.82, 'load_duration_s': 7.19, 'ok': True, 'note': None}
+
+=== ollama ps timeline ===
+t+0s: ['gemma3:4b', 'qwen3.5:4b', 'gemma4:e4b']
+t+20s: ['gemma3:4b', 'qwen3.5:4b', 'gemma4:e4b']
+t+40s: ['gemma3:4b', 'qwen3.5:4b', 'gemma4:e4b']
+t+60s: ['gemma3:4b', 'qwen3.5:4b', 'gemma4:e4b']
+t+80s: ['gemma3:4b', 'llama3.2:3b', 'qwen3.5:4b']
+t+100s: ['gemma3:4b', 'llama3.2:3b', 'qwen3.5:4b']
+t+120s: ['gemma3:4b', 'llama3.2:3b', 'qwen3.5:4b']
+t+140s: ['gemma3:4b', 'llama3.2:3b', 'qwen3.5:4b']
+t+160s: ['gemma3:4b', 'llama3.2:3b']
+t+180s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+200s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+220s: ['gemma3:4b', 'qwen2.5-coder:7b', 'qwen2.5:7b']
+t+240s: ['gemma3:4b', 'qwen2.5-coder:7b', 'qwen2.5:7b']
+t+260s: ['gemma3:4b', 'qwen2.5-coder:7b', 'qwen2.5:7b']
+t+280s: ['gemma3:4b', 'qwen2.5-coder:7b', 'qwen2.5:7b']
+t+300s: ['gemma3:4b', 'qwen2.5-coder:7b', 'qwen2.5:7b']
+t+320s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+340s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+360s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+380s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+400s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+420s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+440s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+460s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+480s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+500s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+520s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+540s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+560s: ['gemma3:4b', 'llama3.2:3b', 'qwen2.5-coder:7b']
+t+581s: ['gemma3:4b', 'llama3.2:3b', 'qwen2.5-coder:7b']
+t+601s: ['gemma3:4b', 'llama3.2:3b']
+t+621s: ['gemma3:4b', 'qwen2.5:7b', 'llama3.2:3b']
+t+641s: ['gemma3:4b', 'qwen2.5:7b', 'llama3.2:3b']
+t+661s: ['gemma3:4b', 'qwen2.5:7b', 'llama3.2:3b']
+t+681s: ['gemma3:4b', 'qwen2.5:7b', 'llama3.2:3b']
+t+701s: ['gemma3:4b', 'qwen2.5:7b', 'llama3.2:3b']
+t+721s: ['gemma3:4b', 'qwen2.5:7b', 'llama3.2:3b']
+t+741s: ['gemma3:4b', 'qwen2.5:7b', 'llama3.2:3b']
+t+761s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+781s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+801s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+821s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+841s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+861s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+881s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+901s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+921s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+941s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+961s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+981s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+1001s: ['gemma3:4b', 'llama3.2:3b']
+t+1021s: ['gemma3:4b', 'qwen2.5:7b', 'llama3.2:3b']
+t+1041s: ['gemma3:4b', 'qwen2.5:7b', 'llama3.2:3b']
+t+1061s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+1081s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+1101s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+1121s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+1141s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+1161s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+1181s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+1201s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+1221s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+
+=== Reload analysis (per model, calls after the first with load_duration > 1.0s) ===
+RELOAD at t+300s: llama3.2:3b (chat_summarize) load_duration=5.97s
+RELOAD at t+600s: qwen2.5:7b (background_qwen7b) load_duration=7.72s
+RELOAD at t+750s: qwen2.5-coder:7b (kb_search) load_duration=7.44s
+RELOAD at t+1000s: qwen2.5:7b (background_qwen7b) load_duration=7.71s
+RELOAD at t+1050s: qwen2.5-coder:7b (kb_search) load_duration=7.19s
+[23:55:36] Mixed-traffic test: gemma4:e2b
+/home/billyomes/watson/venv/lib/python3.12/site-packages/requests/__init__.py:109: RequestsDependencyWarning: urllib3 (2.21.902) or chardet (7.4.3)/charset_normalizer (3.4.4) doesn't match a supported version!
+  warnings.warn(
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Mixed-traffic test: duration=1200s, with_candidate=True (gemma4:e2b)
+Schedule: 30 calls over 1200s
+[t+0s] classify (gemma3:4b) done in 2.55s, load_duration=0.0, OK
+[t+60s] chat_summarize (llama3.2:3b) done in 4.03s, load_duration=0.196304827, OK
+[t+90s] classify (gemma3:4b) done in 2.11s, load_duration=0.0, OK
+[t+100s] candidate (gemma4:e2b) done in 25.47s, load_duration=10.288749903, OK
+Loading weights:   0%|          | 0/103 [00:00<?, ?it/s]Loading weights: 100%|██████████| 103/103 [00:00<00:00, 10832.83it/s]
+[t+180s] classify (gemma3:4b) done in 2.53s, load_duration=0.0, OK
+[t+200s] background_qwen7b (qwen2.5:7b) done in 53.07s, load_duration=9.280908863, OK
+[t+270s] classify (gemma3:4b) done in 1.97s, load_duration=0.0, OK
+[t+300s] chat_summarize (llama3.2:3b) done in 19.50s, load_duration=5.611504223, OK
+[t+150s] kb_search (qwen2.5-coder:7b) done in 200.38s, load_duration=7.760507271, OK
+[t+360s] classify (gemma3:4b) done in 2.11s, load_duration=0.0, OK
+[t+400s] candidate (gemma4:e2b) done in 20.98s, load_duration=10.049259257, OK
+[t+450s] classify (gemma3:4b) done in 2.53s, load_duration=0.0, OK
+[t+540s] chat_summarize (llama3.2:3b) done in 9.18s, load_duration=0.267061281, OK
+[t+540s] classify (gemma3:4b) done in 12.18s, load_duration=0.0, OK
+[t+630s] classify (gemma3:4b) done in 8.85s, load_duration=0.0, OK
+[t+600s] background_qwen7b (qwen2.5:7b) done in 48.93s, load_duration=8.450310922, OK
+[t+450s] kb_search (qwen2.5-coder:7b) done in 205.67s, load_duration=7.75139867, OK
+[t+700s] candidate (gemma4:e2b) done in 19.31s, load_duration=9.516509912, OK
+[t+720s] classify (gemma3:4b) done in 2.18s, load_duration=0.0, OK
+[t+750s] kb_search (qwen2.5-coder:7b) done in 22.89s, load_duration=0.162781998, OK
+[t+780s] chat_summarize (llama3.2:3b) done in 17.67s, load_duration=4.514958108, OK
+[t+810s] classify (gemma3:4b) done in 2.61s, load_duration=0.0, OK
+[t+900s] classify (gemma3:4b) done in 11.92s, load_duration=0.0, OK
+[t+990s] classify (gemma3:4b) done in 2.12s, load_duration=0.0, OK
+[t+1000s] candidate (gemma4:e2b) done in 39.55s, load_duration=18.122978099, OK
+[t+1020s] chat_summarize (llama3.2:3b) done in 22.18s, load_duration=6.408559034, OK
+[t+1000s] background_qwen7b (qwen2.5:7b) done in 45.81s, load_duration=7.500463995, OK
+[t+1080s] classify (gemma3:4b) done in 2.10s, load_duration=0.0, OK
+[t+1170s] classify (gemma3:4b) done in 2.26s, load_duration=0.0, OK
+[t+1050s] kb_search (qwen2.5-coder:7b) done in 156.59s, load_duration=7.63108648, OK
+
+=== Call log ===
+{'t': 0, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 2.55, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 60, 'kind': 'chat_summarize', 'model': 'llama3.2:3b', 'elapsed_s': 4.03, 'load_duration_s': 0.2, 'ok': True, 'note': None}
+{'t': 90, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 2.11, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 100, 'kind': 'candidate', 'model': 'gemma4:e2b', 'elapsed_s': 25.47, 'load_duration_s': 10.29, 'ok': True, 'note': None}
+{'t': 180, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 2.53, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 200, 'kind': 'background_qwen7b', 'model': 'qwen2.5:7b', 'elapsed_s': 53.07, 'load_duration_s': 9.28, 'ok': True, 'note': None}
+{'t': 270, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 1.97, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 300, 'kind': 'chat_summarize', 'model': 'llama3.2:3b', 'elapsed_s': 19.5, 'load_duration_s': 5.61, 'ok': True, 'note': None}
+{'t': 150, 'kind': 'kb_search', 'model': 'qwen2.5-coder:7b', 'elapsed_s': 200.38, 'load_duration_s': 7.76, 'ok': True, 'note': None}
+{'t': 360, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 2.11, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 400, 'kind': 'candidate', 'model': 'gemma4:e2b', 'elapsed_s': 20.98, 'load_duration_s': 10.05, 'ok': True, 'note': None}
+{'t': 450, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 2.53, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 540, 'kind': 'chat_summarize', 'model': 'llama3.2:3b', 'elapsed_s': 9.18, 'load_duration_s': 0.27, 'ok': True, 'note': None}
+{'t': 540, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 12.18, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 630, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 8.85, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 600, 'kind': 'background_qwen7b', 'model': 'qwen2.5:7b', 'elapsed_s': 48.93, 'load_duration_s': 8.45, 'ok': True, 'note': None}
+{'t': 450, 'kind': 'kb_search', 'model': 'qwen2.5-coder:7b', 'elapsed_s': 205.67, 'load_duration_s': 7.75, 'ok': True, 'note': None}
+{'t': 700, 'kind': 'candidate', 'model': 'gemma4:e2b', 'elapsed_s': 19.31, 'load_duration_s': 9.52, 'ok': True, 'note': None}
+{'t': 720, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 2.18, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 750, 'kind': 'kb_search', 'model': 'qwen2.5-coder:7b', 'elapsed_s': 22.89, 'load_duration_s': 0.16, 'ok': True, 'note': None}
+{'t': 780, 'kind': 'chat_summarize', 'model': 'llama3.2:3b', 'elapsed_s': 17.67, 'load_duration_s': 4.51, 'ok': True, 'note': None}
+{'t': 810, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 2.61, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 900, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 11.92, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 990, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 2.12, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 1000, 'kind': 'candidate', 'model': 'gemma4:e2b', 'elapsed_s': 39.55, 'load_duration_s': 18.12, 'ok': True, 'note': None}
+{'t': 1020, 'kind': 'chat_summarize', 'model': 'llama3.2:3b', 'elapsed_s': 22.18, 'load_duration_s': 6.41, 'ok': True, 'note': None}
+{'t': 1000, 'kind': 'background_qwen7b', 'model': 'qwen2.5:7b', 'elapsed_s': 45.81, 'load_duration_s': 7.5, 'ok': True, 'note': None}
+{'t': 1080, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 2.1, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 1170, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 2.26, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 1050, 'kind': 'kb_search', 'model': 'qwen2.5-coder:7b', 'elapsed_s': 156.59, 'load_duration_s': 7.63, 'ok': True, 'note': None}
+
+=== ollama ps timeline ===
+t+0s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+20s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+40s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+60s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+80s: ['gemma3:4b', 'llama3.2:3b', 'qwen2.5-coder:7b']
+t+100s: ['gemma3:4b', 'llama3.2:3b', 'qwen2.5-coder:7b']
+t+120s: ['gemma3:4b', 'gemma4:e2b', 'llama3.2:3b']
+t+140s: ['gemma3:4b', 'gemma4:e2b', 'llama3.2:3b']
+t+160s: ['gemma3:4b', 'llama3.2:3b']
+t+180s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+200s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+220s: ['gemma3:4b', 'qwen2.5-coder:7b', 'qwen2.5:7b']
+t+240s: ['gemma3:4b', 'qwen2.5:7b', 'qwen2.5-coder:7b']
+t+260s: ['gemma3:4b', 'qwen2.5-coder:7b', 'qwen2.5:7b']
+t+280s: ['gemma3:4b', 'qwen2.5-coder:7b', 'qwen2.5:7b']
+t+300s: ['gemma3:4b', 'qwen2.5-coder:7b', 'qwen2.5:7b']
+t+320s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+340s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+360s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+380s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+400s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+420s: ['gemma3:4b', 'gemma4:e2b', 'llama3.2:3b']
+t+440s: ['gemma3:4b', 'gemma4:e2b', 'llama3.2:3b']
+t+460s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+480s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+500s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+520s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+540s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+560s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+580s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+600s: ['gemma3:4b', 'qwen2.5-coder:7b']
+t+620s: ['gemma3:4b', 'qwen2.5-coder:7b', 'qwen2.5:7b']
+t+641s: ['gemma3:4b', 'qwen2.5-coder:7b', 'qwen2.5:7b']
+t+661s: ['gemma3:4b', 'qwen2.5-coder:7b', 'qwen2.5:7b']
+t+681s: ['gemma3:4b', 'qwen2.5-coder:7b', 'qwen2.5:7b']
+t+701s: ['gemma3:4b', 'qwen2.5-coder:7b', 'qwen2.5:7b']
+t+721s: ['gemma3:4b', 'gemma4:e2b', 'qwen2.5-coder:7b']
+t+741s: ['gemma3:4b', 'gemma4:e2b', 'qwen2.5-coder:7b']
+t+761s: ['gemma3:4b', 'gemma4:e2b', 'qwen2.5-coder:7b']
+t+781s: ['gemma3:4b', 'qwen2.5-coder:7b']
+t+801s: ['gemma3:4b', 'llama3.2:3b', 'qwen2.5-coder:7b']
+t+821s: ['gemma3:4b', 'llama3.2:3b', 'qwen2.5-coder:7b']
+t+841s: ['gemma3:4b', 'llama3.2:3b', 'qwen2.5-coder:7b']
+t+861s: ['gemma3:4b', 'llama3.2:3b', 'qwen2.5-coder:7b']
+t+881s: ['gemma3:4b', 'llama3.2:3b', 'qwen2.5-coder:7b']
+t+901s: ['gemma3:4b', 'llama3.2:3b', 'qwen2.5-coder:7b']
+t+921s: ['gemma3:4b', 'llama3.2:3b', 'qwen2.5-coder:7b']
+t+941s: ['gemma3:4b', 'llama3.2:3b', 'qwen2.5-coder:7b']
+t+961s: ['gemma3:4b', 'llama3.2:3b', 'qwen2.5-coder:7b']
+t+981s: ['gemma3:4b', 'llama3.2:3b', 'qwen2.5-coder:7b']
+t+1001s: ['gemma3:4b', 'llama3.2:3b']
+t+1021s: ['qwen2.5:7b', 'gemma4:e2b']
+t+1041s: ['llama3.2:3b', 'qwen2.5:7b', 'gemma4:e2b']
+t+1061s: ['qwen2.5-coder:7b', 'llama3.2:3b', 'gemma4:e2b']
+t+1081s: ['qwen2.5-coder:7b', 'llama3.2:3b', 'gemma4:e2b']
+t+1101s: ['qwen2.5-coder:7b', 'llama3.2:3b', 'gemma4:e2b']
+t+1121s: ['qwen2.5-coder:7b', 'llama3.2:3b', 'gemma4:e2b']
+t+1141s: ['qwen2.5-coder:7b', 'llama3.2:3b', 'gemma4:e2b']
+t+1161s: ['qwen2.5-coder:7b', 'llama3.2:3b', 'gemma4:e2b']
+t+1181s: ['qwen2.5-coder:7b', 'llama3.2:3b', 'gemma4:e2b']
+t+1201s: ['qwen2.5-coder:7b', 'llama3.2:3b', 'gemma4:e2b']
+
+=== Reload analysis (per model, calls after the first with load_duration > 1.0s) ===
+RELOAD at t+300s: llama3.2:3b (chat_summarize) load_duration=5.61s
+RELOAD at t+400s: gemma4:e2b (candidate) load_duration=10.05s
+RELOAD at t+600s: qwen2.5:7b (background_qwen7b) load_duration=8.45s
+RELOAD at t+450s: qwen2.5-coder:7b (kb_search) load_duration=7.75s
+RELOAD at t+700s: gemma4:e2b (candidate) load_duration=9.52s
+RELOAD at t+780s: llama3.2:3b (chat_summarize) load_duration=4.51s
+RELOAD at t+1000s: gemma4:e2b (candidate) load_duration=18.12s
+RELOAD at t+1020s: llama3.2:3b (chat_summarize) load_duration=6.41s
+RELOAD at t+1000s: qwen2.5:7b (background_qwen7b) load_duration=7.5s
+RELOAD at t+1050s: qwen2.5-coder:7b (kb_search) load_duration=7.63s
+[00:15:44] Mixed-traffic test: gemma4:e4b
+/home/billyomes/watson/venv/lib/python3.12/site-packages/requests/__init__.py:109: RequestsDependencyWarning: urllib3 (2.21.902) or chardet (7.4.3)/charset_normalizer (3.4.4) doesn't match a supported version!
+  warnings.warn(
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Mixed-traffic test: duration=1200s, with_candidate=True (gemma4:e4b)
+Schedule: 30 calls over 1200s
+[t+0s] classify (gemma3:4b) done in 2.33s, load_duration=0.0, OK
+[t+60s] chat_summarize (llama3.2:3b) done in 5.23s, load_duration=0.188988616, OK
+[t+90s] classify (gemma3:4b) done in 2.15s, load_duration=0.0, OK
+[t+100s] candidate (gemma4:e4b) done in 31.27s, load_duration=13.33496335, OK
+Loading weights:   0%|          | 0/103 [00:00<?, ?it/s]Loading weights: 100%|██████████| 103/103 [00:00<00:00, 12986.24it/s]
+[t+180s] classify (gemma3:4b) done in 2.60s, load_duration=0.0, OK
+[t+200s] background_qwen7b (qwen2.5:7b) done in 45.68s, load_duration=9.053032607, OK
+[t+270s] classify (gemma3:4b) done in 13.30s, load_duration=0.0, OK
+[t+300s] chat_summarize (llama3.2:3b) done in 21.39s, load_duration=6.031616613, OK
+[t+150s] kb_search (qwen2.5-coder:7b) done in 193.99s, load_duration=7.631917835, OK
+[t+360s] classify (gemma3:4b) done in 1.89s, load_duration=0.0, OK
+[t+400s] candidate (gemma4:e4b) done in 33.60s, load_duration=13.559596411, OK
+[t+450s] classify (gemma3:4b) done in 2.28s, load_duration=0.0, OK
+[t+540s] chat_summarize (llama3.2:3b) done in 6.29s, load_duration=0.282494167, OK
+[t+540s] classify (gemma3:4b) done in 12.06s, load_duration=0.0, OK
+[t+450s] kb_search (qwen2.5-coder:7b) done in 157.19s, load_duration=7.887158619, OK
+[t+630s] classify (gemma3:4b) done in 2.25s, load_duration=0.0, OK
+[t+600s] background_qwen7b (qwen2.5:7b) done in 36.08s, load_duration=8.978979515, OK
+[t+720s] classify (gemma3:4b) done in 2.00s, load_duration=0.0, OK
+[t+700s] candidate (gemma4:e4b) done in 34.44s, load_duration=13.320718076, OK
+[t+750s] kb_search (qwen2.5-coder:7b) done in 27.83s, load_duration=0.155990197, OK
+[t+780s] chat_summarize (llama3.2:3b) done in 16.36s, load_duration=4.897738486, OK
+[t+810s] classify (gemma3:4b) done in 2.09s, load_duration=0.0, OK
+[t+900s] classify (gemma3:4b) done in 2.53s, load_duration=0.0, OK
+[t+990s] classify (gemma3:4b) done in 2.09s, load_duration=0.0, OK
+[t+1000s] background_qwen7b (qwen2.5:7b) done in 44.86s, load_duration=7.793310124, OK
+[t+1020s] chat_summarize (llama3.2:3b) done in 28.02s, load_duration=8.063426248, OK
+[t+1000s] candidate (gemma4:e4b) done in 53.89s, load_duration=22.220654529, OK
+[t+1080s] classify (gemma3:4b) done in 2.34s, load_duration=0.0, OK
+[t+1170s] classify (gemma3:4b) done in 2.22s, load_duration=0.0, OK
+[t+1050s] kb_search (qwen2.5-coder:7b) done in 188.93s, load_duration=7.79827681, OK
+
+=== Call log ===
+{'t': 0, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 2.33, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 60, 'kind': 'chat_summarize', 'model': 'llama3.2:3b', 'elapsed_s': 5.23, 'load_duration_s': 0.19, 'ok': True, 'note': None}
+{'t': 90, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 2.15, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 100, 'kind': 'candidate', 'model': 'gemma4:e4b', 'elapsed_s': 31.27, 'load_duration_s': 13.33, 'ok': True, 'note': None}
+{'t': 180, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 2.6, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 200, 'kind': 'background_qwen7b', 'model': 'qwen2.5:7b', 'elapsed_s': 45.68, 'load_duration_s': 9.05, 'ok': True, 'note': None}
+{'t': 270, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 13.3, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 300, 'kind': 'chat_summarize', 'model': 'llama3.2:3b', 'elapsed_s': 21.39, 'load_duration_s': 6.03, 'ok': True, 'note': None}
+{'t': 150, 'kind': 'kb_search', 'model': 'qwen2.5-coder:7b', 'elapsed_s': 193.99, 'load_duration_s': 7.63, 'ok': True, 'note': None}
+{'t': 360, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 1.89, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 400, 'kind': 'candidate', 'model': 'gemma4:e4b', 'elapsed_s': 33.6, 'load_duration_s': 13.56, 'ok': True, 'note': None}
+{'t': 450, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 2.28, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 540, 'kind': 'chat_summarize', 'model': 'llama3.2:3b', 'elapsed_s': 6.29, 'load_duration_s': 0.28, 'ok': True, 'note': None}
+{'t': 540, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 12.06, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 450, 'kind': 'kb_search', 'model': 'qwen2.5-coder:7b', 'elapsed_s': 157.19, 'load_duration_s': 7.89, 'ok': True, 'note': None}
+{'t': 630, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 2.25, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 600, 'kind': 'background_qwen7b', 'model': 'qwen2.5:7b', 'elapsed_s': 36.08, 'load_duration_s': 8.98, 'ok': True, 'note': None}
+{'t': 720, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 2.0, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 700, 'kind': 'candidate', 'model': 'gemma4:e4b', 'elapsed_s': 34.44, 'load_duration_s': 13.32, 'ok': True, 'note': None}
+{'t': 750, 'kind': 'kb_search', 'model': 'qwen2.5-coder:7b', 'elapsed_s': 27.83, 'load_duration_s': 0.16, 'ok': True, 'note': None}
+{'t': 780, 'kind': 'chat_summarize', 'model': 'llama3.2:3b', 'elapsed_s': 16.36, 'load_duration_s': 4.9, 'ok': True, 'note': None}
+{'t': 810, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 2.09, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 900, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 2.53, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 990, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 2.09, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 1000, 'kind': 'background_qwen7b', 'model': 'qwen2.5:7b', 'elapsed_s': 44.86, 'load_duration_s': 7.79, 'ok': True, 'note': None}
+{'t': 1020, 'kind': 'chat_summarize', 'model': 'llama3.2:3b', 'elapsed_s': 28.02, 'load_duration_s': 8.06, 'ok': True, 'note': None}
+{'t': 1000, 'kind': 'candidate', 'model': 'gemma4:e4b', 'elapsed_s': 53.89, 'load_duration_s': 22.22, 'ok': True, 'note': None}
+{'t': 1080, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 2.34, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 1170, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 2.22, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 1050, 'kind': 'kb_search', 'model': 'qwen2.5-coder:7b', 'elapsed_s': 188.93, 'load_duration_s': 7.8, 'ok': True, 'note': None}
+
+=== ollama ps timeline ===
+t+0s: ['qwen2.5-coder:7b', 'llama3.2:3b', 'gemma4:e2b']
+t+20s: ['qwen2.5-coder:7b', 'llama3.2:3b']
+t+40s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+60s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+80s: ['gemma3:4b', 'llama3.2:3b', 'qwen2.5-coder:7b']
+t+100s: ['gemma3:4b', 'llama3.2:3b', 'qwen2.5-coder:7b']
+t+120s: ['gemma3:4b', 'gemma4:e4b', 'llama3.2:3b']
+t+140s: ['gemma3:4b', 'gemma4:e4b', 'llama3.2:3b']
+t+160s: ['gemma3:4b', 'llama3.2:3b']
+t+180s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+200s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+220s: ['gemma3:4b', 'qwen2.5-coder:7b', 'qwen2.5:7b']
+t+240s: ['gemma3:4b', 'qwen2.5:7b', 'qwen2.5-coder:7b']
+t+260s: ['gemma3:4b', 'qwen2.5-coder:7b', 'qwen2.5:7b']
+t+280s: ['gemma3:4b', 'qwen2.5-coder:7b', 'qwen2.5:7b']
+t+300s: ['gemma3:4b', 'qwen2.5-coder:7b', 'qwen2.5:7b']
+t+320s: ['gemma3:4b', 'llama3.2:3b', 'qwen2.5-coder:7b']
+t+340s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+360s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+380s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+400s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+420s: ['gemma3:4b', 'gemma4:e4b', 'llama3.2:3b']
+t+440s: ['gemma3:4b', 'gemma4:e4b', 'llama3.2:3b']
+t+460s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+480s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+500s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+520s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+540s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+560s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+580s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+600s: ['gemma3:4b', 'qwen2.5-coder:7b']
+t+620s: ['gemma3:4b', 'qwen2.5:7b', 'qwen2.5-coder:7b']
+t+641s: ['gemma3:4b', 'qwen2.5:7b', 'qwen2.5-coder:7b']
+t+661s: ['gemma3:4b', 'qwen2.5:7b', 'qwen2.5-coder:7b']
+t+681s: ['gemma3:4b', 'qwen2.5:7b', 'qwen2.5-coder:7b']
+t+701s: ['gemma3:4b', 'qwen2.5:7b', 'qwen2.5-coder:7b']
+t+721s: ['gemma3:4b', 'gemma4:e4b', 'qwen2.5-coder:7b']
+t+741s: ['gemma3:4b', 'gemma4:e4b', 'qwen2.5-coder:7b']
+t+761s: ['gemma3:4b', 'gemma4:e4b', 'qwen2.5-coder:7b']
+t+781s: ['gemma3:4b', 'qwen2.5-coder:7b']
+t+801s: ['gemma3:4b', 'llama3.2:3b', 'qwen2.5-coder:7b']
+t+821s: ['gemma3:4b', 'llama3.2:3b', 'qwen2.5-coder:7b']
+t+841s: ['gemma3:4b', 'llama3.2:3b', 'qwen2.5-coder:7b']
+t+861s: ['gemma3:4b', 'llama3.2:3b', 'qwen2.5-coder:7b']
+t+881s: ['gemma3:4b', 'llama3.2:3b', 'qwen2.5-coder:7b']
+t+901s: ['gemma3:4b', 'llama3.2:3b', 'qwen2.5-coder:7b']
+t+921s: ['gemma3:4b', 'llama3.2:3b', 'qwen2.5-coder:7b']
+t+941s: ['gemma3:4b', 'llama3.2:3b', 'qwen2.5-coder:7b']
+t+961s: ['gemma3:4b', 'llama3.2:3b', 'qwen2.5-coder:7b']
+t+981s: ['gemma3:4b', 'llama3.2:3b', 'qwen2.5-coder:7b']
+t+1001s: ['gemma3:4b', 'llama3.2:3b']
+t+1021s: ['gemma3:4b', 'qwen2.5:7b']
+t+1041s: ['gemma4:e4b', 'qwen2.5:7b', 'llama3.2:3b']
+t+1061s: ['qwen2.5-coder:7b', 'gemma4:e4b', 'llama3.2:3b']
+t+1081s: ['qwen2.5-coder:7b', 'gemma4:e4b', 'llama3.2:3b']
+t+1101s: ['qwen2.5-coder:7b', 'gemma4:e4b', 'llama3.2:3b']
+t+1121s: ['qwen2.5-coder:7b', 'gemma4:e4b', 'llama3.2:3b']
+t+1141s: ['qwen2.5-coder:7b', 'gemma4:e4b', 'llama3.2:3b']
+t+1161s: ['qwen2.5-coder:7b', 'gemma4:e4b', 'llama3.2:3b']
+t+1181s: ['qwen2.5-coder:7b', 'gemma4:e4b', 'llama3.2:3b']
+t+1201s: ['qwen2.5-coder:7b', 'gemma4:e4b', 'llama3.2:3b']
+t+1221s: ['qwen2.5-coder:7b', 'llama3.2:3b']
+
+=== Reload analysis (per model, calls after the first with load_duration > 1.0s) ===
+RELOAD at t+300s: llama3.2:3b (chat_summarize) load_duration=6.03s
+RELOAD at t+400s: gemma4:e4b (candidate) load_duration=13.56s
+RELOAD at t+450s: qwen2.5-coder:7b (kb_search) load_duration=7.89s
+RELOAD at t+600s: qwen2.5:7b (background_qwen7b) load_duration=8.98s
+RELOAD at t+700s: gemma4:e4b (candidate) load_duration=13.32s
+RELOAD at t+780s: llama3.2:3b (chat_summarize) load_duration=4.9s
+RELOAD at t+1000s: qwen2.5:7b (background_qwen7b) load_duration=7.79s
+RELOAD at t+1020s: llama3.2:3b (chat_summarize) load_duration=8.06s
+RELOAD at t+1000s: gemma4:e4b (candidate) load_duration=22.22s
+RELOAD at t+1050s: qwen2.5-coder:7b (kb_search) load_duration=7.8s
+[00:36:23] Mixed-traffic test: qwen3.5:4b
+/home/billyomes/watson/venv/lib/python3.12/site-packages/requests/__init__.py:109: RequestsDependencyWarning: urllib3 (2.21.902) or chardet (7.4.3)/charset_normalizer (3.4.4) doesn't match a supported version!
+  warnings.warn(
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Mixed-traffic test: duration=1200s, with_candidate=True (qwen3.5:4b)
+Schedule: 30 calls over 1200s
+[t+0s] classify (gemma3:4b) done in 2.20s, load_duration=0.0, OK
+[t+60s] chat_summarize (llama3.2:3b) done in 9.26s, load_duration=0.185973992, OK
+[t+90s] classify (gemma3:4b) done in 2.13s, load_duration=0.0, OK
+[t+100s] candidate (qwen3.5:4b) done in 25.90s, load_duration=6.659116508, OK
+Loading weights:   0%|          | 0/103 [00:00<?, ?it/s]Loading weights: 100%|██████████| 103/103 [00:00<00:00, 12253.96it/s]
+[t+180s] classify (gemma3:4b) done in 1.99s, load_duration=0.0, OK
+[t+200s] background_qwen7b (qwen2.5:7b) done in 57.00s, load_duration=9.459460285, OK
+[t+270s] classify (gemma3:4b) done in 2.19s, load_duration=0.0, OK
+[t+300s] chat_summarize (llama3.2:3b) done in 20.53s, load_duration=5.686244305, OK
+[t+150s] kb_search (qwen2.5-coder:7b) done in 199.82s, load_duration=7.414955797, OK
+[t+360s] classify (gemma3:4b) done in 11.99s, load_duration=0.0, OK
+[t+400s] candidate (qwen3.5:4b) done in 25.37s, load_duration=6.148285859, OK
+[t+450s] classify (gemma3:4b) done in 2.15s, load_duration=0.0, OK
+[t+540s] classify (gemma3:4b) done in 2.08s, load_duration=0.0, OK
+[t+540s] chat_summarize (llama3.2:3b) done in 11.95s, load_duration=0.31996676, OK
+[t+450s] kb_search (qwen2.5-coder:7b) done in 175.23s, load_duration=7.419828045, OK
+[t+630s] classify (gemma3:4b) done in 2.15s, load_duration=0.0, OK
+[t+600s] background_qwen7b (qwen2.5:7b) done in 47.80s, load_duration=8.735582877, OK
+[t+720s] classify (gemma3:4b) done in 2.21s, load_duration=0.0, OK
+[t+700s] candidate (qwen3.5:4b) done in 26.39s, load_duration=6.30182194, OK
+[t+750s] kb_search (qwen2.5-coder:7b) done in 16.99s, load_duration=0.163035411, OK
+[t+780s] chat_summarize (llama3.2:3b) done in 15.36s, load_duration=4.49906287, OK
+[t+810s] classify (gemma3:4b) done in 2.28s, load_duration=0.0, OK
+[t+900s] classify (gemma3:4b) done in 1.90s, load_duration=0.0, OK
+[t+990s] classify (gemma3:4b) done in 2.52s, load_duration=0.0, OK
+[t+1000s] candidate (qwen3.5:4b) done in 37.60s, load_duration=14.957912301, OK
+[t+1020s] chat_summarize (llama3.2:3b) done in 27.49s, load_duration=5.894179595, OK
+[t+1000s] background_qwen7b (qwen2.5:7b) done in 52.43s, load_duration=7.584487804, OK
+[t+1080s] classify (gemma3:4b) done in 2.58s, load_duration=0.0, OK
+[t+1170s] classify (gemma3:4b) done in 2.32s, load_duration=0.0, OK
+[t+1050s] kb_search (qwen2.5-coder:7b) done in 178.94s, load_duration=7.838484702, OK
+
+=== Call log ===
+{'t': 0, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 2.2, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 60, 'kind': 'chat_summarize', 'model': 'llama3.2:3b', 'elapsed_s': 9.26, 'load_duration_s': 0.19, 'ok': True, 'note': None}
+{'t': 90, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 2.13, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 100, 'kind': 'candidate', 'model': 'qwen3.5:4b', 'elapsed_s': 25.9, 'load_duration_s': 6.66, 'ok': True, 'note': None}
+{'t': 180, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 1.99, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 200, 'kind': 'background_qwen7b', 'model': 'qwen2.5:7b', 'elapsed_s': 57.0, 'load_duration_s': 9.46, 'ok': True, 'note': None}
+{'t': 270, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 2.19, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 300, 'kind': 'chat_summarize', 'model': 'llama3.2:3b', 'elapsed_s': 20.53, 'load_duration_s': 5.69, 'ok': True, 'note': None}
+{'t': 150, 'kind': 'kb_search', 'model': 'qwen2.5-coder:7b', 'elapsed_s': 199.82, 'load_duration_s': 7.41, 'ok': True, 'note': None}
+{'t': 360, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 11.99, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 400, 'kind': 'candidate', 'model': 'qwen3.5:4b', 'elapsed_s': 25.37, 'load_duration_s': 6.15, 'ok': True, 'note': None}
+{'t': 450, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 2.15, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 540, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 2.08, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 540, 'kind': 'chat_summarize', 'model': 'llama3.2:3b', 'elapsed_s': 11.95, 'load_duration_s': 0.32, 'ok': True, 'note': None}
+{'t': 450, 'kind': 'kb_search', 'model': 'qwen2.5-coder:7b', 'elapsed_s': 175.23, 'load_duration_s': 7.42, 'ok': True, 'note': None}
+{'t': 630, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 2.15, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 600, 'kind': 'background_qwen7b', 'model': 'qwen2.5:7b', 'elapsed_s': 47.8, 'load_duration_s': 8.74, 'ok': True, 'note': None}
+{'t': 720, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 2.21, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 700, 'kind': 'candidate', 'model': 'qwen3.5:4b', 'elapsed_s': 26.39, 'load_duration_s': 6.3, 'ok': True, 'note': None}
+{'t': 750, 'kind': 'kb_search', 'model': 'qwen2.5-coder:7b', 'elapsed_s': 16.99, 'load_duration_s': 0.16, 'ok': True, 'note': None}
+{'t': 780, 'kind': 'chat_summarize', 'model': 'llama3.2:3b', 'elapsed_s': 15.36, 'load_duration_s': 4.5, 'ok': True, 'note': None}
+{'t': 810, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 2.28, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 900, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 1.9, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 990, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 2.52, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 1000, 'kind': 'candidate', 'model': 'qwen3.5:4b', 'elapsed_s': 37.6, 'load_duration_s': 14.96, 'ok': True, 'note': None}
+{'t': 1020, 'kind': 'chat_summarize', 'model': 'llama3.2:3b', 'elapsed_s': 27.49, 'load_duration_s': 5.89, 'ok': True, 'note': None}
+{'t': 1000, 'kind': 'background_qwen7b', 'model': 'qwen2.5:7b', 'elapsed_s': 52.43, 'load_duration_s': 7.58, 'ok': True, 'note': None}
+{'t': 1080, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 2.58, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 1170, 'kind': 'classify', 'model': 'gemma3:4b', 'elapsed_s': 2.32, 'load_duration_s': 0.0, 'ok': True, 'note': None}
+{'t': 1050, 'kind': 'kb_search', 'model': 'qwen2.5-coder:7b', 'elapsed_s': 178.94, 'load_duration_s': 7.84, 'ok': True, 'note': None}
+
+=== ollama ps timeline ===
+t+0s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+20s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+40s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+60s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+80s: ['gemma3:4b', 'llama3.2:3b', 'qwen2.5-coder:7b']
+t+100s: ['gemma3:4b', 'llama3.2:3b', 'qwen2.5-coder:7b']
+t+120s: ['gemma3:4b', 'qwen3.5:4b', 'llama3.2:3b']
+t+140s: ['gemma3:4b', 'qwen3.5:4b', 'llama3.2:3b']
+t+160s: ['gemma3:4b', 'llama3.2:3b']
+t+180s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+200s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+220s: ['gemma3:4b', 'qwen2.5-coder:7b', 'qwen2.5:7b']
+t+240s: ['gemma3:4b', 'qwen2.5-coder:7b', 'qwen2.5:7b']
+t+260s: ['gemma3:4b', 'qwen2.5-coder:7b', 'qwen2.5:7b']
+t+280s: ['gemma3:4b', 'qwen2.5-coder:7b', 'qwen2.5:7b']
+t+300s: ['gemma3:4b', 'qwen2.5-coder:7b', 'qwen2.5:7b']
+t+320s: ['gemma3:4b', 'llama3.2:3b', 'qwen2.5-coder:7b']
+t+340s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+360s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+380s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+400s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+420s: ['gemma3:4b', 'qwen3.5:4b', 'llama3.2:3b']
+t+440s: ['gemma3:4b', 'qwen3.5:4b', 'llama3.2:3b']
+t+460s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+480s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+500s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+520s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+540s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+560s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+580s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+600s: ['gemma3:4b', 'qwen2.5-coder:7b']
+t+620s: ['gemma3:4b', 'qwen2.5-coder:7b', 'qwen2.5:7b']
+t+641s: ['gemma3:4b', 'qwen2.5:7b', 'qwen2.5-coder:7b']
+t+661s: ['gemma3:4b', 'qwen2.5:7b', 'qwen2.5-coder:7b']
+t+681s: ['gemma3:4b', 'qwen2.5:7b', 'qwen2.5-coder:7b']
+t+701s: ['gemma3:4b', 'qwen2.5:7b', 'qwen2.5-coder:7b']
+t+721s: ['gemma3:4b', 'qwen3.5:4b', 'qwen2.5-coder:7b']
+t+741s: ['gemma3:4b', 'qwen3.5:4b', 'qwen2.5-coder:7b']
+t+761s: ['gemma3:4b', 'qwen3.5:4b', 'qwen2.5-coder:7b']
+t+781s: ['gemma3:4b', 'qwen3.5:4b']
+t+801s: ['gemma3:4b', 'llama3.2:3b', 'qwen3.5:4b']
+t+821s: ['gemma3:4b', 'llama3.2:3b', 'qwen3.5:4b']
+t+841s: ['gemma3:4b', 'llama3.2:3b', 'qwen3.5:4b']
+t+861s: ['gemma3:4b', 'llama3.2:3b', 'qwen3.5:4b']
+t+881s: ['gemma3:4b', 'llama3.2:3b', 'qwen3.5:4b']
+t+901s: ['gemma3:4b', 'llama3.2:3b', 'qwen3.5:4b']
+t+921s: ['gemma3:4b', 'llama3.2:3b', 'qwen3.5:4b']
+t+941s: ['gemma3:4b', 'llama3.2:3b', 'qwen3.5:4b']
+t+961s: ['gemma3:4b', 'llama3.2:3b', 'qwen3.5:4b']
+t+981s: ['gemma3:4b', 'llama3.2:3b', 'qwen3.5:4b']
+t+1001s: ['gemma3:4b', 'llama3.2:3b']
+t+1021s: ['qwen2.5:7b', 'qwen3.5:4b']
+t+1041s: ['llama3.2:3b', 'qwen2.5:7b', 'qwen3.5:4b']
+t+1061s: ['qwen2.5-coder:7b', 'qwen2.5:7b', 'llama3.2:3b']
+t+1081s: ['qwen2.5-coder:7b', 'qwen2.5:7b', 'llama3.2:3b']
+t+1101s: ['qwen2.5-coder:7b', 'qwen2.5:7b', 'llama3.2:3b']
+t+1121s: ['qwen2.5-coder:7b', 'qwen2.5:7b', 'llama3.2:3b']
+t+1141s: ['qwen2.5-coder:7b', 'qwen2.5:7b', 'llama3.2:3b']
+t+1161s: ['qwen2.5-coder:7b', 'qwen2.5:7b', 'llama3.2:3b']
+t+1181s: ['qwen2.5-coder:7b', 'llama3.2:3b']
+t+1201s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+t+1221s: ['gemma3:4b', 'qwen2.5-coder:7b', 'llama3.2:3b']
+
+=== Reload analysis (per model, calls after the first with load_duration > 1.0s) ===
+RELOAD at t+300s: llama3.2:3b (chat_summarize) load_duration=5.69s
+RELOAD at t+400s: qwen3.5:4b (candidate) load_duration=6.15s
+RELOAD at t+450s: qwen2.5-coder:7b (kb_search) load_duration=7.42s
+RELOAD at t+600s: qwen2.5:7b (background_qwen7b) load_duration=8.74s
+RELOAD at t+700s: qwen3.5:4b (candidate) load_duration=6.3s
+RELOAD at t+780s: llama3.2:3b (chat_summarize) load_duration=4.5s
+RELOAD at t+1000s: qwen3.5:4b (candidate) load_duration=14.96s
+RELOAD at t+1020s: llama3.2:3b (chat_summarize) load_duration=5.89s
+RELOAD at t+1000s: qwen2.5:7b (background_qwen7b) load_duration=7.58s
+RELOAD at t+1050s: qwen2.5-coder:7b (kb_search) load_duration=7.84s
+[00:56:53] === Overnight candidate run complete ===
