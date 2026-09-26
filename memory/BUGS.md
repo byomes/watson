@@ -1,6 +1,6 @@
 # Watson Bug Tracker
 _Auto-generated nightly from bug_tracker. Source of truth is the database — do not hand-edit this file, changes will be overwritten._
-Last generated: 2026-09-25 02:10
+Last generated: 2026-09-26 02:10
 
 ## Open (3)
 | ID | Title | Repo | Discovered |
@@ -12,6 +12,7 @@ Last generated: 2026-09-25 02:10
 ## Recently Resolved (last 30 days)
 | ID | Title | Repo | Resolved | Commit |
 |---|---|---|---|---|
+| 198 | Banquet RSVP questions fell through to paid LLM; RSVP counts included declines | watson | 2026-09-25 20:09:15 | ead92f8 |
 | 197 | Stale Getaway Search links left in dashboard after tool deletion | watson | 2026-09-25 03:01:52 | 0a15872 |
 | 196 | State of the Church cited future/unaware-of-past events for attendance reasoning | watson | 2026-09-25 01:21:29 | 1a115fb |
 | 22 | Ollama OLLAMA_MAX_LOADED_MODELS=1 forces single-model residency, causing classifier/general-chat model thrash | watson | 2026-09-23 02:55:28 |  |
@@ -132,4 +133,3 @@ Last generated: 2026-09-25 02:10
 | 104 | Thesis Tracker dashboard card fails to load (missing citations API route) | watson | 2026-08-29 14:17:03 | 9a62ce9 |
 | 103 | cat/connect API route was unguarded — direct-POST-able while draft, real Brevo creds active | watson-tools | 2026-08-28 04:28:26 | 7f7071b |
 | 102 | cat/connect draft gate was decorative — custom-type page never checked public_tools.status | watson-tools | 2026-08-28 04:28:26 | 741eb17 |
-| 101 | get_archive skill trigger too strict, silently unroutable from Claude.ai | watson | 2026-08-26T09:12:36 | 3b9235d |

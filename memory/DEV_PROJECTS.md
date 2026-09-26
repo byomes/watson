@@ -1,10 +1,11 @@
 # Watson Project Backlog
 _Auto-generated nightly from project_backlog. Source of truth is the database — do not hand-edit this file, changes will be overwritten._
-Last generated: 2026-09-25 02:10
+Last generated: 2026-09-26 02:10
 
-## Planned (30)
+## Planned (31)
 | ID | Title | Summary | Added |
 |---|---|---|---|
+| 39 | Watson SMS | Second Android phone as Watson's 1:1 SMS channel — threaded PWA at wtsn.me/sms, approval-gated sends, guest templates, Device Owner + Headwind MDM lockdown. | 2026-09-25 |
 | 38 | Privacy Guard: multi-step wizard investigation (Whitepages/Radaris/PeopleConnect) — 0/5 activated | _submit_wizard() built (feature/privacy-guard-wizard branch) but none of the 5 target brokers could be safely verified/activated this pass — each blocked for a distinct, now well-documented reason. Also surfaced a real design gap: _submit_wizard assumed every non-final next_button click is a safe client-side transition; two brokers disproved that. | 2026-08-20 |
 | 37 | Privacy Guard: form-broker submissions have no verified completion check | remove.py _submit_form() success = click() did not throw, not a real confirmation signal. Spokeo (the one form broker considered for activation) requires a follow-up email-link click to actually complete the opt-out, which nothing automates or tracks today. | 2026-08-20 |
 | 34 | Evaluate migrating watson.db to WAL journal mode | watson.db (and the other core DBs) run in rollback-journal mode (journal_mode=delete), where a writer takes an exclusive lock that blocks readers. Switching watson.db to WAL would let readers (backups, dashboard, reports) run without being blocked by concurrent writers. | 2026-08-08 |
