@@ -6,6 +6,15 @@ in watson.db, not congregation.db — congregation.db stays the pastoral CRM
 of record; sms_threads.member_id is a soft cross-reference into it
 (resolved by phone match in jobs/sms/bridge.py), never a foreign key, since
 congregation.db is a separate database file.
+
+GUARDRAIL (Bill, 2026-09-26): sms_threads/sms_messages/sms_scheduled_messages
+are Bill's own 1:1 pastoral texting log, for Bill's access only — never
+surface them to deacons, elders, or staff. Concretely: never add these
+tables to jobs/analytics/data_chat.py's "web" domain allowlist (Team
+Chat, which leaders use), never wire them into the Deacon App or any
+congregation-admin surface, and never grant the SMS web app's PIN to
+anyone but Bill. The app-level PIN gate (SMS_APP_PIN) is necessary but
+not sufficient on its own — this table-level rule is the backstop.
 """
 from core.database import get_connection
 

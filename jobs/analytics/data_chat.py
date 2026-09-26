@@ -98,6 +98,11 @@ _ALLOWED_TABLES = {
         "deacon_visible_prayer_requests", "deacon_visible_connect_cards",
         "team_memberships",
     },
+    # GUARDRAIL (Bill, 2026-09-26): never add sms_messages / sms_threads /
+    # sms_scheduled_messages here. Watson SMS's message log is Bill's own
+    # 1:1 pastoral texting record -- deliberately kept out of every
+    # leader/deacon-facing surface, including this one. See
+    # jobs/sms/schema.py's module docstring for the storage side of this.
     "web": {"engagement_sheet_metrics"},
     "events": {"church_events", "event_registrations"},
 }
