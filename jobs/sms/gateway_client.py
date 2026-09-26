@@ -133,6 +133,47 @@ def send_message(phone: str, body: str) -> dict:
         return {"success": False, "gateway_message_id": None, "error": str(exc)}
 
 
+def send_mms(phone: str, body: str, media_path: str, media_type: str) -> dict:
+    """Returns {"success": bool, "gateway_message_id": str|None, "error": str|None}.
+
+    Live-mode shape is UNVERIFIED against real hardware (no phone as of
+    2026-09-25, same caveat as send_message/get_vitals above) -- attaching a
+    base64 image under an `attachments` field is a best guess at
+    android-sms-gateway's request shape, not a confirmed one. MMS may not be
+    supported by that project at all (it's built on Android's SmsManager,
+    not full MMS PDU construction); confirm once real hardware exists."""
+    if _gateway_mode() == "mock":
+        log.info("gateway_client (mock): send_mms to %s: %s (media=%s)", phone, body, media_path)
+        return {"success": True, "gateway_message_id": None, "error": None}
+
+    url = _gateway_url()
+    token = _gateway_token()
+    if not url or not token:
+        return {"success": False, "gateway_message_id": None, "error": "gateway not configured"}
+
+    try:
+        import base64
+
+        with open(media_path, "rb") as f:
+            encoded = base64.b64encode(f.read()).decode("ascii")
+        resp = requests.post(
+            f"{url}/message",
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            json={
+                "phoneNumbers": [phone],
+                "message": body,
+                "attachments": [{"data": encoded, "mimeType": media_type}],
+            },
+            timeout=30,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        return {"success": True, "gateway_message_id": str(data.get("id", "")), "error": None}
+    except Exception as exc:
+        log.error("send_mms: live gateway send failed for %s: %s", phone, exc)
+        return {"success": False, "gateway_message_id": None, "error": str(exc)}
+
+
 def get_vitals() -> dict:
     """Returns {"ok": bool, "battery_pct": int|None, "detail": str}."""
     if _gateway_mode() == "mock":

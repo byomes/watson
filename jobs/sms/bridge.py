@@ -84,15 +84,20 @@ def poll_inbound() -> int:
                 """UPDATE sms_threads
                    SET last_message_at = datetime('now'),
                        last_message_preview = ?,
-                       unread = 1
+                       unread = 1,
+                       snoozed_until = NULL
                    WHERE id = ?""",
                 (text, thread_id),
             )
             ingested += 1
 
             thread_row = conn.execute(
-                "SELECT contact_name, phone FROM sms_threads WHERE id = ?", (thread_id,)
+                "SELECT contact_name, phone, muted FROM sms_threads WHERE id = ?", (thread_id,)
             ).fetchone()
+            # A reply is exactly the kind of thing a snooze shouldn't hide --
+            # clearing it above brings the thread back to the top of the list.
+            if thread_row["muted"]:
+                continue
             title = thread_row["contact_name"] or thread_row["phone"]
             body = text if len(text) <= 120 else text[:117] + "..."
             try:

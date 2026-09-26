@@ -108,14 +108,35 @@ _SEED_TEMPLATES = [
 ]
 
 
+def _migrate_columns(conn) -> None:
+    """Idempotent ALTER TABLE ADD COLUMN for tables that predate a feature —
+    mirrors core/database.py's _migrate() pattern."""
+    thread_cols = {row[1] for row in conn.execute("PRAGMA table_info(sms_threads)").fetchall()}
+    if "snoozed_until" not in thread_cols:
+        conn.execute("ALTER TABLE sms_threads ADD COLUMN snoozed_until TEXT")
+    if "muted" not in thread_cols:
+        conn.execute("ALTER TABLE sms_threads ADD COLUMN muted INTEGER NOT NULL DEFAULT 0")
+
+    message_cols = {row[1] for row in conn.execute("PRAGMA table_info(sms_messages)").fetchall()}
+    if "media_url" not in message_cols:
+        conn.execute("ALTER TABLE sms_messages ADD COLUMN media_url TEXT")
+    if "media_type" not in message_cols:
+        conn.execute("ALTER TABLE sms_messages ADD COLUMN media_type TEXT")
+    if "status" not in message_cols:
+        conn.execute("ALTER TABLE sms_messages ADD COLUMN status TEXT")
+
+
 def create_tables(conn=None) -> None:
-    """Idempotent — CREATE TABLE IF NOT EXISTS for all four tables, plus a
-    one-time seed of the two starter templates if sms_templates is empty."""
+    """Idempotent — CREATE TABLE IF NOT EXISTS for all tables, ALTER TABLE
+    for columns added after initial release, plus a one-time seed of the two
+    starter templates if sms_templates is empty."""
     owns_conn = conn is None
     conn = conn or get_connection()
     try:
         for stmt in ALL_TABLES:
             conn.execute(stmt)
+
+        _migrate_columns(conn)
 
         count = conn.execute("SELECT COUNT(*) FROM sms_templates").fetchone()[0]
         if count == 0:

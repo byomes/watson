@@ -48,7 +48,8 @@ def main():
                 continue
 
             conn.execute(
-                "INSERT INTO sms_messages (thread_id, direction, body, gateway_message_id) VALUES (?, 'out', ?, ?)",
+                """INSERT INTO sms_messages (thread_id, direction, body, gateway_message_id, status)
+                   VALUES (?, 'out', ?, ?, 'sent')""",
                 (row["thread_id"], row["body"], result.get("gateway_message_id")),
             )
             conn.execute(

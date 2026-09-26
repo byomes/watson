@@ -12,14 +12,21 @@ servants_web.py, etc. This API is only ever called server-to-server from
 the watson-tools Next.js app (wtsn.me/sms), never directly by a browser —
 the human-facing PIN gate lives in watson-tools itself, not here.
 """
+import base64
 import logging
+import mimetypes
 import os
+import sqlite3
+import uuid
 from datetime import datetime, timezone
+from pathlib import Path
+
 from functools import wraps
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, send_file
 
 from core.database import get_connection
+from jobs.analytics.attendance_reply import format_last_attended_reply
 from jobs.sms import gateway_client, push
 from jobs.sms.bridge import poll_inbound
 
@@ -30,6 +37,10 @@ sms_bp = Blueprint("sms", __name__, url_prefix="/api/sms")
 _API_KEY = lambda: os.getenv("SMS_APP_API_KEY", "")
 _GATEWAY_MODE = lambda: os.getenv("GATEWAY_MODE", "mock").strip().lower()
 _VAPID_PUBLIC_KEY = lambda: os.getenv("VAPID_PUBLIC_KEY", "")
+
+CONGREGATION_DB = os.path.expanduser("~/watson/data/congregation.db")
+_MEDIA_DIR = Path(__file__).resolve().parents[2] / "data" / "sms_media"
+_MAX_MEDIA_BYTES = 5 * 1024 * 1024  # 5 MB -- generous for a phone photo, not a video
 
 
 def _require_key(f):
@@ -46,9 +57,13 @@ def _thread_dict(row) -> dict:
         "id": row["id"],
         "phone": row["phone"],
         "contact_name": row["contact_name"],
+        "member_id": row["member_id"],
         "last_message_preview": row["last_message_preview"],
         "last_message_at": row["last_message_at"],
         "unread": bool(row["unread"]),
+        "state": row["state"],
+        "muted": bool(row["muted"]),
+        "snoozed_until": row["snoozed_until"],
     }
 
 
@@ -58,6 +73,9 @@ def _message_dict(row) -> dict:
         "direction": row["direction"],
         "body": row["body"],
         "created_at": row["created_at"],
+        "media_url": row["media_url"],
+        "media_type": row["media_type"],
+        "status": row["status"],
     }
 
 
@@ -75,12 +93,94 @@ def _scheduled_dict(row) -> dict:
 @sms_bp.route("/threads", methods=["GET"])
 @_require_key
 def list_threads():
+    archived = request.args.get("archived") == "1"
+    conn = get_connection()
+    try:
+        if archived:
+            rows = conn.execute(
+                "SELECT * FROM sms_threads WHERE state = 'archived' "
+                "ORDER BY (last_message_at IS NULL), last_message_at DESC"
+            ).fetchall()
+        else:
+            # Snoozed-but-due threads reappear on their own here (no cron
+            # needed) -- the snooze is just a filter, not a separate queue.
+            rows = conn.execute(
+                "SELECT * FROM sms_threads WHERE state != 'archived' "
+                "AND (snoozed_until IS NULL OR snoozed_until <= datetime('now')) "
+                "ORDER BY (last_message_at IS NULL), last_message_at DESC"
+            ).fetchall()
+        return jsonify({"threads": [_thread_dict(r) for r in rows]})
+    finally:
+        conn.close()
+
+
+@sms_bp.route("/threads/<int:thread_id>", methods=["PATCH"])
+@_require_key
+def update_thread(thread_id):
+    data = request.get_json(force=True) or {}
+    conn = get_connection()
+    try:
+        thread = conn.execute("SELECT * FROM sms_threads WHERE id = ?", (thread_id,)).fetchone()
+        if not thread:
+            return jsonify({"error": "not found"}), 404
+
+        if "state" in data:
+            state = data["state"]
+            if state not in ("open", "archived"):
+                return jsonify({"error": "state must be 'open' or 'archived'"}), 400
+            conn.execute("UPDATE sms_threads SET state = ? WHERE id = ?", (state, thread_id))
+
+        if "muted" in data:
+            conn.execute("UPDATE sms_threads SET muted = ? WHERE id = ?", (1 if data["muted"] else 0, thread_id))
+
+        if "snoozed_until" in data:
+            snoozed_until = data["snoozed_until"]
+            if snoozed_until:
+                try:
+                    datetime.strptime(snoozed_until, "%Y-%m-%d %H:%M:%S")
+                except ValueError:
+                    return jsonify({"error": "snoozed_until must be 'YYYY-MM-DD HH:MM:SS' UTC"}), 400
+            conn.execute("UPDATE sms_threads SET snoozed_until = ? WHERE id = ?", (snoozed_until or None, thread_id))
+
+        conn.commit()
+        row = conn.execute("SELECT * FROM sms_threads WHERE id = ?", (thread_id,)).fetchone()
+        return jsonify({"thread": _thread_dict(row)})
+    finally:
+        conn.close()
+
+
+@sms_bp.route("/search", methods=["GET"])
+@_require_key
+def search_messages():
+    q = (request.args.get("q") or "").strip()
+    if not q:
+        return jsonify({"results": []})
+
     conn = get_connection()
     try:
         rows = conn.execute(
-            "SELECT * FROM sms_threads ORDER BY (last_message_at IS NULL), last_message_at DESC"
+            """SELECT m.id AS message_id, m.thread_id, m.body, m.created_at,
+                      t.contact_name, t.phone
+               FROM sms_messages m
+               JOIN sms_threads t ON t.id = m.thread_id
+               WHERE m.body LIKE ? ESCAPE '\\'
+               ORDER BY m.created_at DESC
+               LIMIT 50""",
+            ("%" + q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%",),
         ).fetchall()
-        return jsonify({"threads": [_thread_dict(r) for r in rows]})
+        return jsonify({
+            "results": [
+                {
+                    "message_id": r["message_id"],
+                    "thread_id": r["thread_id"],
+                    "body": r["body"],
+                    "created_at": r["created_at"],
+                    "contact_name": r["contact_name"],
+                    "phone": r["phone"],
+                }
+                for r in rows
+            ]
+        })
     finally:
         conn.close()
 
@@ -107,13 +207,112 @@ def thread_messages(thread_id):
         conn.close()
 
 
+@sms_bp.route("/threads/<int:thread_id>/context", methods=["GET"])
+@_require_key
+def thread_context(thread_id):
+    """Pastoral context pulled from congregation.db by the thread's soft
+    member_id cross-reference (see jobs/sms/schema.py's module docstring --
+    it's a phone match, never a foreign key, since congregation.db is a
+    separate file). Reuses jobs/analytics/attendance_reply.py's shared
+    last-attended sentence so this reads identically to Team Chat/bot.py."""
+    conn = get_connection()
+    try:
+        thread = conn.execute("SELECT * FROM sms_threads WHERE id = ?", (thread_id,)).fetchone()
+        if not thread:
+            return jsonify({"error": "not found"}), 404
+        member_id = thread["member_id"]
+    finally:
+        conn.close()
+
+    if not member_id:
+        return jsonify({"matched": False})
+
+    try:
+        cong = sqlite3.connect(CONGREGATION_DB)
+        cong.row_factory = sqlite3.Row
+    except sqlite3.Error as exc:
+        log.error("thread_context: could not open congregation.db: %s", exc)
+        return jsonify({"matched": False, "error": "congregation lookup unavailable"}), 502
+
+    try:
+        member = cong.execute("SELECT * FROM members WHERE id = ?", (member_id,)).fetchone()
+        if not member:
+            return jsonify({"matched": False})
+
+        last = cong.execute(
+            "SELECT service_date, campus FROM attendance WHERE member_id = ? ORDER BY service_date DESC LIMIT 1",
+            (member_id,),
+        ).fetchone()
+        last_attended = last["service_date"] if last else None
+        campus = last["campus"] if last else None
+
+        household = []
+        if member["household_id"]:
+            household = [
+                {"name": r["name"], "household_role": r["household_role"]}
+                for r in cong.execute(
+                    "SELECT name, household_role FROM members WHERE household_id = ? AND id != ?",
+                    (member["household_id"], member["id"]),
+                ).fetchall()
+            ]
+
+        return jsonify({
+            "matched": True,
+            "name": member["name"],
+            "campus_preference": member["campus_preference"],
+            "first_visit_date": member["first_visit_date"],
+            "deacon": member["deacon"],
+            "last_attended_summary": format_last_attended_reply(member["name"], last_attended, campus),
+            "household": household,
+        })
+    finally:
+        cong.close()
+
+
+def _save_media(media_base64: str, media_type: str) -> str:
+    """Decodes and writes an uploaded image to disk, returns its /api/sms/media
+    URL path. Raises ValueError on anything malformed or oversized."""
+    if not media_type.startswith("image/"):
+        raise ValueError("only image attachments are supported")
+    try:
+        raw = base64.b64decode(media_base64, validate=True)
+    except Exception as exc:
+        raise ValueError("media_base64 is not valid base64") from exc
+    if len(raw) > _MAX_MEDIA_BYTES:
+        raise ValueError("image is too large (5 MB max)")
+
+    ext = mimetypes.guess_extension(media_type) or ""
+    filename = f"{uuid.uuid4().hex}{ext}"
+    _MEDIA_DIR.mkdir(parents=True, exist_ok=True)
+    (_MEDIA_DIR / filename).write_bytes(raw)
+    return f"/api/sms/media/{filename}"
+
+
+@sms_bp.route("/media/<filename>", methods=["GET"])
+@_require_key
+def get_media(filename):
+    path = (_MEDIA_DIR / filename).resolve()
+    if _MEDIA_DIR.resolve() not in path.parents or not path.is_file():
+        return jsonify({"error": "not found"}), 404
+    return send_file(path)
+
+
 @sms_bp.route("/threads/<int:thread_id>/send", methods=["POST"])
 @_require_key
 def send_to_thread(thread_id):
     data = request.get_json(force=True) or {}
     text = (data.get("text") or "").strip()
-    if not text:
-        return jsonify({"error": "text is required"}), 400
+    media_base64 = data.get("media_base64")
+    media_type = data.get("media_type")
+    if not text and not media_base64:
+        return jsonify({"error": "text or media_base64 is required"}), 400
+
+    media_url = None
+    if media_base64:
+        try:
+            media_url = _save_media(media_base64, media_type or "")
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
 
     conn = get_connection()
     try:
@@ -121,28 +320,57 @@ def send_to_thread(thread_id):
         if not thread:
             return jsonify({"error": "not found"}), 404
 
-        result = gateway_client.send_message(thread["phone"], text)
+        if media_url:
+            result = gateway_client.send_mms(thread["phone"], text, str(_MEDIA_DIR / media_url.rsplit("/", 1)[-1]), media_type)
+        else:
+            result = gateway_client.send_message(thread["phone"], text)
         if not result["success"]:
             return jsonify({"error": result.get("error") or "send failed"}), 502
 
         cur = conn.execute(
-            "INSERT INTO sms_messages (thread_id, direction, body, gateway_message_id) VALUES (?, 'out', ?, ?)",
-            (thread_id, text, result.get("gateway_message_id")),
+            """INSERT INTO sms_messages (thread_id, direction, body, gateway_message_id, media_url, media_type, status)
+               VALUES (?, 'out', ?, ?, ?, ?, 'sent')""",
+            (thread_id, text, result.get("gateway_message_id"), media_url, media_type),
         )
         message_id = cur.lastrowid
 
+        preview = text or "📷 Photo"
         conn.execute(
             """UPDATE sms_threads
                SET last_message_at = datetime('now'),
                    last_message_preview = ?,
                    unread = 0
                WHERE id = ?""",
-            (text, thread_id),
+            (preview, thread_id),
         )
         conn.commit()
 
         message = conn.execute("SELECT * FROM sms_messages WHERE id = ?", (message_id,)).fetchone()
         return jsonify({"message": _message_dict(message)})
+    finally:
+        conn.close()
+
+
+@sms_bp.route("/gateway/delivery", methods=["POST"])
+@_require_key
+def gateway_delivery_webhook():
+    """UNVERIFIED shape -- for the live gateway to report delivery/failure
+    once real hardware exists (see gateway_client.send_mms's docstring for
+    the same caveat). Matches a message by gateway_message_id."""
+    data = request.get_json(force=True) or {}
+    gateway_message_id = data.get("gateway_message_id")
+    status = data.get("status")
+    if not gateway_message_id or status not in ("delivered", "failed"):
+        return jsonify({"error": "gateway_message_id and status ('delivered'|'failed') are required"}), 400
+
+    conn = get_connection()
+    try:
+        conn.execute(
+            "UPDATE sms_messages SET status = ? WHERE gateway_message_id = ?",
+            (status, gateway_message_id),
+        )
+        conn.commit()
+        return jsonify({"ok": True})
     finally:
         conn.close()
 
@@ -161,6 +389,18 @@ def list_scheduled(thread_id):
         conn.close()
 
 
+def _validate_send_at(send_at: str) -> str | None:
+    """Returns an error message, or None if send_at is a valid future UTC
+    'YYYY-MM-DD HH:MM:SS' timestamp."""
+    try:
+        parsed = datetime.strptime(send_at, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+    except ValueError:
+        return "send_at must be 'YYYY-MM-DD HH:MM:SS' UTC"
+    if parsed <= datetime.now(timezone.utc):
+        return "send_at must be in the future"
+    return None
+
+
 @sms_bp.route("/threads/<int:thread_id>/scheduled", methods=["POST"])
 @_require_key
 def create_scheduled(thread_id):
@@ -170,12 +410,9 @@ def create_scheduled(thread_id):
     if not text:
         return jsonify({"error": "text is required"}), 400
 
-    try:
-        parsed = datetime.strptime(send_at, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
-    except ValueError:
-        return jsonify({"error": "send_at must be 'YYYY-MM-DD HH:MM:SS' UTC"}), 400
-    if parsed <= datetime.now(timezone.utc):
-        return jsonify({"error": "send_at must be in the future"}), 400
+    error = _validate_send_at(send_at)
+    if error:
+        return jsonify({"error": error}), 400
 
     conn = get_connection()
     try:
@@ -191,6 +428,38 @@ def create_scheduled(thread_id):
 
         row = conn.execute("SELECT * FROM sms_scheduled_messages WHERE id = ?", (cur.lastrowid,)).fetchone()
         return jsonify({"scheduled": _scheduled_dict(row)}), 201
+    finally:
+        conn.close()
+
+
+@sms_bp.route("/scheduled/<int:scheduled_id>", methods=["PUT"])
+@_require_key
+def update_scheduled(scheduled_id):
+    data = request.get_json(force=True) or {}
+    text = (data.get("text") or "").strip()
+    send_at = (data.get("send_at") or "").strip()
+    if not text:
+        return jsonify({"error": "text is required"}), 400
+
+    error = _validate_send_at(send_at)
+    if error:
+        return jsonify({"error": error}), 400
+
+    conn = get_connection()
+    try:
+        existing = conn.execute("SELECT * FROM sms_scheduled_messages WHERE id = ?", (scheduled_id,)).fetchone()
+        if not existing:
+            return jsonify({"error": "not found"}), 404
+
+        # Editing a failed send retries it -- back to pending, error cleared.
+        conn.execute(
+            "UPDATE sms_scheduled_messages SET body = ?, send_at = ?, status = 'pending', error = NULL WHERE id = ?",
+            (text, send_at, scheduled_id),
+        )
+        conn.commit()
+
+        row = conn.execute("SELECT * FROM sms_scheduled_messages WHERE id = ?", (scheduled_id,)).fetchone()
+        return jsonify({"scheduled": _scheduled_dict(row)})
     finally:
         conn.close()
 
