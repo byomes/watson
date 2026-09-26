@@ -28,7 +28,8 @@ from flask import Blueprint, jsonify, request, send_file
 from core.database import get_connection
 from jobs.analytics.attendance_reply import format_last_attended_reply
 from jobs.sms import gateway_client, push
-from jobs.sms.bridge import poll_inbound
+from jobs.sms.bridge import _get_or_create_thread, poll_inbound
+from jobs.sms.carrier_lookup import normalize_phone
 
 log = logging.getLogger(__name__)
 
@@ -297,6 +298,39 @@ def get_media(filename):
     return send_file(path)
 
 
+def _send_and_record(conn, thread_id: int, phone: str, text: str, media_url: str | None, media_type: str | None):
+    """Shared by send_to_thread and send_new below -- sends via the gateway,
+    then inserts the message and updates the thread's preview.
+
+    Returns (error_body, status_code, None) on failure, or (None, None,
+    message_id) on success (message row already committed)."""
+    if media_url:
+        result = gateway_client.send_mms(phone, text, str(_MEDIA_DIR / media_url.rsplit("/", 1)[-1]), media_type)
+    else:
+        result = gateway_client.send_message(phone, text)
+    if not result["success"]:
+        return {"error": result.get("error") or "send failed"}, 502, None
+
+    cur = conn.execute(
+        """INSERT INTO sms_messages (thread_id, direction, body, gateway_message_id, media_url, media_type, status)
+           VALUES (?, 'out', ?, ?, ?, ?, 'sent')""",
+        (thread_id, text, result.get("gateway_message_id"), media_url, media_type),
+    )
+    message_id = cur.lastrowid
+
+    preview = text or "📷 Photo"
+    conn.execute(
+        """UPDATE sms_threads
+           SET last_message_at = datetime('now'),
+               last_message_preview = ?,
+               unread = 0
+           WHERE id = ?""",
+        (preview, thread_id),
+    )
+    conn.commit()
+    return None, None, message_id
+
+
 @sms_bp.route("/threads/<int:thread_id>/send", methods=["POST"])
 @_require_key
 def send_to_thread(thread_id):
@@ -320,33 +354,58 @@ def send_to_thread(thread_id):
         if not thread:
             return jsonify({"error": "not found"}), 404
 
-        if media_url:
-            result = gateway_client.send_mms(thread["phone"], text, str(_MEDIA_DIR / media_url.rsplit("/", 1)[-1]), media_type)
-        else:
-            result = gateway_client.send_message(thread["phone"], text)
-        if not result["success"]:
-            return jsonify({"error": result.get("error") or "send failed"}), 502
-
-        cur = conn.execute(
-            """INSERT INTO sms_messages (thread_id, direction, body, gateway_message_id, media_url, media_type, status)
-               VALUES (?, 'out', ?, ?, ?, ?, 'sent')""",
-            (thread_id, text, result.get("gateway_message_id"), media_url, media_type),
-        )
-        message_id = cur.lastrowid
-
-        preview = text or "📷 Photo"
-        conn.execute(
-            """UPDATE sms_threads
-               SET last_message_at = datetime('now'),
-                   last_message_preview = ?,
-                   unread = 0
-               WHERE id = ?""",
-            (preview, thread_id),
-        )
-        conn.commit()
+        error_body, error_status, message_id = _send_and_record(conn, thread_id, thread["phone"], text, media_url, media_type)
+        if error_body:
+            return jsonify(error_body), error_status
 
         message = conn.execute("SELECT * FROM sms_messages WHERE id = ?", (message_id,)).fetchone()
         return jsonify({"message": _message_dict(message)})
+    finally:
+        conn.close()
+
+
+@sms_bp.route("/send", methods=["POST"])
+@_require_key
+def send_new():
+    """Starts (or continues, if the number already has a thread) a
+    conversation from just a phone number -- the "new message" compose
+    flow. Reuses bridge.py's own get-or-create + congregation.db name
+    lookup so a new thread here looks identical to one created by an
+    inbound text."""
+    data = request.get_json(force=True) or {}
+    phone_raw = (data.get("phone") or "").strip()
+    name = (data.get("name") or "").strip() or None
+    text = (data.get("text") or "").strip()
+    media_base64 = data.get("media_base64")
+    media_type = data.get("media_type")
+    if not phone_raw:
+        return jsonify({"error": "phone is required"}), 400
+    if not text and not media_base64:
+        return jsonify({"error": "text or media_base64 is required"}), 400
+
+    phone_digits = normalize_phone(phone_raw)
+    if not phone_digits:
+        return jsonify({"error": "could not parse phone number"}), 400
+
+    media_url = None
+    if media_base64:
+        try:
+            media_url = _save_media(media_base64, media_type or "")
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+
+    conn = get_connection()
+    try:
+        thread_id = _get_or_create_thread(conn, phone_digits, name)
+        thread = conn.execute("SELECT * FROM sms_threads WHERE id = ?", (thread_id,)).fetchone()
+
+        error_body, error_status, message_id = _send_and_record(conn, thread_id, thread["phone"], text, media_url, media_type)
+        if error_body:
+            return jsonify(error_body), error_status
+
+        thread = conn.execute("SELECT * FROM sms_threads WHERE id = ?", (thread_id,)).fetchone()
+        message = conn.execute("SELECT * FROM sms_messages WHERE id = ?", (message_id,)).fetchone()
+        return jsonify({"thread": _thread_dict(thread), "message": _message_dict(message)}), 201
     finally:
         conn.close()
 
