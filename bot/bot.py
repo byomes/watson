@@ -82,6 +82,17 @@ _GMAIL_APP_PASSWORD = os.getenv("WATSON_GMAIL_APP_PASSWORD", "")
 # Pending skill proposals keyed by Telegram chat_id
 _pending_skills: dict[int, str] = {}
 
+# Pending leader-broadcast drafts (Bill's own chat only) awaiting a Send/Edit
+# tap, keyed by chat_id -- {"label", "message", "reachable", "unreachable",
+# "expires_at"}. A chat_id present in _broadcast_awaiting_edit means the
+# NEXT message from Bill is the corrected message text, not a new command.
+# Both TTL'd (see _get_pending_broadcast) per
+# feedback_watson_per_chat_context -- no conversational state here outlives
+# _BROADCAST_TTL_SECONDS.
+_pending_broadcasts: dict[int, dict] = {}
+_broadcast_awaiting_edit: dict[int, bool] = {}
+_BROADCAST_TTL_SECONDS = 20 * 60
+
 # Pending capability gap proposals (from audit) — resolved via DB
 
 # Per-chat message counter for background reflection
@@ -1214,6 +1225,84 @@ async def _handle_text_body(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text_clean = _normalize_smart_quotes(text)
     text_lower = text_clean.lower().strip()
     _log_tg('in', text_clean)
+
+    # Leader broadcast fast path -- "send a message to elders/staff/deacons/
+    # all leaders/<name>: <text>", Bill's own DM only, checked before every
+    # other prefix/classifier so it never costs an LLM call and can't be
+    # shadowed by anything below. See _SEND_MESSAGE_RE's comment and
+    # jobs.congregation.leader_broadcast for the resolution rules. Bill's
+    # exact wording after the colon is relayed verbatim -- Watson never
+    # composes it, per feedback_ai_never_originates_relational_language.
+    if _is_authorized(update):
+        _bcast_chat_id = update.effective_chat.id
+        if _bcast_chat_id in _broadcast_awaiting_edit:
+            _bcast_pending = _get_pending_broadcast(_bcast_chat_id)
+            _broadcast_awaiting_edit.pop(_bcast_chat_id, None)
+            if _bcast_pending:
+                import time as _bcast_time
+                _bcast_pending["message"] = text_clean.strip()
+                _bcast_pending["expires_at"] = _bcast_time.time() + _BROADCAST_TTL_SECONDS
+                await update.message.reply_text(
+                    _format_broadcast_preview(
+                        _bcast_pending["label"], _bcast_pending["message"],
+                        _bcast_pending["reachable"], _bcast_pending["unreachable"],
+                    ),
+                    reply_markup=InlineKeyboardMarkup([[
+                        InlineKeyboardButton("Send", callback_data="bcast_send"),
+                        InlineKeyboardButton("Edit", callback_data="bcast_edit"),
+                    ]]),
+                )
+                return
+            # Expired between the Edit tap and Bill's reply -- fall through
+            # to normal handling below rather than silently eating this text.
+
+        _bcast_match = _SEND_MESSAGE_RE.match(text_clean.strip())
+        if _bcast_match:
+            _bcast_group_text = _bcast_match.group("group").strip().rstrip(",")
+            _bcast_body = _bcast_match.group("message").strip()
+            if _bcast_group_text and _bcast_body:
+                from jobs.congregation import leader_broadcast as _lb
+                _bcast_resolved = _lb.resolve_group(_bcast_group_text)
+                if _bcast_resolved:
+                    _bcast_label, _bcast_names = _bcast_resolved
+                else:
+                    _bcast_label = _bcast_group_text
+                    _bcast_names = _lb.resolve_named_leader(_bcast_group_text)
+                if not _bcast_names:
+                    await update.message.reply_text(
+                        f"I don't recognize \"{_bcast_group_text}\" as a group or a leader on file. "
+                        "Try elders, staff, deacons, all leaders, or a specific name."
+                    )
+                    return
+                if _bcast_resolved is None and len(_bcast_names) > 1:
+                    await update.message.reply_text(
+                        f"More than one match for \"{_bcast_group_text}\": {', '.join(_bcast_names)}. "
+                        "Be more specific (e.g. add a last name)."
+                    )
+                    return
+                _bcast_reachable, _bcast_unreachable = _lb.recipients_with_status(_bcast_names)
+                if not _bcast_reachable:
+                    await update.message.reply_text(
+                        f"No one in {_bcast_label} has Telegram set up yet "
+                        f"(checked: {', '.join(_bcast_names)})."
+                    )
+                    return
+                import time as _bcast_time
+                _pending_broadcasts[_bcast_chat_id] = {
+                    "label": _bcast_label,
+                    "message": _bcast_body,
+                    "reachable": _bcast_reachable,
+                    "unreachable": _bcast_unreachable,
+                    "expires_at": _bcast_time.time() + _BROADCAST_TTL_SECONDS,
+                }
+                await update.message.reply_text(
+                    _format_broadcast_preview(_bcast_label, _bcast_body, _bcast_reachable, _bcast_unreachable),
+                    reply_markup=InlineKeyboardMarkup([[
+                        InlineKeyboardButton("Send", callback_data="bcast_send"),
+                        InlineKeyboardButton("Edit", callback_data="bcast_edit"),
+                    ]]),
+                )
+                return
 
     # Directive prefix intercepts — colon-prefixed commands, highest priority.
     # Prefix set is the canonical registry in jobs/routing/directive_prefixes.py —
@@ -2471,6 +2560,36 @@ async def _get_general_reply(text: str) -> str:
     return await asyncio.to_thread(_get_general_reply_sync, text)
 
 
+# --- Leader broadcast (send a message to elders/staff/deacons/...) -------
+
+def _get_pending_broadcast(chat_id: int) -> dict | None:
+    """Returns the pending broadcast draft for this chat, purging (and
+    clearing any awaiting-edit flag) if it's past _BROADCAST_TTL_SECONDS."""
+    import time
+    entry = _pending_broadcasts.get(chat_id)
+    if not entry:
+        return None
+    if time.time() > entry["expires_at"]:
+        _pending_broadcasts.pop(chat_id, None)
+        _broadcast_awaiting_edit.pop(chat_id, None)
+        return None
+    return entry
+
+
+def _format_broadcast_preview(label: str, message: str, reachable: list[dict], unreachable: list[str]) -> str:
+    names = ", ".join(r["name"] for r in reachable) if reachable else "(no one reachable)"
+    lines = [
+        f"Draft to {label} ({len(reachable)} reachable):",
+        "",
+        message,
+        "",
+        f"Will send to: {names}",
+    ]
+    if unreachable:
+        lines.append(f"No Telegram on file for: {', '.join(unreachable)}")
+    return "\n".join(lines)
+
+
 def _team_member_name_for_chat(chat_id: str) -> str | None:
     """Return the team_members.name for an onboarded, active team member
     whose people.telegram_chat_id matches this chat, or None. Scoped to
@@ -2718,6 +2837,20 @@ _SCHEDULE_CLAUDE_RE = re.compile(
     r"^at\s+(?P<time>\d{1,2}(?::\d{2})?\s*(?:am|pm)?)\s*(?P<date>today|tomorrow)?\s*,?\s*"
     r"(?:please\s+)?give\s+(?:the\s+following\s+instruction|this\s+instruction|the\s+instruction)"
     r"\s+to\s+claude\s*code\s*:?\s*(?P<spec>.+)$",
+    re.IGNORECASE | re.DOTALL,
+)
+
+# "send a message to <group>: <text>" (Bill's own DM only, checked before
+# the classifier so it never costs an LLM call -- see leader_broadcast fast
+# path in _handle_text_body). A colon is REQUIRED between the group and the
+# message body -- Bill's own exact wording after the colon is relayed
+# verbatim, never composed, per
+# feedback_ai_never_originates_relational_language. <group> is resolved
+# against jobs.congregation.leader_broadcast (fixed groups first, then a
+# named-leader cascade).
+_SEND_MESSAGE_RE = re.compile(
+    r"^(?:send|text|message|notify|tell)\s+(?:a\s+)?(?:message|text|note)?\s*"
+    r"(?:to|for)?\s*(?P<group>[^:]+?)\s*:\s*(?P<message>.+)$",
     re.IGNORECASE | re.DOTALL,
 )
 
@@ -5758,6 +5891,47 @@ async def handle_acquire_callback(update: Update, context: ContextTypes.DEFAULT_
         await query.edit_message_text("❌ Acquisition rejected.")
 
 
+async def handle_broadcast_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Send/Edit taps on a leader-broadcast draft (see the _SEND_MESSAGE_RE
+    fast path in _handle_text_body). No LLM call on either path -- Send just
+    relays entry["message"] verbatim to each reachable recipient; Edit just
+    sets the awaiting-edit flag so the NEXT plain-text message replaces
+    entry["message"] and re-shows the preview."""
+    import time
+    query = update.callback_query
+    await query.answer()
+    chat_id = query.message.chat_id
+    entry = _get_pending_broadcast(chat_id)
+    if not entry:
+        await query.edit_message_text("That draft expired. Send the command again.")
+        return
+
+    if query.data == "bcast_edit":
+        _broadcast_awaiting_edit[chat_id] = True
+        entry["expires_at"] = time.time() + _BROADCAST_TTL_SECONDS
+        await query.edit_message_text(f"Send me the corrected message for {entry['label']}.")
+        return
+
+    # bcast_send
+    sent, failed = [], []
+    for r in entry["reachable"]:
+        try:
+            await context.bot.send_message(chat_id=int(r["chat_id"]), text=entry["message"])
+            sent.append(r["name"])
+        except Exception as exc:
+            log.error("leader broadcast: send to %s failed: %s", r["name"], exc)
+            failed.append(r["name"])
+    _pending_broadcasts.pop(chat_id, None)
+    _broadcast_awaiting_edit.pop(chat_id, None)
+
+    lines = [f"Sent to: {', '.join(sent)}" if sent else "Sent to no one (all failed)."]
+    if failed:
+        lines.append(f"Failed to send to: {', '.join(failed)}")
+    if entry["unreachable"]:
+        lines.append(f"No Telegram on file for: {', '.join(entry['unreachable'])}")
+    await query.edit_message_text("\n".join(lines))
+
+
 async def handle_thank_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -7322,7 +7496,7 @@ async def handle_spouse_pairing_callback(update: Update, context: ContextTypes.D
     await query.edit_message_text(f"{'✅' if ok else '❌'} {message}", reply_markup=None)
 
 
-# ── Fluro staged-pull review (flr_capply/flr_ckeep/flr_dsame/flr_dnew/flr_skip) ──
+# ── Fluro staged-pull review (flr_capply/flr_ckeep/flr_dsame/flr_dreject/flr_skip) ──
 
 async def handle_fluro_review_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle flr_* taps from jobs/congregation/notify_donna_fluro_review.py
@@ -7354,9 +7528,9 @@ async def handle_fluro_review_callback(update: Update, context: ContextTypes.DEF
         elif action == "flr_ckeep":
             message = fluro_apply.keep_existing(fluro_id)
         elif action == "flr_dsame":
-            message = fluro_apply.merge_same_person(fluro_id)
-        elif action == "flr_dnew":
-            message = fluro_apply.create_new_member(fluro_id)
+            message = fluro_apply.confirm_possible_duplicate(fluro_id)
+        elif action == "flr_dreject":
+            message = fluro_apply.reject_possible_duplicate(fluro_id)
         else:
             await query.edit_message_text(f"❌ Unrecognized action: {action}", reply_markup=None)
             return
@@ -7867,7 +8041,7 @@ def main():
     app.add_handler(CallbackQueryHandler(handle_member_conflict_callback, pattern=r"^mc_"))
     app.add_handler(CallbackQueryHandler(handle_dup_flag_callback, pattern=r"^dupf_(merge|alias|sep|skip):"))
     app.add_handler(CallbackQueryHandler(handle_spouse_pairing_callback, pattern=r"^sp_(c|r):"))
-    app.add_handler(CallbackQueryHandler(handle_fluro_review_callback, pattern=r"^flr_(capply|ckeep|dsame|dnew|skip):"))
+    app.add_handler(CallbackQueryHandler(handle_fluro_review_callback, pattern=r"^flr_(capply|ckeep|dsame|dreject|skip):"))
     app.add_handler(CallbackQueryHandler(handle_prayer_contact_callback, pattern=r"^pr_(done|later|back|escalate):\d+$"))
     app.add_handler(CallbackQueryHandler(handle_prayer_remind_callback, pattern=r"^pr_remind:\d+:\d+$"))
     app.add_handler(CallbackQueryHandler(handle_batch_update_callback, pattern=r"^bu_"))
@@ -7902,6 +8076,7 @@ def main():
     app.add_handler(CallbackQueryHandler(handle_email_callback, pattern=r"^email_"))
     app.add_handler(CallbackQueryHandler(handle_book_callback, pattern=r"^book_"))
     app.add_handler(CallbackQueryHandler(handle_menu_callback, pattern=r"^menu_"))
+    app.add_handler(CallbackQueryHandler(handle_broadcast_callback, pattern=r"^bcast_(send|edit)$"))
     app.add_handler(CallbackQueryHandler(handle_thank_callback, pattern=r"^thank:\d+$"))
     app.add_handler(CallbackQueryHandler(handle_edit_thank_callback, pattern=r"^edit_thank:\d+$"))
     app.add_handler(MessageHandler(filters.Regex(r"^/savedremove_\d+$"), handle_savedremove))
