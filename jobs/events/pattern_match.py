@@ -115,6 +115,93 @@ _LIST_RE = re.compile(
 )
 
 
+# "Is Connor Venuto signed up for the picnic?" / "Did Jane Doe register for
+# the retreat?" -- one specific person's signup status, added 2026-09-27
+# after a Team Chat leader asked exactly that and it fell through to a paid
+# LLM call (neither _COUNT_RE nor _LIST_RE fires without "how many"/"who").
+# Same signup-specific verbs as those two, same reason (no "coming"/"attend").
+# The name is a regex capture group, never a literal placeholder; 2-3 words
+# only (first + last, optionally a compound last name like "Martinez
+# Torres"), so a bare first name or a longer phrase falls through to the
+# LLM path instead of being guessed at. _PERSON_NAME_STOPWORDS below rejects
+# captures that are really pronouns/relations ("my wife", "anyone else").
+_PERSON_SIGNUP_RE = re.compile(
+    r"^\s*(?:is|was|has|did)\s+"
+    r"(?P<name>[a-z]+(?:['.-][a-z]+)*(?:\s+[a-z]+(?:['.-][a-z]+)*){1,2})\s+"
+    r"(?:already\s+|actually\s+)?"
+    r"(?:sign(?:ed)?[\s-]?up|regist\w*|rsvp'?e?d?)\s+(?:for|to)\b",
+    re.IGNORECASE,
+)
+
+_PERSON_NAME_STOPWORDS = {
+    "anyone", "anybody", "everyone", "everybody", "someone", "somebody", "nobody",
+    "he", "she", "they", "it", "we", "i", "you", "that", "this", "there",
+    "my", "his", "her", "their", "our", "your", "the", "a", "an", "any", "every",
+    "else", "all", "family", "wife", "husband", "son", "daughter", "kids",
+    "children", "mom", "dad", "mother", "father", "brother", "sister", "household",
+}
+
+
+def _person_signup_sql(name: str, event_id: int) -> str:
+    """One always-returns-a-row SELECT answering whether `name` has a
+    registration for `event_id` -- data_chat.py only short-circuits the
+    events fast path on a non-empty result, so a bare "SELECT ... WHERE
+    name = ..." would fall through to the LLM on every "no" answer.
+
+    A "no" is deliberately hedged: registrations are filed under whoever
+    filled out the form, and household signups covering several people are
+    common (e.g. one registration with 5 tickets), so "no registration under
+    this name" is NOT proof the person isn't coming. Any registration under
+    the same last name is surfaced so the asker can judge for themselves.
+    An RSVP-tracked event's rsvp_status='no' row is reported as a decline,
+    never as "signed up" (see _EVENTS_SCHEMA in data_chat.py)."""
+    words = name.split()
+    esc = lambda s: s.lower().replace("'", "''")
+    full, first, last = esc(" ".join(words)), esc(words[0]), esc(words[-1])
+    shown = " ".join(words).replace("'", "''")
+    match = (
+        f"event_id = {event_id} AND ("
+        f"lower(trim(first_name) || ' ' || trim(last_name)) = '{full}' OR "
+        f"(lower(trim(first_name)) = '{first}' AND lower(trim(last_name)) = '{last}'))"
+    )
+    detail = (
+        "trim(first_name) || ' ' || trim(last_name) || "
+        "CASE WHEN num_tickets > 1 THEN ' (' || num_tickets || ' tickets)' ELSE '' END || "
+        "CASE WHEN extra_fields IS NOT NULL AND extra_fields != '' THEN "
+        "' — ' || (SELECT group_concat(je.value, ', ') FROM json_each(event_registrations.extra_fields) je) "
+        "ELSE '' END"
+    )
+    # Just the "(2 tickets — Dessert)" part for the "Yes" sentence, where the
+    # name is already said once; NULL (dropped by group_concat) when a
+    # registration has neither.
+    extras = (
+        "(SELECT group_concat(je.value, ', ') FROM json_each(event_registrations.extra_fields) je "
+        "WHERE extra_fields IS NOT NULL AND extra_fields != '')"
+    )
+    paren = (
+        f"CASE WHEN num_tickets > 1 AND {extras} IS NOT NULL THEN num_tickets || ' tickets — ' || {extras} "
+        "WHEN num_tickets > 1 THEN num_tickets || ' tickets' "
+        f"ELSE {extras} END"
+    )
+    event_name = f"(SELECT event_name FROM church_events WHERE id = {event_id})"
+    yes_rows = f"FROM event_registrations WHERE {match} AND COALESCE(rsvp_status, 'yes') != 'no'"
+    return (
+        "SELECT CASE "
+        f"WHEN EXISTS (SELECT 1 {yes_rows}) "
+        f"THEN 'Yes — ' || (SELECT trim(first_name) || ' ' || trim(last_name) {yes_rows} LIMIT 1) || "
+        f"' is signed up for ' || {event_name} || "
+        f"COALESCE(' (' || (SELECT group_concat({paren}, ' / ') {yes_rows}) || ')', '') || '.' "
+        f"WHEN EXISTS (SELECT 1 FROM event_registrations WHERE {match} AND rsvp_status = 'no') "
+        f"THEN 'No — {shown} RSVP''d no for ' || {event_name} || '.' "
+        f"ELSE 'I don''t see a registration under {shown} for ' || {event_name} || '.' || "
+        "COALESCE(' Registered under the same last name: ' || (SELECT group_concat("
+        f"{detail}, ' / ') FROM event_registrations WHERE event_id = {event_id} "
+        f"AND lower(trim(last_name)) = '{last}' AND COALESCE(rsvp_status, 'yes') != 'no') || '.', '') || "
+        "' They could still be covered by someone else''s registration.' "
+        "END AS answer"
+    )
+
+
 def _mentions_extra_field(question_lower: str, event_id: int) -> bool:
     """True if the question seems to reference a specific answer to one of
     this event's custom sign-up-form questions (e.g. "dessert"/"side dish"
@@ -171,6 +258,14 @@ def pattern_match(question: str) -> str | None:
             "SELECT event_name, start_date, event_time FROM church_events "
             "WHERE tracking_active = 1 ORDER BY start_date"
         )
+
+    m = _PERSON_SIGNUP_RE.search(q)
+    if m and not any(w.lower() in _PERSON_NAME_STOPWORDS or w.lower().endswith("'s")
+                     for w in m.group("name").split()):
+        event_id = _resolve_event_id(q)
+        if event_id is None:
+            return None
+        return _person_signup_sql(m.group("name"), event_id)
 
     if _COUNT_RE.search(q):
         event_id = _resolve_event_id(q)
