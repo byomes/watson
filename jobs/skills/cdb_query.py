@@ -112,12 +112,8 @@ _BARE_LAST_YEAR_RE = re.compile(r"\b(last|past|previous)\s+year\b")
 # defaults to last Sunday regardless of what was actually asked. These
 # three patterns close that gap; anything they still don't recognize
 # should fall through to Ollama (see run()) rather than guess a date.
-_MONTH_NAMES = {
-    "january": 1, "february": 2, "march": 3, "april": 4, "may": 5, "june": 6,
-    "july": 7, "august": 8, "september": 9, "october": 10, "november": 11, "december": 12,
-    "jan": 1, "feb": 2, "mar": 3, "apr": 4, "jun": 6, "jul": 7, "aug": 8,
-    "sep": 9, "sept": 9, "oct": 10, "nov": 11, "dec": 12,
-}
+# Reuses the _MONTH_NAMES dict already defined above (also used at the
+# NEW MEMBERS block further down) -- do not redefine it here again.
 _MONTH_ALT = "|".join(sorted(_MONTH_NAMES, key=len, reverse=True))
 _TODAY_RE = re.compile(r"\btoday\b")
 _YESTERDAY_RE = re.compile(r"\byesterday\b")
@@ -137,6 +133,27 @@ _MONTH_ONLY_RE = re.compile(
     rf"(?:,?\s*(?P<year>\d{{4}}))?",
     re.IGNORECASE,
 )
+
+# "exactly 2 times" / "at least 3 times" / "no more than 1 time" etc. --
+# Bill's 2026-09-27 request: count (or list) people by how many DISTINCT
+# service dates they attended within whatever range the preamble above
+# resolved, not just whether they attended at all. Checked first in the
+# trigger-block order below (see _pattern_match) since the generic COUNT/
+# COMBINED blocks would otherwise claim this phrasing and answer with the
+# wrong number -- exactly what an auto-applied fast-path patch did
+# 2026-09-27 by bolting a literal "exactly one time" trigger onto the
+# plain distinct-attendee COUNT block with no actual visit-count logic;
+# that trigger is removed in favor of this real implementation.
+_VISIT_QUALIFIERS = ["exactly", "at least", "no fewer than", "at most", "no more than", "more than", "fewer than"]
+_VISIT_QUALIFIER_ALT = "|".join(sorted(_VISIT_QUALIFIERS, key=len, reverse=True))
+_VISIT_COUNT_RE = re.compile(
+    rf"\b(?P<qualifier>{_VISIT_QUALIFIER_ALT})\s+(?P<n>\d{{1,3}}|{_NUMBER_ALT})\s+times?\b",
+    re.IGNORECASE,
+)
+_VISIT_OPS = {
+    "exactly": "=", "at least": ">=", "no fewer than": ">=",
+    "at most": "<=", "no more than": "<=", "more than": ">", "fewer than": "<",
+}
 
 
 def _span_number(match: re.Match) -> int:
@@ -275,7 +292,38 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
 
     campus_sub = f" AND campus = '{campus}'" if campus else ""
 
-    # Check order: slipping → hybrid → missed_count → missed → trend → count → attended
+    # Check order: visit-count → slipping → hybrid → missed_count → missed → trend → count → attended
+
+    # ATTENDED EXACTLY/AT LEAST/AT MOST N TIMES (count or, with "who"/"list", names)
+    # OVER WHATEVER RANGE THE PREAMBLE ABOVE RESOLVED. Checked first so it can't
+    # be shadowed by COMBINED/CUMULATIVE or the plain COUNT block below, both of
+    # which would otherwise match this phrasing too (via _COUNT_ATTENDED_RE) and
+    # answer with the wrong number -- how many people attended AT ALL in the
+    # range, ignoring the per-person visit-count qualifier entirely.
+    _visit_m = _VISIT_COUNT_RE.search(q)
+    if _visit_m:
+        _visit_qualifier = _visit_m.group("qualifier").lower()
+        _visit_op = _VISIT_OPS[_visit_qualifier]
+        _visit_n_raw = _visit_m.group("n").lower()
+        _visit_n = _NUMBER_WORDS.get(_visit_n_raw, int(_visit_n_raw) if _visit_n_raw.isdigit() else 0)
+        _visit_range_desc = _span_label if _span_label else "the specified date"
+        _visit_campus_filter = f"a.campus = '{campus}' AND " if campus else ""
+        _visit_having = f"HAVING COUNT(DISTINCT a.service_date) {_visit_op} {_visit_n}"
+        if "who" in q or "list" in q:
+            return (
+                f"SELECT m.name, COUNT(DISTINCT a.service_date) as visits "
+                f"FROM attendance a JOIN members m ON a.member_id = m.id "
+                f"WHERE {_visit_campus_filter}{a_date} AND m.name NOT LIKE '%CAMPUS%' "
+                f"AND m.name NOT LIKE '%SYSTEM%' AND m.name NOT LIKE '%TEST%' "
+                f"GROUP BY a.member_id {_visit_having} ORDER BY m.name"
+            )
+        return (
+            f"SELECT '{_visit_qualifier} {_visit_n} time(s) in {_visit_range_desc}' as description, "
+            f"COUNT(*) as total FROM ("
+            f"SELECT a.member_id FROM attendance a WHERE {_visit_campus_filter}{a_date} "
+            f"GROUP BY a.member_id {_visit_having}"
+            f")"
+        )
 
     # SLIPPING AWAY / NEEDS SHEPHERDING
     if any(w in q for w in ['slipping', 'falling off', 'not coming', 'stopped coming', 'needs attention', 'shepherding', 'missing recently', 'fading', 'drifting', 'losing touch', 'falling away', 'at risk of leaving']):
@@ -369,7 +417,7 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
     # _COUNT_ATTENDED_RE catches phrasings like "how many people have
     # attended" that the substring list below misses (word between "how
     # many" and the verb) -- same fix as the multi-week block above.
-    if _COUNT_ATTENDED_RE.search(q) or any(w in q for w in ['exactly one time', 'nursery attendance', "what's the attendance count?", 'how many attended', 'how many came', 'total attendance', 'attendance count', 'number who attended', 'sunday attendance', 'service attendance', 'how many showed up', 'how many people were there']):
+    if _COUNT_ATTENDED_RE.search(q) or any(w in q for w in ['nursery attendance', "what's the attendance count?", 'how many attended', 'how many came', 'total attendance', 'attendance count', 'number who attended', 'sunday attendance', 'service attendance', 'how many showed up', 'how many people were there']):
         if _date_guessed:
             return None
         if campus:
