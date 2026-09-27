@@ -7322,6 +7322,50 @@ async def handle_spouse_pairing_callback(update: Update, context: ContextTypes.D
     await query.edit_message_text(f"{'✅' if ok else '❌'} {message}", reply_markup=None)
 
 
+# ── Fluro staged-pull review (flr_capply/flr_ckeep/flr_dsame/flr_dnew/flr_skip) ──
+
+async def handle_fluro_review_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle flr_* taps from jobs/congregation/notify_donna_fluro_review.py
+    -- the human-decision step for jobs/congregation/fluro_pull.py's staged
+    Fluro (Subsplash admin) contacts pull. Reuses _spouse_review_authorized
+    (Bill's chat or Donna's, looked up live) rather than a new gate function
+    -- same "only ever texted to Donna" shape as the spouse-pairing review
+    above, just a different source job. Actual writes to congregation.db
+    happen in jobs/congregation/fluro_apply.py, never here directly."""
+    query = update.callback_query
+    await query.answer()
+
+    if not _spouse_review_authorized(update):
+        return
+
+    from jobs.congregation import fluro_apply
+
+    parts = query.data.split(":", 1)
+    action, fluro_id = parts[0], parts[1]
+
+    try:
+        if action == "flr_skip":
+            await query.edit_message_text(
+                "⏭ Skipped: still pending review in fluro_staging.db.", reply_markup=None
+            )
+            return
+        if action == "flr_capply":
+            message = fluro_apply.apply_conflict_values(fluro_id)
+        elif action == "flr_ckeep":
+            message = fluro_apply.keep_existing(fluro_id)
+        elif action == "flr_dsame":
+            message = fluro_apply.merge_same_person(fluro_id)
+        elif action == "flr_dnew":
+            message = fluro_apply.create_new_member(fluro_id)
+        else:
+            await query.edit_message_text(f"❌ Unrecognized action: {action}", reply_markup=None)
+            return
+        await query.edit_message_text(f"✅ {message}", reply_markup=None)
+    except Exception as exc:
+        log.error("fluro_review action failed (action=%s fluro_id=%s): %s", action, fluro_id, exc)
+        await query.edit_message_text(f"❌ Error: {exc}", reply_markup=None)
+
+
 # ── Deacon prayer-contact accountability (jobs/telegram/prayer_notify.py) ────
 
 _PRAYER_DB_PATH = os.path.expanduser("~/watson/data/congregation.db")
@@ -7823,6 +7867,7 @@ def main():
     app.add_handler(CallbackQueryHandler(handle_member_conflict_callback, pattern=r"^mc_"))
     app.add_handler(CallbackQueryHandler(handle_dup_flag_callback, pattern=r"^dupf_(merge|alias|sep|skip):"))
     app.add_handler(CallbackQueryHandler(handle_spouse_pairing_callback, pattern=r"^sp_(c|r):"))
+    app.add_handler(CallbackQueryHandler(handle_fluro_review_callback, pattern=r"^flr_(capply|ckeep|dsame|dnew|skip):"))
     app.add_handler(CallbackQueryHandler(handle_prayer_contact_callback, pattern=r"^pr_(done|later|back|escalate):\d+$"))
     app.add_handler(CallbackQueryHandler(handle_prayer_remind_callback, pattern=r"^pr_remind:\d+:\d+$"))
     app.add_handler(CallbackQueryHandler(handle_batch_update_callback, pattern=r"^bu_"))

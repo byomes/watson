@@ -106,3 +106,7 @@ kb/devotionals/
 # Pre-migration safety backups — may contain plaintext data superseded by a
 # later encryption pass, never commit
 data/security_backups/
+
+# Fluro pull job -- fetched via scripts/install_adb.sh, not committed
+bin/
+data/fluro_staging.db
