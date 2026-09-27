@@ -4428,3 +4428,64 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - 2bc91fa Add a light/dark mode toggle to Watson SMS
 - fc8a3d2 Add a way to create new SMS templates, not just edit the seeded two
 - c03d3c3 Add Watson SMS app at /sms — PIN-gated 1:1 texting UI
+
+---
+
+## Recent Changes — 2026-09-27
+
+### ~/watson
+- 11fc30a docs: bugs/backlog export 2026-09-27
+- 0b68a76 docs: file map 2026-09-27
+- 6f99732 feat: Fluro (Subsplash admin) staged contacts + serving pull
+- 4af3c6b Ignore SMS mock inbound queue runtime file
+- 6388745 Remove completed one-off scripts
+- 6506a57 Add overnight model-qualification run script and results, document the convention
+- d101461 Add ghostwritten post: when the wrong motive still preaches the truth
+- 5af27a7 Add nightly per-project writing digest job
+- a3181d1 Add devotional PDF ingestion into the sermons KB collection
+- 15f2775 Add one-off notifier for Subsplash-import duplicate review
+- 69f7733 Add Deacon App PIN self-service collection over Telegram
+- 56fdcc4 Add Unpaywall open-access fallback and denominational-site search to field research
+- a12f5bf Ignore large binary data/PDF dirs and stray env backup file
+- 9bdba34 Fix event-registration emails paging Bill on Telegram after Ollama JSON truncation
+- b42efcc Add recent SMS texts to the pre-meeting pastoral brief
+- fa600d3 Add recent Watson SMS texts to the pastoral search skill
+- 919a8fc Add explicit guardrail: SMS message log stays Bill-only
+- 7e41d45 docs: architecture update 2026-09-26
+
+### ~/wcky
+- b46fff8 Add /card -- online digital contact card for Bill
+- 6734bcf publish: Living for Others Over Going Home
+
+### ~/watson-tools
+- 140d8fb Fix invisible template/snooze-option text in dark mode
+- 949ea08 Remove the "Nothing sends until you tap send" disclaimer from the compose bar
+- 5f8c59e Add icon to template button, label to camera button
+- a902dc3 Replace all emoji icons with flat SVG icons to match the rest of the app
+- be1840b Add custom accent color picker (any RGB, not just the 6 presets)
+- fc7d522 Make the New Message button fill remaining toolbar width to match search bar
+- 347260b Add pull-to-refresh to the thread list
+- 1b52fbd Auto-grow compose textareas as text is typed (up to 160px, then scrolls)
+- 50a300e Make unread threads visibly distinct in the thread list
+- 0a1f791 Move Settings gear to the right of the New Message button
+- 1d3da03 Enter key sends a message (Shift+Enter for newline) in both compose boxes
+- e89db76 Add Settings screen: accent theme picker, moved templates/dark-mode, Sabbath + vacation toggles
+- 9a1ccdb Fix link-to-member silently failing on a phone conflict
+- 3ebe4d5 Add "keep both" option when linking a thread hits a conflicting phone number
+- b1542f0 Add ability to link an unmatched thread's number to a congregation.db member
+- 82d3732 Add "prep a text" draft support -- Watson stages, Bill still taps send
+- a81eea9 Add QR code image for Bill's vCard
+- ae273d7 Add Bill's digital business card vCard for a QR code
+- 708d6b5 Make the manual refresh button actually poll the phone live
+- d807800 Redesign pastoral context panel: cleaner card layout + collapsible
+- 7ec7a2d Show delivered status on outgoing messages; bold context panel field labels
+- f7f60d1 Switch SMS app theme from green to blue to match the home-screen icon
+- 259f268 Keep pastoral context panel fixed while messages scroll; auto-scroll to newest
+- 449af91 Add birthdate/anniversary, serving status, and active status to SMS context panel
+- 4ab3529 Add one-tap spelling fix button to SMS compose box
+- 90fd896 Set app icon badge from push notifications, not just in-page JS
+- f5a0086 Fix SMS unread status not persisting when a thread is opened
+- 64f58f5 Stop mobile Safari from zooming past screen bounds on input focus
+- 543a478 Deacon app: drop "Catalyst" from header, icon-only logout, bigger header icons
+- 470e682 Hide notifications button once push is already granted
+- 5de6fe7 Remove log out button, widen New message button 2x
