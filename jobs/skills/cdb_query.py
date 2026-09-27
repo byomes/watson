@@ -369,7 +369,7 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
     # _COUNT_ATTENDED_RE catches phrasings like "how many people have
     # attended" that the substring list below misses (word between "how
     # many" and the verb) -- same fix as the multi-week block above.
-    if _COUNT_ATTENDED_RE.search(q) or any(w in q for w in ['nursery attendance', "what's the attendance count?", 'how many attended', 'how many came', 'total attendance', 'attendance count', 'number who attended', 'sunday attendance', 'service attendance', 'how many showed up', 'how many people were there']):
+    if _COUNT_ATTENDED_RE.search(q) or any(w in q for w in ['exactly one time', 'nursery attendance', "what's the attendance count?", 'how many attended', 'how many came', 'total attendance', 'attendance count', 'number who attended', 'sunday attendance', 'service attendance', 'how many showed up', 'how many people were there']):
         if _date_guessed:
             return None
         if campus:
