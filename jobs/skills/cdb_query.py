@@ -101,6 +101,8 @@ _WEEK_SPAN_RE = re.compile(rf"\b(\d{{1,3}}|{_NUMBER_ALT})[- ]?weeks?\b")
 _MONTH_SPAN_RE = re.compile(rf"\b(\d{{1,2}}|{_NUMBER_ALT})[- ]?months?\b")
 _BARE_LAST_MONTH_RE = re.compile(r"\b(last|past|previous)\s+month\b")
 _THIS_MONTH_RE = re.compile(r"\b(this|current)\s+month\b")
+_THIS_YEAR_RE = re.compile(r"\b(this|current)\s+year\b")
+_BARE_LAST_YEAR_RE = re.compile(r"\b(last|past|previous)\s+year\b")
 
 # Bug found 2026-09-27 (Bill: "How many people attended church on
 # September 13?" / "...in the month of October?" both silently returned
@@ -184,6 +186,7 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
     # accept any week count via _WEEK_SPAN_RE, and real calendar-month ranges
     # via _MONTH_SPAN_RE / _BARE_LAST_MONTH_RE / _THIS_MONTH_RE.
     _span_label = None
+    _date_guessed = False
     today = date.today()
     _week_m = _WEEK_SPAN_RE.search(q)
     _month_m = _MONTH_SPAN_RE.search(q)
@@ -217,6 +220,17 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
         a_date = f"a.service_date >= '{start}' AND a.service_date <= '{today.isoformat()}'"
         s_date = f"service_date >= '{start}' AND service_date <= '{today.isoformat()}'"
         _span_label = "the current month"
+    elif _THIS_YEAR_RE.search(q):
+        start = today.replace(month=1, day=1).isoformat()
+        a_date = f"a.service_date >= '{start}' AND a.service_date <= '{today.isoformat()}'"
+        s_date = f"service_date >= '{start}' AND service_date <= '{today.isoformat()}'"
+        _span_label = "this year"
+    elif _BARE_LAST_YEAR_RE.search(q):
+        start = date(today.year - 1, 1, 1).isoformat()
+        end = date(today.year - 1, 12, 31).isoformat()
+        a_date = f"a.service_date >= '{start}' AND a.service_date <= '{end}'"
+        s_date = f"service_date >= '{start}' AND service_date <= '{end}'"
+        _span_label = "last year"
     elif _month_only_m:
         month_num = _MONTH_NAMES[_month_only_m.group("month").lower()]
         year_num = int(_month_only_m.group("year")) if _month_only_m.group("year") else today.year
@@ -247,6 +261,17 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
     else:
         a_date = f"a.service_date = '{last_sun}'"
         s_date = f"service_date = '{last_sun}'"
+        # No date phrase above matched -- but if the question still names a
+        # time reference we just don't parse (a bare "year"/"years ago" or
+        # an explicit 4-digit year like "in 2025"), the honest move is to
+        # bail to Ollama below (see run()) rather than silently substitute
+        # last Sunday and answer as if that's what was asked. Same class of
+        # bug as the "this year" / literal-date one fixed 2026-09-27 --
+        # scoped narrowly to the two attendance blocks that actually proved
+        # buggy (COUNT and COMBINED/CUMULATIVE span), not this whole
+        # function, so unrelated blocks below (new members, who missed,
+        # etc.) that don't depend on a_date/s_date are unaffected.
+        _date_guessed = bool(re.search(r"\byears?\b|\b(19|20)\d{2}\b", q))
 
     campus_sub = f" AND campus = '{campus}'" if campus else ""
 
@@ -345,6 +370,8 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
     # attended" that the substring list below misses (word between "how
     # many" and the verb) -- same fix as the multi-week block above.
     if _COUNT_ATTENDED_RE.search(q) or any(w in q for w in ['nursery attendance', "what's the attendance count?", 'how many attended', 'how many came', 'total attendance', 'attendance count', 'number who attended', 'sunday attendance', 'service attendance', 'how many showed up', 'how many people were there']):
+        if _date_guessed:
+            return None
         if campus:
             return f"SELECT COUNT(DISTINCT a.member_id) as total FROM attendance a WHERE a.campus = '{campus}' AND {a_date}"
         else:
