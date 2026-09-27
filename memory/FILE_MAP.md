@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-09-26*
+*Generated: 2026-09-27*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -28,6 +28,10 @@
 CLAUDE.md
 MCP-Claude-Code-Dispatcher-Spec.md
 README.md
+bin/
+  adb
+  lib64/
+    libc++.so
 bot/
   __init__.py
   bot.py
@@ -62,6 +66,7 @@ core/
   job_tracker.py
   llm_log.py
   ollama_context.py
+  ollama_json.py
   ollama_lock.py
   pipeline.py
   retry.py
@@ -99,6 +104,8 @@ data/
     66e0844b7fab4e0a8bb386db8504deac.png
     9eca6f54ecff491dbed2470fd0b3d196.png
   congregation.db
+  congregation.db-shm
+  congregation.db-wal
   congregation.db.bak_after_serving_attendance_table_20260922_140259
   congregation.db.bak_after_team_active_column_20260922_134207
   congregation.db.bak_before_3mo_active_mark_20260924_125043
@@ -144,6 +151,7 @@ data/
     fb_14.jpg
     fb_15.jpg
     fb_16.jpg
+  fluro_staging.db
   font_cache/
     Archivo.ttf
     Archivo_Black.ttf
@@ -591,6 +599,9 @@ data/
         transcript.md
       20260924-233815-assimilation-pathway-partnership-class-design/
         transcript.md
+      assimilation-system-overview.md
+      church-systems-project-overview.md
+      shepherding-system-overview.md
     claude-account-import/
       20260826-015822-analyzing-student-access-patterns-in-online-course/
         transcript.md
@@ -2937,6 +2948,7 @@ data/
       20260826-015833-amazon-bio-update-draft/
         transcript.md
   skill_audit.json
+  sms_gateway_last_poll.txt
   sms_mock_inbound_queue.json
   trading.db
   trading.db.bak-pre-donchian-20260911001022
@@ -3125,11 +3137,17 @@ jobs/
     family_dates.py
     family_edit.py
     family_report.py
+    fluro_apply.py
+    fluro_client.py
+    fluro_common.py
+    fluro_pull.py
+    fluro_staging_schema.py
     import_deacon_directory.py
     import_subsplash_contacts.py
     init_db.py
     married_age_check.py
     member_match.py
+    migrate_alt_phone.py
     migrate_connected_override.py
     migrate_deacon_pins.py
     migrate_deacon_visible_views.py
@@ -3145,6 +3163,7 @@ jobs/
       migrate_leadership_roles.py
       migrate_partner_connected_active.py
       migrate_reparse.py
+    notify_donna_fluro_review.py
     notify_subsplash_fuzzy_review.py
     papercards_web.py
     pin_collection.py
@@ -3548,12 +3567,15 @@ jobs/
     __init__.py
     api.py
     bridge.py
+    call_forwarding_toggle.py
     carrier_lookup.py
     gateway_client.py
     heartbeat.py
     push.py
+    sabbath_digest.py
     scheduled_sender.py
     schema.py
+    settings.py
     sms_send.py
   social/
     __init__.py
@@ -4543,6 +4565,7 @@ prompts/
 requirements.txt
 run.sh
 scripts/
+  install_adb.sh
   migrate_vault_encrypt.py
   watson_recover.sh
   wcky_meet_reauth.py
@@ -4654,6 +4677,11 @@ content/
     2026-09-10-chains-and-confidence.md
     2026-09-12-partners-not-spectators.md
     2026-09-15-when-the-wrong-motive-still-preaches-the-truth.md
+    2026-09-17-seven-letters-and-thirty-four-years.md
+    2026-09-19-every-outcome-becomes-a-win-for-christ.md
+    2026-09-22-to-live-is-christ.md
+    2026-09-24-the-privilege-of-suffering.md
+    2026-09-26-living-for-others-over-going-home.md
     the-flashlight-of-your-focus.md
     where-your-treasure-is.md
 db/
@@ -4664,6 +4692,9 @@ package-lock.json
 package.json
 postcss.config.js
 public/
+  card/
+    bill.jpg
+    bill.vcf
   guides/
     he-is-risen-study-guide.pdf
     study-like-a-pastor.pdf
@@ -4814,6 +4845,8 @@ src/
       opengraph-image.tsx
       page.tsx
       twitter-image.tsx
+    card/
+      page.tsx
     cv/
       CvDownloadButton.tsx
       cv.css
@@ -5244,6 +5277,10 @@ public/
   sms-icon-192.png
   sms-icon-512.png
   sw-sms.js
+  vcard/
+    bill-qr.png
+    bill.jpg
+    bill.vcf
   watson-icon-navy.png
 src/
   app/
@@ -5339,9 +5376,14 @@ src/
         media/
           [filename]/
             route.ts
+        members/
+          search/
+            route.ts
         mock/
           inject/
             route.ts
+        poll-now/
+          route.ts
         push/
           subscribe/
             route.ts
@@ -5358,6 +5400,10 @@ src/
           route.ts
         send/
           route.ts
+        settings/
+          route.ts
+        spellcheck/
+          route.ts
         templates/
           [id]/
             route.ts
@@ -5365,6 +5411,8 @@ src/
         threads/
           [id]/
             context/
+              route.ts
+            link-member/
               route.ts
             messages/
               route.ts
