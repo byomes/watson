@@ -1,1 +1,1 @@
-{"step": 5, "total": 5, "label": "Reporting", "detail": "Committing the ADDRESS LOOKUP fast-path addition to jobs/skills/cdb_query.py."}
+{"step": 5, "total": 5, "label": "Reporting", "detail": "No fast path added: the question is an ambiguous how-to, not a data lookup; left on the LLM path deliberately. No commit or PR."}
