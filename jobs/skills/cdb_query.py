@@ -102,6 +102,40 @@ _MONTH_SPAN_RE = re.compile(rf"\b(\d{{1,2}}|{_NUMBER_ALT})[- ]?months?\b")
 _BARE_LAST_MONTH_RE = re.compile(r"\b(last|past|previous)\s+month\b")
 _THIS_MONTH_RE = re.compile(r"\b(this|current)\s+month\b")
 
+# Bug found 2026-09-27 (Bill: "How many people attended church on
+# September 13?" / "...in the month of October?" both silently returned
+# last Sunday's count): none of the spans above recognize a literal
+# calendar date, "today", or a bare month name, so every one of those
+# questions fell into the else branch below, which unconditionally
+# defaults to last Sunday regardless of what was actually asked. These
+# three patterns close that gap; anything they still don't recognize
+# should fall through to Ollama (see run()) rather than guess a date.
+_MONTH_NAMES = {
+    "january": 1, "february": 2, "march": 3, "april": 4, "may": 5, "june": 6,
+    "july": 7, "august": 8, "september": 9, "october": 10, "november": 11, "december": 12,
+    "jan": 1, "feb": 2, "mar": 3, "apr": 4, "jun": 6, "jul": 7, "aug": 8,
+    "sep": 9, "sept": 9, "oct": 10, "nov": 11, "dec": 12,
+}
+_MONTH_ALT = "|".join(sorted(_MONTH_NAMES, key=len, reverse=True))
+_TODAY_RE = re.compile(r"\btoday\b")
+_YESTERDAY_RE = re.compile(r"\byesterday\b")
+# Requires an adjacent day number ("September 13") -- a real date reference
+# in casual speech basically always has one, so this carries no ambiguity
+# risk the way a bare month name does (see _MONTH_ONLY_RE below).
+_MONTH_DAY_RE = re.compile(
+    rf"\b(?P<month>{_MONTH_ALT})\.?\s+(?P<day>\d{{1,2}})(?:st|nd|rd|th)?\b(?:,?\s*(?P<year>\d{{4}}))?",
+    re.IGNORECASE,
+)
+# Bare month name with no day -- "may" collides with the common modal verb,
+# so this only matches when introduced by a word people actually use to
+# reference a month ("in October", "for last November"), not just the
+# month name appearing anywhere in the sentence.
+_MONTH_ONLY_RE = re.compile(
+    rf"\b(?:in|during|of|for|this|last|next)\s+(?:the\s+month\s+of\s+)?(?P<month>{_MONTH_ALT})\b"
+    rf"(?:,?\s*(?P<year>\d{{4}}))?",
+    re.IGNORECASE,
+)
+
 
 def _span_number(match: re.Match) -> int:
     raw = match.group(1)
@@ -153,7 +187,29 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
     today = date.today()
     _week_m = _WEEK_SPAN_RE.search(q)
     _month_m = _MONTH_SPAN_RE.search(q)
-    if any(w in q for w in ['this past sunday', 'last sunday', 'this sunday']):
+    _month_day_m = _MONTH_DAY_RE.search(q)
+    _month_only_m = _MONTH_ONLY_RE.search(q)
+    if _TODAY_RE.search(q):
+        a_date = f"a.service_date = '{today.isoformat()}'"
+        s_date = f"service_date = '{today.isoformat()}'"
+    elif _YESTERDAY_RE.search(q):
+        yday = (today - timedelta(days=1)).isoformat()
+        a_date = f"a.service_date = '{yday}'"
+        s_date = f"service_date = '{yday}'"
+    elif _month_day_m:
+        month_num = _MONTH_NAMES[_month_day_m.group("month").lower()]
+        day_num = int(_month_day_m.group("day"))
+        year_num = int(_month_day_m.group("year")) if _month_day_m.group("year") else today.year
+        try:
+            specific = date(year_num, month_num, day_num).isoformat()
+            a_date = f"a.service_date = '{specific}'"
+            s_date = f"service_date = '{specific}'"
+        except ValueError:
+            # Invalid calendar date (e.g. "February 30") -- fall back to the
+            # no-date-mentioned default rather than raising into the caller.
+            a_date = f"a.service_date = '{last_sun}'"
+            s_date = f"service_date = '{last_sun}'"
+    elif any(w in q for w in ['this past sunday', 'last sunday', 'this sunday']):
         a_date = f"a.service_date = '{last_sun}'"
         s_date = f"service_date = '{last_sun}'"
     elif _THIS_MONTH_RE.search(q):
@@ -161,6 +217,14 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
         a_date = f"a.service_date >= '{start}' AND a.service_date <= '{today.isoformat()}'"
         s_date = f"service_date >= '{start}' AND service_date <= '{today.isoformat()}'"
         _span_label = "the current month"
+    elif _month_only_m:
+        month_num = _MONTH_NAMES[_month_only_m.group("month").lower()]
+        year_num = int(_month_only_m.group("year")) if _month_only_m.group("year") else today.year
+        first_day = date(year_num, month_num, 1)
+        last_day = date(year_num, month_num, calendar.monthrange(year_num, month_num)[1])
+        a_date = f"a.service_date >= '{first_day.isoformat()}' AND a.service_date <= '{last_day.isoformat()}'"
+        s_date = f"service_date >= '{first_day.isoformat()}' AND service_date <= '{last_day.isoformat()}'"
+        _span_label = f"{_month_only_m.group('month').capitalize()} {year_num}"
     elif _week_m and _span_number(_week_m) >= 1:
         n = _span_number(_week_m)
         start = (today - timedelta(weeks=n)).isoformat()
