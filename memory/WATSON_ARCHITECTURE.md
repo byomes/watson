@@ -4489,3 +4489,35 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - 543a478 Deacon app: drop "Catalyst" from header, icon-only logout, bigger header icons
 - 470e682 Hide notifications button once push is already granted
 - 5de6fe7 Remove log out button, widen New message button 2x
+
+---
+
+## Recent Changes — 2026-09-28
+
+### ~/watson
+- 24367d0 docs: bugs/backlog export 2026-09-28
+- f8b101f docs: file map 2026-09-28
+- 9e4e1b9 Add "past 8 weeks" fast-path phrase to attendance trend over time
+- f92a7c1 Make first_visit_date human-curated instead of live-computed
+- 66ad023 Anchor first-time-guest status on a connect card, not just any attendance row
+- a323f4b Clean up Telegram list formatting: 3 lines per person (name, phone, email)
+- e62b28c Add fast path so "who are/who were first-time guests" returns names + contact info
+- beb73cb Add fast path so "how many first-time guests" returns a count, not a list
+- 3e08b2b memory: reflect session 213
+- 4d03088 Add one-off: corrected 2026 first-time guests list email to Bill
+- 890c8b6 Add batch backfill script for historical connect-card CSV exports
+- 61f3f65 Fix conversion report: derive first-visit cohort from attendance, not first_visit_date
+- 6b448e1 Add guest conversion/retention report fast path to team chat
+- 6d85015 Add "exactly/at least/at most N times" attendance queries; fix duplicate _MONTH_NAMES and a wrong auto-patch
+- 20fb235 Add "exactly one time" fast-path phrase to count of who attended a service
+- 0f0190c fix: attendance fast path also silently defaulted for "this/last year"
+- 31aae92 fix: attendance-count fast path ignored literal dates/month names, silently defaulted to last Sunday
+- 83423d1 Add Telegram fast path: "send a message to <group>: <text>"
+- a14687a docs: architecture update 2026-09-27
+
+### ~/watson-tools
+- 1367a5e Remove logout button, move Help to its place in the deacon app
+- c264b2c Make the Catalyst DB title a hard-refresh button
+- fa4085c Add First Visit date-range filter to Catalyst DB
+- 0fe95f0 Add "+ Add Person" to each team on the Sunday serving check-off page
+- a36983e Add Serving Teams section to Catalyst DB member profile
