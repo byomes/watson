@@ -21,43 +21,48 @@ Definitions (confirmed with Bill 2026-09-27, matching the planning session):
     in the report, not the window the threshold is evaluated over.
   - Partner: members.partner = 'partner' (the other observed value is 'np' /
     not-partner -- see live data check 2026-09-27).
-  - Cohort membership (REVISED 2026-09-28, see below): a member's first
-    CONNECT CARD (deacon_visible_connect_cards.service_date, earliest one)
-    falls within [start, end] of the requested period, AND that member has
-    no attendance row of any kind (card-driven or a leader's manual
-    check-in) dated before that card. NOT members.first_visit_date (see
-    prior revision note further down) and NOT just "earliest attendance
-    row" either (see below) -- a first-time GUEST is specifically a
-    first-ever CARD with no prior attendance behind it, not just any
-    earliest-dated row in attendance.
+  - Cohort membership (REVISED 2026-09-28 -- current, final approach): back
+    to members.first_visit_date, but now treated as trustworthy because
+    jobs/congregation/backfill_first_visit_date.py just recomputed it for
+    every member from cards + attendance, and Donna/Bill now own correcting
+    it by hand from there (editable as "First Visit" in the catalystdb
+    admin board, wtsn.me/cat/catalystdb) whenever the data can't capture
+    the real story. Bill's own words: "just because it's the first time
+    someone fills out a card doesn't necessarily guarantee that's their
+    first visit... use the cards and checkins to add first visit to each
+    persona profile. then donna and i can edit them to reflect the reality
+    of the church activity." A purely computed derivation -- no matter how
+    many edge cases it's patched for -- can never know things like a guest
+    mentioning in person that they'd actually visited once before, or a
+    card that was filled out for someone else. A human-curated field that
+    starts from a good computed baseline is the right foundation; a
+    cleverer heuristic run fresh every time is not.
 
-    History of this field, in order:
-    (1) Originally used members.first_visit_date. Found live 2026-09-27
-        (Bill: "watsons stats are wrong hes marking everyone as first
-        visit from when they were imported into the db"): that column
-        disagreed with a member's actual earliest attendance row for 85 of
-        208 members who had it set, 52 of them (long-time members/elders,
-        e.g. Jim Bouchat) dated months LATER than their real first
-        attendance -- a bulk backfill artifact, not real history.
-    (2) Switched to MIN(attendance.service_date) -- attendance being the
-        single source of truth the 2nd-time/regular checks below already
-        use. Still wrong: Bill Crook (an elder) turned up as a "first-time
-        guest" because attendance conflates two different things -- a row
-        created from an actual connect-card submission, AND a row a
-        leader added by manually checking someone off as having attended
-        (no card at all, e.g. Donna's paper attendance lists via
-        jobs/connect_cards/attendance_intake.py, or a manual admin
-        correction). A manual check-in has nothing to do with someone
-        being a first-time GUEST -- the concept only makes sense relative
-        to when a card was actually received.
-    (3) Current (this revision): first-time-guest status is anchored on
-        the member's earliest CONNECT CARD, not their earliest attendance
-        row of either kind -- and that card only counts if there is no
-        attendance at all (again, either kind) for that member before the
-        card's date. A card submitted by someone who was already being
-        manually tracked as attending (just never got around to filling
-        out a card before) is explicitly NOT a first-time guest under this
-        rule, even though it's their first card.
+    History of this field, in order (kept for context on what NOT to
+    reintroduce -- do not go back to computing this live in this module):
+    (1) Originally used members.first_visit_date, untouched/unverified.
+        Found live 2026-09-27 (Bill: "watsons stats are wrong hes marking
+        everyone as first visit from when they were imported into the
+        db"): the column disagreed with a member's actual earliest
+        attendance row for 85 of 208 members who had it set, 52 of them
+        (long-time members/elders, e.g. Jim Bouchat) dated months LATER
+        than their real first attendance -- a bulk backfill artifact.
+    (2) Switched to computing MIN(attendance.service_date) live every time.
+        Still wrong: Bill Crook (an elder) turned up as a "first-time
+        guest" because attendance conflates a real connect-card submission
+        with a leader's manual check-in (no card at all, e.g. Donna's
+        paper attendance lists via jobs/connect_cards/attendance_intake.py).
+    (3) Switched to computing "earliest connect card with no attendance
+        before it" live every time. Better, but per Bill's 2026-09-28
+        feedback above, a live heuristic will always have cases it can't
+        resolve -- the fix isn't a cleverer formula, it's a human-owned
+        field.
+    (4) Current: backfill_first_visit_date.py ran that same "card, or
+        earliest attendance as fallback" logic ONCE to populate
+        members.first_visit_date properly, and this module now just reads
+        that column -- the same column as (1), but no longer untouched
+        junk, because it now has a real computed baseline and a human
+        editor. Don't reintroduce a live per-question computation here.
 
 This does NOT touch/build any of the still-unbuilt "stuck" / "1st-visit
 lapse" states or the outreach-drafting job from the planning session --
@@ -173,47 +178,19 @@ def _ever_hit_regular(dates: list[str]) -> bool:
 
 
 def _cohort(conn: sqlite3.Connection, start: date, end: date) -> list[dict]:
-    """First-time-guest cohort: each member's EARLIEST connect card, kept
-    only when no attendance row (card-driven or a leader's manual
-    check-in) predates it. See module docstring's revision history for why
-    this replaced both members.first_visit_date and a plain
-    earliest-attendance-row check (attendance alone conflates real
-    first-time guests with people a leader manually marked present, e.g.
-    Bill Crook, an elder, who wrongly showed up as a "first-time guest"
-    under the prior revision)."""
-    card_rows = conn.execute(
-        "SELECT member_id, MIN(service_date) AS first_card "
-        "FROM deacon_visible_connect_cards GROUP BY member_id"
+    """First-time-guest cohort: members.first_visit_date within [start, end].
+    Trusted directly -- see module docstring's revision history for why
+    this is no longer computed live here. Donna/Bill maintain this column
+    by hand (catalystdb admin board) on top of the baseline
+    jobs/congregation/backfill_first_visit_date.py computed from cards +
+    attendance."""
+    rows = conn.execute(
+        "SELECT id, name, partner, email, phone, first_visit_date AS first_visit "
+        "FROM members WHERE first_visit_date >= ? AND first_visit_date <= ? "
+        "ORDER BY first_visit_date",
+        (start.isoformat(), end.isoformat()),
     ).fetchall()
-
-    cohort = []
-    for r in card_rows:
-        first_card = r["first_card"]
-        if not first_card or not (start.isoformat() <= first_card <= end.isoformat()):
-            continue
-        prior_attendance = conn.execute(
-            "SELECT 1 FROM attendance WHERE member_id = ? AND service_date < ? LIMIT 1",
-            (r["member_id"], first_card),
-        ).fetchone()
-        if prior_attendance:
-            continue
-        m = conn.execute(
-            "SELECT name, partner, email, phone FROM members WHERE id = ?",
-            (r["member_id"],),
-        ).fetchone()
-        if not m:
-            continue
-        cohort.append({
-            "id": r["member_id"],
-            "name": m["name"],
-            "partner": m["partner"],
-            "email": m["email"],
-            "phone": m["phone"],
-            "first_visit": first_card,
-        })
-
-    cohort.sort(key=lambda c: c["first_visit"])
-    return cohort
+    return [dict(r) for r in rows]
 
 
 def build_report(conn: sqlite3.Connection, start: date, end: date) -> str:
