@@ -233,10 +233,20 @@ def fetch_inbound() -> list[dict]:
     ]
 
 
-def send_message(phone: str, body: str) -> dict:
-    """Returns {"success": bool, "gateway_message_id": str|None, "error": str|None}."""
+def _as_phone_list(phones: str | list[str]) -> list[str]:
+    return phones if isinstance(phones, list) else [phones]
+
+
+def send_message(phones: str | list[str], body: str) -> dict:
+    """Returns {"success": bool, "gateway_message_id": str|None, "error": str|None}.
+
+    `phones` a single string sends a normal 1:1 SMS, unchanged. A list of
+    more than one number is accepted for API-shape consistency but plain
+    SMS has no multi-recipient concept at the carrier level -- see
+    send_mms below, which is what a real group text needs."""
+    phone_list = _as_phone_list(phones)
     if _gateway_mode() == "mock":
-        log.info("gateway_client (mock): send_message to %s: %s", phone, body)
+        log.info("gateway_client (mock): send_message to %s: %s", phone_list, body)
         return {"success": True, "gateway_message_id": None, "error": None}
 
     url = _gateway_url()
@@ -249,28 +259,41 @@ def send_message(phone: str, body: str) -> dict:
             "POST",
             "/messages",
             auth=auth,
-            json={"phoneNumbers": [phone], "textMessage": {"text": body}},
+            json={"phoneNumbers": phone_list, "textMessage": {"text": body}},
             timeout=15,
         )
         resp.raise_for_status()
         data = resp.json()
         return {"success": True, "gateway_message_id": str(data.get("id", "")), "error": None}
     except Exception as exc:
-        log.error("send_message: live gateway send failed for %s: %s", phone, exc)
+        log.error("send_message: live gateway send failed for %s: %s", phone_list, exc)
         return {"success": False, "gateway_message_id": None, "error": str(exc)}
 
 
-def send_mms(phone: str, body: str, media_path: str, media_type: str) -> dict:
+def send_mms(phones: str | list[str], body: str, media_path: str | None = None, media_type: str | None = None) -> dict:
     """Returns {"success": bool, "gateway_message_id": str|None, "error": str|None}.
 
     Confirmed endpoint/shape (2026-09-26, from the app's OpenAPI spec):
     POST /messages with an `mmsMessage` object ({text, attachments: [{data,
     contentType}]}) — attachments use `contentType`, not `mimeType`. The
     spec notes MMS "requires the app to be the default SMS app for reliable
-    delivery on most carriers" — confirm that's set once real hardware
-    exists; still unverified end-to-end against the actual device."""
+    delivery on most carriers" — confirmed working end-to-end 2026-09-28
+    against real hardware, including a real image attachment.
+
+    `media_path`/`media_type` are optional -- omit both for a text-only
+    send. This matters for group threads (jobs/sms/send_core.py): a plain
+    SMS is inherently point-to-point and can't carry more than one
+    recipient in its own PDU, so *any* group-thread send -- even a plain
+    text reply with no photo -- goes out as a (possibly attachment-less)
+    MMS instead, addressed to every participant in one `phoneNumbers`
+    list, so it actually arrives as one shared group conversation on their
+    phones (confirmed 2026-09-28: sending each participant a separate 1:1
+    SMS, which the fan-out loop this replaced was doing, delivers to each
+    of them individually with no group envelope at all -- that's the bug
+    this fixes)."""
+    phone_list = _as_phone_list(phones)
     if _gateway_mode() == "mock":
-        log.info("gateway_client (mock): send_mms to %s: %s (media=%s)", phone, body, media_path)
+        log.info("gateway_client (mock): send_mms to %s: %s (media=%s)", phone_list, body, media_path)
         return {"success": True, "gateway_message_id": None, "error": None}
 
     url = _gateway_url()
@@ -278,21 +301,22 @@ def send_mms(phone: str, body: str, media_path: str, media_type: str) -> dict:
     if not url or not auth:
         return {"success": False, "gateway_message_id": None, "error": "gateway not configured"}
 
-    try:
+    attachments = []
+    if media_path and media_type:
         import base64
 
         with open(media_path, "rb") as f:
             encoded = base64.b64encode(f.read()).decode("ascii")
+        attachments = [{"data": encoded, "contentType": media_type}]
+
+    try:
         resp = _request(
             "POST",
             "/messages",
             auth=auth,
             json={
-                "phoneNumbers": [phone],
-                "mmsMessage": {
-                    "text": body,
-                    "attachments": [{"data": encoded, "contentType": media_type}],
-                },
+                "phoneNumbers": phone_list,
+                "mmsMessage": {"text": body, "attachments": attachments},
             },
             timeout=30,
         )
@@ -300,7 +324,7 @@ def send_mms(phone: str, body: str, media_path: str, media_type: str) -> dict:
         data = resp.json()
         return {"success": True, "gateway_message_id": str(data.get("id", "")), "error": None}
     except Exception as exc:
-        log.error("send_mms: live gateway send failed for %s: %s", phone, exc)
+        log.error("send_mms: live gateway send failed for %s: %s", phone_list, exc)
         return {"success": False, "gateway_message_id": None, "error": str(exc)}
 
 

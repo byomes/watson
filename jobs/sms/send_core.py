@@ -18,15 +18,18 @@ def send_and_record(conn, thread_id: int, text: str, media_url: str | None, medi
     jobs/sms/schema.py's one-time backfill and bridge.py's
     _get_or_create_thread), so this is never an "empty participants"
     fallback, just one real code path for both cases:
-      - 1 participant: one gateway call, unchanged behavior for 1:1 threads.
-      - >1 (a group thread): one gateway call per participant, one
-        sms_messages row for the single bubble Bill sees
-        (gateway_message_id left NULL -- ambiguous across recipients), one
-        sms_message_recipients row per participant with their own id/status.
-        Thread-level status is a conservative rollup: 'failed' if any
-        recipient failed, else 'sent'. Per-recipient failure detail is
-        captured in sms_message_recipients but not surfaced in the UI yet
-        (deliberately deferred, see plan).
+      - 1 participant: unchanged 1:1 behavior -- send_mms if there's an
+        attachment, else plain send_message.
+      - >1 (a group thread): ONE gateway call to send_mms with every
+        participant's number in the same `phoneNumbers` list (see
+        gateway_client.send_mms's docstring) -- not a loop of separate 1:1
+        sends. A plain SMS can't carry more than one recipient in its own
+        PDU at all, so even a text-only group reply goes out as an
+        (attachment-less) MMS; a loop of individual send_message calls
+        delivers each participant their own private copy with no group
+        envelope, which is exactly what broke here (confirmed 2026-09-28:
+        Bill's reply in a group thread reached one participant as an
+        ordinary individual text, not as part of the group).
 
     Returns (error_body, status_code, None) on failure, or (None, None,
     message_id) on success (message row already committed)."""
@@ -34,40 +37,27 @@ def send_and_record(conn, thread_id: int, text: str, media_url: str | None, medi
         "SELECT phone FROM sms_thread_participants WHERE thread_id = ? ORDER BY id", (thread_id,)
     ).fetchall()]
 
-    def _send_one(phone: str) -> dict:
-        if media_url:
-            return gateway_client.send_mms(phone, text, str(_MEDIA_DIR / media_url.rsplit("/", 1)[-1]), media_type)
-        return gateway_client.send_message(phone, text)
+    if not participants:
+        return {"error": "thread has no participants"}, 502, None
 
-    if len(participants) <= 1:
-        phone = participants[0] if participants else None
-        result = _send_one(phone) if phone else {"success": False, "gateway_message_id": None, "error": "thread has no participants"}
-        if not result["success"]:
-            return {"error": result.get("error") or "send failed"}, 502, None
-        status = "sent"
-        gateway_message_id = result.get("gateway_message_id")
+    media_full_path = str(_MEDIA_DIR / media_url.rsplit("/", 1)[-1]) if media_url else None
+
+    if len(participants) > 1:
+        result = gateway_client.send_mms(participants, text, media_full_path, media_type)
+    elif media_url:
+        result = gateway_client.send_mms(participants[0], text, media_full_path, media_type)
     else:
-        results = {phone: _send_one(phone) for phone in participants}
-        if not any(r["success"] for r in results.values()):
-            return {"error": "send failed for every participant"}, 502, None
-        status = "failed" if any(not r["success"] for r in results.values()) else "sent"
-        gateway_message_id = None  # ambiguous across recipients
+        result = gateway_client.send_message(participants[0], text)
+
+    if not result["success"]:
+        return {"error": result.get("error") or "send failed"}, 502, None
 
     cur = conn.execute(
         """INSERT INTO sms_messages (thread_id, direction, body, gateway_message_id, media_url, media_type, status)
-           VALUES (?, 'out', ?, ?, ?, ?, ?)""",
-        (thread_id, text, gateway_message_id, media_url, media_type, status),
+           VALUES (?, 'out', ?, ?, ?, ?, 'sent')""",
+        (thread_id, text, result.get("gateway_message_id"), media_url, media_type),
     )
     message_id = cur.lastrowid
-
-    if len(participants) > 1:
-        conn.executemany(
-            "INSERT INTO sms_message_recipients (message_id, phone, gateway_message_id, status) VALUES (?, ?, ?, ?)",
-            [
-                (message_id, phone, r.get("gateway_message_id"), "sent" if r["success"] else "failed")
-                for phone, r in results.items()
-            ],
-        )
 
     preview = text or "📷 Photo"
     conn.execute(
