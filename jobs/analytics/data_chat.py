@@ -851,6 +851,20 @@ def _format_rows(rows: list[dict], domain: str | None = None) -> str:
     return "\n".join(lines)
 
 
+def _try_conversion_report(question: str) -> str | None:
+    """LLM-free fast path for "guest conversion report" / "retention
+    report" phrasings — see jobs/analytics/conversion_report.py. Unlike
+    the SQL-generating fast paths below, this one computes and formats the
+    answer itself (a rolling-window regular-status check isn't expressible
+    as one SELECT), so it's called directly rather than through
+    _validate_sql/_run. Added 2026-09-27 per Bill's request."""
+    try:
+        from jobs.analytics.conversion_report import try_conversion_report
+    except Exception:
+        return None
+    return try_conversion_report(question, CONGREGATION_DB_PATH)
+
+
 def _try_pattern_match(question: str) -> str | None:
     """Bill's own cdb_query.py pattern-match layer, reused as a free
     LLM-free fast path for the common attendance phrasings it already
@@ -898,6 +912,16 @@ def answer_data_question(
     resolved = _try_resolve_pending_clarification(asker_name, question)
     if resolved is not None:
         return resolved
+
+    # Guest conversion/retention report -- checked before the generic
+    # attendance pattern-match below since "conversion report"/"retention
+    # report" is specific phrasing that won't collide with it, and this
+    # handler computes its own answer directly rather than producing SQL
+    # for _validate_sql/_run (see _try_conversion_report's docstring).
+    conversion_reply = _try_conversion_report(question)
+    if conversion_reply is not None:
+        log.info("data_chat: conversion-report hit, asker=%s q=%r", asker_name, question)
+        return True, conversion_reply
 
     # Found 2026-09-02 debugging Donna's "who is in Bill Crook's deacon
     # group?" -- cdb_query._pattern_match()'s 'who is'/'tell me about'
