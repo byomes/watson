@@ -118,6 +118,30 @@ Watson acts on Dr. Bill's behalf under his supervision. Always identified openly
   the underlying constraint. `qwen2.5:14b` stays off every Beelink job,
   now for a confirmed reason rather than an untested one.
 
+### FMSPC Watson Twin — manual-only, NOT the automated exclusion above
+
+Added 2026-09-28: `scripts/fmspc_watson_twin.py` (reference copy; runs live
+from `C:\Users\billy\watson_twin\watson_twin.py` on FMSPC, not auto-synced
+from this repo — same convention as the hand-extracted sermon pipeline files
+noted in `CLAUDE.md`) is a terminal chat agent that runs on FMSPC's own local
+Ollama (`llama3.1:8b` default — 103 tok/s, reliable tool-calling; `qwen2.5:14b`
+available for slower/deeper reasoning at ~5 tok/s; `qwen2.5:32b` was
+benchmarked and rejected — 1.5 tok/s on FMSPC's 8GB VRAM, unusable
+interactively; `qwen2.5-coder:7b` also rejected — fast but doesn't reliably
+emit real tool calls, returns them as plain text instead) and executes shell
+commands on the Beelink over a dedicated SSH keypair (`fmspc_beelink` on
+FMSPC, `id_ed25519_fmspc` on the Beelink; `Host watson` / `Host fmspc`
+aliases respectively) with full read/write/exec access on the Beelink —
+deliberately broader than the Telegram bot's guardrailed intent surface, a
+middle ground Bill asked for between the Telegram bot and full Claude Code.
+
+**This does not reopen the automated-job-loop exclusion above.** It only
+acts when Bill starts it by hand at the FMSPC console (`python
+watson_twin.py`) and only while FMSPC is on and he's sitting at it — no
+cron, Telegram trigger, or dashboard trigger calls this, and it must never be
+wired into one. Every command it runs on the Beelink is logged to
+`watson_twin_audit.log` next to the script (FMSPC-local, not synced here).
+
 ### PBLaptop — Windows Laptop
 
 - Secondary machine. OneDrive synced. No Ollama.

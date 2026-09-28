@@ -4576,6 +4576,7 @@ prompts/
 requirements.txt
 run.sh
 scripts/
+  fmspc_watson_twin.py
   install_adb.sh
   migrate_vault_encrypt.py
   watson_recover.sh
