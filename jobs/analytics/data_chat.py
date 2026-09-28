@@ -881,6 +881,20 @@ def _try_first_time_guest_count(question: str) -> str | None:
     return try_first_time_guest_count(question, CONGREGATION_DB_PATH)
 
 
+def _try_first_time_guest_list(question: str, allow_contact_info: bool) -> str | None:
+    """LLM-free fast path for "who are/who were the first-time guests..." --
+    Bill's explicit counterpart rule to _try_first_time_guest_count
+    (2026-09-27): this question shape should always get names and contact
+    info, never just a number. allow_contact_info is threaded through same
+    as the rest of this module so a future narrower caller (bot.py
+    currently always passes True) still gets contact info gated correctly."""
+    try:
+        from jobs.analytics.conversion_report import try_first_time_guest_list
+    except Exception:
+        return None
+    return try_first_time_guest_list(question, CONGREGATION_DB_PATH, allow_contact_info)
+
+
 def _try_pattern_match(question: str) -> str | None:
     """Bill's own cdb_query.py pattern-match layer, reused as a free
     LLM-free fast path for the common attendance phrasings it already
@@ -946,6 +960,13 @@ def answer_data_question(
     if count_reply is not None:
         log.info("data_chat: first-time-guest-count hit, asker=%s q=%r", asker_name, question)
         return True, count_reply
+
+    # "Who are/who were the first-time guests..." -- the explicit mirror
+    # image Bill asked for right after the count fix above.
+    who_reply = _try_first_time_guest_list(question, allow_contact_info)
+    if who_reply is not None:
+        log.info("data_chat: first-time-guest-list hit, asker=%s q=%r", asker_name, question)
+        return True, who_reply
 
     # Found 2026-09-02 debugging Donna's "who is in Bill Crook's deacon
     # group?" -- cdb_query._pattern_match()'s 'who is'/'tell me about'

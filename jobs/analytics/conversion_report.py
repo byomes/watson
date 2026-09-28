@@ -67,6 +67,16 @@ _COUNT_TRIGGER_RE = re.compile(
     r"how\s+(?:many|much)\b[^?.!]{0,60}\bfirst[- ]?time\b", re.IGNORECASE
 )
 
+# Bill's explicit counterpart rule (2026-09-27): "who are"/"who were" wants
+# names and contact info, never just a number -- the mirror image of the
+# "how many" fast path above. Handled as its own fast path (rather than
+# just leaving "who" questions to the LLM path) so the list is built from
+# the same corrected attendance-based cohort as the count/report, instead
+# of a generated query against the unreliable first_visit_date column.
+_WHO_TRIGGER_RE = re.compile(
+    r"who\s+(?:are|were)\b[^?.!]{0,60}\bfirst[- ]?time\b", re.IGNORECASE
+)
+
 
 def _resolve_period(question: str) -> tuple[date, date, str] | None:
     """Best-effort period resolution for the phrasings Bill is likely to
@@ -150,11 +160,13 @@ def _cohort(conn: sqlite3.Connection, start: date, end: date) -> list[sqlite3.Ro
     # (not LEFT JOIN) correctly drops them.
     return conn.execute(
         """
-        SELECT m.id, m.name, m.partner, MIN(a.service_date) AS first_visit
+        SELECT m.id, m.name, m.partner, m.email, m.phone,
+               MIN(a.service_date) AS first_visit
         FROM members m
         JOIN attendance a ON a.member_id = m.id
         GROUP BY m.id
         HAVING first_visit >= ? AND first_visit <= ?
+        ORDER BY first_visit
         """,
         (start.isoformat(), end.isoformat()),
     ).fetchall()
@@ -246,3 +258,45 @@ def try_first_time_guest_count(question: str, congregation_db_path: str) -> str 
 
     guest_word = "guest" if n == 1 else "guests"
     return f"{n} first-time {guest_word} in {label} (first visit {start.isoformat()} to {end.isoformat()})."
+
+
+def try_first_time_guest_list(
+    question: str, congregation_db_path: str, allow_contact_info: bool = True
+) -> str | None:
+    """Entry point for data_chat.py. Answers a "who are/were the
+    first-time guests..." question with names (and, per Bill's 2026-09-27
+    "who are/who were... names and contact info" rule, email/phone when
+    allow_contact_info is set) — the mirror image of
+    try_first_time_guest_count. Same None-if-not-a-match / None-on-any-error
+    contract as the other entry points here."""
+    if not _WHO_TRIGGER_RE.search(question):
+        return None
+
+    period = _resolve_period(question)
+    if period is None:
+        return (
+            "What time period? (e.g. \"this year\", \"last 3 months\", \"in March\")"
+        )
+    start, end, label = period
+
+    try:
+        conn = _conn(congregation_db_path)
+        try:
+            cohort = _cohort(conn, start, end)
+        finally:
+            conn.close()
+    except Exception:
+        return None
+
+    if not cohort:
+        return f"No first-time guests in {label} (first visit {start.isoformat()} to {end.isoformat()})."
+
+    lines = [f"First-time guests in {label} ({len(cohort)}):"]
+    for m in cohort:
+        if allow_contact_info:
+            email = m["email"] or "—"
+            phone = m["phone"] or "—"
+            lines.append(f"{m['name']} - first visit {m['first_visit']}, email: {email}, phone: {phone}")
+        else:
+            lines.append(f"{m['name']} - first visit {m['first_visit']}")
+    return "\n".join(lines)
