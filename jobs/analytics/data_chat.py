@@ -865,6 +865,22 @@ def _try_conversion_report(question: str) -> str | None:
     return try_conversion_report(question, CONGREGATION_DB_PATH)
 
 
+def _try_first_time_guest_count(question: str) -> str | None:
+    """LLM-free fast path for "how many first-time guests..." — separate
+    from _try_conversion_report because that trigger requires the phrase
+    "conversion report"/"retention report", which a bare "how many"
+    question doesn't contain. Added 2026-09-27 after Bill's Telegram log
+    showed two such questions each wrongly answered with a full list of
+    name/email/phone rows instead of a count (no fast path recognized
+    them, so they fell to the LLM-generated-SQL path, which isn't reliably
+    distinguishing a "how many" count shape from a "who" list shape)."""
+    try:
+        from jobs.analytics.conversion_report import try_first_time_guest_count
+    except Exception:
+        return None
+    return try_first_time_guest_count(question, CONGREGATION_DB_PATH)
+
+
 def _try_pattern_match(question: str) -> str | None:
     """Bill's own cdb_query.py pattern-match layer, reused as a free
     LLM-free fast path for the common attendance phrasings it already
@@ -922,6 +938,14 @@ def answer_data_question(
     if conversion_reply is not None:
         log.info("data_chat: conversion-report hit, asker=%s q=%r", asker_name, question)
         return True, conversion_reply
+
+    # "How many first-time guests..." -- checked next, before the count
+    # question can reach the LLM-generated-SQL path below (see
+    # _try_first_time_guest_count's docstring for the bug this fixes).
+    count_reply = _try_first_time_guest_count(question)
+    if count_reply is not None:
+        log.info("data_chat: first-time-guest-count hit, asker=%s q=%r", asker_name, question)
+        return True, count_reply
 
     # Found 2026-09-02 debugging Donna's "who is in Bill Crook's deacon
     # group?" -- cdb_query._pattern_match()'s 'who is'/'tell me about'

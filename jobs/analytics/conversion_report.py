@@ -56,6 +56,17 @@ _TRIGGER_RE = re.compile(
     r"\b(guest\s+)?(conversion|retention)\s+report\b", re.IGNORECASE
 )
 
+# "How many first-time guests..." was landing on the LLM-generated-SQL
+# fallback (no fast path recognized it) and coming back as a full row list
+# instead of a number -- found live 2026-09-27 in Bill's Telegram log
+# (two separate "how many first time guest(s)" questions both answered with
+# a dozen-plus name/email/phone rows). A "how many" question shape should
+# always get a count, never a list, regardless of domain -- this fast path
+# exists so that holds here even before the LLM gets involved.
+_COUNT_TRIGGER_RE = re.compile(
+    r"how\s+(?:many|much)\b[^?.!]{0,60}\bfirst[- ]?time\b", re.IGNORECASE
+)
+
 
 def _resolve_period(question: str) -> tuple[date, date, str] | None:
     """Best-effort period resolution for the phrasings Bill is likely to
@@ -131,13 +142,13 @@ def _ever_hit_regular(dates: list[str]) -> bool:
     return False
 
 
-def build_report(conn: sqlite3.Connection, start: date, end: date) -> str:
+def _cohort(conn: sqlite3.Connection, start: date, end: date) -> list[sqlite3.Row]:
     # Cohort = members whose EARLIEST attendance row falls in [start, end] --
     # not members.first_visit_date, which is unreliable (see module
     # docstring). A member with no attendance rows at all can't be a
     # first-time-guest cohort member by this definition, so the JOIN
     # (not LEFT JOIN) correctly drops them.
-    cohort = conn.execute(
+    return conn.execute(
         """
         SELECT m.id, m.name, m.partner, MIN(a.service_date) AS first_visit
         FROM members m
@@ -148,6 +159,9 @@ def build_report(conn: sqlite3.Connection, start: date, end: date) -> str:
         (start.isoformat(), end.isoformat()),
     ).fetchall()
 
+
+def build_report(conn: sqlite3.Connection, start: date, end: date) -> str:
+    cohort = _cohort(conn, start, end)
     total = len(cohort)
     if total == 0:
         return f"No first-time guests found with a first visit between {start.isoformat()} and {end.isoformat()}."
@@ -203,3 +217,32 @@ def try_conversion_report(question: str, congregation_db_path: str) -> str | Non
             conn.close()
     except Exception:
         return None
+
+
+def try_first_time_guest_count(question: str, congregation_db_path: str) -> str | None:
+    """Entry point for data_chat.py. Answers a "how many first-time
+    guests..." question with just a number (never a list) — see
+    _COUNT_TRIGGER_RE's comment for why this exists as its own fast path
+    separate from try_conversion_report. Same None-if-not-a-match /
+    None-on-any-error contract as that function."""
+    if not _COUNT_TRIGGER_RE.search(question):
+        return None
+
+    period = _resolve_period(question)
+    if period is None:
+        return (
+            "What time period? (e.g. \"this year\", \"last 3 months\", \"in March\")"
+        )
+    start, end, label = period
+
+    try:
+        conn = _conn(congregation_db_path)
+        try:
+            n = len(_cohort(conn, start, end))
+        finally:
+            conn.close()
+    except Exception:
+        return None
+
+    guest_word = "guest" if n == 1 else "guests"
+    return f"{n} first-time {guest_word} in {label} (first visit {start.isoformat()} to {end.isoformat()})."
