@@ -240,7 +240,7 @@ def search_messages():
     try:
         rows = conn.execute(
             """SELECT m.id AS message_id, m.thread_id, m.body, m.created_at,
-                      t.contact_name, t.phone
+                      t.contact_name, t.phone, t.is_group
                FROM sms_messages m
                JOIN sms_threads t ON t.id = m.thread_id
                WHERE m.body LIKE ? ESCAPE '\\'
@@ -248,19 +248,25 @@ def search_messages():
                LIMIT 50""",
             ("%" + q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%",),
         ).fetchall()
-        return jsonify({
-            "results": [
-                {
-                    "message_id": r["message_id"],
-                    "thread_id": r["thread_id"],
-                    "body": r["body"],
-                    "created_at": r["created_at"],
-                    "contact_name": r["contact_name"],
-                    "phone": r["phone"],
-                }
-                for r in rows
-            ]
-        })
+        results = []
+        for r in rows:
+            # A group thread's phone is the synthetic "group:<id>" key
+            # (jobs/sms/schema.py) -- never show it raw, same guard as
+            # sabbath_digest.py's group-label fix.
+            if r["is_group"]:
+                names = [p["contact_name"] or p["phone"] for p in _participants_for_thread(conn, r["thread_id"])]
+                display = " & ".join(names[:2]) + (f" & {len(names) - 2} others" if len(names) > 2 else "")
+            else:
+                display = r["contact_name"] or r["phone"]
+            results.append({
+                "message_id": r["message_id"],
+                "thread_id": r["thread_id"],
+                "body": r["body"],
+                "created_at": r["created_at"],
+                "contact_name": display,
+                "phone": None if r["is_group"] else r["phone"],
+            })
+        return jsonify({"results": results})
     finally:
         conn.close()
 
