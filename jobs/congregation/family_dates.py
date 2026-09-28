@@ -97,10 +97,12 @@ def _split_couple_names(raw: str) -> list[str]:
     return [first, second]
 
 
-def _apply_date(conn: sqlite3.Connection, member_id: int, column: str, value: str) -> str:
+def _apply_date(conn: sqlite3.Connection, member_id: int, column: str, value: str) -> tuple[str, str]:
     """Set members.<column> only if currently empty -- never overwrite data
-    already on file. Returns 'applied', 'no_change' (already correct), or
-    'conflict' (existing value disagrees -- needs a human)."""
+    already on file. Returns (status, existing_value): status is 'applied',
+    'no_change' (already correct), or 'conflict' (existing value disagrees --
+    needs a human); existing_value is '' except on 'conflict', where callers
+    need it to tell a human what's on file vs what was submitted."""
     row = conn.execute(f"SELECT {column} FROM members WHERE id = ?", (member_id,)).fetchone()
     existing = (row[column] or "").strip() if row else ""
     if not existing:
@@ -108,17 +110,31 @@ def _apply_date(conn: sqlite3.Connection, member_id: int, column: str, value: st
             f"UPDATE members SET {column} = ?, updated_at = datetime('now') WHERE id = ?",
             (value, member_id),
         )
-        return "applied"
-    return "no_change" if existing == value else "conflict"
+        return "applied", ""
+    if existing == value:
+        return "no_change", ""
+    return "conflict", existing
+
+
+def _member_name(conn: sqlite3.Connection, member_id: int) -> str | None:
+    row = conn.execute("SELECT name FROM members WHERE id = ?", (member_id,)).fetchone()
+    return row["name"] if row else None
 
 
 def record_birthdays(
     conn: sqlite3.Connection, card_id: int, submitter_member_id: int | None, entries: list[dict]
-) -> list[dict]:
-    """Returns the entries that landed as 'unmatched' (submitted_name,
-    birth_date), so a caller can notify someone rather than let them sit
-    silently in connect_card_birthdays until someone thinks to query it."""
+) -> tuple[list[dict], list[dict]]:
+    """Returns (unmatched, conflicts).
+
+    unmatched holds entries (submitted_name, birth_date) that never matched
+    a member at all. conflicts holds entries that DID match a member but
+    disagreed with the birthdate already on file -- previously these sat
+    silently in connect_card_birthdays with status='conflict' until someone
+    thought to query it (caught by hand 2026-09-28: Sharon/Jim Hurst).
+    Either way the caller is responsible for notifying someone; this
+    function only stages them."""
     unmatched: list[dict] = []
+    conflicts: list[dict] = []
     for entry in entries:
         name = (entry.get("name") or "").strip()
         birth_date = entry.get("date")
@@ -126,7 +142,15 @@ def record_birthdays(
             continue
         matched_id = _match_name(conn, name, submitter_member_id) if name else None
         if matched_id and birth_date:
-            status = _apply_date(conn, matched_id, "birthdate", birth_date)
+            status, existing = _apply_date(conn, matched_id, "birthdate", birth_date)
+            if status == "conflict":
+                conflicts.append({
+                    "submitted_name": name,
+                    "submitted_date": birth_date,
+                    "matched_member_id": matched_id,
+                    "matched_member_name": _member_name(conn, matched_id),
+                    "existing_date": existing,
+                })
         elif matched_id:
             status = "matched"
         else:
@@ -140,7 +164,7 @@ def record_birthdays(
             """,
             (card_id, name or None, birth_date, matched_id, status),
         )
-    return unmatched
+    return unmatched, conflicts
 
 
 def _spouse_pairing_options(a_gender: str | None, b_gender: str | None) -> list[tuple[str, str]]:
@@ -205,8 +229,8 @@ def _try_mark_spouses(conn: sqlite3.Connection, member_ids: list[int]) -> tuple[
 
 def record_anniversaries(
     conn: sqlite3.Connection, card_id: int, submitter_member_id: int | None, entries: list[dict]
-) -> tuple[list[dict], list[dict]]:
-    """Returns (unmatched, needs_review).
+) -> tuple[list[dict], list[dict], list[dict]]:
+    """Returns (unmatched, needs_review, conflicts).
 
     unmatched mirrors record_birthdays' return (submitted_names,
     anniversary_date) -- nobody on the submission matched a member at all.
@@ -215,11 +239,19 @@ def record_anniversaries(
     Watson won't guess who's husband/wife on its own: each entry carries
     the connect_card_anniversaries row id, both members' id/name, and the
     role-pair options a human could confirm (may be empty -- e.g. a
-    same-gender pair -- in which case only rejecting is offered). The
-    caller (jobs/connect_cards/intake.py) is responsible for actually
-    texting someone about these; this function only stages them."""
+    same-gender pair -- in which case only rejecting is offered).
+
+    conflicts mirrors record_birthdays' conflicts return -- a matched
+    member whose anniversary on file disagrees with what was submitted.
+    Previously sat silently in connect_card_anniversaries with
+    status='conflict' until someone thought to query it.
+
+    The caller (jobs/connect_cards/intake.py) is responsible for actually
+    texting someone about needs_review/conflicts; this function only
+    stages them."""
     unmatched: list[dict] = []
     needs_review: list[dict] = []
+    conflicts: list[dict] = []
     for entry in entries:
         names = (entry.get("name") or "").strip()
         anniv_date = entry.get("date")
@@ -231,12 +263,21 @@ def record_anniversaries(
         spouse_a = spouse_b = None
         if matched_ids and anniv_date:
             results = [_apply_date(conn, mid, "anniversary", anniv_date) for mid in matched_ids]
-            if "conflict" in results:
+            statuses = [r[0] for r in results]
+            if "conflict" in statuses:
                 status = "conflict"
+                conflicts.append({
+                    "submitted_names": names,
+                    "submitted_date": anniv_date,
+                    "conflicting_members": [
+                        {"member_id": mid, "name": _member_name(conn, mid), "existing_date": existing}
+                        for mid, (st, existing) in zip(matched_ids, results) if st == "conflict"
+                    ],
+                })
             elif len(matched_ids) < len(candidates):
                 status = "partial_match"
             else:
-                status = "applied" if "applied" in results else "no_change"
+                status = "applied" if "applied" in statuses else "no_change"
             spouse_reason = None
             if status in ("applied", "no_change") and len(matched_ids) == 2:
                 spouse_reason, spouse_a, spouse_b = _try_mark_spouses(conn, matched_ids)
@@ -263,4 +304,4 @@ def record_anniversaries(
                 "member_names": (spouse_a["name"], spouse_b["name"]),
                 "options": _spouse_pairing_options(spouse_a["gender"], spouse_b["gender"]),
             })
-    return unmatched, needs_review
+    return unmatched, needs_review, conflicts

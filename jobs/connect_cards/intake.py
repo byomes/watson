@@ -540,6 +540,8 @@ def _process_email(
     unmatched_birthdays: list | None = None,
     unmatched_anniversaries: list | None = None,
     spouse_reviews: list | None = None,
+    birthday_conflicts: list | None = None,
+    anniversary_conflicts: list | None = None,
 ) -> bool:
     from_addr = email.utils.parseaddr(msg.get("From", ""))[1].lower()
 
@@ -645,12 +647,17 @@ def _process_email(
             (card_id, conflict_row_id),
         )
 
-    new_unmatched_bdays = record_birthdays(conn, card_id, member_id, fields.get("family_birthdays") or [])
+    new_unmatched_bdays, new_bday_conflicts = record_birthdays(
+        conn, card_id, member_id, fields.get("family_birthdays") or []
+    )
     if unmatched_birthdays is not None:
         for entry in new_unmatched_bdays:
             unmatched_birthdays.append({**entry, "submitted_by": name, "card_id": card_id})
+    if birthday_conflicts is not None:
+        for entry in new_bday_conflicts:
+            birthday_conflicts.append({**entry, "submitted_by": name, "card_id": card_id})
 
-    new_unmatched_annivs, new_spouse_reviews = record_anniversaries(
+    new_unmatched_annivs, new_spouse_reviews, new_anniv_conflicts = record_anniversaries(
         conn, card_id, member_id, fields.get("anniversaries") or []
     )
     if unmatched_anniversaries is not None:
@@ -659,6 +666,9 @@ def _process_email(
     if spouse_reviews is not None:
         for entry in new_spouse_reviews:
             spouse_reviews.append({**entry, "submitted_by": name, "card_id": card_id})
+    if anniversary_conflicts is not None:
+        for entry in new_anniv_conflicts:
+            anniversary_conflicts.append({**entry, "submitted_by": name, "card_id": card_id})
 
     # attendance -- keyed by (member_id, service_date) only (matching
     # attendance_web.py's data model note and attendance_intake.py's same
@@ -807,6 +817,53 @@ def _notify_donna_unmatched_family_dates(
         log.warning("Failed to send unmatched family-dates summary to Donna (not onboarded?).")
 
 
+def _notify_donna_family_date_conflicts(
+    birthday_conflicts: list[dict], anniversary_conflicts: list[dict]
+) -> None:
+    """Texts Donna (Telegram) one summary of this run's birthday/anniversary
+    submissions that matched an existing member but disagreed with the date
+    already on file. These used to sit silently in connect_card_birthdays /
+    connect_card_anniversaries with status='conflict' until someone thought
+    to query it -- caught by hand 2026-09-28 (Sharon/Jim Hurst), added this
+    notification so it can't happen silently again."""
+    lines: list[str] = []
+
+    if birthday_conflicts:
+        n = len(birthday_conflicts)
+        lines.append(f"🎂 {n} birthday submission{'s' if n != 1 else ''} disagree with what's on file:")
+        for e in birthday_conflicts:
+            who = e["matched_member_name"] or e["submitted_name"]
+            lines.append(
+                f"• {who} — submitted {e['submitted_date']}, on file {e['existing_date']} "
+                f"(submitted by {e['submitted_by']})"
+            )
+
+    if anniversary_conflicts:
+        if lines:
+            lines.append("")
+        n = len(anniversary_conflicts)
+        lines.append(f"💍 {n} anniversary submission{'s' if n != 1 else ''} disagree with what's on file:")
+        for e in anniversary_conflicts:
+            for cm in e["conflicting_members"]:
+                lines.append(
+                    f"• {cm['name']} — submitted {e['submitted_date']}, on file {cm['existing_date']} "
+                    f"(submitted by {e['submitted_by']})"
+                )
+
+    lines += ["", "Can you check which is right and update whichever's wrong?"]
+    text = "\n".join(lines)
+
+    if vacation_gate("normal", "jobs.connect_cards.intake.family_date_conflicts", text):
+        return
+    if send_to_person(DONNA_PERSON_ID, text):
+        log.info(
+            "Sent family-date conflict summary to Donna (%d birthday(s), %d anniversary(ies)).",
+            len(birthday_conflicts), len(anniversary_conflicts),
+        )
+    else:
+        log.warning("Failed to send family-date conflict summary to Donna (not onboarded?).")
+
+
 _SPOUSE_REVIEW_REASON_TEXT = {
     "skipped_child": "one of them is on file as a child in their household, so I didn't want to override that on my own",
     "skipped_other": "I couldn't link their households automatically (they may already be in two different populated ones)",
@@ -876,6 +933,8 @@ def run(dry_run: bool = False) -> None:
         unmatched_birthdays: list = []
         unmatched_anniversaries: list = []
         spouse_reviews: list = []
+        birthday_conflicts: list = []
+        anniversary_conflicts: list = []
 
         try:
             # Gmail occasionally spam-filters a legitimate connect-card email
@@ -906,7 +965,8 @@ def run(dry_run: bool = False) -> None:
                     msg = email.message_from_bytes(msg_data[0][1])
                     try:
                         result = _process_email(
-                            msg, dry_run, conn, unmatched_birthdays, unmatched_anniversaries, spouse_reviews
+                            msg, dry_run, conn, unmatched_birthdays, unmatched_anniversaries, spouse_reviews,
+                            birthday_conflicts, anniversary_conflicts,
                         )
                     except Exception as exc:
                         log.exception("Error processing email id %s in %s: %s", eid, mailbox, exc)
@@ -933,6 +993,9 @@ def run(dry_run: bool = False) -> None:
 
         if spouse_reviews and not dry_run:
             _notify_donna_spouse_reviews(spouse_reviews)
+
+        if (birthday_conflicts or anniversary_conflicts) and not dry_run:
+            _notify_donna_family_date_conflicts(birthday_conflicts, anniversary_conflicts)
 
     finally:
         try:
