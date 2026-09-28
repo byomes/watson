@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-09-27*
+*Generated: 2026-09-28*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -127,6 +127,7 @@ data/
   cron_backups/
     crontab_20260905-223718.txt
     crontab_20260920-042001.txt
+    crontab_20260927-042001.txt
   curator.db
   dev/
     historical_activity_backfill.json
@@ -2961,6 +2962,8 @@ data/
   trading.db.bak-pre-sizing-fix-20260911073349
   trading.db.bak-pre-windows3-backfill-20260911110635
   watson.db
+  watson.db-shm
+  watson.db-wal
 deploy/
   .gitkeep
   apt-packages.txt
@@ -2993,6 +2996,10 @@ docs/
 import_connect_cards.py
 import_contacts.py
 incoming/
+  connect_cards/
+    Catalyst Connect Card.csv
+    Online Campus Connect Card.csv
+    Wilmington Campus Connect Card.csv
   lead_magnets/
     Study-Like-A-Pastor-WilliamCKYomes.pdf
 jobs/
@@ -3011,6 +3018,7 @@ jobs/
     attendance_reply.py
     claude_spend_daily_report.py
     connect_card_rollup.py
+    conversion_report.py
     data_chat.py
     fast_path_patcher.py
     fast_path_suggestions.py
@@ -3118,6 +3126,7 @@ jobs/
     __init__.py
     age_groups.py
     attendance_web.py
+    backfill_first_visit_date.py
     banquet_report.py
     batch_intake.py
     birthday_daily_alert.py
@@ -3142,9 +3151,11 @@ jobs/
     fluro_common.py
     fluro_pull.py
     fluro_staging_schema.py
+    import_connect_card_csvs.py
     import_deacon_directory.py
     import_subsplash_contacts.py
     init_db.py
+    leader_broadcast.py
     married_age_check.py
     member_match.py
     migrate_alt_phone.py
