@@ -29,6 +29,7 @@ from flask import Blueprint, jsonify, request, send_file
 
 from core.database import get_connection
 from jobs.analytics.attendance_reply import format_last_attended_reply
+from jobs.congregation.elder_shepherding_report import build_deacon_group_names
 from jobs.sms import gateway_client, push, send_core, settings as sms_settings
 from jobs.sms.bridge import _get_or_create_thread, get_or_create_thread_multi, poll_inbound
 from jobs.sms.carrier_lookup import normalize_phone
@@ -379,6 +380,46 @@ def thread_context(thread_id):
         })
     finally:
         cong.close()
+
+
+@sms_bp.route("/attention", methods=["GET"])
+@_require_key
+def attention_list():
+    """Flattened at-risk/critical members for the gear-menu "At Risk &
+    Critical" panel -- reuses elder_shepherding_report.py's build_deacon_group_names()
+    so the bucket definition (14-27 days = at risk, 28+ = critical) stays a
+    single source of truth rather than a second attendance query drifting
+    out of sync with the deacon report. thread_id is looked up by the same
+    member_id soft cross-reference sms_threads already carries (see
+    thread_context() above), so "Text" can jump straight into an existing
+    thread when one exists instead of always opening a blank compose."""
+    conn = get_connection()
+    try:
+        thread_by_member = {
+            r["member_id"]: r["id"]
+            for r in conn.execute(
+                "SELECT member_id, id FROM sms_threads WHERE member_id IS NOT NULL AND is_group = 0"
+            ).fetchall()
+        }
+    finally:
+        conn.close()
+
+    members = []
+    for group in build_deacon_group_names():
+        for m in group["members"]:
+            if m["bucket"] not in ("at_risk", "critical"):
+                continue
+            members.append({
+                "id": m["id"],
+                "name": m["name"],
+                "phone": m["phone"],
+                "bucket": m["bucket"],
+                "weeks_absent": m["days_since"] // 7,
+                "thread_id": thread_by_member.get(m["id"]),
+            })
+
+    members.sort(key=lambda x: (0 if x["bucket"] == "critical" else 1, -x["weeks_absent"]))
+    return jsonify({"members": members})
 
 
 def _save_media(media_base64: str, media_type: str) -> str:
