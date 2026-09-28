@@ -291,12 +291,16 @@ def try_first_time_guest_list(
     if not cohort:
         return f"No first-time guests in {label} (first visit {start.isoformat()} to {end.isoformat()})."
 
-    lines = [f"First-time guests in {label} ({len(cohort)}):"]
+    # 3 lines per person -- name, phone, email -- per Bill's 2026-09-27
+    # "format lists in telegram" cleanup, replacing the earlier single
+    # comma-joined line per person.
+    lines = [f"First-time guests in {label} ({len(cohort)}):", ""]
     for m in cohort:
+        lines.append(m["name"])
         if allow_contact_info:
-            email = m["email"] or "—"
-            phone = m["phone"] or "—"
-            lines.append(f"{m['name']} - first visit {m['first_visit']}, email: {email}, phone: {phone}")
-        else:
-            lines.append(f"{m['name']} - first visit {m['first_visit']}")
+            lines.append(m["phone"] or "—")
+            lines.append(m["email"] or "—")
+        lines.append("")
+    if lines and lines[-1] == "":
+        lines.pop()
     return "\n".join(lines)

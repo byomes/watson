@@ -844,6 +844,20 @@ def _format_rows(rows: list[dict], domain: str | None = None) -> str:
     # into one such column rather than returning them split out raw.
     if all(len(r) == 1 for r in rows):
         lines = [str(_fmt_value(next(iter(r.values())))) for r in rows[:25]]
+    elif all({"name", "email", "phone"}.issubset(r.keys()) for r in rows):
+        # A list of PEOPLE with contact info — Bill's 2026-09-27 "format
+        # lists in telegram" cleanup: 3 lines per person (name, phone,
+        # email) instead of one cluttered "name: X, email: Y, phone: Z, ..."
+        # line. Matches the format jobs/analytics/conversion_report.py's
+        # fast paths use for the same shape of answer.
+        lines = []
+        for r in rows[:25]:
+            lines.append(str(_fmt_value(r["name"])))
+            lines.append(str(_fmt_value(r["phone"])) if r.get("phone") not in (None, "") else "—")
+            lines.append(str(_fmt_value(r["email"])) if r.get("email") not in (None, "") else "—")
+            lines.append("")
+        if lines and lines[-1] == "":
+            lines.pop()
     else:
         lines = [", ".join(f"{k}: {_fmt_value(v)}" for k, v in r.items()) for r in rows[:25]]
     if len(rows) > 25:
