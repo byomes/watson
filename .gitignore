@@ -93,6 +93,7 @@ data/dev/ollama_monitor_state.json
 data/sms_mock_inbound_queue.json
 data/sms_gateway_last_poll.txt
 data/sms_gateway_alert_state.json
+data/sms_gateway_active_host.json
 incoming/
 
 # Sermon clip renders — large binary media, regenerated from source, not code
