@@ -17,12 +17,15 @@ the plan is a per-deacon version of this sent to each deacon individually
 Buckets (days since last connect card or attendance record; Bill's ruling
 2026-09-15 -- deliberately its own scale now, no longer pinned to
 shepherding_report.py's 3-5/6+ week "at risk"/"critical" cutoffs, since
-missing one Sunday isn't a pastoral concern but missing two is):
-  current   0-13 days ago    (missed 0-1 Sunday)
-  at_risk   14-27 days ago   (missed 2-3 Sundays)
-  critical  28+ days ago
+missing one Sunday isn't a pastoral concern but missing two is;
+`disconnected` split off critical 2026-09-28, Bill's ruling: critical
+stops being open-ended at 8 weeks, 9+ is its own tier):
+  current       0-13 days ago    (missed 0-1 Sunday)
+  at_risk       14-27 days ago   (missed 2-3 Sundays)
+  critical      28-62 days ago   (missed 4-8 Sundays)
+  disconnected  63+ days ago     (missed 9+ Sundays)
             (no visit-count gate as of 2026-09-16 -- every listed member
-            gets one of these three, so the totals always sum to the full
+            gets one of these four, so the totals always sum to the full
             roster; a first-time visitor is unassigned by definition, see
             deacon_reports.py's module docstring, so this mostly matters
             for the Unassigned row)
@@ -96,22 +99,27 @@ _BLANK_DEACON_VALUES = {"none", "--"}
 # missing two starts to matter (At Risk), four+ is Critical. Days are
 # inclusive Sunday-to-Sunday windows (7 days/wk), so "missed 1 wk" covers
 # same-day through just under 2 wks out, etc.
+# 2026-09-28, Bill's ruling: Critical stops being open-ended at 8 weeks --
+# 9+ weeks absent is now its own Disconnected tier (deaconapp Connected row).
 _CURRENT_DAYS_MIN, _CURRENT_DAYS_MAX = 0, 13
 _AT_RISK_DAYS_MIN, _AT_RISK_DAYS_MAX = 14, 27
-_CRITICAL_DAYS_MIN = 28
+_CRITICAL_DAYS_MIN, _CRITICAL_DAYS_MAX = 28, 62
+_DISCONNECTED_DAYS_MIN = 63
 
 
 def _bucket(days_since: int) -> str:
-    """Always returns one of the three buckets -- no more visit-count gate
+    """Always returns one of the four buckets -- no more visit-count gate
     (dropped 2026-09-16, Bill's call: every listed member should land in a
-    visible box so Current+At Risk+Critical always sums to the full
-    roster, rather than a rare old first-timer silently falling through
-    all three)."""
+    visible box so Current+At Risk+Critical+Disconnected always sums to
+    the full roster, rather than a rare old first-timer silently falling
+    through all four)."""
     if _CURRENT_DAYS_MIN <= days_since <= _CURRENT_DAYS_MAX:
         return "current"
     if _AT_RISK_DAYS_MIN <= days_since <= _AT_RISK_DAYS_MAX:
         return "at_risk"
-    return "critical"
+    if _CRITICAL_DAYS_MIN <= days_since <= _CRITICAL_DAYS_MAX:
+        return "critical"
+    return "disconnected"
 
 
 def _raw_rows() -> list:
@@ -172,12 +180,15 @@ def _group_key(raw_deacon: str | None) -> str | None:
 
 
 def build_deacon_group_counts() -> list[dict]:
-    """[{name, total, current, at_risk, critical}, ...] -- one row per real
-    deacon (alphabetical, seeded at zero so every deacon appears even with no
-    risk), plus a trailing Unassigned row."""
+    """[{name, total, current, at_risk, critical, disconnected}, ...] -- one
+    row per real deacon (alphabetical, seeded at zero so every deacon
+    appears even with no risk), plus a trailing Unassigned row."""
     deacons = list_deacons()
-    counts = {d: {"name": d, "total": 0, "current": 0, "at_risk": 0, "critical": 0} for d in deacons}
-    unassigned = {"name": "Unassigned", "total": 0, "current": 0, "at_risk": 0, "critical": 0}
+    counts = {
+        d: {"name": d, "total": 0, "current": 0, "at_risk": 0, "critical": 0, "disconnected": 0}
+        for d in deacons
+    }
+    unassigned = {"name": "Unassigned", "total": 0, "current": 0, "at_risk": 0, "critical": 0, "disconnected": 0}
 
     today = date.today()
     for r in _raw_rows():
@@ -197,6 +208,8 @@ def build_deacon_group_counts() -> list[dict]:
             target["at_risk"] += 1
         elif bucket == "critical":
             target["critical"] += 1
+        elif bucket == "disconnected":
+            target["disconnected"] += 1
 
     rows = [counts[d] for d in deacons]
     rows.append(unassigned)
@@ -211,7 +224,7 @@ def _last_name_key(name: str) -> str:
     return parts[-1].lower() if parts else ""
 
 
-_BUCKET_ORDER = {"critical": 0, "at_risk": 1, "current": 2}
+_BUCKET_ORDER = {"disconnected": 0, "critical": 1, "at_risk": 2, "current": 3}
 
 
 def _member_engagement_tiers(conn) -> dict:
@@ -270,8 +283,8 @@ def build_deacon_group_names() -> list[dict]:
     phone, engagement}, ...]}, ...] -- one row per real deacon (same
     list_deacons() order as build_deacon_group_counts()), plus a trailing
     Unassigned row. Every non-excluded member with attendance history
-    appears exactly once, always under one of the three current/at_risk/
-    critical `bucket` values (see _bucket()) -- no None case since
+    appears exactly once, always under one of the four current/at_risk/
+    critical/disconnected `bucket` values (see _bucket()) -- no None case since
     2026-09-16. `id` and `last_seen` (raw ISO date) power the
     "update last seen" date-picker on wtsn.me/cat/shepherdingreport (see
     elder_shepherding_report_web.py's set_last_seen route); `days_since` is
@@ -329,21 +342,28 @@ def build_report_text() -> str:
     rows = build_deacon_group_counts()
 
     lines = [f"\U0001f4ca Catalyst Shepherding Report: {today}", ""]
-    tot_current = tot_at_risk = tot_critical = 0
+    tot_current = tot_at_risk = tot_critical = tot_disconnected = 0
     for r in rows:
         tot_current += r["current"]
         tot_at_risk += r["at_risk"]
         tot_critical += r["critical"]
+        tot_disconnected += r["disconnected"]
         at_risk_flag = " ⚠️" if r["at_risk"] else ""
         critical_flag = " \U0001f534" if r["critical"] else ""
+        disconnected_flag = " ⚫" if r["disconnected"] else ""
         lines.append(
             f"{r['name']}: {r['total']}, "
-            f"current {r['current']}, at-risk {r['at_risk']}{at_risk_flag}, critical {r['critical']}{critical_flag}"
+            f"current {r['current']}, at-risk {r['at_risk']}{at_risk_flag}, "
+            f"critical {r['critical']}{critical_flag}, disconnected {r['disconnected']}{disconnected_flag}"
         )
 
     lines.append("")
     tot_flag = " \U0001f534" if tot_critical else ""
-    lines.append(f"Totals: current {tot_current} | at-risk {tot_at_risk} | critical {tot_critical}{tot_flag}")
+    tot_disconnected_flag = " ⚫" if tot_disconnected else ""
+    lines.append(
+        f"Totals: current {tot_current} | at-risk {tot_at_risk} | "
+        f"critical {tot_critical}{tot_flag} | disconnected {tot_disconnected}{tot_disconnected_flag}"
+    )
     lines.append("")
     lines.append(f"Names by group: {REPORT_URL}")
     return "\n".join(lines)

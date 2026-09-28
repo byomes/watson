@@ -385,14 +385,18 @@ def thread_context(thread_id):
 @sms_bp.route("/attention", methods=["GET"])
 @_require_key
 def attention_list():
-    """Flattened at-risk/critical members for the gear-menu "At Risk &
-    Critical" panel -- reuses elder_shepherding_report.py's build_deacon_group_names()
-    so the bucket definition (14-27 days = at risk, 28+ = critical) stays a
-    single source of truth rather than a second attendance query drifting
-    out of sync with the deacon report. thread_id is looked up by the same
-    member_id soft cross-reference sms_threads already carries (see
-    thread_context() above), so "Text" can jump straight into an existing
-    thread when one exists instead of always opening a blank compose."""
+    """Flattened at-risk/critical/disconnected members for the gear-menu
+    "At Risk & Critical" panel -- reuses elder_shepherding_report.py's
+    build_deacon_group_names() so the bucket definition (14-27 days = at
+    risk, 28-62 = critical, 63+ = disconnected) stays a single source of
+    truth rather than a second attendance query drifting out of sync with
+    the deacon report. Disconnected is included here (2026-09-28, split
+    off critical's old open-ended 28+ range) so the most-absent people
+    don't silently drop off this outreach list. thread_id is looked up by
+    the same member_id soft cross-reference sms_threads already carries
+    (see thread_context() above), so "Text" can jump straight into an
+    existing thread when one exists instead of always opening a blank
+    compose."""
     conn = get_connection()
     try:
         thread_by_member = {
@@ -407,7 +411,7 @@ def attention_list():
     members = []
     for group in build_deacon_group_names():
         for m in group["members"]:
-            if m["bucket"] not in ("at_risk", "critical"):
+            if m["bucket"] not in ("at_risk", "critical", "disconnected"):
                 continue
             members.append({
                 "id": m["id"],
@@ -418,7 +422,8 @@ def attention_list():
                 "thread_id": thread_by_member.get(m["id"]),
             })
 
-    members.sort(key=lambda x: (0 if x["bucket"] == "critical" else 1, -x["weeks_absent"]))
+    _BUCKET_SORT = {"disconnected": 0, "critical": 1, "at_risk": 2}
+    members.sort(key=lambda x: (_BUCKET_SORT[x["bucket"]], -x["weeks_absent"]))
     return jsonify({"members": members})
 
 
