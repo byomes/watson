@@ -32,7 +32,7 @@ from pathlib import Path
 
 from core.database import get_connection
 from jobs.sms import adb_client, push, settings as sms_settings
-from jobs.sms.bridge import _lookup_member
+from jobs.sms.bridge import get_or_create_thread_multi
 from jobs.sms.carrier_lookup import normalize_phone
 
 log = logging.getLogger(__name__)
@@ -91,51 +91,13 @@ def _mms_participants(device: str, mms_id: str) -> tuple[str | None, list[str]]:
     return sender, participants
 
 
-def _existing_thread_participant_sets(conn) -> dict[int, frozenset]:
-    rows = conn.execute("SELECT thread_id, phone FROM sms_thread_participants").fetchall()
-    by_thread: dict[int, set] = {}
-    for r in rows:
-        by_thread.setdefault(r["thread_id"], set()).add(r["phone"])
-    return {tid: frozenset(phones) for tid, phones in by_thread.items()}
-
-
-def _resolve_or_create_thread(conn, participant_sets: dict[int, frozenset], participants: list[str],
-                               android_thread_id: str | None, hint_name: str | None) -> int:
-    key = frozenset(participants)
-    for thread_id, existing in participant_sets.items():
-        if existing == key:
-            if android_thread_id:
-                conn.execute("UPDATE sms_threads SET android_thread_id = ? WHERE id = ?", (android_thread_id, thread_id))
-            return thread_id
-
-    is_group = len(participants) > 1
-    if is_group:
-        phone = f"group:{android_thread_id or '-'.join(sorted(participants))}"
-        contact_name = None
-        member_id = None
-    else:
-        phone = participants[0]
-        contact_name, member_id = _lookup_member(phone)
-        contact_name = contact_name or hint_name
-
-    cur = conn.execute(
-        "INSERT INTO sms_threads (phone, contact_name, member_id, is_group, android_thread_id) VALUES (?, ?, ?, ?, ?)",
-        (phone, contact_name, member_id, 1 if is_group else 0, android_thread_id),
-    )
-    thread_id = cur.lastrowid
-
-    for p in participants:
-        name, member_id = _lookup_member(p)
-        conn.execute(
-            "INSERT OR IGNORE INTO sms_thread_participants (thread_id, phone, contact_name, member_id) VALUES (?, ?, ?, ?)",
-            (thread_id, p, name, member_id),
-        )
-
-    participant_sets[thread_id] = key
-    return thread_id
-
-
 def _group_title(conn, thread_id: int) -> str:
+    # A Bill-given group_name (jobs/sms/schema.py) always wins once set --
+    # see api.py's PATCH /threads/<id> -- otherwise fall back to a
+    # participant-name list, same as the frontend's displayName().
+    row = conn.execute("SELECT group_name FROM sms_threads WHERE id = ?", (thread_id,)).fetchone()
+    if row and row["group_name"]:
+        return row["group_name"]
     rows = conn.execute(
         "SELECT phone, contact_name FROM sms_thread_participants WHERE thread_id = ? ORDER BY id", (thread_id,)
     ).fetchall()
@@ -167,7 +129,6 @@ def poll_inbound_adb(dry_run: bool = False) -> int:
 
     conn = get_connection()
     try:
-        participant_sets = _existing_thread_participant_sets(conn)
         max_sms_id = cursor["last_sms_id"]
         max_mms_id = cursor["last_mms_id"]
 
@@ -192,7 +153,8 @@ def poll_inbound_adb(dry_run: bool = False) -> int:
                 planned.append({"kind": "sms", "id": row_id, "participants": [phone], "sender": phone, "body": body})
                 continue
 
-            thread_id = _resolve_or_create_thread(conn, participant_sets, [phone], None, row.get("person"))
+            hint_names = {phone: row["person"]} if row.get("person") else None
+            thread_id = get_or_create_thread_multi(conn, [phone], hint_names)
             _insert_message(conn, thread_id, body, gateway_message_id, phone, created_at)
             _notify(conn, thread_id, phone, body)
             ingested += 1
@@ -226,7 +188,7 @@ def poll_inbound_adb(dry_run: bool = False) -> int:
                 })
                 continue
 
-            thread_id = _resolve_or_create_thread(conn, participant_sets, participants, android_thread_id, None)
+            thread_id = get_or_create_thread_multi(conn, participants, None, android_thread_id)
             _insert_message(conn, thread_id, body, gateway_message_id, sender, created_at)
             _notify(conn, thread_id, sender, body)
             ingested += 1

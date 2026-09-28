@@ -30,7 +30,7 @@ from flask import Blueprint, jsonify, request, send_file
 from core.database import get_connection
 from jobs.analytics.attendance_reply import format_last_attended_reply
 from jobs.sms import gateway_client, push, send_core, settings as sms_settings
-from jobs.sms.bridge import _get_or_create_thread, poll_inbound
+from jobs.sms.bridge import _get_or_create_thread, get_or_create_thread_multi, poll_inbound
 from jobs.sms.carrier_lookup import normalize_phone
 
 log = logging.getLogger(__name__)
@@ -83,6 +83,7 @@ def _thread_dict(conn, row) -> dict:
         "highlight_note": row["highlight_note"] if is_highlighted else None,
         "is_group": bool(row["is_group"]),
         "participants": _participants_for_thread(conn, row["id"]),
+        "group_name": row["group_name"],
     }
 
 
@@ -163,6 +164,16 @@ def update_thread(thread_id):
 
         if "draft_text" in data:
             conn.execute("UPDATE sms_threads SET draft_text = ? WHERE id = ?", (data["draft_text"] or None, thread_id))
+
+        if "group_name" in data:
+            # Meaningless for a 1:1 thread -- only a group thread's display
+            # name is ever overridden this way (see displayName() in
+            # SmsApp.tsx and _group_title() in adb_inbound.py, both of
+            # which prefer this over the auto participant-name label).
+            if not thread["is_group"]:
+                return jsonify({"error": "group_name only applies to a group thread"}), 400
+            group_name = (data["group_name"] or "").strip() or None
+            conn.execute("UPDATE sms_threads SET group_name = ? WHERE id = ?", (group_name, thread_id))
 
         if "highlight_note" in data and not data["highlight_note"]:
             conn.execute(
@@ -468,28 +479,56 @@ def send_to_thread(thread_id):
         conn.close()
 
 
+def _resolve_recipients(data: dict) -> tuple[list[str], dict[str, str], tuple[dict, int] | None]:
+    """Accepts either the new `recipients: [{phone, name?}]` shape (a
+    compose-window "group text" with more than one person) or the original
+    single `phone`/`name` fields, so existing callers/tests keep working
+    unchanged. Returns (phones, hint_names, error_response_or_None)."""
+    recipients_raw = data.get("recipients")
+    if recipients_raw:
+        if not isinstance(recipients_raw, list) or not recipients_raw:
+            return [], {}, ({"error": "recipients must be a non-empty list"}, 400)
+        phones: list[str] = []
+        hint_names: dict[str, str] = {}
+        for r in recipients_raw:
+            phone_digits = normalize_phone((r.get("phone") or "").strip())
+            if not phone_digits:
+                return [], {}, ({"error": f"could not parse phone number: {r.get('phone')!r}"}, 400)
+            if phone_digits not in phones:
+                phones.append(phone_digits)
+            name = (r.get("name") or "").strip()
+            if name:
+                hint_names[phone_digits] = name
+        return phones, hint_names, None
+
+    phone_raw = (data.get("phone") or "").strip()
+    if not phone_raw:
+        return [], {}, ({"error": "phone or recipients is required"}, 400)
+    phone_digits = normalize_phone(phone_raw)
+    if not phone_digits:
+        return [], {}, ({"error": "could not parse phone number"}, 400)
+    name = (data.get("name") or "").strip()
+    return [phone_digits], ({phone_digits: name} if name else {}), None
+
+
 @sms_bp.route("/send", methods=["POST"])
 @_require_key
 def send_new():
-    """Starts (or continues, if the number already has a thread) a
-    conversation from just a phone number -- the "new message" compose
-    flow. Reuses bridge.py's own get-or-create + congregation.db name
-    lookup so a new thread here looks identical to one created by an
-    inbound text."""
+    """Starts (or continues, if this exact set of people already has a
+    thread) a conversation -- the "new message" compose flow. A single
+    recipient behaves exactly as before; multiple recipients (`recipients`
+    in the body) start/continue a group thread, matched by participant set
+    the same way an inbound group text is (jobs/sms/bridge.py's
+    get_or_create_thread_multi) so it merges correctly either way."""
     data = request.get_json(force=True) or {}
-    phone_raw = (data.get("phone") or "").strip()
-    name = (data.get("name") or "").strip() or None
+    phones, hint_names, error = _resolve_recipients(data)
+    if error:
+        return jsonify(error[0]), error[1]
     text = (data.get("text") or "").strip()
     media_base64 = data.get("media_base64")
     media_type = data.get("media_type")
-    if not phone_raw:
-        return jsonify({"error": "phone is required"}), 400
     if not text and not media_base64:
         return jsonify({"error": "text or media_base64 is required"}), 400
-
-    phone_digits = normalize_phone(phone_raw)
-    if not phone_digits:
-        return jsonify({"error": "could not parse phone number"}), 400
 
     media_url = None
     if media_base64:
@@ -500,7 +539,7 @@ def send_new():
 
     conn = get_connection()
     try:
-        thread_id = _get_or_create_thread(conn, phone_digits, name)
+        thread_id = get_or_create_thread_multi(conn, phones, hint_names)
 
         error_body, error_status, message_id = _send_and_record(conn, thread_id, text, media_url, media_type)
         if error_body:
@@ -516,22 +555,18 @@ def send_new():
 @sms_bp.route("/schedule", methods=["POST"])
 @_require_key
 def schedule_new():
-    """Same phone-first get-or-create as send_new above, but for the
-    compose window's date/time picker -- schedules the first message to a
-    (possibly brand-new) contact instead of sending it immediately."""
+    """Same recipient resolution as send_new above, but for the compose
+    window's date/time picker -- schedules the first message to a
+    (possibly brand-new) contact or group instead of sending it
+    immediately."""
     data = request.get_json(force=True) or {}
-    phone_raw = (data.get("phone") or "").strip()
-    name = (data.get("name") or "").strip() or None
+    phones, hint_names, error = _resolve_recipients(data)
+    if error:
+        return jsonify(error[0]), error[1]
     text = (data.get("text") or "").strip()
     send_at = (data.get("send_at") or "").strip()
-    if not phone_raw:
-        return jsonify({"error": "phone is required"}), 400
     if not text:
         return jsonify({"error": "text is required"}), 400
-
-    phone_digits = normalize_phone(phone_raw)
-    if not phone_digits:
-        return jsonify({"error": "could not parse phone number"}), 400
 
     error = _validate_send_at(send_at)
     if error:
@@ -539,7 +574,7 @@ def schedule_new():
 
     conn = get_connection()
     try:
-        thread_id = _get_or_create_thread(conn, phone_digits, name)
+        thread_id = get_or_create_thread_multi(conn, phones, hint_names)
         conn.commit()
 
         cur = conn.execute(

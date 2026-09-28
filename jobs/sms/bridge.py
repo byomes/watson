@@ -67,6 +67,65 @@ def _get_or_create_thread(conn, phone_digits: str, hint_name: str | None):
     return thread_id
 
 
+def existing_thread_participant_sets(conn) -> dict[int, frozenset]:
+    """thread_id -> frozenset(phones) for every thread. Shared by
+    get_or_create_thread_multi below and jobs/sms/adb_inbound.py, which
+    matches inbound group messages against this same map -- so a group
+    thread started from the compose window (outbound) correctly merges
+    with that same group's future inbound replies, and vice versa."""
+    rows = conn.execute("SELECT thread_id, phone FROM sms_thread_participants").fetchall()
+    by_thread: dict[int, set] = {}
+    for r in rows:
+        by_thread.setdefault(r["thread_id"], set()).add(r["phone"])
+    return {tid: frozenset(phones) for tid, phones in by_thread.items()}
+
+
+def get_or_create_thread_multi(conn, phones: list[str], hint_names: dict[str, str] | None = None,
+                                android_thread_id: str | None = None) -> int:
+    """Like _get_or_create_thread, but for any number of participants --
+    the single-phone case is just len(phones) == 1. A thread's identity is
+    its participant SET (matched via existing_thread_participant_sets),
+    not which one number happened to start it, so this is the one path
+    both inbound group ingestion (adb_inbound.py) and the compose window's
+    "start a group text" flow share -- a group created either way merges
+    with the same group's messages arriving the other way."""
+    hint_names = hint_names or {}
+    key = frozenset(phones)
+
+    participant_sets = existing_thread_participant_sets(conn)
+    for thread_id, existing in participant_sets.items():
+        if existing == key:
+            if android_thread_id:
+                conn.execute("UPDATE sms_threads SET android_thread_id = ? WHERE id = ?", (android_thread_id, thread_id))
+            return thread_id
+
+    is_group = len(phones) > 1
+    if is_group:
+        phone = f"group:{android_thread_id or '-'.join(sorted(phones))}"
+        contact_name = None
+        member_id = None
+    else:
+        phone = phones[0]
+        contact_name, member_id = _lookup_member(phone)
+        contact_name = contact_name or hint_names.get(phone)
+
+    cur = conn.execute(
+        "INSERT INTO sms_threads (phone, contact_name, member_id, is_group, android_thread_id) VALUES (?, ?, ?, ?, ?)",
+        (phone, contact_name, member_id, 1 if is_group else 0, android_thread_id),
+    )
+    thread_id = cur.lastrowid
+
+    for p in phones:
+        name, member_id = _lookup_member(p)
+        name = name or hint_names.get(p)
+        conn.execute(
+            "INSERT OR IGNORE INTO sms_thread_participants (thread_id, phone, contact_name, member_id) VALUES (?, ?, ?, ?)",
+            (thread_id, p, name, member_id),
+        )
+
+    return thread_id
+
+
 def poll_inbound() -> int:
     """Drains the gateway's inbound queue into sms_threads/sms_messages.
     Returns the number of messages ingested.

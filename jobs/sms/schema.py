@@ -201,6 +201,12 @@ def _migrate_columns(conn) -> None:
         # toggle unrelated to who holds the default-SMS role).
         conn.execute("ALTER TABLE sms_threads ADD COLUMN android_thread_id TEXT")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_sms_threads_android_thread_id ON sms_threads(android_thread_id)")
+    if "group_name" not in thread_cols:
+        # Bill-given override for a group thread's display name (e.g. "Elder
+        # Board" instead of listing every participant) -- set via PATCH
+        # /threads/<id>, always wins over the auto participant-name label
+        # when non-empty. Meaningless for a 1:1 thread, left NULL there.
+        conn.execute("ALTER TABLE sms_threads ADD COLUMN group_name TEXT")
 
     message_cols = {row[1] for row in conn.execute("PRAGMA table_info(sms_messages)").fetchall()}
     if "media_url" not in message_cols:
