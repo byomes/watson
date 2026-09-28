@@ -68,6 +68,7 @@ _CONNECTED_REGULAR_MIN_VISITS = 6
 _CONNECTED_WINDOW_DAYS = 56  # 8 weeks, inclusive
 _CONNECTED_CURRENT_DAYS_MAX = 13
 _CONNECTED_AT_RISK_DAYS_MAX = 27
+_CONNECTED_CRITICAL_DAYS_MAX = 62  # 2026-09-28: 9+ days_since is 'disconnected' instead
 
 
 def _connected(conn, member_id: int, today: date) -> str:
@@ -79,14 +80,18 @@ def _connected(conn, member_id: int, today: date) -> str:
     attended a service.
 
     regular = 6+ attendances in the trailing rolling 8-calendar-week window
-    ending *today*. at_risk/critical only apply to someone who has reached
-    regular at some point in their history (checked via a sliding window
-    ending on each of their own attendance dates, since that's always where
-    a window's count is maximized) -- gate confirmed with Bill. A former
-    regular who attended within the last 13 days but has since dipped under
-    the 6-in-8wk bar is still shown 'regular' rather than falling into a gap
-    the original spec didn't cover (mirrors elder_shepherding_report.py's
-    _bucket() 0-13-day 'current' cutoff for the same population)."""
+    ending *today*. at_risk/critical/disconnected only apply to someone who
+    has reached regular at some point in their history (checked via a
+    sliding window ending on each of their own attendance dates, since
+    that's always where a window's count is maximized) -- gate confirmed
+    with Bill. A former regular who attended within the last 13 days but
+    has since dipped under the 6-in-8wk bar is still shown 'regular' rather
+    than falling into a gap the original spec didn't cover (mirrors
+    elder_shepherding_report.py's _bucket() 0-13-day 'current' cutoff for
+    the same population). 'disconnected' (2026-09-28, Bill's ruling) splits
+    off critical's old open-ended 28+ day range the same way it did in
+    elder_shepherding_report.py's _bucket() -- critical now tops out at 62
+    days (8 wks), disconnected takes 63+."""
     rows = conn.execute(
         "SELECT DISTINCT service_date FROM attendance WHERE member_id = ? ORDER BY service_date",
         (member_id,),
@@ -113,7 +118,9 @@ def _connected(conn, member_id: int, today: date) -> str:
     if regular_now or (ever_regular and days_since <= _CONNECTED_CURRENT_DAYS_MAX):
         return "regular"
     if ever_regular:
-        return "at risk" if days_since <= _CONNECTED_AT_RISK_DAYS_MAX else "critical"
+        if days_since <= _CONNECTED_AT_RISK_DAYS_MAX:
+            return "at risk"
+        return "critical" if days_since <= _CONNECTED_CRITICAL_DAYS_MAX else "disconnected"
     if visit_count == 1:
         return "1st time"
     if visit_count == 2:
