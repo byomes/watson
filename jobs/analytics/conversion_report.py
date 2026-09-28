@@ -21,23 +21,43 @@ Definitions (confirmed with Bill 2026-09-27, matching the planning session):
     in the report, not the window the threshold is evaluated over.
   - Partner: members.partner = 'partner' (the other observed value is 'np' /
     not-partner -- see live data check 2026-09-27).
-  - Cohort membership: MIN(attendance.service_date) per member within
-    [start, end] of the requested period -- NOT members.first_visit_date.
-    Found live 2026-09-27 (Bill: "watsons stats are wrong hes marking
-    everyone as first visit from when they were imported into the db"):
-    first_visit_date disagrees with the member's actual earliest attendance
-    row for 85 of 208 members who have one set, and for 52 of those (all
-    long-time members/elders, e.g. Jim Bouchat) it's dated months LATER
-    than their real first attendance (2026-06-07, vs. real first-attendance
-    dates back in January 2026) -- some bulk backfill evidently stamped a
-    run date onto members missing the column rather than a real historical
-    date. The assimilation-pathway planning session already flagged this
-    exact failure mode for connect_cards.is_first_visit ("must derive first
-    visit from absence of prior attendance rows, not that flag") -- the
-    same distrust turns out to apply to first_visit_date too, so this
-    module derives "first visit" straight from the attendance table itself,
-    the same source of truth the 2nd-time/regular checks below already use,
-    instead of trusting a separately-stored column that can drift from it.
+  - Cohort membership (REVISED 2026-09-28, see below): a member's first
+    CONNECT CARD (deacon_visible_connect_cards.service_date, earliest one)
+    falls within [start, end] of the requested period, AND that member has
+    no attendance row of any kind (card-driven or a leader's manual
+    check-in) dated before that card. NOT members.first_visit_date (see
+    prior revision note further down) and NOT just "earliest attendance
+    row" either (see below) -- a first-time GUEST is specifically a
+    first-ever CARD with no prior attendance behind it, not just any
+    earliest-dated row in attendance.
+
+    History of this field, in order:
+    (1) Originally used members.first_visit_date. Found live 2026-09-27
+        (Bill: "watsons stats are wrong hes marking everyone as first
+        visit from when they were imported into the db"): that column
+        disagreed with a member's actual earliest attendance row for 85 of
+        208 members who had it set, 52 of them (long-time members/elders,
+        e.g. Jim Bouchat) dated months LATER than their real first
+        attendance -- a bulk backfill artifact, not real history.
+    (2) Switched to MIN(attendance.service_date) -- attendance being the
+        single source of truth the 2nd-time/regular checks below already
+        use. Still wrong: Bill Crook (an elder) turned up as a "first-time
+        guest" because attendance conflates two different things -- a row
+        created from an actual connect-card submission, AND a row a
+        leader added by manually checking someone off as having attended
+        (no card at all, e.g. Donna's paper attendance lists via
+        jobs/connect_cards/attendance_intake.py, or a manual admin
+        correction). A manual check-in has nothing to do with someone
+        being a first-time GUEST -- the concept only makes sense relative
+        to when a card was actually received.
+    (3) Current (this revision): first-time-guest status is anchored on
+        the member's earliest CONNECT CARD, not their earliest attendance
+        row of either kind -- and that card only counts if there is no
+        attendance at all (again, either kind) for that member before the
+        card's date. A card submitted by someone who was already being
+        manually tracked as attending (just never got around to filling
+        out a card before) is explicitly NOT a first-time guest under this
+        rule, even though it's their first card.
 
 This does NOT touch/build any of the still-unbuilt "stuck" / "1st-visit
 lapse" states or the outreach-drafting job from the planning session --
@@ -152,24 +172,48 @@ def _ever_hit_regular(dates: list[str]) -> bool:
     return False
 
 
-def _cohort(conn: sqlite3.Connection, start: date, end: date) -> list[sqlite3.Row]:
-    # Cohort = members whose EARLIEST attendance row falls in [start, end] --
-    # not members.first_visit_date, which is unreliable (see module
-    # docstring). A member with no attendance rows at all can't be a
-    # first-time-guest cohort member by this definition, so the JOIN
-    # (not LEFT JOIN) correctly drops them.
-    return conn.execute(
-        """
-        SELECT m.id, m.name, m.partner, m.email, m.phone,
-               MIN(a.service_date) AS first_visit
-        FROM members m
-        JOIN attendance a ON a.member_id = m.id
-        GROUP BY m.id
-        HAVING first_visit >= ? AND first_visit <= ?
-        ORDER BY first_visit
-        """,
-        (start.isoformat(), end.isoformat()),
+def _cohort(conn: sqlite3.Connection, start: date, end: date) -> list[dict]:
+    """First-time-guest cohort: each member's EARLIEST connect card, kept
+    only when no attendance row (card-driven or a leader's manual
+    check-in) predates it. See module docstring's revision history for why
+    this replaced both members.first_visit_date and a plain
+    earliest-attendance-row check (attendance alone conflates real
+    first-time guests with people a leader manually marked present, e.g.
+    Bill Crook, an elder, who wrongly showed up as a "first-time guest"
+    under the prior revision)."""
+    card_rows = conn.execute(
+        "SELECT member_id, MIN(service_date) AS first_card "
+        "FROM deacon_visible_connect_cards GROUP BY member_id"
     ).fetchall()
+
+    cohort = []
+    for r in card_rows:
+        first_card = r["first_card"]
+        if not first_card or not (start.isoformat() <= first_card <= end.isoformat()):
+            continue
+        prior_attendance = conn.execute(
+            "SELECT 1 FROM attendance WHERE member_id = ? AND service_date < ? LIMIT 1",
+            (r["member_id"], first_card),
+        ).fetchone()
+        if prior_attendance:
+            continue
+        m = conn.execute(
+            "SELECT name, partner, email, phone FROM members WHERE id = ?",
+            (r["member_id"],),
+        ).fetchone()
+        if not m:
+            continue
+        cohort.append({
+            "id": r["member_id"],
+            "name": m["name"],
+            "partner": m["partner"],
+            "email": m["email"],
+            "phone": m["phone"],
+            "first_visit": first_card,
+        })
+
+    cohort.sort(key=lambda c: c["first_visit"])
+    return cohort
 
 
 def build_report(conn: sqlite3.Connection, start: date, end: date) -> str:
