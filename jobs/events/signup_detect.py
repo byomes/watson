@@ -314,6 +314,8 @@ def handle_event_signup_email(
         _notify_creator_on_first_match(conn, matched["id"], matched["event_name"], who)
         conn.commit()
         conn.close()
+        from jobs.events.duplicate_review import scan_for_duplicates
+        scan_for_duplicates(matched["id"])
         log.info(
             "Event signup matched — event=%r registrant=%s tickets=%s",
             matched["event_name"], who, detection.get("num_tickets"),

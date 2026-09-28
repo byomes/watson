@@ -380,4 +380,6 @@ def handle_banquet_rsvp_email(
     _upsert_rsvp(conn, matched["id"], detection, received_at)
     conn.commit()
     conn.close()
+    from jobs.events.duplicate_review import scan_for_duplicates
+    scan_for_duplicates(matched["id"])
     return "read"

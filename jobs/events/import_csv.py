@@ -138,11 +138,16 @@ def import_csv(csv_path: str, event_name: str, start_date: str) -> dict:
 
     conn.commit()
     conn.close()
+
+    from jobs.events.duplicate_review import scan_for_duplicates
+    new_flags = scan_for_duplicates(event_id)
+
     return {
         "event_id": event_id,
         "imported": imported,
         "skipped_dup": skipped_dup,
         "total_tickets": total_tickets,
+        "new_duplicate_flags": new_flags,
     }
 
 
@@ -158,6 +163,7 @@ if __name__ == "__main__":
         f"Event #{result['event_id']} '{args.event_name}': "
         f"{result['imported']} registrations imported "
         f"({result['total_tickets']} tickets), "
-        f"{result['skipped_dup']} duplicate email(s) skipped.",
+        f"{result['skipped_dup']} duplicate email(s) skipped, "
+        f"{result['new_duplicate_flags']} candidate duplicate pair(s) flagged for review.",
         file=sys.stderr,
     )

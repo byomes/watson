@@ -30,6 +30,15 @@ Adds:
     jobs/events/banquet_rsvp.py's module docstring for what they mean and
     why child_count is tracked as its own column instead of folded into
     num_tickets.
+  event_duplicate_flags — added 2026-09-28 after Donna caught repeat
+    signups on the Church Picnic (e.g. Sheryl Graves imported by CSV and
+    then again by email, Letha Palmer's phone landing a second blank-name
+    row). Mirrors congregation.db's duplicate_flags table (see
+    jobs/congregation/duplicate_review.py) but scoped to one event_id at a
+    time -- the same two people legitimately show up in two different
+    events' registrant lists, so candidate pairs are only ever compared
+    within a single event, never across events. See
+    jobs/events/duplicate_review.py for the scanner/merge logic this backs.
 """
 import sqlite3
 
@@ -87,6 +96,21 @@ def create_tables() -> None:
     conn.execute("""
         CREATE INDEX IF NOT EXISTS idx_event_registrations_event_id
         ON event_registrations(event_id)
+    """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS event_duplicate_flags (
+            id                INTEGER PRIMARY KEY AUTOINCREMENT,
+            event_id          INTEGER NOT NULL REFERENCES church_events(id),
+            registration_id_a INTEGER NOT NULL REFERENCES event_registrations(id),
+            registration_id_b INTEGER NOT NULL REFERENCES event_registrations(id),
+            reason            TEXT NOT NULL,
+            status            TEXT NOT NULL DEFAULT 'pending',
+            created_at        TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+    conn.execute("""
+        CREATE INDEX IF NOT EXISTS idx_event_duplicate_flags_event_id
+        ON event_duplicate_flags(event_id)
     """)
     conn.commit()
     conn.close()
