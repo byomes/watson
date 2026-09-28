@@ -68,10 +68,24 @@ This does NOT touch/build any of the still-unbuilt "stuck" / "1st-visit
 lapse" states or the outreach-drafting job from the planning session --
 those remain planning-only. This module only answers the conversion-COUNT
 question Bill asked for.
+
+Days-to-2nd-visit (added 2026-09-28, per Bill's request to see "the
+distance between" a guest's first and second visit): reads
+members.second_visit_date directly, the same human-curated-on-a-computed-
+baseline column as first_visit_date (see jobs/congregation/
+backfill_second_visit_date.py) -- not re-derived from attendance here, for
+the same reason first_visit stopped being computed live in this module.
+Only cohort members who actually have a second_visit_date on file
+contribute a gap; reports both the average and the median (average alone
+can be skewed by a rare very-late return), and the sample size they're
+based on. A negative gap (second_visit_date hand-edited to before
+first_visit_date) is dropped rather than shown as a nonsensical negative
+day count.
 """
 
 import re
 import sqlite3
+import statistics
 from datetime import date, timedelta
 
 _REGULAR_WINDOW_DAYS = 56  # 8 weeks
@@ -183,9 +197,13 @@ def _cohort(conn: sqlite3.Connection, start: date, end: date) -> list[dict]:
     this is no longer computed live here. Donna/Bill maintain this column
     by hand (catalystdb admin board) on top of the baseline
     jobs/congregation/backfill_first_visit_date.py computed from cards +
-    attendance."""
+    attendance. second_visit_date rides along the same way (same
+    baseline-then-human-owned pattern, see backfill_second_visit_date.py)
+    -- used by build_report()'s days-to-2nd-visit stat, not by any of the
+    count/who fast paths below, which only need first_visit."""
     rows = conn.execute(
-        "SELECT id, name, partner, email, phone, first_visit_date AS first_visit "
+        "SELECT id, name, partner, email, phone, first_visit_date AS first_visit, "
+        "second_visit_date AS second_visit "
         "FROM members WHERE first_visit_date >= ? AND first_visit_date <= ? "
         "ORDER BY first_visit_date",
         (start.isoformat(), end.isoformat()),
@@ -202,6 +220,7 @@ def build_report(conn: sqlite3.Connection, start: date, end: date) -> str:
     n_2nd = 0
     n_regular = 0
     n_partner = 0
+    gaps = []  # days between first_visit_date and second_visit_date, per member who has both
     for m in cohort:
         rows = conn.execute(
             "SELECT DISTINCT service_date FROM attendance WHERE member_id = ? ORDER BY service_date",
@@ -214,15 +233,26 @@ def build_report(conn: sqlite3.Connection, start: date, end: date) -> str:
             n_regular += 1
         if (m["partner"] or "").strip().lower() == "partner":
             n_partner += 1
+        if m["second_visit"]:
+            gap = (date.fromisoformat(m["second_visit"]) - date.fromisoformat(m["first_visit"])).days
+            if gap >= 0:  # a hand-edited second_visit_date before first_visit_date isn't a real gap
+                gaps.append(gap)
 
     def pct(n: int) -> str:
         return f"{round(100 * n / total)}%"
+
+    gap_line = ""
+    if gaps:
+        avg_gap = round(sum(gaps) / len(gaps))
+        median_gap = round(statistics.median(gaps))
+        gap_line = f"\nDays to 2nd visit: avg {avg_gap}, median {median_gap} (of {len(gaps)} who came back)"
 
     return (
         f"First-time guests (first visit {start.isoformat()} to {end.isoformat()}): {total}\n"
         f"Became 2nd-time guests: {n_2nd} ({pct(n_2nd)})\n"
         f"Became regulars (6+ attendances in a rolling 8-week window): {n_regular} ({pct(n_regular)})\n"
         f"Became partners: {n_partner} ({pct(n_partner)})"
+        f"{gap_line}"
     )
 
 
