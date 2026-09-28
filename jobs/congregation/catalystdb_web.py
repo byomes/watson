@@ -43,7 +43,7 @@ _API_KEY = lambda: os.getenv("CATALYSTDB_API_KEY", "")
 # truth. active_v2 was renamed to active (the old boolean active column was
 # dropped first) once every read/write site was confirmed switched over.
 _EDITABLE_COLUMNS = {
-    "name", "email", "phone", "campus_preference", "first_visit_date",
+    "name", "email", "phone", "campus_preference", "first_visit_date", "second_visit_date",
     "notes", "address", "household_id", "deacon",
     "birthdate", "household_role", "gender", "started_serving_date", "service_pin_notes",
     "partner", "active", "residency", "anniversary", "unsubscribed",
