@@ -12,7 +12,7 @@ vanishing, and never blocks the rest of the due batch.
 import logging
 
 from core.database import get_connection
-from jobs.sms import gateway_client
+from jobs.sms import send_core
 
 logging.basicConfig(
     level=logging.INFO,
@@ -37,32 +37,19 @@ def main():
                 log.warning("Scheduled message id=%s has no thread (id=%s) -- dropped", row["id"], row["thread_id"])
                 continue
 
-            result = gateway_client.send_message(thread["phone"], row["body"])
-            if not result["success"]:
+            error_body, _status, message_id = send_core.send_and_record(conn, row["thread_id"], row["body"], None, None)
+            if error_body:
                 conn.execute(
                     "UPDATE sms_scheduled_messages SET status = 'failed', error = ? WHERE id = ?",
-                    (result.get("error") or "send failed", row["id"]),
+                    (error_body.get("error") or "send failed", row["id"]),
                 )
                 conn.commit()
-                log.error("Scheduled message id=%s failed to send: %s", row["id"], result.get("error"))
+                log.error("Scheduled message id=%s failed to send: %s", row["id"], error_body.get("error"))
                 continue
 
-            conn.execute(
-                """INSERT INTO sms_messages (thread_id, direction, body, gateway_message_id, status)
-                   VALUES (?, 'out', ?, ?, 'sent')""",
-                (row["thread_id"], row["body"], result.get("gateway_message_id")),
-            )
-            conn.execute(
-                """UPDATE sms_threads
-                   SET last_message_at = datetime('now'),
-                       last_message_preview = ?,
-                       unread = 0
-                   WHERE id = ?""",
-                (row["body"], row["thread_id"]),
-            )
             conn.execute("DELETE FROM sms_scheduled_messages WHERE id = ?", (row["id"],))
             conn.commit()
-            log.info("Sent scheduled message id=%s to thread_id=%s", row["id"], row["thread_id"])
+            log.info("Sent scheduled message id=%s to thread_id=%s (message_id=%s)", row["id"], row["thread_id"], message_id)
     finally:
         conn.close()
 

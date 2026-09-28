@@ -87,6 +87,49 @@ CREATE TABLE IF NOT EXISTS sms_scheduled_messages (
 );
 """
 
+# Singleton row (id=1) for app-wide toggles -- vacation mode and the Friday
+# Sabbath silence, added 2026-09-26. sabbath_silence defaults ON since it's
+# Bill's standing rule; vacation_mode defaults OFF.
+CREATE_SETTINGS = """
+CREATE TABLE IF NOT EXISTS sms_settings (
+    id               INTEGER PRIMARY KEY CHECK (id = 1),
+    vacation_mode    INTEGER NOT NULL DEFAULT 0,
+    sabbath_silence  INTEGER NOT NULL DEFAULT 1,
+    updated_at       TEXT NOT NULL DEFAULT (datetime('now'))
+);
+"""
+
+# Group-text support (added 2026-09-28). One row per participant in a
+# thread -- a 1:1 thread just has one row -- so send/fan-out logic (api.py's
+# _send_and_record) is a single code path instead of an is_group fork. Every
+# thread, old or new, gets backfilled with its one participant row in
+# _migrate_columns below, so this table is never empty for a real thread.
+CREATE_THREAD_PARTICIPANTS = """
+CREATE TABLE IF NOT EXISTS sms_thread_participants (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    thread_id    INTEGER NOT NULL REFERENCES sms_threads(id),
+    phone        TEXT NOT NULL,
+    contact_name TEXT,
+    member_id    INTEGER,
+    created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(thread_id, phone)
+);
+"""
+
+# Only populated when an outbound send fans out to >1 participant (a group
+# thread) -- the 1:1 case keeps using sms_messages.gateway_message_id/status
+# directly, unchanged.
+CREATE_MESSAGE_RECIPIENTS = """
+CREATE TABLE IF NOT EXISTS sms_message_recipients (
+    id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+    message_id         INTEGER NOT NULL REFERENCES sms_messages(id),
+    phone              TEXT NOT NULL,
+    gateway_message_id TEXT,
+    status             TEXT,
+    created_at         TEXT NOT NULL DEFAULT (datetime('now'))
+);
+"""
+
 ALL_TABLES = [
     CREATE_THREADS,
     CREATE_MESSAGES,
@@ -94,6 +137,9 @@ ALL_TABLES = [
     CREATE_HEARTBEAT,
     CREATE_PUSH_SUBSCRIPTIONS,
     CREATE_SCHEDULED_MESSAGES,
+    CREATE_SETTINGS,
+    CREATE_THREAD_PARTICIPANTS,
+    CREATE_MESSAGE_RECIPIENTS,
 ]
 
 # Bill's own wording, drafted during the design conversation (2026-09-25) —
@@ -125,6 +171,36 @@ def _migrate_columns(conn) -> None:
         conn.execute("ALTER TABLE sms_threads ADD COLUMN snoozed_until TEXT")
     if "muted" not in thread_cols:
         conn.execute("ALTER TABLE sms_threads ADD COLUMN muted INTEGER NOT NULL DEFAULT 0")
+    if "draft_text" not in thread_cols:
+        # Watson-prepped draft text: Bill asks Watson to "prep a text" for a
+        # thread, Watson stages it here, the app loads it into the compose
+        # box on next open and clears it -- Bill still has to tap send
+        # himself, same as picking a saved template. Not a guardrail
+        # exception (unlike send-to-self); drafting for any recipient was
+        # always allowed.
+        conn.execute("ALTER TABLE sms_threads ADD COLUMN draft_text TEXT")
+    if "highlight_note" not in thread_cols:
+        # Set by jobs/congregation/birthday_daily_alert.py (and available for
+        # similar same-day nudges) -- pins the thread to the top of the list
+        # with a note, e.g. "Birthday today". Only shown/active while
+        # highlight_date matches today (see api.py's _thread_dict), so it
+        # fades on its own the next day with no cleanup job needed. Never
+        # touches draft_text -- the compose box stays empty for Bill to
+        # write his own message.
+        conn.execute("ALTER TABLE sms_threads ADD COLUMN highlight_note TEXT")
+    if "highlight_date" not in thread_cols:
+        conn.execute("ALTER TABLE sms_threads ADD COLUMN highlight_date TEXT")
+    if "is_group" not in thread_cols:
+        conn.execute("ALTER TABLE sms_threads ADD COLUMN is_group INTEGER NOT NULL DEFAULT 0")
+    if "android_thread_id" not in thread_cols:
+        # Android's own content://mms-sms thread id, for fast re-lookup once
+        # a thread has been seen before. Not UNIQUE -- fast-path hint, not
+        # the source of truth (see jobs/sms/adb_inbound.py, which matches on
+        # the real participant set instead, since Android's own thread
+        # grouping turned out to be gated by a separate "Group messaging"
+        # toggle unrelated to who holds the default-SMS role).
+        conn.execute("ALTER TABLE sms_threads ADD COLUMN android_thread_id TEXT")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_sms_threads_android_thread_id ON sms_threads(android_thread_id)")
 
     message_cols = {row[1] for row in conn.execute("PRAGMA table_info(sms_messages)").fetchall()}
     if "media_url" not in message_cols:
@@ -133,6 +209,26 @@ def _migrate_columns(conn) -> None:
         conn.execute("ALTER TABLE sms_messages ADD COLUMN media_type TEXT")
     if "status" not in message_cols:
         conn.execute("ALTER TABLE sms_messages ADD COLUMN status TEXT")
+    if "sender_phone" not in message_cols:
+        # Which participant sent an inbound group-thread message. NULL for
+        # outbound rows and for legacy inbound rows ingested before this
+        # migration. No sender_name column -- resolved at read time via
+        # sms_thread_participants/congregation.db (api.py) so a later
+        # contact rename doesn't go stale.
+        conn.execute("ALTER TABLE sms_messages ADD COLUMN sender_phone TEXT")
+
+    # One-time backfill: give every pre-existing thread its one participant
+    # row, so _send_and_record (api.py) never needs an "empty participants"
+    # fallback -- one real code path for 1:1 and group sends alike.
+    participants_empty = conn.execute("SELECT COUNT(*) FROM sms_thread_participants").fetchone()[0] == 0
+    if participants_empty:
+        existing_threads = conn.execute("SELECT id, phone, contact_name, member_id FROM sms_threads").fetchall()
+        if existing_threads:
+            conn.executemany(
+                "INSERT OR IGNORE INTO sms_thread_participants (thread_id, phone, contact_name, member_id) "
+                "VALUES (?, ?, ?, ?)",
+                [(t[0], t[1], t[2], t[3]) for t in existing_threads],
+            )
 
 
 def create_tables(conn=None) -> None:
@@ -153,6 +249,8 @@ def create_tables(conn=None) -> None:
                 "INSERT INTO sms_templates (id, label, body) VALUES (?, ?, ?)",
                 _SEED_TEMPLATES,
             )
+
+        conn.execute("INSERT OR IGNORE INTO sms_settings (id) VALUES (1)")
 
         conn.commit()
     finally:

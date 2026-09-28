@@ -13,7 +13,7 @@ import os
 import sqlite3
 
 from core.database import get_connection
-from jobs.sms import gateway_client, push
+from jobs.sms import gateway_client, push, settings as sms_settings
 from jobs.sms.carrier_lookup import normalize_phone
 
 log = logging.getLogger(__name__)
@@ -54,12 +54,34 @@ def _get_or_create_thread(conn, phone_digits: str, hint_name: str | None):
         "INSERT INTO sms_threads (phone, contact_name, member_id) VALUES (?, ?, ?)",
         (phone_digits, contact_name, member_id),
     )
-    return cur.lastrowid
+    thread_id = cur.lastrowid
+    # Every thread -- 1:1 or group -- gets a sms_thread_participants row, so
+    # api.py's _send_and_record can be one code path instead of an is_group
+    # fork. 1:1 threads created here (outbound /send, /schedule,
+    # send-to-self) never go through adb_inbound.py, so this insert is the
+    # only place they'd otherwise be missed.
+    conn.execute(
+        "INSERT OR IGNORE INTO sms_thread_participants (thread_id, phone, contact_name, member_id) VALUES (?, ?, ?, ?)",
+        (thread_id, phone_digits, contact_name, member_id),
+    )
+    return thread_id
 
 
 def poll_inbound() -> int:
     """Drains the gateway's inbound queue into sms_threads/sms_messages.
-    Returns the number of messages ingested."""
+    Returns the number of messages ingested.
+
+    SMS_INBOUND_MODE=adb dispatches to jobs/sms/adb_inbound.py instead,
+    which reads the gateway phone's Telephony content provider directly via
+    adb -- fixes group-text splintering, which capcom6's flat REST /inbox
+    schema (the body below) has no way to represent. Default stays
+    'gateway' (this function's own REST-based body, untouched) as a
+    one-env-var rollback lever if the adb path ever misbehaves in
+    production -- zero code deleted from the old path."""
+    if os.getenv("SMS_INBOUND_MODE", "gateway").strip().lower() == "adb":
+        from jobs.sms.adb_inbound import poll_inbound_adb
+        return poll_inbound_adb()
+
     inbound = gateway_client.fetch_inbound()
     if not inbound:
         return 0
@@ -72,6 +94,17 @@ def poll_inbound() -> int:
             if not phone_digits:
                 log.warning("poll_inbound: skipping message with unparseable phone %r", msg.get("phone"))
                 continue
+
+            gateway_message_id = msg.get("gateway_message_id")
+            if gateway_message_id:
+                existing = conn.execute(
+                    "SELECT 1 FROM sms_messages WHERE gateway_message_id = ?", (gateway_message_id,)
+                ).fetchone()
+                if existing:
+                    # Already ingested -- can happen if the poll window is
+                    # ever rewound (e.g. to backfill a message a prior bug
+                    # dropped) and re-covers an already-handled message.
+                    continue
 
             thread_id = _get_or_create_thread(conn, phone_digits, msg.get("name"))
             text = msg.get("text", "")
@@ -98,14 +131,23 @@ def poll_inbound() -> int:
             # clearing it above brings the thread back to the top of the list.
             if thread_row["muted"]:
                 continue
+            # Vacation mode / Friday Sabbath: message still lands in the
+            # thread normally (unread, in the list) -- only the push
+            # notification and badge bump are suppressed.
+            if sms_settings.should_silence_notifications():
+                continue
             title = thread_row["contact_name"] or thread_row["phone"]
             body = text if len(text) <= 120 else text[:117] + "..."
+            unread_count = conn.execute(
+                "SELECT COUNT(*) FROM sms_threads WHERE unread = 1 AND state = 'open'"
+            ).fetchone()[0]
             try:
                 push.send_push_to_all({
                     "title": title,
                     "body": body,
                     "thread_id": thread_id,
                     "url": f"/sms?thread={thread_id}",
+                    "unread_count": unread_count,
                 })
             except Exception as exc:  # noqa: BLE001 — a push failure must never break ingestion
                 log.warning("poll_inbound: push notify failed for thread_id=%s: %s", thread_id, exc)
