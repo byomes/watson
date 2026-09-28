@@ -2,13 +2,12 @@
 conversion report" / "retention report" questions in team chat
 (jobs/analytics/data_chat.py).
 
-Per Bill's 2026-09-27 request: for a cohort of first-time guests (people
-whose members.first_visit_date falls in some period), report how many (and
-what %) went on to become a 2nd-time guest, a "regular", and a partner, as
-of today -- regardless of how long ago the period was. This mirrors the
-guest-stage definitions from the 2026-09-25 assimilation-pathway planning
-session (see memory/project_assimilation_pathway.md), applied here for the
-first time as an actual computed report rather than a proposal.
+Per Bill's 2026-09-27 request: for a cohort of first-time guests, report how
+many (and what %) went on to become a 2nd-time guest, a "regular", and a
+partner, as of today -- regardless of how long ago the period was. This
+mirrors the guest-stage definitions from the 2026-09-25 assimilation-pathway
+planning session (see memory/project_assimilation_pathway.md), applied here
+for the first time as an actual computed report rather than a proposal.
 
 Definitions (confirmed with Bill 2026-09-27, matching the planning session):
   - "Visit" = a row in attendance (member_id, service_date). Not connect_cards
@@ -22,11 +21,23 @@ Definitions (confirmed with Bill 2026-09-27, matching the planning session):
     in the report, not the window the threshold is evaluated over.
   - Partner: members.partner = 'partner' (the other observed value is 'np' /
     not-partner -- see live data check 2026-09-27).
-  - Cohort membership: members.first_visit_date within [start, end] of the
-    requested period. first_visit_date is set once at member creation and
-    never overwritten once non-empty (see jobs/congregation/member_match.py),
-    so it's a stable "first visit" cohort date -- consistent with the rest
-    of the codebase, not re-derived from attendance here.
+  - Cohort membership: MIN(attendance.service_date) per member within
+    [start, end] of the requested period -- NOT members.first_visit_date.
+    Found live 2026-09-27 (Bill: "watsons stats are wrong hes marking
+    everyone as first visit from when they were imported into the db"):
+    first_visit_date disagrees with the member's actual earliest attendance
+    row for 85 of 208 members who have one set, and for 52 of those (all
+    long-time members/elders, e.g. Jim Bouchat) it's dated months LATER
+    than their real first attendance (2026-06-07, vs. real first-attendance
+    dates back in January 2026) -- some bulk backfill evidently stamped a
+    run date onto members missing the column rather than a real historical
+    date. The assimilation-pathway planning session already flagged this
+    exact failure mode for connect_cards.is_first_visit ("must derive first
+    visit from absence of prior attendance rows, not that flag") -- the
+    same distrust turns out to apply to first_visit_date too, so this
+    module derives "first visit" straight from the attendance table itself,
+    the same source of truth the 2nd-time/regular checks below already use,
+    instead of trusting a separately-stored column that can drift from it.
 
 This does NOT touch/build any of the still-unbuilt "stuck" / "1st-visit
 lapse" states or the outreach-drafting job from the planning session --
@@ -121,9 +132,19 @@ def _ever_hit_regular(dates: list[str]) -> bool:
 
 
 def build_report(conn: sqlite3.Connection, start: date, end: date) -> str:
+    # Cohort = members whose EARLIEST attendance row falls in [start, end] --
+    # not members.first_visit_date, which is unreliable (see module
+    # docstring). A member with no attendance rows at all can't be a
+    # first-time-guest cohort member by this definition, so the JOIN
+    # (not LEFT JOIN) correctly drops them.
     cohort = conn.execute(
-        "SELECT id, name, partner FROM members "
-        "WHERE first_visit_date >= ? AND first_visit_date <= ?",
+        """
+        SELECT m.id, m.name, m.partner, MIN(a.service_date) AS first_visit
+        FROM members m
+        JOIN attendance a ON a.member_id = m.id
+        GROUP BY m.id
+        HAVING first_visit >= ? AND first_visit <= ?
+        """,
         (start.isoformat(), end.isoformat()),
     ).fetchall()
 
