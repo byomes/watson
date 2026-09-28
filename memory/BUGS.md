@@ -1,10 +1,11 @@
 # Watson Bug Tracker
 _Auto-generated nightly from bug_tracker. Source of truth is the database — do not hand-edit this file, changes will be overwritten._
-Last generated: 2026-09-27 02:10
+Last generated: 2026-09-28 02:10
 
-## Open (3)
+## Open (4)
 | ID | Title | Repo | Discovered |
 |---|---|---|---|
+| 200 | wtsn.me/sms message links have no OG preview image | watson-tools | 2026-09-27 19:20:04 |
 | 195 | gemma4:e4b intent classifier produced stuck/orphaned llama-server runners | watson | 2026-09-23 16:13:22 |
 | 194 | Picnic event_registrations row with blank name | watson | 2026-09-23 02:29:23 |
 | 21 | Ollama/gemma3:4b transient severe slowdown under rapid back-to-back requests (10-42s), self-resolving | watson | 2026-07-17 17:36:05 |
@@ -12,6 +13,9 @@ Last generated: 2026-09-27 02:10
 ## Recently Resolved (last 30 days)
 | ID | Title | Repo | Resolved | Commit |
 |---|---|---|---|---|
+| 203 | Auto-applied fast-path patch bolted "exactly one time" onto the wrong block (no visit-count logic) | watson | 2026-09-27 22:02:18 | 6d85015 |
+| 202 | Attendance-count fast path also defaulted to last Sunday for "this year"/"last year" | watson | 2026-09-27 21:36:09 | 0f0190c |
+| 201 | Attendance-count fast path defaulted to last Sunday for any literal date/month name | watson | 2026-09-27 21:19:53 | 31aae92 |
 | 199 | Event registration emails paged Bill on Telegram instead of silent intake | watson | 2026-09-26 15:51:49 | 9bdba34b5d9407f6de20c327e8fedcadbbec3ca4 |
 | 198 | Banquet RSVP questions fell through to paid LLM; RSVP counts included declines | watson | 2026-09-25 20:09:15 | ead92f8 |
 | 197 | Stale Getaway Search links left in dashboard after tool deletion | watson | 2026-09-25 03:01:52 | 0a15872 |

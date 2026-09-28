@@ -1,10 +1,11 @@
 # Watson Project Backlog
 _Auto-generated nightly from project_backlog. Source of truth is the database — do not hand-edit this file, changes will be overwritten._
-Last generated: 2026-09-27 02:10
+Last generated: 2026-09-28 02:10
 
-## Planned (31)
+## Planned (32)
 | ID | Title | Summary | Added |
 |---|---|---|---|
+| 40 | /menu command for all leaders with Catalyst tool quick links | Extend or add a Telegram /menu for onboarded leaders (team_members + deacons), not just Bill, showing quick links to the relevant wtsn.me/cat/* tools. | 2026-09-27 |
 | 39 | Watson SMS | Second Android phone as Watson's 1:1 SMS channel — threaded PWA at wtsn.me/sms, approval-gated sends, guest templates, Device Owner + Headwind MDM lockdown. | 2026-09-25 |
 | 38 | Privacy Guard: multi-step wizard investigation (Whitepages/Radaris/PeopleConnect) — 0/5 activated | _submit_wizard() built (feature/privacy-guard-wizard branch) but none of the 5 target brokers could be safely verified/activated this pass — each blocked for a distinct, now well-documented reason. Also surfaced a real design gap: _submit_wizard assumed every non-final next_button click is a safe client-side transition; two brokers disproved that. | 2026-08-20 |
 | 37 | Privacy Guard: form-broker submissions have no verified completion check | remove.py _submit_form() success = click() did not throw, not a real confirmation signal. Spokeo (the one form broker considered for activation) requires a follow-up email-link click to actually complete the opt-out, which nothing automates or tracks today. | 2026-08-20 |
