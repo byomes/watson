@@ -85,12 +85,18 @@ BEELINK_KB_TRANSCRIPTS_DIR = os.getenv(
 )
 FMSPC_SSH_KEY = os.getenv("FMSPC_SSH_KEY", r"C:\Users\billy\.ssh\fmspc_beelink")
 
-# Immediate KB-sync trigger — hit Beelink's dashboard directly over Tailscale
-# (not the public Funnel: this stays inside the private tailnet, same network
-# path as the scp above, and doesn't depend on the public Funnel being up).
+# Immediate KB-sync trigger — POST through Beelink's Tailscale Funnel, which
+# proxies https://watson.tail0243ff.ts.net (port 443) to 127.0.0.1:5200 on
+# that host. Was originally a direct http://...:5200 call over the tailnet,
+# but the dashboard's 2026-09-16 security fix bound it to loopback only, so
+# nothing listens on the Tailscale interface at 5200 anymore -- a direct call
+# now gets connection-refused (silently, since this trigger is non-fatal and
+# falls through to the nightly jobs/kb/sync_and_index.py backstop). Fixed
+# 2026-09-28. The Funnel is the only remaining path in, same as every other
+# wtsn.me tool.
 # Shares WRITING_ROOM_API_KEY as the X-Watson-Key secret — same reused
 # shared-secret convention as jobs/bodyrec/api.py, not a new credential.
-BEELINK_API_BASE = os.getenv("BEELINK_API_BASE", "http://watson.tail0243ff.ts.net:5200")
+BEELINK_API_BASE = os.getenv("BEELINK_API_BASE", "https://watson.tail0243ff.ts.net")
 WATSON_API_KEY = os.getenv("WRITING_ROOM_API_KEY", "")
 
 # Watson Telegram bot
