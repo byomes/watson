@@ -4547,3 +4547,54 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - fa4085c Add First Visit date-range filter to Catalyst DB
 - 0fe95f0 Add "+ Add Person" to each team on the Sunday serving check-off page
 - a36983e Add Serving Teams section to Catalyst DB member profile
+
+---
+
+## Recent Changes — 2026-09-29
+
+### ~/watson
+- 0d58515 docs: bugs/backlog export 2026-09-29
+- 79e6966 docs: file map 2026-09-29
+- 7bec4e9 Add Appium/UiAutomator2 capability for SMS gateway phone touch automation
+- fd8c14a Add per-member last-8-week attendance endpoint for deaconapp Report tab
+- e0051c2 Add duplicate-registration check to event signups, mirroring the connect-card checker
+- 93b8e86 Notify Donna about connect-card birthday/anniversary conflicts
+- 57462e2 Auto-compute disconnected in catalystdb's Connected ladder
+- 338f021 Split Critical into Critical (4-8 wks) and Disconnected (9+ wks)
+- 26820e6 Add days-to-2nd-visit stat to the guest conversion report
+- 4cb9787 Track second_visit_date separately from first_visit_date
+- a1c9fea Add GET /api/sms/attention for the SMS app's At Risk/Critical panel
+- bebb939 kb: sync 1 transcript(s) to kb/documents (same-day)
+- 014da14 fix: point immediate KB sync trigger at the Funnel, not raw port 5200
+- f90461a Add weekly Telegram prayer-request notifications to Jim Bouchat
+- 4198b10 Fix group replies delivering as individual texts, not a group
+- c25b643 Add group-text compose and rename support
+- 0592fee Fix group-thread raw phone leak in message search results
+- 7f87b97 Fix group texts splintering in Watson SMS
+- 765c716 Add anniversary alert and route minors' birthday SMS to parents
+- 33b6ac4 docs: add FMSPC Watson Twin reference copy + architecture note
+- d737f70 Add home-LAN fallback for SMS gateway when Tailscale drops
+- ca7bb35 Debounce SMS gateway heartbeat alerts
+- a2c4d8b Add "how many people have come to church in the past 8 weeks" fast-path phrase to attendance trend over time
+- 789c4a8 docs: architecture update 2026-09-28
+
+### ~/watson-tools
+- 8e8bac7 Extend attendance popup to Connected/Consistency stat-box name lists
+- 6092d64 Add per-person attendance popup to deaconapp Report tab
+- 20824a2 Add /cat/deaconapp-bill: personal deacon app copy with SMS-webapp text links
+- 22757a1 Add /cat/event-duplicates review board, mirroring /cat/duplicates
+- e5ad80b Cap connect-card birthday/anniversary date pickers at today
+- a9a9329 Make deactivated count a direct link to the deactivated-only view
+- de72c8c Hide Delete Permanently button in catalystdb bulk bar until deactivated
+- aab3bdf Hide deactivated members by default in catalystdb grid, add hard delete
+- 63ba3d1 Match Consistency colors to Connected's ramp
+- 92cd891 Recolor Connected/Consistency ramps, add contact icons, reorder catalystdb Connected filter
+- c35b2c6 Move Disconnected box to the right of Critical
+- b8b9e32 Split Critical into Critical (4-8 wks) and Disconnected (9+ wks)
+- 112d43b Add Second Visit column to catalystdb admin board
+- 266eb9f Add At Risk / Critical panel to SMS app gear menu
+- f6fdffd fix(sms): stack name/phone inputs for extra group recipients
+- bff4650 Wire contact-search autocomplete into group text "add another person" rows
+- 2649a40 Add multi-recipient compose and group-rename UI
+- 8b78928 Add group-text support to SMS app: thread display, sender labels
+- bd58431 Surface today's birthdays at the top of the SMS thread list
