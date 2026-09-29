@@ -30,6 +30,11 @@ accept as an actual attended campus (Hybrid/Inactive describe a preference,
 not a campus someone attended). Tagged with source='shepherding_report_
 followup' so these corrections are distinguishable from card-intake/toggle
 rows if that's ever needed.
+
+get_member_weeks (added 2026-09-28): backs the deaconapp Report tab's
+per-person attendance popup -- a bar-by-bar view of the same last-8-
+distinct-service-date window build_deacon_group_names()'s `engagement`
+field already summarizes as one Consistency badge.
 """
 import os
 from datetime import date
@@ -37,7 +42,10 @@ from functools import wraps
 
 from flask import Blueprint, jsonify, request
 
-from jobs.congregation.elder_shepherding_report import build_deacon_group_names
+from jobs.congregation.elder_shepherding_report import (
+    build_deacon_group_names,
+    build_member_attendance_weeks,
+)
 from jobs.connect_cards.reports import _conn
 from jobs.connect_cards.shepherding_report import _today
 
@@ -62,6 +70,15 @@ def get_state():
         "generated_date": _today(),
         "groups": build_deacon_group_names(),
     }), 200
+
+
+@elder_shepherding_report_web_bp.route("/api/cat/shepherdingreport/weeks/<int:member_id>", methods=["GET"])
+@_require_key
+def get_member_weeks(member_id):
+    weeks = build_member_attendance_weeks(member_id)
+    if weeks is None:
+        return jsonify({"error": "not found"}), 404
+    return jsonify({"member_id": member_id, "weeks": weeks}), 200
 
 
 @elder_shepherding_report_web_bp.route("/api/cat/shepherdingreport/lastseen", methods=["POST"])
