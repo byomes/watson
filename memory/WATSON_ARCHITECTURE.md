@@ -1945,6 +1945,8 @@ VERCEL_API_TOKEN=
 | Sermon audio (FMSPC) | `E:\0 - Sermon Audio\incoming` |
 | Dev Loop projects | `~/watson/dev/<slug>/` |
 | Commands launcher | `~/watson/memory/commands.json` |
+| Portable JDK (Appium/UiAutomator2) | `~/jdk` (Temurin 17, no system JDK/sudo used) |
+| Android SDK stub (Appium ANDROID_HOME) | `~/Android/Sdk` (`platform-tools` is a symlink to the pre-existing `~/platform-tools`, not a real SDK) |
 
 ---
 

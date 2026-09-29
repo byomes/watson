@@ -66,3 +66,4 @@ huggingface-hub>=1.5.0,<2.0
 rapidfuzz>=3.14.0
 alpaca-py>=0.33.0
 backtrader>=1.9.78.123
+Appium-Python-Client==6.0.7
