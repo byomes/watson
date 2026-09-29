@@ -17,6 +17,7 @@ import json
 import logging
 import mimetypes
 import os
+import random
 import sqlite3
 import uuid
 
@@ -31,7 +32,7 @@ from flask import Blueprint, jsonify, request, send_file
 from core.database import get_connection
 from jobs.analytics.attendance_reply import format_last_attended_reply
 from jobs.congregation.elder_shepherding_report import build_deacon_group_names
-from jobs.sms import gateway_client, groups as sms_groups, push, send_core, settings as sms_settings
+from jobs.sms import broadcast_pacing, gateway_client, groups as sms_groups, push, send_core, settings as sms_settings
 from jobs.sms.bridge import _get_or_create_thread, get_or_create_thread_multi, poll_inbound
 from jobs.sms.carrier_lookup import normalize_phone
 
@@ -1342,6 +1343,7 @@ def _broadcast_dict(row) -> dict:
         "recipient_count": row["recipient_count"],
         "sent_count": row["sent_count"],
         "failed_count": row["failed_count"],
+        "spread_hours": row["spread_hours"],
         "error": row["error"],
         "created_at": row["created_at"],
         "started_at": row["started_at"],
@@ -1420,14 +1422,31 @@ def create_broadcast():
         if not recipients:
             return jsonify({"error": "resolved group has no recipients (no phone on file, or all filtered out)"}), 400
 
+        spread_hours = data.get("spread_hours")
+        try:
+            spread_hours = float(spread_hours) if spread_hours else None
+        except (TypeError, ValueError):
+            spread_hours = None
+
         cur = conn.execute(
-            "INSERT INTO sms_broadcasts (group_id, group_name, body, send_at, recipient_count) VALUES (?, ?, ?, ?, ?)",
-            (group_id, group_name, body, send_at, len(recipients)),
+            "INSERT INTO sms_broadcasts (group_id, group_name, body, send_at, recipient_count, spread_hours) VALUES (?, ?, ?, ?, ?, ?)",
+            (group_id, group_name, body, send_at, len(recipients), spread_hours),
         )
         broadcast_id = cur.lastrowid
+
+        # Shuffle send order and give each recipient their own randomized
+        # send time (jobs/sms/broadcast_pacing.py) -- a single device
+        # texting many numbers the instant a broadcast is due, in list
+        # order, is exactly the burst pattern carrier anti-spam filters
+        # flag; this makes it look like Bill individually texting people
+        # one at a time instead.
+        shuffled = list(recipients)
+        random.shuffle(shuffled)
+        staggered_times = broadcast_pacing.stagger_send_times(send_at, len(shuffled), spread_hours=spread_hours)
+
         conn.executemany(
-            "INSERT INTO sms_broadcast_recipients (broadcast_id, member_id, phone, contact_name) VALUES (?, ?, ?, ?)",
-            [(broadcast_id, r["member_id"], r["phone"], r["contact_name"]) for r in recipients],
+            "INSERT INTO sms_broadcast_recipients (broadcast_id, member_id, phone, contact_name, send_at) VALUES (?, ?, ?, ?, ?)",
+            [(broadcast_id, r["member_id"], r["phone"], r["contact_name"], t) for r, t in zip(shuffled, staggered_times)],
         )
         conn.commit()
 

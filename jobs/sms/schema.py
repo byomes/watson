@@ -185,6 +185,7 @@ CREATE TABLE IF NOT EXISTS sms_broadcasts (
     recipient_count INTEGER NOT NULL DEFAULT 0,
     sent_count      INTEGER NOT NULL DEFAULT 0,
     failed_count    INTEGER NOT NULL DEFAULT 0,
+    spread_hours    REAL,
     error           TEXT,
     created_at      TEXT NOT NULL DEFAULT (datetime('now')),
     started_at      TEXT,
@@ -192,6 +193,18 @@ CREATE TABLE IF NOT EXISTS sms_broadcasts (
 );
 """
 
+# send_at (added 2026-09-29) is each recipient's OWN randomized send time,
+# not the broadcast's -- computed once at confirm time by
+# jobs/sms/broadcast_pacing.py and spread across a window so a broadcast to
+# many people trickles out like someone individually texting each of them,
+# instead of firing all at once, which is exactly the burst pattern carrier
+# anti-spam filters flag a single device for. claimed_at guards against a
+# recipient being sent twice if two broadcast_sender.py ticks ever overlap
+# (a real possibility now that a tick can take longer than before, thanks
+# to the small real-time pacing sleep it also does) -- a plain SELECT-then-
+# UPDATE-status race isn't enough on its own, so the send loop claims a row
+# via `UPDATE ... WHERE claimed_at IS NULL` and checks the row was actually
+# affected before sending.
 CREATE_BROADCAST_RECIPIENTS = """
 CREATE TABLE IF NOT EXISTS sms_broadcast_recipients (
     id                 INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -203,6 +216,8 @@ CREATE TABLE IF NOT EXISTS sms_broadcast_recipients (
     status             TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'sent', 'failed')),
     gateway_message_id TEXT,
     error              TEXT,
+    send_at            TEXT,
+    claimed_at         TEXT,
     sent_at            TEXT
 );
 """
@@ -292,6 +307,16 @@ def _migrate_columns(conn) -> None:
     group_cols = {row[1] for row in conn.execute("PRAGMA table_info(sms_groups)").fetchall()}
     if "manual_only" not in group_cols:
         conn.execute("ALTER TABLE sms_groups ADD COLUMN manual_only INTEGER NOT NULL DEFAULT 0")
+
+    broadcast_cols = {row[1] for row in conn.execute("PRAGMA table_info(sms_broadcasts)").fetchall()}
+    if "spread_hours" not in broadcast_cols:
+        conn.execute("ALTER TABLE sms_broadcasts ADD COLUMN spread_hours REAL")
+
+    broadcast_recipient_cols = {row[1] for row in conn.execute("PRAGMA table_info(sms_broadcast_recipients)").fetchall()}
+    if "send_at" not in broadcast_recipient_cols:
+        conn.execute("ALTER TABLE sms_broadcast_recipients ADD COLUMN send_at TEXT")
+    if "claimed_at" not in broadcast_recipient_cols:
+        conn.execute("ALTER TABLE sms_broadcast_recipients ADD COLUMN claimed_at TEXT")
 
     message_cols = {row[1] for row in conn.execute("PRAGMA table_info(sms_messages)").fetchall()}
     if "media_url" not in message_cols:
