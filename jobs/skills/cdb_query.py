@@ -376,6 +376,49 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
             f"ORDER BY m.name"
         )
 
+    # MONTHLY ATTENDANCE BREAKDOWN FOR A YEAR ("how many people attended each
+    # month in 2026", "monthly attendance this year", "attendance by month
+    # last year"). Found 2026-09-29 falling through to the paid LLM path: the
+    # explicit "2026" set _date_guessed above, so the COUNT block correctly
+    # bailed rather than answer for last Sunday -- but nothing here could
+    # answer the per-month shape at all. One row per calendar month with the
+    # same two numbers COMBINED + CUMULATIVE ATTENDANCE below reports
+    # (combined check-ins and unique people), for the same reason: a month
+    # spans several Sundays, so both are real answers. Year must be named
+    # (4-digit, "this year", or "last year") -- a bare "monthly attendance"
+    # with no year stays unanswered here and falls through, rather than
+    # guessing a range. Excludes "who"/"list" and missed-style wording so
+    # those questions keep their existing routing. Checked before TREND so
+    # "monthly attendance trend for 2026" gets months, not the 8-week view.
+    _per_month_m = re.search(r"\b(?:each|every|per|by)\s+month\b|\bmonthly\b|\bmonth[- ](?:by|over)[- ]month\b", q)
+    if (
+        _per_month_m and 'who' not in q and 'list' not in q
+        and not any(w in q for w in ['miss', "didn't", 'did not', 'absent'])
+        and ('attendance' in q or _COUNT_ATTENDED_RE.search(q))
+    ):
+        _pm_year_m = re.search(r"\b(20\d{2})\b", q)
+        if _pm_year_m:
+            _pm_year = int(_pm_year_m.group(1))
+        elif _THIS_YEAR_RE.search(q):
+            _pm_year = today.year
+        elif _BARE_LAST_YEAR_RE.search(q):
+            _pm_year = today.year - 1
+        else:
+            _pm_year = None
+        if _pm_year:
+            _pm_campus_filter = f"a.campus = '{campus}' AND " if campus else ""
+            _pm_month_name = " ".join(
+                f"WHEN '{m:02d}' THEN '{calendar.month_name[m]}'" for m in range(1, 13)
+            )
+            return (
+                f"SELECT CASE substr(a.service_date, 6, 2) {_pm_month_name} END || ' ' || substr(a.service_date, 1, 4) as month, "
+                f"COUNT(DISTINCT a.service_date) as services, "
+                f"COUNT(a.member_id) as combined_checkins, COUNT(DISTINCT a.member_id) as unique_people "
+                f"FROM attendance a WHERE {_pm_campus_filter}a.service_date >= '{_pm_year}-01-01' "
+                f"AND a.service_date <= '{_pm_year}-12-31' "
+                f"GROUP BY substr(a.service_date, 1, 7) ORDER BY substr(a.service_date, 1, 7)"
+            )
+
     # ATTENDANCE TREND
     if any(w in q for w in ['how many people have come to church in the past 8 weeks', 'past 8 weeks', 'how many people have been to church in the last six weeks', 'last six weeks', 'trend', 'trending', 'attendance over', 'attendance by week', 'weekly attendance', 'how has attendance', 'campus breakdown', 'attendance history', 'attendance pattern']):
         w8 = weeks[7] if len(weeks) > 7 else weeks[-1]
