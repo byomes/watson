@@ -29,10 +29,23 @@ _FIELD_SPLIT_RE = re.compile(r", (?=[A-Za-z_][A-Za-z0-9_]*=)")
 
 def connect_device() -> str | None:
     """Tries each candidate host in turn (Tailscale first, LAN fallback),
-    same order/behavior as sabbath_digest.py's _connect_device()."""
+    same order/behavior as sabbath_digest.py's _connect_device().
+
+    `adb connect` can itself hang past its timeout when the target host is
+    up on the network (responds to ping) but nothing is listening on 5555
+    -- discovered 2026-09-29 when this raised subprocess.TimeoutExpired
+    uncaught, crashing every caller (heartbeat.py's 5-minute cron included,
+    silently, for hours -- its debounced Telegram alert never got a chance
+    to fire since the crash happened before reaching that logic). Both
+    subprocess calls are now guarded so an unreachable/slow candidate is
+    treated as a failed candidate, not an unhandled exception."""
     for device in _DEVICE_CANDIDATES:
-        subprocess.run([ADB, "connect", device], capture_output=True, text=True, timeout=15)
-        check = subprocess.run([ADB, "devices"], capture_output=True, text=True, timeout=10)
+        try:
+            subprocess.run([ADB, "connect", device], capture_output=True, text=True, timeout=15)
+            check = subprocess.run([ADB, "devices"], capture_output=True, text=True, timeout=10)
+        except subprocess.TimeoutExpired:
+            log.warning("adb_client.connect_device: %s timed out, trying next candidate", device)
+            continue
         if device in check.stdout and "device" in check.stdout.split(device, 1)[1].split("\n", 1)[0]:
             return device
     return None

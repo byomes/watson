@@ -77,9 +77,16 @@ def _thread_name_lookup() -> dict[str, str]:
 
 
 def _connect_device() -> str | None:
+    """`adb connect` can hang past its own timeout when the target host is
+    up but nothing is listening on 5555 -- see jobs/sms/adb_client.py's
+    connect_device() docstring for the uncaught-crash bug this duplicated
+    (found 2026-09-29). Guarded the same way here."""
     for device in _DEVICE_CANDIDATES:
-        subprocess.run([ADB, "connect", device], capture_output=True, text=True, timeout=15)
-        check = subprocess.run([ADB, "devices"], capture_output=True, text=True, timeout=10)
+        try:
+            subprocess.run([ADB, "connect", device], capture_output=True, text=True, timeout=15)
+            check = subprocess.run([ADB, "devices"], capture_output=True, text=True, timeout=10)
+        except subprocess.TimeoutExpired:
+            continue
         if device in check.stdout and "device" in check.stdout.split(device, 1)[1].split("\n", 1)[0]:
             return device
     return None
