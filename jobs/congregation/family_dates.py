@@ -39,6 +39,16 @@ from jobs.telegram.donna_notify import send_buttons_to_donna, send_to_donna
 
 FUZZY_THRESHOLD = 0.82
 
+# Lower bar used only for the submitter's own household (_match_name below)
+# -- a small, already-scoped candidate pool (typically 2-6 people) where a
+# near-miss is far more likely a nickname/typo than a different person.
+# Caught 2026-09-29 alongside the match_first_name gap: "Kenneth Silva"
+# submitted against the on-file "Ken Silva" scores 0.818 -- a hair under
+# FUZZY_THRESHOLD despite being obviously the same person. The
+# congregation-wide fallback keeps the stricter FUZZY_THRESHOLD, where a
+# common-name collision is a real risk.
+HOUSEHOLD_FUZZY_THRESHOLD = 0.75
+
 # people.id for Donna Redman (see jobs/congregation/pin_collection.py's own
 # copy of this mapping) -- every family-dates notify below goes to her via
 # Telegram (she prefers it over email, see feedback_donna_prefers_telegram
@@ -51,16 +61,35 @@ DONNA_PERSON_ID = 12
 _COUPLE_SPLIT_RE = re.compile(r"\s*(?:&|/|\band\b)\s*", re.IGNORECASE)
 
 
-def _best_match(name: str, candidates: list[tuple]) -> tuple[int | None, float]:
+def _best_match(
+    name: str, candidates: list[tuple], match_first_name: bool = False, threshold: float = FUZZY_THRESHOLD
+) -> tuple[int | None, float]:
     """candidates: (id, name) rows. Returns (id, ratio) if ratio clears
-    FUZZY_THRESHOLD, else (None, best ratio seen)."""
+    threshold (FUZZY_THRESHOLD by default), else (None, best ratio seen).
+
+    match_first_name additionally scores a single-token submitted name (e.g.
+    "Jesse", typed into a Family Birthdays box that only had one name field)
+    against each candidate's own first name. A plain SequenceMatcher ratio
+    of "jesse" against "Jesse Franco" is ~0.59 -- well under
+    FUZZY_THRESHOLD despite being an exact match -- because the whole
+    surname counts against it. Caught 2026-09-29: every self-entry across a
+    batch of wtsn.me/cat/bday submissions (Jesse/Megan/Gabriel/Tara/Dino/
+    Bettina/...) came back 'unmatched' even though each person was already
+    on file, once the household was traced by hand. Only pass this for the
+    submitter's own household (_match_name below) -- a handful of
+    candidates, so the false-positive risk a bare first name would carry
+    matched congregation-wide isn't present here."""
     name_l = name.lower().strip()
     best_ratio, best_id = 0.0, None
     for mid, mname in candidates:
-        ratio = difflib.SequenceMatcher(None, name_l, (mname or "").lower()).ratio()
+        mname_l = (mname or "").lower()
+        ratio = difflib.SequenceMatcher(None, name_l, mname_l).ratio()
+        if match_first_name and " " not in name_l and mname_l:
+            first_ratio = difflib.SequenceMatcher(None, name_l, mname_l.split(" ", 1)[0]).ratio()
+            ratio = max(ratio, first_ratio)
         if ratio > best_ratio:
             best_ratio, best_id = ratio, mid
-    if best_id is not None and best_ratio >= FUZZY_THRESHOLD:
+    if best_id is not None and best_ratio >= threshold:
         return best_id, best_ratio
     return None, best_ratio
 
@@ -90,7 +119,9 @@ def _match_name(conn: sqlite3.Connection, name: str, submitter_member_id: int | 
             "AND active NOT IN ('disconnected', 'deceased')",
             (household_id,),
         ).fetchall()
-        member_id, _ = _best_match(name, household_rows)
+        member_id, _ = _best_match(
+            name, household_rows, match_first_name=True, threshold=HOUSEHOLD_FUZZY_THRESHOLD
+        )
         if member_id:
             return member_id
     all_rows = conn.execute(
@@ -149,6 +180,38 @@ def _apply_date(conn: sqlite3.Connection, member_id: int, column: str, value: st
 def _member_name(conn: sqlite3.Connection, member_id: int) -> str | None:
     row = conn.execute("SELECT name FROM members WHERE id = ?", (member_id,)).fetchone()
     return row["name"] if row else None
+
+
+def _submitter_spouse_pair(conn: sqlite3.Connection, submitter_member_id: int | None) -> list[int]:
+    """If submitter_member_id is one half of an on-file husband/wife pair
+    (same household_id, both household_role in husband/wife), return
+    [submitter_id, spouse_id]; else []. Used when an anniversary entry
+    comes in with a date but no names typed -- caught 2026-09-29: several
+    /cat/bday submitters left the "Couple's Names" box blank on their own
+    anniversary entry (apparently assuming it was obvious whose it was),
+    which _split_couple_names can't do anything with since there's no text
+    to split. Rather than stage those as a bare unmatched date forever,
+    infer the pair from the submitter's own household when it's already a
+    clean couple on file -- the same complementary-pair case
+    _try_mark_spouses below would auto-apply if the names HAD matched."""
+    if not submitter_member_id:
+        return []
+    row = conn.execute(
+        "SELECT household_id, household_role FROM members WHERE id = ?", (submitter_member_id,)
+    ).fetchone()
+    if not row or not row["household_id"] or row["household_role"] not in ("husband", "wife"):
+        return []
+    pair = conn.execute(
+        "SELECT id FROM members WHERE household_id = ? AND household_role IN ('husband', 'wife') "
+        "AND active NOT IN ('disconnected', 'deceased')",
+        (row["household_id"],),
+    ).fetchall()
+    if len(pair) != 2:
+        return []
+    spouse_ids = [r["id"] for r in pair if r["id"] != submitter_member_id]
+    if len(spouse_ids) != 1:
+        return []
+    return [submitter_member_id, spouse_ids[0]]
 
 
 def record_birthdays(
@@ -300,6 +363,23 @@ def record_anniversaries(
             continue
         candidates = _split_couple_names(names) if names else []
         matched_ids = [mid for mid in (_match_name(conn, n, submitter_member_id) for n in candidates) if mid]
+        stored_names = names
+        if not names and anniv_date:
+            # No couple names typed at all -- just a date. Several
+            # wtsn.me/cat/bday submitters did this on their own anniversary
+            # entry (2026-09-29), presumably assuming it was obvious whose
+            # it was. If the submitter is already one half of a clean
+            # husband/wife pair on file, that IS obvious -- infer it rather
+            # than staging a permanently unmatched bare date. Record what
+            # was inferred (not the literal blank submission) so anyone
+            # reviewing connect_card_anniversaries later can see why.
+            inferred = _submitter_spouse_pair(conn, submitter_member_id)
+            if inferred:
+                matched_ids = inferred
+                candidates = inferred
+                stored_names = " & ".join(
+                    n for n in (_member_name(conn, mid) for mid in inferred) if n
+                ) + " (inferred -- no names submitted)"
         spouse_status = None
         spouse_a = spouse_b = None
         if matched_ids and anniv_date:
@@ -308,7 +388,7 @@ def record_anniversaries(
             if "conflict" in statuses:
                 status = "conflict"
                 conflicts.append({
-                    "submitted_names": names,
+                    "submitted_names": stored_names,
                     "submitted_date": anniv_date,
                     "conflicting_members": [
                         {"member_id": mid, "name": _member_name(conn, mid), "existing_date": existing}
@@ -334,7 +414,7 @@ def record_anniversaries(
               (card_id, submitted_names, anniversary_date, matched_member_ids, status, spouse_link_status)
             VALUES (?, ?, ?, ?, ?, ?)
             """,
-            (card_id, names or None, anniv_date, ",".join(str(i) for i in matched_ids) or None, status, spouse_status),
+            (card_id, stored_names or None, anniv_date, ",".join(str(i) for i in matched_ids) or None, status, spouse_status),
         )
         if spouse_status == "pending_review":
             needs_review.append({

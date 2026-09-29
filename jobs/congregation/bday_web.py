@@ -121,7 +121,20 @@ def submit():
 
     submitted_by_name = (data.get("submittedByName") or "").strip()[:200]
     birthdays = _clean_entries(data.get("birthdays"), "name", "date")
-    anniversaries = _clean_entries(data.get("anniversaries"), "names", "date")
+    # The request body's anniversary entries carry "names" (matching
+    # BdayForm.tsx's AnniversaryEntry.names field), but family_dates.
+    # record_anniversaries -- shared with jobs/connect_cards/intake.py's
+    # email-parsed entries -- reads entry["name"] (singular), same key as
+    # record_birthdays. Passing the raw "names"-keyed dicts through silently
+    # dropped every submitted couple name (entry.get("name") always None) --
+    # caught 2026-09-29 when every anniversary submission through this form
+    # came back with blank submitted_names. Rename the key here rather than
+    # touching the shared record_anniversaries contract intake.py also
+    # relies on.
+    anniversaries = [
+        {"name": e["names"], "date": e["date"]}
+        for e in _clean_entries(data.get("anniversaries"), "names", "date")
+    ]
 
     # Required -- not just a matching nicety, the page's own copy now asks
     # for it directly, so this endpoint enforces it too rather than trusting
@@ -131,8 +144,8 @@ def submit():
     if not birthdays and not anniversaries:
         return jsonify({"error": "At least one birthday or anniversary is required."}), 400
 
-    # family_dates.record_birthdays/record_anniversaries expect {"name"/
-    # "names": str, "date": str} with the date already in YYYY-MM-DD --
+    # family_dates.record_birthdays/record_anniversaries expect
+    # {"name": str, "date": str} with the date already in YYYY-MM-DD --
     # that's exactly what the form's <input type="date"> gives, same shape
     # ConnectCardForm.tsx sends.
     today = date.today().isoformat()
