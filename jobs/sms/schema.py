@@ -130,6 +130,83 @@ CREATE TABLE IF NOT EXISTS sms_message_recipients (
 );
 """
 
+# Broadcast support (added 2026-09-29, project_backlog id=39 follow-on).
+# Bill's own wording goes out verbatim to a Bill-defined group -- Watson
+# only resolves who's in the group and fans the send out on schedule (see
+# feedback_ai_never_originates_relational_language: no template, no
+# merge-field, no rewriting here). Delivery is always individual 1:1 texts
+# (jobs/sms/broadcast_sender.py), never a single group-MMS thread, so no
+# recipient sees anyone else's number or replies.
+#
+# A group is "anything Bill defines": filter_json is a dict of dimension ->
+# list of values (deacons/teams/roles/campuses), OR'd within and across
+# dimensions, ANDed with active_only if set; sms_group_members layers
+# explicit manual include/exclude rows on top (jobs/sms/groups.py resolves
+# both together). An empty filter with active_only=1 is "Everyone".
+CREATE_GROUPS = """
+CREATE TABLE IF NOT EXISTS sms_groups (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    name         TEXT NOT NULL,
+    filter_json  TEXT NOT NULL DEFAULT '{}',
+    active_only  INTEGER NOT NULL DEFAULT 1,
+    manual_only  INTEGER NOT NULL DEFAULT 0,
+    created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
+);
+"""
+
+CREATE_GROUP_MEMBERS = """
+CREATE TABLE IF NOT EXISTS sms_group_members (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    group_id     INTEGER NOT NULL REFERENCES sms_groups(id),
+    member_id    INTEGER,
+    phone        TEXT NOT NULL,
+    contact_name TEXT,
+    mode         TEXT NOT NULL CHECK (mode IN ('include', 'exclude')),
+    created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(group_id, phone)
+);
+"""
+
+# recipient_count/sent_count/failed_count are snapshotted/updated as the
+# broadcast runs so the app can show progress without re-resolving the
+# group (which may have since changed) -- see the "preview then confirm"
+# design: sms_broadcast_recipients below is the frozen recipient list as of
+# confirm time, not a live re-query of the group at send time.
+CREATE_BROADCASTS = """
+CREATE TABLE IF NOT EXISTS sms_broadcasts (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    group_id        INTEGER REFERENCES sms_groups(id),
+    group_name      TEXT,
+    body            TEXT NOT NULL,
+    send_at         TEXT NOT NULL,
+    status          TEXT NOT NULL DEFAULT 'scheduled'
+                        CHECK (status IN ('scheduled', 'sending', 'sent', 'failed', 'canceled')),
+    recipient_count INTEGER NOT NULL DEFAULT 0,
+    sent_count      INTEGER NOT NULL DEFAULT 0,
+    failed_count    INTEGER NOT NULL DEFAULT 0,
+    error           TEXT,
+    created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+    started_at      TEXT,
+    completed_at    TEXT
+);
+"""
+
+CREATE_BROADCAST_RECIPIENTS = """
+CREATE TABLE IF NOT EXISTS sms_broadcast_recipients (
+    id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+    broadcast_id       INTEGER NOT NULL REFERENCES sms_broadcasts(id),
+    member_id          INTEGER,
+    phone              TEXT NOT NULL,
+    contact_name       TEXT,
+    thread_id          INTEGER,
+    status             TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'sent', 'failed')),
+    gateway_message_id TEXT,
+    error              TEXT,
+    sent_at            TEXT
+);
+"""
+
 ALL_TABLES = [
     CREATE_THREADS,
     CREATE_MESSAGES,
@@ -140,6 +217,10 @@ ALL_TABLES = [
     CREATE_SETTINGS,
     CREATE_THREAD_PARTICIPANTS,
     CREATE_MESSAGE_RECIPIENTS,
+    CREATE_GROUPS,
+    CREATE_GROUP_MEMBERS,
+    CREATE_BROADCASTS,
+    CREATE_BROADCAST_RECIPIENTS,
 ]
 
 # Bill's own wording, drafted during the design conversation (2026-09-25) —
@@ -207,6 +288,10 @@ def _migrate_columns(conn) -> None:
         # /threads/<id>, always wins over the auto participant-name label
         # when non-empty. Meaningless for a 1:1 thread, left NULL there.
         conn.execute("ALTER TABLE sms_threads ADD COLUMN group_name TEXT")
+
+    group_cols = {row[1] for row in conn.execute("PRAGMA table_info(sms_groups)").fetchall()}
+    if "manual_only" not in group_cols:
+        conn.execute("ALTER TABLE sms_groups ADD COLUMN manual_only INTEGER NOT NULL DEFAULT 0")
 
     message_cols = {row[1] for row in conn.execute("PRAGMA table_info(sms_messages)").fetchall()}
     if "media_url" not in message_cols:

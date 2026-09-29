@@ -13,6 +13,7 @@ the watson-tools Next.js app (wtsn.me/sms), never directly by a browser —
 the human-facing PIN gate lives in watson-tools itself, not here.
 """
 import base64
+import json
 import logging
 import mimetypes
 import os
@@ -30,7 +31,7 @@ from flask import Blueprint, jsonify, request, send_file
 from core.database import get_connection
 from jobs.analytics.attendance_reply import format_last_attended_reply
 from jobs.congregation.elder_shepherding_report import build_deacon_group_names
-from jobs.sms import gateway_client, push, send_core, settings as sms_settings
+from jobs.sms import gateway_client, groups as sms_groups, push, send_core, settings as sms_settings
 from jobs.sms.bridge import _get_or_create_thread, get_or_create_thread_multi, poll_inbound
 from jobs.sms.carrier_lookup import normalize_phone
 
@@ -1103,6 +1104,353 @@ def push_unsubscribe():
     conn = get_connection()
     try:
         conn.execute("DELETE FROM sms_push_subscriptions WHERE endpoint = ?", (endpoint,))
+        conn.commit()
+        return jsonify({"ok": True})
+    finally:
+        conn.close()
+
+
+# --- Groups + Broadcasts ----------------------------------------------
+#
+# A broadcast is Bill's own exact wording (see feedback_ai_never_originates
+# _relational_language) sent as individual 1:1 texts (jobs/sms/
+# broadcast_sender.py) to a Bill-defined group ("anything Bill defines" --
+# a filter over deacon/team/role/campus, a hand-picked list of people, or
+# both). Watson resolves membership and fans the send out on schedule;
+# Bill authors the message and defines who's in the group. See
+# jobs/sms/groups.py and jobs/sms/schema.py's broadcast tables docstring.
+
+def _resolve_adhoc(filter_json: dict, active_only: bool, manual: list, manual_only: bool = False) -> list[dict]:
+    """Shared by /groups/preview and POST /broadcasts (when the caller
+    passes a filter/manual list directly instead of a saved group_id).
+
+    manual_only=True skips the filter dimensions entirely and starts from
+    an empty base -- without this, "Just these people" has no way to mean
+    just those people: an empty filter_json isn't "match nobody", it's
+    "no restriction on this dimension" (i.e. resolves to everyone), so
+    manual entries would land on top of the full congregation instead of
+    replacing it. Confirmed live 2026-09-29 before this flag existed: an
+    ad-hoc broadcast meant for one recipient resolved 156 -- caught and
+    canceled before send_at, never delivered."""
+    recipients = [] if manual_only else sms_groups.resolve_filter(filter_json, active_only)
+    by_phone = {r["phone"]: r for r in recipients}
+    for m in manual:
+        phone = normalize_phone((m.get("phone") or "").strip())
+        if not phone:
+            continue
+        if m.get("mode") == "exclude":
+            by_phone.pop(phone, None)
+        else:
+            by_phone.setdefault(
+                phone, {"member_id": m.get("member_id"), "phone": phone, "contact_name": m.get("name")}
+            )
+    return list(by_phone.values())
+
+
+def _group_dict(conn, row) -> dict:
+    _, recipients = sms_groups.resolve_group(conn, row["id"])
+    return {
+        "id": row["id"],
+        "name": row["name"],
+        "filter": json.loads(row["filter_json"] or "{}"),
+        "active_only": bool(row["active_only"]),
+        "manual_only": bool(row["manual_only"]),
+        "recipient_count": len(recipients),
+        "created_at": row["created_at"],
+        "updated_at": row["updated_at"],
+    }
+
+
+@sms_bp.route("/groups/options", methods=["GET"])
+@_require_key
+def group_options():
+    """Distinct deacon/team/role/campus values, for the group-builder UI's
+    pickers."""
+    return jsonify(sms_groups.group_options())
+
+
+@sms_bp.route("/groups/preview", methods=["POST"])
+@_require_key
+def group_preview():
+    """Resolves an ad-hoc (not-yet-saved) filter + manual overrides, for
+    the compose flow's live recipient count/list before Bill saves a group
+    or schedules a broadcast."""
+    data = request.get_json(force=True) or {}
+    resolved = _resolve_adhoc(
+        data.get("filter") or {}, bool(data.get("active_only", True)), data.get("manual") or [],
+        manual_only=bool(data.get("manual_only")),
+    )
+    resolved.sort(key=lambda r: (r["contact_name"] or "").lower())
+    return jsonify({"recipient_count": len(resolved), "recipients": resolved[:200]})
+
+
+@sms_bp.route("/groups", methods=["GET"])
+@_require_key
+def list_groups():
+    conn = get_connection()
+    try:
+        rows = conn.execute("SELECT * FROM sms_groups ORDER BY name").fetchall()
+        return jsonify({"groups": [_group_dict(conn, r) for r in rows]})
+    finally:
+        conn.close()
+
+
+@sms_bp.route("/groups", methods=["POST"])
+@_require_key
+def create_group():
+    data = request.get_json(force=True) or {}
+    name = (data.get("name") or "").strip()
+    if not name:
+        return jsonify({"error": "name is required"}), 400
+
+    conn = get_connection()
+    try:
+        cur = conn.execute(
+            "INSERT INTO sms_groups (name, filter_json, active_only, manual_only) VALUES (?, ?, ?, ?)",
+            (name, json.dumps(data.get("filter") or {}), 1 if data.get("active_only", True) else 0,
+             1 if data.get("manual_only") else 0),
+        )
+        group_id = cur.lastrowid
+        for m in (data.get("manual") or []):
+            phone = normalize_phone((m.get("phone") or "").strip())
+            if not phone:
+                continue
+            conn.execute(
+                "INSERT OR REPLACE INTO sms_group_members (group_id, member_id, phone, contact_name, mode) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (group_id, m.get("member_id"), phone, m.get("name"), "exclude" if m.get("mode") == "exclude" else "include"),
+            )
+        conn.commit()
+        row = conn.execute("SELECT * FROM sms_groups WHERE id = ?", (group_id,)).fetchone()
+        return jsonify({"group": _group_dict(conn, row)}), 201
+    finally:
+        conn.close()
+
+
+@sms_bp.route("/groups/<int:group_id>", methods=["PUT"])
+@_require_key
+def update_group(group_id):
+    data = request.get_json(force=True) or {}
+    conn = get_connection()
+    try:
+        row = conn.execute("SELECT * FROM sms_groups WHERE id = ?", (group_id,)).fetchone()
+        if not row:
+            return jsonify({"error": "not found"}), 404
+
+        name = (data.get("name") or row["name"]).strip()
+        filter_json = data.get("filter") if "filter" in data else json.loads(row["filter_json"])
+        active_only = 1 if data.get("active_only", bool(row["active_only"])) else 0
+        manual_only = 1 if data.get("manual_only", bool(row["manual_only"])) else 0
+        conn.execute(
+            "UPDATE sms_groups SET name = ?, filter_json = ?, active_only = ?, manual_only = ?, updated_at = datetime('now') WHERE id = ?",
+            (name, json.dumps(filter_json), active_only, manual_only, group_id),
+        )
+        conn.commit()
+        row = conn.execute("SELECT * FROM sms_groups WHERE id = ?", (group_id,)).fetchone()
+        return jsonify({"group": _group_dict(conn, row)})
+    finally:
+        conn.close()
+
+
+@sms_bp.route("/groups/<int:group_id>", methods=["DELETE"])
+@_require_key
+def delete_group(group_id):
+    conn = get_connection()
+    try:
+        in_use = conn.execute(
+            "SELECT COUNT(*) FROM sms_broadcasts WHERE group_id = ? AND status IN ('scheduled', 'sending')",
+            (group_id,),
+        ).fetchone()[0]
+        if in_use:
+            return jsonify({"error": "group has a pending broadcast -- cancel it first"}), 409
+        conn.execute("DELETE FROM sms_group_members WHERE group_id = ?", (group_id,))
+        conn.execute("DELETE FROM sms_groups WHERE id = ?", (group_id,))
+        conn.commit()
+        return jsonify({"ok": True})
+    finally:
+        conn.close()
+
+
+@sms_bp.route("/groups/<int:group_id>/members", methods=["GET"])
+@_require_key
+def get_group_members(group_id):
+    conn = get_connection()
+    try:
+        group, recipients = sms_groups.resolve_group(conn, group_id)
+        if not group:
+            return jsonify({"error": "not found"}), 404
+        overrides = conn.execute(
+            "SELECT id, member_id, phone, contact_name, mode FROM sms_group_members WHERE group_id = ? ORDER BY contact_name",
+            (group_id,),
+        ).fetchall()
+        recipients.sort(key=lambda r: (r["contact_name"] or "").lower())
+        return jsonify({
+            "recipient_count": len(recipients),
+            "recipients": recipients,
+            "overrides": [dict(o) for o in overrides],
+        })
+    finally:
+        conn.close()
+
+
+@sms_bp.route("/groups/<int:group_id>/members", methods=["POST"])
+@_require_key
+def add_group_member(group_id):
+    data = request.get_json(force=True) or {}
+    phone = normalize_phone((data.get("phone") or "").strip())
+    if not phone:
+        return jsonify({"error": "a valid phone is required"}), 400
+
+    conn = get_connection()
+    try:
+        if not conn.execute("SELECT 1 FROM sms_groups WHERE id = ?", (group_id,)).fetchone():
+            return jsonify({"error": "not found"}), 404
+        conn.execute(
+            "INSERT OR REPLACE INTO sms_group_members (group_id, member_id, phone, contact_name, mode) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (group_id, data.get("member_id"), phone, (data.get("name") or "").strip() or None,
+             "exclude" if data.get("mode") == "exclude" else "include"),
+        )
+        conn.commit()
+        _, recipients = sms_groups.resolve_group(conn, group_id)
+        return jsonify({"ok": True, "recipient_count": len(recipients)}), 201
+    finally:
+        conn.close()
+
+
+@sms_bp.route("/groups/<int:group_id>/members/<int:override_id>", methods=["DELETE"])
+@_require_key
+def delete_group_member(group_id, override_id):
+    conn = get_connection()
+    try:
+        conn.execute("DELETE FROM sms_group_members WHERE id = ? AND group_id = ?", (override_id, group_id))
+        conn.commit()
+        _, recipients = sms_groups.resolve_group(conn, group_id)
+        return jsonify({"ok": True, "recipient_count": len(recipients)})
+    finally:
+        conn.close()
+
+
+def _broadcast_dict(row) -> dict:
+    return {
+        "id": row["id"],
+        "group_id": row["group_id"],
+        "group_name": row["group_name"],
+        "body": row["body"],
+        "send_at": row["send_at"],
+        "status": row["status"],
+        "recipient_count": row["recipient_count"],
+        "sent_count": row["sent_count"],
+        "failed_count": row["failed_count"],
+        "error": row["error"],
+        "created_at": row["created_at"],
+        "started_at": row["started_at"],
+        "completed_at": row["completed_at"],
+    }
+
+
+@sms_bp.route("/broadcasts", methods=["GET"])
+@_require_key
+def list_broadcasts():
+    conn = get_connection()
+    try:
+        rows = conn.execute("SELECT * FROM sms_broadcasts ORDER BY created_at DESC LIMIT 50").fetchall()
+        return jsonify({"broadcasts": [_broadcast_dict(r) for r in rows]})
+    finally:
+        conn.close()
+
+
+@sms_bp.route("/broadcasts/<int:broadcast_id>", methods=["GET"])
+@_require_key
+def get_broadcast(broadcast_id):
+    conn = get_connection()
+    try:
+        row = conn.execute("SELECT * FROM sms_broadcasts WHERE id = ?", (broadcast_id,)).fetchone()
+        if not row:
+            return jsonify({"error": "not found"}), 404
+        recipients = conn.execute(
+            "SELECT * FROM sms_broadcast_recipients WHERE broadcast_id = ? ORDER BY contact_name",
+            (broadcast_id,),
+        ).fetchall()
+        return jsonify({"broadcast": _broadcast_dict(row), "recipients": [dict(r) for r in recipients]})
+    finally:
+        conn.close()
+
+
+@sms_bp.route("/broadcasts", methods=["POST"])
+@_require_key
+def create_broadcast():
+    """The confirm step: resolves the group (a saved group_id, or an ad-hoc
+    filter/manual list) RIGHT NOW and freezes that exact recipient list
+    into sms_broadcast_recipients -- a later membership change never
+    silently changes who an already-scheduled broadcast reaches. The
+    frontend is expected to have shown this same resolution via
+    /groups/preview or /groups/<id>/members before calling this."""
+    data = request.get_json(force=True) or {}
+    body = (data.get("body") or "").strip()
+    send_at = (data.get("send_at") or "").strip()
+    if not body:
+        return jsonify({"error": "body is required"}), 400
+    error = _validate_send_at(send_at)
+    if error:
+        return jsonify({"error": error}), 400
+
+    group_id = data.get("group_id")
+    conn = get_connection()
+    try:
+        if group_id:
+            group, recipients = sms_groups.resolve_group(conn, group_id)
+            if not group:
+                return jsonify({"error": "group not found"}), 404
+            group_name = group["name"]
+        else:
+            recipients = _resolve_adhoc(
+                data.get("filter") or {}, bool(data.get("active_only", True)), data.get("manual") or [],
+                manual_only=bool(data.get("manual_only")),
+            )
+            group_name = (data.get("group_name") or "").strip() or None
+
+        # One-off removals from the reviewed list (e.g. Bill tapped "remove"
+        # on someone in the confirm screen) -- applies on top of either
+        # branch above without touching a saved group's own membership.
+        exclude_phones = {normalize_phone(p) for p in (data.get("exclude_phones") or []) if normalize_phone(p)}
+        if exclude_phones:
+            recipients = [r for r in recipients if r["phone"] not in exclude_phones]
+
+        if not recipients:
+            return jsonify({"error": "resolved group has no recipients (no phone on file, or all filtered out)"}), 400
+
+        cur = conn.execute(
+            "INSERT INTO sms_broadcasts (group_id, group_name, body, send_at, recipient_count) VALUES (?, ?, ?, ?, ?)",
+            (group_id, group_name, body, send_at, len(recipients)),
+        )
+        broadcast_id = cur.lastrowid
+        conn.executemany(
+            "INSERT INTO sms_broadcast_recipients (broadcast_id, member_id, phone, contact_name) VALUES (?, ?, ?, ?)",
+            [(broadcast_id, r["member_id"], r["phone"], r["contact_name"]) for r in recipients],
+        )
+        conn.commit()
+
+        row = conn.execute("SELECT * FROM sms_broadcasts WHERE id = ?", (broadcast_id,)).fetchone()
+        return jsonify({"broadcast": _broadcast_dict(row)}), 201
+    finally:
+        conn.close()
+
+
+@sms_bp.route("/broadcasts/<int:broadcast_id>", methods=["DELETE"])
+@_require_key
+def cancel_broadcast(broadcast_id):
+    conn = get_connection()
+    try:
+        row = conn.execute("SELECT status FROM sms_broadcasts WHERE id = ?", (broadcast_id,)).fetchone()
+        if not row:
+            return jsonify({"error": "not found"}), 404
+        if row["status"] != "scheduled":
+            return jsonify({"error": f"cannot cancel a broadcast that is already {row['status']}"}), 409
+        conn.execute(
+            "UPDATE sms_broadcasts SET status = 'canceled', completed_at = datetime('now') WHERE id = ?",
+            (broadcast_id,),
+        )
         conn.commit()
         return jsonify({"ok": True})
     finally:
