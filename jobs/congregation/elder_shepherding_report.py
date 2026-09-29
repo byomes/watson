@@ -279,12 +279,16 @@ def _member_engagement_tiers(conn) -> dict:
 
 
 def build_member_attendance_weeks(member_id: int) -> list[dict] | None:
-    """[{service_date, present}, ...] oldest-to-newest, over the same last-8-
-    distinct-service-date window _member_engagement_tiers() uses to compute
-    Consistency -- so the deaconapp's per-person attendance popup is a
+    """[{service_date, present, campus}, ...] oldest-to-newest, over the same
+    last-8-distinct-service-date window _member_engagement_tiers() uses to
+    compute Consistency -- so the deaconapp's per-person attendance popup is a
     literal bar-by-bar visualization of that badge, not a separately
-    defined window. Returns None if member_id doesn't exist. Powers
-    GET /api/cat/shepherdingreport/weeks/<member_id> below."""
+    defined window. `campus` is 'Wilmington'/'Online' when present, None when
+    absent (attendance.campus/connect_cards.campus are both NOT NULL, so this
+    is the only source of null); when both tables have a row for the same
+    member/date with conflicting campus, attendance's value wins since it's
+    the one leaders correct by hand. Returns None if member_id doesn't exist.
+    Powers GET /api/cat/shepherdingreport/weeks/<member_id> below."""
     with _conn() as conn:
         member = conn.execute("SELECT id FROM members WHERE id = ?", (member_id,)).fetchone()
         if not member:
@@ -293,25 +297,31 @@ def build_member_attendance_weeks(member_id: int) -> list[dict] | None:
         weeks = conn.execute(
             """
             WITH visits AS (
-                SELECT member_id, service_date FROM attendance
-                UNION
-                SELECT member_id, service_date FROM connect_cards
+                SELECT member_id, service_date, campus, 0 AS priority FROM attendance
+                UNION ALL
+                SELECT member_id, service_date, campus, 1 AS priority FROM connect_cards
             ),
             last8 AS (
                 SELECT DISTINCT service_date FROM visits ORDER BY service_date DESC LIMIT 8
             )
             SELECT
                 l.service_date,
-                EXISTS(
-                    SELECT 1 FROM visits v WHERE v.member_id = ? AND v.service_date = l.service_date
-                ) AS present
+                (
+                    SELECT v.campus FROM visits v
+                    WHERE v.member_id = ? AND v.service_date = l.service_date
+                    ORDER BY v.priority ASC
+                    LIMIT 1
+                ) AS campus
             FROM last8 l
             ORDER BY l.service_date ASC
             """,
             (member_id,),
         ).fetchall()
 
-    return [{"service_date": r["service_date"], "present": bool(r["present"])} for r in weeks]
+    return [
+        {"service_date": r["service_date"], "present": r["campus"] is not None, "campus": r["campus"]}
+        for r in weeks
+    ]
 
 
 def build_deacon_group_names() -> list[dict]:
