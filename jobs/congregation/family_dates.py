@@ -33,9 +33,17 @@ import difflib
 import re
 import sqlite3
 
+from core.vacation import vacation_gate
 from jobs.congregation.family_edit import _mark_spouse_core
+from jobs.telegram.send_to_person import send_buttons_to_person, send_to_person
 
 FUZZY_THRESHOLD = 0.82
+
+# people.id for Donna Redman (see jobs/congregation/pin_collection.py's own
+# copy of this mapping) -- every family-dates notify below goes to her via
+# Telegram (she prefers it over email, see feedback_donna_prefers_telegram
+# memory), not a new person on every run.
+DONNA_PERSON_ID = 12
 
 _COUPLE_SPLIT_RE = re.compile(r"\s*(?:&|/|\band\b)\s*", re.IGNORECASE)
 
@@ -79,6 +87,17 @@ def _match_name(conn: sqlite3.Connection, name: str, submitter_member_id: int | 
     all_rows = conn.execute("SELECT id, name FROM members").fetchall()
     member_id, _ = _best_match(name, all_rows)
     return member_id
+
+
+def match_submitter(conn: sqlite3.Connection, name: str) -> int | None:
+    """Lookup-only fuzzy match for a submitter's own typed name against all
+    members -- no household bias, since there's no known submitter yet to
+    bias from (that's the whole point of this call: establishing one).
+    Public wrapper around _match_name for callers outside this module (e.g.
+    jobs/congregation/bday_web.py) that want to resolve "whose family is
+    this" from a free-text name field without creating a new member the
+    way member_match.find_or_create_member would on no match."""
+    return _match_name(conn, name, None)
 
 
 def _split_couple_names(raw: str) -> list[str]:
@@ -305,3 +324,137 @@ def record_anniversaries(
                 "options": _spouse_pairing_options(spouse_a["gender"], spouse_b["gender"]),
             })
     return unmatched, needs_review, conflicts
+
+
+# ── Donna notifications ─────────────────────────────────────────────────────
+#
+# Moved here from jobs/connect_cards/intake.py 2026-09-29 when
+# jobs/congregation/bday_web.py (the standalone wtsn.me/cat/bday form,
+# ingesting straight into congregation.db in real time rather than via the
+# connect card's email/IMAP round-trip) became a second caller of
+# record_birthdays/record_anniversaries that also needs to notify Donna the
+# same way. intake.py still calls these (imported under its old private
+# names) so its own behavior/log lines are unchanged.
+
+def notify_donna_unmatched_family_dates(
+    unmatched_birthdays: list[dict], unmatched_anniversaries: list[dict]
+) -> None:
+    """Texts Donna (Telegram) one summary of unmatched Family Birthdays /
+    Anniversaries entries -- names typed in that couldn't be confidently
+    matched to an existing member (a new child, a typo, someone not yet in
+    the system). They're still saved in connect_card_birthdays/
+    connect_card_anniversaries either way; this just means she doesn't have
+    to think to go query it. One message covering both sections rather than
+    two separate texts."""
+    lines: list[str] = []
+
+    if unmatched_birthdays:
+        n = len(unmatched_birthdays)
+        lines.append(f"🎂 {n} birthday submission{'s' if n != 1 else ''} didn't match anyone on file:")
+        for e in unmatched_birthdays:
+            date_str = e["birth_date"] or "(no date given)"
+            who = e["submitted_name"] or "(no name given)"
+            lines.append(f"• {who} — {date_str} (submitted by {e['submitted_by']})")
+
+    if unmatched_anniversaries:
+        if lines:
+            lines.append("")
+        n = len(unmatched_anniversaries)
+        lines.append(f"💍 {n} anniversary submission{'s' if n != 1 else ''} didn't match anyone on file:")
+        for e in unmatched_anniversaries:
+            date_str = e["anniversary_date"] or "(no date given)"
+            who = e["submitted_names"] or "(no names given)"
+            lines.append(f"• {who} — {date_str} (submitted by {e['submitted_by']})")
+
+    lines += ["", "Take a look and add them if they're new, or let me know who they match."]
+    text = "\n".join(lines)
+
+    if vacation_gate("normal", "jobs.congregation.family_dates.unmatched_family_dates", text):
+        return
+    send_to_person(DONNA_PERSON_ID, text)
+
+
+def notify_donna_family_date_conflicts(
+    birthday_conflicts: list[dict], anniversary_conflicts: list[dict]
+) -> None:
+    """Texts Donna (Telegram) one summary of birthday/anniversary
+    submissions that matched an existing member but disagreed with the date
+    already on file. These used to sit silently in connect_card_birthdays /
+    connect_card_anniversaries with status='conflict' until someone thought
+    to query it -- caught by hand 2026-09-28 (Sharon/Jim Hurst), added this
+    notification so it can't happen silently again."""
+    lines: list[str] = []
+
+    if birthday_conflicts:
+        n = len(birthday_conflicts)
+        lines.append(f"🎂 {n} birthday submission{'s' if n != 1 else ''} disagree with what's on file:")
+        for e in birthday_conflicts:
+            who = e["matched_member_name"] or e["submitted_name"]
+            lines.append(
+                f"• {who} — submitted {e['submitted_date']}, on file {e['existing_date']} "
+                f"(submitted by {e['submitted_by']})"
+            )
+
+    if anniversary_conflicts:
+        if lines:
+            lines.append("")
+        n = len(anniversary_conflicts)
+        lines.append(f"💍 {n} anniversary submission{'s' if n != 1 else ''} disagree with what's on file:")
+        for e in anniversary_conflicts:
+            for cm in e["conflicting_members"]:
+                lines.append(
+                    f"• {cm['name']} — submitted {e['submitted_date']}, on file {cm['existing_date']} "
+                    f"(submitted by {e['submitted_by']})"
+                )
+
+    lines += ["", "Can you check which is right and update whichever's wrong?"]
+    text = "\n".join(lines)
+
+    if vacation_gate("normal", "jobs.congregation.family_dates.family_date_conflicts", text):
+        return
+    send_to_person(DONNA_PERSON_ID, text)
+
+
+SPOUSE_REVIEW_REASON_TEXT = {
+    "skipped_child": "one of them is on file as a child in their household, so I didn't want to override that on my own",
+    "skipped_other": "I couldn't link their households automatically (they may already be in two different populated ones)",
+}
+
+
+def spouse_review_keyboard(entry: dict) -> list[list[dict]]:
+    """Telegram inline_keyboard for one spouse-pairing review -- see
+    bot.py's CallbackQueryHandler(pattern=r"^sp_(c|r):") for the tap side."""
+    row_id = entry["anniv_row_id"]
+    a_name, b_name = entry["member_names"]
+    rows = []
+    for a_role, b_role in entry["options"]:
+        a_word = "Husband" if a_role == "husband" else "Wife"
+        b_word = "Husband" if b_role == "husband" else "Wife"
+        rows.append([{
+            "text": f"✅ {a_name} = {a_word}, {b_name} = {b_word}",
+            "callback_data": f"sp_c:{row_id}:{a_role}",
+        }])
+    rows.append([{"text": "🙅 Not married / skip", "callback_data": f"sp_r:{row_id}"}])
+    return rows
+
+
+def notify_donna_spouse_reviews(entries: list[dict]) -> None:
+    """Texts Donna (Telegram) one message per uncertain spouse pairing, each
+    with its own confirm/reject buttons -- one at a time, same pattern as
+    jobs/congregation/notify_subsplash_fuzzy_review.py's duplicate-member
+    review texts. A confident pairing (matching gender on file) is applied
+    automatically by record_anniversaries above and never reaches here;
+    this is only for the ones Watson itself is unsure about."""
+    if vacation_gate("normal", "jobs.congregation.family_dates.spouse_review", f"{len(entries)} spouse pairing(s)"):
+        return
+    for e in entries:
+        a_name, b_name = e["member_names"]
+        reason_text = SPOUSE_REVIEW_REASON_TEXT.get(
+            e["reason"], "I don't have gender on file for one or both of them"
+        )
+        text = (
+            f"💍 {a_name} and {b_name} gave the same anniversary date "
+            f"({e['anniversary_date']}, submitted by {e['submitted_by']}) -- looks like they might be "
+            f"married, but {reason_text}. Can you confirm?"
+        )
+        send_buttons_to_person(DONNA_PERSON_ID, text, spouse_review_keyboard(e))

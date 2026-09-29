@@ -350,6 +350,9 @@ app.register_blueprint(deacons_web_bp)
 from jobs.congregation.papercards_web import papercards_web_bp
 app.register_blueprint(papercards_web_bp)
 
+from jobs.congregation.bday_web import bday_web_bp
+app.register_blueprint(bday_web_bp)
+
 from jobs.team.api import team_bp
 app.register_blueprint(team_bp)
 

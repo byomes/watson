@@ -52,10 +52,15 @@ from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 
-from core.vacation import vacation_gate
-from jobs.congregation.family_dates import record_anniversaries, record_birthdays
+from jobs.congregation.family_dates import (
+    DONNA_PERSON_ID,
+    notify_donna_family_date_conflicts as _notify_donna_family_date_conflicts,
+    notify_donna_spouse_reviews as _notify_donna_spouse_reviews,
+    notify_donna_unmatched_family_dates as _notify_donna_unmatched_family_dates,
+    record_anniversaries,
+    record_birthdays,
+)
 from jobs.congregation.member_match import find_or_create_member
-from jobs.telegram.send_to_person import send_buttons_to_person, send_to_person
 
 load_dotenv(os.path.expanduser("~/watson/.env"))
 
@@ -118,12 +123,6 @@ NEXT_STEP_SUBSTRINGS = [
 # job needs its own copy of the same block list.
 BLOCKED_PHONE_DIGITS = {"8006696607"}
 BLOCKED_EMAILS = {"ziecr@aol.com"}
-
-# people.id for Donna Redman (see jobs/congregation/pin_collection.py's own
-# copy of this mapping) -- unmatched-birthday summaries go to her via
-# Telegram (she prefers it over email, see feedback_donna_prefers_telegram
-# memory), not a new person on every run.
-DONNA_PERSON_ID = 12
 
 
 def _normalize_phone_digits(value: str) -> str:
@@ -771,146 +770,6 @@ def _build_search_query() -> str:
     for clause in clauses[1:]:
         query = f"(OR {query} {clause})"
     return query
-
-
-def _notify_donna_unmatched_family_dates(
-    unmatched_birthdays: list[dict], unmatched_anniversaries: list[dict]
-) -> None:
-    """Texts Donna (Telegram) one summary of this run's unmatched Family
-    Birthdays / Anniversaries entries -- names typed into a connect card
-    that couldn't be confidently matched to an existing member (a new
-    child, a typo, someone not yet in the system). They're still saved in
-    connect_card_birthdays/connect_card_anniversaries either way; this just
-    means she doesn't have to think to go query it. One message covering
-    both sections rather than two separate texts."""
-    lines: list[str] = []
-
-    if unmatched_birthdays:
-        n = len(unmatched_birthdays)
-        lines.append(f"🎂 {n} birthday submission{'s' if n != 1 else ''} didn't match anyone on file:")
-        for e in unmatched_birthdays:
-            date_str = e["birth_date"] or "(no date given)"
-            who = e["submitted_name"] or "(no name given)"
-            lines.append(f"• {who} — {date_str} (submitted by {e['submitted_by']})")
-
-    if unmatched_anniversaries:
-        if lines:
-            lines.append("")
-        n = len(unmatched_anniversaries)
-        lines.append(f"💍 {n} anniversary submission{'s' if n != 1 else ''} didn't match anyone on file:")
-        for e in unmatched_anniversaries:
-            date_str = e["anniversary_date"] or "(no date given)"
-            who = e["submitted_names"] or "(no names given)"
-            lines.append(f"• {who} — {date_str} (submitted by {e['submitted_by']})")
-
-    lines += ["", "Take a look and add them if they're new, or let me know who they match."]
-    text = "\n".join(lines)
-
-    if vacation_gate("normal", "jobs.connect_cards.intake.unmatched_family_dates", text):
-        return
-    if send_to_person(DONNA_PERSON_ID, text):
-        log.info(
-            "Sent unmatched family-dates summary to Donna (%d birthday(s), %d anniversary(ies)).",
-            len(unmatched_birthdays), len(unmatched_anniversaries),
-        )
-    else:
-        log.warning("Failed to send unmatched family-dates summary to Donna (not onboarded?).")
-
-
-def _notify_donna_family_date_conflicts(
-    birthday_conflicts: list[dict], anniversary_conflicts: list[dict]
-) -> None:
-    """Texts Donna (Telegram) one summary of this run's birthday/anniversary
-    submissions that matched an existing member but disagreed with the date
-    already on file. These used to sit silently in connect_card_birthdays /
-    connect_card_anniversaries with status='conflict' until someone thought
-    to query it -- caught by hand 2026-09-28 (Sharon/Jim Hurst), added this
-    notification so it can't happen silently again."""
-    lines: list[str] = []
-
-    if birthday_conflicts:
-        n = len(birthday_conflicts)
-        lines.append(f"🎂 {n} birthday submission{'s' if n != 1 else ''} disagree with what's on file:")
-        for e in birthday_conflicts:
-            who = e["matched_member_name"] or e["submitted_name"]
-            lines.append(
-                f"• {who} — submitted {e['submitted_date']}, on file {e['existing_date']} "
-                f"(submitted by {e['submitted_by']})"
-            )
-
-    if anniversary_conflicts:
-        if lines:
-            lines.append("")
-        n = len(anniversary_conflicts)
-        lines.append(f"💍 {n} anniversary submission{'s' if n != 1 else ''} disagree with what's on file:")
-        for e in anniversary_conflicts:
-            for cm in e["conflicting_members"]:
-                lines.append(
-                    f"• {cm['name']} — submitted {e['submitted_date']}, on file {cm['existing_date']} "
-                    f"(submitted by {e['submitted_by']})"
-                )
-
-    lines += ["", "Can you check which is right and update whichever's wrong?"]
-    text = "\n".join(lines)
-
-    if vacation_gate("normal", "jobs.connect_cards.intake.family_date_conflicts", text):
-        return
-    if send_to_person(DONNA_PERSON_ID, text):
-        log.info(
-            "Sent family-date conflict summary to Donna (%d birthday(s), %d anniversary(ies)).",
-            len(birthday_conflicts), len(anniversary_conflicts),
-        )
-    else:
-        log.warning("Failed to send family-date conflict summary to Donna (not onboarded?).")
-
-
-_SPOUSE_REVIEW_REASON_TEXT = {
-    "skipped_child": "one of them is on file as a child in their household, so I didn't want to override that on my own",
-    "skipped_other": "I couldn't link their households automatically (they may already be in two different populated ones)",
-}
-
-
-def _spouse_review_keyboard(entry: dict) -> list[list[dict]]:
-    """Telegram inline_keyboard for one spouse-pairing review -- see
-    bot.py's CallbackQueryHandler(pattern=r"^sp_(c|r):") for the tap side."""
-    row_id = entry["anniv_row_id"]
-    a_name, b_name = entry["member_names"]
-    rows = []
-    for a_role, b_role in entry["options"]:
-        a_word = "Husband" if a_role == "husband" else "Wife"
-        b_word = "Husband" if b_role == "husband" else "Wife"
-        rows.append([{
-            "text": f"✅ {a_name} = {a_word}, {b_name} = {b_word}",
-            "callback_data": f"sp_c:{row_id}:{a_role}",
-        }])
-    rows.append([{"text": "🙅 Not married / skip", "callback_data": f"sp_r:{row_id}"}])
-    return rows
-
-
-def _notify_donna_spouse_reviews(entries: list[dict]) -> None:
-    """Texts Donna (Telegram) one message per uncertain spouse pairing from
-    this run, each with its own confirm/reject buttons -- one at a time,
-    same pattern as jobs/congregation/notify_subsplash_fuzzy_review.py's
-    duplicate-member review texts. A confident pairing (matching gender on
-    file) is applied automatically by family_dates.record_anniversaries and
-    never reaches here; this is only for the ones Watson itself is unsure
-    about."""
-    if vacation_gate("normal", "jobs.connect_cards.intake.spouse_review", f"{len(entries)} spouse pairing(s)"):
-        return
-    for e in entries:
-        a_name, b_name = e["member_names"]
-        reason_text = _SPOUSE_REVIEW_REASON_TEXT.get(
-            e["reason"], "I don't have gender on file for one or both of them"
-        )
-        text = (
-            f"💍 {a_name} and {b_name} gave the same anniversary date on a connect card "
-            f"({e['anniversary_date']}, submitted by {e['submitted_by']}) -- looks like they might be "
-            f"married, but {reason_text}. Can you confirm?"
-        )
-        if send_buttons_to_person(DONNA_PERSON_ID, text, _spouse_review_keyboard(e)):
-            log.info("Sent spouse-pairing review to Donna: %s / %s", a_name, b_name)
-        else:
-            log.warning("Failed to send spouse-pairing review to Donna (not onboarded?).")
 
 
 def run(dry_run: bool = False) -> None:
