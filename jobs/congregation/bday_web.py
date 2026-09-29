@@ -29,13 +29,17 @@ little high while this form is being promoted. Flagged to Bill in the build
 that introduced this file; worth a `source` column + query updates later if
 that stat needs to stay clean.
 
-Member matching for the optional "Your name" field is read-only
+"Your Name" is required (2026-09-29: Bill made it mandatory rather than
+optional -- without it, entries only match congregation-wide, which risks
+landing on the wrong same-named person instead of the submitter's own
+household). Matching that name against members is still read-only
 (family_dates.match_submitter), never member_match.find_or_create_member's
-create-on-no-match behavior -- a name typed here exists only to bias
-Family Birthdays / Anniversaries entries toward the right household
-(family_dates._match_name), not to add a new person to the roster on its
-own. Leaving it blank just means every entry matches congregation-wide
-instead, same as a connect card submitted with no birthdays at all would.
+create-on-no-match behavior -- it exists only to bias Family Birthdays /
+Anniversaries entries toward the right household (family_dates._match_name),
+not to add a new person to the roster on its own. A name that doesn't match
+anyone on file still works fine (submitter_member_id stays None, entries
+fall back to congregation-wide matching) -- required means "typed
+something," not "matched an existing member."
 
 Mount on the Watson dashboard app:
     from jobs.congregation.bday_web import bday_web_bp
@@ -118,6 +122,11 @@ def submit():
     birthdays = _clean_entries(data.get("birthdays"), "name", "date")
     anniversaries = _clean_entries(data.get("anniversaries"), "names", "date")
 
+    # Required -- not just a matching nicety, the page's own copy now asks
+    # for it directly, so this endpoint enforces it too rather than trusting
+    # watson-tools' route.ts (or the form's `required` attribute) alone.
+    if not submitted_by_name:
+        return jsonify({"error": "Your name is required."}), 400
     if not birthdays and not anniversaries:
         return jsonify({"error": "At least one birthday or anniversary is required."}), 400
 
@@ -128,7 +137,7 @@ def submit():
     today = date.today().isoformat()
 
     with _conn() as conn:
-        submitter_member_id = match_submitter(conn, submitted_by_name) if submitted_by_name else None
+        submitter_member_id = match_submitter(conn, submitted_by_name)
 
         conn.execute(
             """
@@ -139,8 +148,7 @@ def submit():
             (
                 submitter_member_id,
                 today,
-                "Birthdays & Anniversaries card (wtsn.me/cat/bday)"
-                + (f" -- submitted by {submitted_by_name}" if submitted_by_name else ""),
+                f"Birthdays & Anniversaries card (wtsn.me/cat/bday) -- submitted by {submitted_by_name}",
             ),
         )
         card_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
@@ -152,17 +160,16 @@ def submit():
 
         conn.commit()
 
-    by = submitted_by_name or "(no name given)"
     for entry in unmatched_bdays:
-        entry["submitted_by"] = by
+        entry["submitted_by"] = submitted_by_name
     for entry in bday_conflicts:
-        entry["submitted_by"] = by
+        entry["submitted_by"] = submitted_by_name
     for entry in unmatched_annivs:
-        entry["submitted_by"] = by
+        entry["submitted_by"] = submitted_by_name
     for entry in anniv_conflicts:
-        entry["submitted_by"] = by
+        entry["submitted_by"] = submitted_by_name
     for entry in spouse_reviews:
-        entry["submitted_by"] = by
+        entry["submitted_by"] = submitted_by_name
 
     # Real-time, one submission at a time -- unlike intake.py's cron run
     # (which batches every card from a 30-minute window into one summary),
