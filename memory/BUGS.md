@@ -1,10 +1,12 @@
 # Watson Bug Tracker
 _Auto-generated nightly from bug_tracker. Source of truth is the database — do not hand-edit this file, changes will be overwritten._
-Last generated: 2026-09-28 02:10
+Last generated: 2026-09-29 02:10
 
-## Open (4)
+## Open (6)
 | ID | Title | Repo | Discovered |
 |---|---|---|---|
+| 208 | signup_detect.py name extraction: literal 'empty string' persisted for a real registrant | watson | 2026-09-29 03:17:01 |
+| 207 | Event signup classifier stores literal 'empty string' as first/last name | watson | 2026-09-28 22:30:53 |
 | 200 | wtsn.me/sms message links have no OG preview image | watson-tools | 2026-09-27 19:20:04 |
 | 195 | gemma4:e4b intent classifier produced stuck/orphaned llama-server runners | watson | 2026-09-23 16:13:22 |
 | 194 | Picnic event_registrations row with blank name | watson | 2026-09-23 02:29:23 |
@@ -13,6 +15,8 @@ Last generated: 2026-09-28 02:10
 ## Recently Resolved (last 30 days)
 | ID | Title | Repo | Resolved | Commit |
 |---|---|---|---|---|
+| 206 | Connect-card birthday/anniversary conflicts never notified | watson | 2026-09-28 21:29:50 | 93b8e86f0b4ec2e7e59131f6b4d53a1ce59e83ce |
+| 205 | FMSPC immediate KB sync trigger silently connection-refused since 2026-09-16 | watson | 2026-09-28 | 014da14 |
 | 203 | Auto-applied fast-path patch bolted "exactly one time" onto the wrong block (no visit-count logic) | watson | 2026-09-27 22:02:18 | 6d85015 |
 | 202 | Attendance-count fast path also defaulted to last Sunday for "this year"/"last year" | watson | 2026-09-27 21:36:09 | 0f0190c |
 | 201 | Attendance-count fast path defaulted to last Sunday for any literal date/month name | watson | 2026-09-27 21:19:53 | 31aae92 |
@@ -135,4 +139,3 @@ Last generated: 2026-09-28 02:10
 | 108 | watson_recover.sh: ollama binary never installed; installer needs curl/zstd not in apt list | watson | 2026-08-30 22:54:00 | ecd0478 |
 | 107 | watson_recover.sh: tailscale not installable via plain apt on stock Ubuntu | watson | 2026-08-30 22:41:00 | 8e7d2a9 |
 | 106 | watson_recover.sh: missing cron package aborts recovery at crontab restore | watson | 2026-08-30 22:32:00 | 2a077ed |
-| 104 | Thesis Tracker dashboard card fails to load (missing citations API route) | watson | 2026-08-29 14:17:03 | 9a62ce9 |
