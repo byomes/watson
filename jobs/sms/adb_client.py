@@ -51,21 +51,42 @@ def connect_device() -> str | None:
     return None
 
 
-def _parse_rows(stdout: str) -> list[dict]:
-    rows = []
-    for line in stdout.splitlines():
-        if not line.startswith("Row:"):
+_ROW_START_RE = re.compile(r"^Row: \d+ ")
+
+
+def _parse_row(line: str) -> dict:
+    # "Row: 0 col=val, col=val, ..." -- drop the "Row: N " prefix first.
+    _, _, rest = line.partition(" ")
+    _, _, rest = rest.partition(" ")
+    fields = {}
+    for part in _FIELD_SPLIT_RE.split(rest):
+        if "=" not in part:
             continue
-        # "Row: 0 col=val, col=val, ..." -- drop the "Row: N " prefix first.
-        _, _, rest = line.partition(" ", )
-        _, _, rest = rest.partition(" ")
-        fields = {}
-        for part in _FIELD_SPLIT_RE.split(rest):
-            if "=" not in part:
-                continue
-            k, _, v = part.partition("=")
-            fields[k.strip()] = None if v == "NULL" else v
-        rows.append(fields)
+        k, _, v = part.partition("=")
+        fields[k.strip()] = None if v == "NULL" else v
+    return fields
+
+
+def _parse_rows(stdout: str) -> list[dict]:
+    """A field value (e.g. an MMS part's `text` column) can itself contain
+    embedded newlines -- confirmed 2026-09-29 with a 3-line inbound message
+    whose `content query` output spanned 3 physical lines. splitlines() then
+    filtering on a literal "Row:" prefix silently dropped every continuation
+    line, truncating the body at its first newline. Instead, only a line
+    matching "Row: N " starts a new row; every other line is a continuation
+    of the previous row's last field and gets rejoined with the "\\n"
+    splitlines() stripped."""
+    rows = []
+    buffer = None
+    for line in stdout.splitlines():
+        if _ROW_START_RE.match(line):
+            if buffer is not None:
+                rows.append(_parse_row(buffer))
+            buffer = line
+        elif buffer is not None:
+            buffer += "\n" + line
+    if buffer is not None:
+        rows.append(_parse_row(buffer))
     return rows
 
 
