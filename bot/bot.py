@@ -7496,6 +7496,61 @@ async def handle_spouse_pairing_callback(update: Update, context: ContextTypes.D
     await query.edit_message_text(f"{'✅' if ok else '❌'} {message}", reply_markup=None)
 
 
+# ── Connect-card child-addition review (fc_add/fc_skip) ─────────────────────
+
+async def handle_child_addition_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle fc_add/fc_skip taps from jobs/congregation/family_dates.py's
+    notify_donna_child_additions -- Donna confirming or rejecting Watson's
+    ask to add a child who showed up in a /cat/bday Family Birthdays entry
+    but didn't match anyone on file, into the submitter's own household.
+    Reuses _spouse_review_authorized (Bill's chat or Donna's) since this is
+    the same "only ever texted to Donna" shape. Confirming calls
+    family_edit.add_child_by_id, the same insert add_child() (the free-text
+    Telegram command) uses."""
+    query = update.callback_query
+    await query.answer()
+
+    if not _spouse_review_authorized(update):
+        return
+
+    from jobs.congregation.family_edit import add_child_by_id
+
+    action, row_id = query.data.split(":")
+    row_id = int(row_id)
+
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT cb.submitted_name, cb.birth_date, cb.status, cc.member_id "
+            "FROM connect_card_birthdays cb JOIN connect_cards cc ON cc.id = cb.card_id "
+            "WHERE cb.id = ?",
+            (row_id,),
+        ).fetchone()
+        if not row:
+            await query.edit_message_text("Couldn't find that submission anymore.", reply_markup=None)
+            return
+        if row["status"] != "unmatched":
+            await query.edit_message_text("This one's already been handled.", reply_markup=None)
+            return
+
+        if action == "fc_skip":
+            conn.execute("UPDATE connect_card_birthdays SET status = 'rejected' WHERE id = ?", (row_id,))
+            conn.commit()
+            await query.edit_message_text("🙅 Got it — skipping that one.", reply_markup=None)
+            return
+
+        ok, message, new_id = add_child_by_id(
+            row["member_id"], row["submitted_name"], row["birth_date"], "Donna Redman (via Telegram)"
+        )
+        if ok:
+            conn.execute(
+                "UPDATE connect_card_birthdays SET status = 'matched', matched_member_id = ? WHERE id = ?",
+                (new_id, row_id),
+            )
+        conn.commit()
+
+    await query.edit_message_text(f"{'✅' if ok else '❌'} {message}", reply_markup=None)
+
+
 # ── Fluro staged-pull review (flr_capply/flr_ckeep/flr_dsame/flr_dreject/flr_skip) ──
 
 async def handle_fluro_review_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -8041,6 +8096,7 @@ def main():
     app.add_handler(CallbackQueryHandler(handle_member_conflict_callback, pattern=r"^mc_"))
     app.add_handler(CallbackQueryHandler(handle_dup_flag_callback, pattern=r"^dupf_(merge|alias|sep|skip):"))
     app.add_handler(CallbackQueryHandler(handle_spouse_pairing_callback, pattern=r"^sp_(c|r):"))
+    app.add_handler(CallbackQueryHandler(handle_child_addition_callback, pattern=r"^fc_(add|skip):"))
     app.add_handler(CallbackQueryHandler(handle_fluro_review_callback, pattern=r"^flr_(capply|ckeep|dsame|dreject|skip):"))
     app.add_handler(CallbackQueryHandler(handle_prayer_contact_callback, pattern=r"^pr_(done|later|back|escalate):\d+$"))
     app.add_handler(CallbackQueryHandler(handle_prayer_remind_callback, pattern=r"^pr_remind:\d+:\d+$"))

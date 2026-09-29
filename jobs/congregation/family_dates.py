@@ -76,18 +76,26 @@ def _match_name(conn: sqlite3.Connection, name: str, submitter_member_id: int | 
     """Lookup-only fuzzy match. Prefers the submitter's own household (the
     common case -- a birthday typed into a family member's field belongs to
     someone sharing the submitter's household_id) before falling back to a
-    congregation-wide match."""
+    congregation-wide match. Excludes deactivated members (active
+    disconnected/deceased) from candidates either way -- members.active
+    already gates every other congregation.db view (see catalystdb_web.py's
+    docstring), and a submitted birthday/anniversary/name shouldn't be the
+    one path that can still silently attach itself to someone deactivated."""
     if not name:
         return None
     household_id = _household_id(conn, submitter_member_id)
     if household_id:
         household_rows = conn.execute(
-            "SELECT id, name FROM members WHERE household_id = ?", (household_id,)
+            "SELECT id, name FROM members WHERE household_id = ? "
+            "AND active NOT IN ('disconnected', 'deceased')",
+            (household_id,),
         ).fetchall()
         member_id, _ = _best_match(name, household_rows)
         if member_id:
             return member_id
-    all_rows = conn.execute("SELECT id, name FROM members").fetchall()
+    all_rows = conn.execute(
+        "SELECT id, name FROM members WHERE active NOT IN ('disconnected', 'deceased')"
+    ).fetchall()
     member_id, _ = _best_match(name, all_rows)
     return member_id
 
@@ -148,13 +156,18 @@ def record_birthdays(
 ) -> tuple[list[dict], list[dict]]:
     """Returns (unmatched, conflicts).
 
-    unmatched holds entries (submitted_name, birth_date) that never matched
-    a member at all. conflicts holds entries that DID match a member but
-    disagreed with the birthdate already on file -- previously these sat
-    silently in connect_card_birthdays with status='conflict' until someone
-    thought to query it (caught by hand 2026-09-28: Sharon/Jim Hurst).
-    Either way the caller is responsible for notifying someone; this
-    function only stages them."""
+    unmatched holds entries (submitted_name, birth_date, card_row_id,
+    parent_member_id) that never matched a member at all -- the common
+    case being a child who isn't in congregation.db yet, since a typo
+    against an existing member usually still clears FUZZY_THRESHOLD.
+    parent_member_id is submitter_member_id (None if the submitter's own
+    name didn't match anyone either, in which case there's no household to
+    offer adding the child to). conflicts holds entries that DID match a
+    member but disagreed with the birthdate already on file -- previously
+    these sat silently in connect_card_birthdays with status='conflict'
+    until someone thought to query it (caught by hand 2026-09-28: Sharon/
+    Jim Hurst). Either way the caller is responsible for notifying someone;
+    this function only stages them."""
     unmatched: list[dict] = []
     conflicts: list[dict] = []
     for entry in entries:
@@ -177,8 +190,7 @@ def record_birthdays(
             status = "matched"
         else:
             status = "unmatched"
-            unmatched.append({"submitted_name": name, "birth_date": birth_date})
-        conn.execute(
+        cursor = conn.execute(
             """
             INSERT INTO connect_card_birthdays
               (card_id, submitted_name, birth_date, matched_member_id, status)
@@ -186,6 +198,13 @@ def record_birthdays(
             """,
             (card_id, name or None, birth_date, matched_id, status),
         )
+        if status == "unmatched":
+            unmatched.append({
+                "submitted_name": name,
+                "birth_date": birth_date,
+                "card_row_id": cursor.lastrowid,
+                "parent_member_id": submitter_member_id,
+            })
     return unmatched, conflicts
 
 
@@ -344,11 +363,17 @@ def notify_donna_unmatched_family_dates(
 ) -> None:
     """Texts Donna (Telegram) one summary of unmatched Family Birthdays /
     Anniversaries entries -- names typed in that couldn't be confidently
-    matched to an existing member (a new child, a typo, someone not yet in
-    the system). They're still saved in connect_card_birthdays/
-    connect_card_anniversaries either way; this just means she doesn't have
-    to think to go query it. One message covering both sections rather than
-    two separate texts."""
+    matched to an existing member (a typo, someone not yet in the system).
+    They're still saved in connect_card_birthdays/connect_card_anniversaries
+    either way; this just means she doesn't have to think to go query it.
+    One message covering both sections rather than two separate texts.
+
+    unmatched_birthdays here should only be entries whose parent_member_id
+    came back None (the submitter's own name didn't match anyone, so there's
+    no household to offer adding a child to) -- the caller routes anything
+    WITH a known parent to notify_donna_child_additions below instead, since
+    that's the common case (a child not yet on file) and worth a specific
+    ask rather than a passive "let me know" line."""
     lines: list[str] = []
 
     if unmatched_birthdays:
@@ -375,6 +400,42 @@ def notify_donna_unmatched_family_dates(
     if vacation_gate("normal", "jobs.congregation.family_dates.unmatched_family_dates", text):
         return
     send_to_donna(text)
+
+
+def child_addition_keyboard(entry: dict) -> list[list[dict]]:
+    """Telegram inline_keyboard for one possible new-child ask -- see
+    bot.py's CallbackQueryHandler(pattern=r"^fc_(add|skip):") for the tap
+    side, which calls family_edit.add_child_by_id on confirm."""
+    row_id = entry["card_row_id"]
+    return [
+        [{"text": "✅ Add as new child", "callback_data": f"fc_add:{row_id}"}],
+        [{"text": "🚫 Not a match / skip", "callback_data": f"fc_skip:{row_id}"}],
+    ]
+
+
+def notify_donna_child_additions(entries: list[dict]) -> None:
+    """Texts Donna (Telegram) one message per unmatched Family Birthday
+    entry that DOES have a known parent -- the submitter's own name matched
+    an active member, so there's a specific household to offer adding the
+    child to -- with confirm/skip buttons, same one-at-a-time pattern as
+    notify_donna_spouse_reviews. This is the common shape of an unmatched
+    birthday submission: someone's child who isn't in congregation.db yet,
+    not a typo against an existing member (a typo usually still clears
+    FUZZY_THRESHOLD). Entries with no known parent still go through
+    notify_donna_unmatched_family_dates above instead, since there's no
+    household to name in the ask."""
+    if vacation_gate(
+        "normal", "jobs.congregation.family_dates.child_additions", f"{len(entries)} possible new child(ren)"
+    ):
+        return
+    for e in entries:
+        date_str = e["birth_date"] or "(no date given)"
+        who = e["submitted_name"] or "(no name given)"
+        text = (
+            f"🎂 {e['submitted_by']} submitted a Family Birthday for {who} ({date_str}) that didn't "
+            f"match anyone on file. Add {who} as a new child in {e['submitted_by']}'s household?"
+        )
+        send_buttons_to_donna(text, child_addition_keyboard(e))
 
 
 def notify_donna_family_date_conflicts(

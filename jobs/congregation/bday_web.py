@@ -54,6 +54,7 @@ from flask import Blueprint, jsonify, request
 
 from jobs.congregation.family_dates import (
     match_submitter,
+    notify_donna_child_additions,
     notify_donna_family_date_conflicts,
     notify_donna_spouse_reviews,
     notify_donna_unmatched_family_dates,
@@ -171,11 +172,21 @@ def submit():
     for entry in spouse_reviews:
         entry["submitted_by"] = submitted_by_name
 
+    # An unmatched birthday with a known parent (the submitter matched an
+    # active member) is almost always a child not yet on file -- ask Donna
+    # to add them rather than just flagging it. One with no known parent
+    # has no household to name in that ask, so it still goes through the
+    # plain unmatched-summary path alongside anniversaries.
+    bdays_with_parent = [e for e in unmatched_bdays if e.get("parent_member_id")]
+    bdays_without_parent = [e for e in unmatched_bdays if not e.get("parent_member_id")]
+
     # Real-time, one submission at a time -- unlike intake.py's cron run
     # (which batches every card from a 30-minute window into one summary),
     # each /cat/bday submit fires its own notify call, right away.
-    if unmatched_bdays or unmatched_annivs:
-        notify_donna_unmatched_family_dates(unmatched_bdays, unmatched_annivs)
+    if bdays_with_parent:
+        notify_donna_child_additions(bdays_with_parent)
+    if bdays_without_parent or unmatched_annivs:
+        notify_donna_unmatched_family_dates(bdays_without_parent, unmatched_annivs)
     if bday_conflicts or anniv_conflicts:
         notify_donna_family_date_conflicts(bday_conflicts, anniv_conflicts)
     if spouse_reviews:

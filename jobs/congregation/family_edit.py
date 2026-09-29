@@ -173,6 +173,48 @@ def add_child(child_name: str, parent_query: str, date_raw: str, sender_name: st
     return f"Added {child_name} (born {birthdate}, turning {age}) to {parent['name']}'s household. — logged by {sender_name}"
 
 
+def add_child_by_id(parent_id: int, child_name: str, birthdate: str, sender_name: str) -> tuple[bool, str, int | None]:
+    """Id-based sibling of add_child() -- for bot.py's fc_add/fc_skip
+    callback (jobs/congregation/family_dates.py's notify_donna_child_additions),
+    where parent_id already came from a resolved, active member (the
+    /cat/bday submitter) rather than free text, so none of add_child()'s
+    fuzzy parent_query/ambiguity handling applies. Still re-checks parent_id
+    is active here rather than trusting the caller, since the ask and the
+    tap can be hours apart (see jobs.telegram.donna_notify's queue). Returns
+    (ok, message, new_member_id) -- new_member_id is None on failure."""
+    with _conn() as conn:
+        parent = conn.execute(
+            "SELECT id, name, campus_preference, address, household_id, deacon FROM members "
+            "WHERE id = ? AND active NOT IN ('disconnected', 'deceased')",
+            (parent_id,),
+        ).fetchone()
+        if not parent:
+            return False, "That member isn't active on file anymore -- can't attach a child to them.", None
+        parent = dict(parent)
+
+        existing = conn.execute(
+            "SELECT name, birthdate FROM members WHERE name = ? COLLATE NOCASE", (child_name,)
+        ).fetchall()
+        if existing:
+            on_file = existing[0]["birthdate"] or "none on file"
+            return False, f'{existing[0]["name"]} is already on file (birthdate: {on_file}).', None
+
+        cursor = conn.execute(
+            """
+            INSERT INTO members (name, campus_preference, active, partner,
+                                  residency, gender, address, household_id, deacon,
+                                  birthdate, household_role)
+            VALUES (?, ?, 'active', 'np', 'local', '--', ?, ?, ?, ?, 'child')
+            """,
+            (child_name, parent["campus_preference"], parent["address"],
+             parent["household_id"], parent["deacon"], birthdate),
+        )
+        new_id = cursor.lastrowid
+
+    age = date.today().year - int(birthdate[:4])
+    return True, f"Added {child_name} (born {birthdate}, turning {age}) to {parent['name']}'s household. — logged by {sender_name}", new_id
+
+
 def update_birthdate(name_query: str, date_raw: str, sender_name: str) -> str:
     birthdate = parse_birthdate(date_raw)
     if not birthdate:
