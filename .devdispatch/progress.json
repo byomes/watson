@@ -1,1 +1,1 @@
-{"step": 5, "total": 5, "label": "Reporting", "detail": "Committing the ADDRESS LOOKUP fast-path addition to jobs/skills/cdb_query.py."}
+{"step": 4, "total": 5, "label": "Testing", "detail": "py_compile OK; real question returns 9 monthly rows via _pattern_match, passes data_chat._validate_sql, and runs against congregation.db."}
