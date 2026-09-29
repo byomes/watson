@@ -16,9 +16,7 @@ import_subsplash_contacts.py:
 import time
 
 from jobs.congregation.fluro_staging_schema import get_connection
-from jobs.telegram.send_to_person import send_buttons_to_person
-
-_DONNA_PERSON_ID = 12  # see bot.py's own copy of this mapping
+from jobs.telegram.donna_notify import send_buttons_to_donna
 
 
 def _conflict_keyboard(fluro_id: str):
@@ -31,8 +29,8 @@ def _conflict_keyboard(fluro_id: str):
 
 def _duplicate_keyboard(fluro_id: str):
     return [
-        [{"text": "✅ Same person, merge", "callback_data": f"flr_dsame:{fluro_id}"}],
-        [{"text": "\U0001F195 Different person, add new", "callback_data": f"flr_dnew:{fluro_id}"}],
+        [{"text": "✅ Same person, fill in info", "callback_data": f"flr_dsame:{fluro_id}"}],
+        [{"text": "\U0001F645 Not the same person", "callback_data": f"flr_dreject:{fluro_id}"}],
         [{"text": "⏭ Skip for now", "callback_data": f"flr_skip:{fluro_id}"}],
     ]
 
@@ -73,7 +71,7 @@ def run() -> int:
         else:
             text, keyboard = _duplicate_text(row), _duplicate_keyboard(row["fluro_id"])
 
-        ok = send_buttons_to_person(_DONNA_PERSON_ID, text, keyboard)
+        ok = send_buttons_to_donna(text, keyboard)
         if ok:
             sent += 1
         time.sleep(0.5)

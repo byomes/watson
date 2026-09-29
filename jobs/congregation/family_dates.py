@@ -35,14 +35,17 @@ import sqlite3
 
 from core.vacation import vacation_gate
 from jobs.congregation.family_edit import _mark_spouse_core
-from jobs.telegram.send_to_person import send_buttons_to_person, send_to_person
+from jobs.telegram.donna_notify import send_buttons_to_donna, send_to_donna
 
 FUZZY_THRESHOLD = 0.82
 
 # people.id for Donna Redman (see jobs/congregation/pin_collection.py's own
 # copy of this mapping) -- every family-dates notify below goes to her via
 # Telegram (she prefers it over email, see feedback_donna_prefers_telegram
-# memory), not a new person on every run.
+# memory), not a new person on every run. The actual send goes through
+# jobs.telegram.donna_notify (send_to_donna/send_buttons_to_donna), which
+# holds anything outside 9am-8pm rather than sending it here directly --
+# see that module's docstring for why.
 DONNA_PERSON_ID = 12
 
 _COUPLE_SPLIT_RE = re.compile(r"\s*(?:&|/|\band\b)\s*", re.IGNORECASE)
@@ -371,7 +374,7 @@ def notify_donna_unmatched_family_dates(
 
     if vacation_gate("normal", "jobs.congregation.family_dates.unmatched_family_dates", text):
         return
-    send_to_person(DONNA_PERSON_ID, text)
+    send_to_donna(text)
 
 
 def notify_donna_family_date_conflicts(
@@ -412,7 +415,7 @@ def notify_donna_family_date_conflicts(
 
     if vacation_gate("normal", "jobs.congregation.family_dates.family_date_conflicts", text):
         return
-    send_to_person(DONNA_PERSON_ID, text)
+    send_to_donna(text)
 
 
 SPOUSE_REVIEW_REASON_TEXT = {
@@ -457,4 +460,4 @@ def notify_donna_spouse_reviews(entries: list[dict]) -> None:
             f"({e['anniversary_date']}, submitted by {e['submitted_by']}) -- looks like they might be "
             f"married, but {reason_text}. Can you confirm?"
         )
-        send_buttons_to_person(DONNA_PERSON_ID, text, spouse_review_keyboard(e))
+        send_buttons_to_donna(text, spouse_review_keyboard(e))
