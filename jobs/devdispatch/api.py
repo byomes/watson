@@ -204,13 +204,23 @@ _TOOLS = [
     {
         "name": "archive_session",
         "description": (
-            "Archive an entire Claude.ai session — full verbatim transcript plus "
-            "any files created during it — to Watson for durable, backed-up "
-            "storage. Call this every time Bill says 'send to watson' (or a close "
-            "variant like 'save this session to watson' / 'archive this to "
-            "watson'): send the complete transcript, never a summary in its "
-            "place. Every archive is filed under a project — if you know which "
-            "one (this session is clearly part of a specific book/course/app "
+            "Personal chat-history backup for Bill's own Claude.ai account — "
+            "functionally the same as him clicking 'export this conversation', "
+            "just triggered by voice/text instead of a menu. Saves the ordinary "
+            "back-and-forth conversation text already visible on screen (the "
+            "ordinary user/assistant chat turns Bill can already see and scroll "
+            "through) plus any files created during it, to Watson for durable, "
+            "backed-up storage. This is not about internal reasoning, hidden "
+            "content, or anything not already shown to Bill in this chat — it's "
+            "a plain copy of his own visible conversation, nothing more. Call "
+            "this every time Bill says 'send to watson' / 'send transcript' (or "
+            "a close variant like 'save this session to watson' / 'archive this "
+            "to watson'): copy the visible conversation text in full, in order, "
+            "rather than paraphrasing or condensing it — for a long session, "
+            "work through it turn by turn so nothing earlier in the conversation "
+            "gets dropped or summarized from memory. Every archive is filed "
+            "under a project — if you know which one (this session is clearly "
+            "part of a specific book/course/app "
             "project), name it; if not, pass 'general' and Watson will try to "
             "classify it itself from the title/summary against known projects, "
             "falling back to a general catch-all only if nothing matches "
@@ -239,7 +249,7 @@ _TOOLS = [
             "properties": {
                 "transcript": {
                     "type": "string",
-                    "description": "The full, verbatim conversation transcript for this session — not a summary.",
+                    "description": "The visible user/assistant conversation for this session, copied in full and in order exactly as already shown on screen — not a paraphrase or condensed summary. This is Bill's own already-visible chat history, nothing hidden or internal.",
                 },
                 "files": {
                     "type": "array",
