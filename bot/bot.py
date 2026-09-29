@@ -7551,6 +7551,35 @@ async def handle_child_addition_callback(update: Update, context: ContextTypes.D
     await query.edit_message_text(f"{'✅' if ok else '❌'} {message}", reply_markup=None)
 
 
+# ── Connect-card auto-match review (fdm_a/fdm_r) ─────────────────────────────
+
+async def handle_automatch_review_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle fdm_a/fdm_r taps from jobs/congregation/family_dates.py's
+    notify_donna_automatch_reviews -- Donna confirming or undoing a Family
+    Birthday/Anniversary entry Watson matched and applied on its own (as
+    opposed to sp_c/sp_r and fc_add/fc_skip above, which are for entries
+    Watson couldn't resolve without her). Reuses _spouse_review_authorized
+    (Bill's chat or Donna's) since this is the same "only ever texted to
+    Donna" shape. All the actual undo logic lives in
+    family_dates.resolve_automatch_review, keyed off the
+    family_date_match_reviews snapshot taken when the review was staged."""
+    query = update.callback_query
+    await query.answer()
+
+    if not _spouse_review_authorized(update):
+        return
+
+    from jobs.congregation.family_dates import resolve_automatch_review
+
+    action, source_table, row_id = query.data.split(":")
+    row_id = int(row_id)
+
+    with get_connection() as conn:
+        message = resolve_automatch_review(conn, source_table, row_id, approved=(action == "fdm_a"))
+
+    await query.edit_message_text(message, reply_markup=None)
+
+
 # ── Fluro staged-pull review (flr_capply/flr_ckeep/flr_dsame/flr_dreject/flr_skip) ──
 
 async def handle_fluro_review_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -8097,6 +8126,7 @@ def main():
     app.add_handler(CallbackQueryHandler(handle_dup_flag_callback, pattern=r"^dupf_(merge|alias|sep|skip):"))
     app.add_handler(CallbackQueryHandler(handle_spouse_pairing_callback, pattern=r"^sp_(c|r):"))
     app.add_handler(CallbackQueryHandler(handle_child_addition_callback, pattern=r"^fc_(add|skip):"))
+    app.add_handler(CallbackQueryHandler(handle_automatch_review_callback, pattern=r"^fdm_(a|r):"))
     app.add_handler(CallbackQueryHandler(handle_fluro_review_callback, pattern=r"^flr_(capply|ckeep|dsame|dreject|skip):"))
     app.add_handler(CallbackQueryHandler(handle_prayer_contact_callback, pattern=r"^pr_(done|later|back|escalate):\d+$"))
     app.add_handler(CallbackQueryHandler(handle_prayer_remind_callback, pattern=r"^pr_remind:\d+:\d+$"))

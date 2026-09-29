@@ -602,3 +602,143 @@ def notify_donna_spouse_reviews(entries: list[dict]) -> None:
             f"married, but {reason_text}. Can you confirm?"
         )
         send_buttons_to_donna(text, spouse_review_keyboard(e))
+
+
+# ── Auto-match review (fdm_a/fdm_r) ─────────────────────────────────────────
+#
+# 2026-09-29: the FUZZY_THRESHOLD/match_first_name fix above (and the
+# blank-names spouse inference in record_anniversaries) resolved a batch of
+# entries that had been sitting unmatched, several by writing a birthdate/
+# anniversary that was empty before. Per Dr. Bill's instruction, every one
+# of those auto-matches -- not just the ones Watson was already unsure
+# about -- gets a confirm/reject round-trip with Donna before it's treated
+# as final, with a real undo if she rejects one. Distinct from
+# notify_donna_spouse_reviews/child_addition_keyboard above, which are for
+# entries Watson couldn't resolve on its own; this is a check-my-work step
+# for entries it did resolve on its own.
+
+
+def _ensure_match_review_table(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS family_date_match_reviews (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            source_table    TEXT NOT NULL,   -- 'birthday' or 'anniversary'
+            source_row_id   INTEGER NOT NULL,  -- connect_card_birthdays/anniversaries.id
+            member_id       INTEGER NOT NULL,
+            column_name     TEXT NOT NULL,   -- 'birthdate' or 'anniversary'
+            previous_value  TEXT,            -- what was on members.<column_name> before this
+                                              -- auto-match wrote it; NULL means it was empty,
+                                              -- so a rejection clears the column back out. A
+                                              -- non-NULL previous_value means the auto-match only
+                                              -- confirmed a value already on file -- nothing to
+                                              -- clear even on rejection.
+            resolved        INTEGER NOT NULL DEFAULT 0,
+            resolution      TEXT,            -- 'approved' or 'rejected'
+            created_at      TEXT DEFAULT (datetime('now'))
+        )
+        """
+    )
+
+
+def stage_automatch_review(
+    conn: sqlite3.Connection,
+    source_table: str,
+    source_row_id: int,
+    member_columns: list[tuple[int, str]],
+    previous_values: dict[tuple[int, str], str | None],
+) -> None:
+    """Snapshot what was on file for each (member_id, column_name) an
+    auto-match touched, before Donna has confirmed it -- so a rejection
+    later can undo exactly what this auto-match wrote and nothing else.
+    previous_values must be captured BEFORE the auto-match's own
+    _apply_date call(s) (or from a pre-fix backup, for the 2026-09-29
+    batch this shipped with), never re-derived from the current row, since
+    by the time this is called the write has already happened."""
+    _ensure_match_review_table(conn)
+    for member_id, column_name in member_columns:
+        conn.execute(
+            """
+            INSERT INTO family_date_match_reviews
+              (source_table, source_row_id, member_id, column_name, previous_value)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (source_table, source_row_id, member_id, column_name, previous_values.get((member_id, column_name))),
+        )
+
+
+def resolve_automatch_review(conn: sqlite3.Connection, source_table: str, source_row_id: int, approved: bool) -> str:
+    """Called from bot.py's fdm_a/fdm_r handler. Returns the text to show
+    Donna in place of the buttons. On rejection: clears members.<column>
+    back to NULL wherever previous_value was NULL (this auto-match is what
+    put a value there), leaves it alone wherever a value was already on
+    file (this auto-match only confirmed it, so there's nothing of ours to
+    undo), and unlinks the connect_card_birthdays/anniversaries row back to
+    'unmatched' so it reads the same as if the match had never happened."""
+    _ensure_match_review_table(conn)
+    rows = conn.execute(
+        "SELECT member_id, column_name, previous_value, resolved FROM family_date_match_reviews "
+        "WHERE source_table = ? AND source_row_id = ?",
+        (source_table, source_row_id),
+    ).fetchall()
+    if not rows:
+        return "Couldn't find that match review anymore."
+    if rows[0]["resolved"]:
+        return "This one's already been handled."
+
+    if approved:
+        conn.execute(
+            "UPDATE family_date_match_reviews SET resolved = 1, resolution = 'approved' "
+            "WHERE source_table = ? AND source_row_id = ?",
+            (source_table, source_row_id),
+        )
+        conn.commit()
+        return "✅ Confirmed — keeping that match."
+
+    for r in rows:
+        if r["previous_value"] is None:
+            conn.execute(
+                f"UPDATE members SET {r['column_name']} = NULL, updated_at = datetime('now') WHERE id = ?",
+                (r["member_id"],),
+            )
+
+    target_table = "connect_card_birthdays" if source_table == "birthday" else "connect_card_anniversaries"
+    id_column = "matched_member_id" if source_table == "birthday" else "matched_member_ids"
+    conn.execute(f"UPDATE {target_table} SET {id_column} = NULL, status = 'unmatched' WHERE id = ?", (source_row_id,))
+    if source_table == "anniversary":
+        conn.execute(
+            "UPDATE connect_card_anniversaries SET spouse_link_status = NULL WHERE id = ?", (source_row_id,)
+        )
+    conn.execute(
+        "UPDATE family_date_match_reviews SET resolved = 1, resolution = 'rejected' "
+        "WHERE source_table = ? AND source_row_id = ?",
+        (source_table, source_row_id),
+    )
+    conn.commit()
+    return "🚫 Undone — that match has been removed."
+
+
+def automatch_review_keyboard(source_table: str, source_row_id: int) -> list[list[dict]]:
+    """Telegram inline_keyboard for one auto-match review -- see bot.py's
+    CallbackQueryHandler(pattern=r"^fdm_(a|r):") for the tap side."""
+    return [[
+        {"text": "✅ Approved", "callback_data": f"fdm_a:{source_table}:{source_row_id}"},
+        {"text": "🚫 Not approved", "callback_data": f"fdm_r:{source_table}:{source_row_id}"},
+    ]]
+
+
+def notify_donna_automatch_reviews(entries: list[dict]) -> None:
+    """Texts Donna (Telegram) one message per auto-matched Family Birthday/
+    Anniversary entry, each with its own Approved/Not approved buttons.
+    entries: {"source_table": "birthday"|"anniversary", "source_row_id": int,
+    "summary": str} -- summary is the human-readable line describing what
+    was matched (who, what date, submitted by whom), built by the caller
+    since the two source tables' rows don't share a shape."""
+    if vacation_gate("normal", "jobs.congregation.family_dates.automatch_review", f"{len(entries)} auto-match(es)"):
+        return
+    for e in entries:
+        text = (
+            f"🔎 Auto-matched: {e['summary']}\n\n"
+            "Is that right? If not, tap Not approved and I'll undo it."
+        )
+        send_buttons_to_donna(text, automatch_review_keyboard(e["source_table"], e["source_row_id"]))
