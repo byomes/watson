@@ -16,10 +16,16 @@ PIN gates write access to every member field, not just a roster view.
 
 Editable columns are allowlisted (_EDITABLE_COLUMNS) so the update/batch
 endpoint can never write to an arbitrary column name from the request body.
-No hard deletes -- /deactivate just sets active='disconnected' (or
-'deceased'), consistent with the rest of this codebase's soft-delete
-convention (members.active already gates every other congregation.db
-view)."""
+/deactivate sets active='disconnected' (or 'deceased'), consistent with the
+rest of this codebase's soft-delete convention (members.active already
+gates every other congregation.db view). 2026-09-28, Bill's request: the
+grid now hides deactivated members by default, and /delete adds a real
+hard delete of the members row -- gated server-side (not just in the UI)
+to ids that are already deactivated. Rows in other tables that reference
+member_id (attendance, team_memberships, prayer_requests, etc.) are left
+in place as historical records rather than cascade-deleted -- this DB
+never enforces foreign keys (PRAGMA foreign_keys is off), so that's a
+harmless, pre-existing convention, not a gap introduced here."""
 import os
 import sqlite3
 from datetime import date, timedelta
@@ -44,7 +50,7 @@ _API_KEY = lambda: os.getenv("CATALYSTDB_API_KEY", "")
 # dropped first) once every read/write site was confirmed switched over.
 _EDITABLE_COLUMNS = {
     "name", "email", "phone", "campus_preference", "first_visit_date", "second_visit_date",
-    "notes", "address", "household_id", "deacon",
+    "notes", "address", "household_id", "household_name", "deacon",
     "birthdate", "household_role", "gender", "started_serving_date", "service_pin_notes",
     "partner", "active", "residency", "anniversary", "unsubscribed",
     "connected",
@@ -338,3 +344,39 @@ def deactivate():
             (target, *ids),
         )
     return jsonify({"deactivated": len(ids), "target": target})
+
+
+@catalystdb_web_bp.route("/api/cat/catalystdb/delete", methods=["POST"])
+@_require_key
+def delete():
+    """Hard delete: permanently removes rows from the members table.
+    {"ids": [1,2,3]}. Only allowed for ids whose active column is already
+    'disconnected' or 'deceased' -- the grid only exposes this after
+    Deactivate, and this endpoint re-checks that server-side rather than
+    trusting the UI, so it can't be used to skip the deactivate step.
+    Related rows in other tables (attendance, team_memberships,
+    prayer_requests, etc.) are intentionally left as historical records --
+    see the module docstring."""
+    data = request.get_json(silent=True) or {}
+    ids = data.get("ids")
+    if not isinstance(ids, list) or not ids:
+        return jsonify({"error": "ids (non-empty list) is required"}), 400
+    try:
+        ids = [int(i) for i in ids]
+    except (TypeError, ValueError):
+        return jsonify({"error": "ids must be integers"}), 400
+
+    with _conn() as conn:
+        placeholders = ",".join("?" * len(ids))
+        rows = conn.execute(
+            f"SELECT id, active FROM members WHERE id IN ({placeholders})", ids
+        ).fetchall()
+        found_ids = {r["id"] for r in rows}
+        missing = [i for i in ids if i not in found_ids]
+        if missing:
+            return jsonify({"error": f"No such member id(s): {missing}"}), 404
+        not_deactivated = [r["id"] for r in rows if r["active"] not in ("disconnected", "deceased")]
+        if not_deactivated:
+            return jsonify({"error": f"Deactivate before deleting -- id(s) still active: {not_deactivated}"}), 400
+        conn.execute(f"DELETE FROM members WHERE id IN ({placeholders})", ids)
+    return jsonify({"deleted": len(ids)})
