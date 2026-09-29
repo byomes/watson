@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-09-28*
+*Generated: 2026-09-29*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -2949,6 +2949,9 @@ data/
       20260826-015833-amazon-bio-update-draft/
         transcript.md
   skill_audit.json
+  sms_adb_last_id.json
+  sms_gateway_active_host.json
+  sms_gateway_alert_state.json
   sms_gateway_last_poll.txt
   sms_mock_inbound_queue.json
   trading.db
@@ -3125,8 +3128,10 @@ jobs/
   congregation/
     __init__.py
     age_groups.py
+    anniversary_daily_alert.py
     attendance_web.py
     backfill_first_visit_date.py
+    backfill_second_visit_date.py
     banquet_report.py
     batch_intake.py
     birthday_daily_alert.py
@@ -3165,6 +3170,7 @@ jobs/
     migrate_gender_and_spouse_roles.py
     migrate_household_role.py
     migrate_leadership_role_active.py
+    migrate_second_visit_date.py
     migrations_archive/
       migrate_catalystdb_grid_cleanup.py
       migrate_deacon_directory.py
@@ -3334,7 +3340,10 @@ jobs/
     send.py
   events/
     __init__.py
+    _oneoff_picnic_data_review_donna.py
+    _oneoff_verify_picnic_donna_notice.py
     banquet_rsvp.py
+    duplicate_review.py
     import_csv.py
     matching.py
     pattern_match.py
@@ -3576,7 +3585,11 @@ jobs/
     wdb_query.py
   sms/
     __init__.py
+    adb_client.py
+    adb_inbound.py
+    alert_targets.py
     api.py
+    appium_client.py
     bridge.py
     call_forwarding_toggle.py
     carrier_lookup.py
@@ -3586,6 +3599,7 @@ jobs/
     sabbath_digest.py
     scheduled_sender.py
     schema.py
+    send_core.py
     settings.py
     sms_send.py
   social/
@@ -3616,6 +3630,7 @@ jobs/
     migrate_recipient.py
     pending.py
     prayer_notify.py
+    prayer_notify_weekly.py
     prayer_reminder_fire.py
     resend_last.py
     seed_claim_codes.py
@@ -4281,6 +4296,11 @@ kb/
     2026-09-10-chains-and-confidence.md
     2026-09-12-partners-not-spectators.md
     2026-09-15-when-the-wrong-motive-still-preaches-the-truth.md
+    2026-09-17-seven-letters-and-thirty-four-years.md
+    2026-09-19-every-outcome-becomes-a-win-for-christ.md
+    2026-09-22-to-live-is-christ.md
+    2026-09-24-the-privilege-of-suffering.md
+    2026-09-26-living-for-others-over-going-home.md
     the-flashlight-of-your-focus.md
     where-your-treasure-is.md
   handouts/
@@ -5313,6 +5333,8 @@ src/
             route.ts
           deactivate/
             route.ts
+          delete/
+            route.ts
           state/
             route.ts
           update/
@@ -5349,6 +5371,15 @@ src/
             route.ts
           rescan/
             route.ts
+        event-duplicates/
+          dismiss/
+            route.ts
+          list/
+            route.ts
+          merge/
+            route.ts
+          rescan/
+            route.ts
         papercards/
           submit/
             route.ts
@@ -5369,6 +5400,9 @@ src/
         shepherdingreport/
           lastseen/
             route.ts
+          weeks/
+            [memberId]/
+              route.ts
         social/
           cancel/
             route.ts
@@ -5381,6 +5415,8 @@ src/
           status/
             route.ts
       sms/
+        attention/
+          route.ts
         contacts/
           route.ts
         heartbeat/
@@ -5458,6 +5494,10 @@ src/
         ConnectCardForm.tsx
         layout.tsx
         page.tsx
+      deaconapp-bill/
+        apple-icon.jpg
+        icon.jpg
+        page.tsx
       deaconapp/
         DeaconAppTabs.tsx
         NotesFeed.tsx
@@ -5475,6 +5515,9 @@ src/
         EditableSelect.tsx
       duplicates/
         DuplicateReviewBoard.tsx
+        page.tsx
+      event-duplicates/
+        EventDuplicateReviewBoard.tsx
         page.tsx
       papercards/
         PaperCardForm.tsx
@@ -5505,6 +5548,7 @@ src/
           page.tsx
           pin-pad.tsx
       shepherdingreport/
+        AttendanceWeeksModal.tsx
         AutoThemeShell.tsx
         GroupList.tsx
         ShepherdingStats.tsx
