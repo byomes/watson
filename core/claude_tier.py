@@ -29,7 +29,7 @@ log = logging.getLogger(__name__)
 _ENV_KEY = "WATSON_CLAUDE_BUDGET_KEY"
 _ENV_BUDGET = "CLAUDE_MONTHLY_BUDGET_USD"
 _DEFAULT_BUDGET_USD = 10.00
-_DEFAULT_MODEL = "claude-sonnet-5"
+_DEFAULT_MODEL = "claude-haiku-4-5"
 _DEFAULT_PERSON = "Bill Yomes"  # every default caller below is Bill's own scheduled/background automation
 _MAX_MESSAGE_LEN = 500  # trigger_message is a "what caused this call" hint, not a transcript archive
 
