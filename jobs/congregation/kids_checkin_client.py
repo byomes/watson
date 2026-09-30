@@ -264,12 +264,28 @@ async def _ws_eval(ws, expression: str, await_promise: bool = False, timeout: in
 
 
 async def _pull_full_history_async() -> dict:
+    # 2026-09-30 bug fix: the two bare `await ws.recv()` calls just below
+    # (CDP acks for Page.enable / addScriptToEvaluateOnNewDocument) had NO
+    # timeout at all -- unlike _ws_eval, which now correctly bounds its
+    # wait. If the CDP connection went silently dead right here (before any
+    # _ws_eval call is even reached), the coroutine blocked forever with
+    # zero output. This is the real cause of a 19+ minute hang that
+    # survived the earlier _ws_eval timeout fix. Fixed by bounding every
+    # recv() the same way, adding an explicit connect open_timeout, and
+    # wrapping the whole function in an outer hard-ceiling watchdog (see
+    # pull_full_history() below) so no future unguarded recv() can hang
+    # this forever again. print(..., flush=True) at each stage so a stall,
+    # if it ever recurs, shows exactly which stage it died on instead of
+    # producing zero output like this one did.
+    print(f"[{time.strftime('%H:%M:%S')}] connecting to phone...", flush=True)
     ensure_phone_connected()
     tab_ws = _find_dashboard_tab()
+    print(f"[{time.strftime('%H:%M:%S')}] found dashboard tab, opening CDP websocket...", flush=True)
 
-    async with websockets.connect(tab_ws, max_size=50_000_000) as ws:
+    async with websockets.connect(tab_ws, max_size=50_000_000, open_timeout=15) as ws:
+        print(f"[{time.strftime('%H:%M:%S')}] websocket open, enabling Page domain...", flush=True)
         await ws.send(json.dumps({"id": 1, "method": "Page.enable"}))
-        await ws.recv()
+        await asyncio.wait_for(ws.recv(), timeout=15)
 
         # Always force a fresh capture rather than trusting a leftover
         # window.__capturedAuth from an earlier run in this same tab -- the
@@ -281,8 +297,9 @@ async def _pull_full_history_async() -> dict:
             "id": 2, "method": "Page.addScriptToEvaluateOnNewDocument",
             "params": {"source": _PATCH_JS},
         }))
-        await ws.recv()
+        await asyncio.wait_for(ws.recv(), timeout=15)
         await ws.send(json.dumps({"id": 3, "method": "Page.reload"}))
+        print(f"[{time.strftime('%H:%M:%S')}] page reloaded, waiting for auth capture...", flush=True)
 
         ready = False
         end = time.time() + 15
@@ -302,7 +319,9 @@ async def _pull_full_history_async() -> dict:
         # validated token before we start using it ourselves.
         await asyncio.sleep(4)
 
+        print(f"[{time.strftime('%H:%M:%S')}] auth captured, starting browser-side pull of all instances...", flush=True)
         result = await _ws_eval(ws, _PULL_JS, await_promise=True, timeout=540)
+        print(f"[{time.strftime('%H:%M:%S')}] pull finished", flush=True)
         return json.loads(result)
 
 
@@ -318,8 +337,15 @@ def pull_full_history() -> dict:
     on the first). kids_checkin_import.py's INSERT OR IGNORE on
     subsplash_checkin_id makes re-running this safe, but for patching a
     handful of known-missing dates, prefer pull_events_by_id below instead
-    of hammering the full history again."""
-    return asyncio.run(_pull_full_history_async())
+    of hammering the full history again.
+
+    2026-09-30: wrapped in an outer 11-minute hard-ceiling watchdog. Every
+    individual recv()/eval() inside _pull_full_history_async() is now
+    correctly timeout-bounded (see the two bugs fixed same day), but this
+    outer wait_for is cheap defense-in-depth against any future unguarded
+    await slipping in and hanging the whole pull silently again -- raises a
+    clear TimeoutError instead."""
+    return asyncio.run(asyncio.wait_for(_pull_full_history_async(), timeout=660))
 
 
 _PULL_EVENTS_JS_TEMPLATE = """
