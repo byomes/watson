@@ -14,7 +14,7 @@ CONG_DB     = Path(__file__).resolve().parents[2] / "data" / "congregation.db"
 MAX_ROWS    = 20
 
 _TABLES = [
-    "members", "connect_cards", "attendance", "follow_ups", "deacon_notes",
+    "members", "connect_cards", "attendance", "kids_checkin", "follow_ups", "deacon_notes",
     "prayer_requests", "next_steps", "duplicate_flags",
     "audit_exemptions", "member_conflicts",
     "connect_card_birthdays", "connect_card_anniversaries",
@@ -404,14 +404,31 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
     # ATTENDED below instead of being swallowed as a count -- see the
     # fast-path phrasing collision feedback memory this file already follows
     # elsewhere (e.g. the HYBRID MEMBERS trigger comment above).
+    # 2026-09-30: extended to include kids_checkin for multi-week/month spans,
+    # alongside adult attendance broken by campus.
     if _span_label and 'who' not in q and 'list' not in q and ('attendance' in q or _COUNT_ATTENDED_RE.search(q)):
         campus_filter = f"a.campus = '{campus}' AND " if campus else ""
         campus_literal = f"'{campus}'" if campus else "NULL"
-        return (
-            f"SELECT '{_span_label}' as span_label, {campus_literal} as campus, "
-            f"COUNT(a.member_id) as combined_total, COUNT(DISTINCT a.member_id) as unique_individuals "
-            f"FROM attendance a WHERE {campus_filter}{a_date}"
-        )
+        if campus:
+            # If campus is specified, only show that campus (no kids breakdown)
+            return (
+                f"SELECT '{_span_label}' as span_label, {campus_literal} as campus, "
+                f"COUNT(a.member_id) as combined_total, COUNT(DISTINCT a.member_id) as unique_individuals "
+                f"FROM attendance a WHERE {campus_filter}{a_date}"
+            )
+        else:
+            # Unfiltered: return adults broken by campus + kids as a separate row
+            return (
+                f"SELECT * FROM ("
+                f"SELECT '{_span_label}' as span_label, a.campus as campus, "
+                f"COUNT(a.member_id) as combined_total, COUNT(DISTINCT a.member_id) as unique_individuals "
+                f"FROM attendance a WHERE {a_date} GROUP BY a.campus "
+                f"UNION ALL "
+                f"SELECT '{_span_label}' as span_label, 'Kids' as campus, "
+                f"COUNT(*) as combined_total, COUNT(DISTINCT kid_id) as unique_individuals "
+                f"FROM kids_checkin WHERE {a_date.replace('a.service_date', 'event_date')}"
+                f") ORDER BY CASE campus WHEN 'Online' THEN 1 WHEN 'Wilmington' THEN 2 ELSE 3 END"
+            )
 
     # HOW MANY ATTENDED (count)
     # _COUNT_ATTENDED_RE catches phrasings like "how many people have
@@ -440,13 +457,13 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
             # the tracking sheet isn't filled in yet, so a not-yet-synced
             # Sunday should read as missing here too, not as "0 kids".
             #
-            # 2026-09-30: Bill's kids_checkin backlog import (77 kids, 375
-            # real per-child Subsplash check-ins, 2025-01-26 onward -- see
-            # jobs/congregation/kids_checkin_import.py) is the preferred
-            # source when it has any row for the date, since it's actual
-            # per-child data rather than a staff-tallied class headcount.
-            # classroom_attendance (the older Google Sheet sync, back to
-            # 2023) is the fallback for dates kids_checkin doesn't cover at
+            # 2026-09-30: Bill's kids_checkin backlog import (77 kids total,
+            # 375 cumulative real per-child Subsplash check-ins from
+            # 2025-01-26 onward -- see jobs/congregation/kids_checkin_import.py)
+            # is the preferred source when it has any row for the date, since
+            # it's actual per-child data rather than a staff-tallied class
+            # headcount. classroom_attendance (the older Google Sheet sync, back
+            # to 2023) is the fallback for dates kids_checkin doesn't cover at
             # all. A plain COUNT can't tell "0 kids checked in" apart from
             # "no data for this date" (both return 0), so the EXISTS check
             # decides which source answers, rather than summing/preferring
