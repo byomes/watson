@@ -111,11 +111,53 @@ def _select_device_serial() -> str:
     )
 
 
-def ensure_phone_connected() -> str:
+async def _cdp_page_enable_responsive(timeout: float = 6) -> bool:
+    """Quick health check: does Chrome's CDP endpoint actually respond to a
+    real command, not just accept the TCP/websocket connection? A stale/
+    zombie debug session can complete the handshake but never ack a real
+    command -- discovered 2026-09-30 when a pull looked connected (tab
+    found, websocket open) but hung forever on Chrome never acking
+    Page.enable. Uses its own throwaway id (999) so it can never collide
+    with a real caller's in-flight message id."""
+    try:
+        tab_ws = _find_dashboard_tab()
+    except KidsCheckinClientError:
+        return False
+    try:
+        async with websockets.connect(tab_ws, open_timeout=5) as ws:
+            await ws.send(json.dumps({"id": 999, "method": "Page.enable"}))
+            await asyncio.wait_for(ws.recv(), timeout=timeout)
+            return True
+    except Exception:
+        return False
+
+
+def _force_restart_chrome(serial: str) -> None:
+    """Full kill + relaunch, not just wake/foreground -- recovery path for
+    when Chrome's CDP debug handler is unresponsive (zombie state, see
+    _cdp_page_enable_responsive's docstring). More disruptive than a plain
+    wake (all tabs reload from scratch), so this is only ever called as a
+    fallback after a responsiveness check actually fails, never
+    unconditionally -- same "don't disturb what's open unless we have to"
+    courtesy _find_dashboard_tab already follows for tab reuse."""
+    _adb("-s", serial, "shell", "am", "force-stop", "com.android.chrome")
+    time.sleep(2)
+    _adb("-s", serial, "shell", "monkey", "-p", "com.android.chrome", "-c", "android.intent.category.LAUNCHER", "1")
+    time.sleep(4)
+
+
+async def ensure_phone_connected() -> str:
     """Returns the adb serial/host actually used (Tailscale TCP host or a
     USB serial) in case a caller needs it, though the rest of this module
     only ever talks to the locally-forwarded CDP port and doesn't care which
-    transport got it there."""
+    transport got it there.
+
+    2026-09-30: added a responsiveness check + force-restart fallback.
+    Waking/foregrounding an already-running Chrome process isn't enough to
+    recover a zombie CDP debug session (discovered same day, see
+    _cdp_page_enable_responsive) -- only a real kill + relaunch does. Kept
+    as a fallback path (not the default) since it's more disruptive to
+    whatever tabs/state are already open on the phone."""
     serial = _select_device_serial()
     _adb("-s", serial, "forward", f"tcp:{CDP_LOCAL_PORT}", "localabstract:chrome_devtools_remote")
     # Chrome on the phone gets suspended (Dozing) when idle -- CDP won't
@@ -123,6 +165,15 @@ def ensure_phone_connected() -> str:
     _adb("-s", serial, "shell", "input", "keyevent", "KEYCODE_WAKEUP")
     _adb("-s", serial, "shell", "monkey", "-p", "com.android.chrome", "-c", "android.intent.category.LAUNCHER", "1")
     time.sleep(2)
+
+    if await _cdp_page_enable_responsive():
+        return serial
+
+    print(f"[{time.strftime('%H:%M:%S')}] Chrome unresponsive to CDP -- force-restarting...", flush=True)
+    _force_restart_chrome(serial)
+    _adb("-s", serial, "forward", f"tcp:{CDP_LOCAL_PORT}", "localabstract:chrome_devtools_remote")
+    if not await _cdp_page_enable_responsive():
+        raise KidsCheckinClientError("Chrome still unresponsive to CDP after force-restart")
     return serial
 
 
@@ -278,7 +329,7 @@ async def _pull_full_history_async() -> dict:
     # if it ever recurs, shows exactly which stage it died on instead of
     # producing zero output like this one did.
     print(f"[{time.strftime('%H:%M:%S')}] connecting to phone...", flush=True)
-    ensure_phone_connected()
+    await ensure_phone_connected()
     tab_ws = _find_dashboard_tab()
     print(f"[{time.strftime('%H:%M:%S')}] found dashboard tab, opening CDP websocket...", flush=True)
 
@@ -398,7 +449,7 @@ _PULL_EVENTS_JS_TEMPLATE = """
 
 
 async def _pull_events_by_id_async(event_ids: list[str]) -> dict:
-    ensure_phone_connected()
+    await ensure_phone_connected()
     tab_ws = _find_dashboard_tab()
 
     async with websockets.connect(tab_ws, max_size=50_000_000) as ws:
