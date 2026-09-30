@@ -7624,6 +7624,41 @@ async def handle_fluro_review_callback(update: Update, context: ContextTypes.DEF
         await query.edit_message_text(f"❌ Error: {exc}", reply_markup=None)
 
 
+# ── Kids Checkin household-link review (kcr_approve/reject/skip) ────────────
+
+async def handle_kids_checkin_review_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle kcr_* taps from jobs/congregation/notify_donna_kids_checkin_review.py
+    -- the human-decision step for linking a Subsplash-checkin-only kid to
+    a household. Reuses _spouse_review_authorized (Bill's chat or Donna's)
+    same as the Fluro review handler above. Actual writes happen in
+    jobs/congregation/kids_checkin_apply.py, never here directly."""
+    query = update.callback_query
+    await query.answer()
+
+    if not _spouse_review_authorized(update):
+        return
+
+    from jobs.congregation import kids_checkin_apply
+
+    action, queue_id = query.data.split(":", 1)
+    queue_id = int(queue_id)
+
+    try:
+        if action == "kcr_approve":
+            message = kids_checkin_apply.approve_household_link(queue_id)
+        elif action == "kcr_reject":
+            message = kids_checkin_apply.reject_household_link(queue_id)
+        elif action == "kcr_skip":
+            message = kids_checkin_apply.skip_for_now(queue_id)
+        else:
+            await query.edit_message_text(f"❌ Unrecognized action: {action}", reply_markup=None)
+            return
+        await query.edit_message_text(f"✅ {message}", reply_markup=None)
+    except Exception as exc:
+        log.error("kids_checkin_review action failed (action=%s queue_id=%s): %s", action, queue_id, exc)
+        await query.edit_message_text(f"❌ Error: {exc}", reply_markup=None)
+
+
 # ── Deacon prayer-contact accountability (jobs/telegram/prayer_notify.py) ────
 
 _PRAYER_DB_PATH = os.path.expanduser("~/watson/data/congregation.db")
@@ -8128,6 +8163,7 @@ def main():
     app.add_handler(CallbackQueryHandler(handle_child_addition_callback, pattern=r"^fc_(add|skip):"))
     app.add_handler(CallbackQueryHandler(handle_automatch_review_callback, pattern=r"^fdm_(a|r):"))
     app.add_handler(CallbackQueryHandler(handle_fluro_review_callback, pattern=r"^flr_(capply|ckeep|dsame|dreject|skip):"))
+    app.add_handler(CallbackQueryHandler(handle_kids_checkin_review_callback, pattern=r"^kcr_(approve|reject|skip):"))
     app.add_handler(CallbackQueryHandler(handle_prayer_contact_callback, pattern=r"^pr_(done|later|back|escalate):\d+$"))
     app.add_handler(CallbackQueryHandler(handle_prayer_remind_callback, pattern=r"^pr_remind:\d+:\d+$"))
     app.add_handler(CallbackQueryHandler(handle_batch_update_callback, pattern=r"^bu_"))
