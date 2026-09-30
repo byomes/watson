@@ -57,8 +57,7 @@ def format_period_attendance_breakdown(rows: list[dict]) -> str:
     """Plain-English answer to multi-week/month attendance question with
     campus breakdown (Online, Wilmington, Hybrid, Kids). Called when cdb_query.py's
     _pattern_match COMBINED + CUMULATIVE block returns multiple rows (one per
-    campus/group). Format: "In [period], we saw X total check-ins from Y unique people."
-    with breakdown by campus and hybrid (both campuses attended in the period)."""
+    campus/group). Separates adults and kids in the opening summary."""
     if not rows:
         return "No attendance recorded for that period."
     span_label = rows[0].get("span_label", "this period")
@@ -66,17 +65,28 @@ def format_period_attendance_breakdown(rows: list[dict]) -> str:
     wilm_row = next((r for r in rows if r.get("campus") == "Wilmington"), None)
     hybrid_row = next((r for r in rows if r.get("campus") == "Hybrid"), None)
     kids_row = next((r for r in rows if r.get("campus") == "Kids"), None)
+
+    # Adult totals (Online + Wilmington + Hybrid)
     online_combined = online_row.get("combined_total", 0) or 0
     wilm_combined = wilm_row.get("combined_total", 0) or 0
     hybrid_combined = hybrid_row.get("combined_total", 0) or 0
-    kids_combined = kids_row.get("combined_total") if kids_row else None
-    grand_combined = online_combined + wilm_combined + hybrid_combined + (kids_combined or 0)
+    adult_combined = online_combined + wilm_combined + hybrid_combined
     online_unique = online_row.get("unique_individuals", 0) or 0
     wilm_unique = wilm_row.get("unique_individuals", 0) or 0
     hybrid_unique = hybrid_row.get("unique_individuals", 0) or 0
+    adult_unique = online_unique + wilm_unique + hybrid_unique
+
+    # Kids totals
+    kids_combined = kids_row.get("combined_total") if kids_row else None
     kids_unique = kids_row.get("unique_individuals") if kids_row else None
-    grand_unique = online_unique + wilm_unique + hybrid_unique + (kids_unique or 0)
-    lines = [f"In {span_label}, we saw {grand_combined} total check-ins from {grand_unique} unique people. Here's the breakdown:"]
+
+    # Summary line
+    summary = f"In {span_label}, we saw {adult_combined} total check-ins from {adult_unique} unique adults"
+    if kids_combined:
+        summary += f" and {kids_combined} total check-ins from {kids_unique} kids"
+    summary += ". Here's the breakdown:"
+
+    lines = [summary]
     lines.append(f"Online: {online_unique} individuals")
     lines.append(f"Wilmington: {wilm_unique} individuals")
     if hybrid_unique:
