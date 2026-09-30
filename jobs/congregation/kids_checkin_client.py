@@ -238,9 +238,20 @@ async def _ws_eval(ws, expression: str, await_promise: bool = False, timeout: in
         "id": msg_id, "method": "Runtime.evaluate",
         "params": {"expression": expression, "returnByValue": True, "awaitPromise": await_promise},
     }))
+    # Bug found 2026-09-30: this used to pass the FULL `timeout` to every
+    # wait_for() call inside the loop instead of the remaining budget until
+    # `end` -- a chatty CDP connection sending unrelated Page/Network
+    # notification frames (which don't match msg_id and just loop around)
+    # kept resetting each individual recv()'s own fresh timeout, so the loop
+    # could run far past the intended deadline instead of bailing at `end`.
+    # Caught live: a pull_full_history() call ran 15+ minutes past its
+    # intended 540s cap, blocked in epoll with no progress.
     end = time.time() + timeout
-    while time.time() < end:
-        raw = await asyncio.wait_for(ws.recv(), timeout=timeout)
+    while True:
+        remaining = end - time.time()
+        if remaining <= 0:
+            break
+        raw = await asyncio.wait_for(ws.recv(), timeout=remaining)
         data = json.loads(raw)
         if data.get("id") == msg_id:
             result = data.get("result", {})
