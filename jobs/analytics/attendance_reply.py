@@ -61,9 +61,13 @@ def format_period_attendance_breakdown(rows: list[dict]) -> str:
     if not rows:
         return "No attendance recorded for that period."
     span_label = rows[0].get("span_label", "this period")
-    online_row = next((r for r in rows if r.get("campus") == "Online"), None)
-    wilm_row = next((r for r in rows if r.get("campus") == "Wilmington"), None)
-    hybrid_row = next((r for r in rows if r.get("campus") == "Hybrid"), None)
+    # Any bucket can legitimately be absent (e.g. a period with zero
+    # Wilmington-only attendees produces no 'Wilmington' row at all, since
+    # cdb_query.py's GROUP BY only emits rows for buckets that exist) -- fall
+    # back to {} rather than None so .get() below never raises.
+    online_row = next((r for r in rows if r.get("campus") == "Online"), None) or {}
+    wilm_row = next((r for r in rows if r.get("campus") == "Wilmington"), None) or {}
+    hybrid_row = next((r for r in rows if r.get("campus") == "Hybrid"), None) or {}
     kids_row = next((r for r in rows if r.get("campus") == "Kids"), None)
 
     # Adult totals (Online + Wilmington + Hybrid)

@@ -417,25 +417,38 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
                 f"FROM attendance a WHERE {campus_filter}{a_date}"
             )
         else:
-            # Unfiltered: return adults broken by campus + hybrid + kids
-            # Hybrid = people who attended both Online and Wilmington in this span
+            # Unfiltered: return adults broken into Online-only/Wilmington-only/
+            # Hybrid (mutually exclusive, so the three unique_individuals counts
+            # sum to the true total with no double-counting) + kids.
+            #
+            # 2026-09-30 bug fix: an earlier version counted each hybrid person
+            # (attended both campuses) in the Online row, the Wilmington row, AND
+            # a separate Hybrid row -- e.g. September 2026 came out as 271 unique
+            # adults when the true COUNT(DISTINCT member_id) is 152, because 105
+            # hybrid people were being counted 3 times each (30+136+105=271 vs the
+            # real 152). Fixed by classifying each member into exactly one of the
+            # three buckets first (inner subquery), then aggregating -- the three
+            # buckets can never overlap. combined_total (total check-ins) per
+            # bucket is SUM(visits), which still adds up correctly to the true
+            # total across all campuses since every attendance row belongs to
+            # exactly one member.
             return (
                 f"SELECT * FROM ("
-                f"SELECT '{_span_label}' as span_label, a.campus as campus, "
-                f"COUNT(a.member_id) as combined_total, COUNT(DISTINCT a.member_id) as unique_individuals "
-                f"FROM attendance a WHERE {a_date} GROUP BY a.campus "
-                f"UNION ALL "
-                f"SELECT '{_span_label}' as span_label, 'Hybrid' as campus, "
-                f"COUNT(DISTINCT a.member_id) as combined_total, COUNT(DISTINCT a.member_id) as unique_individuals "
-                f"FROM attendance a WHERE {a_date} AND a.member_id IN ("
-                f"  SELECT member_id FROM attendance WHERE {a_date} AND campus = 'Online' "
-                f"  INTERSECT "
-                f"  SELECT member_id FROM attendance WHERE {a_date} AND campus = 'Wilmington'"
-                f") "
+                f"SELECT '{_span_label}' as span_label, "
+                f"CASE WHEN was_online = 1 AND was_wilm = 1 THEN 'Hybrid' "
+                f"WHEN was_online = 1 THEN 'Online' ELSE 'Wilmington' END as campus, "
+                f"SUM(visits) as combined_total, COUNT(*) as unique_individuals "
+                f"FROM ("
+                f"SELECT member_id, "
+                f"MAX(CASE WHEN campus = 'Online' THEN 1 ELSE 0 END) as was_online, "
+                f"MAX(CASE WHEN campus = 'Wilmington' THEN 1 ELSE 0 END) as was_wilm, "
+                f"COUNT(*) as visits "
+                f"FROM attendance WHERE {s_date} GROUP BY member_id"
+                f") member_campus GROUP BY campus "
                 f"UNION ALL "
                 f"SELECT '{_span_label}' as span_label, 'Kids' as campus, "
                 f"COUNT(*) as combined_total, COUNT(DISTINCT kid_id) as unique_individuals "
-                f"FROM kids_checkin WHERE {a_date.replace('a.service_date', 'event_date')}"
+                f"FROM kids_checkin WHERE {s_date.replace('service_date', 'event_date')}"
                 f") ORDER BY CASE campus WHEN 'Online' THEN 1 WHEN 'Wilmington' THEN 2 WHEN 'Hybrid' THEN 3 ELSE 4 END"
             )
 
