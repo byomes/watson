@@ -830,9 +830,15 @@ def _format_rows(rows: list[dict], domain: str | None = None) -> str:
         from jobs.analytics.attendance_reply import format_last_missed_reply
         r = rows[0]
         return format_last_missed_reply(r["name"], r.get("last_missed"))
-    # COMBINED + CUMULATIVE ATTENDANCE (cdb_query.py's _pattern_match "attendance
-    # for the last N weeks/months" block, added 2026-09-16) -- same routing
-    # convention as the two blocks above.
+    # COMBINED + CUMULATIVE ATTENDANCE with campus breakdown (cdb_query.py's
+    # _pattern_match "attendance for the last N weeks/months" block, unfiltered
+    # to show Online/Wilmington/Kids) -- multiple rows, one per campus/group.
+    # Added 2026-09-30 per Bill's request to include kids in multi-week queries.
+    if rows and all(set(r.keys()) == {"span_label", "campus", "combined_total", "unique_individuals"} for r in rows):
+        from jobs.analytics.attendance_reply import format_period_attendance_breakdown
+        return format_period_attendance_breakdown(rows)
+    # COMBINED + CUMULATIVE ATTENDANCE single-campus (cdb_query.py's _pattern_match
+    # "attendance for the last N weeks/months" block with campus filter) -- one row.
     if len(rows) == 1 and set(rows[0].keys()) == {"span_label", "campus", "combined_total", "unique_individuals"}:
         from jobs.analytics.attendance_reply import format_period_attendance_reply
         r = rows[0]

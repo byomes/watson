@@ -53,6 +53,34 @@ def format_period_attendance_reply(
     )
 
 
+def format_period_attendance_breakdown(rows: list[dict]) -> str:
+    """Plain-English answer to multi-week/month attendance question with
+    campus breakdown (Online, Wilmington, Kids). Called when cdb_query.py's
+    _pattern_match COMBINED + CUMULATIVE block returns multiple rows (one per
+    campus/group) instead of one per-campus-filtered row."""
+    if not rows:
+        return "No attendance recorded for that period."
+    span_label = rows[0].get("span_label", "over this period")
+    adults = [r for r in rows if r.get("campus") in ("Online", "Wilmington")]
+    kids_row = next((r for r in rows if r.get("campus") == "Kids"), None)
+    adult_combined = sum(r.get("combined_total", 0) or 0 for r in adults)
+    kids_combined = kids_row.get("combined_total") if kids_row else None
+    grand_combined = adult_combined + (kids_combined or 0)
+    adult_unique = sum(r.get("unique_individuals", 0) or 0 for r in adults)
+    kids_unique = kids_row.get("unique_individuals") if kids_row else None
+    grand_unique = adult_unique + (kids_unique or 0)
+    lines = [f"Over {span_label}: {grand_combined} combined check-ins and {grand_unique} cumulative, unique people. Here's the breakdown:"]
+    for r in adults:
+        combined = r.get("combined_total") or 0
+        unique = r.get("unique_individuals") or 0
+        lines.append(f"{r['campus']}: {combined} check-ins, {unique} unique people")
+    if kids_row:
+        combined = kids_row.get("combined_total") or 0
+        unique = kids_row.get("unique_individuals") or 0
+        lines.append(f"Kids: {combined} check-ins, {unique} unique kids")
+    return "\n".join(lines)
+
+
 def format_weekly_attendance_reply(rows: list[dict]) -> str:
     """Plain-English answer to a single-Sunday (or today/yesterday/specific-
     date) headcount question -- cdb_query.py's _pattern_match plain HOW MANY
