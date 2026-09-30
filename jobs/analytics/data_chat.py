@@ -766,7 +766,7 @@ def _run(domain: str, sql: str) -> list[dict] | None:
 def _fmt_value(v):
     if isinstance(v, float):
         v = round(v, 1)
-    return "—" if v is None else v
+    return "N/A" if v is None else v
 
 
 def _events_not_tracked_reply() -> str:
@@ -853,8 +853,8 @@ def _format_rows(rows: list[dict], domain: str | None = None) -> str:
         lines = []
         for r in rows[:25]:
             lines.append(str(_fmt_value(r["name"])))
-            lines.append(str(_fmt_value(r["phone"])) if r.get("phone") not in (None, "") else "—")
-            lines.append(str(_fmt_value(r["email"])) if r.get("email") not in (None, "") else "—")
+            lines.append(str(_fmt_value(r["phone"])) if r.get("phone") not in (None, "") else "N/A")
+            lines.append(str(_fmt_value(r["email"])) if r.get("email") not in (None, "") else "N/A")
             lines.append("")
         if lines and lines[-1] == "":
             lines.pop()
