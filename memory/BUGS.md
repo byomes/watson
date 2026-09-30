@@ -1,6 +1,6 @@
 # Watson Bug Tracker
 _Auto-generated nightly from bug_tracker. Source of truth is the database — do not hand-edit this file, changes will be overwritten._
-Last generated: 2026-09-29 02:10
+Last generated: 2026-09-30 02:10
 
 ## Open (6)
 | ID | Title | Repo | Discovered |
@@ -15,6 +15,10 @@ Last generated: 2026-09-29 02:10
 ## Recently Resolved (last 30 days)
 | ID | Title | Repo | Resolved | Commit |
 |---|---|---|---|---|
+| 212 | cdb_query.py run() pattern-match path mislabels result columns | watson | 2026-09-30 05:00:08 | a263b54 |
+| 211 | cdb_query: per-month attendance breakdown fell through to paid LLM | watson | 2026-09-29 17:55:46 | 5062ff5 |
+| 210 | SMS: multi-line MMS body truncated by adb content query parser | watson | 2026-09-29 16:13:18 | 488fac80992fe9f88e445c6824b47b2a8201f993 |
+| 209 | adb_client.connect_device() crashed on TimeoutExpired instead of failing over | watson | 2026-09-29 10:50:23 | c20fdfa |
 | 206 | Connect-card birthday/anniversary conflicts never notified | watson | 2026-09-28 21:29:50 | 93b8e86f0b4ec2e7e59131f6b4d53a1ce59e83ce |
 | 205 | FMSPC immediate KB sync trigger silently connection-refused since 2026-09-16 | watson | 2026-09-28 | 014da14 |
 | 203 | Auto-applied fast-path patch bolted "exactly one time" onto the wrong block (no visit-count logic) | watson | 2026-09-27 22:02:18 | 6d85015 |
@@ -134,8 +138,3 @@ Last generated: 2026-09-29 02:10
 | 112 | connect_cards email_reports.py sent Bill duplicate copies of every report | watson | 2026-08-31 15:43:25 | 74ced40 |
 | 111 | connect_cards intake.py only scanned INBOX, silently dropping spam-misclassified cards | watson | 2026-08-31 15:43:25 | 74ced40 |
 | 110 | campus_classifier.py overwrites Inactive campus_preference every Monday | watson | 2026-08-31 11:14:53 | ebe5de2 |
-| 105 | Connect-card intake created duplicate attendance rows | watson | 2026-08-31 02:09:11 | 265a8e9 |
-| 109 | watson_recover.sh: systemd install step swept up unrelated .service files | watson | 2026-08-30 22:58:00 | c342d86 |
-| 108 | watson_recover.sh: ollama binary never installed; installer needs curl/zstd not in apt list | watson | 2026-08-30 22:54:00 | ecd0478 |
-| 107 | watson_recover.sh: tailscale not installable via plain apt on stock Ubuntu | watson | 2026-08-30 22:41:00 | 8e7d2a9 |
-| 106 | watson_recover.sh: missing cron package aborts recovery at crontab restore | watson | 2026-08-30 22:32:00 | 2a077ed |
