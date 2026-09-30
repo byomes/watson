@@ -6,9 +6,15 @@ untouched -- not worth the blast radius of refactoring working, unrelated
 features just to share this one call).
 
 Known fragility (see project_sms_gateway_app.md): `adb tcpip 5555` does not
-survive a phone reboot -- needs re-running over USB each time. This module
-does not attempt to recover from that; jobs/sms/heartbeat.py's ADB check is
-what alerts Bill when the phone is unreachable this way.
+survive a phone reboot -- needs re-running over USB each time. The phone
+stays physically wired to this host via USB though, which has no such
+fragility (survives reboot as long as USB debugging is still authorized) --
+2026-09-30: connect_device() was blind to that working USB connection and
+only ever tried the wireless candidates below, so every phone reboot caused
+a false "adb unreachable" alert despite the phone being fully reachable the
+whole time over the cable sitting right next to it. Now checks for any
+already-connected/authorized device (USB included) before falling back to
+wireless. See bug_tracker for this fix.
 """
 import logging
 import os
@@ -28,8 +34,13 @@ _FIELD_SPLIT_RE = re.compile(r", (?=[A-Za-z_][A-Za-z0-9_]*=)")
 
 
 def connect_device() -> str | None:
-    """Tries each candidate host in turn (Tailscale first, LAN fallback),
-    same order/behavior as sabbath_digest.py's _connect_device().
+    """Checks for any device adb already sees in "device" state first --
+    the gateway phone's permanent USB connection to this host normally
+    answers here, instantly, without ever touching the network candidates
+    below. Only falls back to the wireless candidates (Tailscale first, LAN
+    fallback -- same order/behavior as sabbath_digest.py's
+    _connect_device()) if nothing is already connected, e.g. the phone is
+    momentarily unplugged.
 
     `adb connect` can itself hang past its timeout when the target host is
     up on the network (responds to ping) but nothing is listening on 5555
@@ -39,6 +50,16 @@ def connect_device() -> str | None:
     to fire since the crash happened before reaching that logic). Both
     subprocess calls are now guarded so an unreachable/slow candidate is
     treated as a failed candidate, not an unhandled exception."""
+    try:
+        existing = subprocess.run([ADB, "devices"], capture_output=True, text=True, timeout=10)
+    except subprocess.TimeoutExpired:
+        existing = None
+    if existing is not None:
+        for line in existing.stdout.splitlines()[1:]:
+            parts = line.split()
+            if len(parts) == 2 and parts[1] == "device":
+                return parts[0]
+
     for device in _DEVICE_CANDIDATES:
         try:
             subprocess.run([ADB, "connect", device], capture_output=True, text=True, timeout=15)

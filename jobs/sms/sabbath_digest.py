@@ -80,7 +80,22 @@ def _connect_device() -> str | None:
     """`adb connect` can hang past its own timeout when the target host is
     up but nothing is listening on 5555 -- see jobs/sms/adb_client.py's
     connect_device() docstring for the uncaught-crash bug this duplicated
-    (found 2026-09-29). Guarded the same way here."""
+    (found 2026-09-29). Guarded the same way here.
+
+    2026-09-30: also mirrors adb_client.py's fix of checking for an
+    already-connected device (the phone's permanent USB link to this host)
+    before trying the wireless candidates, which don't survive a phone
+    reboot -- see that module's docstring."""
+    try:
+        existing = subprocess.run([ADB, "devices"], capture_output=True, text=True, timeout=10)
+    except subprocess.TimeoutExpired:
+        existing = None
+    if existing is not None:
+        for line in existing.stdout.splitlines()[1:]:
+            parts = line.split()
+            if len(parts) == 2 and parts[1] == "device":
+                return parts[0]
+
     for device in _DEVICE_CANDIDATES:
         try:
             subprocess.run([ADB, "connect", device], capture_output=True, text=True, timeout=15)
