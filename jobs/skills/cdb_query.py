@@ -437,7 +437,8 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
                 f"SELECT '{_span_label}' as span_label, "
                 f"CASE WHEN was_online = 1 AND was_wilm = 1 THEN 'Hybrid' "
                 f"WHEN was_online = 1 THEN 'Online' ELSE 'Wilmington' END as campus, "
-                f"SUM(visits) as combined_total, COUNT(*) as unique_individuals "
+                f"SUM(visits) as combined_total, COUNT(*) as unique_individuals, "
+                f"NULL as kids_covered_days, NULL as kids_total_days "
                 f"FROM ("
                 f"SELECT member_id, "
                 f"MAX(CASE WHEN campus = 'Online' THEN 1 ELSE 0 END) as was_online, "
@@ -446,9 +447,40 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
                 f"FROM attendance WHERE {s_date} GROUP BY member_id"
                 f") member_campus GROUP BY campus "
                 f"UNION ALL "
+                # 2026-09-30 bug fix: this used to sum ONLY kids_checkin, but
+                # that table's real-world coverage has gaps (e.g. May/June/July
+                # 2026 each have just one Sunday with any kids_checkin rows at
+                # all) -- every other Sunday in the span was silently dropped
+                # from the total instead of falling back to
+                # classroom_attendance (the older Google Sheet sync, which DOES
+                # have a row for most of those Sundays), the same per-Sunday
+                # preference the single-Sunday HOW MANY ATTENDED block below
+                # already uses. Per-day total uses COUNT(DISTINCT kid_id) (not
+                # COUNT(*)) to match that same block's same-day-dedup
+                # convention. unique_individuals can only ever come from
+                # kids_checkin's real per-child rows -- classroom_attendance is
+                # a headcount tally with no per-child identity, so a month that
+                # leans on it for some Sundays will under-count true unique
+                # kids; that's a real data-coverage limit, not something this
+                # query can paper over.
                 f"SELECT '{_span_label}' as span_label, 'Kids' as campus, "
-                f"COUNT(*) as combined_total, COUNT(DISTINCT kid_id) as unique_individuals "
-                f"FROM kids_checkin WHERE {s_date.replace('service_date', 'event_date')}"
+                f"(SELECT SUM(day_total) FROM ("
+                f"  SELECT CASE WHEN EXISTS (SELECT 1 FROM kids_checkin WHERE event_date = sd.service_date) "
+                f"  THEN (SELECT COUNT(DISTINCT kid_id) FROM kids_checkin WHERE event_date = sd.service_date) "
+                f"  ELSE (SELECT kids_nursery + kids_toddlers + kids_prek + kids_elementary "
+                f"        FROM classroom_attendance WHERE date = sd.service_date) END as day_total "
+                f"  FROM (SELECT DISTINCT service_date FROM attendance WHERE {s_date}) sd"
+                f")) as combined_total, "
+                f"(SELECT COUNT(DISTINCT kid_id) FROM kids_checkin WHERE {s_date.replace('service_date', 'event_date')}) as unique_individuals, "
+                # kids_covered_days/kids_total_days let the formatter tell a
+                # fully-reliable unique-kids count (every Sunday in the span
+                # came from kids_checkin's real per-child data) apart from a
+                # partial/headcount-only one (some or all Sundays only had
+                # classroom_attendance, so unique_individuals above is a
+                # floor, not the true count) -- see comment above.
+                f"(SELECT COUNT(*) FROM (SELECT DISTINCT service_date FROM attendance WHERE {s_date}) sd2 "
+                f" WHERE EXISTS (SELECT 1 FROM kids_checkin WHERE event_date = sd2.service_date)) as kids_covered_days, "
+                f"(SELECT COUNT(*) FROM (SELECT DISTINCT service_date FROM attendance WHERE {s_date}) sd3) as kids_total_days"
                 f") ORDER BY CASE campus WHEN 'Online' THEN 1 WHEN 'Wilmington' THEN 2 WHEN 'Hybrid' THEN 3 ELSE 4 END"
             )
 

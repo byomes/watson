@@ -80,14 +80,30 @@ def format_period_attendance_breakdown(rows: list[dict]) -> str:
     hybrid_unique = hybrid_row.get("unique_individuals", 0) or 0
     adult_unique = online_unique + wilm_unique + hybrid_unique
 
-    # Kids totals
+    # Kids totals. kids_covered_days/kids_total_days (added 2026-09-30) tell
+    # whether EVERY Sunday in the span had real per-child kids_checkin data
+    # (covered == total, so unique_individuals is exact) or some/all Sundays
+    # fell back to classroom_attendance's headcount-only tally (covered <
+    # total), in which case unique_individuals only reflects the covered
+    # Sundays and understates the true unique count -- classroom_attendance
+    # has no per-child identity, so there's no way to compute the real
+    # number for those Sundays. Silently showing the partial number as if it
+    # were exact is what caused Bill to distrust the May/June/July answers
+    # (July: 40 check-ins from a reported "0 kids", since none of July's
+    # Sundays had kids_checkin coverage at all).
     kids_combined = kids_row.get("combined_total") if kids_row else None
     kids_unique = kids_row.get("unique_individuals") if kids_row else None
+    kids_covered = kids_row.get("kids_covered_days") if kids_row else None
+    kids_total_days = kids_row.get("kids_total_days") if kids_row else None
+    kids_partial = kids_row is not None and (kids_covered or 0) < (kids_total_days or 0)
 
     # Summary line
     summary = f"In {span_label}, we saw {adult_combined} total check-ins from {adult_unique} unique adults"
     if kids_combined:
-        summary += f" and {kids_combined} total check-ins from {kids_unique} kids"
+        if kids_partial:
+            summary += f" and {kids_combined} total kids check-ins (individual tracking only available for {kids_covered} of {kids_total_days} Sundays)"
+        else:
+            summary += f" and {kids_combined} total check-ins from {kids_unique} kids"
     summary += ". Here's the breakdown:"
 
     lines = [summary]
@@ -96,8 +112,11 @@ def format_period_attendance_breakdown(rows: list[dict]) -> str:
     if hybrid_unique:
         lines.append(f"Hybrid: {hybrid_unique} individuals")
     if kids_row:
-        unique = kids_row.get("unique_individuals") or 0
-        lines.append(f"Kids: {unique} unique kids")
+        if kids_partial:
+            at_least = f"at least {kids_unique} unique kids" if kids_unique else f"{kids_combined} check-ins, individual count unavailable"
+            lines.append(f"Kids: {at_least} (only {kids_covered}/{kids_total_days} Sundays have per-child data -- rest are classroom headcounts only)")
+        else:
+            lines.append(f"Kids: {kids_unique or 0} unique kids")
     return "\n".join(lines)
 
 
