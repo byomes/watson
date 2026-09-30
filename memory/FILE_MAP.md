@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-09-29*
+*Generated: 2026-09-30*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -296,6 +296,9 @@ data/
       20260826-015823-vimeo-embedding-versus-direct-moodle-video-uploads/
         transcript.md
       20260826-015831-watson-log-monitoring-for-adelphos-moodle/
+        transcript.md
+    apologetics/
+      20260929-111651-car-ride-stress-test-brute-fact-vs-first-cause-arg/
         transcript.md
     beyond-the-noise-writing-project/
       20260826-013953-beyond-the-noise-chat/
@@ -1683,6 +1686,8 @@ data/
         Privacy-Guard-Build-Spec.md
         family_data_template.sql
         transcript.md
+      20260929-115800-ai-assistant-texting-as-me-vs-as-him-disclosure-di/
+        transcript.md
     guardrails/
       20260904-083459-merging-trust-issues-book-with-ai-and-ministry-fra/
         merged-book-outline.txt
@@ -1780,6 +1785,12 @@ data/
       20260923-195257-pre-compaction-morning-session-title-conflict-chec/
         transcript.md
       20260924-085801-ch-2-3-handoff-locked-chapter-placements-confirmed/
+        transcript.md
+      20260929-111723-guardrail-rewording-review-g1-confirmed-as-is/
+        transcript.md
+      20260929-112152-official-rewording-of-the-four-guardrails-final-lo/
+        transcript.md
+      20260929-112225-four-guardrails-official-rewording-session-2026-09/
         transcript.md
     ideas-to-be-developed/
       20260826-013954-expanding-concept-ideas/
@@ -2965,8 +2976,6 @@ data/
   trading.db.bak-pre-sizing-fix-20260911073349
   trading.db.bak-pre-windows3-backfill-20260911110635
   watson.db
-  watson.db-shm
-  watson.db-wal
 deploy/
   .gitkeep
   apt-packages.txt
@@ -3134,6 +3143,7 @@ jobs/
     backfill_second_visit_date.py
     banquet_report.py
     batch_intake.py
+    bday_web.py
     birthday_daily_alert.py
     birthday_report.py
     catalystdb_login_lockout.py
@@ -3160,6 +3170,11 @@ jobs/
     import_deacon_directory.py
     import_subsplash_contacts.py
     init_db.py
+    kids_attendance_web.py
+    kids_checkin_apply.py
+    kids_checkin_client.py
+    kids_checkin_import.py
+    kids_duplicate_check.py
     leader_broadcast.py
     married_age_check.py
     member_match.py
@@ -3169,6 +3184,9 @@ jobs/
     migrate_deacon_visible_views.py
     migrate_gender_and_spouse_roles.py
     migrate_household_role.py
+    migrate_kids_checkin_tables.py
+    migrate_kids_current_class.py
+    migrate_kids_member_id.py
     migrate_leadership_role_active.py
     migrate_second_visit_date.py
     migrations_archive/
@@ -3181,7 +3199,9 @@ jobs/
       migrate_partner_connected_active.py
       migrate_reparse.py
     notify_donna_fluro_review.py
+    notify_donna_kids_checkin_review.py
     notify_subsplash_fuzzy_review.py
+    oneoff_2026_09_30_donna_kids_checkin_summary_email.py
     papercards_web.py
     pin_collection.py
     recompute_active_status.py
@@ -3340,8 +3360,6 @@ jobs/
     send.py
   events/
     __init__.py
-    _oneoff_picnic_data_review_donna.py
-    _oneoff_verify_picnic_donna_notice.py
     banquet_rsvp.py
     duplicate_review.py
     import_csv.py
@@ -3591,9 +3609,12 @@ jobs/
     api.py
     appium_client.py
     bridge.py
+    broadcast_pacing.py
+    broadcast_sender.py
     call_forwarding_toggle.py
     carrier_lookup.py
     gateway_client.py
+    groups.py
     heartbeat.py
     push.py
     sabbath_digest.py
@@ -3624,6 +3645,7 @@ jobs/
   telegram/
     __init__.py
     dashboard_api.py
+    donna_notify.py
     leader_tool_usage.py
     leader_tool_usage_api.py
     leader_tool_usage_report.py
@@ -5328,6 +5350,8 @@ src/
             route.ts
           toggle/
             route.ts
+        bday/
+          route.ts
         catalystdb/
           create/
             route.ts
@@ -5380,6 +5404,15 @@ src/
             route.ts
           rescan/
             route.ts
+        kidsatt/
+          move/
+            route.ts
+          remove/
+            route.ts
+          state/
+            route.ts
+          toggle/
+            route.ts
         papercards/
           submit/
             route.ts
@@ -5417,7 +5450,23 @@ src/
       sms/
         attention/
           route.ts
+        broadcasts/
+          [id]/
+            route.ts
+          route.ts
         contacts/
+          route.ts
+        groups/
+          [id]/
+            members/
+              [memberId]/
+                route.ts
+              route.ts
+            route.ts
+          options/
+            route.ts
+          preview/
+            route.ts
           route.ts
         heartbeat/
           route.ts
@@ -5475,9 +5524,14 @@ src/
       attendance/
         AttendanceBoard.tsx
         page.tsx
+      bday/
+        BdayForm.tsx
+        layout.tsx
+        page.tsx
       catalystdb/
         (gated)/
           CatalystDBBoard.tsx
+          HouseholdsView.tsx
           MemberDetail.tsx
           ThemeToggleButton.tsx
           columns.ts
@@ -5518,6 +5572,9 @@ src/
         page.tsx
       event-duplicates/
         EventDuplicateReviewBoard.tsx
+        page.tsx
+      kidsatt/
+        KidsAttendanceBoard.tsx
         page.tsx
       papercards/
         PaperCardForm.tsx
