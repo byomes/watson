@@ -197,15 +197,20 @@ def move():
         return jsonify({"error": f"class_name must be one of {CLASS_NAMES}"}), 400
 
     with _conn() as conn:
+        existing = conn.execute("SELECT id FROM kids WHERE id = ?", (kid_id,)).fetchone()
+        if not existing:
+            return jsonify({"error": "not found"}), 404
+
+        # Reclassifying a kid (current_class) is independent of logging
+        # attendance -- a leader can move someone between rooms without
+        # that also marking them present. Only touch kids_checkin if a row
+        # for this date already exists (i.e. they ARE marked present),
+        # keeping that record's class in sync; never create one here.
         row = conn.execute(
             "SELECT id FROM kids_checkin WHERE kid_id = ? AND event_date = ?", (kid_id, service_date)
         ).fetchone()
-        if not row:
-            return jsonify({"error": "kid isn't marked present for this date -- toggle present first"}), 400
-        conn.execute("UPDATE kids_checkin SET class_name = ? WHERE id = ?", (class_name, row["id"]))
-        # A move is very likely a permanent reclassification (aged up a
-        # room, etc.), not just a one-Sunday correction -- update the
-        # persistent default too, not only today's record.
+        if row:
+            conn.execute("UPDATE kids_checkin SET class_name = ? WHERE id = ?", (class_name, row["id"]))
         conn.execute(
             "UPDATE kids SET current_class = ?, updated_at = datetime('now') WHERE id = ?", (class_name, kid_id)
         )
