@@ -16,7 +16,7 @@ from datetime import date
 from pathlib import Path
 
 from jobs.telegram.send_to_person import send_to_person
-from core.database import get_connection
+from jobs.sms.sms_send import send_sms as _send_sms_gateway
 
 logging.basicConfig(
     level=logging.INFO,
@@ -29,9 +29,9 @@ CONGREGATION_DB = Path(__file__).resolve().parents[2] / "data" / "congregation.d
 KIDSATT_URL = "https://wtsn.me/cat/kidsatt"
 
 DEFAULT_SERVANTS = {
-    "Nursery": {"name": "Tara Mathena", "person_id": 450, "phone": ""},
-    "Pre-K": {"name": "Tara Mathena", "person_id": 450, "phone": ""},
-    "Elementary": {"name": "Lucie Hale", "person_id": 332, "phone": ""},
+    "Nursery": {"name": "Tara Mathena", "person_id": 450, "phone": "", "is_override": False},
+    "Pre-K": {"name": "Tara Mathena", "person_id": 450, "phone": "", "is_override": False},
+    "Elementary": {"name": "Lucie Hale", "person_id": 332, "phone": "", "is_override": False},
 }
 
 
@@ -41,7 +41,7 @@ def get_today_servants() -> dict:
     conn = sqlite3.connect(str(CONGREGATION_DB))
     conn.row_factory = sqlite3.Row
 
-    servants = dict(DEFAULT_SERVANTS)
+    servants = {k: dict(v) for k, v in DEFAULT_SERVANTS.items()}
 
     try:
         cursor = conn.execute(
@@ -58,6 +58,7 @@ def get_today_servants() -> dict:
                 "name": row["name"],
                 "person_id": row["person_id"],
                 "phone": row["phone"] or "",
+                "is_override": True,
             }
     finally:
         conn.close()
@@ -66,41 +67,48 @@ def get_today_servants() -> dict:
 
 
 def send_sms(phone: str, name: str, message: str) -> bool:
-    """Send SMS via Watson's SMS bridge."""
-    try:
-        watson_conn = get_connection()
-        watson_conn.execute(
-            """
-            INSERT INTO sms_messages (to_number, body, direction, status, created_at)
-            VALUES (?, ?, 'outbound', 'queued', datetime('now'))
-            """,
-            (phone, message),
-        )
-        watson_conn.commit()
-        log.info("Queued SMS to %s (%s)", name, phone)
-        return True
-    except Exception as e:
-        log.error("Failed to queue SMS to %s: %s", name, e)
-        return False
+    """Send SMS via the email-to-SMS gateway (jobs.sms.sms_send), resolving
+    carrier through the existing phone_carriers cache. No carrier param --
+    an override servant may not have a confirmed carrier on file yet; in
+    that case this fails with needs_carrier so it surfaces in the log
+    rather than silently no-op'ing."""
+    result = _send_sms_gateway(name, phone, "", message)
+    if not result.get("success"):
+        log.error("SMS send failed for %s (%s): %s", name, phone, result.get("error"))
+    return bool(result.get("success"))
 
 
 def main() -> None:
     servants = get_today_servants()
     message = f"Kids attendance tracker:\n{KIDSATT_URL}"
 
+    # Dedup recipients across classes -- Tara covers both Nursery and Pre-K
+    # by default, so without this she'd get the same Telegram message twice.
+    # Keyed by (channel, recipient) so a Telegram default and an SMS
+    # override are never conflated even if they somehow shared an id.
+    seen: set[tuple[str, str]] = set()
     sent_anyone = False
 
     for class_name, info in servants.items():
-        person_id = info.get("person_id")
-        phone = info.get("phone")
         name = info.get("name")
-
-        # Check if this is an override (has phone and it's not a default)
-        if phone and name not in ["Tara Mathena", "Lucie Hale"]:
+        if info.get("is_override"):
+            phone = info.get("phone")
+            if not phone:
+                log.error("Override for %s (%s) has no phone on file -- skipped", class_name, name)
+                continue
+            key = ("sms", phone)
+            if key in seen:
+                continue
+            seen.add(key)
             if send_sms(phone, name, message):
                 log.info("Sent SMS to %s for %s", name, class_name)
                 sent_anyone = True
-        elif person_id:
+        else:
+            person_id = info.get("person_id")
+            key = ("telegram", str(person_id))
+            if key in seen:
+                continue
+            seen.add(key)
             if send_to_person(person_id, message):
                 log.info("Sent kidsatt Telegram to %s (%s)", name, class_name)
                 sent_anyone = True
