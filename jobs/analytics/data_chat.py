@@ -13,6 +13,7 @@ domains, two separate SQLite files (attendance's file never joined with the
 other two in one query):
 
   attendance — data/congregation.db: attendance, classroom_attendance,
+               kids_checkin (added 2026-09-30, see below),
                members (name/deacon/status/campus columns always; email/
                phone/address/birthdate included only when allow_contact_info
                is True); deacon_notes, next_steps, follow_ups,
@@ -93,7 +94,7 @@ _DB_PATH = {"attendance": CONGREGATION_DB_PATH, "web": WATSON_DB_PATH, "events":
 
 _ALLOWED_TABLES = {
     "attendance": {
-        "attendance", "classroom_attendance", "members",
+        "attendance", "classroom_attendance", "kids_checkin", "members",
         "deacon_notes", "next_steps", "follow_ups",
         "deacon_visible_prayer_requests", "deacon_visible_connect_cards",
         "team_memberships",
@@ -145,7 +146,13 @@ def _attendance_schema(allow_contact_info: bool) -> str:
         "attendance(member_id INTEGER, service_date TEXT, campus TEXT)\n"
         "  -- one row per person per service actually attended. campus is 'Wilmington' or 'Online'.\n"
         "classroom_attendance(date TEXT, kids_nursery, adults_nursery, kids_toddlers, adults_toddlers, kids_prek, adults_prek, kids_elementary, adults_elementary INTEGER)\n"
-        "  -- one row per Sunday with headcounts for each of the 4 kids' classrooms.\n"
+        "  -- one row per Sunday with headcounts for each of the 4 kids' classrooms, staff-tallied from a Google Sheet.\n"
+        "kids_checkin(kid_id INTEGER, event_date TEXT, class_name TEXT, campus TEXT)\n"
+        "  -- one row per kid per classroom check-in, real per-child data from the Subsplash check-in app (2025-01-26\n"
+        "  -- onward only -- no rows before that). campus is usually NULL, not captured per check-in. For a kids\n"
+        "  -- headcount on a given Sunday, COUNT(DISTINCT kid_id) WHERE event_date = that date -- prefer this table\n"
+        "  -- over classroom_attendance whenever it has any row for the date (real data), falling back to\n"
+        "  -- classroom_attendance's staff-tallied headcount only for dates this table doesn't cover at all.\n"
         f"members(id INTEGER, name TEXT, deacon TEXT, campus_preference TEXT, first_visit_date TEXT, active TEXT, partner TEXT, household_id TEXT, household_role TEXT, gender TEXT, started_serving_date TEXT{contact_cols})\n"
         "  -- started_serving_date is when that person began serving/volunteering (banquet length-of-service\n"
         "  -- tracking) -- NULL for anyone who isn't a serving volunteer. A question about how LONG someone has\n"

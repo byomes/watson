@@ -439,6 +439,18 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
             # omit a week's row entirely rather than write a false zero when
             # the tracking sheet isn't filled in yet, so a not-yet-synced
             # Sunday should read as missing here too, not as "0 kids".
+            #
+            # 2026-09-30: Bill's kids_checkin backlog import (77 kids, 375
+            # real per-child Subsplash check-ins, 2025-01-26 onward -- see
+            # jobs/congregation/kids_checkin_import.py) is the preferred
+            # source when it has any row for the date, since it's actual
+            # per-child data rather than a staff-tallied class headcount.
+            # classroom_attendance (the older Google Sheet sync, back to
+            # 2023) is the fallback for dates kids_checkin doesn't cover at
+            # all. A plain COUNT can't tell "0 kids checked in" apart from
+            # "no data for this date" (both return 0), so the EXISTS check
+            # decides which source answers, rather than summing/preferring
+            # by row count.
             _date_m = re.search(r"'(\d{4}-\d{2}-\d{2})'", a_date)
             _the_date = _date_m.group(1) if _date_m else last_sun
             return (
@@ -446,8 +458,11 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
                 f"SELECT a.campus as campus, COUNT(DISTINCT a.member_id) as total "
                 f"FROM attendance a WHERE {a_date} GROUP BY a.campus "
                 f"UNION ALL "
-                f"SELECT 'Kids' as campus, (SELECT kids_nursery + kids_toddlers + kids_prek + kids_elementary "
-                f"FROM classroom_attendance WHERE date = '{_the_date}') as total"
+                f"SELECT 'Kids' as campus, CASE "
+                f"WHEN EXISTS (SELECT 1 FROM kids_checkin WHERE event_date = '{_the_date}') "
+                f"THEN (SELECT COUNT(DISTINCT kid_id) FROM kids_checkin WHERE event_date = '{_the_date}') "
+                f"ELSE (SELECT kids_nursery + kids_toddlers + kids_prek + kids_elementary "
+                f"FROM classroom_attendance WHERE date = '{_the_date}') END as total"
                 f") ORDER BY CASE campus WHEN 'Online' THEN 1 WHEN 'Wilmington' THEN 2 ELSE 3 END"
             )
 
