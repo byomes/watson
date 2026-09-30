@@ -36,6 +36,7 @@ different entry in this list.
 """
 import os
 import sqlite3
+import uuid
 from datetime import date, timedelta
 from functools import wraps
 
@@ -75,6 +76,15 @@ def _last_name_key(first: str, last: str) -> str:
 
 def _synthetic_checkin_id(kid_id: int, service_date: str) -> str:
     return f"leader_manual:{kid_id}:{service_date}"
+
+
+def _synthetic_profile_id() -> str:
+    # kids.subsplash_profile_id is UNIQUE NOT NULL -- every real row carries
+    # an actual Subsplash profile id (kids_checkin_import.py), so a
+    # leader-created kid needs a synthetic value in the same "leader_manual:"
+    # namespace _synthetic_checkin_id already established, with a random
+    # suffix (no natural per-kid key exists before the row is inserted).
+    return f"leader_manual:{uuid.uuid4().hex}"
 
 
 def _require_key(f):
@@ -165,10 +175,18 @@ def toggle():
         ).fetchone() is not None
 
         if present and not already_present:
+            # event_id is NOT NULL (migrate_kids_checkin_tables.py) -- a
+            # leader-created row has no real Subsplash event either, so it
+            # reuses the same synthetic id as subsplash_checkin_id rather
+            # than passing NULL (caught 2026-09-30 while building add(),
+            # which does the identical insert: this exact call had never
+            # actually been exercised against the real NOT NULL schema
+            # before, since kidsatt only went live 2026-09-29).
+            checkin_id = _synthetic_checkin_id(kid_id, service_date)
             conn.execute(
                 "INSERT INTO kids_checkin (kid_id, subsplash_checkin_id, event_id, class_name, event_date, "
-                " checked_in_at, checkin_source) VALUES (?, ?, NULL, ?, ?, datetime('now'), 'leader_manual')",
-                (kid_id, _synthetic_checkin_id(kid_id, service_date), class_name, service_date),
+                " checked_in_at, checkin_source) VALUES (?, ?, ?, ?, ?, datetime('now'), 'leader_manual')",
+                (kid_id, checkin_id, checkin_id, class_name, service_date),
             )
         elif not present and already_present:
             conn.execute(
@@ -252,3 +270,115 @@ def remove():
         conn.commit()
 
     return jsonify({"kid_id": kid_id, "removed": True}), 200
+
+
+@kids_attendance_web_bp.route("/api/cat/kidsatt/search", methods=["GET"])
+@_require_key
+def search():
+    """Name search across every kid in the database (not scoped to today's
+    roster or any one class) -- backs the "search for a kid already in the
+    db" half of the add-a-kid flow, so a leader checks here before falling
+    through to create_new and risking a duplicate record. Requires 2+ chars
+    to avoid an unfiltered full-table scan on every keystroke of a 1-char
+    query."""
+    q = (request.args.get("q") or "").strip()
+    if len(q) < 2:
+        return jsonify({"candidates": []}), 200
+    like = f"%{q}%"
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT id, first_name, last_name, current_class FROM kids "
+            "WHERE first_name LIKE ? OR last_name LIKE ? "
+            "OR (first_name || ' ' || COALESCE(last_name, '')) LIKE ? "
+            "ORDER BY last_name, first_name LIMIT 20",
+            (like, like, like),
+        ).fetchall()
+    candidates = [
+        {
+            "id": r["id"],
+            "name": f"{r['first_name']} {r['last_name'] or ''}".strip(),
+            "current_class": r["current_class"],
+        }
+        for r in rows
+    ]
+    return jsonify({"candidates": candidates}), 200
+
+
+@kids_attendance_web_bp.route("/api/cat/kidsatt/add", methods=["POST"])
+@_require_key
+def add():
+    """Adds a kid to a class for a given service date. Two modes, both
+    ending in the same place (kids.current_class set, a kids_checkin row
+    for today's date exists):
+
+    - kid_id given: an existing kids row, already found via search() --
+      does what move() + toggle(present=true) do together in one call.
+    - create_new=true (with at least first_name): inserts a brand-new kids
+      row first (synthetic subsplash_profile_id, created_via='leader_manual',
+      see _synthetic_profile_id's docstring), then the same checkin logic.
+
+    Optional guardian_name/guardian_phone/guardian_email are stored on the
+    new checkin row only (kids_checkin already carries these per Subsplash
+    rows; kids itself has no guardian columns) -- useful context for a
+    brand-new kid a leader is checking in without a Subsplash profile yet.
+    """
+    data = request.get_json(force=True) or {}
+    service_date = (data.get("service_date") or "").strip()
+    class_name = (data.get("class_name") or "").strip()
+    create_new = bool(data.get("create_new"))
+    kid_id = data.get("kid_id")
+
+    valid_dates = set(_recent_sundays(_RECENT_SUNDAYS_COUNT))
+    if service_date not in valid_dates:
+        return jsonify({"error": "service_date must be one of the recent Sundays"}), 400
+    if class_name not in CLASS_NAMES:
+        return jsonify({"error": f"class_name must be one of {CLASS_NAMES}"}), 400
+    if not create_new and not isinstance(kid_id, int):
+        return jsonify({"error": "kid_id (int) or create_new (with first_name) is required"}), 400
+
+    with _conn() as conn:
+        if create_new:
+            first_name = (data.get("first_name") or "").strip()
+            last_name = (data.get("last_name") or "").strip() or None
+            gender = (data.get("gender") or "").strip() or None
+            if not first_name:
+                return jsonify({"error": "first_name is required to add a new kid"}), 400
+            cur = conn.execute(
+                "INSERT INTO kids (subsplash_profile_id, first_name, last_name, gender, "
+                " created_via, current_class) VALUES (?, ?, ?, ?, 'leader_manual', ?)",
+                (_synthetic_profile_id(), first_name, last_name, gender, class_name),
+            )
+            kid_id = cur.lastrowid
+        else:
+            existing = conn.execute("SELECT id FROM kids WHERE id = ?", (kid_id,)).fetchone()
+            if not existing:
+                return jsonify({"error": "not found"}), 404
+            conn.execute(
+                "UPDATE kids SET current_class = ?, updated_at = datetime('now') WHERE id = ?",
+                (class_name, kid_id),
+            )
+
+        guardian_name = (data.get("guardian_name") or "").strip() or None
+        guardian_phone = (data.get("guardian_phone") or "").strip() or None
+        guardian_email = (data.get("guardian_email") or "").strip() or None
+
+        already_present = conn.execute(
+            "SELECT id FROM kids_checkin WHERE kid_id = ? AND event_date = ?",
+            (kid_id, service_date),
+        ).fetchone()
+        if already_present:
+            conn.execute("UPDATE kids_checkin SET class_name = ? WHERE id = ?", (class_name, already_present["id"]))
+        else:
+            checkin_id = _synthetic_checkin_id(kid_id, service_date)
+            conn.execute(
+                "INSERT INTO kids_checkin (kid_id, subsplash_checkin_id, event_id, class_name, event_date, "
+                " checked_in_at, guardian_name, guardian_phone, guardian_email, checkin_source) "
+                "VALUES (?, ?, ?, ?, ?, datetime('now'), ?, ?, ?, 'leader_manual')",
+                (
+                    kid_id, checkin_id, checkin_id, class_name, service_date,
+                    guardian_name, guardian_phone, guardian_email,
+                ),
+            )
+        conn.commit()
+
+    return jsonify({"kid_id": kid_id, "service_date": service_date, "class_name": class_name}), 200
