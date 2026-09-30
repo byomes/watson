@@ -4598,3 +4598,54 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - 2649a40 Add multi-recipient compose and group-rename UI
 - 8b78928 Add group-text support to SMS app: thread display, sender labels
 - bd58431 Surface today's birthdays at the top of the SMS thread list
+
+---
+
+## Recent Changes — 2026-09-30
+
+### ~/watson
+- 64ab77a docs: bugs/backlog export 2026-09-30
+- 7993b47 docs: file map 2026-09-30
+- 194d9f8 Use imported kids_checkin backlog as the Kids attendance number
+- 36654a8 Replace em dashes with N/A in team-chat missing-value formatting
+- a263b54 Add kids headcount to unfiltered attendance count fast path
+- f2069d1 Decouple class reassignment from marking attendance
+- ba179b5 Add persistent kids.current_class + a way to remove a kid from a class
+- 5306078 Add kids-class attendance backend (wtsn.me/cat/kidsatt)
+- 078a3ae Add one-off Donna summary email for the Kids Checkin build
+- 8a6e6fb Mirror Kids Checkin children into members so households show correctly in CatalystDB
+- 9e027e2 Add kids-table duplicate scan and merge
+- b7d995e Add Kids Checkin attendance tracking, backfilled from Subsplash
+- 306dfee Add Donna confirm/undo review for auto-matched family dates
+- 55d2271 Fix family-dates matching gap and anniversary name key mismatch
+- 7da3736 Rework broadcast pacing: per-recipient timing, quiet hours, spread window
+- e2084fb Add group broadcast feature to Watson SMS
+- f34502f Add "how many people attended church each month" fast-path phrase to attendance trend over time
+- 0ab30e7 Ask Donna before adding an unmatched /cat/bday child; exclude deactivated members from matching
+- a645acc Gate every Donna Telegram send to a 9am-8pm window
+- 488fac8 Fix multi-line MMS body truncation in adb content query parser
+- 3c2a797 fix: reword archive_session MCP tool description to reduce reasoning_extraction false-positive risk
+- d1995e7 bday_web: require submittedByName server-side
+- 77a6b5c Add real-time Birthdays & Anniversaries card (wtsn.me/cat/bday)
+- add87ac Allow editing household_name on the Catalyst DB /update endpoint
+- 044a275 Include campus in per-member attendance weeks for deaconapp color-coding
+- c20fdfa Migrate call_forwarding_toggle.py to Appium; fix adb connect_device crash
+- 93733bd docs: architecture update 2026-09-29
+
+### ~/watson-tools
+- 2469485 Open Watson SMS PWA text links in a new window
+- 5cdefcb Fix deaconapp-bill text icon falling back to stock SMS from stat boxes
+- a61c7a6 Make the Catalyst Database title a hard-refresh link
+- 577c313 Show the class dropdown for absent kids too
+- 662d4e3 Add an X button to remove a kid from a class in Kids Attendance
+- 00d769f Add Kids Attendance tool (wtsn.me/cat/kidsatt)
+- 2aa08f9 Replace birthday/anniversary date pickers with blank Month/Day/Year selects
+- ae5d4c0 Ask for first and last name on the birthdays/anniversaries form
+- 8e882cf Add "how fast" pacing control to broadcast composer
+- e29ff62 Add group broadcast composer to Watson SMS app
+- 3e57094 catalystdb: put new-household option before existing families in dropdown
+- 40e1f6b bday: title/copy tweaks, make name required, rename section header
+- 326cdba Add /cat/bday: standalone Birthdays & Anniversaries public form
+- b6bded3 Catalyst DB header cleanup + household rename/add-search
+- 392ccf9 Add Households tab to Catalyst DB admin screen
+- 4dd6876 Color-code Wilmington vs Online in the per-person attendance popup
