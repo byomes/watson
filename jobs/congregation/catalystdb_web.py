@@ -280,6 +280,48 @@ def update():
     return jsonify({"updated": len(ids), "field": field})
 
 
+@catalystdb_web_bp.route("/api/cat/catalystdb/merge", methods=["POST"])
+@_require_key
+def merge():
+    """Manual merge, triggered from the grid's own 2-row select (not the
+    duplicate_flags queue at /cat/duplicates) -- reuses the exact same
+    merge_members() the automated dupf_ Telegram flow and /cat/duplicates
+    screen already call, so merge semantics (history relink, blank-field
+    fill, hard delete of the loser) stay identical across all three entry
+    points instead of drifting. flag_id is intentionally not required here:
+    a manual merge from the grid usually has no pre-existing duplicate_flags
+    row (the pair may never have been flagged by scan_for_duplicates() at
+    all -- that's the whole point of offering a manual merge)."""
+    from jobs.congregation.duplicate_review import merge_members
+
+    data = request.get_json(silent=True) or {}
+    keep_id = data.get("keep_id")
+    merge_id = data.get("merge_id")
+    final_name = data.get("name")
+    add_alias = bool(data.get("add_alias", False))
+    if not isinstance(keep_id, int) or not isinstance(merge_id, int):
+        return jsonify({"error": "keep_id, merge_id (ints) are required"}), 400
+
+    with _conn() as conn:
+        try:
+            result = merge_members(conn, keep_id, merge_id, final_name, add_alias=add_alias)
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+        # A manual merge can still resolve a pair that scan_for_duplicates()
+        # had already flagged independently -- close out any such pending
+        # flag so it doesn't linger in the /cat/duplicates queue for a pair
+        # that no longer exists.
+        conn.execute(
+            "UPDATE duplicate_flags SET status = 'merged' WHERE status = 'pending' "
+            "AND ((member_id_a = ? AND member_id_b = ?) OR (member_id_a = ? AND member_id_b = ?))",
+            (keep_id, merge_id, merge_id, keep_id),
+        )
+        conn.commit()
+        member = dict(result)
+        member["connected"] = _connected_or_override(conn, keep_id, member.get(_CONNECTED_REAL_COLUMN), date.today())
+    return jsonify({"member": member}), 200
+
+
 @catalystdb_web_bp.route("/api/cat/catalystdb/create", methods=["POST"])
 @_require_key
 def create():

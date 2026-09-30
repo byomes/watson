@@ -42,7 +42,20 @@ _FUZZY_NAME_THRESHOLD = 0.86  # stricter than FUZZY_THRESHOLD (0.82) -- this
 # runs over the WHOLE table (n^2), not one new record against the rest, so
 # a slightly higher bar keeps the review queue from filling with noise.
 
-_LINKED_TABLES = ("attendance", "connect_cards", "follow_ups", "deacon_notes", "prayer_requests", "next_steps")
+_LINKED_TABLES = ("attendance", "connect_cards", "follow_ups", "deacon_notes", "prayer_requests", "next_steps", "kids")
+
+# Tables with a member_id column that also carries a UNIQUE constraint
+# involving member_id -- a blind UPDATE (like _LINKED_TABLES above) can
+# collide if merge_id and keep_id both already have a row for the same
+# team/date/role. dedup_cols gives the other column(s) in that UNIQUE
+# constraint, so merge_id's row is dropped first wherever keep_id already
+# has a matching one (same pattern as attendance's (member_id, service_date)
+# guard below), then whatever's left is safely reassigned.
+_UNIQUE_LINKED_TABLES = {
+    "team_memberships": ("team_name",),
+    "serving_attendance": ("team_name", "service_date"),
+    "leadership_roles": ("role",),
+}
 
 # Filled on the kept record only if it's currently null/blank ('--' counts
 # as blank too, see _blank() below). deacon_status/status_reason/
@@ -205,6 +218,28 @@ def merge_members(
     )
 
     for table in _LINKED_TABLES:
+        conn.execute(f"UPDATE {table} SET member_id = ? WHERE member_id = ?", (keep_id, merge_id))
+
+    # Same dedup-before-relink guard as attendance above, generalized to
+    # every other member_id-keyed table whose UNIQUE constraint would
+    # otherwise raise on a colliding row (e.g. both members already on the
+    # same serving team, or both holding the same leadership role).
+    for table, dedup_cols in _UNIQUE_LINKED_TABLES.items():
+        # Non-correlated tuple-IN form (same shape as the attendance guard
+        # above), not a correlated EXISTS -- an EXISTS subquery here would
+        # have only `table` (aliased t2) in scope, so an unqualified
+        # dedup_cols reference inside it resolves right back to t2 itself
+        # (t2.col = t2.col, always true), silently deleting every one of
+        # merge_id's rows in the table instead of just the colliding ones.
+        # Caught by a test with two serving_attendance dates for merge_id,
+        # only one of which actually collided with keep_id's.
+        cols = ", ".join(dedup_cols)
+        conn.execute(
+            f"""DELETE FROM {table} WHERE member_id = ? AND ({cols}) IN (
+                    SELECT {cols} FROM {table} WHERE member_id = ?
+                )""",
+            (merge_id, keep_id),
+        )
         conn.execute(f"UPDATE {table} SET member_id = ? WHERE member_id = ?", (keep_id, merge_id))
     conn.execute("UPDATE duplicate_flags SET member_id_a = ? WHERE member_id_a = ?", (keep_id, merge_id))
     conn.execute("UPDATE duplicate_flags SET member_id_b = ? WHERE member_id_b = ?", (keep_id, merge_id))
