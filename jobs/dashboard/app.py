@@ -326,6 +326,9 @@ app.register_blueprint(publishing_dashboard_bp)
 from jobs.congregation.attendance_web import attendance_web_bp
 app.register_blueprint(attendance_web_bp)
 
+from jobs.congregation.kids_attendance_web import kids_attendance_web_bp
+app.register_blueprint(kids_attendance_web_bp)
+
 from jobs.congregation.servants_web import servants_web_bp
 app.register_blueprint(servants_web_bp)
 
