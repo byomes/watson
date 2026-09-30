@@ -55,29 +55,35 @@ def format_period_attendance_reply(
 
 def format_period_attendance_breakdown(rows: list[dict]) -> str:
     """Plain-English answer to multi-week/month attendance question with
-    campus breakdown (Online, Wilmington, Kids). Called when cdb_query.py's
+    campus breakdown (Online, Wilmington, Hybrid, Kids). Called when cdb_query.py's
     _pattern_match COMBINED + CUMULATIVE block returns multiple rows (one per
-    campus/group) instead of one per-campus-filtered row."""
+    campus/group). Format: "In [period], we saw X total check-ins from Y unique people."
+    with breakdown by campus and hybrid (both campuses attended in the period)."""
     if not rows:
         return "No attendance recorded for that period."
-    span_label = rows[0].get("span_label", "over this period")
-    adults = [r for r in rows if r.get("campus") in ("Online", "Wilmington")]
+    span_label = rows[0].get("span_label", "this period")
+    online_row = next((r for r in rows if r.get("campus") == "Online"), None)
+    wilm_row = next((r for r in rows if r.get("campus") == "Wilmington"), None)
+    hybrid_row = next((r for r in rows if r.get("campus") == "Hybrid"), None)
     kids_row = next((r for r in rows if r.get("campus") == "Kids"), None)
-    adult_combined = sum(r.get("combined_total", 0) or 0 for r in adults)
+    online_combined = online_row.get("combined_total", 0) or 0
+    wilm_combined = wilm_row.get("combined_total", 0) or 0
+    hybrid_combined = hybrid_row.get("combined_total", 0) or 0
     kids_combined = kids_row.get("combined_total") if kids_row else None
-    grand_combined = adult_combined + (kids_combined or 0)
-    adult_unique = sum(r.get("unique_individuals", 0) or 0 for r in adults)
+    grand_combined = online_combined + wilm_combined + hybrid_combined + (kids_combined or 0)
+    online_unique = online_row.get("unique_individuals", 0) or 0
+    wilm_unique = wilm_row.get("unique_individuals", 0) or 0
+    hybrid_unique = hybrid_row.get("unique_individuals", 0) or 0
     kids_unique = kids_row.get("unique_individuals") if kids_row else None
-    grand_unique = adult_unique + (kids_unique or 0)
-    lines = [f"Over {span_label}: {grand_combined} combined check-ins and {grand_unique} cumulative, unique people. Here's the breakdown:"]
-    for r in adults:
-        combined = r.get("combined_total") or 0
-        unique = r.get("unique_individuals") or 0
-        lines.append(f"{r['campus']}: {combined} check-ins, {unique} unique people")
+    grand_unique = online_unique + wilm_unique + hybrid_unique + (kids_unique or 0)
+    lines = [f"In {span_label}, we saw {grand_combined} total check-ins from {grand_unique} unique people. Here's the breakdown:"]
+    lines.append(f"Online: {online_unique} individuals")
+    lines.append(f"Wilmington: {wilm_unique} individuals")
+    if hybrid_unique:
+        lines.append(f"Hybrid: {hybrid_unique} individuals")
     if kids_row:
-        combined = kids_row.get("combined_total") or 0
         unique = kids_row.get("unique_individuals") or 0
-        lines.append(f"Kids: {combined} check-ins, {unique} unique kids")
+        lines.append(f"Kids: {unique} unique kids")
     return "\n".join(lines)
 
 

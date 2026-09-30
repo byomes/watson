@@ -417,17 +417,26 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
                 f"FROM attendance a WHERE {campus_filter}{a_date}"
             )
         else:
-            # Unfiltered: return adults broken by campus + kids as a separate row
+            # Unfiltered: return adults broken by campus + hybrid + kids
+            # Hybrid = people who attended both Online and Wilmington in this span
             return (
                 f"SELECT * FROM ("
                 f"SELECT '{_span_label}' as span_label, a.campus as campus, "
                 f"COUNT(a.member_id) as combined_total, COUNT(DISTINCT a.member_id) as unique_individuals "
                 f"FROM attendance a WHERE {a_date} GROUP BY a.campus "
                 f"UNION ALL "
+                f"SELECT '{_span_label}' as span_label, 'Hybrid' as campus, "
+                f"COUNT(DISTINCT a.member_id) as combined_total, COUNT(DISTINCT a.member_id) as unique_individuals "
+                f"FROM attendance a WHERE {a_date} AND a.member_id IN ("
+                f"  SELECT member_id FROM attendance WHERE {a_date} AND campus = 'Online' "
+                f"  INTERSECT "
+                f"  SELECT member_id FROM attendance WHERE {a_date} AND campus = 'Wilmington'"
+                f") "
+                f"UNION ALL "
                 f"SELECT '{_span_label}' as span_label, 'Kids' as campus, "
                 f"COUNT(*) as combined_total, COUNT(DISTINCT kid_id) as unique_individuals "
                 f"FROM kids_checkin WHERE {a_date.replace('a.service_date', 'event_date')}"
-                f") ORDER BY CASE campus WHEN 'Online' THEN 1 WHEN 'Wilmington' THEN 2 ELSE 3 END"
+                f") ORDER BY CASE campus WHEN 'Online' THEN 1 WHEN 'Wilmington' THEN 2 WHEN 'Hybrid' THEN 3 ELSE 4 END"
             )
 
     # HOW MANY ATTENDED (count)
