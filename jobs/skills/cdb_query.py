@@ -423,9 +423,32 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
         if campus:
             return f"SELECT COUNT(DISTINCT a.member_id) as total FROM attendance a WHERE a.campus = '{campus}' AND {a_date}"
         else:
+            # Bill's 2026-09-30 request: an unfiltered "how many people"
+            # headcount already breaks adults out by campus (Online/
+            # Wilmington) -- it should also enumerate kids as a third
+            # number alongside those two, not just the adult count.
+            # a_date is always a single-Sunday equality here (a multi-week/
+            # month span with _span_label set is diverted to the COMBINED +
+            # CUMULATIVE block above before reaching this one), so there's
+            # exactly one calendar date to look up. Kids attendance isn't
+            # tracked per-campus (classroom_attendance is a single nightly
+            # Google Sheet pull covering the whole church, not split
+            # Online/Wilmington -- see jobs/gsheets/classroom_sync.py), so
+            # it's reported as one flat number, not broken out further.
+            # No COALESCE to 0 -- classroom_sync.py's own convention is to
+            # omit a week's row entirely rather than write a false zero when
+            # the tracking sheet isn't filled in yet, so a not-yet-synced
+            # Sunday should read as missing here too, not as "0 kids".
+            _date_m = re.search(r"'(\d{4}-\d{2}-\d{2})'", a_date)
+            _the_date = _date_m.group(1) if _date_m else last_sun
             return (
-                f"SELECT a.campus, COUNT(DISTINCT a.member_id) as total "
-                f"FROM attendance a WHERE {a_date} GROUP BY a.campus ORDER BY a.campus"
+                f"SELECT * FROM ("
+                f"SELECT a.campus as campus, COUNT(DISTINCT a.member_id) as total "
+                f"FROM attendance a WHERE {a_date} GROUP BY a.campus "
+                f"UNION ALL "
+                f"SELECT 'Kids' as campus, (SELECT kids_nursery + kids_toddlers + kids_prek + kids_elementary "
+                f"FROM classroom_attendance WHERE date = '{_the_date}') as total"
+                f") ORDER BY CASE campus WHEN 'Online' THEN 1 WHEN 'Wilmington' THEN 2 ELSE 3 END"
             )
 
     # WHO ATTENDED
@@ -1015,8 +1038,8 @@ def run(question: str) -> str:
             with sqlite3.connect(uri, uri=True) as _conn:
                 _cur = _conn.execute(_pm_sql)
                 rows = _cur.fetchall()
-                cols = [d[0] for d in _cur.description]
-            return _format_rows(rows, cols)
+                desc = _cur.description
+            return _format_rows(rows, desc)
         except Exception as e:
             return f"SQL error: {e}\n\nGenerated query:\n{_pm_sql}"
 
