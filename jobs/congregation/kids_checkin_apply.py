@@ -41,6 +41,12 @@ def approve_household_link(queue_id: int) -> str:
             "UPDATE kids SET household_id = ?, updated_at = datetime('now') WHERE id = ?",
             (row["candidate_household_id"], row["kid_id"]),
         )
+        kid = conn.execute("SELECT member_id FROM kids WHERE id = ?", (row["kid_id"],)).fetchone()
+        if kid["member_id"]:
+            conn.execute(
+                "UPDATE members SET household_id = ?, updated_at = datetime('now') WHERE id = ?",
+                (row["candidate_household_id"], kid["member_id"]),
+            )
         conn.execute("UPDATE kids_household_review_queue SET status = 'resolved' WHERE id = ?", (queue_id,))
         conn.commit()
         kid_name = f"{row['first_name']} {row['last_name'] or ''}".strip()

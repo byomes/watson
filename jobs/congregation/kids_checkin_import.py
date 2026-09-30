@@ -67,18 +67,44 @@ def _extract_checkin_records(pull_data: dict):
                 yield rec
 
 
+def ensure_member_for_kid(conn, kid_id: int) -> int:
+    """Creates (or returns the existing) `members` row mirroring a kid, so
+    the child actually shows up in CatalystDB (jobs/congregation/
+    catalystdb_web.py queries `members` only -- a kid living solely in
+    `kids` is invisible there and household composition looks wrong, even
+    once kids.household_id is correctly set). `kids` stays the canonical
+    Subsplash-profile-keyed tracking table; this just keeps a real,
+    household-linked `members` row in sync alongside it."""
+    kid = conn.execute("SELECT * FROM kids WHERE id = ?", (kid_id,)).fetchone()
+    if kid["member_id"]:
+        return kid["member_id"]
+
+    name = f"{kid['first_name']} {kid['last_name'] or ''}".strip()
+    cur = conn.execute(
+        "INSERT INTO members (name, household_id, household_role, gender, notes) "
+        "VALUES (?, ?, 'child', ?, ?)",
+        (name, kid["household_id"], kid["gender"], "Added via Kids Checkin (Subsplash checkin-only, no connect card)"),
+    )
+    member_id = cur.lastrowid
+    conn.execute("UPDATE kids SET member_id = ? WHERE id = ?", (member_id, kid_id))
+    return member_id
+
+
 def _upsert_kid(conn, profile: dict) -> int:
     row = conn.execute(
         "SELECT id, household_id FROM kids WHERE subsplash_profile_id = ?", (profile["id"],)
     ).fetchone()
     if row:
-        return row["id"]
-    cur = conn.execute(
-        "INSERT INTO kids (subsplash_profile_id, first_name, last_name, gender, household_id, created_via) "
-        "VALUES (?, ?, ?, ?, NULL, 'checkin_only')",
-        (profile["id"], profile.get("first_name", ""), profile.get("last_name"), profile.get("gender")),
-    )
-    return cur.lastrowid
+        kid_id = row["id"]
+    else:
+        cur = conn.execute(
+            "INSERT INTO kids (subsplash_profile_id, first_name, last_name, gender, household_id, created_via) "
+            "VALUES (?, ?, ?, ?, NULL, 'checkin_only')",
+            (profile["id"], profile.get("first_name", ""), profile.get("last_name"), profile.get("gender")),
+        )
+        kid_id = cur.lastrowid
+    ensure_member_for_kid(conn, kid_id)
+    return kid_id
 
 
 def run(pull_data: dict) -> dict:

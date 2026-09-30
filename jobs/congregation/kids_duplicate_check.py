@@ -142,6 +142,15 @@ def merge_kids(conn, keep_id: int, merge_id: int) -> dict:
             (merge["household_id"], keep_id),
         )
 
+    # Each kid can have its own mirrored `members` row (see
+    # kids_checkin_import.ensure_member_for_kid) -- collapse those too, or
+    # merging kid records alone would leave a duplicate row sitting in
+    # CatalystDB even after the kids-table duplicate is resolved.
+    if keep["member_id"] and merge["member_id"] and keep["member_id"] != merge["member_id"]:
+        conn.execute("DELETE FROM members WHERE id = ?", (merge["member_id"],))
+    elif not keep["member_id"] and merge["member_id"]:
+        conn.execute("UPDATE kids SET member_id = ? WHERE id = ?", (merge["member_id"], keep_id))
+
     conn.execute("DELETE FROM kids WHERE id = ?", (merge_id,))
     conn.commit()
 
