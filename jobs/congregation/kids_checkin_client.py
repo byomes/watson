@@ -85,15 +85,45 @@ def _adb(*args: str, timeout: int = 20) -> str:
     return result.stdout.strip()
 
 
-def ensure_phone_connected() -> None:
+def _select_device_serial() -> str:
+    """Prefer the Tailscale TCP/IP host; fall back to any USB-connected
+    device already listed by `adb devices` if Tailscale is unreachable (the
+    phone can drop off Tailscale/WiFi for hours while still sitting plugged
+    in over USB -- discovered 2026-09-30 when the weekly cron's Tailscale
+    route timed out but the phone was reachable over USB the whole time).
+    Short 5s timeouts here so an offline phone fails fast into the USB
+    fallback instead of hanging the whole pull."""
     host = _phone_host()
-    _adb("connect", host)
-    _adb("-s", host, "forward", f"tcp:{CDP_LOCAL_PORT}", "localabstract:chrome_devtools_remote")
+    try:
+        subprocess.run([ADB_BIN, "connect", host], capture_output=True, text=True, timeout=5)
+        check = subprocess.run([ADB_BIN, "-s", host, "get-state"], capture_output=True, text=True, timeout=5)
+        if check.returncode == 0 and check.stdout.strip() == "device":
+            return host
+    except Exception:
+        pass
+    listed = subprocess.run([ADB_BIN, "devices"], capture_output=True, text=True, timeout=10)
+    for line in listed.stdout.splitlines()[1:]:
+        parts = line.split()
+        if len(parts) == 2 and parts[1] == "device" and ":" not in parts[0]:
+            return parts[0]
+    raise KidsCheckinClientError(
+        f"phone unreachable -- not on Tailscale ({host}) and no USB-connected device found"
+    )
+
+
+def ensure_phone_connected() -> str:
+    """Returns the adb serial/host actually used (Tailscale TCP host or a
+    USB serial) in case a caller needs it, though the rest of this module
+    only ever talks to the locally-forwarded CDP port and doesn't care which
+    transport got it there."""
+    serial = _select_device_serial()
+    _adb("-s", serial, "forward", f"tcp:{CDP_LOCAL_PORT}", "localabstract:chrome_devtools_remote")
     # Chrome on the phone gets suspended (Dozing) when idle -- CDP won't
     # respond at all until the screen is woken and Chrome is actually running.
-    _adb("-s", host, "shell", "input", "keyevent", "KEYCODE_WAKEUP")
-    _adb("-s", host, "shell", "monkey", "-p", "com.android.chrome", "-c", "android.intent.category.LAUNCHER", "1")
+    _adb("-s", serial, "shell", "input", "keyevent", "KEYCODE_WAKEUP")
+    _adb("-s", serial, "shell", "monkey", "-p", "com.android.chrome", "-c", "android.intent.category.LAUNCHER", "1")
     time.sleep(2)
+    return serial
 
 
 def _list_targets() -> list[dict]:
