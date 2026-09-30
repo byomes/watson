@@ -839,6 +839,15 @@ def _format_rows(rows: list[dict], domain: str | None = None) -> str:
         return format_period_attendance_reply(
             r["span_label"], r["combined_total"], r["unique_individuals"], r.get("campus")
         )
+    # PLAIN SINGLE-SUNDAY HEADCOUNT (cdb_query.py's _pattern_match unfiltered
+    # HOW MANY ATTENDED block) -- one row per campus plus a 'Kids' row, same
+    # routing convention as the two blocks above. Added 2026-09-30 per Bill's
+    # request: a "this week"/smaller-scope attendance question should get the
+    # same kind of plain-English total sentence the month/year span already
+    # gets, not a raw row dump.
+    if rows and all(set(r.keys()) == {"service_date", "campus", "total"} for r in rows):
+        from jobs.analytics.attendance_reply import format_weekly_attendance_reply
+        return format_weekly_attendance_reply(rows)
     if len(rows) == 1 and len(rows[0]) == 1:
         return str(_fmt_value(next(iter(rows[0].values()))))
     if len(rows) == 1:

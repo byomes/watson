@@ -455,10 +455,10 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
             _the_date = _date_m.group(1) if _date_m else last_sun
             return (
                 f"SELECT * FROM ("
-                f"SELECT a.campus as campus, COUNT(DISTINCT a.member_id) as total "
+                f"SELECT '{_the_date}' as service_date, a.campus as campus, COUNT(DISTINCT a.member_id) as total "
                 f"FROM attendance a WHERE {a_date} GROUP BY a.campus "
                 f"UNION ALL "
-                f"SELECT 'Kids' as campus, CASE "
+                f"SELECT '{_the_date}' as service_date, 'Kids' as campus, CASE "
                 f"WHEN EXISTS (SELECT 1 FROM kids_checkin WHERE event_date = '{_the_date}') "
                 f"THEN (SELECT COUNT(DISTINCT kid_id) FROM kids_checkin WHERE event_date = '{_the_date}') "
                 f"ELSE (SELECT kids_nursery + kids_toddlers + kids_prek + kids_elementary "

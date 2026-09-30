@@ -53,6 +53,35 @@ def format_period_attendance_reply(
     )
 
 
+def format_weekly_attendance_reply(rows: list[dict]) -> str:
+    """Plain-English answer to a single-Sunday (or today/yesterday/specific-
+    date) headcount question -- cdb_query.py's _pattern_match plain HOW MANY
+    ATTENDED block (no campus filter), which returns one row per campus plus
+    a 'Kids' row. Bill's 2026-09-30 request: this shape used to fall through
+    to data_chat.py's generic "col: val" row dump; it now gets the same kind
+    of plain-English total sentence the month/year span already gets via
+    format_period_attendance_reply, with campuses and kids broken out one per
+    line beneath it rather than announced up front."""
+    if not rows:
+        return "No attendance recorded for that date."
+    service_date = rows[0].get("service_date")
+    try:
+        period = f"on {date.fromisoformat(service_date).strftime('%B %-d, %Y')}" if service_date else "for that date"
+    except (ValueError, TypeError):
+        period = f"on {service_date}" if service_date else "for that date"
+    kids_row = next((r for r in rows if r.get("campus") == "Kids"), None)
+    campus_rows = [r for r in rows if r.get("campus") != "Kids"]
+    adult_total = sum(r["total"] for r in campus_rows if r.get("total") is not None)
+    kids_total = kids_row.get("total") if kids_row else None
+    grand_total = adult_total + (kids_total or 0)
+    lines = [f"We saw a total of {grand_total} people {period}. Here's a breakdown:"]
+    for r in campus_rows:
+        lines.append(f"{r['campus']}: {r.get('total') if r.get('total') is not None else 0}")
+    if kids_row:
+        lines.append(f"Kids: {kids_total if kids_total is not None else 'no data'}")
+    return "\n".join(lines)
+
+
 def format_last_missed_reply(name: str, last_missed: str | None) -> str:
     if not last_missed:
         return f"{name} hasn't missed a service on record."
