@@ -132,6 +132,20 @@ async def _cdp_page_enable_responsive(timeout: float = 6) -> bool:
         return False
 
 
+async def _poll_for_cdp_responsive(seconds: float) -> bool:
+    """Poll _cdp_page_enable_responsive() for up to `seconds`, instead of a
+    single fixed-delay check -- cold Chrome starts (post-reboot, or after
+    _force_restart_chrome's force-stop) are slow and variable, so any single
+    fixed sleep-then-check is a guess that can fail even when Chrome would
+    have been ready a few seconds later."""
+    end = time.time() + seconds
+    while time.time() < end:
+        if await _cdp_page_enable_responsive(timeout=4):
+            return True
+        await asyncio.sleep(3)
+    return False
+
+
 def _force_restart_chrome(serial: str) -> None:
     """Full kill + relaunch, not just wake/foreground -- recovery path for
     when Chrome's CDP debug handler is unresponsive (zombie state, see
@@ -164,25 +178,23 @@ async def ensure_phone_connected() -> str:
     # respond at all until the screen is woken and Chrome is actually running.
     _adb("-s", serial, "shell", "input", "keyevent", "KEYCODE_WAKEUP")
     _adb("-s", serial, "shell", "monkey", "-p", "com.android.chrome", "-c", "android.intent.category.LAUNCHER", "1")
-    time.sleep(2)
 
-    if await _cdp_page_enable_responsive():
+    # 2026-09-30: a bare 2s sleep + single check here used to fail hard
+    # ("connection refused") right after a phone reboot, since a COLD Chrome
+    # start (plus the rest of the OS still settling post-reboot) can easily
+    # take longer than 2s to expose its debug socket at all -- a plain wake
+    # of an already-running Chrome is fast, but this same code path also
+    # covers the cold-start case, so it needs to poll, not assume 2s is
+    # enough. Same poll_for_cdp helper as the post-force-restart path below.
+    if await _poll_for_cdp_responsive(seconds=20):
         return serial
 
     print(f"[{time.strftime('%H:%M:%S')}] Chrome unresponsive to CDP -- force-restarting...", flush=True)
     _force_restart_chrome(serial)
     _adb("-s", serial, "forward", f"tcp:{CDP_LOCAL_PORT}", "localabstract:chrome_devtools_remote")
-    # 2026-09-30: a single immediate re-check after force-restart failed live
-    # -- a cold app start (all sandboxed Chrome processes spinning up from
-    # scratch) is slower and more variable than the warm foreground-bring-up
-    # the first check follows, so poll for up to 20s instead of checking once.
-    poll_end = time.time() + 20
-    while time.time() < poll_end:
-        if await _cdp_page_enable_responsive(timeout=4):
-            return serial
-        await asyncio.sleep(3)
+    if await _poll_for_cdp_responsive(seconds=20):
+        return serial
     raise KidsCheckinClientError("Chrome still unresponsive to CDP after force-restart")
-    return serial
 
 
 def _list_targets() -> list[dict]:
