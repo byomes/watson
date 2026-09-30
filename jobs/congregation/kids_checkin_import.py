@@ -145,6 +145,19 @@ def run(pull_data: dict) -> dict:
             if cur.rowcount:
                 stats["checkin_rows_inserted"] += 1
 
+            # Real Subsplash activity is the strongest signal of a kid's
+            # actual current classroom -- keep it in sync even if a leader
+            # had cleared it via the kidsatt tool's remove button, since a
+            # genuine new checkin means they're back. Records are processed
+            # in ascending start_at order (see kids_checkin_client.py's
+            # sort=start_at), so by the time a full pull finishes this
+            # lands on each kid's truly most recent class.
+            if session_snap.get("title"):
+                conn.execute(
+                    "UPDATE kids SET current_class = ?, updated_at = datetime('now') WHERE id = ?",
+                    (session_snap["title"], kid_id),
+                )
+
             kid_row = conn.execute("SELECT household_id FROM kids WHERE id = ?", (kid_id,)).fetchone()
             if kid_row["household_id"] is not None:
                 continue  # already linked, nothing to queue

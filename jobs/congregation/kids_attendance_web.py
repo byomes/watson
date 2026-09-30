@@ -94,7 +94,7 @@ def get_state():
     service_date = requested if requested in valid_dates else _most_recent_sunday().isoformat()
 
     with _conn() as conn:
-        kids = conn.execute("SELECT id, first_name, last_name FROM kids").fetchall()
+        kids = conn.execute("SELECT id, first_name, last_name, current_class FROM kids").fetchall()
 
         today_rows = {
             row["kid_id"]: row["class_name"]
@@ -103,20 +103,18 @@ def get_state():
             )
         }
 
-        # Most recent PRIOR class per kid, for bucketing a kid who isn't
-        # present on the selected date under wherever they last were --
-        # otherwise an absent kid would have nowhere sensible to show up.
-        last_class: dict[int, str] = {}
-        for row in conn.execute(
-            "SELECT kid_id, class_name, event_date FROM kids_checkin ORDER BY event_date DESC"
-        ):
-            if row["kid_id"] not in last_class:
-                last_class[row["kid_id"]] = row["class_name"]
-
     buckets: dict[str, list[dict]] = {name: [] for name in CLASS_NAMES}
     for k in kids:
         present = k["id"] in today_rows
-        class_name = today_rows.get(k["id"]) or last_class.get(k["id"]) or CLASS_NAMES[0]
+        # today's actual checkin (if any) always wins; otherwise a kid's
+        # persistent current_class places them, and a kid with NO
+        # current_class (removed via the "X" button/remove()) and no
+        # checkin today simply doesn't appear anywhere -- that's the point
+        # of current_class existing as its own field rather than being
+        # derived from "most recent checkin" forever.
+        class_name = today_rows.get(k["id"]) or k["current_class"]
+        if not class_name:
+            continue
         if class_name not in buckets:
             buckets[class_name] = []  # a class name outside CLASS_NAMES (shouldn't normally happen)
         name = f"{k['first_name']} {k['last_name'] or ''}".strip()
@@ -205,6 +203,47 @@ def move():
         if not row:
             return jsonify({"error": "kid isn't marked present for this date -- toggle present first"}), 400
         conn.execute("UPDATE kids_checkin SET class_name = ? WHERE id = ?", (class_name, row["id"]))
+        # A move is very likely a permanent reclassification (aged up a
+        # room, etc.), not just a one-Sunday correction -- update the
+        # persistent default too, not only today's record.
+        conn.execute(
+            "UPDATE kids SET current_class = ?, updated_at = datetime('now') WHERE id = ?", (class_name, kid_id)
+        )
         conn.commit()
 
     return jsonify({"kid_id": kid_id, "service_date": service_date, "class_name": class_name}), 200
+
+
+@kids_attendance_web_bp.route("/api/cat/kidsatt/remove", methods=["POST"])
+@_require_key
+def remove():
+    """Takes a kid out of the tool's view entirely: clears their
+    persistent current_class and, if they happen to have a checkin row for
+    the currently selected date, removes that too, so the "X" button
+    always fully removes them from what's on screen right now regardless
+    of whether they were showing as present or absent. Does NOT delete the
+    kid or their attendance history -- a genuine future Subsplash checkin
+    (kids_checkin_import.py) or another move() re-populates current_class."""
+    data = request.get_json(force=True) or {}
+    kid_id = data.get("kid_id")
+    service_date = (data.get("service_date") or "").strip()
+
+    valid_dates = set(_recent_sundays(_RECENT_SUNDAYS_COUNT))
+    if not isinstance(kid_id, int):
+        return jsonify({"error": "kid_id (int) is required"}), 400
+    if service_date not in valid_dates:
+        return jsonify({"error": "service_date must be one of the recent Sundays"}), 400
+
+    with _conn() as conn:
+        existing = conn.execute("SELECT id FROM kids WHERE id = ?", (kid_id,)).fetchone()
+        if not existing:
+            return jsonify({"error": "not found"}), 404
+        conn.execute(
+            "DELETE FROM kids_checkin WHERE kid_id = ? AND event_date = ?", (kid_id, service_date)
+        )
+        conn.execute(
+            "UPDATE kids SET current_class = NULL, updated_at = datetime('now') WHERE id = ?", (kid_id,)
+        )
+        conn.commit()
+
+    return jsonify({"kid_id": kid_id, "removed": True}), 200
