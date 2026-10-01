@@ -1445,6 +1445,83 @@ re-added under the correct name, `BREVO_API_KEY_CONNECT_CARD`, rather than renam
 
 ---
 
+## SMS Gateway Phone (`jobs/sms/`, `wtsn.me/sms`)
+
+Dedicated Android phone (Moto G Play 2024, Verizon prepaid) running
+`android-sms-gateway` (`me.capcom.smsgateway`, local-server REST mode) as
+Watson's two-way SMS channel, with `wtsn.me/sms` as the PWA front end. As of
+2026-10-01 the phone lives permanently wired via USB to the Beelink (no
+longer carried) — USB debugging authorization survives a normal reboot
+(unlike the legacy `adb tcpip` wireless method, which must be re-armed over
+USB every time), so this is now the primary, most reliable access path.
+
+**Device management abandoned 2026-10-01.** Headwind MDM (self-hosted,
+`~/headwind-mdm`) was Device Owner on this phone from original enrollment
+(2026-09-26) but had **never once completed a successful check-in** the
+entire time (confirmed via its own `devices` table: `lastupdate` stuck at
+epoch 0) — a credential/enrollment issue, not a later regression. A full
+factory reset + re-enrollment attempt was made this day and failed
+permanently: Android blocks `adb shell dpm set-device-owner` outright
+whenever any account already exists on the device (`DevicePolicyManager:
+Non test-only owner can't be installed with existing accounts`), and the
+Verizon SIM auto-creates carrier accounts (`Phone`/`Verizon Wireless`)
+before the Wi-Fi setup screen is even reachable — there is no window left
+to clear. The real Android Enterprise provisioning intent
+(`android.app.action.PROVISION_MANAGED_DEVICE`, normally exempt from that
+restriction) was also tried and failed with no diagnosable error. **Decision:
+Headwind is decommissioned as a control plane** — the app is still
+installed but not Device Owner; the phone runs fully unmanaged. Don't
+attempt Device-Owner re-enrollment again without a genuinely new approach
+(e.g. true Android Enterprise QR/zero-touch provisioning, which needs
+infrastructure this box doesn't have); the adb-shortcut path is a dead end
+on this specific Verizon/account combination.
+
+**Remote access model:** permanent USB (primary) + Tailscale (secondary,
+re-installed 2026-10-01 as a new node identity after the reset — the old
+node must be deleted by hand from the admin console, `tailscale status`
+won't do it) with Android's built-in **Always-On VPN** setting
+(`settings put secure always_on_vpn_app com.tailscale.ipn`) so Tailscale
+reconnects on its own after a reboot — note this still requires one manual
+device unlock first, since Android won't start credential-encrypted apps
+(which includes Tailscale) until the first unlock after boot. `jobs/sms/
+gateway_client.py` and `jobs/sms/adb_client.py` both auto-fall back from
+Tailscale to the phone's current LAN IP (via `network_monitor`'s device
+table) if Tailscale can't connect.
+
+**Inbound ingestion — real architecture, read this before debugging "no
+messages coming through":** `SMS_INBOUND_MODE=adb` (the active mode) routes
+all inbound through `jobs/sms/adb_inbound.py`, which reads Android's own
+`content://sms` / `content://mms` providers directly via adb — **not**
+`gateway_client.py`'s REST `/inbox` (that path exists only as a one-env-var
+rollback). `adb_inbound.py` tracks a cursor of the last-seen row `_id` in
+`data/sms_adb_last_id.json` to avoid re-ingesting old messages on every
+poll. **This cursor is tied to one specific phone's SQLite row sequence.**
+A factory reset restarts that sequence at `_id=1`, and every real message's
+new low ID will be *less than* the stale cursor from the old phone's
+history — ingestion then silently returns 0 forever, with no error
+anywhere, until the cursor file is manually reset to
+`{"last_sms_id": 0, "last_mms_id": 0}`. This exact bug ate most of
+2026-10-01's debugging time; check this file first on any future "nothing's
+coming through" report after hardware work on this phone.
+
+**MMS image support, added 2026-10-01.** Previously `_mms_body()` only read
+a part's `text` column and stubbed any image to `"[Photo/attachment]"` with
+no extraction. Now an image part's actual bytes are pulled via
+`adb_client.read_binary()` (`adb shell content read --uri
+content://mms/part/<id>`) and saved into `data/sms_media/`, the same
+directory and `/api/sms/media/<filename>` serving route outbound-attached
+images already used — verified end-to-end against a real inbound photo.
+
+**Other same-day fixes:** a thread's `state` is now reset to `'open'` on
+any new inbound message (both `adb_inbound.py` and `bridge.py`'s REST
+fallback) — previously only `snoozed_until` was cleared, so a new message
+to an *archived* thread stayed invisible in the default list even after
+landing correctly in the database. `wtsn.me/sms` (`watson-tools`'s
+`SmsApp.tsx`) now auto-linkifies bare URLs in message bodies as clickable
+links.
+
+---
+
 ## Book Launch Campaign System (`jobs/campaigns/`)
 
 Reusable, campaign-agnostic marketing automation for book launches — built out
@@ -4655,6 +4732,7 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 ## Recent Changes — 2026-10-01
 
 ### ~/watson
+- 262759c Extract inbound MMS images and reopen archived threads on new messages
 - 6431fca docs: bugs/backlog export 2026-10-01
 - 39c08dd docs: file map 2026-10-01
 - 7ed716f devdispatch: A Team Chat leader asked Watson (a church admin assistant) this question (#82)
@@ -4684,6 +4762,7 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - c511d25 docs: architecture update 2026-09-30
 
 ### ~/watson-tools
+- 4c58354 Add inline hyperlink rendering in SMS message bubbles
 - 4fab728 Fix /cat/kidstoday to proxy through the Beelink API, not local sqlite
 - 980bdbb Fix kidstoday search API to use separate watson/congregation databases
 - 9a82d3f Add /cat/kidstoday form for Sunday kids servant overrides
