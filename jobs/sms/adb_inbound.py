@@ -26,7 +26,9 @@ sends either way, this module only replaces inbound.
 """
 import json
 import logging
+import mimetypes
 import os
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -38,6 +40,13 @@ from jobs.sms.carrier_lookup import normalize_phone
 log = logging.getLogger(__name__)
 
 _CURSOR_PATH = Path(__file__).resolve().parents[2] / "data" / "sms_adb_last_id.json"
+
+# Same directory jobs/sms/api.py's _save_media()/get_media() use for
+# outbound-attached images -- writing here directly (not through that
+# function, which expects a base64 upload body) means inbound images are
+# served by the exact same already-built /api/sms/media/<filename> route,
+# no frontend or routing change needed.
+_MEDIA_DIR = Path(__file__).resolve().parents[2] / "data" / "sms_media"
 
 _ADDR_TYPE_FROM = "137"
 _ADDR_TYPE_CC = "130"
@@ -58,16 +67,43 @@ def _write_cursor(cursor: dict) -> None:
     _CURSOR_PATH.write_text(json.dumps(cursor))
 
 
-def _mms_body(device: str, mms_id: str) -> tuple[str, bool]:
-    """Returns (body, has_attachment). A text/plain part's `text` column
-    holds the literal body -- confirmed against real data, no binary stream
-    read needed. No text/plain part (image-only MMS) -> a stub body, no
-    image extraction (out of scope, see plan)."""
+def _save_mms_image(device: str, part_id: str, content_type: str) -> str | None:
+    """Pulls one MMS part's raw image bytes via `adb shell content read`
+    (the part row has no text column for binary data) and writes it into
+    the same data/sms_media/ directory jobs/sms/api.py serves outbound
+    attachments from. Returns the /api/sms/media/<filename> URL, or None if
+    the read failed or came back empty -- a failed image pull degrades to
+    no-image, never breaks ingestion of the rest of the message."""
+    raw = adb_client.read_binary(device, f"content://mms/part/{part_id}")
+    if not raw:
+        return None
+    ext = mimetypes.guess_extension(content_type) or ""
+    filename = f"{uuid.uuid4().hex}{ext}"
+    _MEDIA_DIR.mkdir(parents=True, exist_ok=True)
+    (_MEDIA_DIR / filename).write_bytes(raw)
+    return f"/api/sms/media/{filename}"
+
+
+def _mms_body(device: str, mms_id: str) -> tuple[str, str | None]:
+    """Returns (body, media_url). A text/plain part's `text` column holds
+    the literal body -- confirmed against real data, no binary stream read
+    needed. An image part (ct starting "image/") gets its actual bytes
+    pulled and saved via _save_mms_image() so it can render inline, same as
+    an outbound-attached image already does; a caption text/plain part
+    alongside it is still used as the body. No text and no image part
+    (e.g. vCard/audio) -> a stub body, no attachment preview."""
     parts = adb_client.query(device, f"content://mms/{mms_id}/part")
+    body = ""
+    media_url = None
     for p in parts:
-        if p.get("ct") == "text/plain" and p.get("text"):
-            return p["text"], False
-    return "[Photo/attachment]", True
+        ct = p.get("ct") or ""
+        if ct == "text/plain" and p.get("text"):
+            body = p["text"]
+        elif ct.startswith("image/") and not media_url:
+            media_url = _save_mms_image(device, p.get("_id"), ct)
+    if not body and not media_url:
+        body = "[Attachment]"
+    return body, media_url
 
 
 def _mms_participants(device: str, mms_id: str) -> tuple[str | None, list[str]]:
@@ -174,7 +210,7 @@ def poll_inbound_adb(dry_run: bool = False) -> int:
             ).fetchone():
                 continue
 
-            body, _has_attachment = _mms_body(device, row_id)
+            body, media_url = _mms_body(device, row_id)
             # MMS `date` is epoch SECONDS on this device (confirmed against
             # real data) -- SMS `date` above is epoch milliseconds. Different
             # units for the two tables, not a typo.
@@ -184,12 +220,12 @@ def poll_inbound_adb(dry_run: bool = False) -> int:
             if dry_run:
                 planned.append({
                     "kind": "mms", "id": row_id, "participants": participants,
-                    "sender": sender, "body": body, "android_thread_id": android_thread_id,
+                    "sender": sender, "body": body, "media_url": media_url, "android_thread_id": android_thread_id,
                 })
                 continue
 
             thread_id = get_or_create_thread_multi(conn, participants, None, android_thread_id)
-            _insert_message(conn, thread_id, body, gateway_message_id, sender, created_at)
+            _insert_message(conn, thread_id, body, gateway_message_id, sender, created_at, media_url)
             _notify(conn, thread_id, sender, body)
             ingested += 1
 
@@ -205,15 +241,18 @@ def poll_inbound_adb(dry_run: bool = False) -> int:
     return ingested
 
 
-def _insert_message(conn, thread_id: int, body: str, gateway_message_id: str, sender_phone: str | None, created_at: str) -> None:
+def _insert_message(
+    conn, thread_id: int, body: str, gateway_message_id: str, sender_phone: str | None,
+    created_at: str, media_url: str | None = None,
+) -> None:
     conn.execute(
-        "INSERT INTO sms_messages (thread_id, direction, body, gateway_message_id, sender_phone, created_at) "
-        "VALUES (?, 'in', ?, ?, ?, ?)",
-        (thread_id, body, gateway_message_id, sender_phone, created_at),
+        "INSERT INTO sms_messages (thread_id, direction, body, gateway_message_id, sender_phone, created_at, media_url) "
+        "VALUES (?, 'in', ?, ?, ?, ?, ?)",
+        (thread_id, body, gateway_message_id, sender_phone, created_at, media_url),
     )
     conn.execute(
         """UPDATE sms_threads
-           SET last_message_at = ?, last_message_preview = ?, unread = 1, snoozed_until = NULL
+           SET last_message_at = ?, last_message_preview = ?, unread = 1, snoozed_until = NULL, state = 'open'
            WHERE id = ?""",
         (created_at, body, thread_id),
     )

@@ -111,6 +111,22 @@ def _parse_rows(stdout: str) -> list[dict]:
     return rows
 
 
+def read_binary(device: str, uri: str, timeout: int = 20) -> bytes | None:
+    """Reads a content:// URI's raw byte stream via `adb shell content read`
+    -- used for MMS part image data, which has no text column to pull via
+    query(). Returns None on any failure (missing part, permission denied,
+    empty stream) rather than raising, since a failed image extraction
+    should degrade to no-image, not break the whole inbound poll."""
+    result = subprocess.run(
+        [ADB, "-s", device, "shell", "content", "read", "--uri", uri],
+        capture_output=True, timeout=timeout,
+    )
+    if result.returncode != 0 or not result.stdout:
+        log.warning("adb_client.read_binary: failed for uri=%s: %s", uri, result.stderr[:300])
+        return None
+    return result.stdout
+
+
 def query(device: str, uri: str, where: str | None = None, sort: str | None = None, timeout: int = 20) -> list[dict]:
     """Runs `content query` as ONE quoted shell string, not argv-split --
     confirmed during investigation that passing --where/--sort as separate

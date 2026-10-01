@@ -177,7 +177,8 @@ def poll_inbound() -> int:
                    SET last_message_at = datetime('now'),
                        last_message_preview = ?,
                        unread = 1,
-                       snoozed_until = NULL
+                       snoozed_until = NULL,
+                       state = 'open'
                    WHERE id = ?""",
                 (text, thread_id),
             )
