@@ -4649,3 +4649,43 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - b6bded3 Catalyst DB header cleanup + household rename/add-search
 - 392ccf9 Add Households tab to Catalyst DB admin screen
 - 4dd6876 Color-code Wilmington vs Online in the per-person attendance popup
+
+---
+
+## Recent Changes — 2026-10-01
+
+### ~/watson
+- 6431fca docs: bugs/backlog export 2026-10-01
+- 39c08dd docs: file map 2026-10-01
+- 7ed716f devdispatch: A Team Chat leader asked Watson (a church admin assistant) this question (#82)
+- ca28ab8 Add kids attendance support to Team Chat, CSV backfill importer
+- 786d386 Poll for CDP readiness on the initial connect too, not just post-restart
+- 17a8664 Poll for CDP responsiveness after Chrome force-restart instead of checking once
+- feb3f0e Automate Chrome force-restart recovery for zombie CDP debug sessions
+- cbdba48 Fix real cause of CDP pull hang: unbounded recv() calls before the eval loop
+- e673857 Fix CDP eval timeout loop reusing full timeout per iteration
+- 2b7154c Add Tailscale-or-USB fallback for phone connection, add backfill report script
+- 57a35f8 Fix kids attendance undercount for months with sparse kids_checkin coverage
+- 5f23feb Fix triple-counting bug in hybrid attendance breakdown
+- e3c638d Separate adults and kids in attendance summary line
+- b23ed14 Add hybrid attendance calculation and reformat attendance responses
+- 8984ec6 Format attendance queries with human-readable breakdown
+- 39c1c5a Include kids attendance in multi-week/month attendance queries
+- fb9c2f9 Pin State of the Church report to Sonnet, keep everything else on Haiku default
+- f7fab50 Default Watson's Claude-tier fallback model to Haiku 4.5
+- bc4d18b Fix /cat/kidstoday: route through Beelink API instead of broken direct-file access
+- b1ef84b Add kids servant override system with SMS support
+- a44d99e Add weekly Sunday 2:55pm Telegram send of /cat/kidsatt to Lucie and Tara
+- 9a3e52a Give "this week or smaller" attendance questions a plain-English total + breakdown
+- 7df5d97 Add search/add endpoints for kidsatt "add a kid" flow
+- aedbd8a Add manual member-merge support for CatalystDB grid
+- 4da3f3f Fix SMS gateway adb reachability check to use working USB link
+- a1d1471 Add "how many people attended church each month in" fast-path phrase to attendance trend over time
+- c511d25 docs: architecture update 2026-09-30
+
+### ~/watson-tools
+- 4fab728 Fix /cat/kidstoday to proxy through the Beelink API, not local sqlite
+- 980bdbb Fix kidstoday search API to use separate watson/congregation databases
+- 9a82d3f Add /cat/kidstoday form for Sunday kids servant overrides
+- 5dc24fd Add "add a kid" feature to each class in kidsatt
+- 6f6d106 Add manual member-merge UI to CatalystDB grid
