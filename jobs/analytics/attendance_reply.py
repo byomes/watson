@@ -15,7 +15,15 @@ from datetime import date
 _NEVER_SEEN = "1900-01-01"
 
 
-def format_last_attended_reply(name: str, last_attended: str | None, campus: str | None = None) -> str:
+def format_last_attended_reply(
+    name: str, last_attended: str | None, campus: str | None = None, class_name: str | None = None
+) -> str:
+    """campus and class_name are mutually exclusive -- campus for an adult
+    (attendance/deacon_visible_connect_cards), class_name for a kid
+    (kids_checkin, no campus captured per check-in -- see
+    jobs/skills/cdb_query.py's kids-aware LAST ATTENDED BY NAME branch,
+    added 2026-10-01). Same weeks-ago sentence either way; just a different
+    second sentence."""
     if not last_attended or last_attended == _NEVER_SEEN:
         return f"{name} has no recorded attendance."
     try:
@@ -31,6 +39,8 @@ def format_last_attended_reply(name: str, last_attended: str | None, campus: str
         sentence = f"We last saw {name} on {pretty_date}. It's been {weeks_since} {weeks_word} since we've seen them."
     if campus:
         sentence += f" They last attended the {campus} campus."
+    elif class_name:
+        sentence += f" They were last in the {class_name} class."
     return sentence
 
 

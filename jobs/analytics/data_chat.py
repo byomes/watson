@@ -94,7 +94,7 @@ _DB_PATH = {"attendance": CONGREGATION_DB_PATH, "web": WATSON_DB_PATH, "events":
 
 _ALLOWED_TABLES = {
     "attendance": {
-        "attendance", "classroom_attendance", "kids_checkin", "members",
+        "attendance", "classroom_attendance", "kids_checkin", "kids", "members",
         "deacon_notes", "next_steps", "follow_ups",
         "deacon_visible_prayer_requests", "deacon_visible_connect_cards",
         "team_memberships",
@@ -153,6 +153,12 @@ def _attendance_schema(allow_contact_info: bool) -> str:
         "  -- headcount on a given Sunday, COUNT(DISTINCT kid_id) WHERE event_date = that date -- prefer this table\n"
         "  -- over classroom_attendance whenever it has any row for the date (real data), falling back to\n"
         "  -- classroom_attendance's staff-tallied headcount only for dates this table doesn't cover at all.\n"
+        "kids(id INTEGER, first_name TEXT, last_name TEXT, gender TEXT, current_class TEXT, household_id TEXT)\n"
+        "  -- one row per kid (added 2026-10-01). A kid's real attendance is ALWAYS in kids_checkin (join on\n"
+        "  -- kids_checkin.kid_id = kids.id) -- never in the `attendance` table, even though every kid also has a\n"
+        "  -- mirrored `members` row for CatalystDB display (that row never gets attendance rows written to it).\n"
+        "  -- current_class is the kid's most recent classroom from their latest check-in. A \"which kids were in\n"
+        "  -- [class]\" or \"when did we last see [kid]\" question means querying kids/kids_checkin, not members/attendance.\n"
         f"members(id INTEGER, name TEXT, deacon TEXT, campus_preference TEXT, first_visit_date TEXT, active TEXT, partner TEXT, household_id TEXT, household_role TEXT, gender TEXT, started_serving_date TEXT{contact_cols})\n"
         "  -- started_serving_date is when that person began serving/volunteering (banquet length-of-service\n"
         "  -- tracking) -- NULL for anyone who isn't a serving volunteer. A question about how LONG someone has\n"
@@ -826,6 +832,13 @@ def _format_rows(rows: list[dict], domain: str | None = None) -> str:
         from jobs.analytics.attendance_reply import format_last_attended_reply
         r = rows[0]
         return format_last_attended_reply(r["name"], r.get("last_attended"), r.get("campus"))
+    # Kid version of the above (cdb_query.py's _resolve_kid_id-routed LAST
+    # ATTENDED BY NAME branch, added 2026-10-01) -- class_name instead of
+    # campus, since kids_checkin doesn't capture campus per check-in.
+    if len(rows) == 1 and set(rows[0].keys()) == {"name", "last_attended", "class_name"}:
+        from jobs.analytics.attendance_reply import format_last_attended_reply
+        r = rows[0]
+        return format_last_attended_reply(r["name"], r.get("last_attended"), class_name=r.get("class_name"))
     if len(rows) == 1 and set(rows[0].keys()) == {"name", "last_missed"}:
         from jobs.analytics.attendance_reply import format_last_missed_reply
         r = rows[0]

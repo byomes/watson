@@ -171,6 +171,41 @@ def _months_ago(d: date, n: int) -> date:
     return date(year, month, day)
 
 
+# Kids classroom names, as actually stored in kids_checkin.class_name by
+# Subsplash (e.g. "Elementary Kids Church") -- mapped to a short LIKE
+# pattern so a question doesn't need the exact full class name. Checked
+# longest-key-first so 'toddlers' doesn't get shadowed by a shorter
+# unrelated substring. Mirrors classroom_attendance's 4 classroom columns
+# (kids_nursery/kids_toddlers/kids_prek/kids_elementary).
+_KIDS_CLASS_MAP = {
+    "nursery": "Nursery", "toddlers": "Toddler", "toddler": "Toddler",
+    "pre-k": "Pre-K", "pre k": "Pre-K", "prek": "Pre-K", "elementary": "Elementary",
+}
+
+
+def _resolve_kid_id(name: str) -> int | None:
+    """Returns the kids.id for a name match, or None if it doesn't match
+    any kid. Used by the LAST ATTENDED/LAST MISSED BY NAME blocks below to
+    route a kid's name to kids_checkin instead of attendance -- a kid's
+    real attendance never lives in `attendance` (see
+    jobs.congregation.kids_checkin_import's ensure_member_for_kid docstring:
+    the mirrored `members` row exists for CatalystDB display, it is never
+    populated with attendance rows). Known limitation: if an adult and a
+    kid happen to share the same name, the kid wins -- acceptable given
+    this only ever improves on the prior behavior (a kid's name used to
+    silently resolve to "no recorded attendance" via the adult-only query)."""
+    try:
+        conn = sqlite3.connect(f"file:{CONG_DB}?mode=ro", uri=True, timeout=5)
+        row = conn.execute(
+            "SELECT id FROM kids WHERE (first_name || ' ' || IFNULL(last_name, '')) LIKE ? LIMIT 1",
+            (f"%{name}%",),
+        ).fetchone()
+        conn.close()
+        return row[0] if row else None
+    except Exception:
+        return None
+
+
 def _last_sunday() -> str:
     today = date.today()
     days_since_saturday = (today.weekday() - 5) % 7
@@ -537,6 +572,28 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
                 f") ORDER BY CASE campus WHEN 'Online' THEN 1 WHEN 'Wilmington' THEN 2 ELSE 3 END"
             )
 
+    # WHICH KIDS WERE IN A GIVEN CLASS -- Bill's 2026-10-01 request: a kids
+    # version of WHO ATTENDED below, rostered by classroom instead of
+    # campus. Requires the word "kids"/"kid" alongside a recognized class
+    # name so this doesn't steal "who's in the nursery" from TEAM ROSTER
+    # MEMBERSHIP further down (same word "nursery" is also a real serving
+    # team there -- the adult volunteers, not the kids in the classroom).
+    # Defaults to the same date resolved by the preamble above (last Sunday
+    # unless the question named another date/range).
+    _kids_class_label = None
+    for _w in sorted(_KIDS_CLASS_MAP, key=len, reverse=True):
+        if _w in q:
+            _kids_class_label = _KIDS_CLASS_MAP[_w]
+            break
+    if _kids_class_label and re.search(r"\bkids?\b", q):
+        _kids_event_date = s_date.replace("service_date", "event_date")
+        return (
+            f"SELECT (k.first_name || ' ' || IFNULL(k.last_name, '')) as name "
+            f"FROM kids_checkin kc JOIN kids k ON k.id = kc.kid_id "
+            f"WHERE kc.class_name LIKE '%{_kids_class_label}%' AND {_kids_event_date} "
+            f"ORDER BY name"
+        )
+
     # WHO ATTENDED
     if any(w in q for w in ['who attended', 'who came', 'who was there', 'who showed up', 'list attendance', 'attendee list', 'who was in service', 'who was at church']):
         if campus:
@@ -794,6 +851,15 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
     if _last_missed_m:
         name = _last_missed_m.group(1).strip()
         if name:
+            _kid_id = _resolve_kid_id(name)
+            if _kid_id is not None:
+                return (
+                    f"SELECT (k.first_name || ' ' || IFNULL(k.last_name, '')) as name, "
+                    f"(SELECT MAX(d.event_date) FROM (SELECT DISTINCT event_date FROM kids_checkin) d "
+                    f" WHERE d.event_date NOT IN (SELECT event_date FROM kids_checkin WHERE kid_id = k.id)"
+                    f") as last_missed "
+                    f"FROM kids k WHERE k.id = {_kid_id}"
+                )
             return (
                 f"SELECT m.name, "
                 f"(SELECT MAX(d.service_date) FROM (SELECT DISTINCT service_date FROM attendance) d "
@@ -809,9 +875,30 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
         r"was\s+(?:here|at\s+church))\b",
         q,
     )
+    if not _last_seen_m:
+        # "when was the last time WE SAW X" / "when did we last see X" --
+        # the name comes AFTER the verb here, opposite word order from the
+        # pattern above (which expects "X last attended"). Added 2026-10-01
+        # (Bill's own example phrasing for the kids last-seen feature,
+        # applies equally to adults since it's the same shared block).
+        _last_seen_m = re.search(
+            r"when\s+(?:was|is|did)\s+(?:the\s+last\s+time\s+)?(?:we|i|anyone)\s+"
+            r"(?:last\s+)?(?:see|saw)\s+(\w+(?:\s+\w+)??)[\?\.!]*$",
+            q,
+        )
     if _last_seen_m:
         name = _last_seen_m.group(1).strip()
         if name:
+            _kid_id = _resolve_kid_id(name)
+            if _kid_id is not None:
+                return (
+                    f"SELECT (k.first_name || ' ' || IFNULL(k.last_name, '')) as name, "
+                    f"MAX(kc.event_date) as last_attended, "
+                    f"(SELECT class_name FROM kids_checkin WHERE kid_id = k.id "
+                    f" ORDER BY event_date DESC LIMIT 1) as class_name "
+                    f"FROM kids k LEFT JOIN kids_checkin kc ON kc.kid_id = k.id "
+                    f"WHERE k.id = {_kid_id} GROUP BY k.id"
+                )
             # deacon_visible_connect_cards, not the raw connect_cards table --
             # jobs/analytics/data_chat.py's _ALLOWED_TABLES["attendance"]
             # whitelists only the view (it nulls out a non-public
