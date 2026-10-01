@@ -35,14 +35,18 @@ headcount table). "Move up/down" in the frontend just means picking a
 different entry in this list.
 """
 import base64
+import logging
 import os
 import re
 import sqlite3
 import uuid
 from datetime import date, datetime, timedelta
 from functools import wraps
+from pathlib import Path
 
 from flask import Blueprint, jsonify, request
+
+log = logging.getLogger(__name__)
 
 DB_PATH = os.path.expanduser("~/watson/data/congregation.db")
 
@@ -398,11 +402,19 @@ def add():
 @kids_attendance_web_bp.route("/api/cat/kidsatt/import", methods=["POST"])
 @_require_key
 def import_csv():
-    """Receives one CSV file from the /cat/kidsatt batch-import dialog and
-    writes it to IMPORT_DIR -- upload only, no parsing. The frontend can't
-    send this box a real multipart upload, so the file arrives
-    base64-encoded inside a JSON body instead (watsonFetch's shared
-    transport is JSON-only, see src/lib/watson.ts on watson-tools)."""
+    """Receives one CSV file from the /cat/kidsatt batch-import dialog,
+    writes it to IMPORT_DIR, then immediately runs it through
+    kids_checkin_csv_import.run() -- upload and ingest in one request, no
+    separate manual step. The frontend can't send this box a real
+    multipart upload, so the file arrives base64-encoded inside a JSON
+    body instead (watsonFetch's shared transport is JSON-only, see
+    src/lib/watson.ts on watson-tools).
+
+    A parse/ingest failure does NOT fail the request -- the file is
+    already safely on disk by that point, so the response still reports
+    saved: true with an ingest_error string instead, and
+    kids_checkin_csv_import can be re-run by hand against IMPORT_DIR
+    later once whatever broke is fixed."""
     data = request.get_json(force=True) or {}
     filename = (data.get("filename") or "").strip()
     content_b64 = data.get("content_base64") or ""
@@ -431,4 +443,12 @@ def import_csv():
     with open(dest_path, "wb") as f:
         f.write(content)
 
-    return jsonify({"filename": stamped_name, "size": len(content), "saved": True}), 200
+    result = {"filename": stamped_name, "size": len(content), "saved": True}
+    try:
+        from jobs.congregation.kids_checkin_csv_import import run as run_csv_import
+        result["ingest"] = run_csv_import(Path(dest_path))
+    except Exception as exc:
+        log.error("kidsatt CSV auto-ingest failed for %s: %s", stamped_name, exc)
+        result["ingest_error"] = str(exc)
+
+    return jsonify(result), 200
