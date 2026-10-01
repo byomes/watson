@@ -112,6 +112,7 @@ def run(csv_path: Path) -> dict:
         "kids_created": 0,
         "ambiguous_name_matches": 0,
         "queued_for_donna": 0,
+        "skipped_already_checked_in": 0,
     }
     conn = _connect()
     try:
@@ -149,6 +150,28 @@ def run(csv_path: Path) -> dict:
             if ambiguous:
                 stats["ambiguous_name_matches"] += 1
             ensure_member_for_kid(conn, kid_id)
+
+            # kids_checkin has no unique constraint on (kid_id, event_date) --
+            # same reason kids_attendance_web.py's toggle()/add() both check
+            # existence before inserting a "present" row rather than relying
+            # on the schema. The synthetic checkin id alone isn't enough to
+            # prevent duplicates here: this CSV's timestamp text doesn't
+            # exactly match kids_checkin_import.py's API-sourced
+            # checked_in_at for the same real event, so the two importers
+            # hash to different ids for what's actually the same check-in
+            # (caught 2026-10-01 when Donna's test upload re-added all 6
+            # rows from a Sunday the API backlog importer had already
+            # pulled). Any existing row for this kid+date -- regardless of
+            # source -- means the day is already recorded, so this row is a
+            # no-op: skip the insert, the current_class update, and the
+            # household-queue check (the importer that created that
+            # existing row already ran that check for this kid).
+            already_checked_in = conn.execute(
+                "SELECT 1 FROM kids_checkin WHERE kid_id = ? AND event_date = ?", (kid_id, event_date)
+            ).fetchone()
+            if already_checked_in:
+                stats["skipped_already_checked_in"] += 1
+                continue
 
             guardian_name = (
                 f"{(row.get('[Checked in by] First Name') or '').strip()} "
@@ -211,7 +234,7 @@ if __name__ == "__main__":
 
     totals = {
         "rows_seen": 0, "checkin_rows_inserted": 0, "kids_created": 0,
-        "ambiguous_name_matches": 0, "queued_for_donna": 0,
+        "ambiguous_name_matches": 0, "queued_for_donna": 0, "skipped_already_checked_in": 0,
     }
     for path in paths:
         result = run(path)
