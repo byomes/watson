@@ -581,16 +581,18 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
     # Defaults to the same date resolved by the preamble above (last Sunday
     # unless the question named another date/range).
     _kids_class_label = None
+    _kids_class_word = None
     for _w in sorted(_KIDS_CLASS_MAP, key=len, reverse=True):
         if _w in q:
             _kids_class_label = _KIDS_CLASS_MAP[_w]
+            _kids_class_word = _w
             break
     # 2026-09-30: also accepts past-tense "who was/were in/at the nursery
     # (this past Sunday)" with no "kids" word (Team Chat leader question).
     # Past tense + a class name means a specific past service, i.e. the
     # check-in roster; present-tense "who's in the nursery" still goes to
     # TEAM ROSTER MEMBERSHIP (the adult volunteers) below.
-    _kids_class_past = re.search(r"\bwho\s+(?:was|were)\s+(?:in|at)\s+(?:the\s+)?(?:\w+\s+)?" + re.escape(_kids_class_label.lower()), q) if _kids_class_label else None
+    _kids_class_past = re.search(r"\bwho\s+(?:was|were)\s+(?:in|at)\s+(?:the\s+)?(?:\w+\s+)?" + re.escape(_kids_class_word), q) if _kids_class_word else None
     if _kids_class_label and (re.search(r"\bkids?\b", q) or _kids_class_past):
         _kids_event_date = s_date.replace("service_date", "event_date")
         return (
