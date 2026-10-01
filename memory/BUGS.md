@@ -1,6 +1,6 @@
 # Watson Bug Tracker
 _Auto-generated nightly from bug_tracker. Source of truth is the database — do not hand-edit this file, changes will be overwritten._
-Last generated: 2026-09-30 02:10
+Last generated: 2026-10-01 02:10
 
 ## Open (6)
 | ID | Title | Repo | Discovered |
@@ -15,6 +15,9 @@ Last generated: 2026-09-30 02:10
 ## Recently Resolved (last 30 days)
 | ID | Title | Repo | Resolved | Commit |
 |---|---|---|---|---|
+| 215 | Monthly kids attendance undercounted for months with sparse kids_checkin coverage | watson | 2026-09-30 20:36:13 | 57a35f8 |
+| 214 | Hybrid attendance breakdown triple-counted hybrid attendees | watson | 2026-09-30 20:27:35 | 5f23feb |
+| 213 | SMS gateway adb heartbeat ignored working USB connection | watson | 2026-09-30 12:58:43 | 4da3f3f614182cc295ba73bb7ebb6b0d0ce38ec1 |
 | 212 | cdb_query.py run() pattern-match path mislabels result columns | watson | 2026-09-30 05:00:08 | a263b54 |
 | 211 | cdb_query: per-month attendance breakdown fell through to paid LLM | watson | 2026-09-29 17:55:46 | 5062ff5 |
 | 210 | SMS: multi-line MMS body truncated by adb content query parser | watson | 2026-09-29 16:13:18 | 488fac80992fe9f88e445c6824b47b2a8201f993 |
@@ -135,6 +138,3 @@ Last generated: 2026-09-30 02:10
 | 118 | skill_audit run_audit() prompt likely exceeds model context window, silently dropping task instructions | watson | 2026-09-04 02:11:31 | 7fb19e1 |
 | 121 | Classifier hallucinates wrong intent under Ollama contention instead of degrading honestly | watson | 2026-09-04 02:10:55 | 7fb19e1 |
 | 113 | watson-tools dispatcher crashed intermittently on DNS resolution to the Watson backend | watson-tools | 2026-09-01 13:09:37 | 08ed7a9 |
-| 112 | connect_cards email_reports.py sent Bill duplicate copies of every report | watson | 2026-08-31 15:43:25 | 74ced40 |
-| 111 | connect_cards intake.py only scanned INBOX, silently dropping spam-misclassified cards | watson | 2026-08-31 15:43:25 | 74ced40 |
-| 110 | campus_classifier.py overwrites Inactive campus_preference every Monday | watson | 2026-08-31 11:14:53 | ebe5de2 |
