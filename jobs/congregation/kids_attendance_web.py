@@ -34,15 +34,26 @@ column existing on the older, separate `classroom_attendance` aggregate-
 headcount table). "Move up/down" in the frontend just means picking a
 different entry in this list.
 """
+import base64
 import os
+import re
 import sqlite3
 import uuid
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from functools import wraps
 
 from flask import Blueprint, jsonify, request
 
 DB_PATH = os.path.expanduser("~/watson/data/congregation.db")
+
+# Landing spot for raw Subsplash "catalyst-kids-check-ins" CSV exports
+# dropped in via the /cat/kidsatt batch-import dialog -- upload only for
+# now (just gets a file safely onto disk with a collision-proof name).
+# Parsing/ingesting these into kids_checkin is a separate follow-up once a
+# real sample has been uploaded through the dialog to confirm the export's
+# exact column layout.
+IMPORT_DIR = os.path.expanduser("~/watson/data/imports/kids_att_csv")
+_MAX_IMPORT_BYTES = 5 * 1024 * 1024
 
 kids_attendance_web_bp = Blueprint("kids_attendance_web", __name__)
 
@@ -382,3 +393,42 @@ def add():
         conn.commit()
 
     return jsonify({"kid_id": kid_id, "service_date": service_date, "class_name": class_name}), 200
+
+
+@kids_attendance_web_bp.route("/api/cat/kidsatt/import", methods=["POST"])
+@_require_key
+def import_csv():
+    """Receives one CSV file from the /cat/kidsatt batch-import dialog and
+    writes it to IMPORT_DIR -- upload only, no parsing. The frontend can't
+    send this box a real multipart upload, so the file arrives
+    base64-encoded inside a JSON body instead (watsonFetch's shared
+    transport is JSON-only, see src/lib/watson.ts on watson-tools)."""
+    data = request.get_json(force=True) or {}
+    filename = (data.get("filename") or "").strip()
+    content_b64 = data.get("content_base64") or ""
+
+    if not filename.lower().endswith(".csv"):
+        return jsonify({"error": "file must be a .csv"}), 400
+
+    try:
+        content = base64.b64decode(content_b64, validate=True)
+    except Exception:
+        return jsonify({"error": "invalid file content"}), 400
+
+    if not content:
+        return jsonify({"error": "file is empty"}), 400
+    if len(content) > _MAX_IMPORT_BYTES:
+        return jsonify({"error": "file is too large (5MB max)"}), 400
+
+    # Strip to a bare basename (no path components from the client) and
+    # drop anything but a conservative safe-filename charset, so a crafted
+    # filename can't escape IMPORT_DIR or collide with shell-unsafe chars.
+    safe_name = re.sub(r"[^A-Za-z0-9._-]", "_", os.path.basename(filename)) or "upload.csv"
+    stamped_name = f"{datetime.now().strftime('%Y%m%d-%H%M%S')}_{safe_name}"
+
+    os.makedirs(IMPORT_DIR, exist_ok=True)
+    dest_path = os.path.join(IMPORT_DIR, stamped_name)
+    with open(dest_path, "wb") as f:
+        f.write(content)
+
+    return jsonify({"filename": stamped_name, "size": len(content), "saved": True}), 200
