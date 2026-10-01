@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-09-30*
+*Generated: 2026-10-01*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -83,6 +83,7 @@ data/
   .gitkeep
   .kb_sync.lock
   .logrotate_state
+  .oneoff_donna_kids_checkin_summary_sent
   adelphos/
     shells/
       raw/
@@ -112,7 +113,10 @@ data/
   congregation.db.bak_before_blank_convention_20260924_111701
   congregation.db.bak_before_connected_override_20260924_130115
   congregation.db.bak_before_drop_legacy_status_columns_20260924_124413
+  congregation.db.bak_before_fix_merged_kids_names_20260930_210101
   congregation.db.bak_before_grid_cleanup_20260924_122654
+  congregation.db.bak_before_kids_csv_backfill_20260930_204618
+  congregation.db.bak_before_kids_csv_dupe_merge_20260930_205901
   congregation.db.bak_before_orphan_delete_20260906_070048
   congregation.db.bak_before_partner_connected_active_20260924_105842
   congregation.db.bak_before_pin_import_20260922_122311
@@ -196,6 +200,63 @@ data/
     deacon_directory_clean.csv
     deacon_directory_report_20260824-141656.md
     deacon_directory_report_20260824-142211.md
+    kids_att/
+      catalyst-kids-check-ins (1).csv
+      catalyst-kids-check-ins (10).csv
+      catalyst-kids-check-ins (11).csv
+      catalyst-kids-check-ins (12).csv
+      catalyst-kids-check-ins (13).csv
+      catalyst-kids-check-ins (14).csv
+      catalyst-kids-check-ins (15).csv
+      catalyst-kids-check-ins (16).csv
+      catalyst-kids-check-ins (17).csv
+      catalyst-kids-check-ins (18).csv
+      catalyst-kids-check-ins (19).csv
+      catalyst-kids-check-ins (2).csv
+      catalyst-kids-check-ins (20).csv
+      catalyst-kids-check-ins (21).csv
+      catalyst-kids-check-ins (22).csv
+      catalyst-kids-check-ins (23).csv
+      catalyst-kids-check-ins (24).csv
+      catalyst-kids-check-ins (25).csv
+      catalyst-kids-check-ins (26).csv
+      catalyst-kids-check-ins (27).csv
+      catalyst-kids-check-ins (28).csv
+      catalyst-kids-check-ins (29).csv
+      catalyst-kids-check-ins (3).csv
+      catalyst-kids-check-ins (30).csv
+      catalyst-kids-check-ins (31).csv
+      catalyst-kids-check-ins (32).csv
+      catalyst-kids-check-ins (33).csv
+      catalyst-kids-check-ins (34).csv
+      catalyst-kids-check-ins (35).csv
+      catalyst-kids-check-ins (36).csv
+      catalyst-kids-check-ins (37).csv
+      catalyst-kids-check-ins (38).csv
+      catalyst-kids-check-ins (39).csv
+      catalyst-kids-check-ins (4).csv
+      catalyst-kids-check-ins (40).csv
+      catalyst-kids-check-ins (41).csv
+      catalyst-kids-check-ins (42).csv
+      catalyst-kids-check-ins (43).csv
+      catalyst-kids-check-ins (44).csv
+      catalyst-kids-check-ins (45).csv
+      catalyst-kids-check-ins (46).csv
+      catalyst-kids-check-ins (47).csv
+      catalyst-kids-check-ins (48).csv
+      catalyst-kids-check-ins (49).csv
+      catalyst-kids-check-ins (5).csv
+      catalyst-kids-check-ins (50).csv
+      catalyst-kids-check-ins (51).csv
+      catalyst-kids-check-ins (52).csv
+      catalyst-kids-check-ins (53).csv
+      catalyst-kids-check-ins (54).csv
+      catalyst-kids-check-ins (55).csv
+      catalyst-kids-check-ins (6).csv
+      catalyst-kids-check-ins (7).csv
+      catalyst-kids-check-ins (8).csv
+      catalyst-kids-check-ins (9).csv
+      catalyst-kids-check-ins.csv
     phone_match_review.csv
     phone_match_review_v2.csv
   qr/
@@ -2976,6 +3037,8 @@ data/
   trading.db.bak-pre-sizing-fix-20260911073349
   trading.db.bak-pre-windows3-backfill-20260911110635
   watson.db
+  watson.db-shm
+  watson.db-wal
 deploy/
   .gitkeep
   apt-packages.txt
@@ -3172,9 +3235,14 @@ jobs/
     init_db.py
     kids_attendance_web.py
     kids_checkin_apply.py
+    kids_checkin_backfill_report.py
     kids_checkin_client.py
+    kids_checkin_csv_backfill.py
     kids_checkin_import.py
     kids_duplicate_check.py
+    kids_servants_web.py
+    kidsatt_weekly.py
+    kidstoday_notify_donna.py
     leader_broadcast.py
     married_age_check.py
     member_match.py
@@ -3438,6 +3506,7 @@ jobs/
     api.py
   llm/
     __init__.py
+    candidate_sweep.py
     compare_reasoning.py
   location/
     __init__.py
@@ -4600,6 +4669,14 @@ memory/
     20260903-145856_memory_consolidation.md
     20260903-152728_state_of_church.md
     20260903-161744_skill_audit.md
+    20261001-002643_skill_audit.md
+    20261001-002819_skill_audit.md
+    20261001-003641_state_of_church.md
+    20261001-010049_skill_audit.md
+    20261001-011020_state_of_church.md
+    20261001-014605_skill_audit.md
+    20261001-015923_state_of_church.md
+    _sweep_summary.txt
   relational.md
   secrets_audit_draft.md
   skills.json
@@ -4641,12 +4718,22 @@ tests/
       tier1.log
       tier1_rerun.log
       tier1_results.json
+    candidate_results_20260930/
+      mixed_baseline.log
+      run.log
+      stress_baseline.log
+      stress_granite4_2_3b.log
+      stress_granite4_2_8b.log
+      tier1.log
+      tier1_results.json
+    candidate_results_20260930_nohup_outer.log
     model_qualification_spec.md
     model_qualify.py
     results_part1.json
     results_part2.json
     results_remaining.json
     run.log
+    run_candidates_20260930.sh
     run_overnight_candidates.sh
     test_set.json
   ollama_lock_concurrency_test.py
@@ -5359,6 +5446,8 @@ src/
             route.ts
           delete/
             route.ts
+          merge/
+            route.ts
           state/
             route.ts
           update/
@@ -5405,13 +5494,21 @@ src/
           rescan/
             route.ts
         kidsatt/
+          add/
+            route.ts
           move/
             route.ts
           remove/
             route.ts
+          search/
+            route.ts
           state/
             route.ts
           toggle/
+            route.ts
+        kidstoday/
+          route.ts
+          search/
             route.ts
         papercards/
           submit/
@@ -5533,6 +5630,7 @@ src/
           CatalystDBBoard.tsx
           HouseholdsView.tsx
           MemberDetail.tsx
+          MergeConfirm.tsx
           ThemeToggleButton.tsx
           columns.ts
           layout.tsx
@@ -5574,7 +5672,11 @@ src/
         EventDuplicateReviewBoard.tsx
         page.tsx
       kidsatt/
+        AddKidForm.tsx
         KidsAttendanceBoard.tsx
+        page.tsx
+      kidstoday/
+        KidsServantForm.tsx
         page.tsx
       papercards/
         PaperCardForm.tsx
