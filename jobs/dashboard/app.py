@@ -443,6 +443,9 @@ app.register_blueprint(trading_bp)
 from jobs.location.routes import location_web_bp
 app.register_blueprint(location_web_bp)
 
+from jobs.uploads.api import uploads_bp
+app.register_blueprint(uploads_bp)
+
 
 
 # ── Admin template filters ────────────────────────────────────────────────────
