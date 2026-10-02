@@ -90,12 +90,42 @@ CREATE TABLE IF NOT EXISTS sms_scheduled_messages (
 # Singleton row (id=1) for app-wide toggles -- vacation mode and the Friday
 # Sabbath silence, added 2026-09-26. sabbath_silence defaults ON since it's
 # Bill's standing rule; vacation_mode defaults OFF.
+#
+# Autoresponder fields (added 2026-10-02, project_backlog id=39 follow-on):
+# separate Bill-authored body text for Sabbath vs. vacation, each with its
+# own enable toggle independent of the notification-silence toggles above --
+# turning on Friday Sabbath silence alone must not start auto-texting
+# people. vacation_started_at is stamped whenever vacation_mode flips 0->1
+# (see settings.py's set_setting) and is the autoresponder's window key for
+# that vacation period -- see jobs/sms/autoresponder.py.
 CREATE_SETTINGS = """
 CREATE TABLE IF NOT EXISTS sms_settings (
-    id               INTEGER PRIMARY KEY CHECK (id = 1),
-    vacation_mode    INTEGER NOT NULL DEFAULT 0,
-    sabbath_silence  INTEGER NOT NULL DEFAULT 1,
-    updated_at       TEXT NOT NULL DEFAULT (datetime('now'))
+    id                          INTEGER PRIMARY KEY CHECK (id = 1),
+    vacation_mode               INTEGER NOT NULL DEFAULT 0,
+    sabbath_silence             INTEGER NOT NULL DEFAULT 1,
+    sabbath_autoresponder_on    INTEGER NOT NULL DEFAULT 0,
+    sabbath_autoresponder_body  TEXT,
+    vacation_autoresponder_on   INTEGER NOT NULL DEFAULT 0,
+    vacation_autoresponder_body TEXT,
+    vacation_started_at         TEXT,
+    updated_at                  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+"""
+
+# One row per (phone, window_key) a Sabbath/vacation autoresponse has
+# already fired for -- the "once per sender per silence window" dedup.
+# window_key is "sabbath:<America/New_York date>" (so it naturally resets
+# the next Friday) or "vacation:<vacation_started_at>" (so toggling
+# vacation off and back on starts a fresh window, but repeat texts within
+# one vacation period only get one reply) -- see autoresponder.py.
+CREATE_AUTORESPONDER_LOG = """
+CREATE TABLE IF NOT EXISTS sms_autoresponder_log (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    phone      TEXT NOT NULL,
+    window_key TEXT NOT NULL,
+    thread_id  INTEGER NOT NULL REFERENCES sms_threads(id),
+    sent_at    TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(phone, window_key)
 );
 """
 
@@ -236,6 +266,7 @@ ALL_TABLES = [
     CREATE_GROUP_MEMBERS,
     CREATE_BROADCASTS,
     CREATE_BROADCAST_RECIPIENTS,
+    CREATE_AUTORESPONDER_LOG,
 ]
 
 # Bill's own wording, drafted during the design conversation (2026-09-25) —
@@ -303,6 +334,18 @@ def _migrate_columns(conn) -> None:
         # /threads/<id>, always wins over the auto participant-name label
         # when non-empty. Meaningless for a 1:1 thread, left NULL there.
         conn.execute("ALTER TABLE sms_threads ADD COLUMN group_name TEXT")
+
+    settings_cols = {row[1] for row in conn.execute("PRAGMA table_info(sms_settings)").fetchall()}
+    if "sabbath_autoresponder_on" not in settings_cols:
+        conn.execute("ALTER TABLE sms_settings ADD COLUMN sabbath_autoresponder_on INTEGER NOT NULL DEFAULT 0")
+    if "sabbath_autoresponder_body" not in settings_cols:
+        conn.execute("ALTER TABLE sms_settings ADD COLUMN sabbath_autoresponder_body TEXT")
+    if "vacation_autoresponder_on" not in settings_cols:
+        conn.execute("ALTER TABLE sms_settings ADD COLUMN vacation_autoresponder_on INTEGER NOT NULL DEFAULT 0")
+    if "vacation_autoresponder_body" not in settings_cols:
+        conn.execute("ALTER TABLE sms_settings ADD COLUMN vacation_autoresponder_body TEXT")
+    if "vacation_started_at" not in settings_cols:
+        conn.execute("ALTER TABLE sms_settings ADD COLUMN vacation_started_at TEXT")
 
     group_cols = {row[1] for row in conn.execute("PRAGMA table_info(sms_groups)").fetchall()}
     if "manual_only" not in group_cols:

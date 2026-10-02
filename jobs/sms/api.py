@@ -682,9 +682,17 @@ def update_settings():
     data = request.get_json(force=True) or {}
     vacation_mode = data.get("vacation_mode")
     sabbath_silence = data.get("sabbath_silence")
+    sabbath_autoresponder_on = data.get("sabbath_autoresponder_on")
+    sabbath_autoresponder_body = data.get("sabbath_autoresponder_body")
+    vacation_autoresponder_on = data.get("vacation_autoresponder_on")
+    vacation_autoresponder_body = data.get("vacation_autoresponder_body")
     row = sms_settings.set_setting(
         vacation_mode=bool(vacation_mode) if vacation_mode is not None else None,
         sabbath_silence=bool(sabbath_silence) if sabbath_silence is not None else None,
+        sabbath_autoresponder_on=bool(sabbath_autoresponder_on) if sabbath_autoresponder_on is not None else None,
+        sabbath_autoresponder_body=sabbath_autoresponder_body if sabbath_autoresponder_body is not None else None,
+        vacation_autoresponder_on=bool(vacation_autoresponder_on) if vacation_autoresponder_on is not None else None,
+        vacation_autoresponder_body=vacation_autoresponder_body if vacation_autoresponder_body is not None else None,
     )
     return jsonify(row)
 

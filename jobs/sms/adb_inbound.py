@@ -33,7 +33,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from core.database import get_connection
-from jobs.sms import adb_client, push, settings as sms_settings
+from jobs.sms import adb_client, autoresponder, push, settings as sms_settings
 from jobs.sms.bridge import get_or_create_thread_multi
 from jobs.sms.carrier_lookup import normalize_phone
 
@@ -262,7 +262,12 @@ def _notify(conn, thread_id: int, sender_phone: str | None, body: str) -> None:
     thread_row = conn.execute(
         "SELECT contact_name, phone, is_group, muted FROM sms_threads WHERE id = ?", (thread_id,)
     ).fetchone()
-    if thread_row["muted"] or sms_settings.should_silence_notifications():
+    if thread_row["muted"]:
+        return
+    if sms_settings.should_silence_notifications():
+        # Same condition an autoresponder (if Bill has one enabled for the
+        # active mode) should fire under -- see jobs/sms/autoresponder.py.
+        autoresponder.maybe_autorespond(conn, thread_id, sender_phone, is_group=bool(thread_row["is_group"]))
         return
 
     if thread_row["is_group"]:

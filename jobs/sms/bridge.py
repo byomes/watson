@@ -13,7 +13,7 @@ import os
 import sqlite3
 
 from core.database import get_connection
-from jobs.sms import gateway_client, push, settings as sms_settings
+from jobs.sms import autoresponder, gateway_client, push, settings as sms_settings
 from jobs.sms.carrier_lookup import normalize_phone
 
 log = logging.getLogger(__name__)
@@ -193,8 +193,11 @@ def poll_inbound() -> int:
                 continue
             # Vacation mode / Friday Sabbath: message still lands in the
             # thread normally (unread, in the list) -- only the push
-            # notification and badge bump are suppressed.
+            # notification and badge bump are suppressed. This is also
+            # exactly the condition an autoresponder (if Bill has one
+            # enabled for the active mode) should fire under.
             if sms_settings.should_silence_notifications():
+                autoresponder.maybe_autorespond(conn, thread_id, phone_digits, is_group=False)
                 continue
             title = thread_row["contact_name"] or thread_row["phone"]
             body = text if len(text) <= 120 else text[:117] + "..."
