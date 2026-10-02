@@ -572,6 +572,21 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
                 f") ORDER BY CASE campus WHEN 'Online' THEN 1 WHEN 'Wilmington' THEN 2 ELSE 3 END"
             )
 
+    # HOW MANY CLASSROOMS ARE TRACKED -- Team Chat leader question "how many
+    # classes are tracked in classroom attendance". The answer is the set of
+    # kids_<room> columns on classroom_attendance (nursery/toddlers/prek/
+    # elementary -- see jobs/gsheets/classroom_sync.py), read live from the
+    # table schema via pragma_table_info so it can't drift if a room is added.
+    # Requires "how many" + a class/classroom/room word + "classroom
+    # attendance" so it never steals a kids-roster or headcount question.
+    if (re.search(r"\bhow\s+many\s+(?:different\s+)?(?:classes|classrooms|class\s*rooms|rooms)\b", q)
+            and re.search(r"\bclass\s*room\s+attendance\b", q)):
+        return (
+            "SELECT COUNT(*) as classrooms_tracked, "
+            "GROUP_CONCAT(REPLACE(name, 'kids_', ''), ', ') as classrooms "
+            "FROM pragma_table_info('classroom_attendance') WHERE name LIKE 'kids\\_%' ESCAPE '\\'"
+        )
+
     # WHICH KIDS WERE IN A GIVEN CLASS -- Bill's 2026-10-01 request: a kids
     # version of WHO ATTENDED below, rostered by classroom instead of
     # campus. Requires the word "kids"/"kid" alongside a recognized class
