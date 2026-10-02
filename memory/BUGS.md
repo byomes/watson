@@ -1,6 +1,6 @@
 # Watson Bug Tracker
 _Auto-generated nightly from bug_tracker. Source of truth is the database — do not hand-edit this file, changes will be overwritten._
-Last generated: 2026-10-01 02:10
+Last generated: 2026-10-02 02:10
 
 ## Open (6)
 | ID | Title | Repo | Discovered |
@@ -137,4 +137,3 @@ Last generated: 2026-10-01 02:10
 | 117 | reflect.py _load_messages can scramble transcript order on same-second timestamps | watson | 2026-09-05 21:51:11 | 2ac41c1 |
 | 118 | skill_audit run_audit() prompt likely exceeds model context window, silently dropping task instructions | watson | 2026-09-04 02:11:31 | 7fb19e1 |
 | 121 | Classifier hallucinates wrong intent under Ollama contention instead of degrading honestly | watson | 2026-09-04 02:10:55 | 7fb19e1 |
-| 113 | watson-tools dispatcher crashed intermittently on DNS resolution to the Watson backend | watson-tools | 2026-09-01 13:09:37 | 08ed7a9 |
