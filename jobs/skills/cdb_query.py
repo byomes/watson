@@ -327,6 +327,21 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
 
     campus_sub = f" AND campus = '{campus}'" if campus else ""
 
+    # PASTOR'S CHURCH NAME -- static fact, not a congregation.db lookup.
+    # Found 2026-10-02: a Team Chat leader asked "What is the name of Dr. Bill
+    # Yomes' church?" and it fell through to a paid LLM call. Answered with a
+    # constant SELECT (same read-only shape as every other branch) so the
+    # fast path stays free. Deliberately narrow: requires "name of ... church"
+    # or "what church does ... pastor" phrasing tied to Bill/Yomes/our/the
+    # pastor, so ordinary attendance questions mentioning "church" (e.g. "how
+    # many people came to church") never match.
+    if re.search(
+        r"\bname\s+of\s+(?:dr\.?\s+)?(?:bill(?:\s+yomes)?|william(?:\s+yomes)?|yomes|pastor(?:\s+bill)?|the\s+pastor|our|your)(?:'s|')?\s+church\b"
+        r"|\bwhat\s+church\s+does\s+(?:dr\.?\s+|pastor\s+)?(?:bill|william|yomes)\b[\w\s.]*?\bpastor\b",
+        q,
+    ):
+        return "SELECT 'Catalyst Community Church (Wilmington, Delaware)' AS church_name"
+
     # Check order: visit-count → slipping → hybrid → missed_count → missed → trend → count → attended
 
     # ATTENDED EXACTLY/AT LEAST/AT MOST N TIMES (count or, with "who"/"list", names)
