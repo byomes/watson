@@ -4768,3 +4768,31 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - 9a82d3f Add /cat/kidstoday form for Sunday kids servant overrides
 - 5dc24fd Add "add a kid" feature to each class in kidsatt
 - 6f6d106 Add manual member-merge UI to CatalystDB grid
+
+---
+
+## Recent Changes — 2026-10-02
+
+### ~/watson
+- fc9cd16 docs: bugs/backlog export 2026-10-02
+- ad6cd33 docs: file map 2026-10-02
+- 6f71d7e Add Sabbath/vacation SMS autoresponder
+- 534eb63 Fix kids class roster fast-path for 'PreK' spelling (regex used canonical label, not typed alias) (#85)
+- b7ca03f Add wtsn.me/upload personal dropbox: watcher + API blueprint
+- 3caeb47 Add "this year's attendance" fast-path phrase to count of who attended a service
+- e8ff863 Skip CSV ingest rows already checked in from another source
+- 81e891c Auto-run CSV ingest on kidsatt batch-import upload
+- 1201a54 Add CSV ingest script for kids attendance batch imports
+- d240ffd Add CSV upload endpoint for kids attendance batch import
+- 53bc7f4 docs: SMS gateway phone architecture update 2026-10-01
+- 262759c Extract inbound MMS images and reopen archived threads on new messages
+- 7b55762 docs: architecture update 2026-10-01
+
+### ~/watson-tools
+- 290bc23 Add Sabbath/vacation autoresponder fields to SMS Settings
+- e554b0d Increase SMS message bubble text size (14px -> 16px)
+- d9ebbbf Add /upload: personal PIN-gated dropbox with a project note field
+- 7f2cda3 Show skipped-duplicate count in kidsatt import dialog
+- a138a6a Show ingest results after kidsatt CSV upload
+- 0ab7ba9 Add batch-import dialog to Kids Attendance
+- 4c58354 Add inline hyperlink rendering in SMS message bubbles
