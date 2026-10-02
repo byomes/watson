@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-10-01*
+*Generated: 2026-10-02*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -22,6 +22,7 @@
   v/
     cache/
       nodeids
+.tables
 .vercel/
   README.txt
   project.json
@@ -257,6 +258,10 @@ data/
       catalyst-kids-check-ins (8).csv
       catalyst-kids-check-ins (9).csv
       catalyst-kids-check-ins.csv
+    kids_att_csv/
+      20261001-121429_catalyst-kids-check-ins.csv
+      20261001-121931_smoketest.csv
+      20261001-122144_catalyst-kids-check-ins.csv
     phone_match_review.csv
     phone_match_review_v2.csv
   qr/
@@ -2845,6 +2850,48 @@ data/
       20260826-015833-watson-passive-income-opportunities/
         transcript.md
         watson-trading-build-prompt.md
+    what-child-is-this/
+      COMPILED_ARCHIVE.md
+      What_Child_Is_This_-_Expanded_Outline.md
+      What_Child_Is_This_-_Outline.md
+      What_Child_Is_This_-_We_Voice_Contractions.docx
+      googledrive_source/
+        Christmas Questions Idea (GoogleDrive).docx
+        What_Child_Is_This_Rough_Draft (GoogleDrive).docx
+      onedrive_source/
+        What Child Is This entry files/
+          What_Child_Is_This_Rough_Draft.docx
+          entry10.md
+          entry11.md
+          entry12.md
+          entry13.md
+          entry14.md
+          entry15.md
+          entry16.md
+          entry17.md
+          entry18.md
+          entry19.md
+          entry1_draft.docx
+          entry2.md
+          entry20.md
+          entry21.md
+          entry22.md
+          entry23.md
+          entry24.md
+          entry25.md
+          entry26.md
+          entry27.md
+          entry28.md
+          entry29.md
+          entry3.md
+          entry30.md
+          entry4.md
+          entry5.md
+          entry6.md
+          entry7.md
+          entry8.md
+          entry9.md
+        What_Child_Is_This_Redraft.docx
     wrong-jesus-book-development/
       20260826-013953-historical-evidence-for-jesus-s-death-in-islam-vs/
         transcript.md
@@ -3025,6 +3072,9 @@ data/
   sms_gateway_active_host.json
   sms_gateway_alert_state.json
   sms_gateway_last_poll.txt
+  sms_media/
+    2b9a620091e4497b86c24b58a33c2a8e.jpg
+    34f6c5ac3c9d4e37a14cb993b1608450.jpg
   sms_mock_inbound_queue.json
   trading.db
   trading.db.bak-pre-donchian-20260911001022
@@ -3238,6 +3288,7 @@ jobs/
     kids_checkin_backfill_report.py
     kids_checkin_client.py
     kids_checkin_csv_backfill.py
+    kids_checkin_csv_import.py
     kids_checkin_import.py
     kids_duplicate_check.py
     kids_servants_web.py
@@ -3677,6 +3728,7 @@ jobs/
     alert_targets.py
     api.py
     appium_client.py
+    autoresponder.py
     bridge.py
     broadcast_pacing.py
     broadcast_sender.py
@@ -3770,6 +3822,10 @@ jobs/
     amadeus_client.py
     propose.py
     schema.py
+  uploads/
+    __init__.py
+    api.py
+    watcher.py
   utilities/
     __init__.py
     calendar_importer.py
@@ -5496,6 +5552,8 @@ src/
         kidsatt/
           add/
             route.ts
+          import/
+            route.ts
           move/
             route.ts
           remove/
@@ -5616,6 +5674,8 @@ src/
             send/
               route.ts
           route.ts
+      upload/
+        route.ts
     apple-icon.png
     cat/
       attendance/
@@ -5673,6 +5733,7 @@ src/
         page.tsx
       kidsatt/
         AddKidForm.tsx
+        BatchImportButton.tsx
         KidsAttendanceBoard.tsx
         page.tsx
       kidstoday/
@@ -5736,6 +5797,15 @@ src/
       login/
         page.tsx
         pin-pad.tsx
+    upload/
+      (gated)/
+        UploadForm.tsx
+        layout.tsx
+        page.tsx
+      actions.ts
+      login/
+        page.tsx
+        pin-pad.tsx
   lib/
     catalystdbAuth.ts
     catalystdbTheme.ts
@@ -5751,6 +5821,7 @@ src/
     shepherdingReportShared.ts
     smsAuth.ts
     socialAuth.ts
+    uploadAuth.ts
     useAutoTheme.ts
     useSmsPush.ts
     useSmsTheme.ts
