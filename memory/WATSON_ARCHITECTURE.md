@@ -4796,3 +4796,14 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - a138a6a Show ingest results after kidsatt CSV upload
 - 0ab7ba9 Add batch-import dialog to Kids Attendance
 - 4c58354 Add inline hyperlink rendering in SMS message bubbles
+
+---
+
+## Recent Changes — 2026-10-03
+
+### ~/watson
+- e4897ac docs: bugs/backlog export 2026-10-03
+- a5f7bd2 docs: file map 2026-10-03
+- 93adca0 cdb_query: fast-path answer for pastor's church name (#87)
+- b1a1ff2 devdispatch: A Team Chat leader asked Watson (a church admin assistant) this question (#86)
+- b425956 docs: architecture update 2026-10-02
