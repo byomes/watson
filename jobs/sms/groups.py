@@ -10,15 +10,25 @@ include.
 
 filter_json shape (any/all keys optional, missing/empty = "no restriction
 on this dimension"):
-    {"deacons": [...], "teams": [...], "roles": [...], "campuses": [...]}
+    {"deacons": [...], "teams": [...], "roles": [...], "campuses": [...],
+     "events": [church_events.id, ...]}
 
 An entirely empty filter (with active_only true, the default) is
 "Everyone" -- every active member with a phone.
+
+"events" (added 2026-10-03 for "weather canceled the picnic, text just the
+signups") OR's in jobs/events/schema.py's event_registrations for the given
+church_events ids, same as the other dimensions -- but unlike them it is
+not gated by active_only: a picnic guest who isn't a congregation member at
+all is still someone who opted in by registering. The one invariant that
+still applies with no override is unsubscribed=1 on a matched/phone-matched
+member -- see _event_registrant_recipients.
 """
 import json
 import os
 import sqlite3
 
+from core.database import get_connection
 from jobs.sms.carrier_lookup import normalize_phone
 
 CONGREGATION_DB = os.path.expanduser("~/watson/data/congregation.db")
@@ -47,9 +57,66 @@ def group_options() -> dict:
         campuses = [r[0] for r in conn.execute(
             "SELECT DISTINCT campus_preference FROM members WHERE campus_preference IS NOT NULL AND TRIM(campus_preference) != '' ORDER BY campus_preference"
         ).fetchall()]
-        return {"deacons": deacons, "teams": teams, "roles": roles, "campuses": campuses}
     finally:
         conn.close()
+
+    wconn = get_connection()
+    try:
+        events = [
+            {"id": r["id"], "name": r["event_name"], "date": r["start_date"]}
+            for r in wconn.execute(
+                "SELECT e.id, e.event_name, e.start_date FROM church_events e "
+                "WHERE EXISTS (SELECT 1 FROM event_registrations er "
+                "WHERE er.event_id = e.id AND er.phone IS NOT NULL AND TRIM(er.phone) != '') "
+                "ORDER BY e.start_date DESC LIMIT 100"
+            ).fetchall()
+        ]
+    finally:
+        wconn.close()
+
+    return {"deacons": deacons, "teams": teams, "roles": roles, "campuses": campuses, "events": events}
+
+
+def _event_registrant_recipients(event_ids: list[int]) -> list[dict]:
+    """Phone-having event_registrations rows for the given church_events ids,
+    independent of active_only (see module docstring). Still excludes a
+    matched-by-phone member with unsubscribed=1 -- that invariant has no
+    override anywhere else in this module and shouldn't gain one here."""
+    if not event_ids:
+        return []
+    wconn = get_connection()
+    try:
+        placeholders = ",".join("?" * len(event_ids))
+        rows = wconn.execute(
+            f"SELECT first_name, last_name, phone, member_id FROM event_registrations "
+            f"WHERE event_id IN ({placeholders})",
+            event_ids,
+        ).fetchall()
+    finally:
+        wconn.close()
+
+    conn = _cong_conn()
+    try:
+        unsub_phones = {
+            normalize_phone(r["phone"])
+            for r in conn.execute(
+                "SELECT phone FROM members WHERE unsubscribed = 1 AND phone IS NOT NULL"
+            ).fetchall()
+        }
+        names_by_id = {r["id"]: r["name"] for r in conn.execute("SELECT id, name FROM members").fetchall()}
+    finally:
+        conn.close()
+
+    seen_phones: set[str] = set()
+    out = []
+    for r in rows:
+        phone = normalize_phone(r["phone"])
+        if not phone or phone in seen_phones or phone in unsub_phones:
+            continue
+        seen_phones.add(phone)
+        name = names_by_id.get(r["member_id"]) or f"{r['first_name'] or ''} {r['last_name'] or ''}".strip() or phone
+        out.append({"member_id": r["member_id"], "phone": phone, "contact_name": name})
+    return out
 
 
 def resolve_filter(filter_json: dict, active_only: bool) -> list[dict]:
@@ -60,7 +127,8 @@ def resolve_filter(filter_json: dict, active_only: bool) -> list[dict]:
     teams = [t for t in (filter_json.get("teams") or []) if t]
     roles = [r for r in (filter_json.get("roles") or []) if r]
     campuses = [c for c in (filter_json.get("campuses") or []) if c]
-    has_dimension = bool(deacons or teams or roles or campuses)
+    events = [e for e in (filter_json.get("events") or []) if e]
+    has_member_dimension = bool(deacons or teams or roles or campuses)
 
     conn = _cong_conn()
     try:
@@ -72,8 +140,10 @@ def resolve_filter(filter_json: dict, active_only: bool) -> list[dict]:
         if active_only:
             base += " AND active = 'active'"
 
-        if not has_dimension:
+        if not has_member_dimension and not events:
             rows = conn.execute(base, params).fetchall()
+        elif not has_member_dimension:
+            rows = []  # events-only filter -- no member-dimension rows to add
         else:
             member_ids: set[int] = set()
             if deacons:
@@ -111,9 +181,17 @@ def resolve_filter(filter_json: dict, active_only: bool) -> list[dict]:
                 continue
             seen_phones.add(phone)
             resolved.append({"member_id": r["id"], "phone": phone, "contact_name": r["name"]})
-        return resolved
     finally:
         conn.close()
+
+    if events:
+        for rec in _event_registrant_recipients(events):
+            if rec["phone"] in seen_phones:
+                continue
+            seen_phones.add(rec["phone"])
+            resolved.append(rec)
+
+    return resolved
 
 
 def resolve_group(conn, group_id: int) -> tuple[dict | None, list[dict]]:

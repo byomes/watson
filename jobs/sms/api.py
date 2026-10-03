@@ -1173,8 +1173,9 @@ def _group_dict(conn, row) -> dict:
 @sms_bp.route("/groups/options", methods=["GET"])
 @_require_key
 def group_options():
-    """Distinct deacon/team/role/campus values, for the group-builder UI's
-    pickers."""
+    """Distinct deacon/team/role/campus values plus the event picker's
+    options (events with at least one phone-having registrant), for the
+    group-builder UI's pickers."""
     return jsonify(sms_groups.group_options())
 
 
