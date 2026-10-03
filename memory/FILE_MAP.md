@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-10-02*
+*Generated: 2026-10-03*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -4751,9 +4751,12 @@ prompts/
 requirements.txt
 run.sh
 scripts/
+  beelink_watson_chat.py
+  beelink_watson_chat_audit.log
   fmspc_watson_twin.py
   install_adb.sh
   migrate_vault_encrypt.py
+  watson-chat
   watson_recover.sh
   wcky_meet_reauth.py
 tests/
