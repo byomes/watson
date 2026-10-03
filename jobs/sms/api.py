@@ -66,15 +66,40 @@ def _participants_for_thread(conn, thread_id: int) -> list[dict]:
     return [{"phone": r["phone"], "contact_name": r["contact_name"]} for r in rows]
 
 
-def _thread_dict(conn, row) -> dict:
+def _member_names(member_ids: list[int]) -> dict[int, str]:
+    """Batch congregation.db name lookup for _thread_dict's live-name
+    override below -- one query for N threads rather than N connections."""
+    ids = [m for m in set(member_ids) if m]
+    if not ids:
+        return {}
+    try:
+        cong = sqlite3.connect(f"file:{CONGREGATION_DB}?mode=ro", uri=True, timeout=5)
+        placeholders = ",".join("?" * len(ids))
+        rows = cong.execute(f"SELECT id, name FROM members WHERE id IN ({placeholders})", ids).fetchall()
+        cong.close()
+        return {r[0]: r[1] for r in rows if r[1]}
+    except sqlite3.Error:
+        return {}
+
+
+def _thread_dict(conn, row, member_names: dict[int, str] | None = None) -> dict:
     # highlight_note is only live for the day it was set (highlight_date) --
     # this keeps a stale birthday/etc. note from resurfacing a thread
     # forever without needing a separate cleanup job.
     is_highlighted = row["highlight_date"] == date.today().isoformat()
+    # contact_name on the row is a snapshot taken when the thread/link was
+    # first created -- it goes stale if the linked member's name is later
+    # corrected in congregation.db (found live 2026-10-03: Bill fixed a
+    # name there and the SMS app kept showing the old one). member_names
+    # (passed by list_threads for a batch lookup) or a one-off lookup here
+    # overrides it with the current name whenever member_id is set.
+    if member_names is None and row["member_id"]:
+        member_names = _member_names([row["member_id"]])
+    live_name = (member_names or {}).get(row["member_id"]) if row["member_id"] else None
     return {
         "id": row["id"],
         "phone": row["phone"],
-        "contact_name": row["contact_name"],
+        "contact_name": live_name or row["contact_name"],
         "member_id": row["member_id"],
         "last_message_preview": row["last_message_preview"],
         "last_message_at": row["last_message_at"],
@@ -138,7 +163,8 @@ def list_threads():
                 "ORDER BY (highlight_date = date('now') AND highlight_note IS NOT NULL) DESC, "
                 "(last_message_at IS NULL), last_message_at DESC"
             ).fetchall()
-        return jsonify({"threads": [_thread_dict(conn, r) for r in rows]})
+        member_names = _member_names([r["member_id"] for r in rows])
+        return jsonify({"threads": [_thread_dict(conn, r, member_names) for r in rows]})
     finally:
         conn.close()
 
