@@ -176,7 +176,13 @@ def poll_inbound_adb(dry_run: bool = False) -> int:
                 log.warning("poll_inbound_adb: skipping sms _id=%s with unparseable address %r", row_id, row.get("address"))
                 continue
 
-            gateway_message_id = f"adb-sms-{row_id}"
+            # Suffixed with the device's own `date` column, not just row_id --
+            # bug_tracker: this phone's content-provider _id counter has been
+            # observed to get reused for a brand-new message (confirmed via a
+            # live _id=94 collision between an Oct 2 message and an Oct 3
+            # reply from a different sender/body) -- row_id alone silently
+            # dropped every later message sharing an old id as a "duplicate".
+            gateway_message_id = f"adb-sms-{row_id}-{row.get('date')}"
             if not dry_run and conn.execute(
                 "SELECT 1 FROM sms_messages WHERE gateway_message_id = ?", (gateway_message_id,)
             ).fetchone():
@@ -204,7 +210,8 @@ def poll_inbound_adb(dry_run: bool = False) -> int:
                 log.warning("poll_inbound_adb: skipping mms _id=%s with no resolvable participants", row_id)
                 continue
 
-            gateway_message_id = f"adb-mms-{row_id}"
+            # See the sms-path comment above -- same _id-reuse collision risk.
+            gateway_message_id = f"adb-mms-{row_id}-{row.get('date')}"
             if not dry_run and conn.execute(
                 "SELECT 1 FROM sms_messages WHERE gateway_message_id = ?", (gateway_message_id,)
             ).fetchone():
