@@ -63,6 +63,17 @@ function fmtGenerated(iso) {
   } catch { return iso; }
 }
 
+function fmtLocalGenerated(iso) {
+  // For columns stored via datetime('now', 'localtime') (e.g. telegram_log.created_at)
+  // -- the bare string is already local clock time, so unlike fmtGenerated() above it
+  // must NOT be force-parsed as UTC, or it double-shifts by the local offset.
+  if (!iso) return '';
+  try {
+    const s = iso.replace(' ', 'T');
+    return new Date(s).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  } catch { return iso; }
+}
+
 function fmtTaskDue(dateStr) {
   if (!dateStr) return '';
   try {
@@ -4550,7 +4561,7 @@ function _tlRenderTable(rows) {
       <tr><th>Time</th><th></th><th>Person</th><th>Message</th></tr>
       ${rows.map(r => `
         <tr>
-          <td style="white-space:nowrap">${esc(fmtGenerated(r.created_at))}</td>
+          <td style="white-space:nowrap">${esc(fmtLocalGenerated(r.created_at))}</td>
           <td style="white-space:nowrap">${r.direction === 'in'
             ? '<span title="Received" style="color:var(--gold)">&larr; in</span>'
             : '<span title="Sent" style="color:var(--muted)">&rarr; out</span>'}</td>
