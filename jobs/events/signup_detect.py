@@ -23,7 +23,7 @@ from dotenv import load_dotenv
 from config.settings import DB_PATH, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 from core.ollama_json import generate_json
 from core.vacation import vacation_gate
-from jobs.events.matching import find_active_event, find_member_id, find_member_name
+from jobs.events.matching import find_active_event, find_member_name, find_or_create_member_id
 from jobs.events.schema import create_tables
 from jobs.telegram.pending import store_pending_action
 
@@ -178,22 +178,27 @@ def _tg_send(text: str, keyboard: dict | None = None) -> int | None:
 
 def _insert_registration(
     conn: sqlite3.Connection, event_id: int, detection: dict, received_at: str
-) -> tuple[int, str, str, int | None]:
-    """Returns (row_id, first_name, last_name, member_id) -- the final,
-    post-fallback values -- so callers can tell whether the registrant ended
-    up genuinely nameless (see _unmatched_alert below)."""
+) -> tuple[int, str, str, int | None, bool]:
+    """Returns (row_id, first_name, last_name, member_id, member_created) --
+    the final, post-fallback values -- so callers can tell whether the
+    registrant ended up genuinely nameless (see _unmatched_alert below) or
+    just got a brand-new congregation.db record."""
     email = (detection.get("email") or "").strip()
     phone = (detection.get("phone") or "").strip()
-    member_id = find_member_id(email, phone)
     first_name = (detection.get("first_name") or "").strip()
     last_name = (detection.get("last_name") or "").strip()
+    # No existing congregation.db match -- creates a new member (zero
+    # attendance rows, so _connected() reads them as 'neighbor') rather than
+    # leaving the registration unlinked, per Bill's 2026-10-03 call.
+    member_id, member_created = find_or_create_member_id(email, phone, first_name, last_name)
     if not first_name and not last_name and member_id:
         # The classifier sometimes has nothing to go on (e.g. a Subsplash
-        # notification whose body never spells out the registrant's name),
-        # but find_member_id still matched them by email/phone -- use the
-        # congregation.db name rather than leaving the registrant blank.
-        # Confirmed live 2026-09-18/20: Hayride and Bonfire registrations
-        # both landed with empty first/last name despite a real member_id.
+        # notification whose body never spells out the registrant's name,
+        # or the brand-new member record above just got a placeholder name
+        # derived from their email) -- pull it back rather than leaving the
+        # registrant blank. Confirmed live 2026-09-18/20: Hayride and
+        # Bonfire registrations both landed with empty first/last name
+        # despite a real member_id.
         member_name = find_member_name(member_id)
         if member_name:
             parts = member_name.split(" ", 1)
@@ -220,7 +225,7 @@ def _insert_registration(
             received_at,
         ),
     )
-    return cur.lastrowid, first_name, last_name, member_id
+    return cur.lastrowid, first_name, last_name, member_id, member_created
 
 
 def _alert_unmatched_signup(
@@ -235,13 +240,30 @@ def _alert_unmatched_signup(
     alone usually gives us something), but silent otherwise -- Bill would
     only ever find it by noticing a nameless row on the dashboard."""
     _tg_send(
-        f"⚠️ Unmatched signup for \"{event_name}\": no name could be extracted "
-        f"and no existing member matched their email/phone.\n\n"
+        f"⚠️ Unmatched signup for \"{event_name}\": no name could be extracted, "
+        f"no existing member matched their email/phone, and there was no "
+        f"email or phone to create a new one from either.\n\n"
         f"From: {sender_email}\n"
         f"Subject: {subject}\n"
         f"event_registrations id: {row_id}\n\n"
         f"Likely a first-time visitor — check the raw email and add their "
         f"name on the Events tab. - Watson"
+    )
+
+
+def _alert_new_neighbor(event_name: str, registrant: str, member_id: int) -> None:
+    """Bill's 2026-10-03 call: when a signup has no congregation.db match
+    and Watson auto-creates a member for them (find_or_create_member_id),
+    tell him -- same spirit as _alert_unmatched_signup above, but for the
+    now-much-more-common case where a record *did* get created rather than
+    nothing happening at all. Lets him fix a placeholder name once he
+    actually meets them, same as happened by hand for the picnic signup
+    that prompted this."""
+    _tg_send(
+        f"👋 New neighbor from \"{event_name}\" signup: {registrant}. "
+        f"No prior record, so Watson created congregation.db member #{member_id} "
+        f"(shows as Neighbor until they attend — check/fix their name on the "
+        f"Events or catalystdb tab). - Watson"
     )
 
 
@@ -308,7 +330,7 @@ def handle_event_signup_email(
     matched = find_active_event(conn, name_guess, f"{subject}\n{body}")
 
     if matched:
-        row_id, first_name, last_name, member_id = _insert_registration(
+        row_id, first_name, last_name, member_id, member_created = _insert_registration(
             conn, matched["id"], detection, received_at
         )
         _notify_creator_on_first_match(conn, matched["id"], matched["event_name"], who)
@@ -322,6 +344,8 @@ def handle_event_signup_email(
         )
         if not first_name and not last_name and not member_id:
             _alert_unmatched_signup(matched["event_name"], sender_email, subject, row_id)
+        elif member_created:
+            _alert_new_neighbor(matched["event_name"], who, member_id)
         _resolve_stale_email_triage(msg_id, who, matched["event_name"])
         return "read"
 

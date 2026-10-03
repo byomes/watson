@@ -1,13 +1,29 @@
 """jobs/events/matching.py — shared helpers for event_registrations: matching
-a registrant to an existing congregation.db member (read-only, informational
-cross-reference only — never writes to congregation.db from this feature),
-and matching an incoming signup email to an actively-tracked church_events row.
+a registrant to an existing congregation.db member, and matching an incoming
+signup email to an actively-tracked church_events row.
+
+find_member_id() itself stays read-only. find_or_create_member_id() (added
+2026-10-03) is the one path here that writes to congregation.db — see its
+docstring.
 """
 import difflib
 import os
+import re
 import sqlite3
 
+from jobs.sms.carrier_lookup import normalize_phone
+
 CONG_DB = os.path.expanduser("~/watson/data/congregation.db")
+
+# congregation.db stores members.phone formatted, e.g. "(302) 898-2979" --
+# event signups/SMS always hand this module plain digits. Comparing against
+# a digits-only projection of the column (strip the punctuation this data
+# actually uses) instead of exact string equality, found live 2026-10-03
+# while this match-before-create path was being added: an exact-string
+# phone lookup was silently failing for any formatted member, which would
+# have meant find_or_create_member_id creating duplicate members for
+# people who already exist.
+_PHONE_DIGITS_SQL = "REPLACE(REPLACE(REPLACE(REPLACE(phone,'(',''),')',''),'-',''),' ','')"
 
 FUZZY_EVENT_THRESHOLD = 0.55
 
@@ -32,8 +48,9 @@ def find_member_id(email: str, phone: str) -> int | None:
                 conn.close()
                 return row["id"]
         if phone:
+            phone_digits = normalize_phone(phone) or re.sub(r"\D", "", phone)
             row = conn.execute(
-                "SELECT id FROM members WHERE phone = ? LIMIT 1", (phone,)
+                f"SELECT id FROM members WHERE {_PHONE_DIGITS_SQL} = ? LIMIT 1", (phone_digits,)
             ).fetchone()
             conn.close()
             if row:
@@ -43,6 +60,57 @@ def find_member_id(email: str, phone: str) -> int | None:
     except Exception:
         return None
     return None
+
+
+def find_or_create_member_id(email: str, phone: str, first_name: str = "", last_name: str = "") -> tuple[int | None, bool]:
+    """Like find_member_id, but creates a new congregation.db member when no
+    match exists and there's at least an email or phone to key the new
+    record off of. Bill's call (2026-10-03, prompted by a picnic signup
+    from someone he was texting with but who had no congregation.db
+    record): a stranger to the church can sign up for an event before ever
+    attending a service, and should still be tracked rather than sitting
+    unlinked until Bill happens to notice and create a member by hand (as
+    happened for that picnic signup). A member created this way has zero
+    attendance rows, so catalystdb_web.py's _connected() already classifies
+    them as 'neighbor' (pre-guest) with no extra status field needed.
+
+    Returns (member_id, created) — created=True means this call just
+    inserted a brand-new member row, so callers can fire a distinct
+    "new neighbor" notification instead of (or alongside) their existing
+    unmatched-signup alert.
+
+    Still returns (None, False) with no email and no phone — nothing to
+    key a new record off of, and no way to re-match it to this person
+    later, so there's nothing useful to create."""
+    member_id = find_member_id(email, phone)
+    if member_id:
+        return member_id, False
+
+    email = (email or "").strip()
+    phone = (phone or "").strip()
+    if not email and not phone:
+        return None, False
+
+    name = f"{(first_name or '').strip()} {(last_name or '').strip()}".strip()
+    if not name:
+        # No name at all available (e.g. the picnic signup that prompted
+        # this — classifier found nothing, just an email/phone) — use the
+        # email's local part as a provisional display name rather than
+        # leaving it blank; Bill corrects it once he actually meets them.
+        name = email.split("@")[0] if email else phone
+
+    try:
+        conn = sqlite3.connect(CONG_DB, timeout=5)
+        cur = conn.execute(
+            "INSERT INTO members (name, email, phone) VALUES (?, ?, ?)",
+            (name, email or None, phone or None),
+        )
+        conn.commit()
+        new_id = cur.lastrowid
+        conn.close()
+        return new_id, True
+    except Exception:
+        return None, False
 
 
 def find_member_id_by_name(first_name: str, last_name: str) -> int | None:

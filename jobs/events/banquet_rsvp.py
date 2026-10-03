@@ -69,7 +69,7 @@ import requests
 from dotenv import load_dotenv
 
 from config.settings import DB_PATH
-from jobs.events.matching import find_member_id, find_member_id_by_name, find_member_name
+from jobs.events.matching import find_member_id, find_member_id_by_name, find_member_name, find_or_create_member_id
 
 load_dotenv(os.path.expanduser("~/watson/.env"))
 
@@ -251,11 +251,16 @@ def _upsert_person_row(
     UPDATEs the existing row rather than piling up duplicates that would
     double-count the food/childcare totals. Matched first by member_id
     (email/phone against congregation.db), falling back to an exact
-    first+last name match -- a first-time visitor RSVPing may have no
-    congregation.db record at all."""
+    first+last name match, falling back to creating a new member -- a
+    first-time visitor RSVPing may have no congregation.db record at all,
+    and per Bill's 2026-10-03 call gets one created for them (shows as
+    Neighbor until they actually attend) rather than staying unlinked."""
     member_id = find_member_id(email or "", phone or "")
     if member_id is None:
         member_id = find_member_id_by_name(first_name, last_name)
+    member_created = False
+    if member_id is None:
+        member_id, member_created = find_or_create_member_id(email or "", phone or "", first_name, last_name)
     if not first_name and not last_name and member_id:
         member_name = find_member_name(member_id)
         if member_name:
@@ -285,8 +290,8 @@ def _upsert_person_row(
             (rsvp_status, child_count, email or None, phone or None,
              json.dumps({"notes": notes}) if notes else None, received_at, existing["id"]),
         )
-        log.info("Banquet RSVP updated (resubmission) — event_id=%s member_id=%s status=%s",
-                  event_id, member_id, rsvp_status)
+        log.info("Banquet RSVP updated (resubmission) — event_id=%s member_id=%s status=%s%s",
+                  event_id, member_id, rsvp_status, " [new neighbor]" if member_created else "")
         return
 
     conn.execute(
@@ -297,8 +302,8 @@ def _upsert_person_row(
         (event_id, first_name, last_name, email or None, phone or None, child_count,
          rsvp_status, json.dumps({"notes": notes}) if notes else None, member_id, received_at),
     )
-    log.info("Banquet RSVP recorded — event_id=%s member_id=%s status=%s children=%s",
-              event_id, member_id, rsvp_status, child_count)
+    log.info("Banquet RSVP recorded — event_id=%s member_id=%s status=%s children=%s%s",
+              event_id, member_id, rsvp_status, child_count, " [new neighbor]" if member_created else "")
 
 
 def _upsert_rsvp(conn: sqlite3.Connection, event_id: int, detection: dict, received_at: str) -> None:
