@@ -8,15 +8,19 @@ POST /api/sms/mock/inject for testing. Once the phone is live, add a cron
 line the same way every other Watson job is scheduled
 (PYTHONPATH=/home/billyomes/watson inlined).
 """
+import fcntl
 import logging
 import os
 import sqlite3
+from pathlib import Path
 
 from core.database import get_connection
 from jobs.sms import autoresponder, gateway_client, push, settings as sms_settings
 from jobs.sms.carrier_lookup import normalize_phone
 
 log = logging.getLogger(__name__)
+
+_LOCK_PATH = Path(__file__).resolve().parents[2] / "data" / "sms_bridge.lock"
 
 CONGREGATION_DB = os.path.expanduser("~/watson/data/congregation.db")
 
@@ -224,5 +228,19 @@ def poll_inbound() -> int:
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
+    # crontab runs this twice a minute (on the minute, and 30s offset) for
+    # tighter polling -- a non-blocking lock means a tick that overlaps a
+    # still-running previous one exits immediately instead of racing it
+    # (two processes mid-flight against the same gateway-phone adb session
+    # and watson.db is how mms _id=96's "Yes, got it!" reply went missing
+    # on 2026-10-03 with no error logged: see bug_tracker).
+    _LOCK_PATH.parent.mkdir(parents=True, exist_ok=True)
+    lock_fh = open(_LOCK_PATH, "w")
+    try:
+        fcntl.flock(lock_fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        print("poll_inbound: previous tick still running, skipping")
+        raise SystemExit(0)
+
     n = poll_inbound()
     print(f"poll_inbound: ingested {n} message(s)")
