@@ -11,6 +11,11 @@ themselves each week, not reply with names over chat -- the page's
 existing toggle UI is the "register who served" mechanism, this job is
 just the reminder.
 
+Bill (watson.db people.id=7) is added as a direct recipient here, not by
+extending TARGETS -- that dict is shared with collect_deacon_pins.py and
+kids_servants_web.py for an unrelated PIN-collection purpose, so this job
+sends to him separately instead (2026-10-04, Bill's request).
+
 Cron:
   0 13 * * 0 PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python3 \
     -m jobs.congregation.serving_reminder \
@@ -30,6 +35,8 @@ log = logging.getLogger(__name__)
 
 SERVING_URL = "https://wtsn.me/cat/serving"
 
+BILL_PERSON_ID = 7
+
 
 def _build_message(first_name: str) -> str:
     return (
@@ -47,6 +54,13 @@ def main() -> None:
             log.info("Sent serving reminder to %s", name)
         else:
             log.error("FAILED to send serving reminder to %s (person_id=%s)", name, ids["person_id"])
+
+    message = _build_message("Bill")
+    sent = send_to_person(BILL_PERSON_ID, message)
+    if sent:
+        log.info("Sent serving reminder to Bill Yomes")
+    else:
+        log.error("FAILED to send serving reminder to Bill Yomes (person_id=%s)", BILL_PERSON_ID)
 
 
 if __name__ == "__main__":
