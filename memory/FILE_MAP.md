@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-10-03*
+*Generated: 2026-10-04*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -3069,6 +3069,7 @@ data/
         transcript.md
   skill_audit.json
   sms_adb_last_id.json
+  sms_bridge.lock
   sms_gateway_active_host.json
   sms_gateway_alert_state.json
   sms_gateway_last_poll.txt
@@ -3086,6 +3087,9 @@ data/
   trading.db.bak-pre-min-trades-fix
   trading.db.bak-pre-sizing-fix-20260911073349
   trading.db.bak-pre-windows3-backfill-20260911110635
+  uploads/
+    inbox/
+      20261003-154056_church-picnic-responses__2_.csv
   watson.db
   watson.db-shm
   watson.db-wal
@@ -3294,6 +3298,7 @@ jobs/
     kids_servants_web.py
     kidsatt_weekly.py
     kidstoday_notify_donna.py
+    kidstoday_notify_donna_telegram.py
     leader_broadcast.py
     married_age_check.py
     member_match.py
@@ -3466,6 +3471,7 @@ jobs/
   email_job/
     __init__.py
     brevo_send.py
+    donna_notify.py
     email_queue.py
     gmail.py
     test_brevo_send.py
