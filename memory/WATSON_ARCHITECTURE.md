@@ -4807,3 +4807,31 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - 93adca0 cdb_query: fast-path answer for pastor's church name (#87)
 - b1a1ff2 devdispatch: A Team Chat leader asked Watson (a church admin assistant) this question (#86)
 - b425956 docs: architecture update 2026-10-02
+
+---
+
+## Recent Changes — 2026-10-04
+
+### ~/watson
+- 967ce02 docs: bugs/backlog export 2026-10-04
+- deed611 docs: file map 2026-10-04
+- dc4a163 Replace one-off Donna kidstoday Telegram with a standing Sunday noon cron
+- 616cf55 One-off: Telegram Donna the kidstoday override link at noon tomorrow
+- 101675c Fix broken Donna kidstoday email and gate it to the Tue/Wed/Thu 9am schedule
+- b418bf6 Fix Telegram Log dashboard showing wrong time for Donna/leader sends
+- fa879fe Resolve SMS thread contact names live from congregation.db
+- a088f41 Auto-create a congregation.db member for unmatched event signups
+- 80af461 Lock SMS inbound bridge against overlapping cron ticks
+- 87ee07d Fix silent inbound SMS/MMS drops from gateway phone _id reuse
+- 0e750a6 Add event-linked audience dimension to SMS broadcast groups
+- 72458a2 docs: architecture update 2026-10-03
+
+### ~/watson-tools
+- dd74ea9 Move mobile expand/collapse buttons into the Select/Filters row slot
+- 853fa0a Stabilize catalystdb header height between members/households views
+- 60c64de Add expand all / collapse all buttons to catalystdb household view
+- fc8ec82 Fix newest SMS message hidden behind the composer on load
+- 8e29128 Float new and prepared SMS threads to the top of the list
+- 8009c80 Add custom-hours input to broadcast send-spread control
+- 82bcc84 Add character counter under broadcast message textarea
+- a0cf2f9 Add event signups as an SMS broadcast audience filter
