@@ -1,10 +1,11 @@
 # Watson Bug Tracker
 _Auto-generated nightly from bug_tracker. Source of truth is the database — do not hand-edit this file, changes will be overwritten._
-Last generated: 2026-10-03 02:10
+Last generated: 2026-10-04 02:10
 
-## Open (6)
+## Open (7)
 | ID | Title | Repo | Discovered |
 |---|---|---|---|
+| 220 | Email-sourced event registrations never capture custom sign-up-form answers (e.g. picnic side dish/dessert) | watson | 2026-10-03 19:37:38 |
 | 208 | signup_detect.py name extraction: literal 'empty string' persisted for a real registrant | watson | 2026-09-29 03:17:01 |
 | 207 | Event signup classifier stores literal 'empty string' as first/last name | watson | 2026-09-28 22:30:53 |
 | 200 | wtsn.me/sms message links have no OG preview image | watson-tools | 2026-09-27 19:20:04 |
@@ -15,6 +16,8 @@ Last generated: 2026-10-03 02:10
 ## Recently Resolved (last 30 days)
 | ID | Title | Repo | Resolved | Commit |
 |---|---|---|---|---|
+| 219 | kidstoday_notify_donna.py crashed every week, never emailed Donna | watson | 2026-10-03 18:19:41 | 101675c |
+| 218 | Telegram Log dashboard shows wrong time (false quiet-hours alarm) | watson | 2026-10-03 16:31:27 | b418bf6 |
 | 215 | Monthly kids attendance undercounted for months with sparse kids_checkin coverage | watson | 2026-09-30 20:36:13 | 57a35f8 |
 | 214 | Hybrid attendance breakdown triple-counted hybrid attendees | watson | 2026-09-30 20:27:35 | 5f23feb |
 | 213 | SMS gateway adb heartbeat ignored working USB connection | watson | 2026-09-30 12:58:43 | 4da3f3f614182cc295ba73bb7ebb6b0d0ce38ec1 |
@@ -135,5 +138,3 @@ Last generated: 2026-10-03 02:10
 | 126 | kb_export_link_cleanup.py cron entry documented but never installed | watson | 2026-09-05 21:52:20 | 997d748 |
 | 119 | skillbuilder/router.py LLM fallback has an 8s timeout, too short for its real ~6-8k token prompt | watson | 2026-09-05 21:51:11 | 9d86b36 |
 | 117 | reflect.py _load_messages can scramble transcript order on same-second timestamps | watson | 2026-09-05 21:51:11 | 2ac41c1 |
-| 118 | skill_audit run_audit() prompt likely exceeds model context window, silently dropping task instructions | watson | 2026-09-04 02:11:31 | 7fb19e1 |
-| 121 | Classifier hallucinates wrong intent under Ollama contention instead of degrading honestly | watson | 2026-09-04 02:10:55 | 7fb19e1 |
