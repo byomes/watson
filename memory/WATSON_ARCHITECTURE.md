@@ -4835,3 +4835,13 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - 8009c80 Add custom-hours input to broadcast send-spread control
 - 82bcc84 Add character counter under broadcast message textarea
 - a0cf2f9 Add event signups as an SMS broadcast audience filter
+
+---
+
+## Recent Changes — 2026-10-05
+
+### ~/watson
+- b445448 docs: bugs/backlog export 2026-10-05
+- b7a3af2 docs: file map 2026-10-05
+- 7b8b74b Add Bill as direct recipient of the weekly /cat/serving reminder
+- 64d3cfd docs: architecture update 2026-10-04
