@@ -1,9 +1,0 @@
-/home/billyomes/watson/venv/lib/python3.12/site-packages/requests/__init__.py:109: RequestsDependencyWarning: urllib3 (2.21.902) or chardet (7.4.3)/charset_normalizer (3.4.4) doesn't match a supported version!
-  warnings.warn(
-Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
-Mixed-traffic test: duration=1200s, with_candidate=False (n/a)
-Schedule: 26 calls over 1200s
-[t+0s] classify (gemma3:4b) done in 1.75s, load_duration=0.0, OK
-[t+60s] chat_summarize (llama3.2:3b) done in 15.81s, load_duration=2.725903806, OK
-[t+90s] classify (gemma3:4b) done in 1.62s, load_duration=0.0, OK
-Loading weights:   0%|          | 0/103 [00:00<?, ?it/s]Loading weights: 100%|██████████| 103/103 [00:00<00:00, 4173.24it/s]
