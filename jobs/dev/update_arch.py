@@ -15,6 +15,7 @@ REPOS = [
     ("~/watson-admin", "watson-admin"),
     ("~/watson-ui",    "watson-ui"),
     ("~/watson-tools", "watson-tools"),
+    ("~/watson-kit",   "watson-kit"),
 ]
 
 ARCH_FILE = Path.home() / "watson" / "memory" / "WATSON_ARCHITECTURE.md"
