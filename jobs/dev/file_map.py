@@ -16,6 +16,7 @@ REPOS = [
     ("~/watson-ui",    "~/watson-ui/"),
     ("~/bodyrec",      "~/bodyrec/"),
     ("~/watson-tools", "~/watson-tools/"),
+    ("~/watson-kit",   "~/watson-kit/"),
 ]
 
 EXCLUDE_PATTERNS = [
