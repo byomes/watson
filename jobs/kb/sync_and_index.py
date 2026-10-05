@@ -10,10 +10,19 @@ GitHub raw URL:
      pushed since the last run.
   2. Move every file currently in kb/transcripts/ into kb/documents/
      (no age threshold — same day, not 30 days).
-  3. Commit + push that move.
-  4. Incrementally index the new files into the "sermons" ChromaDB
-     collection via jobs.build_kb.ingest_dir.
+  3. Incrementally index the new files into the "sermons" ChromaDB
+     collection via jobs.build_kb.ingest_dir. This runs BEFORE the push: it is
+     local-only, so a GitHub outage can never leave new transcripts unsearchable.
+  4. Commit that move and push it.
   5. Send a Telegram summary.
+
+Retry safety: each step that can fail is retried by the next run instead of
+being skipped. data/.kb_needs_index is written before indexing and removed
+only after it succeeds; a "kb: sync" commit that failed to push is pushed on
+the next run (unrelated unpushed commits are never pushed, only reported).
+Earlier versions pushed first and returned on failure, which left files moved
+but never indexed, and the next run's "no new transcripts" hid them forever
+(found 2026-10-05 after a transient "Invalid username or token" push failure).
 
 Pull safety: fetch + `pull --ff-only` only. Never merges, rebases, or
 resets. Any failure (diverged history, conflicting local changes, network)
@@ -62,6 +71,11 @@ TRANSCRIPTS_DIR = REPO_ROOT / "kb" / "transcripts"
 DOCUMENTS_DIR = REPO_ROOT / "kb" / "documents"
 COLLECTION_NAME = "sermons"
 LOCK_PATH = REPO_ROOT / "data" / ".kb_sync.lock"
+# Present while files have been moved into kb/documents/ but not yet indexed. Written
+# BEFORE indexing starts and removed only after it succeeds, so a failed or interrupted
+# index run is retried by the next run instead of being skipped (the files have already
+# moved out of kb/transcripts/, so "no new transcripts" would otherwise hide them forever).
+NEEDS_INDEX_PATH = REPO_ROOT / "data" / ".kb_needs_index"
 
 
 def _send_telegram(text: str, priority: str = "normal") -> None:
@@ -119,7 +133,7 @@ def move_new_transcripts() -> list:
     return moved
 
 
-def commit_and_push(moved_count: int) -> tuple:
+def commit_moved(moved_count: int) -> tuple:
     # Scoped `git add` (not -A) — never sweep up unrelated in-progress
     # changes elsewhere in the working tree.
     add = _git(["add", "kb/documents", "kb/transcripts"])
@@ -129,11 +143,38 @@ def commit_and_push(moved_count: int) -> tuple:
     commit = _git(["commit", "-m", f"kb: sync {moved_count} transcript(s) to kb/documents (same-day)"])
     if commit.returncode != 0:
         return False, f"git commit failed:\n{commit.stderr.strip()}"
+    return True, ""
 
+
+def _unpushed_subjects() -> list:
+    """Subjects of local commits not yet on origin/main (oldest first)."""
+    res = _git(["log", "origin/main..HEAD", "--reverse", "--format=%s"])
+    if res.returncode != 0:
+        return []
+    return [line for line in res.stdout.splitlines() if line.strip()]
+
+
+def push_pending() -> tuple:
+    """Push this job's own unpushed "kb: sync" commits, retrying anything a
+    previous run committed but failed to push.
+
+    Returns (pushed_anything, error_message). Refuses to push if there are
+    unpushed commits that are NOT this job's own: `git push origin main` would
+    publish someone's unrelated work-in-progress commits along with ours, so
+    that case is reported for a human to resolve instead.
+    """
+    subjects = _unpushed_subjects()
+    if not subjects:
+        return False, ""
+    foreign = [s for s in subjects if not s.startswith("kb: sync")]
+    if foreign:
+        return False, (
+            "unpushed commits that are not KB syncs are on main, so not pushing "
+            f"(would publish them too): {foreign[:3]}"
+        )
     push = _git(["push", "origin", "main"])
     if push.returncode != 0:
-        return False, f"git push failed (committed locally, not pushed):\n{push.stderr.strip()}"
-
+        return False, f"git push failed (committed locally, will retry next run):\n{push.stderr.strip()}"
     return True, ""
 
 
@@ -178,34 +219,58 @@ def run_sync(source: str = "cron") -> dict:
         log.info("Pull ok: %s", pull_msg or "already up to date")
 
         moved = move_new_transcripts()
-        if not moved:
+        retry_index = NEEDS_INDEX_PATH.exists()
+        retry_push = bool(_unpushed_subjects())
+        if not moved and not retry_index and not retry_push:
             log.info("No new transcripts to sync")
             if source == "cron":
                 _send_telegram("📂 KB sync: nothing new.")
             return {"ok": True, "moved": 0, "indexed": 0, "error": None}
 
-        log.info("Moved %d file(s) to kb/documents/", len(moved))
+        if moved:
+            log.info("Moved %d file(s) to kb/documents/", len(moved))
+            NEEDS_INDEX_PATH.parent.mkdir(parents=True, exist_ok=True)
+            NEEDS_INDEX_PATH.touch()
+            retry_index = True
+        elif retry_index or retry_push:
+            log.info("Recovering an earlier incomplete run (index pending=%s, unpushed commits=%s)",
+                     retry_index, retry_push)
 
-        push_ok, push_msg = commit_and_push(len(moved))
-        if not push_ok:
-            log.error(push_msg)
+        errors = []
+
+        # Index FIRST: it is local-only, so a GitHub outage cannot leave the new
+        # transcripts unsearchable. Pushing afterward is the step that can fail
+        # on the network, and it is now retried on every later run.
+        added_chunks = 0
+        if retry_index:
+            try:
+                added_chunks = ingest_dir(DOCUMENTS_DIR, COLLECTION_NAME, source_type="transcript")
+                NEEDS_INDEX_PATH.unlink(missing_ok=True)
+                log.info("Indexed %d new chunk(s)", added_chunks)
+            except Exception as exc:
+                log.exception("KB indexing failed")
+                errors.append(f"indexing failed (will retry next run): {exc}")
+
+        if moved:
+            commit_ok, commit_msg = commit_moved(len(moved))
+            if not commit_ok:
+                log.error(commit_msg)
+                errors.append(commit_msg)
+
+        pushed, push_err = push_pending()
+        if push_err:
+            log.error(push_err)
+            errors.append(push_err)
+
+        if errors:
+            detail = "\n".join(errors)
             _send_telegram(
-                f"🔴 KB sync: moved {len(moved)} transcript(s) locally but git commit/push failed.\n\n{push_msg[:500]}",
+                f"🔴 KB sync: {len(moved)} transcript(s) moved, but not everything finished. "
+                f"Whatever failed is retried automatically on the next run.\n\n{detail[:500]}",
                 priority="system_failure",
             )
-            return {"ok": False, "moved": len(moved), "indexed": 0, "error": push_msg}
+            return {"ok": False, "moved": len(moved), "indexed": added_chunks, "error": detail}
 
-        try:
-            added_chunks = ingest_dir(DOCUMENTS_DIR, COLLECTION_NAME, source_type="transcript")
-        except Exception as exc:
-            log.exception("KB indexing failed")
-            _send_telegram(
-                f"⚠️ KB sync: {len(moved)} transcript(s) moved and pushed, but indexing failed: {exc}",
-                priority="system_failure",
-            )
-            return {"ok": False, "moved": len(moved), "indexed": 0, "error": str(exc)}
-
-        log.info("Indexed %d new chunk(s)", added_chunks)
         if source == "cron":
             _send_telegram(
                 f"📂 KB sync: {len(moved)} new transcript(s) synced and indexed "
