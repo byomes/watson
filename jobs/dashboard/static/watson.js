@@ -2564,9 +2564,53 @@ function _networkDevicesRender() {
     </div>`;
 
   const shown = _ndShowUnknownOnly ? rows.filter(r => !r.known) : rows;
-  html += shown.length ? shown.map(_ndRow).join('') : '<div class="empty">No devices seen yet.</div>';
+  if (!shown.length) {
+    html += '<div class="empty">No devices seen yet.</div>';
+  } else {
+    // Group by assigned_to (case-insensitive); unassigned last. Rows arrive
+    // already ordered most-recently-active first within each user.
+    const groups = new Map();
+    for (const r of shown) {
+      const name = (r.assigned_to || '').trim();
+      const key = name.toLowerCase();
+      if (!groups.has(key)) groups.set(key, { name: name || 'Unassigned', key, devices: [] });
+      groups.get(key).devices.push(r);
+    }
+    const ordered = [...groups.values()].sort((a, b) =>
+      (a.key === '') - (b.key === '') || a.name.localeCompare(b.name));
+    html += ordered.map(_ndGroup).join('');
+  }
 
   el.innerHTML = html;
+}
+
+// Open/closed state survives re-renders (filter toggle, save, delete).
+const _ndOpenGroups = new Set();
+
+function _ndGroup(g) {
+  const online = g.devices.filter(d => d.online).length;
+  const open = _ndOpenGroups.has(g.key) ? ' open' : '';
+  return `
+    <details class="nd-group"${open} ontoggle="ndGroupToggled(this, '${esc(encodeURIComponent(g.key))}')" style="margin-bottom:8px">
+      <summary style="cursor:pointer;font-size:13px;font-weight:600;padding:6px 2px;display:flex;justify-content:space-between;gap:8px">
+        <span>${esc(g.name)} <span style="font-weight:400;color:var(--muted)">(${g.devices.length})</span></span>
+        <span style="font-weight:400;font-size:11px;color:${online ? 'var(--green)' : 'var(--muted)'}">${online} online</span>
+      </summary>
+      ${g.devices.map(_ndRow).join('')}
+    </details>`;
+}
+
+function ndGroupToggled(el, encKey) {
+  const key = decodeURIComponent(encKey);
+  if (el.open) _ndOpenGroups.add(key); else _ndOpenGroups.delete(key);
+}
+
+function _ndLastOnlineLabel(r) {
+  if (r.online) return 'Last online: now';
+  if (!r.last_seen) return 'Last online: never';
+  const d = new Date(r.last_seen.replace(' ', 'T') + 'Z');  // stored UTC
+  const abs = d.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  return `Last online: ${abs} (${_ndAgoLabel(r.last_seen)})`;
 }
 
 function ndToggleUnknownFilter(checked) {
@@ -2580,7 +2624,7 @@ function _ndRow(r) {
   const sub = [
     r.assigned_to ? esc(r.assigned_to) : null,
     (r.vendor && r.vendor !== titleSrc) ? esc(r.vendor) : null,
-    r.online ? `<span style="color:var(--green)">online</span>` : `last seen ${_ndAgoLabel(r.last_seen)}`,
+    r.online ? `<span style="color:var(--green)">online</span>` : null,
     esc(r.ip || ''),
   ].filter(Boolean).join(' · ');
   return `
@@ -2589,6 +2633,7 @@ function _ndRow(r) {
         <div style="min-width:0">
           <div style="font-size:13px;font-weight:500">${title}</div>
           <div style="font-size:11px;color:var(--muted)">${sub}</div>
+          <div style="font-size:11px;color:var(--muted)">${esc(_ndLastOnlineLabel(r))}</div>
           <div style="font-size:10px;color:var(--muted);font-family:monospace">${esc(r.mac)}</div>
         </div>
       </div>
