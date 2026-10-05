@@ -1,53 +1,64 @@
 """jobs/congregation/fluro_pull.py -- pulls People (contacts) and Serving
 (service team assignments) live from Fluro via jobs/congregation/
 fluro_client.py, and stages the result in fluro_staging.db (see
-fluro_staging_schema.py) -- deliberately NOT congregation.db.
+fluro_staging_schema.py) -- deliberately NOT congregation.db directly.
 
-Per Bill's explicit instruction (2026-09-26): this never writes to
-congregation.db on its own. Every pulled contact is classified against
-the existing members table:
-  - 'new'               -- no email/phone/fuzzy-name match at all
+Scope, per Bill's explicit instruction (2026-09-26): Fluro is used ONLY to
+enrich people ALREADY in congregation.db -- never to add new people to it.
+A Fluro contact with no email/phone/fuzzy-name match to an existing member
+is skipped entirely (counted in the run summary, never staged, never
+touches congregation.db). Every contact that DOES match is classified:
   - 'possible_duplicate' -- no email/phone match, but a fuzzy name hit
                             (same FUZZY_THRESHOLD as member_match.py) --
-                            same judgment call the existing
-                            subsplash_import_fuzzy flow makes, just against
-                            live Fluro data instead of a CSV export
+                            needs a human "is this really them?" call
+                            before any field gets filled in
   - 'clean_fill'         -- matched by email/phone; Fluro only fills fields
-                            that are currently blank on the existing record,
-                            nothing would be overwritten
+                            that are currently blank on the existing record
+                            -- applied automatically, right here, since a
+                            blank-only fill can never overwrite real data
   - 'conflict'           -- matched by email/phone; at least one field is
-                            non-blank on BOTH sides and disagrees
+                            non-blank on BOTH sides and disagrees -- never
+                            auto-applied, always needs a human pick
   - 'exact_no_change'    -- matched, identical, nothing to do
 
-Only 'conflict' and 'possible_duplicate' rows need a human decision --
-notify_donna_fluro_review.py sends those to Donna via Telegram
-(bot.py's handle_fluro_review_callback actually applies an approved
-change to congregation.db; this job never does). 'new' and 'clean_fill'
-rows sit in staging for review at leisure, not gated on Donna.
+So this job DOES write to congregation.db for 'clean_fill' rows (via
+fluro_apply.fill_blank_fields) -- that's the one case safe enough to not
+need a human in the loop. 'conflict' and 'possible_duplicate' rows are
+staged with review_status='pending' and, at the end of a successful run,
+handed to notify_donna_fluro_review.py so Watson sends Donna the Telegram
+review on its own -- no Claude Code / manual trigger needed for the
+recurring pull-and-notify cycle. bot.py's handle_fluro_review_callback is
+the only thing that can turn a 'conflict'/'possible_duplicate' row into an
+actual congregation.db write.
 
 Serving data (fluro_serving) is matched against the SAME staging pull's
 contact rows (by fluro_id), so re-run fluro_pull.py before trusting
-serving matches if contacts data is stale.
+serving matches if contacts data is stale. Only matched contacts can have
+a matched_member_id here -- a serving assignment for someone Fluro has but
+congregation.db doesn't just stays unmatched (NULL), never creates a
+member.
 
-Known limitation: a re-run overwrites prior staging rows (INSERT OR
-REPLACE on fluro_id), including resetting review_status back to 'pending'
-for a conflict Donna already reviewed if the underlying disagreement is
-still present in Fluro after her decision was applied. Fine for the
-current usage pattern (run on demand, review promptly) -- if this becomes
-a recurring scheduled pull, add real state-carryover before then.
+A re-run refreshes every staged row in place (upsert on fluro_id). A prior
+'rejected' decision (Donna said "keep what's on file" / "not the same
+person") sticks across re-pulls as long as the row is still the same
+match_status -- it will NOT re-notify her every cycle for something she
+already dismissed. An 'approved' conflict, by contrast, naturally
+reclassifies as 'exact_no_change' on the next pull once the real
+congregation.db value matches Fluro's (the write already happened), so
+there's nothing left to re-flag there either.
 
-Usage:
+Usage (also installed in crontab -- see memory/CRON.md):
   python3 -m jobs.congregation.fluro_pull
 """
 import difflib
 import json
 import logging
-import re
 import sqlite3
 from datetime import datetime
 from pathlib import Path
 
-from jobs.congregation import fluro_client
+from jobs.congregation import fluro_apply, fluro_client
+from jobs.congregation.fluro_common import is_blank
 from jobs.congregation.fluro_staging_schema import create_tables, get_connection
 from jobs.congregation.import_subsplash_contacts import _normalize_phone
 from jobs.congregation.member_match import FUZZY_THRESHOLD
@@ -58,26 +69,9 @@ CONGREGATION_DB = Path.home() / "watson" / "data" / "congregation.db"
 
 _COMPARE_FIELDS = ("email", "phone", "birthdate", "gender")
 
-# Placeholder/sentinel values used on either side that mean "no real data",
-# not an actual value to compare or overwrite with -- found live 2026-09-26:
-# congregation.db uses '--' for an unset gender, Fluro uses 'unknown'. Both
-# must be treated as blank on BOTH sides, or every never-filled-in field
-# reads as a false-positive conflict.
-_BLANK_SENTINELS = {"--", "-", "unknown", "n/a", "na", "none", ""}
-
-
-def _is_blank(value) -> bool:
-    return (value or "").strip().lower() in _BLANK_SENTINELS
-
 
 def _now() -> str:
     return datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
-
-
-def _cong_conn() -> sqlite3.Connection:
-    conn = sqlite3.connect(CONGREGATION_DB)
-    conn.row_factory = sqlite3.Row
-    return conn
 
 
 def _extract_contact_fields(rec: dict) -> dict:
@@ -89,8 +83,6 @@ def _extract_contact_fields(rec: dict) -> dict:
         None,
     )
     normalized_phone = _normalize_phone(phone_raw) if phone_raw else None
-    if normalized_phone == "(000) 000-0000":
-        normalized_phone = None  # Fluro's own placeholder for "no phone on file", not a real number
 
     return {
         "fluro_id": rec["_id"],
@@ -134,16 +126,18 @@ def _find_fuzzy_member(conn, name):
 
 
 def _classify(existing_row, fields: dict) -> tuple[str, dict]:
-    """Returns (match_status, conflict_fields_dict)."""
+    """Returns (match_status, conflict_fields_dict) -- 'conflict' or
+    'clean_fill' or 'exact_no_change' (never 'new'/'possible_duplicate',
+    those are decided by the caller before a match exists)."""
     conflicts = {}
     any_fill = False
     field_map = {"email": fields["email"], "phone": fields["phone"], "birthdate": fields["dob"], "gender": fields["gender"]}
     for field in _COMPARE_FIELDS:
         fluro_val = (field_map[field] or "").strip()
         existing_val = (existing_row[field] or "").strip()
-        if _is_blank(fluro_val):
+        if is_blank(fluro_val):
             continue
-        if _is_blank(existing_val):
+        if is_blank(existing_val):
             any_fill = True
             continue
         if fluro_val.lower() != existing_val.lower():
@@ -156,8 +150,10 @@ def _classify(existing_row, fields: dict) -> tuple[str, dict]:
     return "exact_no_change", {}
 
 
-def _stage_contacts(staging_conn, cong_conn, contacts: list[dict]) -> dict:
-    stats = {"new": 0, "possible_duplicate": 0, "clean_fill": 0, "conflict": 0, "exact_no_change": 0}
+def _stage_contacts(staging_conn, cconn, contacts: list[dict]) -> dict:
+    """cconn is an open congregation.db connection -- clean_fill rows are
+    written through it immediately (see module docstring)."""
+    stats = {"skipped_no_match": 0, "possible_duplicate": 0, "clean_fill": 0, "conflict": 0, "exact_no_change": 0}
     now = _now()
 
     for rec in contacts:
@@ -165,23 +161,32 @@ def _stage_contacts(staging_conn, cong_conn, contacts: list[dict]) -> dict:
         if not fields["name"]:
             continue
 
-        existing_row, match_method = _find_existing_member(cong_conn, fields["email"], fields["phone"])
-        matched_member_id = None
-        conflict_fields = {}
+        existing_row, match_method = _find_existing_member(cconn, fields["email"], fields["phone"])
 
-        if existing_row is not None:
+        if existing_row is None:
+            fuzzy_row = _find_fuzzy_member(cconn, fields["name"])
+            if fuzzy_row is None:
+                # No match at all -- per scope, Fluro never adds new people. Not staged.
+                stats["skipped_no_match"] += 1
+                continue
+            existing_row = None
+            matched_member_id = fuzzy_row["id"]
+            match_method = "fuzzy"
+            match_status = "possible_duplicate"
+            conflict_fields = {}
+        else:
             matched_member_id = existing_row["id"]
             match_status, conflict_fields = _classify(existing_row, fields)
-        else:
-            fuzzy_row = _find_fuzzy_member(cong_conn, fields["name"])
-            if fuzzy_row is not None:
-                matched_member_id = fuzzy_row["id"]
-                match_method = "fuzzy"
-                match_status = "possible_duplicate"
-            else:
-                match_status = "new"
 
         stats[match_status] += 1
+
+        if match_status == "clean_fill":
+            fluro_apply.fill_blank_fields(cconn, matched_member_id, fields["email"], fields["phone"], fields["dob"], fields["gender"])
+            review_status = "auto_applied"
+        elif match_status in ("conflict", "possible_duplicate"):
+            review_status = "pending"
+        else:
+            review_status = "not_needed"
 
         staging_conn.execute(
             """
@@ -189,7 +194,7 @@ def _stage_contacts(staging_conn, cong_conn, contacts: list[dict]) -> dict:
                 (fluro_id, first_name, last_name, email, phone, dob, gender, marital_status,
                  fluro_status, household_id, household_role, tags, realms, raw_json, pulled_at,
                  match_status, matched_member_id, match_method, conflict_fields, review_status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(fluro_id) DO UPDATE SET
                 first_name=excluded.first_name, last_name=excluded.last_name, email=excluded.email,
                 phone=excluded.phone, dob=excluded.dob, gender=excluded.gender,
@@ -199,17 +204,27 @@ def _stage_contacts(staging_conn, cong_conn, contacts: list[dict]) -> dict:
                 pulled_at=excluded.pulled_at, match_status=excluded.match_status,
                 matched_member_id=excluded.matched_member_id, match_method=excluded.match_method,
                 conflict_fields=excluded.conflict_fields,
-                review_status=CASE WHEN excluded.match_status IN ('conflict','possible_duplicate')
-                                    THEN 'pending' ELSE 'not_needed' END
+                review_status = CASE
+                    WHEN fluro_contacts.review_status = 'rejected'
+                         AND fluro_contacts.match_status = excluded.match_status
+                    THEN 'rejected'
+                    ELSE excluded.review_status
+                END
             """,
             (
                 fields["fluro_id"], fields["first_name"], fields["last_name"], fields["email"],
                 fields["phone"], fields["dob"], fields["gender"], fields["marital_status"],
                 fields["fluro_status"], fields["household_id"], fields["household_role"],
                 json.dumps(fields["tags"]), json.dumps(fields["realms"]), json.dumps(rec), now,
-                match_status, matched_member_id, match_method, json.dumps(conflict_fields),
+                match_status, matched_member_id, match_method, json.dumps(conflict_fields), review_status,
             ),
         )
+    staging_conn.commit()
+    # Drop any stale rows from a prior run that are no longer produced this run
+    # (e.g. a contact that used to fuzzy-match and now genuinely has no match).
+    staging_conn.execute(
+        "DELETE FROM fluro_contacts WHERE pulled_at != ?", (now,)
+    )
     staging_conn.commit()
     return stats
 
@@ -263,9 +278,11 @@ def run() -> dict:
         token = token_info["token"]
 
         contacts = fluro_client.fetch_all_contacts(token)
-        cong_conn = _cong_conn()
-        contact_stats = _stage_contacts(staging_conn, cong_conn, contacts)
-        cong_conn.close()
+        cconn = fluro_apply.cong_conn()
+        try:
+            contact_stats = _stage_contacts(staging_conn, cconn, contacts)
+        finally:
+            cconn.close()
 
         teams = fluro_client.fetch_all_service_teams(token)
         serving_count = _stage_serving(staging_conn, teams)
@@ -278,6 +295,12 @@ def run() -> dict:
 
         summary = {"run_id": run_id, "contacts_pulled": len(contacts), "serving_pulled": serving_count, **contact_stats}
         log.info("fluro_pull complete: %s", summary)
+
+        pending = contact_stats["conflict"] + contact_stats["possible_duplicate"]
+        if pending:
+            from jobs.congregation import notify_donna_fluro_review
+            notify_donna_fluro_review.run()
+
         return summary
     except Exception as exc:
         staging_conn.execute(
