@@ -114,3 +114,6 @@ data/security_backups/
 # Fluro pull job -- fetched via scripts/install_adb.sh, not committed
 bin/
 data/fluro_staging.db
+
+# Stray log files outside logs/ (scripts, test runs)
+*.log
