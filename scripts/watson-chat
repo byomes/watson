@@ -1,0 +1,2 @@
+#!/bin/bash
+exec /home/billyomes/watson/venv/bin/python3 /home/billyomes/watson/scripts/beelink_watson_chat.py

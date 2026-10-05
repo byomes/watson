@@ -1,0 +1,514 @@
+{
+  "gemma3:4b": {
+    "battery_a_intent": {
+      "accuracy": 0.75,
+      "avg_latency_sec": 1.666,
+      "cases": [
+        {
+          "id": "a1",
+          "prompt": "remind me to call Dave tomorrow at 3pm",
+          "expected": "reminder",
+          "actual": "reminder",
+          "correct": true,
+          "latency_sec": 4.039,
+          "tokens_per_sec": 15.3
+        },
+        {
+          "id": "a2",
+          "prompt": "kb: what did I preach on forgiveness",
+          "expected": "kb_search",
+          "actual": "bible_lookup",
+          "correct": false,
+          "latency_sec": 1.515,
+          "tokens_per_sec": 12.4
+        },
+        {
+          "id": "a3",
+          "prompt": "cdb: who missed 3 weeks in a row",
+          "expected": "congregation_query",
+          "actual": "bible_lookup",
+          "correct": false,
+          "latency_sec": 1.532,
+          "tokens_per_sec": 11.9
+        },
+        {
+          "id": "a4",
+          "prompt": "wdb: how many tasks are overdue",
+          "expected": "watson_db_query",
+          "actual": "watson_db_query",
+          "correct": true,
+          "latency_sec": 1.808,
+          "tokens_per_sec": 11.4
+        },
+        {
+          "id": "a5",
+          "prompt": "polish this: we is meeting sunday for the thing",
+          "expected": "polish",
+          "actual": "polish",
+          "correct": true,
+          "latency_sec": 1.239,
+          "tokens_per_sec": 15.3
+        },
+        {
+          "id": "a6",
+          "prompt": "what's on my calendar today",
+          "expected": "calendar_query",
+          "actual": "calendar_query",
+          "correct": true,
+          "latency_sec": 1.454,
+          "tokens_per_sec": 12.5
+        },
+        {
+          "id": "a7",
+          "prompt": "clear my day wednesday",
+          "expected": "clear_day",
+          "actual": "clear_day",
+          "correct": true,
+          "latency_sec": 1.59,
+          "tokens_per_sec": 11.3
+        },
+        {
+          "id": "a8",
+          "prompt": "generate a qr code for the giving page",
+          "expected": "qr_generate",
+          "actual": "qr_generate",
+          "correct": true,
+          "latency_sec": 1.564,
+          "tokens_per_sec": 11.9
+        },
+        {
+          "id": "a9",
+          "prompt": "who is Sarah Mitchell's contact info",
+          "expected": "contacts_lookup",
+          "actual": "contacts_lookup",
+          "correct": true,
+          "latency_sec": 1.527,
+          "tokens_per_sec": 11.9
+        },
+        {
+          "id": "a10",
+          "prompt": "bible: John 3:16 in NASB",
+          "expected": "bible_lookup",
+          "actual": "bible_lookup",
+          "correct": true,
+          "latency_sec": 1.552,
+          "tokens_per_sec": 11.9
+        },
+        {
+          "id": "a11",
+          "prompt": "web: latest news on the county council vote",
+          "expected": "web_search",
+          "actual": "web_search",
+          "correct": true,
+          "latency_sec": 1.498,
+          "tokens_per_sec": 12.3
+        },
+        {
+          "id": "a12",
+          "prompt": "vacation mode on",
+          "expected": "vacation_gate",
+          "actual": "vacation_gate",
+          "correct": true,
+          "latency_sec": 1.458,
+          "tokens_per_sec": 11.8
+        },
+        {
+          "id": "a13",
+          "prompt": "so I was thinking about the sermon series for fall and wondering if we should do something on Romans",
+          "expected": "general_chat",
+          "actual": "bible_lookup",
+          "correct": false,
+          "latency_sec": 1.754,
+          "tokens_per_sec": 11.6
+        },
+        {
+          "id": "a14",
+          "prompt": "hey what do you think about this idea for connect cards",
+          "expected": "general_chat",
+          "actual": "general_chat",
+          "correct": true,
+          "latency_sec": 2.019,
+          "tokens_per_sec": 11.4
+        },
+        {
+          "id": "a15",
+          "prompt": "remind me to follow up with dave and also whats on my calendar thursday",
+          "expected": "AMBIGUOUS_multi_intent",
+          "actual": "reminder",
+          "correct": false,
+          "latency_sec": 1.451,
+          "tokens_per_sec": 14.3
+        },
+        {
+          "id": "a16",
+          "prompt": "cdb who hasnt been here in a while",
+          "expected": "congregation_query",
+          "actual": "contacts_lookup",
+          "correct": false,
+          "latency_sec": 1.491,
+          "tokens_per_sec": 11.8
+        },
+        {
+          "id": "a17",
+          "prompt": "kb search sermons on grace from last year",
+          "expected": "kb_search",
+          "actual": "kb_search",
+          "correct": true,
+          "latency_sec": 1.525,
+          "tokens_per_sec": 12.4
+        },
+        {
+          "id": "a18",
+          "prompt": "gutenberg: pull the full text of pilgrims progress",
+          "expected": "gutenberg",
+          "actual": "gutenberg",
+          "correct": true,
+          "latency_sec": 1.474,
+          "tokens_per_sec": 12.1
+        },
+        {
+          "id": "a19",
+          "prompt": "classics: augustine confessions book 1",
+          "expected": "classics",
+          "actual": "classics",
+          "correct": true,
+          "latency_sec": 1.436,
+          "tokens_per_sec": 12.6
+        },
+        {
+          "id": "a20",
+          "prompt": "imagegen: sunrise over a cross for facebook post",
+          "expected": "imagegen",
+          "actual": "imagegen",
+          "correct": true,
+          "latency_sec": 1.386,
+          "tokens_per_sec": 12.5
+        }
+      ]
+    },
+    "battery_b_reasoning": {
+      "cases": [
+        {
+          "id": "b1",
+          "type": "structured_extraction",
+          "prompt": "Extract {name, date, topic} as JSON from: 'Talked to Karen after service on the 14th, she wants prayer for her son's job situation, said she'd follow up next week.'",
+          "notes": "Score format compliance + correctness. Name=Karen, date=14th, topic=prayer for son's job.",
+          "response": "```json\n{\n  \"name\": \"Karen\",\n  \"date\": \"14th\",\n  \"topic\": \"son's job situation\"\n}\n```",
+          "latency_sec": 5.979,
+          "_grade_correctness": null,
+          "_grade_completeness": null,
+          "_grade_format": null,
+          "_grade_hallucination_pass": null
+        },
+        {
+          "id": "b2",
+          "type": "hallucination_check",
+          "prompt": "Based only on this text: 'The connect card said John attended Sunday service.' \u2014 what campus does John attend, Wilmington or Online?",
+          "notes": "Correct answer: not stated, don't guess. Any invented campus is a hallucination fail.",
+          "response": "Based solely on the text \"The connect card said John attended Sunday service,\" we cannot determine whether John attends Wilmington or Online. The text simply states he attended a Sunday service, without specifying which location that was.",
+          "latency_sec": 5.9,
+          "_grade_correctness": null,
+          "_grade_completeness": null,
+          "_grade_format": null,
+          "_grade_hallucination_pass": null
+        },
+        {
+          "id": "b3",
+          "type": "conditional_logic",
+          "prompt": "Given: Member A last attended 25 days ago, not marked snowbird. Member B last attended 10 days ago. Member C last attended 40 days ago, marked snowbird. Which member(s) should be flagged as missed (threshold: 21+ days, snowbird excluded)?",
+          "notes": "Correct answer: Member A only.",
+          "response": "Here's the breakdown of who should be flagged based on your criteria:\n\n*   **Member A:** Last attended 25 days ago - This exceeds the 21-day threshold. Snowbird status doesn\u2019t exclude them. **Flagged.**\n\n*   **Member B:** Last attended 10 days ago - This does *not* exceed the 21-day threshold. **Not Flagged.**\n\n*   **Member C:** Last attended 40 days ago, marked snowbird - Snowbird status excludes this member from being flagged as missed. **Not Flagged.**\n\n**Therefore, only Member A should be flagged as missed.**",
+          "latency_sec": 17.159,
+          "_grade_correctness": null,
+          "_grade_completeness": null,
+          "_grade_format": null,
+          "_grade_hallucination_pass": null
+        },
+        {
+          "id": "b4",
+          "type": "summarization",
+          "prompt": "Summarize in 3 bullets, no invented detail: [paste a real shepherding report excerpt when running this]",
+          "notes": "Placeholder \u2014 swap in real (anonymized) report text before running.",
+          "response": "Please provide the shepherding report excerpt you would like me to summarize. I need the text of the report to be able to create the 3-bullet point summary for you. \ud83d\ude0a",
+          "latency_sec": 5.369,
+          "_grade_correctness": null,
+          "_grade_completeness": null,
+          "_grade_format": null,
+          "_grade_hallucination_pass": null
+        },
+        {
+          "id": "b5",
+          "type": "basic_logic",
+          "prompt": "If today is Wednesday and Watson only books external meetings on Wed/Thu, and Thursday is a federal holiday this week, what days remain bookable this week?",
+          "notes": "Correct answer: Wednesday only (this week).",
+          "response": "Here's the breakdown:\n\n*   **Today:** Wednesday\n*   **Watson's Booking Days:** Wednesday & Thursday\n*   **Thursday:** Federal Holiday - Not Bookable\n\nTherefore, the only day remaining bookable this week is **Wednesday**. \n\nLet me know if you\u2019d like to try another scheduling puzzle!",
+          "latency_sec": 11.724,
+          "_grade_correctness": null,
+          "_grade_completeness": null,
+          "_grade_format": null,
+          "_grade_hallucination_pass": null
+        }
+      ],
+      "grading": "MANUAL \u2014 fill in _grade_* fields, or paste into Claude for scoring"
+    }
+  },
+  "granite4.2:3b": {
+    "error": "HTTPConnectionPool(host='localhost', port=11434): Read timed out. (read timeout=120)"
+  },
+  "granite4.2:8b": {
+    "error": "HTTPConnectionPool(host='localhost', port=11434): Read timed out. (read timeout=120)"
+  },
+  "qwen3:8b": {
+    "battery_a_intent": {
+      "accuracy": 0.8,
+      "avg_latency_sec": 3.093,
+      "cases": [
+        {
+          "id": "a1",
+          "prompt": "remind me to call Dave tomorrow at 3pm",
+          "expected": "reminder",
+          "actual": "reminder",
+          "correct": true,
+          "latency_sec": 15.952,
+          "tokens_per_sec": 11.4
+        },
+        {
+          "id": "a2",
+          "prompt": "kb: what did I preach on forgiveness",
+          "expected": "kb_search",
+          "actual": "kb_search",
+          "correct": true,
+          "latency_sec": 2.109,
+          "tokens_per_sec": 8.1
+        },
+        {
+          "id": "a3",
+          "prompt": "cdb: who missed 3 weeks in a row",
+          "expected": "congregation_query",
+          "actual": "AMBIGUOUS_multi_intent",
+          "correct": false,
+          "latency_sec": 3.126,
+          "tokens_per_sec": 6.3
+        },
+        {
+          "id": "a4",
+          "prompt": "wdb: how many tasks are overdue",
+          "expected": "watson_db_query",
+          "actual": "watson_db_query",
+          "correct": true,
+          "latency_sec": 2.513,
+          "tokens_per_sec": 6.6
+        },
+        {
+          "id": "a5",
+          "prompt": "polish this: we is meeting sunday for the thing",
+          "expected": "polish",
+          "actual": "polish",
+          "correct": true,
+          "latency_sec": 2.311,
+          "tokens_per_sec": 7.9
+        },
+        {
+          "id": "a6",
+          "prompt": "what's on my calendar today",
+          "expected": "calendar_query",
+          "actual": "calendar_query",
+          "correct": true,
+          "latency_sec": 2.013,
+          "tokens_per_sec": 8.2
+        },
+        {
+          "id": "a7",
+          "prompt": "clear my day wednesday",
+          "expected": "clear_day",
+          "actual": "clear_day",
+          "correct": true,
+          "latency_sec": 1.933,
+          "tokens_per_sec": 7.9
+        },
+        {
+          "id": "a8",
+          "prompt": "generate a qr code for the giving page",
+          "expected": "qr_generate",
+          "actual": "qr_generate",
+          "correct": true,
+          "latency_sec": 2.129,
+          "tokens_per_sec": 7.9
+        },
+        {
+          "id": "a9",
+          "prompt": "who is Sarah Mitchell's contact info",
+          "expected": "contacts_lookup",
+          "actual": "contacts_lookup",
+          "correct": true,
+          "latency_sec": 2.068,
+          "tokens_per_sec": 8.7
+        },
+        {
+          "id": "a10",
+          "prompt": "bible: John 3:16 in NASB",
+          "expected": "bible_lookup",
+          "actual": "bible_lookup",
+          "correct": true,
+          "latency_sec": 2.642,
+          "tokens_per_sec": 6.6
+        },
+        {
+          "id": "a11",
+          "prompt": "web: latest news on the county council vote",
+          "expected": "web_search",
+          "actual": "web_search",
+          "correct": true,
+          "latency_sec": 2.698,
+          "tokens_per_sec": 8.3
+        },
+        {
+          "id": "a12",
+          "prompt": "vacation mode on",
+          "expected": "vacation_gate",
+          "actual": "vacation_gate",
+          "correct": true,
+          "latency_sec": 2.03,
+          "tokens_per_sec": 7.2
+        },
+        {
+          "id": "a13",
+          "prompt": "so I was thinking about the sermon series for fall and wondering if we should do something on Romans",
+          "expected": "general_chat",
+          "actual": "bible_lookup",
+          "correct": false,
+          "latency_sec": 2.96,
+          "tokens_per_sec": 7.2
+        },
+        {
+          "id": "a14",
+          "prompt": "hey what do you think about this idea for connect cards",
+          "expected": "general_chat",
+          "actual": "general_chat",
+          "correct": true,
+          "latency_sec": 2.403,
+          "tokens_per_sec": 8.0
+        },
+        {
+          "id": "a15",
+          "prompt": "remind me to follow up with dave and also whats on my calendar thursday",
+          "expected": "AMBIGUOUS_multi_intent",
+          "actual": "reminder, calendar_query",
+          "correct": false,
+          "latency_sec": 2.855,
+          "tokens_per_sec": 6.8
+        },
+        {
+          "id": "a16",
+          "prompt": "cdb who hasnt been here in a while",
+          "expected": "congregation_query",
+          "actual": "AMBIGUOUS_multi_intent",
+          "correct": false,
+          "latency_sec": 3.037,
+          "tokens_per_sec": 6.3
+        },
+        {
+          "id": "a17",
+          "prompt": "kb search sermons on grace from last year",
+          "expected": "kb_search",
+          "actual": "kb_search",
+          "correct": true,
+          "latency_sec": 2.196,
+          "tokens_per_sec": 8.5
+        },
+        {
+          "id": "a18",
+          "prompt": "gutenberg: pull the full text of pilgrims progress",
+          "expected": "gutenberg",
+          "actual": "gutenberg",
+          "correct": true,
+          "latency_sec": 2.372,
+          "tokens_per_sec": 8.2
+        },
+        {
+          "id": "a19",
+          "prompt": "classics: augustine confessions book 1",
+          "expected": "classics",
+          "actual": "classics",
+          "correct": true,
+          "latency_sec": 2.199,
+          "tokens_per_sec": 8.6
+        },
+        {
+          "id": "a20",
+          "prompt": "imagegen: sunrise over a cross for facebook post",
+          "expected": "imagegen",
+          "actual": "imagegen",
+          "correct": true,
+          "latency_sec": 2.313,
+          "tokens_per_sec": 8.0
+        }
+      ]
+    },
+    "battery_b_reasoning": {
+      "cases": [
+        {
+          "id": "b1",
+          "type": "structured_extraction",
+          "prompt": "Extract {name, date, topic} as JSON from: 'Talked to Karen after service on the 14th, she wants prayer for her son's job situation, said she'd follow up next week.'",
+          "notes": "Score format compliance + correctness. Name=Karen, date=14th, topic=prayer for son's job.",
+          "response": "```json\n{\n  \"name\": \"Karen\",\n  \"date\": \"14th\",\n  \"topic\": \"prayer for her son's job situation\"\n}\n```",
+          "latency_sec": 11.115,
+          "_grade_correctness": null,
+          "_grade_completeness": null,
+          "_grade_format": null,
+          "_grade_hallucination_pass": null
+        },
+        {
+          "id": "b2",
+          "type": "hallucination_check",
+          "prompt": "Based only on this text: 'The connect card said John attended Sunday service.' \u2014 what campus does John attend, Wilmington or Online?",
+          "notes": "Correct answer: not stated, don't guess. Any invented campus is a hallucination fail.",
+          "response": "Based only on the text provided \u2014 **\"The connect card said John attended Sunday service.\"** \u2014 there is **not enough information** to determine whether John attends **Wilmington** or **Online**. The text does not specify the campus or location associated with the Sunday service.",
+          "latency_sec": 12.956,
+          "_grade_correctness": null,
+          "_grade_completeness": null,
+          "_grade_format": null,
+          "_grade_hallucination_pass": null
+        },
+        {
+          "id": "b3",
+          "type": "conditional_logic",
+          "prompt": "Given: Member A last attended 25 days ago, not marked snowbird. Member B last attended 10 days ago. Member C last attended 40 days ago, marked snowbird. Which member(s) should be flagged as missed (threshold: 21+ days, snowbird excluded)?",
+          "notes": "Correct answer: Member A only.",
+          "response": "To determine which member(s) should be flagged as **missed**, we need to apply the **threshold of 21+ days** and **exclude snowbird members**.\n\nLet's evaluate each member:\n\n---\n\n### **Member A**\n- Last attended: **25 days ago**\n- Marked: **Not snowbird**\n- \u2705 **Meets the threshold (25 > 21)** and is **not a snowbird**, so **Member A should be flagged as missed**.\n\n---\n\n### **Member B**\n- Last attended: **10 days ago**\n- Marked: **Not snowbird**\n- \u274c **Does not meet the threshold (10 < 21)**, so **Member B should not be flagged**.\n\n---\n\n### **Member C**\n- Last attended: **40 days ago**\n- Marked: **Snowbird**\n- \u274c **Excluded as a snowbird**, so **Member C should not be flagged**.\n\n---\n\n### \u2705 **Final Answer:**\n**Member A** should be flagged as missed.",
+          "latency_sec": 46.249,
+          "_grade_correctness": null,
+          "_grade_completeness": null,
+          "_grade_format": null,
+          "_grade_hallucination_pass": null
+        },
+        {
+          "id": "b4",
+          "type": "summarization",
+          "prompt": "Summarize in 3 bullets, no invented detail: [paste a real shepherding report excerpt when running this]",
+          "notes": "Placeholder \u2014 swap in real (anonymized) report text before running.",
+          "response": "- [Insert report excerpt here]  \n- [Insert report excerpt here]  \n- [Insert report excerpt here]  \n\n*Note: Please paste the actual report excerpt for a accurate summary.*",
+          "latency_sec": 9.794,
+          "_grade_correctness": null,
+          "_grade_completeness": null,
+          "_grade_format": null,
+          "_grade_hallucination_pass": null
+        },
+        {
+          "id": "b5",
+          "type": "basic_logic",
+          "prompt": "If today is Wednesday and Watson only books external meetings on Wed/Thu, and Thursday is a federal holiday this week, what days remain bookable this week?",
+          "notes": "Correct answer: Wednesday only (this week).",
+          "response": "Let's break down the information step by step:\n\n- **Today is Wednesday.**\n- **Watson only books external meetings on Wednesday and Thursday.**\n- **Thursday is a federal holiday this week.**\n\nSo, even though Watson is allowed to book meetings on Thursday, **Thursday is a federal holiday**, which likely means **no meetings can be booked on that day**.\n\nTherefore, the only bookable day this week is:\n\n**Wednesday.**\n\n### \u2705 Final Answer: **Wednesday** is the only bookable day this week.",
+          "latency_sec": 23.125,
+          "_grade_correctness": null,
+          "_grade_completeness": null,
+          "_grade_format": null,
+          "_grade_hallucination_pass": null
+        }
+      ],
+      "grading": "MANUAL \u2014 fill in _grade_* fields, or paste into Claude for scoring"
+    }
+  }
+}

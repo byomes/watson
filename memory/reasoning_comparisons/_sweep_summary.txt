@@ -1,0 +1,13 @@
+Candidate sweep started 2026-10-01 00:16:43
+
+qwen3.5:4b       skill_audit      ok         696.6s  /home/billyomes/watson/memory/reasoning_comparisons/20261001-002819_skill_audit.md
+qwen3.5:4b       state_of_church  ok         502.0s  /home/billyomes/watson/memory/reasoning_comparisons/20261001-003641_state_of_church.md
+granite4.2:3b    skill_audit      ok        1447.8s  /home/billyomes/watson/memory/reasoning_comparisons/20261001-010049_skill_audit.md
+granite4.2:3b    state_of_church  ok         570.8s  /home/billyomes/watson/memory/reasoning_comparisons/20261001-011020_state_of_church.md
+granite4.2:8b    skill_audit      ok        2144.7s  /home/billyomes/watson/memory/reasoning_comparisons/20261001-014605_skill_audit.md
+granite4.2:8b    state_of_church  ok         798.8s  /home/billyomes/watson/memory/reasoning_comparisons/20261001-015923_state_of_church.md
+
+Sweep finished 2026-10-01 01:59:23
+No automated grading. Each output file above still needs a human/Claude
+fabrication-check read (see compare_reasoning.py docstring) before any
+routing decision is made.

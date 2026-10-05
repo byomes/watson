@@ -9,6 +9,9 @@
 
 ## Update Log
 *Newest entries on top. Each entry is additive — old entries are never deleted, only superseded in practice.*
+- **2026-10-01** — metrovoicenews.com: Pastors reported an increase in church attendance: 22% have fewer than 50 attendees, 33% have 50-99, 30% have 100-249, and 16% have over 250.
+- **2026-10-01** — wheatley.byu.edu: About 45% of church-attenders reported seldom or never attending services according to the Wheatley Institute Survey of Lived Religion.
+- **2026-10-01** — churchgrowthengine.com: 44% of highly engaged teens report feeling torn about their relationship with their church due to various factors such as feelings of judgment or isolation from peers who do not attend.
 - **2026-09-24** — premierchristian.news: 34% of young adults are attending church more frequently. 21% report attending less often than they used to.
 - **2026-09-17** — kentuckytoday.com: Pastors report that approximately 72% of churches (22%, 27%, 32%, and 18%) fall into attendance categories with fewer than 50, 50-99, 100-249, or 250 or more people on a typical weekend.
 - **2026-09-17** — influencemagazine.com: 42% of Americans attended church in 2026, an increase from 39% in 2024.
