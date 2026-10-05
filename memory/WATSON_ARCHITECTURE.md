@@ -142,6 +142,38 @@ cron, Telegram trigger, or dashboard trigger calls this, and it must never be
 wired into one. Every command it runs on the Beelink is logged to
 `watson_twin_audit.log` next to the script (FMSPC-local, not synced here).
 
+### The Kit — Pocket Device (Orange Pi Zero 2W)
+
+Added 2026-10-05. Watson's pocket field extension: Orange Pi Zero 2W (1GB,
+Armbian), carried in a case and powered from Bill's pocket power bank. Part of
+the Watson triad (Baker Street = this Beelink, The Notebook = Bill's iPhone,
+The Wire = the SMS gateway work phone). **Status: hardware not yet in hand as
+of 2026-10-05; nothing runs on it yet.**
+
+- **Scope:** sense and act only. Capture (USB peripherals, mic, camera,
+  sensors), relay to Watson over Tailscale, act on the answer (display, Google
+  Cast screen, relay). **No local reasoning or LLM on the device**; all
+  decisions stay on the Beelink.
+- **Planned first use cases:** pulpit sermon recording (drops a finished audio
+  file into the existing FMSPC `incoming` folder, so the sermon pipeline needs
+  no changes) and ad hoc field voice notes; Cast-screen control; WiFi
+  selection (known networks > phone hotspot > open) with status reported by
+  Telegram.
+- **Code and scripts:** separate repo, `~/watson-kit` (`github.com/byomes/watson-kit`,
+  **private**), deliberately not a subfolder of `~/watson`: different hardware
+  and deploy path, and the Beelink's `.env` and databases must never be cloned
+  onto a device that can be lost. Layout: `provision/` (first-boot and SD-card
+  setup), `kit/` (device code), `services/` (systemd units), `config/`
+  (templates only), `docs/`.
+- **Repo access:** read-only GitHub deploy key scoped to `byomes/watson-kit`
+  only ("The Kit (read-only)"). Private key at `~/.ssh/watson-kit_deploy` on the
+  Beelink (not in any repo); `provision/deploy_key.sh` installs it on the Kit
+  under an `github-watson-kit` ssh alias and clones/pulls the repo.
+- **Provisioning caveat:** any systemd-nspawn/chroot step that runs `tailscaled`
+  must use `--private-network`. On 2026-10-05 a container sharing the host
+  network namespace left the Beelink's Tailscale stale (Tailscale SSH timed out
+  while LAN SSH worked); `sudo systemctl restart tailscaled` fixed it.
+
 ### PBLaptop — Windows Laptop
 
 - Secondary machine. OneDrive synced. No Ollama.
@@ -163,6 +195,7 @@ wired into one. Every command it runs on the Beelink is logged to
 | FMS site | `github.com/byomes/fms` | `~/fms` (planned) | Vercel auto on push |
 | bodyrec | `github.com/byomes/bodyrec` | `~/bodyrec` | Vercel auto on push |
 | Watson Tools | `github.com/byomes/watson-tools` | `~/watson-tools` | Vercel auto on push |
+| The Kit | `github.com/byomes/watson-kit` (private) | `~/watson-kit` | Manual: `provision/deploy_key.sh` on the device clones/pulls over a read-only deploy key |
 | Watson Review | `github.com/byomes/watson-review` | `~/watson-review` | Mostly manual — context drop-zone, not a mirror of `watson` (deliberately no shared git history) or a deploy target. Public repo. Files land in `context/` via `~/watson-review/send_context.sh <file>`, which prints a `raw.githubusercontent.com` URL to hand to Claude.ai. One automated exception (added 2026-09-17): `jobs/writing_digest/nightly_digest.py` (cron) commits/pushes `context/<project>-master.md` and `context/<project>/archives/<id>.md` nightly per enabled book project — see that job's docstring. |
 
 **All web development happens on the Beelink.** Claude Code builds on the Beelink, commits, pushes to GitHub, Vercel deploys automatically.
