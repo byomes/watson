@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-10-04*
+*Generated: 2026-10-05*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -133,6 +133,7 @@ data/
     crontab_20260905-223718.txt
     crontab_20260920-042001.txt
     crontab_20260927-042001.txt
+    crontab_20261004-042001.txt
   curator.db
   dev/
     historical_activity_backfill.json
