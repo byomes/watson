@@ -335,6 +335,9 @@ app.register_blueprint(kids_servants_web_bp)
 from jobs.congregation.servants_web import servants_web_bp
 app.register_blueprint(servants_web_bp)
 
+from jobs.congregation.groups_web import groups_web_bp
+app.register_blueprint(groups_web_bp)
+
 from jobs.congregation.catalystdb_web import catalystdb_web_bp
 app.register_blueprint(catalystdb_web_bp)
 
