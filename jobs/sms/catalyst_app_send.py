@@ -8,6 +8,7 @@ Account: CATALYST_APP_EMAIL / CATALYST_APP_PASSWORD in .env (the info@
 account; it only sees groups it has been added to). Installed 2026-10-06.
 
 Usage: python -m jobs.sms.catalyst_app_send "Teaching Team" "message text"
+Posts are made as the church: any trailing "- Watson" is stripped.
 Message text is typed via `adb input text` (ASCII only, no em dashes).
 Not a Telegram/SMS path: honors the same quiet-hours rule by caller policy,
 this module does not enforce it.
@@ -72,6 +73,10 @@ class _Phone:
 
 
 def send_group_message(group: str, message: str) -> bool:
+    # Posts go out as the church, not as Watson: never carry a Watson sign-off.
+    message = re.sub(r"\s*[-\u2013\u2014]+\s*Watson\s*$", "", message, flags=re.I).strip()
+    if not message:
+        return False
     load_dotenv(os.path.expanduser("~/watson/.env"))
     email, pw = os.getenv("CATALYST_APP_EMAIL"), os.getenv("CATALYST_APP_PASSWORD")
     serial = connect_device()
