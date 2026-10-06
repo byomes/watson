@@ -97,7 +97,7 @@ _ALLOWED_TABLES = {
         "attendance", "classroom_attendance", "kids_checkin", "kids", "members",
         "deacon_notes", "next_steps", "follow_ups",
         "deacon_visible_prayer_requests", "deacon_visible_connect_cards",
-        "team_memberships", "serving_attendance",
+        "team_memberships", "serving_attendance", "group_attendance", "group_counts",
     },
     # GUARDRAIL (Bill, 2026-09-26): never add sms_messages / sms_threads /
     # sms_scheduled_messages here. Watson SMS's message log is Bill's own
@@ -213,7 +213,15 @@ def _attendance_schema(allow_contact_info: bool) -> str:
         "  -- who actually SERVED on their team on a given Sunday (staff check this off weekly at /cat/serving, from\n"
         "  -- 2026-09-20). One row per member+team+service_date served; no row = did not serve (or not yet checked off).\n"
         "  -- Differs from team_memberships (the roster) and from attendance (who was AT church). join member_id =\n"
-        "  -- members.id; match team_name with LIKE '%partial%' like team_memberships."
+        "  -- members.id; match team_name with LIKE '%partial%' like team_memberships.\n"
+        "group_attendance(id INTEGER, series TEXT, event_date TEXT, member_id INTEGER)\n"
+        "  -- who attended a small group / special event session (Men's Fraternity, Woven, Remix, Men's Breakfast, etc),\n"
+        "  -- checked off by group leaders at /cat/groups (from 2026-10-07). series looks like 'Small Groups|Men''s Fraternity\n"
+        "  -- Bible Study' or 'Special Events|The Names of God' -- always match with series LIKE '%partial%'. join member_id =\n"
+        "  -- members.id. No row = did not attend (or not yet recorded). Celebrate Recovery is NEVER recorded by name.\n"
+        "group_counts(series TEXT, event_date TEXT, guests INTEGER, headcount INTEGER)\n"
+        "  -- per-session non-member guest count (guests) for named groups, and the head count (headcount) for Celebrate\n"
+        "  -- Recovery, which is head count only. Total people at a named session = group_attendance rows + guests."
     )
 
 _WEB_SCHEMA = """
