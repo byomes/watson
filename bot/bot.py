@@ -4488,13 +4488,22 @@ async def compute_team_chat_reply(name: str, text: str) -> str | None:
 
     lookup = _extract_team_lookup(text)
     classroom = _extract_classroom_lookup(text) if not lookup else None
-    calendar = _extract_calendar_lookup(text) if not lookup and not classroom else False
-    web_metric = _extract_web_metric_lookup(text) if not lookup and not classroom and not calendar else None
+    # Church-wide events (all four Subsplash calendars) -- public data, open to
+    # every team-chat user; see jobs/church_calendar/chat.py. Returns None for
+    # anything that isn't a church-event question, so every other route is unchanged.
+    church_events = None
+    if not lookup and not classroom:
+        from jobs.church_calendar.chat import answer as _church_events_answer
+        church_events = await asyncio.to_thread(_church_events_answer, text)
+    calendar = _extract_calendar_lookup(text) if not lookup and not classroom and not church_events else False
+    web_metric = _extract_web_metric_lookup(text) if not lookup and not classroom and not church_events and not calendar else None
     if lookup:
         person_name, field = lookup
         reply = await asyncio.to_thread(_format_team_lookup_reply, person_name, field, name)
     elif classroom:
         reply = await asyncio.to_thread(_format_classroom_reply, classroom)
+    elif church_events:
+        reply = church_events
     elif calendar:
         reply = await asyncio.to_thread(_format_calendar_reply, text)
     elif web_metric:
