@@ -82,9 +82,45 @@ def _resolve_event_id(question: str) -> int | None:
                 _norm(r["event_name"].lower()) in phrase_norm or phrase_norm in _norm(r["event_name"].lower())
             ))
         ]
-        return matches[0]["id"] if len(matches) == 1 else None
+        if len(matches) == 1:
+            return matches[0]["id"]
+        # Verbatim/substring match failed -- try distinctive-word matching
+        # ("billiard outing" -> "Men's Fraternity Billiards Outing"). Added
+        # 2026-10-06 after two billiard questions missed the fast path and
+        # went to the LLM. Still returns None if nothing (or >1 event) matches.
+        return _token_match(phrase, rows)
 
     return rows[0]["id"] if len(rows) == 1 else None
+
+
+# Words that appear in many event names and say nothing about WHICH event.
+_GENERIC_WORDS = {"event", "events", "outing", "night", "party", "and", "or", "of", "a", "an", "in", "at", "day", "annual"}
+
+
+def _stem(w: str) -> str:
+    w = w.replace("'s", "").strip("'")
+    return w[:-1] if len(w) > 3 and w.endswith("s") else w
+
+
+def _tokens(text: str) -> set[str]:
+    words = re.findall(r"[a-z0-9']+", text.lower())
+    return {_stem(w) for w in words if w not in _STOPWORDS and w not in _GENERIC_WORDS and len(_stem(w)) >= 3}
+
+
+def _token_match(phrase: str, rows) -> int | None:
+    """Pick the single tracked event sharing the most distinctive words with
+    `phrase`. Ties or zero overlap -> None (caller falls back to the LLM)."""
+    pt = _tokens(phrase)
+    if not pt:
+        return None
+    # Every distinctive word asked about must belong to the event, so "men's
+    # class" can't latch onto "Men's Fraternity Billiards Outing" via "men".
+    scored = sorted(((len(pt), r["id"]) for r in rows if pt <= _tokens(r["event_name"])), reverse=True)
+    if not scored:
+        return None
+    if len(scored) > 1 and scored[1][0] == scored[0][0]:
+        return None
+    return scored[0][1]
 
 
 # Checked first, independent of any specific event — a question about what's
