@@ -32,7 +32,6 @@ groups_web_bp = Blueprint("groups_web", __name__)
 
 _CALENDARS = ("Small Groups", "Special Events")
 _SESSION_WINDOW_DAYS = 45
-_ROSTER_LOOKBACK_DAYS = 120
 
 
 def _api_key() -> str:
@@ -55,6 +54,15 @@ def _bootstrap() -> None:
                 member_id INTEGER NOT NULL REFERENCES members(id),
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(series, event_date, member_id)
+            )""")
+        # A group's regulars (like the kids app's class roster): everyone listed here
+        # shows with a toggle each session. Marking someone present adds them.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS group_roster (
+                series TEXT NOT NULL,
+                member_id INTEGER NOT NULL REFERENCES members(id),
+                added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (series, member_id)
             )""")
         conn.execute("""
             CREATE TABLE IF NOT EXISTS group_counts (
@@ -130,14 +138,14 @@ def state():
             out["guests"], out["headcount"] = c["guests"], c["headcount"]
         if out["counts_only"]:
             return jsonify(out), 200
-        lo = (date.today() - timedelta(days=_ROSTER_LOOKBACK_DAYS)).isoformat()
         rows = conn.execute(
             """SELECT m.id, m.name,
                       EXISTS(SELECT 1 FROM group_attendance g2 WHERE g2.series=? AND g2.event_date=? AND g2.member_id=m.id) AS present
                FROM members m
-               WHERE m.active NOT IN ('disconnected','deceased') AND m.id IN (
-                   SELECT member_id FROM group_attendance WHERE series=? AND event_date >= ?)
-               ORDER BY m.name""", (series, event_date, series, lo)).fetchall()
+               WHERE m.active NOT IN ('disconnected','deceased') AND (
+                   m.id IN (SELECT member_id FROM group_roster WHERE series=?)
+                   OR m.id IN (SELECT member_id FROM group_attendance WHERE series=? AND event_date=?))
+               ORDER BY m.name""", (series, event_date, series, series, event_date)).fetchall()
         out["roster"] = [{"id": r["id"], "name": r["name"], "present": bool(r["present"])} for r in rows]
     return jsonify(out), 200
 
@@ -168,6 +176,7 @@ def toggle():
         if present:
             conn.execute("INSERT OR IGNORE INTO group_attendance (series, event_date, member_id) VALUES (?,?,?)",
                          (series, event_date, member_id))
+            conn.execute("INSERT OR IGNORE INTO group_roster (series, member_id) VALUES (?,?)", (series, member_id))
         else:
             conn.execute("DELETE FROM group_attendance WHERE series=? AND event_date=? AND member_id=?",
                          (series, event_date, member_id))
@@ -196,3 +205,25 @@ def counts():
                         ON CONFLICT(series, event_date) DO UPDATE SET guests=excluded.guests, headcount=excluded.headcount""",
                      (series, event_date, guests or 0, headcount))
     return jsonify({"guests": guests or 0, "headcount": headcount}), 200
+
+
+@groups_web_bp.route("/api/cat/groups/remove", methods=["POST"])
+@_require_key
+def remove():
+    """Takes someone off a group's regulars list (like the kids app's X). Also clears
+    their mark for the date on screen, so they vanish from what the leader sees now.
+    Other dates' attendance history is kept."""
+    d = request.get_json(force=True) or {}
+    series, event_date, member_id = d.get("series", ""), d.get("event_date", ""), d.get("member_id")
+    if is_counts_only(series):
+        return jsonify({"error": "this group records a head count only, no names"}), 403
+    if not isinstance(member_id, int):
+        return jsonify({"error": "member_id (int) is required"}), 400
+    err = _valid(series, event_date)
+    if err:
+        return jsonify({"error": err}), 400
+    with _conn() as conn:
+        conn.execute("DELETE FROM group_roster WHERE series=? AND member_id=?", (series, member_id))
+        conn.execute("DELETE FROM group_attendance WHERE series=? AND event_date=? AND member_id=?",
+                     (series, event_date, member_id))
+    return jsonify({"member_id": member_id, "removed": True}), 200
