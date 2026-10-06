@@ -347,10 +347,15 @@ def get_vitals() -> dict:
         resp = _request("GET", "/health", timeout=10)
         resp.raise_for_status()
         data = resp.json()
-        battery = data.get("checks", {}).get("battery:level", {})
+        checks = data.get("checks", {})
+        battery = checks.get("battery:level", {})
+        # battery:charging observedValue is 0 unplugged, non-zero (5 seen
+        # on USB power, 2026-10-06) while charging.
+        charging = checks.get("battery:charging", {}).get("observedValue")
         return {
             "ok": data.get("status") == "pass",
             "battery_pct": battery.get("observedValue"),
+            "charging": bool(charging) if charging is not None else None,
             "detail": data.get("status", "unknown"),
         }
     except Exception as exc:

@@ -21,6 +21,7 @@ silence.
 import json
 import logging
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 from pathlib import Path
 
 import requests
@@ -31,7 +32,12 @@ from jobs.sms import adb_client, gateway_client
 
 log = logging.getLogger(__name__)
 
-LOW_BATTERY_PCT = 15
+LOW_BATTERY_PCT = 20
+# Plug-in nudge goes out in the evening only (Bill plugs the phone in
+# overnight; it is not kept on the charger 24/7 to spare the battery).
+# Drain measured 2026-10-06 is ~1%/hour, so a 20% alert leaves ~20h of margin.
+BATTERY_ALERT_START_HOUR = 19
+BATTERY_ALERT_END_HOUR = 22
 REALERT_INTERVAL_SECONDS = 3600
 
 _STATE_PATH = Path(__file__).resolve().parents[2] / "data" / "sms_gateway_alert_state.json"
@@ -105,13 +111,22 @@ def check_heartbeat() -> dict:
              "Texts may not be getting through, worth checking on it.\n\n - Watson",
         recovery_text="Watson SMS: the gateway phone is back online.\n\n - Watson",
     )
-    low_battery = vitals.get("battery_pct") is not None and vitals["battery_pct"] < LOW_BATTERY_PCT
-    _maybe_alert(
-        "battery", low_battery,
-        text=f"Watson SMS: the gateway phone's battery is at {vitals.get('battery_pct')}%. "
-             "Might want to plug it in.\n\n - Watson",
-        recovery_text="Watson SMS: the gateway phone's battery is back to a healthy level.\n\n - Watson",
+    needs_plug = (
+        vitals.get("battery_pct") is not None
+        and vitals["battery_pct"] < LOW_BATTERY_PCT
+        and not vitals.get("charging")
     )
+    hour = datetime.now(ZoneInfo("America/New_York")).hour
+    in_window = BATTERY_ALERT_START_HOUR <= hour < BATTERY_ALERT_END_HOUR
+    # Outside the evening window a still-low battery just waits (no alert, no
+    # false "recovered" message); it only clears when plugged in or charged.
+    if in_window or not needs_plug:
+        _maybe_alert(
+            "battery", needs_plug,
+            text=f"Watson SMS: the gateway phone's battery is at {vitals.get('battery_pct')}%. "
+                 "Please plug it in tonight.\n\n - Watson",
+            recovery_text="Watson SMS: the gateway phone is charging or back to a healthy level, thank you.\n\n - Watson",
+        )
 
     adb_reachable = adb_client.connect_device() is not None
     _maybe_alert(
