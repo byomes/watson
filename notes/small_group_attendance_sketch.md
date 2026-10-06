@@ -63,5 +63,5 @@ team chat (elders, deacons, staff). Follow-up goes to shepherds as elder/deacon 
 ## Order of work
 1. group_attendance table + recording (roster page first) for all series except CR.
 2. serving log: ALREADY EXISTS -- serving_attendance via wtsn.me/cat/serving (weekly staff check-off, since 2026-09-20; now in team chat whitelist)
-3. Per-person Connection page (read-only join of the above) + team chat "how connected is X".
+3. Per-person Connection page: BUILT (wtsn.me/cat/connection, draft)
 4. Shepherd nudges for worship-only/dropping people (needs Bill's approval).
