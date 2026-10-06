@@ -71,7 +71,63 @@ def _detail_line(r: dict) -> str:
     return line
 
 
+_ALIASES = {"frat": "fraternity"}
+_REG_FILLER = set(
+    "signed up sign ups signup signups registered registration registrations registering rsvp rsvpd rsvps "
+    "how many who whos coming going people tomorrow tonight night morning today week weekend monday tuesday "
+    "wednesday thursday friday saturday sunday names name list".split())
+_REG_TRIGGER = re.compile(
+    r"\b(signed up|sign(?:ed)? ?ups?|registered|registrations?|registering|rsvp'?d?|rsvps|who(?:'s| is) coming|"
+    r"how many (?:are )?(?:coming|going))\b", re.I)
+
+
+def registrations_answer(text: str) -> str | None:
+    """"How many are signed up for Men's Fraternity tomorrow night?" answered from the local
+    copy of Subsplash registrations (jobs/church_calendar/registrations.py). Returns None
+    unless the question asks about signups AND names a known upcoming event."""
+    from core.database import get_connection
+    low = text.lower().replace("’", "'")
+    if not _REG_TRIGGER.search(low) or re.search(r"\b(attend\w*|missed|present)\b", low):
+        return None
+    words = [_ALIASES.get(w, w) for w in _norm(low).split() if w not in _STOP and w not in _REG_FILLER]
+    if not words:
+        return None
+    win = _window(low)
+    with get_connection() as conn:
+        rows = [dict(r) for r in conn.execute(
+            "SELECT short_code, title, start_at, registered FROM subsplash_event_regs "
+            "WHERE date(start_at, 'localtime') >= date('now','localtime') ORDER BY start_at")]
+        rows = [r for r in rows if all(w in _norm(r["title"]).split() for w in words)]
+
+        def local_date(r):
+            return datetime.fromisoformat(r["start_at"].replace("Z", "+00:00")).astimezone().date()
+
+        if win is not None:
+            lo, hi = date.today() + timedelta(days=win[0]), date.today() + timedelta(days=win[1])
+            rows = [r for r in rows if lo <= local_date(r) <= hi] or rows
+        if not rows:
+            return None
+        picked: dict[str, dict] = {}
+        for r in rows:  # next occurrence of each distinct event title
+            picked.setdefault(r["title"], r)
+        lines = []
+        for r in picked.values():
+            d = local_date(r)
+            n = r["registered"] or 0
+            line = f"{r['title']} ({d.strftime('%a %b')} {d.day}): {n} signed up"
+            if n and re.search(r"\bwho\b|names?|list", low):
+                names = [f"{x['first_name'] or ''} {x['last_name'] or ''}".strip() for x in conn.execute(
+                    "SELECT first_name, last_name FROM subsplash_registrations WHERE short_code=? "
+                    "ORDER BY last_name, first_name", (r["short_code"],))]
+                line += ": " + ", ".join(names)
+            lines.append(line)
+    return "\n".join(lines)
+
+
 def answer(text: str) -> str | None:
+    reg = registrations_answer(text)
+    if reg:
+        return reg
     low = text.lower().replace("’", "'")
     if not _TRIGGER.search(low) or _EXCLUDE.search(low):
         return None

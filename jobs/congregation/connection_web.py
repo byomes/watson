@@ -95,6 +95,16 @@ def state():
     events: dict[int, list[dict]] = {}
     for r in regs:
         events.setdefault(r["member_id"], []).append({"event": r["event"], "date": (r["at"] or "")[:10]})
+    # Plus every Subsplash registration copied by jobs/church_calendar/registrations.py
+    # (de-duplicated against the email-detected rows above by event title).
+    with _watson_conn() as wconn:
+        sub = wconn.execute(
+            """SELECT member_id, event_title, event_start FROM subsplash_registrations
+               WHERE member_id IS NOT NULL AND date(COALESCE(submitted_at, first_seen_at)) >= ?""", (lo,)).fetchall()
+    for r in sub:
+        have = {e["event"].lower() for e in events.get(r["member_id"], [])}
+        if r["event_title"].lower() not in have:
+            events.setdefault(r["member_id"], []).append({"event": r["event_title"], "date": (r["event_start"] or "")[:10]})
 
     with _conn() as conn:
         coverage = {
