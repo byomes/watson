@@ -4878,3 +4878,71 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - b7a3af2 docs: file map 2026-10-05
 - 7b8b74b Add Bill as direct recipient of the weekly /cat/serving reminder
 - 64d3cfd docs: architecture update 2026-10-04
+
+---
+
+## Recent Changes — 2026-10-06
+
+### ~/watson
+- cd9633f docs: bugs/backlog export 2026-10-06
+- 0f4048b docs: file map 2026-10-06
+- 32f9b0c kb sync: index before push, retry stuck pushes and indexing on later runs
+- 04ad245 kb: sync 2 transcript(s) to kb/documents (same-day)
+- 94b1a75 file_map: include ~/watson-kit in generated file map
+- f4c103b update_arch: include ~/watson-kit in daily changelog repos
+- 804ae24 docs: add The Kit (pocket device) and watson-kit repo to architecture
+- cf3b66b Untrack remaining tracked .log files (now covered by *.log in .gitignore)
+- d8076d9 Ignore *.log; untrack two stray log files
+- 6ccd1d1 Add alt_phone migration, model-qualify runs, ghostwritten KB articles, chat scripts; remove spent one-off email script
+- 6fc7992 Fluro: factor shared logic into fluro_common, update fluro_pull and fluro_apply
+- a2c661a Network monitor: group devices by user in collapsible sections, add last-online time
+- 6889300 docs: architecture update 2026-10-05
+
+### ~/watson-tools
+- ea30585 SMS: show reactions as emoji in thread list preview
+- 4aae9a0 SMS: cover Apple removed-tapbacks, emoji reactions, and media reactions
+- 44e88da SMS: show tapback reactions as just the emoji, not the quoted message
+- 84e6579 SMS: attach thread-pane resize observer when the thread view mounts
+- bc12eb3 SMS: preserve soft returns in bubbles; fix thread height behind composer (dvh + safe-area)
+
+### ~/watson-kit
+- 60319b1 docs: shutdown alias is "shut down" (two words) and plain "shutdown"; reboot is "restart"
+- bbfb88e docs: planned aliases list (includes kit off = clean shutdown)
+- 70f03b7 screen: retry the Miracast connection once; flag loudly when only sound-only fallback worked
+- 3a0007c Splash: start typing ~4 s in (longer blinking-cursor pause)
+- 13a37f3 docs: external drives and USB role
+- d55e544 wifi.py: fixed preferences path so the root-run auto-return timer honors the preferred order
+- ff0a689 drive.py: keep mount details current after auto-mount in put/get; fix test (pipefail false alarm) and test the unmounted-first path
+- 91c9fec drive.py: read/write external USB drives (list/mount/ls/get/put/eject); usb_role.sh + overlay for host mode
+- 71bffc1 screens.py: decode UTF-8 SSIDs in the policy message
+- ad6aad2 wifi.py use: accept a unique partial network name
+- 4d6140c wifi.py: decode UTF-8 SSIDs, add --match, save before applying (apply detached)
+- 0ff2561 wifi.py: show every band a network is on; docs for the WiFi manager
+- b2ee3fe toolkit: add pyyaml to the Kit venv (wifi.py reads netplan)
+- add8dbe wifi.py: the Kit's WiFi manager (status/list/scan/add/remove/use/prefer/best); make_content.py (slides to castable video)
+- 6aa64cf make_content.py: turn images/PDF/title text into a castable video; screen.py show --content <name>
+- 7c063cf README: design principles (terminal first, desktop on demand, nothing listens by default)
+- 7c3bf12 kit-desktop.service: treat SIGTERM stop as a clean exit
+- 1aedd07 screen.py stop: instant fast path via the remembered casting process, discovery only as fallback
+- 2e8d9ad Cast a live desktop: --live X display capture to a Miracast-over-LAN screen; screen.py show --content desktop
+- a0e13ae Desktop: TigerVNC 1.13+ keeps the password in ~/.config/tigervnc/passwd
+- 09cec8c docs: queue a /menu-style command list for the Kit terminal
+- 9630017 Remote desktop for the Kit: virtual 1280x720 desktop + noVNC in a browser, Tailscale-only, on demand
+- 73cfd71 screen.py stop: also stop the media file server when nothing is being cast
+- b7dffd1 docs: network-aware permission policy
+- 0f25e9a Policy: approved list applies only on home networks (name + router match); open on any other network
+- 92140af docs: screen multi-tool quick reference
+- b1f7e8b Screen multi-tool: dispatcher (screen.py) + 13 pluggable drivers, per-screen memory, approval gate, local HDMI/USB ports
+- ea817ab Add screens.py: core "find available screens" with approved-list gate; mice_source refuses unapproved screens
+- b7c9da4 MICE source: --forever mode with reconnect and clean SIGTERM stop; on-demand systemd unit
+- 1034b5f Add MS-MICE (Miracast over LAN) source; RTSP keep-alive so the screen holds the session
+- 59d6983 Watchdog fix (15 s, chip max is 16) in setup script; mark Miracast p2p_connect as hanging this board
+- da57cb0 miracast_source: --isolate mode (drop STA WiFi while P2P runs) and hard timeouts on radio calls
+- 9a14ea9 Installer: skip packages that would remove others or install a network manager; drop bettercap
+- 8e24bc6 Add USB flash-drive persona: Kit presents a read-only FAT32 drive over the OTG port
+- 7cee91f Toolkit: add device personas (USB gadget, DLNA, BT, HAP, MQTT, AP) and keep listeners off by default
+- a52f6dc Add Kit toolkit list + installer, experimental Miracast source, network probe
+- d1f9dc8 Add screen routes (AirPlay, Cast scan, HDMI loop), splash video renderer, WiFi provisioning
+- 0cae041 Add Watson splash page for the Kit: page, service, HDMI and Cast launchers, notes
+- 4985214 Add provision/deploy_key.sh to install read-only deploy key and clone repo
+- d5f8fd5 Initial skeleton for The Kit
