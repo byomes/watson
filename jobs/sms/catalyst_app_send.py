@@ -69,7 +69,10 @@ class _Phone:
         return None
 
     def type(self, text):
-        self.sh("input", "text", text.replace(" ", "%s").replace("!", "\\!").replace("&", "\\&").replace("(", "\\(").replace(")", "\\)"))
+        # adb joins args and the device shell re-parses them, so escape every
+        # shell metacharacter; spaces become %s for `input text`.
+        out = "".join("\\" + c if c in "!&()'\"$;|<>*?`#\\" else c for c in text)
+        self.sh("input", "text", out.replace(" ", "%s"))
 
 
 def send_group_message(group: str, message: str) -> bool:
@@ -142,11 +145,18 @@ def send_group_message(group: str, message: str) -> bool:
     p.type(message)
     time.sleep(1)
     # Send arrow sits at the right end of the (now raised) compose row.
-    row = p.find(text=message.split()[0], contains=True, cls="android.widget.EditText")
-    if not row:
+    # The compose box grows (and the arrow stays pinned to its bottom edge)
+    # for long messages, so tap near the box's bottom, not its vertical middle.
+    row = None
+    for n in p.ui().iter("node"):
+        if n.get("class") == "android.widget.EditText" and message.split()[0] in n.get("text", ""):
+            m = re.match(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]", n.get("bounds"))
+            row = int(m.group(4))
+            break
+    if row is None:
         log.error("catalyst_app_send: typed text not found")
         return False
-    p.sh("input", "tap", "646", str(row[1]))
+    p.sh("input", "tap", "646", str(row - 38))
     time.sleep(3)
     ok = p.find(text=message[:30], contains=True) is not None and p.find(text="Message " + group) is not None
     # Leave the app running (not force-stopped) or Android drops its push

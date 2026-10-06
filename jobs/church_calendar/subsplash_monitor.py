@@ -87,13 +87,13 @@ def _bootstrap() -> None:
 _bootstrap()
 
 
-def _scrape_events() -> list[dict]:
+def _scrape_events(url: str = CALENDAR_URL) -> list[dict]:
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         context = browser.new_context(user_agent=_BROWSER_USER_AGENT)
         page = context.new_page()
         try:
-            page.goto(CALENDAR_URL, wait_until="networkidle", timeout=30000)
+            page.goto(url, wait_until="networkidle", timeout=30000)
         except Exception as exc:
             browser.close()
             raise ScrapeError(f"could not load calendar embed: {exc}")
