@@ -129,15 +129,16 @@ def state():
     event_date = event_date if event_date in dates else (dates[0] if dates else "")
     out = {"series_list": series_list, "series": series, "dates": dates, "event_date": event_date,
            "counts_only": is_counts_only(series), "roster": [], "guests": 0, "headcount": None}
-    if not event_date:
-        return jsonify(out), 200
     with _conn() as conn:
-        c = conn.execute("SELECT guests, headcount FROM group_counts WHERE series=? AND event_date=?",
-                         (series, event_date)).fetchone()
-        if c:
-            out["guests"], out["headcount"] = c["guests"], c["headcount"]
+        if event_date:
+            c = conn.execute("SELECT guests, headcount FROM group_counts WHERE series=? AND event_date=?",
+                             (series, event_date)).fetchone()
+            if c:
+                out["guests"], out["headcount"] = c["guests"], c["headcount"]
         if out["counts_only"]:
             return jsonify(out), 200
+        # event_date may be "" (group has not met yet): then nobody is "present" and the
+        # leader can still build the regulars list.
         rows = conn.execute(
             """SELECT m.id, m.name,
                       EXISTS(SELECT 1 FROM group_attendance g2 WHERE g2.series=? AND g2.event_date=? AND g2.member_id=m.id) AS present
@@ -219,11 +220,33 @@ def remove():
         return jsonify({"error": "this group records a head count only, no names"}), 403
     if not isinstance(member_id, int):
         return jsonify({"error": "member_id (int) is required"}), 400
-    err = _valid(series, event_date)
-    if err:
-        return jsonify({"error": err}), 400
+    if series not in {x["series"] for x in _series_list()}:
+        return jsonify({"error": "unknown series"}), 400
+    if event_date and event_date not in _session_dates(series):
+        return jsonify({"error": "date must be a recent session of this group"}), 400
     with _conn() as conn:
         conn.execute("DELETE FROM group_roster WHERE series=? AND member_id=?", (series, member_id))
-        conn.execute("DELETE FROM group_attendance WHERE series=? AND event_date=? AND member_id=?",
-                     (series, event_date, member_id))
+        if event_date:
+            conn.execute("DELETE FROM group_attendance WHERE series=? AND event_date=? AND member_id=?",
+                         (series, event_date, member_id))
     return jsonify({"member_id": member_id, "removed": True}), 200
+
+
+@groups_web_bp.route("/api/cat/groups/roster_add", methods=["POST"])
+@_require_key
+def roster_add():
+    """Add someone to a group's regulars without marking them present (used to set up
+    the list before the group's first session, and by anyone adding a regular)."""
+    d = request.get_json(force=True) or {}
+    series, member_id = d.get("series", ""), d.get("member_id")
+    if is_counts_only(series):
+        return jsonify({"error": "this group records a head count only, no names"}), 403
+    if series not in {x["series"] for x in _series_list()}:
+        return jsonify({"error": "unknown series"}), 400
+    if not isinstance(member_id, int):
+        return jsonify({"error": "member_id (int) is required"}), 400
+    with _conn() as conn:
+        if not conn.execute("SELECT 1 FROM members WHERE id=?", (member_id,)).fetchone():
+            return jsonify({"error": "no such member"}), 404
+        conn.execute("INSERT OR IGNORE INTO group_roster (series, member_id) VALUES (?,?)", (series, member_id))
+    return jsonify({"member_id": member_id, "added": True}), 200
