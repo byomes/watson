@@ -97,7 +97,7 @@ _ALLOWED_TABLES = {
         "attendance", "classroom_attendance", "kids_checkin", "kids", "members",
         "deacon_notes", "next_steps", "follow_ups",
         "deacon_visible_prayer_requests", "deacon_visible_connect_cards",
-        "team_memberships",
+        "team_memberships", "serving_attendance",
     },
     # GUARDRAIL (Bill, 2026-09-26): never add sms_messages / sms_threads /
     # sms_scheduled_messages here. Watson SMS's message log is Bill's own
@@ -208,7 +208,12 @@ def _attendance_schema(allow_contact_info: bool) -> str:
         "  -- member) or leadership_roles (staff/elder/deacon office). position is their role WITHIN that team (e.g.\n"
         "  -- 'Nursery Caretaker', 'Vocalist') and can be NULL. join member_id = members.id. Team names are\n"
         "  -- inconsistently suffixed (\"WORSHIP TEAM\" but plain \"NURSERY\", \"DEACONS\", \"SECURITY\") so always match\n"
-        "  -- with team_name LIKE '%partial%', never exact equality, using whatever phrase the asker used."
+        "  -- with team_name LIKE '%partial%', never exact equality, using whatever phrase the asker used.\n"
+        "serving_attendance(id INTEGER, member_id INTEGER, team_name TEXT, service_date TEXT)\n"
+        "  -- who actually SERVED on their team on a given Sunday (staff check this off weekly at /cat/serving, from\n"
+        "  -- 2026-09-20). One row per member+team+service_date served; no row = did not serve (or not yet checked off).\n"
+        "  -- Differs from team_memberships (the roster) and from attendance (who was AT church). join member_id =\n"
+        "  -- members.id; match team_name with LIKE '%partial%' like team_memberships."
     )
 
 _WEB_SCHEMA = """
