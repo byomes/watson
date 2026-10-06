@@ -86,6 +86,10 @@ def registrations_answer(text: str) -> str | None:
     copy of Subsplash registrations (jobs/church_calendar/registrations.py). Returns None
     unless the question asks about signups AND names a known upcoming event."""
     from core.database import get_connection
+    with get_connection() as _c:
+        _p = _c.execute("SELECT value FROM system_settings WHERE key='subsplash_registrations_paused'").fetchone()
+    if _p and _p["value"] == "1":
+        return None  # paused: Bill is waiting on Subsplash's answer about permission
     low = text.lower().replace("’", "'")
     if not _REG_TRIGGER.search(low) or re.search(r"\b(attend\w*|missed|present)\b", low):
         return None

@@ -95,6 +95,14 @@ _CLICK_ROW_JS = r"""
 """
 
 
+def is_paused() -> bool:
+    """Kill switch (system_settings 'subsplash_registrations_paused' = '1'): while set, nothing reads
+    Subsplash, and team chat / the Connection page ignore the stored registrations."""
+    with get_connection() as conn:
+        row = conn.execute("SELECT value FROM system_settings WHERE key='subsplash_registrations_paused'").fetchone()
+    return bool(row and row["value"] == "1")
+
+
 def _bootstrap() -> None:
     with get_connection() as conn:
         cols = {r[1] for r in conn.execute("PRAGMA table_info(subsplash_event_regs)")}
@@ -415,6 +423,9 @@ def _streak(delta: int | None) -> int:
 
 
 def run() -> None:
+    if is_paused():
+        log.info("paused (system_settings subsplash_registrations_paused); not reading Subsplash")
+        return
     try:
         result = pull()  # stores each event as it is read
     except Exception as exc:

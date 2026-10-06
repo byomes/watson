@@ -98,7 +98,8 @@ def state():
     # Plus every Subsplash registration copied by jobs/church_calendar/registrations.py
     # (de-duplicated against the email-detected rows above by event title).
     with _watson_conn() as wconn:
-        sub = wconn.execute(
+        _p = wconn.execute("SELECT value FROM system_settings WHERE key='subsplash_registrations_paused'").fetchone()
+        sub = [] if (_p and _p["value"] == "1") else wconn.execute(
             """SELECT member_id, event_title, event_start FROM subsplash_registrations
                WHERE member_id IS NOT NULL AND date(COALESCE(submitted_at, first_seen_at)) >= ?""", (lo,)).fetchall()
     for r in sub:
