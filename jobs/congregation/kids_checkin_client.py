@@ -71,6 +71,10 @@ class KidsCheckinClientError(RuntimeError):
     pass
 
 
+class ApiAccessDisabled(KidsCheckinClientError):
+    """Raised by every function in this module that calls core.subsplash.com."""
+
+
 def _phone_host() -> str:
     host = os.getenv("FLURO_PHONE_ADB_HOST", "").strip()
     if not host:
@@ -416,6 +420,11 @@ def pull_full_history() -> dict:
     outer wait_for is cheap defense-in-depth against any future unguarded
     await slipping in and hanging the whole pull silently again -- raises a
     clear TimeoutError instead."""
+    raise ApiAccessDisabled(
+            "Subsplash/Fluro API access is switched off (Bill, 2026-10-06): their robots.txt disallows automated "
+            "access and we have no permission to use their API. Read the dashboard pages instead "
+            "(see jobs/church_calendar/registrations.py).")
+
     return asyncio.run(asyncio.wait_for(_pull_full_history_async(), timeout=660))
 
 
@@ -506,6 +515,11 @@ def pull_events_by_id(event_ids: list[str]) -> dict:
     """Targeted backfill for a small, known list of event instance ids --
     much less likely to trip a rate limit than re-running the full
     88-instance pull_full_history() just to patch a handful of dates."""
+    raise ApiAccessDisabled(
+            "Subsplash/Fluro API access is switched off (Bill, 2026-10-06): their robots.txt disallows automated "
+            "access and we have no permission to use their API. Read the dashboard pages instead "
+            "(see jobs/church_calendar/registrations.py).")
+
     return asyncio.run(_pull_events_by_id_async(event_ids))
 
 

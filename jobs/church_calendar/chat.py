@@ -95,12 +95,12 @@ def registrations_answer(text: str) -> str | None:
     win = _window(low)
     with get_connection() as conn:
         rows = [dict(r) for r in conn.execute(
-            "SELECT short_code, title, start_at, registered FROM subsplash_event_regs "
-            "WHERE date(start_at, 'localtime') >= date('now','localtime') ORDER BY start_at")]
+            "SELECT event_uuid, title, start_date, registered FROM subsplash_event_regs "
+            "WHERE has_form = 1 AND start_date >= date('now','localtime') ORDER BY start_date")]
         rows = [r for r in rows if all(w in _norm(r["title"]).split() for w in words)]
 
         def local_date(r):
-            return datetime.fromisoformat(r["start_at"].replace("Z", "+00:00")).astimezone().date()
+            return date.fromisoformat(r["start_date"])
 
         if win is not None:
             lo, hi = date.today() + timedelta(days=win[0]), date.today() + timedelta(days=win[1])
@@ -117,8 +117,8 @@ def registrations_answer(text: str) -> str | None:
             line = f"{r['title']} ({d.strftime('%a %b')} {d.day}): {n} signed up"
             if n and re.search(r"\bwho\b|names?|list", low):
                 names = [f"{x['first_name'] or ''} {x['last_name'] or ''}".strip() for x in conn.execute(
-                    "SELECT first_name, last_name FROM subsplash_registrations WHERE short_code=? "
-                    "ORDER BY last_name, first_name", (r["short_code"],))]
+                    "SELECT first_name, last_name FROM subsplash_registrations WHERE event_uuid=? "
+                    "ORDER BY last_name, first_name", (r["event_uuid"],))]
                 line += ": " + ", ".join(names)
             lines.append(line)
     return "\n".join(lines)
