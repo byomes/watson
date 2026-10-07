@@ -945,6 +945,13 @@ def _format_rows(rows: list[dict], domain: str | None = None) -> str:
     if rows and all(set(r.keys()) == {"service_date", "campus", "total"} for r in rows):
         from jobs.analytics.attendance_reply import format_weekly_attendance_reply
         return format_weekly_attendance_reply(rows)
+    # CLASSROOM ROSTER (cdb_query.py's "which kids were in a given class"
+    # block): rows of (role, name) -> "Adults: a, b" / "Kids: c, d". 2026-10-07.
+    if rows and all(set(r.keys()) == {"role", "name"} for r in rows):
+        _adults = [str(r["name"]).strip() for r in rows if r["role"] == "Adults"]
+        _kids = [str(r["name"]).strip() for r in rows if r["role"] == "Kids"]
+        return (f"Adults: {', '.join(_adults) if _adults else 'none recorded'}\n"
+                f"Kids: {', '.join(_kids) if _kids else 'none recorded'}")
     if len(rows) == 1 and len(rows[0]) == 1:
         return str(_fmt_value(next(iter(rows[0].values()))))
     if len(rows) == 1:

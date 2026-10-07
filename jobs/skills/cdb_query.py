@@ -627,11 +627,27 @@ def _pattern_match(question: str, last_sun: str, weeks: list) -> str | None:
     _kids_class_past = re.search(r"\bwho\s+(?:was|were)\s+(?:in|at)\s+(?:the\s+)?(?:\w+\s+)?" + re.escape(_kids_class_word), q) if _kids_class_word else None
     if _kids_class_label and (re.search(r"\bkids?\b", q) or _kids_class_past):
         _kids_event_date = s_date.replace("service_date", "event_date")
+        # 2026-10-07: reply is "Adults: ..." then "Kids: ..." (Bill's request).
+        # Adults = who actually served that day, from serving_attendance
+        # (team check-ins), not the standing team roster. Rows carry a
+        # `role` column so data_chat._format_rows can build the two lines.
+        _adult_teams = {
+            "Nursery": ("NURSERY", "9AM NURSERY TEAM"),
+            "Toddler": ("TODDLER",),
+            "Pre-K": ("PRE-K", "PREK"),
+            "Elementary": ("ELEMENTARY KIDS CHURCH",),
+        }[_kids_class_label]
+        _team_in = ", ".join(f"'{t}'" for t in _adult_teams)
         return (
-            f"SELECT (k.first_name || ' ' || IFNULL(k.last_name, '')) as name "
+            f"SELECT role, name FROM ("
+            f"SELECT 'Adults' as role, m.name as name FROM serving_attendance "
+            f"JOIN members m ON m.id = serving_attendance.member_id "
+            f"WHERE UPPER(team_name) IN ({_team_in}) AND {s_date} "
+            f"UNION "
+            f"SELECT 'Kids' as role, (k.first_name || ' ' || IFNULL(k.last_name, '')) as name "
             f"FROM kids_checkin kc JOIN kids k ON k.id = kc.kid_id "
-            f"WHERE kc.class_name LIKE '%{_kids_class_label}%' AND {_kids_event_date} "
-            f"ORDER BY name"
+            f"WHERE kc.class_name LIKE '%{_kids_class_label}%' AND {_kids_event_date}"
+            f") ORDER BY role, name"
         )
 
     # WHO ATTENDED
