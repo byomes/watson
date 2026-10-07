@@ -705,12 +705,17 @@ async function renderNotes() {
           onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--border)';setTimeout(notesNameHide,200)">
         <div id="notes-name-sug" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:20;margin-top:2px;max-height:220px;overflow-y:auto;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);box-shadow:0 6px 18px rgba(0,0,0,.35)"></div>
       </div>
-      <select id="notes-leader-sel"
-        style="display:none;width:100%;margin-bottom:8px;padding:9px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:14px;outline:none;box-sizing:border-box;cursor:pointer"
-        onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--border)'">
-        <option value="">Select a leader…</option>
-        ${leaderOpts}
-      </select>
+      <div id="notes-leader-wrap" style="display:none;position:relative;margin-bottom:8px">
+        <input id="notes-leader-inp" type="text" placeholder="Search for a leader…" autocomplete="off"
+          style="display:block;width:100%;padding:9px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:14px;outline:none;box-sizing:border-box"
+          oninput="notesLeaderSearch(this.value)" onclick="notesLeaderSearch(this.value)"
+          onfocus="this.style.borderColor='var(--gold)';notesLeaderSearch(this.value)" onblur="this.style.borderColor='var(--border)';setTimeout(notesLeaderHide,200)">
+        <div id="notes-leader-sug" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:20;margin-top:2px;max-height:220px;overflow-y:auto;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);box-shadow:0 6px 18px rgba(0,0,0,.35)"></div>
+        <select id="notes-leader-sel" style="display:none">
+          <option value="">Select a leader…</option>
+          ${leaderOpts}
+        </select>
+      </div>
       <textarea id="notes-inp-text" rows="3" placeholder="Add a note…"
         style="display:block;width:100%;margin-bottom:8px;padding:9px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:14px;outline:none;resize:none;box-sizing:border-box"
         onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--border)'"></textarea>
@@ -771,6 +776,36 @@ function notesNamePick(name) {
   document.getElementById('notes-inp-text')?.focus();
 }
 
+function notesLeaderHide() {
+  const box = document.getElementById('notes-leader-sug');
+  if (box) box.style.display = 'none';
+}
+
+// Typeahead over the leader list (the hidden select holds the real value).
+function notesLeaderSearch(q) {
+  const sel = document.getElementById('notes-leader-sel');
+  const box = document.getElementById('notes-leader-sug');
+  if (!sel || !box) return;
+  q = (q || '').trim().toLowerCase();
+  if (sel.selectedIndex > 0 && sel.options[sel.selectedIndex].text.toLowerCase() !== q) sel.value = '';
+  const opts = [...sel.options].filter(o => o.value && o.text.toLowerCase().includes(q));
+  const itemStyle = 'padding:9px 12px;font-size:14px;cursor:pointer;border-bottom:1px solid var(--border)';
+  box.innerHTML = opts.length
+    ? opts.map(o => `<div style="${itemStyle}" onmousedown="event.preventDefault();notesLeaderPick('${o.value}')">${esc(o.text)}</div>`).join('')
+    : `<div style="padding:9px 12px;font-size:12px;color:var(--muted)">No matching leader</div>`;
+  box.style.display = 'block';
+}
+
+function notesLeaderPick(id) {
+  const sel = document.getElementById('notes-leader-sel');
+  const inp = document.getElementById('notes-leader-inp');
+  if (!sel) return;
+  sel.value = id;
+  if (inp) inp.value = sel.options[sel.selectedIndex].text;
+  notesLeaderHide();
+  document.getElementById('notes-inp-text')?.focus();
+}
+
 function setNotesType(type) {
   _notesType = type;
   const pastoralBtn   = document.getElementById('notes-type-pastoral');
@@ -787,7 +822,8 @@ function setNotesType(type) {
   }
   const nameWrap = document.getElementById('notes-name-wrap');
   if (nameWrap)  nameWrap.style.display  = type === 'pastoral'   ? 'block' : 'none';
-  if (leaderSel) leaderSel.style.display = type === 'leadership' ? 'block' : 'none';
+  const leaderWrap = document.getElementById('notes-leader-wrap');
+  if (leaderWrap) leaderWrap.style.display = type === 'leadership' ? 'block' : 'none';
   const shareLabel = document.getElementById('notes-share-label');
   if (shareLabel) shareLabel.style.display = type === 'pastoral' ? 'flex' : 'none';
 }
@@ -821,6 +857,8 @@ async function addNote() {
       });
       if (textInp) textInp.value = '';
       if (leaderSel) leaderSel.value = '';
+      const leaderInp = document.getElementById('notes-leader-inp');
+      if (leaderInp) leaderInp.value = '';
       setNotesType('pastoral');
       if (res.note?.id) {
         const savedNote = { id: res.note.id, content: note, note, member_name, is_leadership: true, created_at: res.note.created_at || new Date().toLocaleString() };
