@@ -4946,3 +4946,85 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - 0cae041 Add Watson splash page for the Kit: page, service, HDMI and Cast launchers, notes
 - 4985214 Add provision/deploy_key.sh to install read-only deploy key and clone repo
 - d5f8fd5 Initial skeleton for The Kit
+
+---
+
+## Recent Changes — 2026-10-07
+
+### ~/watson
+- 2dbc2ca docs: bugs/backlog export 2026-10-07
+- 5f6f7d0 docs: file map 2026-10-07
+- 68f38f7 Subsplash rule: all work needs the dashboard surfaced to the phone's screen
+- 38302bf Subsplash: pause lifted for stored data + page reading; Connection page counts tracked-event signups; one-time self-expiring API override
+- 4ba2d26 Team chat: plain wording while Subsplash signups are paused; 'which one do you mean' follow-ups now work
+- ba8559c Auto-merge path: replay check before any dispatched cdb_query.py PR is merged
+- 6b78da0 Fast-path auto-suggester: validation gate before any phrase is applied
+- 1514dce Event fast paths: handle the imported calendar/Subsplash events; fix over-eager signup guard
+- 098af96 Fix signup questions answering with attendance: revert 'signed up' fast-path phrase; honest reply for untracked events
+- 19d5823 Pause Subsplash registrations: cron off, kill switch, chat + Connection ignore stored regs
+- 38d0814 Registrations: read dashboard pages only (no API calls); disable Subsplash/Fluro API clients; chat on new schema
+- d63bdd0 Copy all Subsplash event registrations into watson.db (hourly, via phone dashboard session); team chat answers signup questions; Connection page counts them
+- 5a96dc4 Add "signed up" fast-path phrase to count of who attended a service
+- 03b7310 One-off watcher: Telegram Bill when Jim replies about the Men's Fraternity post
+- be8ac41 Groups: build regulars list before first session (roster_add, optional date on remove)
+- f73a225 Groups: persistent regulars roster (like kids app), add-a-name joins regulars, remove X
+- 942e96c sketch: connection page built
+- 9368480 Connection view backend: per-person worship/groups/serving/events, deacon-session gated
+- 68c38e2 Team chat: group_attendance + group_counts in attendance Q&A
+- 403964a Group attendance backend: group_attendance/group_counts, /api/cat/groups/*, Celebrate Recovery head count only
+- aa031ef sketch: serving log exists
+- e6310a6 Team chat: allow serving_attendance (who actually served) in attendance Q&A
+- 06647bd Attendance sketch: decisions + unified connection view
+- dc22c9d Sketch: small group attendance tool
+- 1c14a1b Team chat: answer church-event questions from the unified Subsplash calendar cache
+- 186b4e6 Unified Subsplash calendar cache (4 calendars), lookup, gated event-invite share; fix app send arrow + shell escaping
+- 5ce01cb catalyst_app_send: strip any Watson sign-off, posts go out as the church
+- c1d77a4 Add Catalyst302 app messaging: group sender, notification inbox recorder, pastoral triage (unscheduled)
+- c9f9fcd SMS gateway: evening low-battery plug-in nudge (20%, 7-10pm, skip when charging); add find_phone discovery helper
+- 327664e events fast path: match event names on distinctive words (men's billiard outing, billiard event)
+- 3e4e594 docs: architecture update 2026-10-06
+
+### ~/watson-tools
+- 602fa5c Add /cat/tracker: one tabbed tool for Sunday, Kids, Groups and Serving attendance
+- 4b88519 Groups page: set up regulars before the first session
+- 58af0df Groups page: regulars with toggles, + Add a name, remove
+- 3739d5d Add /cat/connection: per-person connectedness view (draft until go-live)
+- f30f9e6 Add /cat/groups: group attendance roster page (draft until go-live)
+
+### ~/watson-kit
+- 6833831 Dedicated Roku player: Kit Player channel, roku_player.py (find/install/play/stop), kit-play wrapper, docs, fixture tests
+- b016423 fingerprints: recognise signage, game consoles/streaming hosts, cameras, NAS, media servers, printers, routers, smart-home hubs in explore and probe
+- 4ac52f0 docs: FIRST_RUN runbook for the untested tools; STATUS corrects the mDNS listener (avahi, not resolved) and points to kit-doctor
+- 6d4aebb doctor: one listener line per process
+- 9fb8a64 kit doctor: read-only health check (listeners, services that should be off, leftovers, network, safety nets, files, tools, repo)
+- 9aed1a3 btobex: Bluetooth file push/receive (OBEX), time-limited receive window with passkey pairing; fixture-tested only
+- 6d4f435 installer: bluez-obexd for Bluetooth file push/receive
+- cc82882 btaudio: Bluetooth audio out (play, say, report, volume) via bluez-alsa; fixture-tested only
+- 1dcba58 installer: bluez-alsa + espeak-ng for Bluetooth audio out; bluealsa off at boot
+- bb85abf blegatt: owned-device GATT reader, notify, UART link and guarded write (DFU blocked); fixture-tested only
+- 8881f8e toolkit.md: input mapper done
+- 5a909d0 btinput: Bluetooth keyboard/clicker input mapper (fixed action list, per-device config, time-limited); fixture-tested only
+- c35dbbd btnap: Bluetooth NAP phone interface (passkey pairing, time-limited, guaranteed cleanup); fixture-tested only
+- 2b95a57 blescan: beacons (iBeacon/Eddystone), watch, find (hot/cold locator); fixture-tested only
+- 08d6b07 btdev: Bluetooth device manager (scan classic+LE, decode class/profiles, pair/connect/forget); fixture-tested only
+- 2ac34c0 portal (captive portals), watch (timed passive join monitor), probe (one-device deep look) + fixture tests
+- 464619f STATUS: record the deliberate listener list (SSH, Tailscale, resolved mDNS/LLMNR)
+- 959d111 Splash page server (8099) off at boot; screen.py starts/stops it on demand
+- 2aec2ba Network navigation: richer explore (DHCP/TXT/WSD/IPv6/profile/TLS/web/SNMP), inventory + known places, airscan, blescan, uplink, share, announce (fixture-tested only)
+- cddbdce installer: network-navigation packages (ndisc6, whois, snmp, iPhone tethering, autossh, mosh, bleak, wormhole)
+- 8e1b666 Field-survival tools: netcheck, capture, ap (written, not yet run) + wrappers
+- fe3af84 STATUS: make_content generation tested, --content hook confirmed applied
+- 0c4d49f STATUS: roku_loop.py is committed but parked
+- 6f3e707 kit/roku_loop.py: commit the parked Roku play-loop script, marked as not used
+- 6e187e3 beelink/kit-remote: wrapper now lives in the repo
+- 2a69f99 beelink/: kit-screen and kit-explore wrappers now live in the repo
+- d16f4e0 beelink/kit-sync: push the repo to the Kit by git bundle (fast-forward only)
+- 255299d kit explore: one read-only per-network report; batch 1 field tools in installer
+- b9fb11a More remotes: PJLink, Kodi, Sony Bravia, UPnP/DLNA, Wake-on-LAN, IR, and the Kit as a USB/Bluetooth keyboard/remote/mouse
+- af6b5ce remote.py: multi-platform remote (Samsung, LG, Android TV, ADB/Fire TV, Apple TV, Cast) behind one key vocabulary
+- a893a90 STATUS: first field tests (kitchen cast, kit-remote, real-drive test passed, battery and den TV open)
+- cb7c774 Explain Roku control mode in find; name the mirroring setting when a cast is acked but never connects back
+- 917351a Kit remote: add HDMI-CEC path (untested); document kitchen-TV field-test findings
+- f825d2d Add kit remote: send Roku remote keys over the LAN, report Limited-mode refusals
+- d46bd28 Approve-by-name now covers IP-only callers; mark roku-youtube proven
+- 71badf0 docs: STATUS.md snapshot of where the Kit build stands (2026-10-06)
