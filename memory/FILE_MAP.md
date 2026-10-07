@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-10-06*
+*Generated: 2026-10-07*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -100,6 +100,7 @@ data/
       TWJ-Brevo-Automation-Handoff.md
       TWJ-Launch-Full-Copy-Weeks-1-8-CORRECTED.md
       TWJ-Launch-Outline-Weeks-1-8.md
+  catalyst_app_inbox.db
   comms_assets_cache/
     49c0713f9ee642a78eb7f68686a6d1c7.png
     665bb5cc33294aeb8d6b64b71e159375.png
@@ -134,6 +135,7 @@ data/
     crontab_20260920-042001.txt
     crontab_20260927-042001.txt
     crontab_20261004-042001.txt
+  crontab_backup_before_unpause_20261006.txt
   curator.db
   dev/
     historical_activity_backfill.json
@@ -265,6 +267,7 @@ data/
       20261001-122144_catalyst-kids-check-ins.csv
     phone_match_review.csv
     phone_match_review_v2.csv
+  phone_host.json
   qr/
     qr_20260608_215150.png
     qr_20260608_220849.png
@@ -3078,6 +3081,7 @@ data/
     2b9a620091e4497b86c24b58a33c2a8e.jpg
     34f6c5ac3c9d4e37a14cb993b1608450.jpg
   sms_mock_inbound_queue.json
+  subsplash_snapshot_20261006.sql
   trading.db
   trading.db.bak-pre-donchian-20260911001022
   trading.db.bak-pre-holdout-batch-20260911000446
@@ -3150,6 +3154,7 @@ jobs/
     data_chat.py
     fast_path_patcher.py
     fast_path_suggestions.py
+    fast_path_validate.py
     ga4_import.py
     llm_usage_report.py
     monthly_web_engagement_report.py
@@ -3232,6 +3237,12 @@ jobs/
     weekly_digest.py
   church_calendar/
     __init__.py
+    calendars.py
+    chat.py
+    jim_reply_watch.py
+    lookup.py
+    registrations.py
+    share_event.py
     subsplash_monitor.py
   church_social/
     __init__.py
@@ -3265,6 +3276,7 @@ jobs/
     catalystdb_login_lockout.py
     catalystdb_web.py
     collect_deacon_pins.py
+    connection_web.py
     deacon_login_lockout.py
     deacon_pin_auth.py
     deacon_reports.py
@@ -3282,6 +3294,7 @@ jobs/
     fluro_common.py
     fluro_pull.py
     fluro_staging_schema.py
+    groups_web.py
     import_connect_card_csvs.py
     import_deacon_directory.py
     import_subsplash_contacts.py
@@ -4737,6 +4750,10 @@ jobs/
     broadcast_sender.py
     call_forwarding_toggle.py
     carrier_lookup.py
+    catalyst_app_inbox.py
+    catalyst_app_send.py
+    catalyst_app_triage.py
+    find_phone.py
     gateway_client.py
     groups.py
     heartbeat.py
@@ -5745,6 +5762,7 @@ memory/
   working.md
 notes/
   .gitkeep
+  small_group_attendance_sketch.md
   team_chat_conversational_memory_spec.md
   wtsn-me-public-tools-spec.md
 prompts/
@@ -5764,6 +5782,9 @@ scripts/
   wcky_meet_reauth.py
 tests/
   audit_concurrency_test.py
+  connection_reg_dates_test.py
+  devdispatch_replay_check_test.py
+  fastpath_validation_test.py
   model_qualify/
     candidate_results_20260923/
       DONE
@@ -5801,6 +5822,8 @@ tests/
   ollama_lock_concurrency_test.py
   ollama_parallel_candidate_test.py
   ollama_parallel_test.py
+  signup_routing_regression_test.py
+  subsplash_api_guard_test.py
 vercel.json
 watson.db
 watson_icon_deployment_kit.zip
@@ -6516,6 +6539,9 @@ src/
             route.ts
         connect/
           route.ts
+        connection/
+          state/
+            route.ts
         deacons/
           family/
             child/
@@ -6554,6 +6580,19 @@ src/
           merge/
             route.ts
           rescan/
+            route.ts
+        groups/
+          counts/
+            route.ts
+          lookup/
+            route.ts
+          remove/
+            route.ts
+          roster_add/
+            route.ts
+          state/
+            route.ts
+          toggle/
             route.ts
         kidsatt/
           add/
@@ -6712,6 +6751,9 @@ src/
         ConnectCardForm.tsx
         layout.tsx
         page.tsx
+      connection/
+        ConnectionBoard.tsx
+        page.tsx
       deaconapp-bill/
         apple-icon.jpg
         icon.jpg
@@ -6736,6 +6778,9 @@ src/
         page.tsx
       event-duplicates/
         EventDuplicateReviewBoard.tsx
+        page.tsx
+      groups/
+        GroupsBoard.tsx
         page.tsx
       kidsatt/
         AddKidForm.tsx
@@ -6787,6 +6832,9 @@ src/
         login/
           page.tsx
           pin-pad.tsx
+        page.tsx
+      tracker/
+        TrackerTabs.tsx
         page.tsx
     globals.css
     icon.png
@@ -6844,40 +6892,98 @@ tsconfig.tsbuildinfo
 ~/watson-kit/
 .gitignore
 README.md
+beelink/
+  kit-airscan
+  kit-announce
+  kit-audio
+  kit-ble
+  kit-bt
+  kit-btnap
+  kit-capture
+  kit-doctor
+  kit-explore
+  kit-gatt
+  kit-input
+  kit-netcheck
+  kit-obex
+  kit-places
+  kit-play
+  kit-portal
+  kit-probe
+  kit-remote
+  kit-screen
+  kit-share
+  kit-sync
+  kit-uplink
+  kit-watch
 config/
   .env.example
 docs/
   .gitkeep
+  FIRST_RUN.md
+  STATUS.md
+  roku-player.md
   screens.md
   splash.md
   toolkit.md
 kit/
   .gitkeep
   airplay.py
+  airscan.py
+  announce.py
+  ap.py
+  blegatt.py
+  blescan.py
+  bt_hid.py
+  btaudio.py
+  btdev.py
+  btinput.py
+  btnap.py
+  btobex.py
+  capture.py
   cast_scan.py
   cast_splash.py
   desktop_session.sh
+  doctor.py
   drive.py
   dts/
     kit-usb-host.dts
+  explore.py
+  fingerprints.py
   hdmi_loop.sh
+  hid_keys.py
+  inventory.py
+  kit-remote
   make_content.py
   mice_source.py
   miracast_source.py
   net_probe.py
+  netcheck.py
+  netid.py
+  portal.py
+  probe.py
+  remote.py
   render_splash_video.py
   roku_loop.py
+  roku_player.py
   screen.py
   screen_drivers.py
   screens.py
+  share.py
   splash/
     WatsonSplash.jpg
     index.html
   splash_show.sh
   tests/
     test_drive.sh
+    test_netid_fakes.py
+    test_remote_fakes.py
+    test_roku_player.py
+  uplink.py
   usb_drive.sh
+  usb_hid.sh
   usb_role.sh
+  watch.py
   wifi.py
 provision/
   README.md
@@ -6889,6 +6995,14 @@ provision/
   run_prepare.sh
   save_iot.sh
   save_secrets.sh
+roku/
+  kitplayer/
+    components/
+      MainScene.brs
+      MainScene.xml
+    manifest
+    source/
+      main.brs
 services/
   .gitkeep
   kit-desktop-web.service
