@@ -2756,8 +2756,8 @@ function ndToggleEdit(mac) {
   const domId = _ndDomId(mac);
   expEl.innerHTML = `
     <div class="mform" style="margin-top:8px">
-      <input id="nd-label-${domId}" type="text" value="${esc(r.label || '')}" placeholder="Device name (e.g. Bill's iPhone)">
-      <input id="nd-assigned-${domId}" type="text" value="${esc(r.assigned_to || '')}" placeholder="Assigned to (family member)">
+      <input id="nd-label-${domId}" type="text" name="nd-label-field" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore value="${esc(r.label || '')}" placeholder="Device name (e.g. Bill's iPhone)">
+      <input id="nd-assigned-${domId}" type="text" name="nd-assigned-field" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore value="${esc(r.assigned_to || '')}" placeholder="Assigned to (family member)">
       <div class="mfrow">
         <button class="mbtn mbtn-p mbtn-sm" onclick="ndSaveEdit('${mac}')">Save</button>
         <button class="mbtn mbtn-sm" onclick="ndToggleEdit('${mac}')">Cancel</button>
