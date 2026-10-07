@@ -112,7 +112,7 @@ def rsvp_status_report(event_id: int) -> dict:
 
 def format_rsvp_summary(event_name: str, report: dict) -> str:
     lines = [
-        f"\U0001F37D️ {event_name} — RSVP status",
+        f"\U0001F37D️ {event_name}: RSVP status",
         f"Invited (active servants): {report['invited_count']}",
         f"Yes: {len(report['yes'])}  |  No: {len(report['no'])}  |  "
         f"No response yet: {len(report['no_response'])}",

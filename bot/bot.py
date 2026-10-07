@@ -2674,7 +2674,7 @@ def _looks_like_banquet_status_request(text: str) -> bool:
     # "banquet" stays a required anchor so this can't fire on an unrelated
     # message that happens to mention headcounts or attendance.
     low = text.lower()
-    return "banquet" in low and (
+    return ("banquet" in low or re.search(r"\bslb\b", low) is not None) and (
         "rsvp" in low or "status" in low or "headcount" in low or "responded" in low
         or "response" in low or "attending" in low or "attendance" in low
         or "how many" in low or "count" in low or "coming" in low

@@ -136,6 +136,11 @@ def _match_event(rows: list[sqlite3.Row], subject: str, body: str) -> sqlite3.Ro
     matches = [r for r in rows if (r["event_name"] or "").lower() in text_l]
     if len(matches) == 1:
         return matches[0]
+    # The banquet is also called "Leaders Banquet" and "SLB" (Bill, 2026-10-07);
+    # accept those only when exactly one RSVP event is open, so an alias can
+    # never pick between two events.
+    if not matches and len(rows) == 1 and re.search(r"\bslb\b|\bleaders banquet\b", text_l):
+        return rows[0]
     return None
 
 
