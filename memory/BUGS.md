@@ -1,6 +1,6 @@
 # Watson Bug Tracker
 _Auto-generated nightly from bug_tracker. Source of truth is the database — do not hand-edit this file, changes will be overwritten._
-Last generated: 2026-10-06 02:10
+Last generated: 2026-10-07 02:10
 
 ## Open (7)
 | ID | Title | Repo | Discovered |
@@ -16,6 +16,13 @@ Last generated: 2026-10-06 02:10
 ## Recently Resolved (last 30 days)
 | ID | Title | Repo | Resolved | Commit |
 |---|---|---|---|---|
+| 227 | Connection page dropped all tracked-event signups | watson | 2026-10-07 03:47:42 |  |
+| 226 | 'Which one do you mean' answers were not understood | watson | 2026-10-07 03:14:26 | 4ba2d26 |
+| 225 | Team chat said 'I don't have signup numbers' for an event whose signups are stored but paused | watson | 2026-10-07 03:14:26 | 4ba2d26 |
+| 224 | devdispatch auto-merge of cdb_query.py PRs had no behavioural check | watson | 2026-10-07 03:05:59 | ba8559c |
+| 223 | fast_path auto-suggester validated only with ast.parse | watson | 2026-10-07 03:02:38 | 6b78da0 |
+| 222 | Event fast paths unaware of imported calendar/Subsplash events | watson | 2026-10-07 03:02:38 | 1514dce |
+| 221 | Team chat: 'signed up' questions answered with last Sunday's attendance | watson | 2026-10-07 03:02:38 | 098af96 |
 | 219 | kidstoday_notify_donna.py crashed every week, never emailed Donna | watson | 2026-10-03 18:19:41 | 101675c |
 | 218 | Telegram Log dashboard shows wrong time (false quiet-hours alarm) | watson | 2026-10-03 16:31:27 | b418bf6 |
 | 215 | Monthly kids attendance undercounted for months with sparse kids_checkin coverage | watson | 2026-09-30 20:36:13 | 57a35f8 |
