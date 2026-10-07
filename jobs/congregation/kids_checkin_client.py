@@ -373,6 +373,7 @@ async def _pull_full_history_async() -> dict:
             "params": {"source": _PATCH_JS},
         }))
         await asyncio.wait_for(ws.recv(), timeout=15)
+        await surface_tab(ws)
         await ws.send(json.dumps({"id": 3, "method": "Page.reload"}))
         print(f"[{time.strftime('%H:%M:%S')}] page reloaded, waiting for auth capture...", flush=True)
 
@@ -398,6 +399,28 @@ async def _pull_full_history_async() -> dict:
         result = await _ws_eval(ws, _PULL_JS, await_promise=True, timeout=540)
         print(f"[{time.strftime('%H:%M:%S')}] pull finished", flush=True)
         return json.loads(result)
+
+
+async def surface_tab(ws, tries: int = 12) -> None:
+    """RULE (Bill, 2026-10-06): all Subsplash work needs the dashboard SURFACED TO THE SCREEN. Chrome does not render a background tab
+    (document.visibilityState 'hidden'), so the page stays blank, the dashboard's data never loads, and tokens/lists come back empty or stale.
+    Every Subsplash action therefore starts here: wake the phone, bring this tab to the front, and confirm the page reports 'visible'.
+    Raises KidsCheckinClientError (never carries on blind) if it cannot be shown."""
+    try:
+        serial = _select_device_serial()
+        _adb("-s", serial, "shell", "input", "keyevent", "KEYCODE_WAKEUP")
+    except Exception:
+        pass                                              # the visibility check below is the real test
+    await ws.send(json.dumps({"id": 7001, "method": "Page.bringToFront", "params": {}}))
+    for _ in range(tries):
+        await asyncio.sleep(1)
+        try:
+            if await _ws_eval(ws, "document.visibilityState", timeout=3) == "visible":
+                return
+        except Exception:
+            pass
+    raise KidsCheckinClientError("the Subsplash dashboard tab could not be brought onto the phone's screen (screen locked, or another app in front?); "
+                                 "Subsplash work only runs while the dashboard is visible")
 
 
 def _one_time_override_active() -> bool:
@@ -508,6 +531,7 @@ async def _pull_events_by_id_async(event_ids: list[str]) -> dict:
             "params": {"source": _PATCH_JS},
         }))
         await ws.recv()
+        await surface_tab(ws)
         await ws.send(json.dumps({"id": 3, "method": "Page.reload"}))
 
         ready = False

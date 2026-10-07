@@ -164,7 +164,12 @@ class _Page:
             raise kc.KidsCheckinClientError(f"page script error: {res['exceptionDetails'].get('text')}")
         return res.get("result", {}).get("value")
 
+    async def surface(self):
+        """RULE (Bill, 2026-10-06): all Subsplash work needs the dashboard on the phone's screen; a background tab renders nothing."""
+        await kc.surface_tab(self.ws)
+
     async def go(self, url, ready_js, tries=25):
+        await self.surface()
         await self.call("Page.navigate", url=url)
         for _ in range(tries):
             await asyncio.sleep(1)
@@ -330,6 +335,7 @@ async def _pull_inner() -> dict:
     async with websockets.connect(tab_ws, max_size=100_000_000) as ws:
         pg = _Page(ws)
         await pg.call("Page.enable")
+        await pg.surface()
         events = await _discover(pg)
         log.info("candidate events in window: %d", len(events))
         with get_connection() as conn:
