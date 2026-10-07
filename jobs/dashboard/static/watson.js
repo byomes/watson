@@ -698,9 +698,13 @@ async function renderNotes() {
       : '<div class="empty">No notes yet.</div>';
 
     setContent(`
-      <input id="notes-inp-name" type="text" placeholder="Person's name…"
-        style="display:block;width:100%;margin-bottom:8px;padding:9px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:14px;outline:none;box-sizing:border-box"
-        onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--border)'">
+      <div id="notes-name-wrap" style="position:relative;margin-bottom:8px">
+        <input id="notes-inp-name" type="text" placeholder="Person's name…" autocomplete="off"
+          style="display:block;width:100%;padding:9px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:14px;outline:none;box-sizing:border-box"
+          oninput="notesNameSearch(this.value)"
+          onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--border)';setTimeout(notesNameHide,200)">
+        <div id="notes-name-sug" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:20;margin-top:2px;max-height:220px;overflow-y:auto;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);box-shadow:0 6px 18px rgba(0,0,0,.35)"></div>
+      </div>
       <select id="notes-leader-sel"
         style="display:none;width:100%;margin-bottom:8px;padding:9px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);color:var(--text);font-family:inherit;font-size:14px;outline:none;box-sizing:border-box;cursor:pointer"
         onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--border)'">
@@ -731,6 +735,42 @@ async function renderNotes() {
   }
 }
 
+let _notesNameTimer = null;
+let _notesNameSeq = 0;
+
+function notesNameHide() {
+  const box = document.getElementById('notes-name-sug');
+  if (box) box.style.display = 'none';
+}
+
+// Typeahead against the congregation database so a note is filed under an
+// exact member name instead of a misspelling.
+function notesNameSearch(q) {
+  clearTimeout(_notesNameTimer);
+  q = (q || '').trim();
+  if (q.length < 2) { notesNameHide(); return; }
+  _notesNameTimer = setTimeout(async () => {
+    const seq = ++_notesNameSeq;
+    let rows;
+    try { rows = await api('/api/members/search?q=' + encodeURIComponent(q)); } catch { return; }
+    if (seq !== _notesNameSeq) return;
+    const box = document.getElementById('notes-name-sug');
+    if (!box || !Array.isArray(rows)) return;
+    const itemStyle = 'padding:9px 12px;font-size:14px;cursor:pointer;border-bottom:1px solid var(--border)';
+    box.innerHTML = rows.length
+      ? rows.map(m => `<div style="${itemStyle}" onmousedown="event.preventDefault();notesNamePick(${JSON.stringify(m.name).replace(/"/g, '&quot;')})">${esc(m.name)}</div>`).join('')
+      : `<div style="padding:9px 12px;font-size:12px;color:var(--muted)">No match in the database</div>`;
+    box.style.display = 'block';
+  }, 200);
+}
+
+function notesNamePick(name) {
+  const inp = document.getElementById('notes-inp-name');
+  if (inp) inp.value = name;
+  notesNameHide();
+  document.getElementById('notes-inp-text')?.focus();
+}
+
 function setNotesType(type) {
   _notesType = type;
   const pastoralBtn   = document.getElementById('notes-type-pastoral');
@@ -745,7 +785,8 @@ function setNotesType(type) {
     leadershipBtn.style.background = type === 'leadership' ? 'var(--gold)' : 'transparent';
     leadershipBtn.style.color      = type === 'leadership' ? '#0f0f0f'    : 'var(--muted)';
   }
-  if (nameInp)   nameInp.style.display   = type === 'pastoral'   ? 'block' : 'none';
+  const nameWrap = document.getElementById('notes-name-wrap');
+  if (nameWrap)  nameWrap.style.display  = type === 'pastoral'   ? 'block' : 'none';
   if (leaderSel) leaderSel.style.display = type === 'leadership' ? 'block' : 'none';
   const shareLabel = document.getElementById('notes-share-label');
   if (shareLabel) shareLabel.style.display = type === 'pastoral' ? 'flex' : 'none';
