@@ -58,7 +58,8 @@ def rsvp_status_report(event_id: int) -> dict:
     invitees = cong.execute(
         """SELECT DISTINCT m.id AS member_id, m.name
            FROM team_memberships tm JOIN members m ON m.id = tm.member_id
-           WHERE tm.active = 1"""
+           WHERE tm.active = 1
+             AND tm.member_id NOT IN (SELECT member_id FROM banquet_invite_exclusions)"""
     ).fetchall()
     cong.close()
 
