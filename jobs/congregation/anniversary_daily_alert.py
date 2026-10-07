@@ -118,7 +118,6 @@ def build_message(couples: list[Couple]) -> str:
         phone_part = c.phone if c.phone else "no phone on file"
         lines.append(f"{c.names} ({c.years} years): {phone_part}")
     lines.append("")
-    lines.append("- Watson")
     return "\n".join(lines)
 
 

@@ -144,7 +144,7 @@ def send_telegram(message: str) -> str:
     try:
         resp = requests.post(
             f"https://api.telegram.org/bot{WATSON_BOT_TOKEN}/sendMessage",
-            json={"chat_id": WATSON_CHAT_ID, "text": f"{message}\n\n- Watson"},
+            json={"chat_id": WATSON_CHAT_ID, "text": f"{message}"},
             timeout=10,
         )
         ok = resp.ok

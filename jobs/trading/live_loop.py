@@ -157,7 +157,7 @@ def run_once() -> dict:
     except Exception as exc:
         log.error("Signal evaluation failed: %s", exc)
         _log_decision(None, "error", "none", str(exc), equity, equity, None, risk_status, error=str(exc))
-        _send_telegram(f"Live loop error evaluating signal: {exc} - Watson")
+        _send_telegram(f"Live loop error evaluating signal: {exc}")
         raise
 
     try:
@@ -215,7 +215,7 @@ def run_once() -> dict:
         msg += "\nNOTE: today's data refresh failed (Alpaca API issue) — decision used yesterday's bar."
     if error:
         msg += f"\nERROR: {error}"
-    _send_telegram(msg + "\n- Watson")
+    _send_telegram(msg + "")
 
     return {
         "bar_date": sig["bar_date"], "signal": signal, "action": action, "reason": reason,

@@ -156,7 +156,7 @@ def run():
 
         priority = "system_failure"
 
-    lines.append("- Watson")
+    lines.append("")
     _send_telegram("\n".join(lines), priority)
 
 

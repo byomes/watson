@@ -240,7 +240,7 @@ def _alert_login_locked(client_ip: str) -> None:
 
         message = (
             f"⚠️ Deacon app login locked after {deacon_login_lockout.MAX_FAILED_ATTEMPTS} "
-            f"failed PIN attempts from {client_ip}. Message me \"unlock deacon login\" to clear it. - Watson"
+            f"failed PIN attempts from {client_ip}. Message me \"unlock deacon login\" to clear it."
         )
         with get_connection() as conn:
             for name in RECIPIENT_NAMES:

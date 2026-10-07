@@ -206,7 +206,7 @@ def _alert_bill_fail_streak(streak: int, error: str) -> None:
     text = (
         f"⚠️ Subsplash calendar monitor has failed {streak} runs in a row.\n"
         f"Latest error: {error}\n\n"
-        f"Check logs/subsplash_monitor.log -- the embed's page markup may have changed. - Watson"
+        f"Check logs/subsplash_monitor.log -- the embed's page markup may have changed."
     )
     try:
         requests.post(
@@ -291,7 +291,7 @@ def run() -> dict:
         text = (
             f"\U0001F4C5 New event on the church calendar: \"{e['title']}\"\n"
             f"{e['date_line']}\n\n"
-            f"Should Watson track signups for this one? - Watson"
+            f"Should Watson track signups for this one?"
         )
         keyboard = {
             "inline_keyboard": [[
@@ -328,12 +328,12 @@ def handle_subsplash_new_event_yes(payload: dict) -> str:
             "VALUES (?, ?, ?, 1, ?)",
             (title, payload.get("start_date"), payload.get("event_time"), KACI_PERSON_NAME),
         )
-    return f"✅ Now tracking \"{title}\" -- signups will auto-attach as they come in. - Watson"
+    return f"✅ Now tracking \"{title}\" -- signups will auto-attach as they come in."
 
 
 def handle_subsplash_new_event_no(payload: dict) -> str:
     title = payload.get("title", "this event")
-    return f"\U0001F44D Got it, not tracking \"{title}\". - Watson"
+    return f"\U0001F44D Got it, not tracking \"{title}\"."
 
 
 if __name__ == "__main__":

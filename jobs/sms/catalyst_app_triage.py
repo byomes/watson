@@ -117,7 +117,7 @@ def run(dry_run: bool = False) -> int:
                 c.execute("UPDATE catalyst_app_notifications SET verdict='normal', reason=? WHERE id=?", (reason, rid))
                 continue
             msg = (f"Catalyst app message that may need a pastoral response ({urgency}).\n"
-                   f"Group: {group}\nFrom/title: {title}\nMessage: {body[:600]}\nWhy flagged: {reason}\n- Watson")
+                   f"Group: {group}\nFrom/title: {title}\nMessage: {body[:600]}\nWhy flagged: {reason}")
             if dry_run:
                 print(msg, "\n")
                 continue

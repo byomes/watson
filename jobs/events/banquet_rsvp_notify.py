@@ -24,7 +24,7 @@ log = logging.getLogger(__name__)
 DR_BILL_ID = 7
 BILL_CROOK_ID = 78
 WINDOW_START_HOUR, WINDOW_END_HOUR = 9, 20
-SIGNOFF = " - Watson"
+SIGNOFF = ""
 
 
 def _conn():

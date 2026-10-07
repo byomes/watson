@@ -441,7 +441,7 @@ def run() -> None:
             requests.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage", timeout=15, json={
                 "chat_id": TELEGRAM_CHAT_ID,
                 "text": "Watson could not read Subsplash event registrations 3 times in a row. The work phone's dashboard "
-                        "login probably expired and needs a verification code. - Watson"})
+                        "login probably expired and needs a verification code."})
         return
     _streak(None)
     log.info("registrations read ok: %s", result)

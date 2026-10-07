@@ -101,7 +101,6 @@ def build_message(birthdays: list[Birthday]) -> str:
         minor_note = " (minor -- SMS app routes to parent)" if b.age < 18 else ""
         lines.append(f"{b.name} (turning {b.age}): {phone_part}{minor_note}")
     lines.append("")
-    lines.append("- Watson")
     return "\n".join(lines)
 
 

@@ -94,7 +94,7 @@ def _fire_location_reminders(conn, zone_to):
         try:
             requests.post(
                 f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
-                json={"chat_id": TELEGRAM_CHAT_ID, "text": f"\U0001F4CD Reminder ({zone_to}): {r['title']}\n\n - Watson"},
+                json={"chat_id": TELEGRAM_CHAT_ID, "text": f"\U0001F4CD Reminder ({zone_to}): {r['title']}"},
                 timeout=10,
             )
             conn.execute(

@@ -175,7 +175,7 @@ def send_report(dry_run: bool = False, to_override: str | None = None) -> None:
     if not rows:
         log.info("No unreported house calls — nothing to send.")
         if not dry_run:
-            _telegram("No house calls to report this period. - Watson")
+            _telegram("No house calls to report this period.")
         return
 
     unpaid = [r for r in rows if not r["paid_at"]]
@@ -197,7 +197,7 @@ def send_report(dry_run: bool = False, to_override: str | None = None) -> None:
         _telegram(
             f"House call report is ready ({len(unpaid)} calls owed, ${total:.2f}: {names}) but "
             "FUNERAL_HOME_BOSS_EMAIL isn't set in .env yet: send me Jim's email "
-            "and I'll send it next run. Nothing has been marked reported. - Watson"
+            "and I'll send it next run. Nothing has been marked reported."
         )
         log.warning("FUNERAL_HOME_BOSS_EMAIL not set — report not sent, rows left unreported.")
         return
@@ -207,7 +207,7 @@ def send_report(dry_run: bool = False, to_override: str | None = None) -> None:
         text_body=text_body, html_body=html_body, include_signature=False,
     )
     if not result["success"]:
-        _telegram(f"House call report FAILED to send to {to}: {result['error']}. - Watson")
+        _telegram(f"House call report FAILED to send to {to}: {result['error']}.")
         raise RuntimeError(f"Brevo send to {to} failed: {result['error']}")
 
     mark_reported([r["id"] for r in rows])
@@ -219,9 +219,9 @@ def send_report(dry_run: bool = False, to_override: str | None = None) -> None:
         names = ", ".join(r["family_last_name"] for r in unpaid)
         total = sum(r["amount"] for r in unpaid)
         extra = f", {len(paid)} already paid" if paid else ""
-        _telegram(f"Sent house call bill to {to}: {len(unpaid)} calls, ${total:.2f} owed, {names}{extra}. - Watson")
+        _telegram(f"Sent house call bill to {to}: {len(unpaid)} calls, ${total:.2f} owed, {names}{extra}.")
     else:
-        _telegram(f"Sent house call report to {to}: all {len(paid)} calls already paid, confirmed nothing owed. - Watson")
+        _telegram(f"Sent house call report to {to}: all {len(paid)} calls already paid, confirmed nothing owed.")
 
 
 if __name__ == "__main__":

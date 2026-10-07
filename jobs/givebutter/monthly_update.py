@@ -110,7 +110,7 @@ def ask_for_update() -> None:
         "month's FMS giving emails? A launch update, a ministry note, anything "
         "worth telling donors about.\n\n"
         "Reply to this message with what you'd like included, or reply \"skip\" "
-        "and I'll use the standard thank-you. - Watson"
+        "and I'll use the standard thank-you."
     )
     if vacation_gate("normal", "jobs.givebutter.monthly_update", text):
         return
@@ -140,9 +140,9 @@ def handle_reply(payload: dict, text: str) -> str:
     "fms_giving_update". Returns the confirmation message to send back."""
     stripped = text.strip()
     if stripped.lower() in _SKIP_WORDS:
-        return "Got it -- I'll use the standard thank-you for this month's giving emails. - Watson"
+        return "Got it -- I'll use the standard thank-you for this month's giving emails."
     save_update(stripped)
-    return "Got it -- I'll fold that into this month's FMS giving emails. - Watson"
+    return "Got it -- I'll fold that into this month's FMS giving emails."
 
 
 if __name__ == "__main__":

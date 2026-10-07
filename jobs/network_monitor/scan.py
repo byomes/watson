@@ -148,7 +148,7 @@ def _alert_new_device(mac: str, ip: str, hostname: str | None, vendor: str | Non
     text = (
         f"New device joined the home network: {desc} ({mac}). "
         "Label it from the dashboard's Network Devices card if you know "
-        "what it is.\n\n- Watson"
+        "what it is."
     )
     if vacation_gate("normal", "jobs.network_monitor.scan", text):
         return

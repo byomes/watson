@@ -389,7 +389,7 @@ def _auto_dispatch_fix(suggestion_id: int, example_question: str, reasoning: str
             )
         _send_telegram(
             f"⚠️ Tried to auto-fix a Team Chat gap but couldn't even start the coding job: {err}\n\n"
-            f'Question: "{example_question}"\n\n- Watson'
+            f'Question: "{example_question}"'
         )
         return
 
@@ -407,7 +407,7 @@ def _auto_dispatch_fix(suggestion_id: int, example_question: str, reasoning: str
     _send_telegram(
         f"\U0001f6e0️ Found a Team Chat gap and I'm building a fix automatically -- no action needed.\n\n"
         f'Question: "{example_question}"\n{reasoning}\n\n'
-        f"I'll let you know once it's live (devdispatch job {job_id}).\n\n- Watson"
+        f"I'll let you know once it's live (devdispatch job {job_id})."
     )
 
 
@@ -508,21 +508,21 @@ def _auto_apply(suggestion_id: int, target_id: str, target_label: str, new_phras
             f'Someone asked: "{example_question}"\n\n'
             f'Added trigger phrase "{new_phrase}" to {target_label} ({reasoning}).\n'
             f"Commit {detail}. No API call needed for this kind of question going forward.\n\n"
-            "No action needed — just letting you know.\n\n- Watson"
+            "No action needed — just letting you know."
         )
     elif rejected:
         text = (
             f"🛑 Held back a fast-path phrase\n\n"
             f'Someone asked: "{example_question}"\n\n'
             f'I considered adding "{new_phrase}" to {target_label}, but my safety check said no: {detail.removeprefix("validation rejected: ")}.\n\n'
-            "Nothing was changed. Flagging it in case it needs a real fix.\n\n- Watson"
+            "Nothing was changed. Flagging it in case it needs a real fix."
         )
     else:
         text = (
             f"⚠️ Couldn't auto-apply a fast-path fix\n\n"
             f'Someone asked: "{example_question}"\n\n'
             f'Tried to add "{new_phrase}" to {target_label} but it failed: {detail}\n\n'
-            "Flagging for a coding session instead.\n\n- Watson"
+            "Flagging for a coding session instead."
         )
     _send_telegram(text)
 

@@ -2689,7 +2689,7 @@ async def _handle_banquet_status(update: Update) -> None:
     event = await asyncio.to_thread(find_rsvp_tracking_event)
     if not event:
         await update.message.reply_text(
-            "I'm not tracking an active RSVP-enabled banquet event right now. - Watson"
+            "I'm not tracking an active RSVP-enabled banquet event right now."
         )
         return
     report = await asyncio.to_thread(rsvp_status_report, event["id"])
@@ -2722,7 +2722,7 @@ async def _handle_banquet_awards_send(update: Update) -> None:
         ).fetchone()
     if not row:
         await update.message.reply_text(
-            "Donna Redman isn't onboarded to Telegram yet, so I can't send her the report. - Watson"
+            "Donna Redman isn't onboarded to Telegram yet, so I can't send her the report."
         )
         return
 
@@ -2741,9 +2741,9 @@ async def _handle_banquet_awards_send(update: Update) -> None:
             pass
 
     if ok:
-        await update.message.reply_text("\U0001F4C4 Sent the service awards list to Donna. - Watson")
+        await update.message.reply_text("\U0001F4C4 Sent the service awards list to Donna.")
     else:
-        await update.message.reply_text("Failed to send the service awards list to Donna. - Watson")
+        await update.message.reply_text("Failed to send the service awards list to Donna.")
 
 
 def _looks_like_fix_log_request(text: str) -> bool:
@@ -2802,10 +2802,10 @@ async def _handle_unlock_login(update: Update) -> None:
         if catalystdb_count:
             parts.append(f"{catalystdb_count} Catalyst Database")
         await update.message.reply_text(
-            f"Login unlocked ({', '.join(parts)} locked-out device{'s' if total != 1 else ''} cleared). - Watson"
+            f"Login unlocked ({', '.join(parts)} locked-out device{'s' if total != 1 else ''} cleared)."
         )
     else:
-        await update.message.reply_text("Nothing was locked right now. - Watson")
+        await update.message.reply_text("Nothing was locked right now.")
 
 
 # Per Bill's 2026-09-17 explicit decision: the only people authorized to add
@@ -2994,7 +2994,7 @@ async def _handle_new_event_notice(
     await update.message.reply_text(
         f"Got it, now tracking “{event_name}”{when_clause}. I'll watch for registration emails "
         f"and match them to it automatically; let me know when you send that test registration. "
-        f"Details can be edited from the Events tab. - Watson"
+        f"Details can be edited from the Events tab."
     )
 
 
@@ -3061,7 +3061,7 @@ async def _handle_event_date_time_update(
     if not row:
         await update.message.reply_text(
             f"I couldn't find a tracked event matching \"{name_guess}\" to update. "
-            f"Tell me its exact name, or start tracking it first. - Watson"
+            f"Tell me its exact name, or start tracking it first."
         )
         return
     log.info(
@@ -3070,7 +3070,7 @@ async def _handle_event_date_time_update(
     )
     when = ", ".join(p for p in (event_date, event_time) if p)
     await update.message.reply_text(
-        f"Updated “{row['event_name']}” with {when}. - Watson"
+        f"Updated “{row['event_name']}” with {when}."
     )
 
 

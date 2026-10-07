@@ -184,7 +184,7 @@ def _alert_login_locked(client_ip: str) -> None:
             return
         text = (
             f"⚠️ Catalyst Database login locked after {MAX_FAILED_ATTEMPTS} failed PIN "
-            f"attempts from {client_ip}. Message me \"unlock login\" to clear it. - Watson"
+            f"attempts from {client_ip}. Message me \"unlock login\" to clear it."
         )
         requests.post(
             f"https://api.telegram.org/bot{token}/sendMessage",

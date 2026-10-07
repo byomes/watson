@@ -35,7 +35,7 @@ def run() -> None:
         return
     text = (f"Jim replied at {row['created_at']} about the Men's Fraternity post:\n\n"
             f"\"{row['message'][:700]}\"\n\n"
-            "I have not posted anything in the Men's Fraternity group. - Watson")
+            "I have not posted anything in the Men's Fraternity group.")
     r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
                       json={"chat_id": TELEGRAM_CHAT_ID, "text": text}, timeout=15)
     if r.ok:

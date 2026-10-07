@@ -49,7 +49,7 @@ MESSAGE = (
     "\U0001F64F Could you help us log attendance correctly?\n\n"
     "Please check https://wtsn.me/cat/attendance and add any corrections "
     "for people you saw today. Thanks for helping us keep the records "
-    "accurate! - Watson"
+    "accurate!"
 )
 
 

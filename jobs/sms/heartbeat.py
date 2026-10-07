@@ -108,8 +108,8 @@ def check_heartbeat() -> dict:
     _maybe_alert(
         "down", not vitals["ok"],
         text=f"Watson SMS: the gateway phone looks unreachable ({vitals.get('detail')}). "
-             "Texts may not be getting through, worth checking on it.\n\n - Watson",
-        recovery_text="Watson SMS: the gateway phone is back online.\n\n - Watson",
+             "Texts may not be getting through, worth checking on it.",
+        recovery_text="Watson SMS: the gateway phone is back online.",
     )
     needs_plug = (
         vitals.get("battery_pct") is not None
@@ -124,8 +124,8 @@ def check_heartbeat() -> dict:
         _maybe_alert(
             "battery", needs_plug,
             text=f"Watson SMS: the gateway phone's battery is at {vitals.get('battery_pct')}%. "
-                 "Please plug it in tonight.\n\n - Watson",
-            recovery_text="Watson SMS: the gateway phone is charging or back to a healthy level, thank you.\n\n - Watson",
+                 "Please plug it in tonight.",
+            recovery_text="Watson SMS: the gateway phone is charging or back to a healthy level, thank you.",
         )
 
     adb_reachable = adb_client.connect_device() is not None
@@ -133,8 +133,8 @@ def check_heartbeat() -> dict:
         "adb_down", not adb_reachable,
         text="Watson SMS: the gateway phone is unreachable over adb. New texts won't be "
              "grouped/ingested until this is fixed -- if it just rebooted, adb tcpip needs "
-             "re-running over USB.\n\n - Watson",
-        recovery_text="Watson SMS: adb reachability to the gateway phone is restored.\n\n - Watson",
+             "re-running over USB.",
+        recovery_text="Watson SMS: adb reachability to the gateway phone is restored.",
     )
 
     return vitals

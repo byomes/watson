@@ -265,7 +265,7 @@ def _auto_merge_and_deploy(job_id: int) -> None:
         _telegram(
             f"🔍 devdispatch job {job_id} built a fix that goes beyond a simple lookup addition "
             f"(touches routing/behavior, not just jobs/skills/cdb_query.py) -- holding for your "
-            f"review instead of auto-merging.\n\n{row['pr_url']}\n\n- Watson"
+            f"review instead of auto-merging.\n\n{row['pr_url']}"
         )
         _record_suggestion_outcome(
             source_suggestion_id, "needs_review",
@@ -280,7 +280,7 @@ def _auto_merge_and_deploy(job_id: int) -> None:
             conn.commit()
         _telegram(
             f"🛑 devdispatch job {job_id} built a fix, but my replay check says it would change how other questions are answered "
-            f"-- holding for your review instead of auto-merging.\n\nWhy: {replay_detail}\n\n{row['pr_url']}\n\n- Watson"
+            f"-- holding for your review instead of auto-merging.\n\nWhy: {replay_detail}\n\n{row['pr_url']}"
         )
         _record_suggestion_outcome(
             source_suggestion_id, "needs_review",
@@ -337,7 +337,7 @@ def _auto_merge_and_deploy(job_id: int) -> None:
 
     _telegram(
         f"✅ Auto-fixed and deployed (devdispatch job {job_id}, no review needed): "
-        f"the Team Chat gap that triggered this is closed.\n- Watson"
+        f"the Team Chat gap that triggered this is closed."
     )
     _record_suggestion_outcome(
         source_suggestion_id, "applied", f"Auto-dispatched, merged, and deployed via devdispatch job {job_id}.",

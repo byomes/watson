@@ -256,7 +256,6 @@ def _notify_claude_call(job_name: str, person: str, trigger_message: str, cost_u
         lines.append(f'Re: "{trigger_message}"')
     lines.append(f"Cost: ${cost_usd:.4f}")
     lines.append("")
-    lines.append("- Watson")
     text = "\n".join(lines)
 
     if vacation_gate("normal", "core.claude_tier", text):

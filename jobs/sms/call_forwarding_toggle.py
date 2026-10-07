@@ -102,7 +102,7 @@ def _alert(text: str) -> None:
 
         requests.post(
             f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
-            json={"chat_id": TELEGRAM_CHAT_ID, "text": f"{text} - Watson"},
+            json={"chat_id": TELEGRAM_CHAT_ID, "text": f"{text}"},
             timeout=10,
         )
     except Exception as exc:

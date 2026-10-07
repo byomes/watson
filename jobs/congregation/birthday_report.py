@@ -129,7 +129,6 @@ def build_message(deacon_name: str) -> str:
         lines.append("(none: everyone in your group has a birthdate on file)")
 
     lines.append("")
-    lines.append("- Watson")
     return "\n".join(lines)
 
 
@@ -148,7 +147,6 @@ def all_birthdays_message(month: int | None = None, year: int | None = None) -> 
     lines = [f"🎂 All birthdays in {month_name} {year}"]
     lines.extend(_format_birthday_lines(birthdays, month, year))
     lines.append("")
-    lines.append("- Watson")
     return "\n".join(lines)
 
 

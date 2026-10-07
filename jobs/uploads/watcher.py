@@ -46,7 +46,6 @@ def _notify(filename: str, note: str | None) -> None:
     text = f"\U0001F4E5 New upload: {filename}"
     if note:
         text += f"\nNote: {note}"
-    text += "\n\n - Watson"
     try:
         requests.post(
             f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",

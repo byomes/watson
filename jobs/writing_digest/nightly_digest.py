@@ -243,7 +243,7 @@ def run_digest(project):
         send_telegram(
             f"Writing digest for {project} timed out before finishing tonight's "
             f"merge. Nothing was pushed, nothing was marked processed, it'll "
-            f"retry the same {len(new_rows)} archive(s) tomorrow night.\n- Watson"
+            f"retry the same {len(new_rows)} archive(s) tomorrow night."
         )
         return
 
@@ -253,7 +253,7 @@ def run_digest(project):
         send_telegram(
             f"Writing digest for {project} failed tonight: {err}\n"
             f"Nothing was pushed, it'll retry the same {len(new_rows)} "
-            f"archive(s) tomorrow night.\n- Watson"
+            f"archive(s) tomorrow night."
         )
         return
 
@@ -261,7 +261,7 @@ def run_digest(project):
         log.error("writing_digest: %s merge exited clean but wrote no file", project)
         send_telegram(
             f"Writing digest for {project} ran but never wrote {master_rel_path}. "
-            f"Nothing pushed, will retry tomorrow.\n- Watson"
+            f"Nothing pushed, will retry tomorrow."
         )
         return
 
@@ -281,7 +281,7 @@ def run_digest(project):
     )
     if commit.returncode != 0:
         log.error("writing_digest: %s git commit failed: %s", project, commit.stderr.strip())
-        send_telegram(f"Writing digest for {project}: git commit failed, will retry tomorrow.\n- Watson")
+        send_telegram(f"Writing digest for {project}: git commit failed, will retry tomorrow.")
         return
 
     push = _git("push", "origin", "main")
@@ -289,7 +289,7 @@ def run_digest(project):
         log.error("writing_digest: %s git push failed: %s", project, push.stderr.strip())
         send_telegram(
             f"Writing digest for {project}: committed locally but push failed "
-            f"({push.stderr.strip()[:200]}), will retry the push tomorrow.\n- Watson"
+            f"({push.stderr.strip()[:200]}), will retry the push tomorrow."
         )
         return
 
@@ -298,7 +298,7 @@ def run_digest(project):
     log.info("writing_digest: %s updated (%d new archives), pushed to %s", project, len(new_rows), url)
     send_telegram(
         f"Writing digest updated for {project} ({len(new_rows)} new session(s) "
-        f"incorporated). Same link as always:\n{url}\n- Watson"
+        f"incorporated). Same link as always:\n{url}"
     )
 
 

@@ -247,7 +247,7 @@ def _alert_unmatched_signup(
         f"Subject: {subject}\n"
         f"event_registrations id: {row_id}\n\n"
         f"Likely a first-time visitor — check the raw email and add their "
-        f"name on the Events tab. - Watson"
+        f"name on the Events tab."
     )
 
 
@@ -263,7 +263,7 @@ def _alert_new_neighbor(event_name: str, registrant: str, member_id: int) -> Non
         f"👋 New neighbor from \"{event_name}\" signup: {registrant}. "
         f"No prior record, so Watson created congregation.db member #{member_id} "
         f"(shows as Neighbor until they attend — check/fix their name on the "
-        f"Events or catalystdb tab). - Watson"
+        f"Events or catalystdb tab)."
     )
 
 
@@ -295,14 +295,14 @@ def _notify_creator_on_first_match(conn: sqlite3.Connection, event_id: int, even
         if send_to_person(
             person["id"],
             f"Good news, \"{event_name}\" just picked up a registration ({registrant}). "
-            f"Tracking is working. - Watson",
+            f"Tracking is working.",
         ):
             notified = True
 
     if creator != "Bill Yomes":
         if _tg_send(
             f"{creator}'s \"{event_name}\" just picked up its first registration ({registrant}). "
-            f"Tracking is working. - Watson"
+            f"Tracking is working."
         ):
             notified = True
 
