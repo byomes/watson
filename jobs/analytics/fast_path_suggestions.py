@@ -240,6 +240,9 @@ Return a JSON array, each element exactly:
   "matched_question_ids": [<the question number(s) this suggestion covers>],
   "reasoning": "<one sentence: why this phrase/category, or why it needs new logic>"}}
 
+Questions about event signups, registrations, RSVPs, tickets, or a specific named event (picnic, hayride, banquet, \
+fraternity, breakfast...) do NOT belong to any category above: skip them (case c). Never stretch a category to fit.
+
 Only include array elements for case (a) or (b). Never invent a category id that isn't in \
 the list above. Return ONLY the JSON array."""
     return system, prompt
@@ -490,12 +493,13 @@ def _auto_apply(suggestion_id: int, target_id: str, target_label: str, new_phras
     out to misfire later; a real alert on failure, since that genuinely does
     need Bill — the safe automated path couldn't be taken."""
     from jobs.analytics.fast_path_patcher import apply_and_deploy
-    ok, detail = apply_and_deploy(target_id, new_phrase, actor="Watson (automatic, per-call review)")
+    ok, detail = apply_and_deploy(target_id, new_phrase, actor="Watson (automatic, per-call review)", example_question=example_question)
+    rejected = (not ok) and detail.startswith("validation rejected")
 
     with get_connection() as conn:
         conn.execute(
             "UPDATE fast_path_suggestions SET status=?, applied_detail=?, resolved_at=datetime('now') WHERE id=?",
-            ("applied" if ok else "failed", detail, suggestion_id),
+            ("applied" if ok else ("rejected" if rejected else "failed"), detail, suggestion_id),
         )
 
     if ok:
@@ -505,6 +509,13 @@ def _auto_apply(suggestion_id: int, target_id: str, target_label: str, new_phras
             f'Added trigger phrase "{new_phrase}" to {target_label} ({reasoning}).\n'
             f"Commit {detail}. No API call needed for this kind of question going forward.\n\n"
             "No action needed — just letting you know.\n\n- Watson"
+        )
+    elif rejected:
+        text = (
+            f"🛑 Held back a fast-path phrase\n\n"
+            f'Someone asked: "{example_question}"\n\n'
+            f'I considered adding "{new_phrase}" to {target_label}, but my safety check said no: {detail.removeprefix("validation rejected: ")}.\n\n'
+            "Nothing was changed. Flagging it in case it needs a real fix.\n\n- Watson"
         )
     else:
         text = (
@@ -554,6 +565,12 @@ def review_single_question(spend_log_id: int, asker_name: str, question: str) ->
 
     log.info("review_single_question: reviewing id=%d asker=%r q=%r", row_id, asker_name, question)
     try:
+        from jobs.analytics.fast_path_validate import looks_like_event_question
+        if looks_like_event_question(question):
+            # Event/signup questions have their own hand-maintained fast path (jobs/events/pattern_match.py). The attendance categories below
+            # cannot answer them, and filing one there is how 'signed up' broke every signup question (2026-10-06).
+            log.info("review_single_question: id=%d is an event/signup question -- not an attendance category, no suggestion. q=%r", row_id, question)
+            return
         system, prompt = _build_prompt([{"id": row_id, "question": question, "source": "claude_call"}])
         raw = _call_ollama(system, prompt)
         suggestions = _extract_json_array(raw) if raw else None

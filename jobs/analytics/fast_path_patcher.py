@@ -82,29 +82,28 @@ def _validate_python(text: str) -> tuple[bool, str]:
         return False, str(e)
 
 
-def append_cdb_phrase(target_id: str, new_phrase: str) -> tuple[bool, str]:
-    """Appends new_phrase into the trigger list for target_id (a key of
-    CDB_CATEGORY_TARGETS). Returns (ok, message) -- ok=False always means
-    nothing was written."""
+def build_patched_text(target_id: str, new_phrase: str, source: str | None = None) -> tuple[bool, str, str, str]:
+    """Pure: -> (ok, message, patched_text, original_text). Writes nothing. Shared by append_cdb_phrase (which writes) and
+    fast_path_validate.evaluate (which only inspects the patched file, to test a phrase before it is ever applied)."""
     anchor_comment = CDB_CATEGORY_TARGETS.get(target_id)
+    text = source if source is not None else CDB_QUERY_PATH.read_text()
     if not anchor_comment:
-        return False, f"unknown or unsupported target_id {target_id!r}"
+        return False, f"unknown or unsupported target_id {target_id!r}", "", text
     if not new_phrase or not isinstance(new_phrase, str):
-        return False, "new_phrase must be a non-empty string"
+        return False, "new_phrase must be a non-empty string", "", text
     new_phrase = new_phrase.strip().lower()
     if not new_phrase:
-        return False, "new_phrase must be a non-empty string"
+        return False, "new_phrase must be a non-empty string", "", text
 
-    text = CDB_QUERY_PATH.read_text()
     anchor = f"# {anchor_comment}"
     anchor_pos = text.find(anchor)
     if anchor_pos == -1:
-        return False, f"anchor comment {anchor!r} not found in {CDB_QUERY_PATH.name} -- file may have changed"
+        return False, f"anchor comment {anchor!r} not found in {CDB_QUERY_PATH.name} -- file may have changed", "", text
 
     list_marker = "for w in ["
     list_start = text.find(list_marker, anchor_pos)
     if list_start == -1 or list_start - anchor_pos > 600:
-        return False, "could not find this category's 'for w in [...]' list near its anchor comment"
+        return False, "could not find this category's 'for w in [...]' list near its anchor comment", "", text
     bracket_pos = list_start + len(list_marker) - 1  # index of the opening '['
 
     depth = 0
@@ -118,23 +117,34 @@ def append_cdb_phrase(target_id: str, new_phrase: str) -> tuple[bool, str]:
                 end = i
                 break
     if end is None:
-        return False, "could not find the matching ']' for this category's list"
+        return False, "could not find the matching ']' for this category's list", "", text
 
     if new_phrase in text[bracket_pos:end].lower():
-        return False, f"phrase {new_phrase!r} (or something very like it) is already in this category's list"
+        return False, f"phrase {new_phrase!r} (or something very like it) is already in this category's list", "", text
 
     insertion = f"{new_phrase!r}, "
     new_text = text[: bracket_pos + 1] + insertion + text[bracket_pos + 1 :]
 
     ok, err = _validate_python(new_text)
     if not ok:
-        return False, f"patched file failed to parse, nothing written: {err}"
+        return False, f"patched file failed to parse, nothing written: {err}", "", text
+    return True, "ok", new_text, text
 
+
+def append_cdb_phrase(target_id: str, new_phrase: str) -> tuple[bool, str]:
+    """Appends new_phrase into the trigger list for target_id (a key of
+    CDB_CATEGORY_TARGETS). Returns (ok, message) -- ok=False always means
+    nothing was written. (Syntax is checked here; whether the phrase is RIGHT
+    is jobs/analytics/fast_path_validate.py's job, run by apply_and_deploy.)"""
+    ok, msg, new_text, _old = build_patched_text(target_id, new_phrase)
+    if not ok:
+        return False, msg
     CDB_QUERY_PATH.write_text(new_text)
     return True, "applied"
 
 
-def apply_and_deploy(target_id: str, new_phrase: str, actor: str) -> tuple[bool, str]:
+def apply_and_deploy(target_id: str, new_phrase: str, actor: str, example_question: str | None = None,
+                     force: bool = False) -> tuple[bool, str]:
     """append_cdb_phrase() + git commit + restart both services, in one
     call. Extracted 2026-09-14 from bot.py's fps_approve Telegram-button
     handler (still used as-is for the "needs a real decision" suggestion
@@ -145,6 +155,15 @@ def apply_and_deploy(target_id: str, new_phrase: str, actor: str) -> tuple[bool,
     on ok=False nothing was written or restarted; on ok=True the two
     services have already been asked to restart (dashboard blocking,
     bot fire-and-forget -- see the note below)."""
+    # Validation gate (added 2026-10-06 after 'signed up' was auto-applied to the attendance list and every signup question answered with
+    # attendance): a phrase proposed by the automatic path must pass fast_path_validate.evaluate BEFORE anything is written. Callers that
+    # pass no example_question (Bill's own Approve tap in bot.py) or force=True skip it: a human has already looked.
+    if example_question and not force:
+        from jobs.analytics.fast_path_validate import evaluate, format_reasons
+        verdict = evaluate(target_id, new_phrase, example_question)
+        if not verdict["ok"]:
+            return False, "validation rejected: " + format_reasons(verdict)
+
     ok, detail = append_cdb_phrase(target_id, new_phrase)
     if not ok:
         return False, detail
