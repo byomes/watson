@@ -13,6 +13,13 @@ on this dimension"):
     {"deacons": [...], "teams": [...], "roles": [...], "campuses": [...],
      "events": [church_events.id, ...]}
 
+Two further keys are AND restrictions on whoever the dimensions above
+matched (not OR'd in): "gender" ("male"|"female") and "attendance"
+({"mode": "attended"|"not_attended", "weeks": N}) -- attended / did not
+attend any service in the last N weeks. A recipient with no member_id (an
+event registrant who isn't a member) can't be checked, so is dropped while
+either restriction is active.
+
 An entirely empty filter (with active_only true, the default) is
 "Everyone" -- every active member with a phone.
 
@@ -27,6 +34,7 @@ member -- see _event_registrant_recipients.
 import json
 import os
 import sqlite3
+from datetime import date, timedelta
 
 from core.database import get_connection
 from jobs.sms.carrier_lookup import normalize_phone
@@ -191,7 +199,53 @@ def resolve_filter(filter_json: dict, active_only: bool) -> list[dict]:
             seen_phones.add(rec["phone"])
             resolved.append(rec)
 
-    return resolved
+    return _apply_restrictions(resolved, filter_json)
+
+
+def _apply_restrictions(recipients: list[dict], filter_json: dict) -> list[dict]:
+    """ANDs the gender / recent-attendance restrictions onto resolved recipients."""
+    gender = (filter_json.get("gender") or "").strip().lower()
+    att = filter_json.get("attendance") or {}
+    mode = att.get("mode")
+    try:
+        weeks = int(att.get("weeks") or 0)
+    except (TypeError, ValueError):
+        weeks = 0
+    if gender not in ("male", "female"):
+        gender = ""
+    if mode not in ("attended", "not_attended") or weeks < 1:
+        mode = None
+    if not gender and not mode:
+        return recipients
+
+    conn = _cong_conn()
+    try:
+        genders = {r["id"]: (r["gender"] or "").strip().lower() for r in conn.execute("SELECT id, gender FROM members")}
+        attended: set[int] = set()
+        if mode:
+            cutoff = (date.today() - timedelta(weeks=weeks)).isoformat()
+            attended = {
+                r[0] for r in conn.execute(
+                    "SELECT DISTINCT member_id FROM attendance WHERE member_id IS NOT NULL AND service_date >= ?",
+                    (cutoff,),
+                ).fetchall()
+            }
+    finally:
+        conn.close()
+
+    out = []
+    for r in recipients:
+        mid = r.get("member_id")
+        if mid is None:
+            continue
+        if gender and genders.get(mid) != gender:
+            continue
+        if mode == "attended" and mid not in attended:
+            continue
+        if mode == "not_attended" and mid in attended:
+            continue
+        out.append(r)
+    return out
 
 
 def resolve_group(conn, group_id: int) -> tuple[dict | None, list[dict]]:
