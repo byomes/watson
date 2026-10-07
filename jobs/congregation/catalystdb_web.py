@@ -243,7 +243,13 @@ def get_state():
             m = dict(r)
             m["connected"] = _connected_or_override(conn, m["id"], m.get(_CONNECTED_REAL_COLUMN), today)
             members.append(m)
-    return jsonify({"members": members})
+        # Serving teams per member (team_memberships is many-to-many: one person can be on several teams). Active rows only --
+        # the servants page's red X is a soft flag (active = 0). Sent as a separate map so a member row stays flat for the grid.
+        serving: dict[str, list[str]] = {}
+        for t in conn.execute("SELECT member_id, team_name FROM team_memberships WHERE active = 1 ORDER BY team_name"):
+            serving.setdefault(str(t["member_id"]), []).append(t["team_name"])
+        teams = sorted({name for names in serving.values() for name in names})
+    return jsonify({"members": members, "serving": serving, "teams": teams})
 
 
 @catalystdb_web_bp.route("/api/cat/catalystdb/update", methods=["POST"])
