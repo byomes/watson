@@ -44,29 +44,28 @@ def _in_window(now: datetime | None = None) -> bool:
     return WINDOW_START_HOUR <= h < WINDOW_END_HOUR
 
 
+def sentence(name: str, attending: bool, guests: int, kids: int, updated: bool = False) -> str:
+    """Plain-English one-liner, e.g. "Bob Jones RSVPd 4 guests and 2 kids for the SLB."
+    Guests counts everyone attending in that RSVP, the respondent included."""
+    if not attending:
+        return f"{name} will not be attending the SLB." if not updated else f"{name} changed their RSVP: will not be attending the SLB."
+    g = f"{guests} guest{'' if guests == 1 else 's'}"
+    k = f" and {kids} kid{'' if kids == 1 else 's'}" if kids else ""
+    return f"{name} " + ("updated their RSVP to " if updated else "RSVPd ") + f"{g}{k} for the SLB."
+
+
 def _totals_block(totals: dict) -> str:
     return (
-        "Totals so far\n"
-        f"Guests: {totals['guests']}\n"
-        f"Childcare: {totals['childcare']}\n"
-        f"Responded: {totals['yes']} yes, {totals['no']} no "
-        f"({totals['responded']} of {totals['invited']} invited)"
+        f"Totals so far: {totals['guests']} guests and {totals['childcare']} kids for childcare. "
+        f"{totals['responded']} of {totals['invited']} invited have responded "
+        f"({totals['yes']} yes, {totals['no']} no)."
     )
 
 
 def format_message(name: str, attending: bool, party: list[str], child_count: int,
                    totals: dict, updated: bool = False, test: bool = False) -> str:
-    head = "\U0001F37D️ " + ("Updated" if updated else "New") + " banquet RSVP"
-    if test:
-        head = "TEST (not live yet)\n" + head
-    lines = [head, f"{name}: " + ("Yes" if attending else "Not attending")]
-    if attending:
-        who = ", ".join(party)
-        lines.append(f"Guests: {len(party)}" + (f" ({who})" if len(party) > 1 else ""))
-        if child_count:
-            lines.append(f"Childcare: {child_count} {'child' if child_count == 1 else 'children'}")
-    lines += ["", _totals_block(totals)]
-    return "\n".join(lines) + "\n" + SIGNOFF.strip()
+    text = sentence(name, attending, len(party), child_count, updated) + "\n\n" + _totals_block(totals) + "\n" + SIGNOFF.strip()
+    return ("TEST: " + text) if test else text
 
 
 def current_totals(event_id: int) -> dict:
@@ -109,7 +108,7 @@ def notify_new_rsvp(event_id: int, detection: dict, updated: bool) -> None:
             with _conn() as c:
                 _ensure_queue(c)
                 c.execute("INSERT INTO banquet_rsvp_notify_queue (event_id, summary) VALUES (?, ?)",
-                          (event_id, f"{name}: " + (f"Yes, {len(party)} guest(s)" + (f", {kids} childcare" if kids else "") if attending else "Not attending")))
+                          (event_id, sentence(name, attending, len(party), kids, updated)))
     except Exception:
         log.exception("banquet RSVP notification failed (RSVP itself was recorded)")
 
@@ -124,7 +123,7 @@ def flush_queue() -> int:
         if not rows:
             return 0
         totals = current_totals(rows[0]["event_id"])
-        body = "\U0001F37D️ Banquet RSVPs since yesterday\n" + "\n".join(r["summary"] for r in rows) + "\n\n" + _totals_block(totals) + "\n" + SIGNOFF.strip()
+        body = "SLB RSVPs since yesterday:\n" + "\n".join(r["summary"] for r in rows) + "\n\n" + _totals_block(totals) + "\n" + SIGNOFF.strip()
         if send_to_person(BILL_CROOK_ID, body):
             c.execute("DELETE FROM banquet_rsvp_notify_queue")
             return len(rows)
