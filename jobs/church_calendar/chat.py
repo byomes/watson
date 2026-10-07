@@ -24,7 +24,7 @@ _EXCLUDE = re.compile(
 _STOP = set(
     "when is are was the a an of for at on in to what time day where whats what's next do does we our "
     "there any about tell me us church calendar event events happening going schedule this coming upcoming "
-    "next date and or with".split())
+    "next date and or with register registering sign up signup rsvp how can i link where do".split())
 _SERVICE_WORDS = {"service", "services", "worship", "sunday", "church"}
 _WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
 
@@ -49,14 +49,19 @@ def _window(low: str) -> tuple[int, int] | None:
     return None
 
 
+def _stem(w: str) -> str:
+    """Light plural stem so 'billiard' matches 'Billiards' and 'hayrides' matches 'Hayride' (found 2026-10-06 in the event-question matrix)."""
+    return w[:-1] if len(w) > 3 and w.endswith("s") else w
+
+
 def _series_matches(text: str) -> list[dict]:
     """Next occurrence of every series whose title contains all the question's content words."""
-    words = [w for w in _norm(text).split() if w not in _STOP and not w.isdigit()]
+    words = [_stem(w) for w in _norm(text).split() if w not in _STOP and not w.isdigit()]
     if not words:
         return []
     out: dict[str, dict] = {}
     for r in upcoming():
-        title = _norm(r["title"]).split()
+        title = [_stem(w) for w in _norm(r["title"]).split()]
         if all(w in title for w in words) or (
             set(words) <= _SERVICE_WORDS | {"time"} and r["calendar"] == "Services"
             and set(words) & _SERVICE_WORDS):
@@ -114,18 +119,29 @@ def registrations_answer(text: str) -> str | None:
         picked: dict[str, dict] = {}
         for r in rows:  # next occurrence of each distinct event title
             picked.setdefault(r["title"], r)
+        # Events Watson tracks itself (church_events + event_registrations) are authoritative: the Subsplash copy said the Billiards
+        # Outing had 0 signed up while the tracked record had 5 (2026-10-06). Use the tracked numbers for those, Subsplash for the rest.
+        tracked = {_norm(x["event_name"]): x["id"] for x in conn.execute("SELECT id, event_name FROM church_events WHERE tracking_active = 1")}
         lines = []
         for r in picked.values():
             d = local_date(r)
-            n = r["registered"] or 0
+            tid = tracked.get(_norm(r["title"]))
+            if tid is not None:
+                n = conn.execute("SELECT COALESCE(SUM(num_tickets), 0) FROM event_registrations WHERE event_id = ?", (tid,)).fetchone()[0]
+                name_rows = conn.execute("SELECT first_name, last_name FROM event_registrations WHERE event_id = ? ORDER BY last_name, first_name", (tid,))
+            else:
+                n = r["registered"] or 0
+                name_rows = conn.execute("SELECT first_name, last_name FROM subsplash_registrations WHERE event_uuid=? "
+                                         "ORDER BY last_name, first_name", (r["event_uuid"],))
             line = f"{r['title']} ({d.strftime('%a %b')} {d.day}): {n} signed up"
             if n and re.search(r"\bwho\b|names?|list", low):
-                names = [f"{x['first_name'] or ''} {x['last_name'] or ''}".strip() for x in conn.execute(
-                    "SELECT first_name, last_name FROM subsplash_registrations WHERE event_uuid=? "
-                    "ORDER BY last_name, first_name", (r["event_uuid"],))]
+                names = [f"{x['first_name'] or ''} {x['last_name'] or ''}".strip() for x in name_rows]
                 line += ": " + ", ".join(names)
             lines.append(line)
     return "\n".join(lines)
+
+
+_HOW_REGISTER = re.compile(r"\b(?:how (?:do|can|would) (?:i|we)|where (?:do|can|would) (?:i|we)|link (?:to|for))\b.*\b(?:register|sign ?up|rsvp)\b", re.I)
 
 
 def answer(text: str) -> str | None:
@@ -133,7 +149,8 @@ def answer(text: str) -> str | None:
     if reg:
         return reg
     low = text.lower().replace("’", "'")
-    if not _TRIGGER.search(low) or _EXCLUDE.search(low):
+    low = re.sub(r"\bfrat\b", "fraternity", low)
+    if not (_TRIGGER.search(low) or _HOW_REGISTER.search(low)) or _EXCLUDE.search(low):
         return None
     win = _window(low)
     series = _series_matches(low)

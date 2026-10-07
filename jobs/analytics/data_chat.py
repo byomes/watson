@@ -974,26 +974,57 @@ def _try_pattern_match(question: str) -> str | None:
 
 
 _SIGNUP_RE = re.compile(r"\b(signed[- ]?up|sign[- ]?ups?|registered|registrations?|rsvp'?d?|rsvps)\b", re.I)
-# Signup words that are NOT about a church event (serving, classes, groups): leave those to the normal routes.
+# Only questions and requests get the guard's answers: "Hi Watson, this is Kaci. I handle event registrations" is not asking for numbers.
+_QUESTION_RE = re.compile(r"\?|^\s*(?:hey|hi|hello)?\W*(?:watson\W*)?(how|who|who's|whos|what|which|is|are|can|could|does|do|did|where|when|list|show|give|tell|count)\b", re.I)
+# "how many/who is coming/going to X": ordinary attendance wording too, so it only counts when X is a known event (see below).
+_COMING_RE = re.compile(r"\b(how many|who(?:'s|\s+is|\s+are)?)\b.*\b(coming|going|attending|showing up)\b", re.I)
+# Signup words that are NOT about a church event (serving, classes, groups): leave those to the normal routes -- but only when the question
+# names no known event ("Servant Leaders Banquet" contains 'serv...' and is an event).
 _SIGNUP_NOT_EVENT_RE = re.compile(r"\b(serv\w*|volunteer\w*|usher\w*|greet\w*|nursery|class\w*|room|kids?|group|team|rotation|schedule)\b", re.I)
 
 
+def _tracked_event_names() -> list[str]:
+    try:
+        with sqlite3.connect(f"file:{WATSON_DB_PATH}?mode=ro", uri=True, timeout=5) as c:
+            return [r[0] for r in c.execute("SELECT event_name FROM church_events WHERE tracking_active = 1 ORDER BY event_name")]
+    except Exception:
+        return []
+
+
 def _untracked_signup_reply(question: str) -> str | None:
-    """A signup/registration question the events fast path could not answer is about an event Watson does not track
-    (its numbers live in event_registrations only for tracking_active church_events). Say so plainly instead of letting
-    the model guess a query against some other table (2026-10-06: it picked group_attendance.num_tickets and errored)."""
-    if not _SIGNUP_RE.search(question) or _SIGNUP_NOT_EVENT_RE.search(question):
+    """A signup question the events fast path could not answer. Three honest outcomes instead of letting the model guess a query
+    against some other table (2026-10-06: it picked group_attendance.num_tickets and errored):
+      * the question could mean 2+ known events  -> ask which ("Men's Fraternity" = Bible Study or Billiards Outing);
+      * it names exactly one event Watson does not track -> say so by name;
+      * it names no known event -> the generic "no signup numbers for that event" (unless it is really about serving/classes/groups)."""
+    if not _QUESTION_RE.search(question):
+        return None                                   # a statement ("I handle event registrations", "I created an event ... to track registrations")
+    is_signup = bool(_SIGNUP_RE.search(question))
+    is_coming = bool(_COMING_RE.search(question))
+    if not (is_signup or is_coming):
         return None
     try:
-        import sqlite3
-        from config.settings import DB_PATH
-        with sqlite3.connect(DB_PATH) as c:
-            names = [r[0] for r in c.execute("SELECT event_name FROM church_events WHERE tracking_active = 1 ORDER BY event_name")]
+        from jobs.events.pattern_match import event_candidates
+        info = event_candidates(question)
     except Exception:
-        names = []
+        info = {"phrase": "", "candidates": []}
+    cands = info["candidates"]
+    if is_coming and not is_signup and not cands:
+        return None                                   # "how many are coming to church" etc.: attendance wording, not our business
+    if not cands and _SIGNUP_NOT_EVENT_RE.search(question):
+        return None
+    names = _tracked_event_names()
+    have = [c["title"] for c in cands if c["tracked"]]
+    if len(cands) > 1:
+        titles = " or ".join(c["title"] for c in cands)
+        tail = (f" I have signup numbers for {', '.join(have)}." if have else " I don't have signup numbers for any of those.")
+        return f"Which one do you mean: {titles}?{tail}"
+    if len(cands) == 1:
+        if cands[0]["tracked"]:
+            return None                               # tracked, but the fast path declined (e.g. asks about a custom form field): let the model try
+        return f"I don't have signup numbers for {cands[0]['title']}." + ((" I do track signups for: " + ", ".join(names) + ".") if names else "")
     tail = (" I do track signups for: " + ", ".join(names) + ".") if names else ""
     return "I don't have signup numbers for that event." + tail + " For anything else, ask Dr. Bill."
-
 
 
 def _try_pattern_match_events(question: str) -> str | None:
@@ -1083,6 +1114,18 @@ def answer_data_question(
         if rows:
             log.info("data_chat: events pattern-match hit, asker=%s q=%r sql=%r rows=%d", asker_name, question, pm_events_sql, len(rows))
             return True, _format_rows(rows)
+        # A tracked event with nobody signed up yet: say that, don't hand a plain "who is signed up" to the model (it cost a call and
+        # could guess a table). Count queries never get here (COALESCE gives a 0 row).
+        m = re.search(r"event_registrations WHERE event_id = (\d+)", pm_events_sql)
+        if rows == [] and m:
+            try:
+                with sqlite3.connect(f"file:{WATSON_DB_PATH}?mode=ro", uri=True, timeout=5) as c:
+                    nm = c.execute("SELECT event_name FROM church_events WHERE id = ?", (int(m.group(1)),)).fetchone()
+            except Exception:
+                nm = None
+            if nm:
+                log.info("data_chat: events pattern-match hit but nobody signed up yet, asker=%s q=%r", asker_name, question)
+                return True, f"Nobody has signed up for {nm[0]} yet."
         log.info("data_chat: events pattern-match matched but found nothing (rows=%s), falling through to generation: q=%r sql=%r", rows, question, pm_events_sql)
 
     # Signup question the events fast path could not match -> an event we do not track. Answer honestly, no model guess.

@@ -41,21 +41,85 @@ def _norm(name_l: str) -> str:
 # being asked about — "how many are registered FOR THE PICNIC", "who's
 # coming TO the retreat". Non-greedy up to the next punctuation or end of
 # string, so it doesn't swallow a trailing clause unrelated to the event.
-_EVENT_REF_RE = re.compile(r"\b(?:for|to|about)\s+(?:the\s+)?([a-z][a-z0-9' -]*?)(?:[?.!]|$)", re.IGNORECASE)
+_EVENT_REF_RE = re.compile(r"\b(?:for|to|about)\s+(?:the\s+)?([a-z0-9][a-z0-9' -]*?)(?:[?.!]|$)", re.IGNORECASE)
+
+
+# Time words say WHEN, never WHICH event: "hayride tomorrow night" is the Hayride. (Found 2026-10-06 in the event-question matrix:
+# every "<tracked event> tomorrow night" question was treated as an untracked event.)
+_TIME_RE = re.compile(
+    r"\b(?:today|tonight|tomorrow(?:\s+(?:night|morning|evening|afternoon))?|this\s+(?:week|weekend|morning|evening|coming\s+\w+)|next\s+\w+|"
+    r"(?:on\s+)?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)(?:\s+(?:night|morning|evening))?)\b", re.IGNORECASE)
+
+
+def _strip_time(phrase: str) -> str:
+    return re.sub(r"\s+", " ", _TIME_RE.sub(" ", phrase)).strip(" ,.?!")
+
+
+def _calendar_titles() -> list[str]:
+    """Distinct event titles on the church calendars (the Subsplash import: Men's Breakfast, Men's Fraternity Bible Study, ...)."""
+    try:
+        conn = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True, timeout=5)
+        out = [r[0] for r in conn.execute("SELECT DISTINCT title FROM church_calendar_events WHERE title IS NOT NULL")]
+        conn.close()
+        return out
+    except Exception:
+        return []
+
+
+def event_phrase(question: str) -> str:
+    """The event the question names (the last for/to/about clause), minus time words. '' if there is none."""
+    m = None
+    for m in _EVENT_REF_RE.finditer(re.sub(r"\bfrat\b", "fraternity", question.lower())):
+        pass
+    return _strip_time(m.group(1)) if m else ""
+
+
+def event_candidates(question: str, rows=None) -> dict:
+    """Every known event (tracked in church_events OR on the church calendars) the question could mean.
+    -> {"phrase", "candidates": [{"title", "tracked", "id"}]} with calendar/tracked duplicates of one title merged.
+    Needed because the signup fast path only ever saw the tracked events: once the calendars were imported, "men's fraternity" matched
+    the tracked Billiards Outing alone and silently skipped the weekly Bible Study."""
+    if rows is None:
+        try:
+            conn = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True, timeout=5)
+            rows = _active_events(conn)
+            conn.close()
+        except Exception:
+            rows = []
+    phrase = event_phrase(question)
+    pt = _tokens(phrase)
+    out: dict[str, dict] = {}
+    if pt:
+        for r in rows:
+            if pt <= _tokens(r["event_name"]):
+                out[_norm(r["event_name"].lower())] = {"title": r["event_name"], "tracked": True, "id": r["id"]}
+        for t in _calendar_titles():
+            if pt <= _tokens(t):
+                out.setdefault(_norm(t.lower()), {"title": t, "tracked": False, "id": None})
+    if phrase and not out:
+        # Nothing shares all the asked words, but a whole event name may sit inside a longer phrase ("dessert for picnic",
+        # "picnic on october 4 and who ..."): those are about that event (custom-form / compound questions the model must handle).
+        pn = _norm(phrase.lower())
+        if pn:
+            for r in rows:
+                n = _norm(r["event_name"].lower())
+                if n and n in pn:
+                    out[n] = {"title": r["event_name"], "tracked": True, "id": r["id"]}
+            for t in _calendar_titles():
+                n = _norm(t.lower())
+                if n and n in pn:
+                    out.setdefault(n, {"title": t, "tracked": False, "id": None})
+    return {"phrase": phrase, "candidates": list(out.values())}
 
 
 def _resolve_event_id(question: str) -> int | None:
     """Which tracking_active event the question is about.
 
-    If the question names something after for/to/about ("...for the
-    retreat"), that phrase MUST match a tracked event's name (verbatim, or
-    with stopwords like "church"/"the" stripped) — a name that matches
-    nothing returns None even if exactly one event happens to be active,
-    since defaulting there would silently answer a question about an
-    untracked event with a different event's numbers. Only when no such
-    phrase is present at all does "exactly one active event" apply as the
-    implicit subject (the common case: a bare "how many are registered?"
-    while only the picnic is being tracked).
+    If the question names something after for/to/about ("...for the retreat"), that phrase MUST identify exactly one known event
+    (tracked, or on the church calendars) and that event must be a tracked one; a phrase that matches nothing, or more than one
+    event ("men's fraternity" = Bible Study AND Billiards Outing), returns None -- the caller then asks which one or says it has no
+    numbers, instead of silently answering about a different event. Only when no such phrase is present at all does "exactly one
+    active event" apply as the implicit subject (a bare "how many are registered?" while only the picnic is being tracked).
     """
     try:
         conn = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True, timeout=5)
@@ -68,29 +132,23 @@ def _resolve_event_id(question: str) -> int | None:
         return None
 
     q = question.lower()
-    m = None
-    for m in _EVENT_REF_RE.finditer(q):
-        pass  # take the last for/to/about clause — closest to the actual object
-    phrase = (m.group(1).strip().strip("?.!,") if m else None) or None
+    exact = [r for r in rows if r["event_name"].lower() in q]
+    if len(exact) == 1:
+        return exact[0]["id"]
 
-    if phrase:
-        phrase_norm = _norm(phrase)
-        matches = [
-            r for r in rows
-            if r["event_name"].lower() in q
-            or (_norm(r["event_name"].lower()) and (
-                _norm(r["event_name"].lower()) in phrase_norm or phrase_norm in _norm(r["event_name"].lower())
-            ))
-        ]
-        if len(matches) == 1:
-            return matches[0]["id"]
-        # Verbatim/substring match failed -- try distinctive-word matching
-        # ("billiard outing" -> "Men's Fraternity Billiards Outing"). Added
-        # 2026-10-06 after two billiard questions missed the fast path and
-        # went to the LLM. Still returns None if nothing (or >1 event) matches.
-        return _token_match(phrase, rows)
+    phrase = event_phrase(q)
+    if not phrase:
+        has_ref = any(_EVENT_REF_RE.finditer(q))
+        return rows[0]["id"] if (len(rows) == 1 and not has_ref) else None
 
-    return rows[0]["id"] if len(rows) == 1 else None
+    cands = event_candidates(question, rows)["candidates"]
+    if len(cands) == 1:
+        return cands[0]["id"]            # None when the single match is a calendar-only (untracked) event
+    if len(cands) > 1:
+        # one candidate may be the phrase said in full ("billiards outing" vs "billiards outing party"): prefer an exact normalized name
+        full = [c for c in cands if _norm(c["title"].lower()) == _norm(phrase.lower())]
+        return full[0]["id"] if len(full) == 1 else None
+    return None
 
 
 # Words that appear in many event names and say nothing about WHICH event.
@@ -151,6 +209,19 @@ _LIST_RE = re.compile(
 )
 
 
+# "how many are coming/going to X", "who's coming to X": these verbs are also ordinary worship-attendance wording, so they only count as
+# a signup question when the question explicitly names a known event after for/to/about (never the implicit single-event default).
+_COUNT_COMING_RE = re.compile(r"\bhow many\b.*\b(coming|going|attending|showing up|planning)\b", re.IGNORECASE)
+_LIST_COMING_RE = re.compile(r"\bwho(?:'s|\s+is|\s+are)?\b.*\b(coming|going|attending|showing up)\b", re.IGNORECASE)
+# "when is the banquet", "what time is trunk or treat" for tracked events that are not on the calendar cache (church_events has the date).
+_INFO_RE = re.compile(r"\b(when|what\s+time|what\s+day|what\s+date)\b", re.IGNORECASE)
+
+
+def _explicit_event_id(q: str) -> int | None:
+    """Event id only when the question names the event after for/to/about; None for the implicit-single-event default."""
+    return _resolve_event_id(q) if event_phrase(q) else None
+
+
 def _mentions_extra_field(question_lower: str, event_id: int) -> bool:
     """True if the question seems to reference a specific answer to one of
     this event's custom sign-up-form questions (e.g. "dessert"/"side dish"
@@ -208,7 +279,21 @@ def pattern_match(question: str) -> str | None:
             "WHERE tracking_active = 1 ORDER BY start_date"
         )
 
-    if _COUNT_RE.search(q):
+    if _INFO_RE.search(q) and not _COUNT_RE.search(q) and not _LIST_RE.search(q):
+        m = re.search(r"\b(?:is|are)\s+(?:the\s+)?(.+?)\s*[?.!]?$", q, re.IGNORECASE)
+        event_id = _resolve_event_id(f"{q} for {_strip_time(m.group(1))}") if m and _strip_time(m.group(1)) else None
+        if event_id is not None:
+            return (
+                "SELECT event_name || ' is ' || COALESCE("
+                "substr('SunMonTueWedThuFriSat', CAST(strftime('%w', start_date) AS INTEGER) * 3 + 1, 3) || ', ' || "
+                "substr('JanFebMarAprMayJunJulAugSepOctNovDec', (CAST(strftime('%m', start_date) AS INTEGER) - 1) * 3 + 1, 3) || ' ' || "
+                "CAST(strftime('%d', start_date) AS INTEGER), '(date not set)') "
+                "|| COALESCE(' at ' || NULLIF(event_time, ''), '') "
+                f"FROM church_events WHERE id = {event_id}"
+            )
+        return None
+
+    if _COUNT_RE.search(q) or (_COUNT_COMING_RE.search(q) and _explicit_event_id(q) is not None):
         event_id = _resolve_event_id(q)
         if event_id is None:
             return None
@@ -225,7 +310,7 @@ def pattern_match(question: str) -> str | None:
             f"WHERE event_id = {event_id}"
         )
 
-    if _LIST_RE.search(q):
+    if _LIST_RE.search(q) or (_LIST_COMING_RE.search(q) and _explicit_event_id(q) is not None):
         event_id = _resolve_event_id(q)
         if event_id is None:
             return None

@@ -1,78 +1,170 @@
 #!/usr/bin/env python3
-"""Regression: event-signup questions must reach the EVENTS fast path, never the attendance count.
-Bug 2026-10-06 (5a96dc4): 'signed up' was added to the attendance-count phrase list, so "how many people are signed up for X"
-answered with last Sunday's attendance. Also: an untracked event's signup question must get an honest answer, not a model-guessed
-query. The model call (_generate) is stubbed to FAIL the test if reached, so this never spends an LLM call.
-Run: python tests/signup_routing_regression_test.py"""
+"""Regression tests for event-signup routing in team chat. Uses a FIXTURE watson.db, so it does not depend on which events are live, and
+the model call (_generate) is stubbed to FAIL the test if reached, so it never spends an LLM call. No Telegram, no Subsplash.
+Run: python tests/signup_routing_regression_test.py
+
+History these guard:
+  * 2026-10-06 (5a96dc4): 'signed up' added to the attendance-count phrases -> every signup question answered with last Sunday's attendance.
+  * 2026-10-06 after the calendar/Subsplash import: "men's fraternity" silently answered about the tracked Billiards Outing and skipped the
+    weekly Bible Study; "<event> tomorrow night" made tracked events look untracked; "Servant Leaders Banquet" tripped the 'serv...' exclusion;
+    digit-leading names ("5th Sunday Potluck") and "coming to" fell through to the model; the Subsplash route said Billiards had 0 signed up
+    while the tracked record had 5."""
 import logging
+import shutil
+import sqlite3
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 logging.disable(logging.CRITICAL)
+import core.database as cdb  # noqa: E402
 from jobs.analytics import data_chat as d  # noqa: E402
+from jobs.church_calendar import chat as cc  # noqa: E402
+from jobs.events import pattern_match as pm  # noqa: E402
 
-SIGNUP_QS = ["How many people are signed up for the men's billiard event", "who is signed up for the billiards event?",
-             "how many men are signed up for the billiards event", "How many people are registered for the church picnic?"]
+FIX = Path(tempfile.mkdtemp()) / "fixture.db"
 
 
-class T(unittest.TestCase):
-    def test_signup_questions_never_hit_attendance_fast_path(self):
-        # "who is signed up..." trips cdb_query's 'who is' NAME lookup, which finds nobody and falls through (by design,
-        # see answer_data_question); the full-flow test below covers it. Every other phrasing must not match at all.
-        for q in SIGNUP_QS + ["How many people are signed up for Men's Fraternity tomorrow night"]:
-            if q.lower().startswith("who is"):
-                continue
+def build_fixture(paused="1"):
+    c = sqlite3.connect(FIX)
+    c.executescript("""
+    DROP TABLE IF EXISTS church_events; DROP TABLE IF EXISTS event_registrations; DROP TABLE IF EXISTS church_calendar_events;
+    DROP TABLE IF EXISTS subsplash_event_regs; DROP TABLE IF EXISTS subsplash_registrations; DROP TABLE IF EXISTS system_settings;
+    CREATE TABLE church_events (id INTEGER PRIMARY KEY, event_name TEXT, start_date TEXT, event_time TEXT, tracking_active INTEGER DEFAULT 1);
+    CREATE TABLE event_registrations (id INTEGER PRIMARY KEY, event_id INTEGER, first_name TEXT, last_name TEXT, num_tickets INTEGER DEFAULT 1, extra_fields TEXT);
+    CREATE TABLE church_calendar_events (title TEXT, start_date TEXT);
+    CREATE TABLE subsplash_event_regs (event_uuid TEXT PRIMARY KEY, title TEXT, start_date TEXT, calendar TEXT, has_form INTEGER, registered INTEGER);
+    CREATE TABLE subsplash_registrations (event_uuid TEXT, first_name TEXT, last_name TEXT);
+    CREATE TABLE system_settings (key TEXT PRIMARY KEY, value TEXT);
+    INSERT INTO church_events VALUES (1, 'Men''s Fraternity Billiards Outing', '2099-11-04', NULL, 1), (2, 'Hayride and Bonfire', NULL, NULL, 1),
+                                     (3, 'Servant Leaders Banquet', '2099-11-07', NULL, 1), (4, 'Church Picnic', '2020-10-04', NULL, 1);
+    INSERT INTO event_registrations VALUES (1,1,'Aaron','Harper',1,NULL),(2,1,'Tom','Thomas',1,NULL),(3,2,'Mel','Yomes',2,NULL),(4,4,'Pat','Lee',1,NULL);
+    INSERT INTO church_calendar_events VALUES ('Men''s Fraternity Billiards Outing','2099-11-04'),('Men''s Fraternity Bible Study','2099-10-07'),
+        ('Men''s Breakfast','2099-10-17'),('Hayride and Bonfire','2099-10-10'),('5th Sunday Potluck','2099-11-29'),('Remix Youth Group','2099-10-11');
+    INSERT INTO subsplash_event_regs VALUES ('u1','Men''s Fraternity Billiards Outing','2099-11-04','Special Events',1,0),
+        ('u2','Men''s Fraternity Bible Study','2099-10-07','Small Groups',1,4);
+    INSERT INTO subsplash_registrations VALUES ('u2','Zed','Zimmer');
+    """)
+    c.execute("INSERT INTO system_settings VALUES ('subsplash_registrations_paused', ?)", (paused,))
+    c.commit()
+    c.close()
+
+
+def conn_factory():
+    c = sqlite3.connect(FIX)
+    c.row_factory = sqlite3.Row
+    return c
+
+
+class Base(unittest.TestCase):
+    paused = "1"
+
+    def setUp(self):
+        build_fixture(self.paused)
+        self._orig = (pm.DB_PATH, d.WATSON_DB_PATH, dict(d._DB_PATH), cdb.get_connection, d._generate)
+        pm.DB_PATH = str(FIX)
+        d.WATSON_DB_PATH = str(FIX)
+        d._DB_PATH["events"] = str(FIX)
+        cdb.get_connection = conn_factory
+        d._generate = lambda *a, **k: self.fail("a question reached the LLM")
+
+    def tearDown(self):
+        pm.DB_PATH, d.WATSON_DB_PATH, d._DB_PATH, cdb.get_connection, d._generate = self._orig
+
+    def ask(self, q):
+        """Route like bot.py: church-event route first, then the data chat."""
+        return cc.answer(q) or d.answer_data_question(q, "Bill Yomes")[1]
+
+
+class Paused(Base):
+    paused = "1"
+
+    def test_no_signup_question_ever_reaches_attendance(self):
+        for q in ("How many people are signed up for the men's billiard event", "how many men are signed up for the billiards event",
+                  "How many people are registered for the church picnic?", "How many people are signed up for Men's Fraternity tomorrow night"):
             self.assertIsNone(d._try_pattern_match(q), q)
+            self.assertNotIn("We saw a total", self.ask(q))
 
-    def test_who_is_signed_up_reaches_events_not_attendance(self):
-        orig = d._generate
-        d._generate = lambda *a, **k: self.fail("reached the LLM")
-        try:
-            ok, reply = d.answer_data_question("who is signed up for the billiards event?", "Bill Yomes")
-        finally:
-            d._generate = orig
-        self.assertTrue(ok)
-        self.assertNotIn("We saw a total", reply)
-        self.assertNotIn("don't have signup numbers", reply)
+    def test_tracked_events_answer_with_numbers(self):
+        self.assertEqual(self.ask("how many men are signed up for the billiards event"), "2")
+        self.assertEqual(self.ask("How many people are signed up for the men's billiard event"), "2")
+        self.assertEqual(self.ask("how many signed up for hayride tomorrow night"), "2")           # time words do not hide a tracked event
+        self.assertEqual(self.ask("how many are going to hayride tomorrow night"), "2")            # coming/going with an explicit event
+        r = self.ask("who is signed up for the billiards event?")
+        self.assertIn("Aaron Harper", r)
+        self.assertIn("Tom Thomas", r)
 
-    def test_tracked_events_hit_events_fast_path(self):
-        for q in SIGNUP_QS:
-            sql = d._try_pattern_match_events(q)
-            self.assertTrue(sql and "event_registrations" in sql, q)
+    def test_ambiguous_name_asks_which_instead_of_picking(self):
+        for q in ("how many are signed up for men's fraternity", "How many people are signed up for Men's Fraternity tomorrow night", "how many signed up for the frat"):
+            r = self.ask(q)
+            self.assertIn("Which one do you mean", r, q)
+            self.assertIn("Bible Study", r)
+            self.assertIn("Billiards Outing", r)
+            self.assertIn("I have signup numbers for Men's Fraternity Billiards Outing", r)
 
-    def test_real_attendance_questions_still_work(self):
-        for q in ("How many people attended church today?", "How many people came to church last Sunday?", "what was total attendance last week"):
-            self.assertIsNotNone(d._try_pattern_match(q), q)
+    def test_untracked_calendar_event_is_named_honestly(self):
+        r = self.ask("How many are coming to the 5th Sunday Potluck")                              # digit-leading name
+        self.assertIn("I don't have signup numbers for 5th Sunday Potluck", r)
+        self.assertIn("Hayride and Bonfire", r)                                                    # lists what IS tracked
+        self.assertIn("Men's Breakfast", self.ask("how many are signed up for men's breakfast"))
 
-    def test_untracked_event_gets_honest_reply_without_llm(self):
-        orig = d._generate
-        d._generate = lambda *a, **k: self.fail("signup question reached the LLM")
-        try:
-            ok, reply = d.answer_data_question("How many people are signed up for Men's Fraternity tomorrow night", "Bill Yomes")
-        finally:
-            d._generate = orig
-        self.assertTrue(ok)
-        self.assertIn("don't have signup numbers", reply)
-        self.assertNotIn("128", reply)                                                    # not an attendance count
-        self.assertNotIn("error", reply.lower())
-
-    def test_serving_signup_words_are_not_swallowed(self):
+    def test_banquet_is_an_event_not_a_serving_question(self):
+        self.assertEqual(self.ask("who is signed up for the servant leaders banquet"), "Nobody has signed up for Servant Leaders Banquet yet.")
+        self.assertEqual(self.ask("how many are signed up for the servant leaders banquet"), "0")
         self.assertIsNone(d._untracked_signup_reply("who is signed up to serve on Sunday"))
         self.assertIsNone(d._untracked_signup_reply("how many volunteers are signed up for nursery"))
-        self.assertIsNone(d._untracked_signup_reply("how many people attended church today"))
 
-    def test_tracked_event_answers_from_events_not_the_guard(self):
-        orig = d._generate
-        d._generate = lambda *a, **k: self.fail("tracked event reached the LLM")
-        try:
-            ok, reply = d.answer_data_question("how many men are signed up for the billiards event", "Bill Yomes")
-        finally:
-            d._generate = orig
-        self.assertTrue(ok)
-        self.assertNotIn("don't have signup numbers", reply)
-        self.assertNotIn("128", reply)
+    def test_when_is_a_tracked_event_not_on_the_calendar(self):
+        import datetime
+        wd = datetime.date(2099, 11, 7).strftime("%a")
+        self.assertEqual(self.ask("when is the servant leaders banquet"), f"Servant Leaders Banquet is {wd}, Nov 7")
+        self.assertEqual(self.ask("what time is the servant leaders banquet"), f"Servant Leaders Banquet is {wd}, Nov 7")
+        self.assertEqual(pm_info("when is hayride and bonfire"), "Hayride and Bonfire is (date not set)")   # no date on file: say so
+
+
+    def test_statements_are_not_questions(self):
+        # Real messages from the log: introductions/announcements that merely CONTAIN "registrations" must never get a signup-numbers reply.
+        for q in ("Hi Watson, this is Kaci. I handle digital communications and event registrations for Catalyst.",
+                  "Hi Watson. I just created an event called Hayride and Bonfire for you to track registrations. I will be sending the link."):
+            self.assertIsNone(d._untracked_signup_reply(q), q)
+
+    def test_custom_form_questions_still_go_to_the_model(self):
+        # "dessert"/"side dish" are answers on the picnic's own sign-up form: the fast path bails and the MODEL must filter (Tara, 2026-09-20).
+        for q in ("How many people are signed up for dessert for picnic", "How many people are signed up for the picnic on October 4 and who many of those are signed up for side dish"):
+            self.assertIsNone(d._untracked_signup_reply(q), q)
+            info = pm.event_candidates(q)
+            self.assertEqual([c["title"] for c in info["candidates"]], ["Church Picnic"], q)
+
+    def test_attendance_wording_untouched(self):
+        for q in ("How many people attended church today?", "How many people came to church last Sunday?"):
+            self.assertIsNotNone(d._try_pattern_match(q), q)
+        self.assertIsNone(d._untracked_signup_reply("how many are coming to church on Sunday"))   # attendance wording, not an event
+        self.assertIsNone(pm.pattern_match("how many are coming to church on Sunday"))
+        self.assertIsNone(pm._resolve_event_id("how many are registered for church"))             # empty phrase never matches everything
+
+
+class Unpaused(Base):
+    paused = "0"
+
+    def test_tracked_numbers_beat_the_subsplash_copy(self):
+        r = self.ask("who is signed up for the billiards event")
+        self.assertIn("2 signed up", r)                                                            # tracked record, not Subsplash's 0
+        self.assertIn("Aaron Harper", r)
+
+    def test_men_fraternity_lists_both_events(self):
+        r = self.ask("how many are signed up for men's fraternity")
+        self.assertIn("Men's Fraternity Bible Study (", r)
+        self.assertIn("4 signed up", r)
+        self.assertIn("Billiards Outing", r)
+        self.assertIn("2 signed up", r)
+
+
+def pm_info(q):
+    sql = pm.pattern_match(q)
+    c = sqlite3.connect(FIX)
+    return c.execute(sql).fetchone()[0]
 
 
 if __name__ == "__main__":
