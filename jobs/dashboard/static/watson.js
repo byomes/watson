@@ -743,37 +743,37 @@ async function renderNotes() {
 let _notesNameTimer = null;
 let _notesNameSeq = 0;
 
-function notesNameHide() {
-  const box = document.getElementById('notes-name-sug');
+function notesNameHide(boxId = 'notes-name-sug') {
+  const box = document.getElementById(boxId);
   if (box) box.style.display = 'none';
 }
 
 // Typeahead against the congregation database so a note is filed under an
 // exact member name instead of a misspelling.
-function notesNameSearch(q) {
+function notesNameSearch(q, inpId = 'notes-inp-name', boxId = 'notes-name-sug', nextId = 'notes-inp-text') {
   clearTimeout(_notesNameTimer);
   q = (q || '').trim();
-  if (q.length < 2) { notesNameHide(); return; }
+  if (q.length < 2) { notesNameHide(boxId); return; }
   _notesNameTimer = setTimeout(async () => {
     const seq = ++_notesNameSeq;
     let rows;
     try { rows = await api('/api/members/search?q=' + encodeURIComponent(q)); } catch { return; }
     if (seq !== _notesNameSeq) return;
-    const box = document.getElementById('notes-name-sug');
+    const box = document.getElementById(boxId);
     if (!box || !Array.isArray(rows)) return;
     const itemStyle = 'padding:9px 12px;font-size:14px;cursor:pointer;border-bottom:1px solid var(--border)';
     box.innerHTML = rows.length
-      ? rows.map(m => `<div style="${itemStyle}" onmousedown="event.preventDefault();notesNamePick(${JSON.stringify(m.name).replace(/"/g, '&quot;')})">${esc(m.name)}</div>`).join('')
+      ? rows.map(m => `<div style="${itemStyle}" onmousedown="event.preventDefault();notesNamePick(${JSON.stringify(m.name).replace(/"/g, '&quot;')},'${inpId}','${boxId}','${nextId}')">${esc(m.name)}</div>`).join('')
       : `<div style="padding:9px 12px;font-size:12px;color:var(--muted)">No match in the database</div>`;
     box.style.display = 'block';
   }, 200);
 }
 
-function notesNamePick(name) {
-  const inp = document.getElementById('notes-inp-name');
+function notesNamePick(name, inpId = 'notes-inp-name', boxId = 'notes-name-sug', nextId = 'notes-inp-text') {
+  const inp = document.getElementById(inpId);
   if (inp) inp.value = name;
-  notesNameHide();
-  document.getElementById('notes-inp-text')?.focus();
+  notesNameHide(boxId);
+  document.getElementById(nextId)?.focus();
 }
 
 function notesLeaderHide() {
@@ -1918,7 +1918,12 @@ function moreLoadMinistry() {
       <button class="mbtn mbtn-sm" onclick="moreTogglePNForm()" style="margin-bottom:8px">+ New Note</button>
       <div id="more-pn-form" style="display:none">
         <div class="mform">
-          <input id="mpn-name" placeholder="Person's name" type="text">
+          <div style="position:relative">
+            <input id="mpn-name" placeholder="Person's name" type="text" autocomplete="off"
+              oninput="notesNameSearch(this.value,'mpn-name','mpn-name-sug','mpn-note')"
+              onblur="setTimeout(()=>notesNameHide('mpn-name-sug'),200)">
+            <div id="mpn-name-sug" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:20;margin-top:2px;max-height:220px;overflow-y:auto;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-btn);box-shadow:0 6px 18px rgba(0,0,0,.35)"></div>
+          </div>
           <textarea id="mpn-note" rows="3" placeholder="Note&hellip;"></textarea>
           <div class="mfrow">
             <button class="mbtn mbtn-p" onclick="moreSavePN()">Save</button>
