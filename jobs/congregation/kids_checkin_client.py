@@ -400,6 +400,29 @@ async def _pull_full_history_async() -> dict:
         return json.loads(result)
 
 
+def _one_time_override_active() -> bool:
+    """Bill's explicit ONE-TIME exception to the Subsplash API pause (2026-10-06: "for this one time catch up, while we wait for Subsplash
+    to get back to us, pull all the data from core.subsplash.com and backfill"). Active only while the environment variable
+    SUBSPLASH_API_ONE_TIME_UNTIL holds an ISO date that is today or later: a cron line or a later session cannot trigger it by accident and
+    it expires by itself. Nothing sets it by default; the paused cron lines do not."""
+    import datetime as _dt
+    import os as _os
+    try:
+        return _dt.date.today() <= _dt.date.fromisoformat(_os.environ.get("SUBSPLASH_API_ONE_TIME_UNTIL", ""))
+    except ValueError:
+        return False
+
+
+def _require_api_permission() -> None:
+    if _one_time_override_active():
+        print(f"[{time.strftime('%H:%M:%S')}] ONE-TIME Subsplash API override in effect (Bill, 2026-10-06); the API is switched off otherwise", flush=True)
+        return
+    raise ApiAccessDisabled(
+        "Subsplash/Fluro API access is switched off (Bill, 2026-10-06): their robots.txt disallows automated "
+        "access and we have no permission to use their API. Read the dashboard pages instead "
+        "(see jobs/church_calendar/registrations.py).")
+
+
 def pull_full_history() -> dict:
     """Returns {"total_instances": N, "results": [{"event_id", "start_at",
     "checkins": [...]}]} covering every past instance of the Kids Checkin
@@ -420,11 +443,7 @@ def pull_full_history() -> dict:
     outer wait_for is cheap defense-in-depth against any future unguarded
     await slipping in and hanging the whole pull silently again -- raises a
     clear TimeoutError instead."""
-    raise ApiAccessDisabled(
-            "Subsplash/Fluro API access is switched off (Bill, 2026-10-06): their robots.txt disallows automated "
-            "access and we have no permission to use their API. Read the dashboard pages instead "
-            "(see jobs/church_calendar/registrations.py).")
-
+    _require_api_permission()
     return asyncio.run(asyncio.wait_for(_pull_full_history_async(), timeout=660))
 
 
@@ -515,11 +534,7 @@ def pull_events_by_id(event_ids: list[str]) -> dict:
     """Targeted backfill for a small, known list of event instance ids --
     much less likely to trip a rate limit than re-running the full
     88-instance pull_full_history() just to patch a handful of dates."""
-    raise ApiAccessDisabled(
-            "Subsplash/Fluro API access is switched off (Bill, 2026-10-06): their robots.txt disallows automated "
-            "access and we have no permission to use their API. Read the dashboard pages instead "
-            "(see jobs/church_calendar/registrations.py).")
-
+    _require_api_permission()
     return asyncio.run(_pull_events_by_id_async(event_ids))
 
 

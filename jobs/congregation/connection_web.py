@@ -56,6 +56,24 @@ def _require_auth(f):
     return wrapper
 
 
+def _reg_date(submitted_at: str | None, created_at: str | None) -> str | None:
+    """ISO date (YYYY-MM-DD) of a registration from whichever format its submitted_at arrived in: an email header date, an ISO
+    timestamp (with or without a +0000 suffix), or nothing (then the row's created_at). None only if neither parses."""
+    from email.utils import parsedate_to_datetime
+    import re as _re
+    s = (submitted_at or "").strip()
+    if s:
+        m = _re.match(r"^(\d{4}-\d{2}-\d{2})", s)
+        if m:
+            return m.group(1)
+        try:
+            return parsedate_to_datetime(s).date().isoformat()
+        except (TypeError, ValueError, IndexError):
+            pass
+    m = _re.match(r"^(\d{4}-\d{2}-\d{2})", (created_at or "").strip())
+    return m.group(1) if m else None
+
+
 def _first_date(conn, table: str, col: str) -> str | None:
     try:
         r = conn.execute(f"SELECT MIN({col}) FROM {table}").fetchone()
@@ -88,13 +106,19 @@ def state():
     lo = (today - timedelta(days=window)).isoformat()
 
     with _watson_conn() as wconn:
+        # The window filter is done in Python, not SQL: email-sourced rows store submitted_at as an email header date
+        # ("Sat, 26 Sep 2026 00:21:33 +0000") and csv rows as "2026-08-30 15:30:30 +0000", neither of which SQLite's date()
+        # parses, so the old `date(COALESCE(submitted_at, created_at)) >= ?` silently dropped EVERY tracked-event signup
+        # (found 2026-10-06 while assimilating the Subsplash data: 0 of 46 member-linked registrations were counted).
         regs = wconn.execute(
-            """SELECT r.member_id, e.event_name AS event, COALESCE(r.submitted_at, r.created_at) AS at
+            """SELECT r.member_id, e.event_name AS event, r.submitted_at, r.created_at
                FROM event_registrations r JOIN church_events e ON e.id = r.event_id
-               WHERE r.member_id IS NOT NULL AND date(COALESCE(r.submitted_at, r.created_at)) >= ?""", (lo,)).fetchall()
+               WHERE r.member_id IS NOT NULL""").fetchall()
     events: dict[int, list[dict]] = {}
     for r in regs:
-        events.setdefault(r["member_id"], []).append({"event": r["event"], "date": (r["at"] or "")[:10]})
+        d = _reg_date(r["submitted_at"], r["created_at"])
+        if d and d >= lo:
+            events.setdefault(r["member_id"], []).append({"event": r["event"], "date": d})
     # Plus every Subsplash registration copied by jobs/church_calendar/registrations.py
     # (de-duplicated against the email-detected rows above by event title).
     with _watson_conn() as wconn:
