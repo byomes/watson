@@ -96,6 +96,15 @@ def update_pin_notes(name_query: str, pin_text: str, sender_name: str) -> str:
     if not pin_text:
         return "I need the pin text to record, e.g. \"2yr Pin\"."
 
+    # A recognizable award ("5yr pin", "6mo C pin") goes through the
+    # service_awards table (additive, dated) instead of overwriting the
+    # free-text notes -- see jobs/congregation/service_awards.py.
+    from jobs.congregation import service_awards as sa
+    found, _left = sa.parse_pin_notes(pin_text)
+    if len(found) == 1 and found[0][0] in sa.MILESTONES:
+        months, when = found[0]
+        return sa.mark_received(name_query, sa.label(months), when, sender_name)
+
     with _conn() as conn:
         member = _resolve_one_member(conn, name_query, "id, name, service_pin_notes")
         if isinstance(member, str):

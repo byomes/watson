@@ -128,69 +128,85 @@ def format_rsvp_summary(event_name: str, report: dict) -> str:
 
 
 def build_service_awards_pdf(path: str, event_name: str = "Servant Leaders Banquet") -> str:
-    """Grouped by team, sorted within each team by years of service
-    descending (longest-serving first), with each person's pin/award
-    history alongside so Donna can see at a glance who's due for a new
-    pin. Members with no started_serving_date on file sort to the bottom
-    of their team rather than being dropped."""
+    """Page 1: awards to hand out this year, grouped by award (from
+    service_awards.needed). Then every active team, longest-serving first,
+    with awards already received and awards still to receive alongside
+    (replaces the old free-text pin-notes column, 2026-10-07). Members with
+    no started_serving_date sort to the bottom of their team."""
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import letter
     from reportlab.lib.styles import getSampleStyleSheet
     from reportlab.lib.units import inch
     from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
+    from jobs.congregation import service_awards as sa
+
     conn = _cong_conn()
     rows = conn.execute(
-        """SELECT tm.team_name, m.name, m.started_serving_date, m.service_pin_notes
+        """SELECT tm.team_name, m.id AS member_id, m.name, m.started_serving_date
            FROM team_memberships tm JOIN members m ON m.id = tm.member_id
            WHERE tm.active = 1
            ORDER BY tm.team_name, m.name"""
     ).fetchall()
+    received: dict[int, list[str]] = {}
+    needed: dict[int, list[str]] = {}
+    handout: dict[tuple[int, str], list[str]] = {}
+    names = {r["member_id"]: r["name"] for r in rows}
+    for a in conn.execute("SELECT member_id, milestone_months, label, received, needed FROM service_awards ORDER BY milestone_months"):
+        if a["received"]:
+            received.setdefault(a["member_id"], []).append(a["label"])
+        elif a["needed"]:
+            needed.setdefault(a["member_id"], []).append(a["label"])
+            nm = names.get(a["member_id"]) or (conn.execute("SELECT name FROM members WHERE id=?", (a["member_id"],)).fetchone() or ["?"])[0]
+            handout.setdefault((a["milestone_months"], a["label"]), []).append(nm)
     conn.close()
 
     today = date.today()
-    by_team: dict[str, list[tuple[str, float | None, str, str]]] = {}
+    by_team: dict[str, list[tuple]] = {}
     for r in rows:
         years = None
         started = r["started_serving_date"] or ""
         if started:
             try:
-                sd = date.fromisoformat(started[:10])
-                years = round((today - sd).days / 365.25, 1)
+                years = round((today - date.fromisoformat(started[:10])).days / 365.25, 1)
             except ValueError:
                 years = None
+        mid = r["member_id"]
         by_team.setdefault(r["team_name"], []).append(
-            (r["name"], years, started, r["service_pin_notes"] or "")
+            (r["name"], years, started, ", ".join(received.get(mid, [])), ", ".join(needed.get(mid, [])))
         )
 
     styles = getSampleStyleSheet()
+    small = styles["BodyText"].clone("small", fontSize=9, leading=11)
     doc = SimpleDocTemplate(path, pagesize=letter, topMargin=0.6 * inch, bottomMargin=0.6 * inch)
     story = [
-        Paragraph(f"{event_name} — Service Awards Reference", styles["Title"]),
-        Paragraph(
-            f"Generated {today.isoformat()} — sorted by years of service within each team",
-            styles["Normal"],
-        ),
-        Spacer(1, 0.25 * inch),
+        Paragraph(f"{event_name}: Service Awards Reference", styles["Title"]),
+        Paragraph(f"Generated {today.isoformat()}. Teams sorted by years of service.", styles["Normal"]),
+        Spacer(1, 0.2 * inch),
+        Paragraph(f"Awards to hand out this year ({sum(len(v) for v in handout.values())})", styles["Heading2"]),
     ]
+    hdata = [["Award", "Count", "Recipients"]]
+    for (months, lab), people in sorted(handout.items()):
+        hdata.append([lab, str(len(people)), Paragraph(", ".join(sorted(people)), small)])
+    if len(hdata) == 1:
+        hdata.append(["none", "0", ""])
+    ht = Table(hdata, colWidths=[0.8 * inch, 0.6 * inch, 5.2 * inch], repeatRows=1)
+    ht.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2c3e50")), ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTSIZE", (0, 0), (-1, -1), 9), ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cccccc")),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+    ]))
+    story += [ht, Spacer(1, 0.3 * inch)]
 
     for team_name in sorted(by_team.keys()):
         members = by_team[team_name]
         members.sort(key=lambda m: (m[1] is None, -(m[1] or 0)))
         story.append(Paragraph(team_name, styles["Heading2"]))
-        data = [["Name", "Years Served", "Started", "Pins / Awards Received"]]
-        for name, years, started, pins in members:
-            data.append([
-                name,
-                f"{years}" if years is not None else "—",
-                started or "—",
-                pins or "—",
-            ])
-        table = Table(
-            data,
-            colWidths=[1.7 * inch, 0.9 * inch, 0.9 * inch, 2.5 * inch],
-            repeatRows=1,
-        )
+        data = [["Name", "Years", "Started", "Awards received", "To receive"]]
+        for name, years, started, rec, need in members:
+            data.append([name, f"{years}" if years is not None else "none", started or "none",
+                         Paragraph(rec or "none", small), Paragraph(need or "", small)])
+        table = Table(data, colWidths=[1.5 * inch, 0.5 * inch, 0.85 * inch, 2.7 * inch, 1.0 * inch], repeatRows=1)
         table.setStyle(TableStyle([
             ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2c3e50")),
             ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),

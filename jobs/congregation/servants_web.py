@@ -393,3 +393,34 @@ def toggle_serving():
     return jsonify({
         "member_id": member_id, "team_name": team_name, "service_date": service_date, "served": served,
     }), 200
+
+
+@servants_web_bp.route("/api/cat/servants/awards", methods=["GET"])
+@_require_key
+def get_awards():
+    """Service-length awards for one member (every milestone with status
+    received/needed/none) -- backs the Awards section of a CatalystDB
+    profile. See jobs/congregation/service_awards.py."""
+    from jobs.congregation import service_awards as sa
+    try:
+        member_id = int(request.args.get("member_id", ""))
+    except ValueError:
+        return jsonify({"error": "member_id is required"}), 400
+    return jsonify({"awards": sa.awards_for_member(member_id)}), 200
+
+
+@servants_web_bp.route("/api/cat/servants/awards", methods=["POST"])
+@_require_key
+def set_award():
+    """Mark one milestone received / needed / none for a member."""
+    from jobs.congregation import service_awards as sa
+    data = request.get_json(force=True) or {}
+    try:
+        member_id = int(data.get("member_id"))
+    except (TypeError, ValueError):
+        return jsonify({"error": "member_id is required"}), 400
+    try:
+        return jsonify(sa.set_status(member_id, str(data.get("label") or ""), str(data.get("status") or ""),
+                                     (data.get("received_date") or None))), 200
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
