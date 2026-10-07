@@ -387,9 +387,18 @@ def handle_banquet_rsvp_email(
         conn.close()
         return None
 
+    rows_before = conn.execute(
+        "SELECT COUNT(*) FROM event_registrations WHERE event_id = ?", (matched["id"],)
+    ).fetchone()[0]
     _upsert_rsvp(conn, matched["id"], detection, received_at)
     conn.commit()
+    rows_after = conn.execute(
+        "SELECT COUNT(*) FROM event_registrations WHERE event_id = ?", (matched["id"],)
+    ).fetchone()[0]
     conn.close()
+    # Telegram heads-up to Dr. Bill + Bill Crook (gated off until Bill flips it on).
+    from jobs.events.banquet_rsvp_notify import notify_new_rsvp
+    notify_new_rsvp(matched["id"], detection, updated=(rows_after == rows_before))
     from jobs.events.duplicate_review import scan_for_duplicates
     scan_for_duplicates(matched["id"])
     return "read"
