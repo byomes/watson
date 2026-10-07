@@ -477,6 +477,52 @@ def _forget_pending_clarification(asker_name: str) -> None:
     _pending_clarifications.pop(asker_name, None)
 
 
+# --- "Which one do you mean: <event A> or <event B>?" follow-ups (2026-10-06): Bill answered "Men's Frat Bible Study" and got "That didn't turn up
+# any matching data" because nothing connected his answer to the question just asked. Same per-asker slot, TTL and size cap as the person
+# clarifications above (one pending question per asker); entries carry kind="event".
+_EVENT_PICK_FILLER = {"the", "one", "event", "please", "that", "this", "i", "mean", "meant", "want", "its", "it's", "is", "for", "about",
+                      "um", "uh", "yes", "yeah", "yep", "option", "number", "choice", "pick", "go", "with"}
+_EVENT_PICK_ORDINALS = {"first": 0, "1st": 0, "1": 0, "second": 1, "2nd": 1, "2": 1, "third": 2, "3rd": 2, "3": 2}
+_EVENT_PICK_CANCEL_RE = re.compile(r"^\W*(neither|never\s*mind|nevermind|cancel|forget it|none|no)\W*$", re.I)
+
+
+def _remember_pending_event_choice(asker_name: str, question: str, phrase: str, titles: list[str]) -> None:
+    _pending_clarifications[asker_name] = {"kind": "event", "question": question, "phrase": phrase, "titles": list(titles), "asked_at": time.monotonic()}
+    if len(_pending_clarifications) > _PENDING_CLARIFICATION_MAX_ENTRIES:
+        oldest_asker = min(_pending_clarifications, key=lambda k: _pending_clarifications[k]["asked_at"])
+        _pending_clarifications.pop(oldest_asker, None)
+
+
+def _event_pick(reply: str, titles: list[str]) -> list[int]:
+    """Indexes of the offered `titles` a short reply selects: an ordinal ("the second one", "2") or words that all belong to exactly the title
+    ("Men's Frat Bible Study", "billiards"). [] if the reply names none of them (so it is a new question, not an answer)."""
+    norm = re.sub(r"\bfrat\b", "fraternity", (reply or "").lower().replace("\u2019", "'"))
+    words = re.findall(r"[a-z0-9']+", norm)
+    ords = [w for w in words if w in _EVENT_PICK_ORDINALS]
+    if ords and len(words) <= 5 and not (set(words) - set(_EVENT_PICK_ORDINALS) - _EVENT_PICK_FILLER):
+        i = _EVENT_PICK_ORDINALS[ords[0]]
+        return [i] if i < len(titles) else []
+    try:
+        from jobs.events.pattern_match import _tokens
+    except Exception:
+        return []
+    pt = _tokens(" ".join(w for w in words if w not in _EVENT_PICK_FILLER))
+    if not pt:
+        return []
+    return [i for i, t in enumerate(titles) if pt <= _tokens(t)]
+
+
+def _question_with_event(original: str, phrase: str, title: str) -> str:
+    """The original question with the ambiguous event phrase replaced by the chosen title ("... for men's fraternity tomorrow night" ->
+    "... for Men's Fraternity Bible Study tomorrow night"); if the phrase cannot be found, the title is appended as the thing asked about."""
+    norm = re.sub(r"\bfrat\b", "fraternity", original, flags=re.I)
+    if phrase:
+        new, n = re.subn(re.escape(phrase), lambda m: title, norm, count=1, flags=re.I)
+        if n:
+            return new
+    return f"{original.rstrip(' ?.!')} for {title}"
+
+
 # Per-leader rolling conversation buffer -- see
 # notes/team_chat_conversational_memory_spec.md. Both this module's own LLM
 # calls (_generate, below) and
@@ -627,6 +673,22 @@ def _try_resolve_pending_clarification(asker_name: str, question: str) -> tuple[
         return None
     if time.monotonic() - pending["asked_at"] > _PENDING_CLARIFICATION_TTL_SECONDS:
         _forget_pending_clarification(asker_name)
+        return None
+    if pending.get("kind") == "event":
+        if _EVENT_PICK_CANCEL_RE.match(question or ""):
+            _forget_pending_clarification(asker_name)
+            return True, "Okay, never mind."
+        picks = _event_pick(question, pending["titles"])
+        if len(picks) == 1:
+            _forget_pending_clarification(asker_name)
+            rewritten = _question_with_event(pending["question"], pending["phrase"], pending["titles"][picks[0]])
+            log.info("data_chat: event choice resolved, asker=%s reply=%r -> q=%r", asker_name, question, rewritten)
+            return answer_data_question(rewritten, asker_name)
+        if len(picks) > 1:
+            names = " or ".join(pending["titles"][i] for i in picks)
+            _pending_clarifications[asker_name]["asked_at"] = time.monotonic()
+            return True, f"Still more than one: {names}. Which one did you mean?"
+        _forget_pending_clarification(asker_name)       # not an answer: a new question, run the normal pipeline
         return None
     matches = _matching_candidates(question, pending["rows"], pending["name_key"])
     if len(matches) == 1:
@@ -991,7 +1053,23 @@ def _tracked_event_names() -> list[str]:
         return []
 
 
-def _untracked_signup_reply(question: str) -> str | None:
+_BILL_NAMES = {"bill", "bill yomes", "dr. bill yomes", "dr bill yomes", "dr. bill", "dr bill", "william yomes"}
+
+
+def _stored_but_paused(title: str) -> bool:
+    """True when Subsplash registration reading is paused (Bill's switch, waiting on Subsplash's answer) AND a copy of this event's signups is
+    stored. The copy exists but chat must not use it, so the honest reply is "paused", not "I don't have numbers"."""
+    try:
+        with sqlite3.connect(f"file:{WATSON_DB_PATH}?mode=ro", uri=True, timeout=5) as c:
+            sw = c.execute("SELECT value FROM system_settings WHERE key = ?", ("subsplash_registrations_paused",)).fetchone()
+            if not (sw and sw[0] == "1"):
+                return False
+            return c.execute("SELECT 1 FROM subsplash_event_regs WHERE lower(title) = lower(?) AND has_form = 1 LIMIT 1", (title,)).fetchone() is not None
+    except Exception:
+        return False
+
+
+def _untracked_signup_reply(question: str, asker_name: str | None = None) -> str | None:
     """A signup question the events fast path could not answer. Three honest outcomes instead of letting the model guess a query
     against some other table (2026-10-06: it picked group_attendance.num_tickets and errored):
       * the question could mean 2+ known events  -> ask which ("Men's Fraternity" = Bible Study or Billiards Outing);
@@ -1018,11 +1096,20 @@ def _untracked_signup_reply(question: str) -> str | None:
     if len(cands) > 1:
         titles = " or ".join(c["title"] for c in cands)
         tail = (f" I have signup numbers for {', '.join(have)}." if have else " I don't have signup numbers for any of those.")
+        if asker_name:                                # a short answer ("Men's Frat Bible Study", "billiards", "the second one") completes this question
+            _remember_pending_event_choice(asker_name, question, info["phrase"], [c["title"] for c in cands])
         return f"Which one do you mean: {titles}?{tail}"
     if len(cands) == 1:
         if cands[0]["tracked"]:
             return None                               # tracked, but the fast path declined (e.g. asks about a custom form field): let the model try
-        return f"I don't have signup numbers for {cands[0]['title']}." + ((" I do track signups for: " + ", ".join(names) + ".") if names else "")
+        title = cands[0]["title"]
+        tail = (" I do track signups for: " + ", ".join(names) + ".") if names else ""
+        if _stored_but_paused(title):
+            if (asker_name or "").strip().lower() in _BILL_NAMES:
+                return (f"I have a copy of the Subsplash signups for {title}, but I'm not using it while Subsplash registration reading is paused "
+                        f"(until Subsplash answers). I'll use it as soon as the pause is lifted." + tail)
+            return f"I can't give you signup numbers for {title} right now." + tail + " For anything else, ask Dr. Bill."
+        return f"I don't have signup numbers for {title}." + tail
     tail = (" I do track signups for: " + ", ".join(names) + ".") if names else ""
     return "I don't have signup numbers for that event." + tail + " For anything else, ask Dr. Bill."
 
@@ -1129,7 +1216,7 @@ def answer_data_question(
         log.info("data_chat: events pattern-match matched but found nothing (rows=%s), falling through to generation: q=%r sql=%r", rows, question, pm_events_sql)
 
     # Signup question the events fast path could not match -> an event we do not track. Answer honestly, no model guess.
-    untracked = _untracked_signup_reply(question)
+    untracked = _untracked_signup_reply(question, asker_name)
     if untracked:
         log.info("data_chat: untracked-event signup question, asker=%s q=%r", asker_name, question)
         return True, untracked

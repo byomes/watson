@@ -69,13 +69,14 @@ class Base(unittest.TestCase):
         d._DB_PATH["events"] = str(FIX)
         cdb.get_connection = conn_factory
         d._generate = lambda *a, **k: self.fail("a question reached the LLM")
+        d._pending_clarifications.clear()
 
     def tearDown(self):
         pm.DB_PATH, d.WATSON_DB_PATH, d._DB_PATH, cdb.get_connection, d._generate = self._orig
 
-    def ask(self, q):
+    def ask(self, q, who="Bill Yomes"):
         """Route like bot.py: church-event route first, then the data chat."""
-        return cc.answer(q) or d.answer_data_question(q, "Bill Yomes")[1]
+        return cc.answer(q) or d.answer_data_question(q, who)[1]
 
 
 class Paused(Base):
@@ -136,6 +137,73 @@ class Paused(Base):
             self.assertIsNone(d._untracked_signup_reply(q), q)
             info = pm.event_candidates(q)
             self.assertEqual([c["title"] for c in info["candidates"]], ["Church Picnic"], q)
+
+    def test_plain_wording_when_signups_are_stored_but_paused(self):
+        q = "Who is registered for Men's Fraternity Bible Study tomorrow night"
+        bill = self.ask(q, "Bill Yomes")
+        self.assertIn("I have a copy of the Subsplash signups for Men's Fraternity Bible Study", bill)
+        self.assertIn("paused", bill)
+        self.assertNotIn("4", bill.replace("Men's", ""))                                           # the stored number is NOT given while paused
+        jim = self.ask(q, "Jim Bouchat")
+        self.assertIn("I can't give you signup numbers for Men's Fraternity Bible Study right now", jim)
+        self.assertNotIn("paused", jim)                                                            # internal reason stays with Bill
+        self.assertNotIn("Subsplash", jim)
+        self.assertNotIn("Bill Crook", d._BILL_NAMES)                                              # Bill Crook is not Bill Yomes
+        self.assertEqual((d._untracked_signup_reply(q, "Bill Crook") or "").count("paused"), 0)
+        self.assertIn("I don't have signup numbers for 5th Sunday Potluck", self.ask("how many are signed up for the 5th sunday potluck"))   # no stored copy
+
+    def test_which_one_follow_ups(self):
+        ask = "Who is signed up for men's fraternity tomorrow night"
+        for pick, expect in (("Men's Frat Bible Study", "copy of the Subsplash signups for Men's Fraternity Bible Study"), ("bible study", "Bible Study"),
+                             ("billiards", "Aaron Harper"), ("the billiards one", "Aaron Harper"), ("the second one", "Men's Fraternity Bible Study"),
+                             ("first", "Aaron Harper"), ("2", "Men's Fraternity Bible Study")):
+            d._pending_clarifications.clear()
+            self.assertIn("Which one do you mean", self.ask(ask))
+            ok, reply = d.answer_data_question(pick, "Bill Yomes")
+            self.assertTrue(ok, pick)
+            self.assertIn(expect, reply, pick)
+            self.assertNotIn("didn't turn up", reply)
+            self.assertNotIn("Bill Yomes", d._pending_clarifications)                              # consumed
+
+    def test_still_ambiguous_keeps_waiting_then_resolves(self):
+        self.ask("how many are signed up for men's fraternity")
+        ok, reply = d.answer_data_question("men's fraternity", "Bill Yomes")
+        self.assertIn("Still more than one", reply)
+        ok, reply = d.answer_data_question("billiards", "Bill Yomes")
+        self.assertEqual(reply, "2")
+
+    def test_follow_up_is_per_asker_and_expires(self):
+        self.ask("how many are signed up for men's fraternity", "Bill Yomes")
+        self.assertIsNone(d._try_resolve_pending_clarification("Jim Bouchat", "billiards"))        # someone else's reply never resolves Bill's question
+        self.assertIn("Bill Yomes", d._pending_clarifications)
+        d._pending_clarifications["Bill Yomes"]["asked_at"] -= d._PENDING_CLARIFICATION_TTL_SECONDS + 1
+        self.assertIsNone(d._try_resolve_pending_clarification("Bill Yomes", "billiards"))         # expired
+        self.assertNotIn("Bill Yomes", d._pending_clarifications)
+
+    def test_a_new_question_or_cancel_clears_the_pending_choice(self):
+        self.ask("how many are signed up for men's fraternity")
+        self.assertIsNone(d._try_resolve_pending_clarification("Bill Yomes", "How many people attended church today?"))
+        self.assertNotIn("Bill Yomes", d._pending_clarifications)
+        self.ask("how many are signed up for men's fraternity")
+        self.assertEqual(d.answer_data_question("never mind", "Bill Yomes"), (True, "Okay, never mind."))
+        self.assertNotIn("Bill Yomes", d._pending_clarifications)
+
+    def test_pending_choices_are_size_capped(self):
+        for i in range(d._PENDING_CLARIFICATION_MAX_ENTRIES + 25):
+            d._remember_pending_event_choice(f"asker{i}", "q", "p", ["A", "B"])
+        self.assertLessEqual(len(d._pending_clarifications), d._PENDING_CLARIFICATION_MAX_ENTRIES)
+
+    def test_pick_and_rewrite_helpers(self):
+        titles = ["Men's Fraternity Billiards Outing", "Men's Fraternity Bible Study"]
+        self.assertEqual(d._event_pick("Men's Frat Bible Study", titles), [1])
+        self.assertEqual(d._event_pick("billiard", titles), [0])
+        self.assertEqual(d._event_pick("men's fraternity", titles), [0, 1])
+        self.assertEqual(d._event_pick("how many attended church today", titles), [])
+        self.assertEqual(d._event_pick("third", titles), [])                                       # only two were offered
+        self.assertEqual(d._question_with_event("Who is signed up for men's fraternity tomorrow night", "men's fraternity", titles[1]),
+                         "Who is signed up for Men's Fraternity Bible Study tomorrow night")
+        self.assertEqual(d._question_with_event("Who is signed up for the frat", "men's fraternity", titles[0]),
+                         "Who is signed up for the frat for Men's Fraternity Billiards Outing")  # phrase not found: title appended as the subject
 
     def test_attendance_wording_untouched(self):
         for q in ("How many people attended church today?", "How many people came to church last Sunday?"):
