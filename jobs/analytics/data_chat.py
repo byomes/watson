@@ -973,6 +973,29 @@ def _try_pattern_match(question: str) -> str | None:
     return _pattern_match(question, _last_sunday(), weeks)
 
 
+_SIGNUP_RE = re.compile(r"\b(signed[- ]?up|sign[- ]?ups?|registered|registrations?|rsvp'?d?|rsvps)\b", re.I)
+# Signup words that are NOT about a church event (serving, classes, groups): leave those to the normal routes.
+_SIGNUP_NOT_EVENT_RE = re.compile(r"\b(serv\w*|volunteer\w*|usher\w*|greet\w*|nursery|class\w*|room|kids?|group|team|rotation|schedule)\b", re.I)
+
+
+def _untracked_signup_reply(question: str) -> str | None:
+    """A signup/registration question the events fast path could not answer is about an event Watson does not track
+    (its numbers live in event_registrations only for tracking_active church_events). Say so plainly instead of letting
+    the model guess a query against some other table (2026-10-06: it picked group_attendance.num_tickets and errored)."""
+    if not _SIGNUP_RE.search(question) or _SIGNUP_NOT_EVENT_RE.search(question):
+        return None
+    try:
+        import sqlite3
+        from config.settings import DB_PATH
+        with sqlite3.connect(DB_PATH) as c:
+            names = [r[0] for r in c.execute("SELECT event_name FROM church_events WHERE tracking_active = 1 ORDER BY event_name")]
+    except Exception:
+        names = []
+    tail = (" I do track signups for: " + ", ".join(names) + ".") if names else ""
+    return "I don't have signup numbers for that event." + tail + " For anything else, ask Dr. Bill."
+
+
+
 def _try_pattern_match_events(question: str) -> str | None:
     """LLM-free fast path for common event-signup phrasings (RSVP counts/
     lists, "what events are we tracking") — see jobs/events/pattern_match.py.
@@ -1061,6 +1084,12 @@ def answer_data_question(
             log.info("data_chat: events pattern-match hit, asker=%s q=%r sql=%r rows=%d", asker_name, question, pm_events_sql, len(rows))
             return True, _format_rows(rows)
         log.info("data_chat: events pattern-match matched but found nothing (rows=%s), falling through to generation: q=%r sql=%r", rows, question, pm_events_sql)
+
+    # Signup question the events fast path could not match -> an event we do not track. Answer honestly, no model guess.
+    untracked = _untracked_signup_reply(question)
+    if untracked:
+        log.info("data_chat: untracked-event signup question, asker=%s q=%r", asker_name, question)
+        return True, untracked
 
     domain, sql = _generate(question, asker_name, allow_contact_info)
     if domain in (None, "none"):
