@@ -168,23 +168,14 @@ def claimed_elsewhere(question: str, titles: list[str] | None = None) -> bool:
     return looks_like_event_question(question, titles)
 
 
-def evaluate(target_id: str, new_phrase: str, example_question: str, *, corpus_questions: list[str] | None = None,
-             original_source: str | None = None, titles: list[str] | None = None, max_other_changes: int = 3) -> dict:
-    from jobs.analytics import fast_path_patcher as fp
+def compare_sources(old_text: str, new_text: str, example_question: str, *, corpus_questions: list[str] | None = None,
+                    titles: list[str] | None = None, max_other_changes: int = 3) -> dict:
+    """The behavioural half of the gate, for ANY change to cdb_query.py (one phrase, or a whole PR): run the unpatched and patched
+    `_pattern_match` over the example question and every logged question and judge what changed. Checks 3-5 in the module docstring."""
     reasons: list[str] = []
-    phrase = (new_phrase or "").strip().lower()
     result = {"ok": False, "reasons": reasons, "changed_others": [], "example_before": None, "example_after": None}
-
-    reasons += phrase_problems(phrase, titles)
-    if not phrase_in_question(phrase, example_question):
-        reasons.append("the phrase does not appear in the question that prompted it (the model made it up): a trigger must come from a real question")
     if looks_like_event_question(example_question, titles):
         reasons.append("the question that prompted this is an event/signup question, not an attendance one (events have their own fast path)")
-
-    ok, msg, new_text, old_text = fp.build_patched_text(target_id, phrase, source=original_source)
-    if not ok:
-        reasons.append(msg)
-        return result
     try:
         before_mod, after_mod = _load(old_text, "cdb_before"), _load(new_text, "cdb_after")
     except Exception as e:
@@ -193,8 +184,8 @@ def evaluate(target_id: str, new_phrase: str, example_question: str, *, corpus_q
 
     ex_before, ex_after = _run_pm(before_mod, example_question), _run_pm(after_mod, example_question)
     result["example_before"], result["example_after"] = ex_before, ex_after
-    if ex_after is None:
-        reasons.append("the phrase does not make the example question match: it fixes nothing")
+    if ex_after is None or str(ex_after).startswith("!error"):
+        reasons.append("the change does not make the example question match: it fixes nothing")
     elif ex_before == ex_after:
         reasons.append("the example question was already answered the same way: nothing to fix")
 
@@ -212,6 +203,9 @@ def evaluate(target_id: str, new_phrase: str, example_question: str, *, corpus_q
     rerouted = [c for c in changed if c["before"] and c["after"]]
     if rerouted:
         reasons.append(f"it would change the answer to {len(rerouted)} question(s) the attendance matcher already answered, e.g. {rerouted[0]['question']!r}")
+    broken = [c for c in changed if c["before"] and not c["after"]]
+    if broken:
+        reasons.append(f"it would STOP answering {len(broken)} question(s) the attendance matcher answers today, e.g. {broken[0]['question']!r}")
     if len(changed) > max_other_changes:
         reasons.append(f"it changes {len(changed)} other logged questions (limit {max_other_changes}): too broad to apply without a human looking")
 
@@ -219,5 +213,50 @@ def evaluate(target_id: str, new_phrase: str, example_question: str, *, corpus_q
     return result
 
 
+def evaluate(target_id: str, new_phrase: str, example_question: str, *, corpus_questions: list[str] | None = None,
+             original_source: str | None = None, titles: list[str] | None = None, max_other_changes: int = 3) -> dict:
+    """Gate for ONE suggested trigger phrase: the phrase checks, then compare_sources on the file with the phrase added."""
+    from jobs.analytics import fast_path_patcher as fp
+    reasons: list[str] = []
+    phrase = (new_phrase or "").strip().lower()
+    result = {"ok": False, "reasons": reasons, "changed_others": [], "example_before": None, "example_after": None}
+
+    reasons += phrase_problems(phrase, titles)
+    if not phrase_in_question(phrase, example_question):
+        reasons.append("the phrase does not appear in the question that prompted it (the model made it up): a trigger must come from a real question")
+
+    ok, msg, new_text, old_text = fp.build_patched_text(target_id, phrase, source=original_source)
+    if not ok:
+        reasons.append(msg)
+        return result
+    cmp = compare_sources(old_text, new_text, example_question, corpus_questions=corpus_questions, titles=titles, max_other_changes=max_other_changes)
+    reasons += cmp["reasons"]
+    result.update(changed_others=cmp["changed_others"], example_before=cmp["example_before"], example_after=cmp["example_after"])
+    result["ok"] = not reasons
+    return result
+
+
 def format_reasons(result: dict) -> str:
     return "; ".join(result["reasons"]) if result["reasons"] else "ok"
+
+
+def _main(argv: list[str]) -> int:
+    """`python -m jobs.analytics.fast_path_validate --replay BEFORE.py AFTER.py --example "question" [--max-other N]` -> one JSON line.
+    Used by the devdispatch poller so a PR's version of cdb_query.py is executed in a short-lived SUBPROCESS, never inside the poller."""
+    import argparse
+    import json
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--replay", nargs=2, metavar=("BEFORE", "AFTER"), required=True)
+    ap.add_argument("--example", required=True)
+    ap.add_argument("--max-other", type=int, default=3)
+    a = ap.parse_args(argv)
+    res = compare_sources(Path(a.replay[0]).read_text(), Path(a.replay[1]).read_text(), a.example, max_other_changes=a.max_other)
+    res["changed_others"] = res["changed_others"][:10]
+    res["example_before"], res["example_after"] = bool(res["example_before"]), bool(res["example_after"])
+    print(json.dumps(res))
+    return 0
+
+
+if __name__ == "__main__":
+    import sys
+    sys.exit(_main(sys.argv[1:]))

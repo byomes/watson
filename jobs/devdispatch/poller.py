@@ -27,6 +27,8 @@ import json
 import logging
 import os
 import subprocess
+import sys
+import tempfile
 from pathlib import Path
 
 from core.database import get_connection
@@ -180,6 +182,67 @@ def _is_lookup_only_pr(pr_url: str) -> bool:
     return bool(changed) and changed.issubset(_LOOKUP_ONLY_ALLOWED_FILES)
 
 
+def _fetch_pr_file(pr_url: str, path: str) -> str | None:
+    """The PR head's version of `path`, from GitHub. None (fail closed) if it cannot be fetched."""
+    match = _PR_URL_RE.match(pr_url or "")
+    token = os.getenv("GITHUB_TOKEN")
+    if not match or not token:
+        return None
+    try:
+        from github import Github
+        gh_repo = Github(token).get_repo(f"{match.group(1)}/{match.group(2)}")
+        pr = gh_repo.get_pull(int(match.group(3)))
+        return gh_repo.get_contents(path, ref=pr.head.sha).decoded_content.decode("utf-8")
+    except Exception as exc:
+        log.error("could not fetch %s at the head of %s: %s", path, pr_url, exc)
+        return None
+
+
+def _example_for_suggestion(suggestion_id) -> str | None:
+    """The question that prompted this dispatch (fast_path_suggestions.example_question)."""
+    if not suggestion_id:
+        return None
+    conn = get_connection()
+    try:
+        row = conn.execute("SELECT example_question FROM fast_path_suggestions WHERE id=?", (suggestion_id,)).fetchone()
+        return row["example_question"] if row and row["example_question"] else None
+    finally:
+        conn.close()
+
+
+def _replay_check(pr_url: str, source_suggestion_id) -> tuple[bool, str]:
+    """Behavioural gate for an auto-merge (added 2026-10-06, after an auto-applied phrase rerouted every signup question): replay every logged
+    question through the live jobs/skills/cdb_query.py and through the PR's version, and require that the PR fixes the question that prompted it
+    without changing, breaking, or hijacking anything else (rules: jobs/analytics/fast_path_validate.compare_sources).
+    The PR's file is EXECUTED to do this, so it runs in a separate short-lived subprocess (timeout, no API keys in its environment), never in the
+    poller. Returns (ok, detail). Fails closed: no example question, no file, a crash, a timeout or unreadable output all mean 'hold for review'."""
+    example = _example_for_suggestion(source_suggestion_id)
+    if not example:
+        return False, "no example question on record for this dispatch, so there is nothing to replay against"
+    after = _fetch_pr_file(pr_url, "jobs/skills/cdb_query.py")
+    if after is None:
+        return False, "could not fetch the PR's version of cdb_query.py"
+    before = (REPO_ROOT / "jobs" / "skills" / "cdb_query.py").read_text()
+    try:
+        with tempfile.TemporaryDirectory(prefix="replay_") as tmp:
+            b, a = Path(tmp) / "before.py", Path(tmp) / "after.py"
+            b.write_text(before)
+            a.write_text(after)
+            env = {"PATH": os.environ.get("PATH", ""), "PYTHONPATH": str(REPO_ROOT), "HOME": os.environ.get("HOME", "")}
+            proc = subprocess.run(
+                [sys.executable, "-m", "jobs.analytics.fast_path_validate", "--replay", str(b), str(a), "--example", example],
+                cwd=str(REPO_ROOT), env=env, capture_output=True, text=True, timeout=180,
+            )
+        res = json.loads(proc.stdout.strip().splitlines()[-1])
+    except subprocess.TimeoutExpired:
+        return False, "the replay check timed out"
+    except Exception as exc:
+        return False, f"the replay check could not run ({type(exc).__name__}: {exc})"
+    if res.get("ok"):
+        return True, "replay check passed"
+    return False, "; ".join(res.get("reasons") or ["replay check failed"])
+
+
 def _auto_merge_and_deploy(job_id: int) -> None:
     """Called right after a job transitions to 'done' (PR opened) for a job
     dispatched with auto_merge=1 -- merges immediately with no approval
@@ -207,6 +270,21 @@ def _auto_merge_and_deploy(job_id: int) -> None:
         _record_suggestion_outcome(
             source_suggestion_id, "needs_review",
             f"PR opened but not lookup-only -- held for manual review: {row['pr_url']}",
+        )
+        return
+
+    replay_ok, replay_detail = _replay_check(row["pr_url"], source_suggestion_id)
+    if not replay_ok:
+        with get_connection() as conn:
+            conn.execute("UPDATE claude_code_jobs SET auto_merge=0 WHERE id=?", (job_id,))
+            conn.commit()
+        _telegram(
+            f"🛑 devdispatch job {job_id} built a fix, but my replay check says it would change how other questions are answered "
+            f"-- holding for your review instead of auto-merging.\n\nWhy: {replay_detail}\n\n{row['pr_url']}\n\n- Watson"
+        )
+        _record_suggestion_outcome(
+            source_suggestion_id, "needs_review",
+            f"PR opened but replay check failed -- held for manual review: {replay_detail} ({row['pr_url']})",
         )
         return
 
