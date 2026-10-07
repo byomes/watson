@@ -4578,6 +4578,14 @@ async def _try_congregation_data_lookup(text: str) -> str | None:
     if classroom:
         return await asyncio.to_thread(_format_classroom_reply, classroom)
 
+    # Church-wide events + Subsplash signups for calendar-only events (Men's Fraternity Bible Study). Leaders get this in
+    # compute_team_chat_reply; Bill's chat skipped it, so "how many signed up for Bible Study tonight" fell to data_chat, which only
+    # knows the tracked events and answered "I don't have signup numbers" (found 2026-10-07 in bill_telegram_log).
+    from jobs.church_calendar.chat import answer as _church_events_answer
+    church_events = await asyncio.to_thread(_church_events_answer, text)
+    if church_events:
+        return church_events
+
     web_metric = _extract_web_metric_lookup(text)
     if web_metric:
         return await asyncio.to_thread(_format_web_metric_reply, web_metric)
