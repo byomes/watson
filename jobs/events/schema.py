@@ -112,5 +112,29 @@ def create_tables() -> None:
         CREATE INDEX IF NOT EXISTS idx_event_duplicate_flags_event_id
         ON event_duplicate_flags(event_id)
     """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS event_registration_history (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            registration_id INTEGER NOT NULL REFERENCES event_registrations(id),
+            event_id        INTEGER NOT NULL,
+            action          TEXT NOT NULL,
+            old_rsvp_status TEXT,
+            new_rsvp_status TEXT,
+            old_child_count INTEGER,
+            new_child_count INTEGER,
+            old_email       TEXT,
+            new_email       TEXT,
+            old_phone       TEXT,
+            new_phone       TEXT,
+            old_submitted_at TEXT,
+            new_submitted_at TEXT,
+            raw_body        TEXT,
+            recorded_at     TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+    conn.execute("""
+        CREATE INDEX IF NOT EXISTS idx_event_registration_history_reg
+        ON event_registration_history(registration_id)
+    """)
     conn.commit()
     conn.close()

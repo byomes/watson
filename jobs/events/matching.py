@@ -137,6 +137,12 @@ def find_member_id_by_name(first_name: str, last_name: str) -> int | None:
         rows = conn.execute(
             "SELECT id FROM members WHERE LOWER(name) = LOWER(?) LIMIT 2", (full_name,)
         ).fetchall()
+        if not rows:
+            # Members stored with the title (e.g. "Dr. Bill Yomes") never
+            # match a form's plain "Bill Yomes" otherwise.
+            rows = conn.execute(
+                "SELECT id FROM members WHERE LOWER(name) = LOWER(?) LIMIT 2", (f"Dr. {full_name}",)
+            ).fetchall()
         conn.close()
         if len(rows) == 1:
             return rows[0][0]

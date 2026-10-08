@@ -248,7 +248,7 @@ def _classify(event_name: str, subject: str, body: str) -> dict | None:
 def _upsert_person_row(
     conn: sqlite3.Connection, event_id: int, first_name: str, last_name: str,
     email: str | None, phone: str | None, rsvp_status: str, child_count: int,
-    notes: str | None, received_at: str,
+    notes: str | None, received_at: str, raw_body: str | None = None,
 ) -> None:
     """One row per named attendee per event (num_tickets is always 1 here --
     the caller inserts one row per person rather than one row per submission,
@@ -287,6 +287,22 @@ def _upsert_person_row(
         ).fetchone()
 
     if existing:
+        old = conn.execute(
+            "SELECT rsvp_status, child_count, email, phone, submitted_at FROM event_registrations WHERE id = ?",
+            (existing["id"],),
+        ).fetchone()
+        conn.execute(
+            """INSERT INTO event_registration_history
+               (registration_id, event_id, action, old_rsvp_status, new_rsvp_status, old_child_count,
+                new_child_count, old_email, new_email, old_phone, new_phone, old_submitted_at,
+                new_submitted_at, raw_body)
+               VALUES (?, ?, 'update', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (existing["id"], event_id, old["rsvp_status"], rsvp_status, old["child_count"], child_count,
+             old["email"], email or None, old["phone"], phone or None, old["submitted_at"], received_at, raw_body),
+        )
+        if old["rsvp_status"] and old["rsvp_status"] != rsvp_status:
+            log.warning("Banquet RSVP FLIPPED %s -> %s — registration_id=%s event_id=%s",
+                        old["rsvp_status"], rsvp_status, existing["id"], event_id)
         conn.execute(
             """UPDATE event_registrations
                SET rsvp_status = ?, num_tickets = 1, child_count = ?, email = ?, phone = ?,
@@ -299,13 +315,20 @@ def _upsert_person_row(
                   event_id, member_id, rsvp_status, " [new neighbor]" if member_created else "")
         return
 
-    conn.execute(
+    cur = conn.execute(
         """INSERT INTO event_registrations
            (event_id, first_name, last_name, email, phone, num_tickets, child_count,
             rsvp_status, extra_fields, member_id, source, submitted_at)
            VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, 'email', ?)""",
         (event_id, first_name, last_name, email or None, phone or None, child_count,
          rsvp_status, json.dumps({"notes": notes}) if notes else None, member_id, received_at),
+    )
+    conn.execute(
+        """INSERT INTO event_registration_history
+           (registration_id, event_id, action, new_rsvp_status, new_child_count, new_email,
+            new_phone, new_submitted_at, raw_body)
+           VALUES (?, ?, 'insert', ?, ?, ?, ?, ?, ?)""",
+        (cur.lastrowid, event_id, rsvp_status, child_count, email or None, phone or None, received_at, raw_body),
     )
     log.info("Banquet RSVP recorded — event_id=%s member_id=%s status=%s children=%s%s",
               event_id, member_id, rsvp_status, child_count, " [new neighbor]" if member_created else "")
@@ -340,7 +363,7 @@ def _upsert_rsvp(conn: sqlite3.Connection, event_id: int, detection: dict, recei
     notes = " | ".join(notes_parts) or None
 
     _upsert_person_row(conn, event_id, first_name, last_name, email or None, phone or None,
-                        rsvp_status, child_count, notes, received_at)
+                        rsvp_status, child_count, notes, received_at, detection.get("_raw_body"))
 
     additional = detection.get("additional_attendees") or []
     for person in additional:
@@ -356,7 +379,7 @@ def _upsert_rsvp(conn: sqlite3.Connection, event_id: int, detection: dict, recei
         if not a_first and not a_last:
             continue
         _upsert_person_row(conn, event_id, a_first, a_last, None, None,
-                            rsvp_status, 0, None, received_at)
+                            rsvp_status, 0, None, received_at, detection.get("_raw_body"))
 
 
 def handle_banquet_rsvp_email(
@@ -387,6 +410,7 @@ def handle_banquet_rsvp_email(
         conn.close()
         return None
 
+    detection["_raw_body"] = body[:4000]
     rows_before = conn.execute(
         "SELECT COUNT(*) FROM event_registrations WHERE event_id = ?", (matched["id"],)
     ).fetchone()[0]
