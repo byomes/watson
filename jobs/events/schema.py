@@ -112,6 +112,18 @@ def create_tables() -> None:
         CREATE INDEX IF NOT EXISTS idx_event_duplicate_flags_event_id
         ON event_duplicate_flags(event_id)
     """)
+    # Guard rail (2026-10-07): a resubmission once blanked John/Kerrigan Brown's
+    # emails. Whatever code path writes later, a non-empty email/phone on a
+    # registration can be replaced by another value but never erased to NULL/''.
+    for col in ("email", "phone"):
+        conn.execute(f"""
+            CREATE TRIGGER IF NOT EXISTS trg_event_registrations_keep_{col}
+            AFTER UPDATE OF {col} ON event_registrations
+            WHEN COALESCE(OLD.{col}, '') != '' AND COALESCE(NEW.{col}, '') = ''
+            BEGIN
+                UPDATE event_registrations SET {col} = OLD.{col} WHERE id = NEW.id;
+            END
+        """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS event_registration_history (
             id              INTEGER PRIMARY KEY AUTOINCREMENT,
