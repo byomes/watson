@@ -305,7 +305,7 @@ def _upsert_person_row(
                         old["rsvp_status"], rsvp_status, existing["id"], event_id)
         conn.execute(
             """UPDATE event_registrations
-               SET rsvp_status = ?, num_tickets = 1, child_count = ?, email = ?, phone = ?,
+               SET rsvp_status = ?, num_tickets = 1, child_count = ?, email = COALESCE(?, email), phone = COALESCE(?, phone),
                    extra_fields = ?, submitted_at = ?, source = 'email'
                WHERE id = ?""",
             (rsvp_status, child_count, email or None, phone or None,
