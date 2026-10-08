@@ -1,6 +1,6 @@
 # Watson Bug Tracker
 _Auto-generated nightly from bug_tracker. Source of truth is the database — do not hand-edit this file, changes will be overwritten._
-Last generated: 2026-10-07 02:10
+Last generated: 2026-10-08 02:10
 
 ## Open (7)
 | ID | Title | Repo | Discovered |
@@ -130,4 +130,3 @@ Last generated: 2026-10-07 02:10
 | 152 | "assign X to me" would write literal "Bill Yomes" into members.deacon | watson | 2026-09-08 19:07:44 | 5ac7aa9 |
 | 151 | data_chat generated wrong SQL for partner/deacon-gap questions | watson | 2026-09-08 12:44:30 | 6083f25 |
 | 150 | UnboundLocalError crashed all leader/team-chat Telegram messages | watson | 2026-09-08 12:40:15 | 114d148 |
-| 142 | Leadership-only prayer requests written as leadership_only=0 | watson | 2026-09-07 13:17:20 | 52145b1 |
