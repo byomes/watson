@@ -5028,3 +5028,56 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - f825d2d Add kit remote: send Roku remote keys over the LAN, report Limited-mode refusals
 - d46bd28 Approve-by-name now covers IP-only callers; mark roku-youtube proven
 - 71badf0 docs: STATUS.md snapshot of where the Kit build stands (2026-10-06)
+
+---
+
+## Recent Changes — 2026-10-08
+
+### ~/watson
+- 2e623d0 docs: bugs/backlog export 2026-10-08
+- 54eefd8 docs: file map 2026-10-08
+- 24315ee Banquet RSVP: DB trigger + test so contact info can never be blanked
+- ad9678e Banquet RSVP: keep existing email/phone when a resubmission omits them
+- 7e11162 Banquet RSVP: add registration history table, match 'Dr.' members by name
+- 4716194 Telegram: drop the '- Watson' sign-off from Watson's bot messages
+- e7bcdcc Team chat class roster: reply as Adults (who served) then Kids
+- 69160a3 Banquet RSVP report skips invite exclusions
+- 8344399 Banquet RSVP notifications: plain-English wording
+- f01ddf6 Banquet RSVP Telegram notifications to Bill Yomes + Bill Crook (gated off), 9am overnight queue flush
+- 600b939 Banquet RSVP: accept 'SLB'/'Leaders Banquet' aliases in email matching and chat, drop em dash from status message
+- 2d72a2c Service-length awards: service_awards table + module, awards API, pin command routes through it, banquet PDF shows received/to-receive
+- 4dfc834 catalystdb state: per-member serving teams + team list (for the team filter)
+- 01d38a7 Bill's chat: answer event/signup questions from calendar + Subsplash copy (Bible Study count)
+- 5bc7fd8 Network devices: disable autofill on edit inputs (typing own name crashed Safari/Brave)
+- ef4624d Dashboard: name search on Ministry pastoral-note form
+- 1126ae2 Dashboard notes: searchable leader picker
+- 0b64389 Dashboard notes: name field searches congregation database
+- a442eba SMS broadcast: gender and recent-attendance filters
+- 0c97588 docs: architecture update 2026-10-07
+
+### ~/watson-tools
+- 1d49770 Tracker: add light/dark mode toggle like the Deacon app
+- a97bf32 Servants page: service awards controls in the edit form
+- f6c9a9e CatalystDB profile: Service Awards section (mark received / needs to receive)
+- 4610dca catalystdb profile: team dropdown shows the full filter list (already-joined teams disabled)
+- 6a77d69 catalystdb: multi-select serving-team filter on the members view
+- b8c3b4d SMS list view: pin top controls and search while threads scroll behind
+- 9790dfa SMS broadcast UI: gender and attendance filters
+
+### ~/watson-kit
+- e8aa01b Kit: drop airplay-audio and roku-youtube cast methods; show stop command after a cast starts and prepend STOP CASTING NOW to Screens menu
+- 230296f menu: screen picker calls screens.discover() directly (screen.py find does not write screens.json)
+- 17b6093 menu: pick a screen from a numbered list; ignore swipes and arrow keys
+- daf5914 menu: ignore arrow keys, scroll swipes and mouse reports instead of redrawing
+- 5f156af list: show the devices and IPs on record for a network
+- 5c3922f netsnap: snapshot devices and IPs automatically when the Kit joins a network
+- 14ace42 STATUS: menu
+- 783e387 menu: HDMI splash is not a cast
+- 8035208 Kit menu: numbered SSH-login menu (iPhone width) + registry + installer
+- 47364c2 docs: WiFi jitter/throughput results, btnap pairable fix, drop folder mode
+- 2556ce5 btnap: switch Pairable off on teardown; share: drop folder mode 700
+- 95ee844 docs: 2026-10-07 first-run results (USB gadget, Levels 0-3), WiFi jitter finding, role change
+- 27d18e7 beelink wrappers: run Python unbuffered so streamed output (passkeys, upload links, watch lines) shows up live
+- afda52a capture: temp dir writable by dumpcap's dropped user
+- a1d4e2b capture: write via a temp dir then move into place (dumpcap cannot open files under the Kit's home)
+- ceae749 capture: dumpcap -Z none so it can write under the Kit's private home; usb_net.sh: USB CDC-ECM network gadget (tested on the Kit)
