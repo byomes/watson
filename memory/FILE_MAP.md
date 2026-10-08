@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-10-07*
+*Generated: 2026-10-08*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -107,11 +107,11 @@ data/
     66e0844b7fab4e0a8bb386db8504deac.png
     9eca6f54ecff491dbed2470fd0b3d196.png
   congregation.db
-  congregation.db-shm
-  congregation.db-wal
+  congregation.db.bak_after_awards_sync_20261007_134050
   congregation.db.bak_after_serving_attendance_table_20260922_140259
   congregation.db.bak_after_team_active_column_20260922_134207
   congregation.db.bak_before_3mo_active_mark_20260924_125043
+  congregation.db.bak_before_awards_ingest_20261007_133744
   congregation.db.bak_before_blank_convention_20260924_111701
   congregation.db.bak_before_connected_override_20260924_130115
   congregation.db.bak_before_drop_legacy_status_columns_20260924_124413
@@ -120,8 +120,11 @@ data/
   congregation.db.bak_before_kids_csv_backfill_20260930_204618
   congregation.db.bak_before_kids_csv_dupe_merge_20260930_205901
   congregation.db.bak_before_orphan_delete_20260906_070048
+  congregation.db.bak_before_orphan_repoint_20261007_124140
   congregation.db.bak_before_partner_connected_active_20260924_105842
   congregation.db.bak_before_pin_import_20260922_122311
+  congregation.db.bak_before_remove_bredin_cooke_20261007_142915
+  congregation.db.bak_before_service_awards_20261007_130333
   congregation.db.bak_before_serving_date_import_20260922_121801
   congregation.db.bak_before_teams_import_20260922_124921
   congregation.db.bak_zipcheck_20260915
@@ -143,6 +146,14 @@ data/
     vps_pricing_cache.json
   donors.db
   exports/
+    Banquet_Length_of_Service_2026-10-07.pdf
+    Complete_Service_Awards_List_20261007.csv
+    SLB_invite_email.txt
+    SLB_invite_text.txt
+    Service_Awards_Tracking.csv
+    Service_Awards_Tracking_FILLED_20261007.csv
+    build_awards_csv.py
+    build_banquet_service_report.py
     kit_export_20260817-184426.json
     kit_export_20260817-190511.json
     kit_suppression_20260817-190509.json
@@ -155,6 +166,8 @@ data/
     qr_1781042385.png
     quote_1786996285.png
     quote_1787025025.png
+    send_banquet_report.py
+    send_slb_emails.py
     twj_full_manuscript.md
   facebook_images/
     fb_14.jpg
@@ -2854,6 +2867,8 @@ data/
       20260826-015833-watson-passive-income-opportunities/
         transcript.md
         watson-trading-build-prompt.md
+      author-ad-william-yomes-1080p.mp4
+      the-wrong-jesus-ad-1080p.mp4
     what-child-is-this/
       COMPILED_ARCHIVE.md
       What_Child_Is_This_-_Expanded_Outline.md
@@ -3343,6 +3358,7 @@ jobs/
     recompute_active_status.py
     scam_alert_email.py
     servants_web.py
+    service_awards.py
     serving_edit.py
     serving_reminder.py
     set_deacon_pin.py
@@ -3498,6 +3514,7 @@ jobs/
   events/
     __init__.py
     banquet_rsvp.py
+    banquet_rsvp_notify.py
     duplicate_review.py
     import_csv.py
     matching.py
@@ -5782,6 +5799,7 @@ scripts/
   wcky_meet_reauth.py
 tests/
   audit_concurrency_test.py
+  banquet_rsvp_contact_preserve_test.py
   connection_reg_dates_test.py
   devdispatch_replay_check_test.py
   fastpath_validation_test.py
@@ -6619,6 +6637,8 @@ src/
         servants/
           add/
             route.ts
+          awards/
+            route.ts
           lookup/
             route.ts
           remove/
@@ -6736,6 +6756,7 @@ src/
           HouseholdsView.tsx
           MemberDetail.tsx
           MergeConfirm.tsx
+          TeamFilter.tsx
           ThemeToggleButton.tsx
           columns.ts
           layout.tsx
@@ -6834,6 +6855,7 @@ src/
           pin-pad.tsx
         page.tsx
       tracker/
+        ThemeInitScript.tsx
         TrackerTabs.tsx
         page.tsx
     globals.css
@@ -6875,6 +6897,7 @@ src/
     shepherdingReportShared.ts
     smsAuth.ts
     socialAuth.ts
+    trackerTheme.ts
     uploadAuth.ts
     useAutoTheme.ts
     useSmsPush.ts
@@ -6904,6 +6927,7 @@ beelink/
   kit-explore
   kit-gatt
   kit-input
+  kit-list
   kit-netcheck
   kit-obex
   kit-places
@@ -6943,7 +6967,9 @@ kit/
   capture.py
   cast_scan.py
   cast_splash.py
+  commands.json
   desktop_session.sh
+  devlist.py
   doctor.py
   drive.py
   dts/
@@ -6955,11 +6981,13 @@ kit/
   inventory.py
   kit-remote
   make_content.py
+  menu.py
   mice_source.py
   miracast_source.py
   net_probe.py
   netcheck.py
   netid.py
+  netsnap.py
   portal.py
   probe.py
   remote.py
@@ -6982,6 +7010,7 @@ kit/
   uplink.py
   usb_drive.sh
   usb_hid.sh
+  usb_net.sh
   usb_role.sh
   watch.py
   wifi.py
@@ -6990,7 +7019,9 @@ provision/
   add_wifi.py
   deploy_key.sh
   install_desktop.sh
+  install_menu.sh
   install_toolkit.sh
+  kit-netsnap.service
   kit_root_setup.sh
   run_prepare.sh
   save_iot.sh
