@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-10-08*
+*Generated: 2026-10-09*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -107,6 +107,8 @@ data/
     66e0844b7fab4e0a8bb386db8504deac.png
     9eca6f54ecff491dbed2470fd0b3d196.png
   congregation.db
+  congregation.db-shm
+  congregation.db-wal
   congregation.db.bak_after_awards_sync_20261007_134050
   congregation.db.bak_after_serving_attendance_table_20260922_140259
   congregation.db.bak_after_team_active_column_20260922_134207
@@ -3111,6 +3113,8 @@ data/
     inbox/
       20261003-154056_church-picnic-responses__2_.csv
   watson.db
+  watson.db-shm
+  watson.db-wal
 deploy/
   .gitkeep
   apt-packages.txt
@@ -6958,12 +6962,14 @@ kit/
   ap.py
   blegatt.py
   blescan.py
+  blesetup.py
   bt_hid.py
   btaudio.py
   btdev.py
   btinput.py
   btnap.py
   btobex.py
+  camscan.py
   capture.py
   cast_scan.py
   cast_splash.py
@@ -7007,6 +7013,7 @@ kit/
     test_netid_fakes.py
     test_remote_fakes.py
     test_roku_player.py
+  tvweb.py
   uplink.py
   usb_drive.sh
   usb_hid.sh
@@ -7036,6 +7043,7 @@ roku/
       main.brs
 services/
   .gitkeep
+  kit-blesetup.service
   kit-desktop-web.service
   kit-desktop.service
   kit-hdmi-splash.service
