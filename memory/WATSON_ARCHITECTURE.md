@@ -5081,3 +5081,21 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - afda52a capture: temp dir writable by dumpcap's dropped user
 - a1d4e2b capture: write via a temp dir then move into place (dumpcap cannot open files under the Kit's home)
 - ceae749 capture: dumpcap -Z none so it can write under the Kit's private home; usb_net.sh: USB CDC-ECM network gadget (tested on the Kit)
+
+---
+
+## Recent Changes — 2026-10-09
+
+### ~/watson
+- 22b4d68 docs: bugs/backlog export 2026-10-09
+- 9e9236e docs: file map 2026-10-09
+- f458026 docs: architecture update 2026-10-08
+
+### ~/watson-kit
+- ad4956d tvweb: tabbed web remote for smart TVs (Samsung proven on a real TV), identify button, friendly names
+- ff148b5 blesetup: Nordic UART service so BLE terminal apps work; allowlisted commands (wifi, uplink, camscan, explore, ip, uptime, reboot)
+- b5cf184 camscan: load OUI list before threads (race gave random unknown makers)
+- 5081b82 camscan: second sweep, passive neighbor merge, Tuya broadcast scan, OUI names
+- 4a2d88c blesetup: --open mode (no pairing, PIN only); service runs auto --open
+- 96d7643 blesetup: use placeholder network in examples
+- 5b31002 Add camscan (hidden-camera network scan) and blesetup (BLE WiFi setup)
