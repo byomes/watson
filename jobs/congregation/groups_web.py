@@ -108,6 +108,31 @@ def _session_dates(series: str) -> list[str]:
     return [r["start_date"] for r in rows if r["start_date"]]
 
 
+def _registrations(series: str, event_date: str) -> tuple[bool, set[int]]:
+    """(known, member_ids) for who signed up on Subsplash for this series on this date.
+
+    `known` is False when Subsplash has no registration form for that session
+    (most small groups), so the page never labels anyone "not registered" for a
+    group that does not take sign-ups. Registrations are copied into watson.db by
+    jobs/church_calendar/registrations.py; people who could not be matched to a
+    member (member_id NULL) are left out. Honors the same pause switch the
+    connection view uses."""
+    title = next((s["title"] for s in _series_list() if s["series"] == series), "")
+    if not title or not event_date:
+        return False, set()
+    with _watson_conn() as wconn:
+        paused = wconn.execute("SELECT value FROM system_settings WHERE key='subsplash_registrations_paused'").fetchone()
+        if paused and paused["value"] == "1":
+            return False, set()
+        rows = wconn.execute(
+            "SELECT member_id FROM subsplash_registrations WHERE event_title=? AND date(event_start)=?",
+            (title, event_date)).fetchall()
+        form = wconn.execute(
+            "SELECT 1 FROM subsplash_event_regs WHERE title=? AND start_date=? AND has_form=1",
+            (title, event_date)).fetchone()
+    return bool(rows or form), {r["member_id"] for r in rows if r["member_id"] is not None}
+
+
 def _valid(series: str, event_date: str) -> str | None:
     """Error string if this series/date can't be recorded, else None."""
     if series not in {s["series"] for s in _series_list()}:
@@ -139,15 +164,24 @@ def state():
             return jsonify(out), 200
         # event_date may be "" (group has not met yet): then nobody is "present" and the
         # leader can still build the regulars list.
+        # "Registered" (signed up on Subsplash) is kept apart from "present" (actually came):
+        # a registrant who is not a regular still gets a row, and checking someone off
+        # never turns a sign-up into attendance or the reverse.
+        known, registered = _registrations(series, event_date)
+        reg_ids = sorted(registered)
         rows = conn.execute(
-            """SELECT m.id, m.name,
-                      EXISTS(SELECT 1 FROM group_attendance g2 WHERE g2.series=? AND g2.event_date=? AND g2.member_id=m.id) AS present
+            f"""SELECT m.id, m.name,
+                      EXISTS(SELECT 1 FROM group_attendance g2 WHERE g2.series=? AND g2.event_date=? AND g2.member_id=m.id) AS present,
+                      EXISTS(SELECT 1 FROM group_roster r2 WHERE r2.series=? AND r2.member_id=m.id) AS regular
                FROM members m
                WHERE m.active NOT IN ('disconnected','deceased') AND (
                    m.id IN (SELECT member_id FROM group_roster WHERE series=?)
-                   OR m.id IN (SELECT member_id FROM group_attendance WHERE series=? AND event_date=?))
-               ORDER BY m.name""", (series, event_date, series, series, event_date)).fetchall()
-        out["roster"] = [{"id": r["id"], "name": r["name"], "present": bool(r["present"])} for r in rows]
+                   OR m.id IN (SELECT member_id FROM group_attendance WHERE series=? AND event_date=?)
+                   OR m.id IN ({','.join('?' * len(reg_ids))}))
+               ORDER BY m.name""", (series, event_date, series, series, series, event_date, *reg_ids)).fetchall()
+        out["registration_known"] = known
+        out["roster"] = [{"id": r["id"], "name": r["name"], "present": bool(r["present"]),
+                          "registered": r["id"] in registered, "regular": bool(r["regular"])} for r in rows]
     return jsonify(out), 200
 
 
