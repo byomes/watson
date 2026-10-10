@@ -1181,6 +1181,18 @@ def answer_data_question(
         log.info("data_chat: first-time-guest-list hit, asker=%s q=%r", asker_name, question)
         return True, who_reply
 
+    # "Who registered but didn't come to Men's Fraternity?" -- registered (Subsplash) vs attended (group_attendance), LLM-free.
+    # Before the generic pattern-match and the signup guard below, which would otherwise treat the sign-up wording as an event question.
+    try:
+        from jobs.analytics.group_compare import answer as _group_compare_answer
+        group_reply = _group_compare_answer(question)
+    except Exception:
+        log.exception("data_chat: group registered-vs-attended failed, falling through")
+        group_reply = None
+    if group_reply is not None:
+        log.info("data_chat: group registered-vs-attended hit, asker=%s q=%r", asker_name, question)
+        return True, group_reply
+
     # Found 2026-09-02 debugging Donna's "who is in Bill Crook's deacon
     # group?" -- cdb_query._pattern_match()'s 'who is'/'tell me about'
     # trigger is built for simple name lookups and can misfire on a longer
