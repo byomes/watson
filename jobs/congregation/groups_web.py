@@ -56,7 +56,8 @@ def _bootstrap() -> None:
                 UNIQUE(series, event_date, member_id)
             )""")
         # A group's regulars (like the kids app's class roster): everyone listed here
-        # shows with a toggle each session. Marking someone present adds them.
+        # shows with a toggle each session. Marking someone present does NOT add them;
+        # regulars are added only on purpose (roster_add).
         conn.execute("""
             CREATE TABLE IF NOT EXISTS group_roster (
                 series TEXT NOT NULL,
@@ -211,7 +212,6 @@ def toggle():
         if present:
             conn.execute("INSERT OR IGNORE INTO group_attendance (series, event_date, member_id) VALUES (?,?,?)",
                          (series, event_date, member_id))
-            conn.execute("INSERT OR IGNORE INTO group_roster (series, member_id) VALUES (?,?)", (series, member_id))
         else:
             conn.execute("DELETE FROM group_attendance WHERE series=? AND event_date=? AND member_id=?",
                          (series, event_date, member_id))
