@@ -58,7 +58,7 @@ class Surface(unittest.TestCase):
     def test_every_subsplash_entry_point_surfaces_first(self):
         import inspect
         from jobs.church_calendar import registrations as R
-        self.assertEqual(inspect.getsource(kc).count("await surface_tab(ws)"), 2)                    # full-history pull and by-id pull
+        self.assertEqual(inspect.getsource(kc).count("await surface_tab(ws)"), 3)                    # full-history pull, by-id pull and authed_eval
         self.assertIn("await pg.surface()", inspect.getsource(R._pull_inner))
         self.assertIn("await self.surface()", inspect.getsource(R._Page.go))                          # and before every navigation
 
