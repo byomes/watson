@@ -38,7 +38,8 @@ def test_recorded_or_stale_session_is_not_due(monkeypatch, tmp_path):
     assert gr.due(date(2026, 10, 5)) == {}               # attendance entered
     _patch(monkeypatch, tmp_path, attended=False)
     assert gr.due(date(2026, 10, 12)) == {}              # a week old: no more nagging
-    assert gr.due(date(2026, 10, 4)) == {}               # same day as the session: wait for tomorrow
+    assert gr.due(date(2026, 10, 4)) == {}               # same day as the session: the daily run waits for tomorrow
+    assert gr.due(date(2026, 10, 4), include_today=True)  # the Sunday-afternoon run reminds the same day
 
 
 def test_message_text():

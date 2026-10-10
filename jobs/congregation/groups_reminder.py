@@ -1,6 +1,8 @@
-"""jobs/congregation/groups_reminder.py -- daily 10am Telegram nudge to a small group's
-leaders to record attendance on the tracker's Groups tab, sent the morning after a
-session when nobody has recorded it yet.
+"""jobs/congregation/groups_reminder.py -- Telegram nudge to a small group's leaders to
+record attendance on the tracker's Groups tab when nobody has recorded the session yet.
+Two runs: Sunday 3:05pm (--include-today) covers the Sunday-morning groups the same
+afternoon, alongside the other Sunday reminders; the daily 10am run covers sessions on
+earlier days (midweek groups and events) the morning after.
 
 For every group (Subsplash calendar groups and the weekly Sunday groups in
 groups_web), look at sessions in the last few days before today. A session with no
@@ -16,9 +18,11 @@ quietly and start receiving as soon as they are onboarded. No SMS from this job.
 Text is a fixed template: no generated wording.
 
 Usage:
-  PYTHONPATH=/home/billyomes/watson venv/bin/python -m jobs.congregation.groups_reminder [--dry-run] [--today YYYY-MM-DD]
+  PYTHONPATH=/home/billyomes/watson venv/bin/python -m jobs.congregation.groups_reminder [--include-today] [--dry-run] [--today YYYY-MM-DD]
 
-Cron (daily 10:00, inside Bill's 9am-8pm messaging hours):
+Cron (both inside Bill's 9am-8pm messaging hours; a leader is reminded once per session
+no matter which run gets there first):
+  5 15 * * 0 PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python -m jobs.congregation.groups_reminder --include-today >> /home/billyomes/watson/logs/groups_reminder.log 2>&1
   0 10 * * * PYTHONPATH=/home/billyomes/watson /home/billyomes/watson/venv/bin/python -m jobs.congregation.groups_reminder >> /home/billyomes/watson/logs/groups_reminder.log 2>&1
 
 Leader list: notes/group_leaders.md (Bill, 2026-10-09). To add or change a leader, edit LEADERS.
@@ -86,9 +90,9 @@ def _fmt(iso: str) -> str:
     return date(y, m, d).strftime("%A, %B %-d")
 
 
-def due(today: date) -> dict[int, list[tuple[str, str, str]]]:
+def due(today: date, include_today: bool = False) -> dict[int, list[tuple[str, str, str]]]:
     """person_id -> [(series, title, event_date)] sessions still unrecorded and not yet reminded."""
-    lo, hi = (today - timedelta(days=_LOOKBACK_DAYS)).isoformat(), (today - timedelta(days=1)).isoformat()
+    lo, hi = (today - timedelta(days=_LOOKBACK_DAYS)).isoformat(), (today if include_today else today - timedelta(days=1)).isoformat()
     out: dict[int, list[tuple[str, str, str]]] = {}
     with sqlite3.connect(CONGREGATION_DB) as conn:
         _bootstrap(conn)
@@ -123,9 +127,9 @@ def _connected(person_id: int) -> bool:
     return bool(row and row["telegram_chat_id"])
 
 
-def run(today: date, dry_run: bool) -> int:
+def run(today: date, dry_run: bool, include_today: bool = False) -> int:
     sent = 0
-    for pid, items in sorted(due(today).items()):
+    for pid, items in sorted(due(today, include_today).items()):
         text = message(items)
         if not _connected(pid):
             if dry_run:
@@ -148,6 +152,7 @@ def run(today: date, dry_run: bool) -> int:
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry-run", action="store_true", help="print who would be reminded, send nothing")
+    ap.add_argument("--include-today", action="store_true", help="also remind about sessions held today (Sunday afternoon run)")
     ap.add_argument("--today", help="pretend today is YYYY-MM-DD (for testing)")
     a = ap.parse_args()
-    run(date.fromisoformat(a.today) if a.today else date.today(), a.dry_run)
+    run(date.fromisoformat(a.today) if a.today else date.today(), a.dry_run, a.include_today)
