@@ -96,7 +96,7 @@ def _host_key(hostname: str | None) -> str:
 
 
 def candidates() -> tuple[list, list]:
-    """(old, new): labeled devices not seen since migration start, and
+    """(old, new): labeled devices not seen in the last 12 minutes, and
     unlabeled devices first seen since migration start."""
     started = migration_started_at()
     if not started:
@@ -104,8 +104,7 @@ def candidates() -> tuple[list, list]:
     with conn() as c:
         old = c.execute(
             "SELECT * FROM network_devices WHERE (label IS NOT NULL OR assigned_to IS NOT NULL) "
-            "AND last_seen < ? ORDER BY assigned_to, label",
-            (started,),
+            "AND last_seen < datetime('now', '-12 minutes') ORDER BY assigned_to, label",
         ).fetchall()
         new = c.execute(
             "SELECT * FROM network_devices WHERE label IS NULL AND assigned_to IS NULL "
