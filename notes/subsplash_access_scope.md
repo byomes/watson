@@ -5,7 +5,7 @@ Subsplash confirmed (via Bill) that Watson reading the church's own dashboard an
 ## Already built (now live again)
 - Kids check-in history: core.subsplash.com/check-in/v1/end-user-check-ins + events/v2 (kids_checkin_import, Mon 6am cron)
 - Event registrations/guest lists: dashboard pages (registrations.py, every 3h)
-- Fluro: OFF LIMITS (Bill, 2026-10-09). Its database also holds giving records; Watson is shepherding-only. No contacts, serving teams, giving or the Watson-SMS list sync. fluro_client.get_session_token raises.
+- Fluro: VOLUNTEER SCHEDULING ONLY (Bill, 2026-10-09 later; each new Fluro goal needs a fresh ask). jobs/congregation/fluro_schedule.py reads upcoming Sunday rosters (event filter + content/get appendAssignments, no contact detail) daily 6:25am. Still off limits: contacts, giving, the Watson-SMS list sync. fluro_client.get_session_token still raises.
 - Public calendars (4 embeds, hourly)
 
 ## Candidate pulls for usage + tracking (verify each endpoint on first use, read-only)
