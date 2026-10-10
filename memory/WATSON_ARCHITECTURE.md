@@ -5099,3 +5099,36 @@ Bugs surfaced in Claude.ai conversation history predating the `bug_tracker` tabl
 - 4a2d88c blesetup: --open mode (no pairing, PIN only); service runs auto --open
 - 96d7643 blesetup: use placeholder network in examples
 - 5b31002 Add camscan (hidden-camera network scan) and blesetup (BLE WiFi setup)
+
+---
+
+## Recent Changes — 2026-10-10
+
+### ~/watson
+- c481589 docs: bugs/backlog export 2026-10-10
+- bd1af13 docs: file map 2026-10-10
+- 0640cf9 Groups reminder: Sunday 3:05pm same-day run for the Sunday-morning groups
+- a524ae1 Groups: daily reminder to connected group leaders to record attendance (Groups tab link)
+- 861ace9 Groups: weekly Sunday groups not on the Subsplash calendar (Jim & Lisa's, Remix Sunday Morning, Shift, 9am Elementary Kids)
+- 1747352 Reminders: link to the tracker app, each to its own tab (sunday, serving, kids)
+- f8c3919 Team chat registered-vs-attended: handle a specific date (10/7, October 7th, last Wednesday)
+- 82ce55b Team chat: registered-vs-attended answers for small groups and events (LLM-free)
+- 373b2ef Groups: checking someone off no longer adds them to the regulars list
+- bc6fe1d Groups: separate Subsplash-registered from actually-present in group state
+- f0ada77 Guard test: authed_eval also surfaces the dashboard tab
+- a91d867 Fluro stays off limits: get_session_token raises again (giving data lives there)
+- af36854 Registrations: read Subsplash forms/events data directly (emails, head counts, exact), page reading kept as fallback
+- 8d30a54 Registrations: keep the real title for events without a registration form
+- b8a5463 Names of God: series signups count while later sessions run; chat trusts the larger of tracked/Subsplash counts
+- 61fd63a Subsplash access resumed: kids pull fix, recurring events, event sync, people counts
+
+### ~/watson-tools
+- 5e802d6 Groups tab: Make regular action for non-regulars (check-offs no longer add regulars)
+- a8d4cc1 Groups tab: registered people lead the check-in list, registered-not-yet-here is neutral
+- c6a477f Groups tab: show registered vs attended vs walk-in
+
+### ~/watson-kit
+- 83679b5 Add kit-tvweb.service (on demand, not enabled at boot)
+- 967e966 remote: file Samsung/LG pairing tokens and device secrets by MAC, not IP
+- 4b2cde6 tvweb: learn MAC of TVs reached by saved address so they get remembered
+- 8c4c8ad tvweb: remember TVs by MAC, fast known-TV check, tap a saved TV to open its remote
