@@ -3,7 +3,7 @@ Attendance link reminder — Sunday 3pm nudge to add human corrections
 before missed_report.py runs Tuesday 7am.
 
 Sends a Telegram message asking for help logging attendance corrections,
-with the wtsn.me/cat/attendance link, to Jim Bouchat, Donna Redman, Bill
+with the wtsn.me/cat/tracker?tab=sunday link, to Jim Bouchat, Donna Redman, Bill
 Crook, Bill Yomes, Lucie Hale, Tara Mathena, Tyler McCauley, and Melanie
 Yomes via jobs/telegram/send_to_person.py.
 
@@ -47,7 +47,7 @@ RECIPIENT_NAMES = (
 
 MESSAGE = (
     "\U0001F64F Could you help us log attendance correctly?\n\n"
-    "Please check https://wtsn.me/cat/attendance and add any corrections "
+    "Please check https://wtsn.me/cat/tracker?tab=sunday and add any corrections "
     "for people you saw today. Thanks for helping us keep the records "
     "accurate!"
 )

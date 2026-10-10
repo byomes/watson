@@ -26,7 +26,7 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 CONGREGATION_DB = Path(__file__).resolve().parents[2] / "data" / "congregation.db"
-KIDSATT_URL = "https://wtsn.me/cat/kidsatt"
+KIDSATT_URL = "https://wtsn.me/cat/tracker?tab=kids"
 
 DEFAULT_SERVANTS = {
     "Nursery": {"name": "Tara Mathena", "person_id": 450, "phone": "", "is_override": False},

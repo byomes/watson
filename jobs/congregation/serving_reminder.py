@@ -1,5 +1,5 @@
 """jobs/congregation/serving_reminder.py -- weekly Sunday 1pm Telegram
-nudge to Catalyst staff, pointing them at wtsn.me/cat/serving to check off
+nudge to Catalyst staff, pointing them at the tracker app Serving tab (wtsn.me/cat/tracker?tab=serving) to check off
 who served that day (see [[project_servant_banquet_tracking]] /
 jobs/congregation/servants_web.py for the page itself).
 
@@ -33,7 +33,7 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-SERVING_URL = "https://wtsn.me/cat/serving"
+SERVING_URL = "https://wtsn.me/cat/tracker?tab=serving"
 
 BILL_PERSON_ID = 7
 
