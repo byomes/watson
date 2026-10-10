@@ -301,7 +301,8 @@ async def _read_event(pg: _Page, ev: dict) -> dict | None:
     if state == "timeout":
         return None
     if state == "noform":
-        return {"title": None, "hasForm": False, "rows": []}
+        # The page still names the event ("Events > Title > Guest List"), so keep the real title instead of a placeholder.
+        return {"title": json.loads(await pg.ev(_READ_JS)).get("title"), "hasForm": False, "rows": []}
     first = json.loads(await pg.ev(_READ_JS))
     rows = list(first["rows"])
     for _ in range(15):
@@ -399,7 +400,8 @@ def store(events: list[dict]) -> dict:
             if not e["hasForm"]:
                 conn.execute("""INSERT INTO subsplash_event_regs (event_uuid, title, start_date, calendar, has_form, registered, checked_at)
                                 VALUES (?,?,?,?,0,NULL,datetime('now'))
-                                ON CONFLICT(event_uuid) DO UPDATE SET has_form=0, checked_at=datetime('now')""",
+                                ON CONFLICT(event_uuid) DO UPDATE SET has_form=0, checked_at=datetime('now'),
+                                    title=CASE WHEN excluded.title='(no registration form)' THEN subsplash_event_regs.title ELSE excluded.title END""",
                              (e["uuid"], title or "(no registration form)", e["start_date"], e["calendar"]))
                 continue
             conn.execute("""INSERT INTO subsplash_event_regs (event_uuid, title, start_date, calendar, has_form, registered, checked_at)
