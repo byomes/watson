@@ -1,5 +1,5 @@
 # Watson File Map
-*Generated: 2026-10-09*
+*Generated: 2026-10-10*
 *Excludes: logs/, data/chroma/, kb/documents/, kb/transcripts/, .git/, node_modules/, venv/, __pycache__/, .next/, outputs/, .claude/*
 
 ## ~/watson/
@@ -21,6 +21,7 @@
   README.md
   v/
     cache/
+      lastfailed
       nodeids
 .tables
 .vercel/
@@ -130,6 +131,10 @@ data/
   congregation.db.bak_before_serving_date_import_20260922_121801
   congregation.db.bak_before_teams_import_20260922_124921
   congregation.db.bak_zipcheck_20260915
+  congregation_backup_before_csv_overlap_20261009.db
+  congregation_backup_before_kids_full_20261009.db
+  congregation_backup_before_kids_merge_20261009.db
+  congregation_backup_before_kids_pull_20261009.db
   cover_images/
     cover_1.jpg
     cover_10.jpg
@@ -140,6 +145,12 @@ data/
     crontab_20260920-042001.txt
     crontab_20260927-042001.txt
     crontab_20261004-042001.txt
+  crontab_backup_before_api_resume_20261009.txt
+  crontab_backup_before_donna_hold_20261009.txt
+  crontab_backup_before_fluro_schedule_20261010.txt
+  crontab_backup_before_groups_pause_20261009.txt
+  crontab_backup_before_groups_reminder_20261009.txt
+  crontab_backup_before_groups_sunday_20261009.txt
   crontab_backup_before_unpause_20261006.txt
   curator.db
   dev/
@@ -147,6 +158,7 @@ data/
     ollama_monitor_state.json
     vps_pricing_cache.json
   donors.db
+  event_registrations_misfiled_20261009.sql
   exports/
     Banquet_Length_of_Service_2026-10-07.pdf
     Complete_Service_Awards_List_20261007.csv
@@ -3095,8 +3107,10 @@ data/
   sms_gateway_alert_state.json
   sms_gateway_last_poll.txt
   sms_media/
+    0bb69334c30646e3a725bbd51f7af866.heic
     2b9a620091e4497b86c24b58a33c2a8e.jpg
     34f6c5ac3c9d4e37a14cb993b1608450.jpg
+    be220c62687b476c9017e9763fbaeaa8.heic
   sms_mock_inbound_queue.json
   subsplash_snapshot_20261006.sql
   trading.db
@@ -3113,8 +3127,13 @@ data/
     inbox/
       20261003-154056_church-picnic-responses__2_.csv
   watson.db
-  watson.db-shm
-  watson.db-wal
+  watson_backup_before_api_reader_20261009.db
+  watson_backup_before_bible_study_20261009.db
+  watson_backup_before_dup_migration_20261009.db
+  watson_backup_before_event_sync_20261009.db
+  watson_backup_before_fluro_schedule_20261009.db
+  watson_backup_before_names_of_god_20261009.db
+  watson_backup_before_title_fix_20261009.db
 deploy/
   .gitkeep
   apt-packages.txt
@@ -3175,6 +3194,7 @@ jobs/
     fast_path_suggestions.py
     fast_path_validate.py
     ga4_import.py
+    group_compare.py
     llm_usage_report.py
     monthly_web_engagement_report.py
     schema.py
@@ -3312,7 +3332,9 @@ jobs/
     fluro_client.py
     fluro_common.py
     fluro_pull.py
+    fluro_schedule.py
     fluro_staging_schema.py
+    groups_reminder.py
     groups_web.py
     import_connect_card_csvs.py
     import_deacon_directory.py
@@ -3326,6 +3348,7 @@ jobs/
     kids_checkin_csv_import.py
     kids_checkin_import.py
     kids_duplicate_check.py
+    kids_merge_duplicates.py
     kids_servants_web.py
     kidsatt_weekly.py
     kidstoday_notify_donna.py
@@ -5783,7 +5806,10 @@ memory/
   working.md
 notes/
   .gitkeep
+  group_leaders.md
   small_group_attendance_sketch.md
+  streaming_digest_spec.md
+  subsplash_access_scope.md
   team_chat_conversational_memory_spec.md
   wtsn-me-public-tools-spec.md
 prompts/
@@ -5806,6 +5832,7 @@ tests/
   banquet_rsvp_contact_preserve_test.py
   connection_reg_dates_test.py
   devdispatch_replay_check_test.py
+  event_matching_recurring_test.py
   fastpath_validation_test.py
   model_qualify/
     candidate_results_20260923/
@@ -5846,6 +5873,8 @@ tests/
   ollama_parallel_test.py
   signup_routing_regression_test.py
   subsplash_api_guard_test.py
+  test_group_compare.py
+  test_groups_reminder.py
 vercel.json
 watson.db
 watson_icon_deployment_kit.zip
@@ -7048,5 +7077,6 @@ services/
   kit-desktop.service
   kit-hdmi-splash.service
   kit-screen-loop.service
+  kit-tvweb.service
   watson-splash.service
 ```
