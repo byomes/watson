@@ -125,6 +125,14 @@ def _bootstrap() -> None:
                 confirmation    TEXT,
                 member_id       INTEGER
             )""")
+        # Manual links (a Fluro contact -> the right members row) for names the matcher can't settle. Checked before any name matching.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS fluro_member_links (
+                fluro_contact_id TEXT PRIMARY KEY,
+                member_id        INTEGER NOT NULL,
+                note             TEXT,
+                created_at       TEXT NOT NULL DEFAULT (datetime('now'))
+            )""")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_fluro_schedule_event ON fluro_schedule(event_id)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_fluro_schedule_slots_event ON fluro_schedule_slots(event_id)")
 
@@ -205,7 +213,9 @@ def store(events: list[dict]) -> dict:
                         name = (a.get("name") or "").strip()
                         if not name:
                             continue
-                        member_id = find_member_id_by_name(a.get("first") or "", a.get("last") or "")
+                        link = conn.execute("SELECT member_id FROM fluro_member_links WHERE fluro_contact_id = ?",
+                                            (a.get("contact_id"),)).fetchone()
+                        member_id = link[0] if link else find_member_id_by_name(a.get("first") or "", a.get("last") or "")
                         conn.execute("""INSERT OR REPLACE INTO fluro_schedule
                             (assignment_id, event_id, team, team_definition, role, volunteer_name, fluro_contact_id, confirmation, member_id)
                             VALUES (?,?,?,?,?,?,?,?,?)""",
