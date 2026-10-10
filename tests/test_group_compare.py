@@ -20,3 +20,17 @@ def test_needs_both_words(monkeypatch):
     monkeypatch.setattr(gc, "_series_list", lambda: SERIES)
     assert gc.answer("who attended men's fraternity bible study") is None   # attendance only: other routes
     assert gc.answer("who registered for men's fraternity bible study") is None  # registration only: signup route
+
+
+def test_asked_date():
+    from datetime import date
+    t = date(2026, 10, 9)
+    assert gc._asked_date("the 10/7 session", t) == "2026-10-07"
+    assert gc._asked_date("on 10-7-26", t) == "2026-10-07"
+    assert gc._asked_date("October 7th please", t) == "2026-10-07"
+    assert gc._asked_date("Oct 7, 2025", t) == "2025-10-07"
+    assert gc._asked_date("the 7th of October", t) == "2026-10-07"
+    assert gc._asked_date("last Wednesday", t) == "2026-10-07"
+    assert gc._asked_date("12/30", t) == "2026-12-30"      # no year means this year
+    assert gc._asked_date("13/45", t) is None
+    assert gc._asked_date("who registered", t) is None

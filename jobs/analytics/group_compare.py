@@ -12,6 +12,7 @@ plus the attendance side. Celebrate Recovery is never named, so it is never answ
 """
 import re
 import sqlite3
+from datetime import date
 
 from core.database import get_connection as _watson_conn
 from jobs.congregation.groups_web import CONGREGATION_DB, _registrations, _series_list, _session_dates
@@ -53,6 +54,55 @@ def _pick_series(question: str) -> tuple[dict | None, list[dict]]:
     return (best[0], best) if len(best) == 1 else (None, best)
 
 
+_MONTHS = {m: i for i, m in enumerate(
+    ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"], 1)}
+_WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+_NUM_DATE_RE = re.compile(r"(?<![\d/])(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?(?![\d/])")
+_MONTH_DATE_RE = re.compile(r"\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(\d{1,2})(?:st|nd|rd|th)?(?:,?\s+(\d{4}))?\b", re.I)
+_DAY_MONTH_RE = re.compile(r"\b(\d{1,2})(?:st|nd|rd|th)?\s+of\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b", re.I)
+_LAST_WEEKDAY_RE = re.compile(r"\b(?:last|this past)\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b", re.I)
+
+
+def _asked_date(question: str, today=None) -> str | None:
+    """A specific date named in the question ("the 10/7 session", "October 7th", "last Wednesday") as YYYY-MM-DD,
+    else None. A date with no year means this year; answer() steps back a year if that date is still ahead and last year's has records."""
+    from datetime import timedelta
+    today = today or date.today()
+    month = day = year = None
+    m = _NUM_DATE_RE.search(question)
+    if m:
+        month, day = int(m.group(1)), int(m.group(2))
+        year = int(m.group(3)) if m.group(3) else None
+    else:
+        m = _MONTH_DATE_RE.search(question)
+        if m:
+            month, day, year = _MONTHS[m.group(1).lower()], int(m.group(2)), int(m.group(3)) if m.group(3) else None
+        else:
+            m = _DAY_MONTH_RE.search(question)
+            if m:
+                month, day = _MONTHS[m.group(2).lower()], int(m.group(1))
+    if month:
+        if year is not None and year < 100:
+            year += 2000
+        try:
+            return date(year or today.year, month, day).isoformat()
+        except ValueError:
+            return None
+    m = _LAST_WEEKDAY_RE.search(question)
+    if m:
+        back = (today.weekday() - _WEEKDAYS.index(m.group(1).lower())) % 7 or 7
+        return (today - timedelta(days=back)).isoformat()
+    return None
+
+
+def _has_records(series: str, event_date: str) -> bool:
+    """Attendance or sign-ups exist for that date (covers sessions older than the calendar window)."""
+    with sqlite3.connect(CONGREGATION_DB) as c:
+        if c.execute("SELECT 1 FROM group_attendance WHERE series=? AND event_date=? LIMIT 1", (series, event_date)).fetchone():
+            return True
+    return bool(_registrations(series, event_date)[1])
+
+
 def _latest_session(series: str) -> str | None:
     """Newest past session that has any attendance recorded or any sign-up, else the newest past session."""
     dates = _session_dates(series)
@@ -67,7 +117,6 @@ def _latest_session(series: str) -> str | None:
 
 
 def _fmt_date(iso: str) -> str:
-    from datetime import date
     y, m, d = map(int, iso.split("-"))
     return date(y, m, d).strftime("%A, %B %-d")
 
@@ -92,7 +141,22 @@ def answer(question: str) -> str | None:
         return None
     if series is None:
         return "Which one do you mean: " + " or ".join(c["title"] for c in cands) + "?"
-    event_date = _latest_session(series["series"])
+    asked = _asked_date(question)
+    if asked:
+        event_date = asked
+        if event_date > date.today().isoformat():
+            y, m, d = event_date.split("-")
+            last_year = f"{int(y) - 1}-{m}-{d}"
+            if _has_records(series["series"], last_year) and not re.search(r"\b20\d\d\b", question):
+                event_date = last_year
+            else:
+                return f"{series['title']} on {_fmt_date(event_date)} has not happened yet."
+        if event_date not in _session_dates(series["series"]) and not _has_records(series["series"], event_date):
+            recent = _session_dates(series["series"])[:4]
+            tail = (" Recent sessions: " + ", ".join(_fmt_date(d) for d in recent) + ".") if recent else ""
+            return f"I don't see a {series['title']} session on {_fmt_date(event_date)}.{tail}"
+    else:
+        event_date = _latest_session(series["series"])
     if not event_date:
         return f"{series['title']} has no recent sessions on the calendar yet."
 
