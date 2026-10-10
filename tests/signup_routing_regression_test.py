@@ -34,14 +34,14 @@ def build_fixture(paused="1"):
     DROP TABLE IF EXISTS subsplash_event_regs; DROP TABLE IF EXISTS subsplash_registrations; DROP TABLE IF EXISTS system_settings;
     CREATE TABLE church_events (id INTEGER PRIMARY KEY, event_name TEXT, start_date TEXT, event_time TEXT, tracking_active INTEGER DEFAULT 1);
     CREATE TABLE event_registrations (id INTEGER PRIMARY KEY, event_id INTEGER, first_name TEXT, last_name TEXT, num_tickets INTEGER DEFAULT 1, extra_fields TEXT);
-    CREATE TABLE church_calendar_events (title TEXT, start_date TEXT);
+    CREATE TABLE church_calendar_events (title TEXT, start_date TEXT, active INTEGER DEFAULT 1);
     CREATE TABLE subsplash_event_regs (event_uuid TEXT PRIMARY KEY, title TEXT, start_date TEXT, calendar TEXT, has_form INTEGER, registered INTEGER);
     CREATE TABLE subsplash_registrations (event_uuid TEXT, first_name TEXT, last_name TEXT, tickets INTEGER DEFAULT 1);
     CREATE TABLE system_settings (key TEXT PRIMARY KEY, value TEXT);
     INSERT INTO church_events VALUES (1, 'Men''s Fraternity Billiards Outing', '2099-11-04', NULL, 1), (2, 'Hayride and Bonfire', NULL, NULL, 1),
                                      (3, 'Servant Leaders Banquet', '2099-11-07', NULL, 1), (4, 'Church Picnic', '2020-10-04', NULL, 1);
     INSERT INTO event_registrations VALUES (1,1,'Aaron','Harper',1,NULL),(2,1,'Tom','Thomas',1,NULL),(3,2,'Mel','Yomes',2,NULL),(4,4,'Pat','Lee',1,NULL);
-    INSERT INTO church_calendar_events VALUES ('Men''s Fraternity Billiards Outing','2099-11-04'),('Men''s Fraternity Bible Study','2099-10-07'),
+    INSERT INTO church_calendar_events (title, start_date) VALUES ('Men''s Fraternity Billiards Outing','2099-11-04'),('Men''s Fraternity Bible Study','2099-10-07'),
         ('Men''s Breakfast','2099-10-17'),('Hayride and Bonfire','2099-10-10'),('5th Sunday Potluck','2099-11-29'),('Remix Youth Group','2099-10-11');
     INSERT INTO subsplash_event_regs VALUES ('u1','Men''s Fraternity Billiards Outing','2099-11-04','Special Events',1,0),
         ('u2','Men''s Fraternity Bible Study','2099-10-07','Small Groups',1,4);

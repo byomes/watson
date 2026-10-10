@@ -455,8 +455,10 @@ def sync_church_events() -> list[str]:
     that date filled in instead of a duplicate. Reads only the local copy; never touches Subsplash. Returns what it created."""
     made = []
     with get_connection() as conn:
-        for ev in conn.execute("SELECT title, start_date FROM subsplash_event_regs "
-                               "WHERE has_form = 1 AND start_date >= date('now','localtime') ORDER BY start_date").fetchall():
+        for ev in conn.execute("SELECT title, start_date FROM subsplash_event_regs r "
+                               "WHERE has_form = 1 AND (start_date >= date('now','localtime') OR EXISTS (SELECT 1 FROM church_calendar_events c "
+                               "WHERE c.active = 1 AND LOWER(c.title) = LOWER(r.title) AND c.start_date >= date('now','localtime'))) "
+                               "ORDER BY start_date").fetchall():
             title, day = ev["title"], ev["start_date"]
             if conn.execute("SELECT 1 FROM church_events WHERE LOWER(event_name) = LOWER(?) AND start_date = ?", (title, day)).fetchone():
                 continue

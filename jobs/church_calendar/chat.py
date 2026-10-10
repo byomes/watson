@@ -103,9 +103,12 @@ def registrations_answer(text: str) -> str | None:
         return None
     win = _window(low)
     with get_connection() as conn:
+        # A series can take signups on one occurrence only (The Names of God: the form is on the Oct 6 session, later weeks have none), so a
+        # past form-bearing occurrence still counts while later sessions of the same title are on the calendar.
         rows = [dict(r) for r in conn.execute(
-            "SELECT event_uuid, title, start_date, registered FROM subsplash_event_regs "
-            "WHERE has_form = 1 AND start_date >= date('now','localtime') ORDER BY start_date")]
+            "SELECT event_uuid, title, start_date, registered FROM subsplash_event_regs r "
+            "WHERE has_form = 1 AND (start_date >= date('now','localtime') OR EXISTS (SELECT 1 FROM church_calendar_events c "
+            "WHERE c.active = 1 AND LOWER(c.title) = LOWER(r.title) AND c.start_date >= date('now','localtime'))) ORDER BY start_date")]
         rows = [r for r in rows if all(w in _norm(r["title"]).split() for w in words)]
 
         def local_date(r):
@@ -130,15 +133,16 @@ def registrations_answer(text: str) -> str | None:
             d = local_date(r)
             cands = tracked.get(_norm(r["title"]), [])  # recurring events have one tracked row per occurrence: match by date
             tid = next((i for i, d0 in cands if d0 == r["start_date"]), cands[0][0] if len(cands) == 1 else None)
-            if tid is not None:
-                regs, people = conn.execute("SELECT COUNT(*), COALESCE(SUM(num_tickets), 0) FROM event_registrations WHERE event_id = ?", (tid,)).fetchone()
-                name_rows = conn.execute("SELECT first_name, last_name FROM event_registrations WHERE event_id = ? ORDER BY last_name, first_name", (tid,))
-            else:
-                regs = r["registered"] or 0
-                people = conn.execute("SELECT COALESCE(SUM(tickets), 0) FROM subsplash_registrations WHERE event_uuid=?", (r["event_uuid"],)).fetchone()[0]
-                people = max(people, regs)  # a registration is at least one person, even if its guests were not all read
-                name_rows = conn.execute("SELECT first_name, last_name FROM subsplash_registrations WHERE event_uuid=? "
-                                         "ORDER BY last_name, first_name", (r["event_uuid"],))
+            sub_regs = r["registered"] or 0
+            sub_people = max(conn.execute("SELECT COALESCE(SUM(tickets), 0) FROM subsplash_registrations WHERE event_uuid=?", (r["event_uuid"],)).fetchone()[0], sub_regs)
+            regs, people = sub_regs, sub_people
+            name_rows = conn.execute("SELECT first_name, last_name FROM subsplash_registrations WHERE event_uuid=? "
+                                     "ORDER BY last_name, first_name", (r["event_uuid"],))
+            if tid is not None:  # tracked (emailed) record vs the Subsplash copy: either can lag, so trust whichever shows more people
+                t_regs, t_people = conn.execute("SELECT COUNT(*), COALESCE(SUM(num_tickets), 0) FROM event_registrations WHERE event_id = ?", (tid,)).fetchone()
+                if t_people >= sub_people:
+                    regs, people = t_regs, t_people
+                    name_rows = conn.execute("SELECT first_name, last_name FROM event_registrations WHERE event_id = ? ORDER BY last_name, first_name", (tid,))
             # Team chat cares about individuals (Bill, 2026-10-09); a registration can cover several people, so say
             # "registrations" only when asked, and show the other figure when the two differ.
             pp = f"{people} {'person' if people == 1 else 'people'}"
@@ -147,9 +151,11 @@ def registrations_answer(text: str) -> str | None:
                 line = f"{r['title']} ({d.strftime('%a %b')} {d.day}): {rg} ({pp})" if regs != people else f"{r['title']} ({d.strftime('%a %b')} {d.day}): {rg}"
             else:
                 line = f"{r['title']} ({d.strftime('%a %b')} {d.day}): {pp} signed up" + (f" ({rg})" if regs != people else "")
-            if regs and re.search(r"\bwho\b|names?|list", low):
+            if regs and re.search(r"\bwho\b|\bnames?\b(?!\s+of\s+god)|\blist\b", low):
                 names = [f"{x['first_name'] or ''} {x['last_name'] or ''}".strip() for x in name_rows]
                 line += ": " + ", ".join(names)
+            if d < date.today():  # a past occurrence still shown: its form takes the whole series' signups
+                line += " [signup covers the whole series]"
             lines.append(line)
     # Other groups can have a Bible study too (Bill, 2026-10-09): a bare "bible study" never silently means the Men's one.
     if "bible" in words and not {"fraternity", "men", "mens", "men's"} & set(words) and any("Men's Fraternity Bible Study" in l for l in lines):
