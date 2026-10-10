@@ -92,7 +92,7 @@ _CANONICAL_TO_NICKNAMES: dict[str, set[str]] = {
     "stephanie": {"steph"},
     "veronica": {"ronnie", "vera"},
     "virginia": {"ginny", "ginger"},
-    "dorothy": {"dot", "dotty", "dolly"},
+    "dorothy": {"dot", "dotty", "dottie", "dolly"},
     "gloria": {"glo"},
     "judith": {"judy"},
     "carolyn": {"carol", "carrie"},

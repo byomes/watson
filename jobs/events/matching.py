@@ -143,12 +143,44 @@ def find_member_id_by_name(first_name: str, last_name: str) -> int | None:
             rows = conn.execute(
                 "SELECT id FROM members WHERE LOWER(name) = LOWER(?) LIMIT 2", (f"Dr. {full_name}",)
             ).fetchall()
+        if not rows:
+            return _find_member_id_by_nickname(conn, first_name, last_name)
         conn.close()
         if len(rows) == 1:
             return rows[0][0]
     except Exception:
         return None
     return None
+
+
+def _expanded_first_names(word: str) -> set[str]:
+    """A first name plus every nickname/canonical form reachable from it ("Dottie" -> Dorothy -> Dot, Dotty, Dolly...),
+    so a nickname and a different nickname of the same name still meet."""
+    from jobs.people.nicknames import equivalent_first_names
+    out = set(equivalent_first_names(word))
+    for w in list(out):
+        out |= equivalent_first_names(w)
+    return out
+
+
+def _find_member_id_by_nickname(conn, first_name: str, last_name: str) -> int | None:
+    """Nickname fallback (Bill, 2026-10-10), used only after the exact full-name match found nothing: "Dottie Johnson" in the
+    volunteer schedule is "Dorothy Johnson" in the directory. Same last name (exact), first name equal under the nickname table
+    (any word of a multi-word first name is tried), current members only. Stays strict on purpose: if MORE THAN ONE member fits
+    ("Robert Border" with both a Rob and a Robbie Border) it returns None rather than guess. Closes `conn`."""
+    try:
+        wanted: set[str] = set()
+        for w in first_name.replace("-", " ").split():
+            wanted |= _expanded_first_names(w)
+        rows = conn.execute("SELECT id, name FROM members WHERE COALESCE(active,'') NOT IN ('disconnected','deceased')").fetchall()
+    finally:
+        conn.close()
+    hits = []
+    for mid, name in rows:
+        parts = [p for p in (name or "").replace(",", " ").split() if p.lower().rstrip(".") not in ("dr", "mr", "mrs", "ms", "rev", "pastor")]
+        if len(parts) >= 2 and parts[-1].lower() == last_name.lower() and parts[0].lower() in wanted:
+            hits.append(mid)
+    return hits[0] if len(hits) == 1 else None
 
 
 def find_member_name(member_id: int) -> str | None:
