@@ -297,6 +297,46 @@ def remove_servant():
     return jsonify({"member_id": member_id, "team_name": team_name, "removed": True}), 200
 
 
+_SCHED_NOISE = {"team", "the", "and", "for", "lead", "9am", "10am", "church", "of"}
+
+
+def _sched_tokens(text: str) -> set[str]:
+    """Crude word stems for matching a Fluro team/role to a tracker team ("Counter" ~ "COUNTING TEAM", "Lock-up" ~ "BUILDING LOCK UP")."""
+    import re
+    out = set()
+    for w in re.findall(r"[a-z0-9]+", (text or "").lower()):
+        if len(w) < 3 or w in _SCHED_NOISE:
+            continue
+        for suf in ("ing", "ers", "er", "s"):
+            if w.endswith(suf) and len(w) - len(suf) >= 4:
+                w = w[: -len(suf)]
+                break
+        out.add(w)
+    return out
+
+
+def _scheduled_for_date(service_date: str) -> dict[int, list[tuple[str, str]]]:
+    """member_id -> [(fluro team, role)] for people the Fluro volunteer schedule (jobs/congregation/fluro_schedule.py) rostered
+    on service_date. Informational only: it marks who was SCHEDULED, never who served (substitutions happen). Empty if the
+    schedule isn't stored for that date or the tables don't exist yet."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    from config.settings import DB_PATH as WATSON_DB
+    out: dict[int, list[tuple[str, str]]] = {}
+    try:
+        with sqlite3.connect(f"file:{WATSON_DB}?mode=ro", uri=True, timeout=5) as c:
+            events = [
+                eid for eid, start in c.execute("SELECT event_id, start_utc FROM fluro_schedule_events")
+                if datetime.fromisoformat(start.replace("Z", "+00:00")).astimezone(ZoneInfo("America/New_York")).date().isoformat() == service_date]
+            for eid in events:
+                for mid, team, role in c.execute(
+                        "SELECT member_id, team, role FROM fluro_schedule WHERE event_id = ? AND member_id IS NOT NULL", (eid,)):
+                    out.setdefault(mid, []).append((team, role))
+    except sqlite3.Error:
+        return {}
+    return out
+
+
 @servants_web_bp.route("/api/cat/serving/state", methods=["GET"])
 @_require_key
 def get_serving_state():
@@ -320,17 +360,42 @@ def get_serving_state():
             )
         }
 
+    scheduled = _scheduled_for_date(service_date)
+    my_teams: dict[int, set[str]] = {}
+    for r in rows:
+        my_teams.setdefault(r["member_id"], set()).add(r["team_name"])
+
+    def _scheduled_roles(member_id: int, team_name: str) -> list[str]:
+        """Fluro roles that belong on THIS tracker team; if none of the person's Fluro roles resemble any of their tracker teams,
+        the badge goes on all of their teams rather than nowhere."""
+        mine = scheduled.get(member_id) or []
+        if not mine:
+            return []
+        def hits(tn: str) -> list[str]:
+            tt = _sched_tokens(tn)
+            return [role for fteam, role in mine if tt & (_sched_tokens(fteam) | _sched_tokens(role))]
+        here = hits(team_name)
+        if here:
+            return here
+        if any(hits(tn) for tn in my_teams.get(member_id, ())):
+            return []
+        return [role for _, role in mine]
+
     teams: dict[str, list[dict]] = {}
     for r in rows:
+        roles = _scheduled_roles(r["member_id"], r["team_name"])
         teams.setdefault(r["team_name"], []).append({
             "id": r["member_id"],
             "name": r["name"],
             "position": r["position"],
             "served": (r["member_id"], r["team_name"]) in served_keys,
+            "scheduled": bool(roles),
+            "scheduled_role": ", ".join(dict.fromkeys(roles)) or None,
         })
     for members in teams.values():
         members.sort(
             key=lambda m: (
+                0 if m["scheduled"] else 1,
                 0 if "leader" in (m["position"] or "").lower() else 1,
                 _last_name_key(m["name"]),
                 m["name"] or "",
