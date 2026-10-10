@@ -138,6 +138,9 @@ def get_session_token() -> dict:
     read straight out of the real Chrome session's localStorage. Never
     cached to disk -- fetched fresh every call so a re-login on the phone
     is picked up automatically next run with no code change."""
+    raise ApiAccessDisabled(
+        "Fluro is off limits to Watson (Bill, 2026-10-09): its database also carries giving records and far more than a "
+        "shepherding assistant needs. Do not pull Fluro contacts, serving teams or anything else from it.")
     ensure_phone_connected()
     tab_ws = _find_or_open_fluro_tab()
 

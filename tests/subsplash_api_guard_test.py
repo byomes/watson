@@ -13,10 +13,11 @@ from jobs.congregation import kids_checkin_client as kc  # noqa: E402
 
 class T(unittest.TestCase):
     def test_api_permitted(self):
-        """Subsplash confirmed Watson's dashboard/core.subsplash.com reading is allowed (2026-10-09)."""
+        """Subsplash confirmed Watson's dashboard/core.subsplash.com reading is allowed (2026-10-09); Fluro is not."""
         kc._require_api_permission()  # must not raise
         from jobs.congregation import fluro_client as fc
-        self.assertNotIn("raise ApiAccessDisabled", Path(fc.__file__).read_text())
+        with self.assertRaises(fc.ApiAccessDisabled):  # Fluro stays off: giving data lives there (Bill, 2026-10-09)
+            fc.get_session_token()
 
 
 class Surface(unittest.TestCase):
