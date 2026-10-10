@@ -217,7 +217,7 @@ def _attendance_schema(allow_contact_info: bool) -> str:
         "group_attendance(id INTEGER, series TEXT, event_date TEXT, member_id INTEGER)\n"
         "  -- who attended a small group / special event session (Men's Fraternity, Woven, Remix, Men's Breakfast, etc),\n"
         "  -- checked off by group leaders at /cat/groups (from 2026-10-07). series looks like 'Small Groups|Men''s Fraternity\n"
-        "  -- Bible Study' or 'Special Events|The Names of God' -- always match with series LIKE '%partial%'. join member_id =\n"
+        "  -- Bible Study' or 'Special Events|The Names of God' -- always match with series LIKE '%partial%'. Weekly Sunday groups not on the calendar (Jim & Lisa's Group, Remix Sunday Morning Group, Shift Young Adult Group, 9am Elementary Kids Group) are 'Small Groups|<title>'. join member_id =\n"
         "  -- members.id. No row = did not attend (or not yet recorded). Celebrate Recovery is NEVER recorded by name.\n"
         "group_counts(series TEXT, event_date TEXT, guests INTEGER, headcount INTEGER)\n"
         "  -- per-session non-member guest count (guests) for named groups, and the head count (headcount) for Celebrate\n"

@@ -34,3 +34,19 @@ def test_asked_date():
     assert gc._asked_date("12/30", t) == "2026-12-30"      # no year means this year
     assert gc._asked_date("13/45", t) is None
     assert gc._asked_date("who registered", t) is None
+
+
+def test_weekly_group_sessions(monkeypatch):
+    from datetime import date as real_date
+    from jobs.congregation import groups_web as gw
+
+    class FakeDate(real_date):
+        @classmethod
+        def today(cls):
+            return cls(2026, 10, 11)   # a Sunday: today counts as a session
+
+    monkeypatch.setattr(gw, "date", FakeDate)
+    dates = gw._session_dates("Small Groups|Shift Young Adult Group")
+    assert dates[0] == "2026-10-11" and dates[1] == "2026-10-04"
+    assert all(real_date.fromisoformat(d).weekday() == 6 for d in dates)
+    assert "Small Groups|Shift Young Adult Group" in {s["series"] for s in gw._series_list()}

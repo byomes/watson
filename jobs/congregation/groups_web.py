@@ -75,7 +75,37 @@ def _bootstrap() -> None:
             )""")
 
 
+# Groups that meet every week but are not on the Subsplash calendar (Bill, 2026-10-09). Each gets a
+# session on every `weekday` (0=Mon .. 6=Sun) so it shows up in the same list as the calendar groups.
+# Rows can be added later without a deploy; they are named (never head-count-only).
+_WEEKLY_SEED = (
+    ("Small Groups|Jim & Lisa's Group", "Jim & Lisa's Group", 6),
+    ("Small Groups|Remix Sunday Morning Group", "Remix Sunday Morning Group", 6),
+    ("Small Groups|Shift Young Adult Group", "Shift Young Adult Group", 6),
+    ("Small Groups|9am Elementary Kids Group", "9am Elementary Kids Group", 6),
+)
+
+
+def _bootstrap_weekly() -> None:
+    with _conn() as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS group_weekly (
+                series TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                weekday INTEGER NOT NULL DEFAULT 6,
+                active INTEGER NOT NULL DEFAULT 1
+            )""")
+        conn.executemany("INSERT OR IGNORE INTO group_weekly (series, title, weekday) VALUES (?,?,?)", _WEEKLY_SEED)
+
+
 _bootstrap()
+_bootstrap_weekly()
+
+
+def _weekly() -> dict[str, dict]:
+    with _conn() as conn:
+        return {r["series"]: dict(r) for r in conn.execute(
+            "SELECT series, title, weekday FROM group_weekly WHERE active=1")}
 
 
 def _require_key(f):
@@ -96,11 +126,21 @@ def _series_list() -> list[dict]:
         rows = conn.execute(
             f"SELECT DISTINCT series, title FROM church_calendar_events WHERE active=1 "
             f"AND calendar IN ({','.join('?' * len(_CALENDARS))}) ORDER BY title", _CALENDARS).fetchall()
-    return [{"series": r["series"], "title": r["title"], "counts_only": is_counts_only(r["title"])} for r in rows]
+    out = [{"series": r["series"], "title": r["title"], "counts_only": is_counts_only(r["title"])} for r in rows]
+    have = {s["series"] for s in out}
+    out += [{"series": w["series"], "title": w["title"], "counts_only": False}
+            for w in _weekly().values() if w["series"] not in have]
+    return sorted(out, key=lambda s: s["title"])
 
 
 def _session_dates(series: str) -> list[str]:
     """Calendar dates for this series from today back _SESSION_WINDOW_DAYS, newest first."""
+    w = _weekly().get(series)
+    if w:
+        today = date.today()
+        last = today - timedelta(days=(today.weekday() - w["weekday"]) % 7)
+        return [(last - timedelta(weeks=i)).isoformat() for i in range(_SESSION_WINDOW_DAYS // 7 + 1)
+                if (last - timedelta(weeks=i)) >= today - timedelta(days=_SESSION_WINDOW_DAYS)]
     lo = (date.today() - timedelta(days=_SESSION_WINDOW_DAYS)).isoformat()
     with _watson_conn() as conn:
         rows = conn.execute(
