@@ -135,8 +135,26 @@ def _bootstrap() -> None:
                 submitted_at TEXT,
                 member_id    INTEGER,
                 first_seen_at TEXT NOT NULL DEFAULT (datetime('now')),
-                UNIQUE(event_uuid, first_name, last_name, submitted_at)
+                dup          INTEGER NOT NULL DEFAULT 0,
+                UNIQUE(event_uuid, first_name, last_name, submitted_at, dup)
             )""")
+        if "dup" not in {r[1] for r in conn.execute("PRAGMA table_info(subsplash_registrations)")}:
+            # 2026-10-09: the same person can register twice on the same day (Church Picnic: two Letha Palmer rows); the old unique key
+            # collapsed them and the headcount came up short. `dup` numbers repeats (0, 1, ...). Rebuild: SQLite cannot alter a UNIQUE.
+            conn.execute("ALTER TABLE subsplash_registrations RENAME TO subsplash_registrations_old")
+            conn.execute("DROP INDEX IF EXISTS idx_sreg_event")
+            conn.execute("""
+                CREATE TABLE subsplash_registrations (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT, event_uuid TEXT NOT NULL, event_title TEXT NOT NULL, event_start TEXT NOT NULL,
+                    first_name TEXT, last_name TEXT, email TEXT, phone TEXT, tickets INTEGER NOT NULL DEFAULT 1, ticket_type TEXT,
+                    submitted_at TEXT, member_id INTEGER, first_seen_at TEXT NOT NULL DEFAULT (datetime('now')),
+                    dup INTEGER NOT NULL DEFAULT 0,
+                    UNIQUE(event_uuid, first_name, last_name, submitted_at, dup))""")
+            conn.execute("""INSERT INTO subsplash_registrations (id, event_uuid, event_title, event_start, first_name, last_name, email, phone,
+                            tickets, ticket_type, submitted_at, member_id, first_seen_at)
+                            SELECT id, event_uuid, event_title, event_start, first_name, last_name, email, phone, tickets, ticket_type,
+                            submitted_at, member_id, first_seen_at FROM subsplash_registrations_old""")
+            conn.execute("DROP TABLE subsplash_registrations_old")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_sreg_event ON subsplash_registrations(event_uuid)")
 
 
@@ -391,13 +409,15 @@ def store(events: list[dict]) -> dict:
                          (e["uuid"], title, e["start_date"], e["calendar"], e.get("registered") if e.get("registered") is not None else len(e["rows"])))
             n_events += 1
             seen = set()
+            repeats: dict[tuple, int] = {}
             for r in e["rows"]:
                 first, last = _split(r["name"])
                 tm = re.match(r"(\d+)\s+(.*)", r["ticket"])
                 submitted = datetime.strptime(r["date"], "%b %d, %Y").date().isoformat()
-                seen.add((first, last, submitted))
-                existing = conn.execute("SELECT id, email, member_id FROM subsplash_registrations WHERE event_uuid=? AND first_name=? AND last_name=? AND submitted_at=?",
-                                        (e["uuid"], first, last, submitted)).fetchone()
+                dup = repeats[(first, last, submitted)] = repeats.get((first, last, submitted), -1) + 1  # same person, same day, again
+                seen.add((first, last, submitted, dup))
+                existing = conn.execute("SELECT id, email, member_id FROM subsplash_registrations WHERE event_uuid=? AND first_name=? AND last_name=? AND submitted_at=? AND dup=?",
+                                        (e["uuid"], first, last, submitted, dup)).fetchone()
                 email, phone = r.get("email"), r.get("phone")
                 if existing:
                     if email and not existing["email"]:
@@ -405,15 +425,15 @@ def store(events: list[dict]) -> dict:
                     continue
                 member_id = find_member_id(email or "", phone or "") or find_member_id_by_name(first, last)
                 conn.execute("""INSERT INTO subsplash_registrations (event_uuid, event_title, event_start, first_name, last_name, email, phone,
-                                tickets, ticket_type, submitted_at, member_id) VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+                                tickets, ticket_type, submitted_at, member_id, dup) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
                              (e["uuid"], title, e["start_date"], first, last, email, phone, int(tm.group(1)) if tm else 1,
-                              tm.group(2) if tm else None, submitted, member_id))
+                              tm.group(2) if tm else None, submitted, member_id, dup))
                 n_new += 1
             n_regs += len(e["rows"])
             # Guests removed in Subsplash disappear from the list; mirror that (only when we read the full list).
             if e.get("registered") is None or len(e["rows"]) >= e["registered"]:
-                for row in conn.execute("SELECT id, first_name, last_name, submitted_at FROM subsplash_registrations WHERE event_uuid=?", (e["uuid"],)).fetchall():
-                    if (row["first_name"], row["last_name"], row["submitted_at"]) not in seen:
+                for row in conn.execute("SELECT id, first_name, last_name, submitted_at, dup FROM subsplash_registrations WHERE event_uuid=?", (e["uuid"],)).fetchall():
+                    if (row["first_name"], row["last_name"], row["submitted_at"], row["dup"]) not in seen:
                         conn.execute("DELETE FROM subsplash_registrations WHERE id=?", (row["id"],))
     return {"events_with_forms": n_events, "registrations": n_regs, "new": n_new}
 
@@ -426,6 +446,30 @@ def _streak(delta: int | None) -> int:
         conn.execute("""INSERT INTO system_settings (key, value, updated_at) VALUES (?,?,datetime('now'))
                         ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at""", (_FAIL_KEY, str(new)))
     return new
+
+
+def sync_church_events() -> list[str]:
+    """Bill, 2026-10-09: keep church_events in step with Subsplash so every signup email already has its event to attach to.
+    Each upcoming Subsplash event that has a registration form gets a tracked church_events row (one per occurrence for recurring
+    events; jobs/events/matching.py picks the occurrence by the date in the email). A row of the same name with no date gets
+    that date filled in instead of a duplicate. Reads only the local copy; never touches Subsplash. Returns what it created."""
+    made = []
+    with get_connection() as conn:
+        for ev in conn.execute("SELECT title, start_date FROM subsplash_event_regs "
+                               "WHERE has_form = 1 AND start_date >= date('now','localtime') ORDER BY start_date").fetchall():
+            title, day = ev["title"], ev["start_date"]
+            if conn.execute("SELECT 1 FROM church_events WHERE LOWER(event_name) = LOWER(?) AND start_date = ?", (title, day)).fetchone():
+                continue
+            undated = conn.execute("SELECT id FROM church_events WHERE LOWER(event_name) = LOWER(?) AND COALESCE(start_date,'') = ''",
+                                   (title,)).fetchall()
+            if len(undated) == 1:
+                conn.execute("UPDATE church_events SET start_date = ? WHERE id = ?", (day, undated[0]["id"]))
+                made.append(f"{title} {day} (dated existing)")
+                continue
+            conn.execute("INSERT INTO church_events (event_name, start_date, tracking_active, created_by, creator_notified) "
+                         "VALUES (?, ?, 1, 'Subsplash sync', 1)", (title, day))
+            made.append(f"{title} {day}")
+    return made
 
 
 def run() -> None:
@@ -444,6 +488,10 @@ def run() -> None:
                         "login probably expired and needs a verification code."})
         return
     _streak(None)
+    try:
+        log.info("church_events synced from Subsplash: %s", sync_church_events() or "nothing new")
+    except Exception as exc:
+        log.error("church_events sync failed: %s", exc)
     log.info("registrations read ok: %s", result)
     print(result)
 

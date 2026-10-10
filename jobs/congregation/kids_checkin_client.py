@@ -233,7 +233,7 @@ _PATCH_JS = """
         // Always take the LATEST header seen, not just the first -- if the
         // app's own boot sequence hits a stale cached token and silently
         // refreshes-and-retries, the first one we'd see is the bad one.
-        if (a) window.__capturedAuth = a;
+        if (a && /^Bearer /.test(a)) window.__capturedAuth = a;
       }
     } catch (e) {}
     return orig.apply(this, arguments);
@@ -276,7 +276,8 @@ _PULL_JS = f"""
   }}
 
   const now = new Date().toISOString();
-  const pastEvents = events.filter(e => e.start_at <= now);
+  const since = window.__sinceIso || '';
+  const pastEvents = events.filter(e => e.start_at <= now && (!since || e.start_at >= since));
 
   const results = [];
   const failedEvents = [];
@@ -338,7 +339,7 @@ async def _ws_eval(ws, expression: str, await_promise: bool = False, timeout: in
     raise TimeoutError("Runtime.evaluate timed out")
 
 
-async def _pull_full_history_async() -> dict:
+async def _pull_full_history_async(since_days: int | None = None) -> dict:
     # 2026-09-30 bug fix: the two bare `await ws.recv()` calls just below
     # (CDP acks for Page.enable / addScriptToEvaluateOnNewDocument) had NO
     # timeout at all -- unlike _ws_eval, which now correctly bounds its
@@ -396,7 +397,10 @@ async def _pull_full_history_async() -> dict:
         await asyncio.sleep(4)
 
         print(f"[{time.strftime('%H:%M:%S')}] auth captured, starting browser-side pull of all instances...", flush=True)
-        result = await _ws_eval(ws, _PULL_JS, await_promise=True, timeout=540)
+        import datetime as _dt
+        since = (_dt.datetime.now(_dt.timezone.utc) - _dt.timedelta(days=since_days)).isoformat() if since_days else ""
+        await _ws_eval(ws, f"window.__sinceIso = {json.dumps(since)}; 1")
+        result = await _ws_eval(ws, _PULL_JS, await_promise=True, timeout=540 if since_days else 1700)  # a full-history pull is ~9s per Sunday
         print(f"[{time.strftime('%H:%M:%S')}] pull finished", flush=True)
         return json.loads(result)
 
@@ -423,30 +427,13 @@ async def surface_tab(ws, tries: int = 12) -> None:
                                  "Subsplash work only runs while the dashboard is visible")
 
 
-def _one_time_override_active() -> bool:
-    """Bill's explicit ONE-TIME exception to the Subsplash API pause (2026-10-06: "for this one time catch up, while we wait for Subsplash
-    to get back to us, pull all the data from core.subsplash.com and backfill"). Active only while the environment variable
-    SUBSPLASH_API_ONE_TIME_UNTIL holds an ISO date that is today or later: a cron line or a later session cannot trigger it by accident and
-    it expires by itself. Nothing sets it by default; the paused cron lines do not."""
-    import datetime as _dt
-    import os as _os
-    try:
-        return _dt.date.today() <= _dt.date.fromisoformat(_os.environ.get("SUBSPLASH_API_ONE_TIME_UNTIL", ""))
-    except ValueError:
-        return False
-
-
 def _require_api_permission() -> None:
-    if _one_time_override_active():
-        print(f"[{time.strftime('%H:%M:%S')}] ONE-TIME Subsplash API override in effect (Bill, 2026-10-06); the API is switched off otherwise", flush=True)
-        return
-    raise ApiAccessDisabled(
-        "Subsplash/Fluro API access is switched off (Bill, 2026-10-06): their robots.txt disallows automated "
-        "access and we have no permission to use their API. Read the dashboard pages instead "
-        "(see jobs/church_calendar/registrations.py).")
+    """Subsplash confirmed in writing (relayed by Bill, 2026-10-09) that Watson reading its own church's dashboard and core.subsplash.com data
+    is within their terms of use. Kept as a hook so a future pause is one edit."""
+    return
 
 
-def pull_full_history() -> dict:
+def pull_full_history(since_days: int | None = None) -> dict:
     """Returns {"total_instances": N, "results": [{"event_id", "start_at",
     "checkins": [...]}]} covering every past instance of the Kids Checkin
     repeating event. Confirmed 2026-09-29: 88 instances, 345 checkin
@@ -467,7 +454,7 @@ def pull_full_history() -> dict:
     await slipping in and hanging the whole pull silently again -- raises a
     clear TimeoutError instead."""
     _require_api_permission()
-    return asyncio.run(asyncio.wait_for(_pull_full_history_async(), timeout=660))
+    return asyncio.run(asyncio.wait_for(_pull_full_history_async(since_days), timeout=660 if since_days else 1800))
 
 
 _PULL_EVENTS_JS_TEMPLATE = """

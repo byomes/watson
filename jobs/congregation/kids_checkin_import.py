@@ -94,6 +94,18 @@ def _upsert_kid(conn, profile: dict) -> int:
     row = conn.execute(
         "SELECT id, household_id FROM kids WHERE subsplash_profile_id = ?", (profile["id"],)
     ).fetchone()
+    if not row:
+        # A child can arrive under a second Subsplash profile id (or one the manual export never had). Same name = same kid when exactly one
+        # kid has that name; remember the id so it never makes a second `kids` row (2026-10-09: the full backfill made 42 duplicates).
+        conn.execute("CREATE TABLE IF NOT EXISTS kids_profile_alias (subsplash_profile_id TEXT PRIMARY KEY, kid_id INTEGER NOT NULL REFERENCES kids(id))")
+        row = conn.execute("SELECT k.id, k.household_id FROM kids_profile_alias a JOIN kids k ON k.id = a.kid_id WHERE a.subsplash_profile_id = ?",
+                           (profile["id"],)).fetchone()
+        if not row:
+            same = conn.execute("SELECT id, household_id FROM kids WHERE LOWER(TRIM(first_name)) = LOWER(TRIM(?)) AND LOWER(TRIM(COALESCE(last_name,''))) = LOWER(TRIM(?))",
+                                (profile.get("first_name", ""), profile.get("last_name") or "")).fetchall()
+            if len(same) == 1:
+                row = same[0]
+                conn.execute("INSERT OR IGNORE INTO kids_profile_alias VALUES (?, ?)", (profile["id"], row["id"]))
     if row:
         kid_id = row["id"]
     else:
@@ -122,14 +134,15 @@ def run(pull_data: dict) -> dict:
             if not profile.get("id"):
                 continue  # malformed record, skip
 
-            before = conn.execute(
-                "SELECT id FROM kids WHERE subsplash_profile_id = ?", (profile["id"],)
-            ).fetchone()
+            n_kids = conn.execute("SELECT COUNT(*) FROM kids").fetchone()[0]
             kid_id = _upsert_kid(conn, profile)
-            if not before:
+            if conn.execute("SELECT COUNT(*) FROM kids").fetchone()[0] > n_kids:
                 stats["kids_created"] += 1
 
             event_date = (event_snap.get("start_at") or "")[:10]
+            # The API row replaces the manual-export (csv) row for the same kid and Sunday, so a Sunday is never counted twice.
+            conn.execute("DELETE FROM kids_checkin WHERE kid_id = ? AND event_date = ? AND checkin_source = 'csv_backfill_2026_09_30' "
+                         "AND NOT EXISTS (SELECT 1 FROM kids_checkin WHERE subsplash_checkin_id = ?)", (kid_id, event_date, rec["id"]))
             cur = conn.execute(
                 "INSERT OR IGNORE INTO kids_checkin "
                 "(kid_id, subsplash_checkin_id, event_id, class_name, event_date, checked_in_at, "
@@ -187,6 +200,7 @@ def run(pull_data: dict) -> dict:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--from-file", help="reuse a saved kids_checkin_client.pull_full_history() JSON dump")
+    parser.add_argument("--full", action="store_true", help="pull every past Sunday (slow, over 540s); default is the last 35 days")
     args = parser.parse_args()
 
     if args.from_file:
@@ -194,7 +208,7 @@ if __name__ == "__main__":
             data = json.load(f)
     else:
         from jobs.congregation.kids_checkin_client import pull_full_history
-        data = pull_full_history()
+        data = pull_full_history(None if args.full else 35)  # weekly run only needs recent Sundays; INSERT OR IGNORE keeps it safe
 
     if "error" in data:
         raise SystemExit(f"pull failed: {data}")

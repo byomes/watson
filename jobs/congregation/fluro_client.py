@@ -138,11 +138,6 @@ def get_session_token() -> dict:
     read straight out of the real Chrome session's localStorage. Never
     cached to disk -- fetched fresh every call so a re-login on the phone
     is picked up automatically next run with no code change."""
-    raise ApiAccessDisabled(
-            "Subsplash/Fluro API access is switched off (Bill, 2026-10-06): their robots.txt disallows automated "
-            "access and we have no permission to use their API. Read the dashboard pages instead "
-            "(see jobs/church_calendar/registrations.py).")
-
     ensure_phone_connected()
     tab_ws = _find_or_open_fluro_tab()
 
@@ -182,11 +177,6 @@ def filter_content(token: str, content_type: str, filter_body: dict) -> list[str
     records). Confirmed live 2026-09-26: a limit >= the real row count
     returns everything in one call, no skip/offset pagination needed at
     this church's roster size."""
-    raise ApiAccessDisabled(
-            "Subsplash/Fluro API access is switched off (Bill, 2026-10-06): their robots.txt disallows automated "
-            "access and we have no permission to use their API. Read the dashboard pages instead "
-            "(see jobs/church_calendar/registrations.py).")
-
     resp = requests.post(
         f"{API_BASE}/content/{content_type}/filter",
         headers=_headers(token), json=filter_body, timeout=30,
@@ -200,11 +190,6 @@ def multiple_content(token: str, content_type: str, ids: list[str]) -> list[dict
     Confirmed live: 691 ids in one call, ~4s, no server-side rejection.
     Chunk client-side (e.g. 250 ids/call) if a future roster size makes
     that stop being true."""
-    raise ApiAccessDisabled(
-            "Subsplash/Fluro API access is switched off (Bill, 2026-10-06): their robots.txt disallows automated "
-            "access and we have no permission to use their API. Read the dashboard pages instead "
-            "(see jobs/church_calendar/registrations.py).")
-
     if not ids:
         return []
     resp = requests.post(

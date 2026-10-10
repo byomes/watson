@@ -36,7 +36,7 @@ def build_fixture(paused="1"):
     CREATE TABLE event_registrations (id INTEGER PRIMARY KEY, event_id INTEGER, first_name TEXT, last_name TEXT, num_tickets INTEGER DEFAULT 1, extra_fields TEXT);
     CREATE TABLE church_calendar_events (title TEXT, start_date TEXT);
     CREATE TABLE subsplash_event_regs (event_uuid TEXT PRIMARY KEY, title TEXT, start_date TEXT, calendar TEXT, has_form INTEGER, registered INTEGER);
-    CREATE TABLE subsplash_registrations (event_uuid TEXT, first_name TEXT, last_name TEXT);
+    CREATE TABLE subsplash_registrations (event_uuid TEXT, first_name TEXT, last_name TEXT, tickets INTEGER DEFAULT 1);
     CREATE TABLE system_settings (key TEXT PRIMARY KEY, value TEXT);
     INSERT INTO church_events VALUES (1, 'Men''s Fraternity Billiards Outing', '2099-11-04', NULL, 1), (2, 'Hayride and Bonfire', NULL, NULL, 1),
                                      (3, 'Servant Leaders Banquet', '2099-11-07', NULL, 1), (4, 'Church Picnic', '2020-10-04', NULL, 1);
@@ -45,7 +45,7 @@ def build_fixture(paused="1"):
         ('Men''s Breakfast','2099-10-17'),('Hayride and Bonfire','2099-10-10'),('5th Sunday Potluck','2099-11-29'),('Remix Youth Group','2099-10-11');
     INSERT INTO subsplash_event_regs VALUES ('u1','Men''s Fraternity Billiards Outing','2099-11-04','Special Events',1,0),
         ('u2','Men''s Fraternity Bible Study','2099-10-07','Small Groups',1,4);
-    INSERT INTO subsplash_registrations VALUES ('u2','Zed','Zimmer');
+    INSERT INTO subsplash_registrations VALUES ('u2','Zed','Zimmer', 4);
     """)
     c.execute("INSERT INTO system_settings VALUES ('subsplash_registrations_paused', ?)", (paused,))
     c.commit()
@@ -218,15 +218,15 @@ class Unpaused(Base):
 
     def test_tracked_numbers_beat_the_subsplash_copy(self):
         r = self.ask("who is signed up for the billiards event")
-        self.assertIn("2 signed up", r)                                                            # tracked record, not Subsplash's 0
+        self.assertIn("2 people signed up", r)                                                            # tracked record, not Subsplash's 0
         self.assertIn("Aaron Harper", r)
 
     def test_men_fraternity_lists_both_events(self):
         r = self.ask("how many are signed up for men's fraternity")
         self.assertIn("Men's Fraternity Bible Study (", r)
-        self.assertIn("4 signed up", r)
+        self.assertIn("4 people signed up", r)
         self.assertIn("Billiards Outing", r)
-        self.assertIn("2 signed up", r)
+        self.assertIn("2 people signed up", r)
 
 
 def pm_info(q):

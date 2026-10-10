@@ -167,6 +167,20 @@ def find_member_name(member_id: int) -> str | None:
         return None
 
 
+_MONTHS = {m: i for i, m in enumerate(
+    ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"], 1)}
+
+
+def _email_event_date(text: str) -> str | None:
+    """The event's own date from a Subsplash registration email ("October 7, 2026 • 6:30 - 8:00 PM"), as YYYY-MM-DD.
+    The "Date registered:" line is the signup date, not the event date, so it is skipped."""
+    for m in re.finditer(r"\b(" + "|".join(_MONTHS) + r")\s+(\d{1,2}),\s*(\d{4})", text, re.I):
+        if text[max(0, m.start() - 16):m.start()].lower().endswith("registered:"):
+            continue
+        return f"{int(m.group(3)):04d}-{_MONTHS[m.group(1).lower()]:02d}-{int(m.group(2)):02d}"
+    return None
+
+
 def find_active_event(conn: sqlite3.Connection, name_guess: str, text: str) -> dict | None:
     """Match name_guess/text against tracking_active=1 church_events rows.
 
@@ -182,6 +196,17 @@ def find_active_event(conn: sqlite3.Connection, name_guess: str, text: str) -> d
     ).fetchall()
     text_l = (text or "").lower()
     name_guess_l = (name_guess or "").lower().strip()
+
+    # An event whose own name appears verbatim in the email wins outright: never fuzzy-match a different event (2026-10-09: "Men's
+    # Fraternity Bible Study" signups fuzzy-matched the Billiards Outing). Recurring events (a monthly Bible Study) have one row per
+    # occurrence under the same name, so the occurrence is picked by the event date printed in the email; no date match = ask, never guess.
+    named = [r for r in rows if r["event_name"] and r["event_name"].lower() in text_l]
+    if named:
+        if len(named) == 1:
+            return dict(named[0])
+        when = _email_event_date(text or "")
+        same = [r for r in named if when and r["start_date"] == when]
+        return dict(same[0]) if len(same) == 1 else None
 
     matches = []
     for row in rows:
