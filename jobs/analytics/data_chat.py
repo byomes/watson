@@ -1193,6 +1193,18 @@ def answer_data_question(
         log.info("data_chat: group registered-vs-attended hit, asker=%s q=%r", asker_name, question)
         return True, group_reply
 
+    # "Who is serving this coming Sunday / this week?" -- volunteer schedule (Fluro, scheduling-only), LLM-free. Needs a serving word
+    # AND a Sunday/week word, so it sits before the generic pattern-matches that read "who is ..." as a person lookup.
+    try:
+        from jobs.analytics.serving_schedule import answer as _serving_answer
+        serving_reply = _serving_answer(question)
+    except Exception:
+        log.exception("data_chat: serving schedule failed, falling through")
+        serving_reply = None
+    if serving_reply is not None:
+        log.info("data_chat: serving-schedule hit, asker=%s q=%r", asker_name, question)
+        return True, serving_reply
+
     # Found 2026-09-02 debugging Donna's "who is in Bill Crook's deacon
     # group?" -- cdb_query._pattern_match()'s 'who is'/'tell me about'
     # trigger is built for simple name lookups and can misfire on a longer
