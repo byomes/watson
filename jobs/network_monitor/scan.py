@@ -41,6 +41,7 @@ from jobs.network_monitor.db import (
     record_sighting,
     set_vendor,
 )
+from jobs.network_monitor.remap import migration_started_at
 
 log = logging.getLogger(__name__)
 
@@ -159,8 +160,30 @@ def _alert_new_device(mac: str, ip: str, hostname: str | None, vendor: str | Non
     )
 
 
+def _alert_migration_summary(new_devices: list[tuple[str, str, str | None, str | None]]) -> None:
+    """One batched Telegram message per scan while Wi-Fi migration mode is
+    on (see remap.py), instead of one alert per re-randomized MAC."""
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        return
+    lines = [f"- {h or ip} ({mac})" for mac, ip, h, _ in new_devices]
+    text = (
+        f"Wi-Fi migration: {len(new_devices)} new MAC(s) joined. Match them to "
+        "old devices with `python -m jobs.network_monitor.remap propose`.\n"
+        + "\n".join(lines)
+    )
+    if vacation_gate("normal", "jobs.network_monitor.scan", text):
+        return
+    requests.post(
+        f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+        json={"chat_id": TELEGRAM_CHAT_ID, "text": text},
+        timeout=10,
+    )
+
+
 def run() -> None:
     init_db()
+    migrating = migration_started_at() is not None
+    migration_new: list[tuple[str, str, str | None, str | None]] = []
     # First run ever: seed whatever's already on the network as the known
     # baseline instead of firing one "new device" alert per device (which
     # would just spam every phone/laptop/TV already sitting on the LAN).
@@ -180,7 +203,12 @@ def run() -> None:
                 set_vendor(mac, vendor)
             if not seeding:
                 log.info("network_monitor: new device %s (%s) %s", mac, ip, hostname or "")
-                _alert_new_device(mac, ip, hostname, vendor)
+                if migrating:
+                    migration_new.append((mac, ip, hostname, vendor))
+                else:
+                    _alert_new_device(mac, ip, hostname, vendor)
+    if migration_new:
+        _alert_migration_summary(migration_new)
 
 
 def backfill_vendors() -> None:
