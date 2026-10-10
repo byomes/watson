@@ -541,6 +541,36 @@ async def _pull_events_by_id_async(event_ids: list[str]) -> dict:
         return json.loads(result)
 
 
+async def _authed_eval_async(js: str, timeout: int) -> str:
+    """Reload the dashboard tab with the Bearer-capture patch, wait for the page's own token, then run `js` (an async IIFE that may use
+    window.__capturedAuth) inside the page. The token never leaves the browser; only the script's return string comes back."""
+    await ensure_phone_connected()
+    async with websockets.connect(_find_dashboard_tab(), max_size=100_000_000, open_timeout=15) as ws:
+        await ws.send(json.dumps({"id": 1, "method": "Page.enable"}))
+        await asyncio.wait_for(ws.recv(), timeout=15)
+        await ws.send(json.dumps({"id": 2, "method": "Page.addScriptToEvaluateOnNewDocument", "params": {"source": _PATCH_JS}}))
+        await asyncio.wait_for(ws.recv(), timeout=15)
+        await surface_tab(ws)
+        await ws.send(json.dumps({"id": 3, "method": "Page.reload"}))
+        for _ in range(15):
+            try:
+                if await _ws_eval(ws, _CHECK_JS, timeout=3) == "ready":
+                    break
+            except Exception:
+                pass
+            await asyncio.sleep(1)
+        else:
+            raise KidsCheckinClientError("timed out waiting for auth capture after reload")
+        await asyncio.sleep(4)
+        return await _ws_eval(ws, js, await_promise=True, timeout=timeout)
+
+
+def authed_eval(js: str, timeout: int = 300) -> str:
+    """Sync wrapper for _authed_eval_async; see there."""
+    _require_api_permission()
+    return asyncio.run(asyncio.wait_for(_authed_eval_async(js, timeout), timeout=timeout + 120))
+
+
 def pull_events_by_id(event_ids: list[str]) -> dict:
     """Targeted backfill for a small, known list of event instance ids --
     much less likely to trip a rate limit than re-running the full

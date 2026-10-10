@@ -46,6 +46,8 @@ DASH = "https://dashboard.subsplash.com/-d/#/library/events"
 CALENDARS = ("Special Events", "Small Groups")
 PAST_DAYS = 14
 FUTURE_DAYS = 75
+API_PAST_DAYS = 30
+API_FUTURE_DAYS = 180
 PAUSE = 2.0  # seconds between page loads
 _FAIL_KEY = "subsplash_registrations_fail_streak"
 _FAIL_ALERT_AT = 3
@@ -93,6 +95,82 @@ _CLICK_ROW_JS = r"""
  const em=tail.match(/([A-Za-z0-9._%%+'-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})/); const ph=tail.match(/(\(?\d{3}\)?[ -.]?\d{3}[ -.]?\d{4})/);
  return JSON.stringify({ok: tail.includes(want), email: em?em[1]:null, phone: ph?ph[1]:null});})()
 """
+
+
+# --- API reader (2026-10-09): Subsplash confirmed Watson may read core.subsplash.com. One in-browser pass, using the dashboard's own login
+# (token never leaves the page): list events, then every form's responses. Replaces the slow page-by-page reading above, which stays as a
+# fallback in run(). Returns plain data in the shape store() already takes.
+_API_JS = r"""
+(async()=>{
+ const H={Authorization:window.__capturedAuth}, LO="__LO__", HI="__HI__", WANT=__WANT__, APP="7BVGB9", ORG="8RZCZS57";
+ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+ async function j(u){for(let a=0;a<3;a++){const r=await fetch(u,{headers:H});if(r.ok)return await r.json();
+   if(r.status===429||r.status>=500){await sleep(800*(a+1));continue;} return {__error:r.status,__url:u.split('?')[0]};} return {__error:'retries'};}
+ const cj=await j('https://core.subsplash.com/events/v2/calendars?filter[app_key]='+APP);
+ if(cj.__error) return JSON.stringify({error:'calendars',detail:cj});
+ const calName={}; for(const c of (cj._embedded&&cj._embedded.calendars)||[]) calName[c.id]=c.title||c.name;
+ const events=[]; let url='https://core.subsplash.com/events/v2/events?filter[app_key]='+APP+'&include=calendar,form&sort=-start_at&page[size]=100&page[number]=1', pages=0;
+ while(url && pages<40){
+   const pj=await j(url); if(pj.__error) return JSON.stringify({error:'events',detail:pj});
+   const batch=(pj._embedded&&pj._embedded.events)||[]; pages++;
+   for(const e of batch){ if(e.start_at<LO||e.start_at>HI) continue;
+     const cals=((e._embedded&&e._embedded.calendars)||[]).map(c=>calName[c.id]).filter(Boolean);
+     const cal=cals.find(c=>WANT.includes(c)); if(!cal) continue;
+     events.push({id:e.id,title:e.title,start_at:e.start_at,tz:e.timezone,calendar:cal,form:(e._embedded&&e._embedded.form)||null}); }
+   if(batch.length && batch[batch.length-1].start_at<LO) break;
+   const nx=pj._links&&pj._links.next&&pj._links.next.href; url=nx?(nx.startsWith('http')?nx:'https://core.subsplash.com'+nx):null;
+ }
+ for(const ev of events){
+   if(!ev.form){const d=await j('https://core.subsplash.com/events/v2/events/'+ev.id+'?include=form'); if(d.__error) return JSON.stringify({error:'event',detail:d}); ev.form=(d._embedded&&d._embedded.form)||null;}
+   if(!ev.form){ev.responses=null; continue;}
+   const heads=(ev.form.fields||[]).filter(f=>f.properties&&f.properties.purpose==='registration_head_count'); ev.responses=[];
+   let ru='https://core.subsplash.com/forms/v1/responses?filter[form.id]='+ev.form.id+'&filter[org_key]='+ORG+'&page[size]=100&page[number]=1', rp=0;
+   while(ru&&rp<20){const rj=await j(ru); if(rj.__error) return JSON.stringify({error:'responses',detail:rj}); rp++;
+     for(const r of (rj._embedded&&rj._embedded.responses)||[]){
+       const a={}; for(const x of r.answers||[]) if(a[x.field_id]===undefined) a[x.field_id]=x.value;
+       const pc=r.primary_contact||{}; const defs=r.definition||[];
+       const byPurpose=p=>{const d=defs.find(d=>d.properties&&d.properties.purpose===p); return d?a[d.id]:null;};
+       ev.responses.push({first:pc.first_name||byPurpose('registration_first_name'),last:pc.last_name||byPurpose('registration_last_name'),
+         email:pc.email||byPurpose('registration_email'),phone:byPurpose('registration_phone_number'),
+         tickets:heads.length?heads.reduce((n,h)=>n+(parseInt(a[h.id],10)||0),0):null,
+         ttype:heads.filter(h=>(parseInt(a[h.id],10)||0)>0).map(h=>h.properties.description).filter((v,i,x)=>x.indexOf(v)===i).join(' + ')||null,submitted:r.submitted_at});}
+     const nx=rj._links&&rj._links.next&&rj._links.next.href; ru=nx?(nx.startsWith('http')?nx:'https://core.subsplash.com'+nx):null; await sleep(120);}
+   await sleep(120);
+ }
+ return JSON.stringify({events});
+})()
+"""
+
+
+def _local_day(iso: str, tz: str | None) -> str:
+    from zoneinfo import ZoneInfo
+    return datetime.fromisoformat(iso.replace("Z", "+00:00")).astimezone(ZoneInfo(tz or "America/New_York")).date().isoformat()
+
+
+def pull_api() -> list[dict]:
+    """Read every Special Events / Small Groups event in the window and its registrations; returns store()-ready events."""
+    today = date.today()
+    lo = (today - timedelta(days=API_PAST_DAYS)).isoformat() + "T00:00:00Z"
+    hi = (today + timedelta(days=API_FUTURE_DAYS)).isoformat() + "T23:59:59Z"
+    js = _API_JS.replace("__LO__", lo).replace("__HI__", hi).replace("__WANT__", json.dumps(list(CALENDARS)))
+    data = json.loads(kc.authed_eval(js, timeout=900))
+    if "error" in data:
+        raise kc.KidsCheckinClientError(f"Subsplash API read failed: {data}")
+    out = []
+    for e in data["events"]:
+        day = _local_day(e["start_at"], e.get("tz"))
+        base = {"uuid": e["id"], "start_date": day, "calendar": e["calendar"]}
+        if e["responses"] is None:
+            out.append({**base, "title": e["title"], "hasForm": False, "rows": []})
+            continue
+        rows = []
+        for r in e["responses"]:
+            first, last = (r.get("first") or "").strip(), (r.get("last") or "").strip()
+            sub = datetime.fromisoformat(r["submitted"].replace("Z", "+00:00")).astimezone(__import__("zoneinfo").ZoneInfo(e.get("tz") or "America/New_York"))
+            rows.append({"name": f"{first} {last}".strip(), "ticket": f"{r['tickets'] if r.get('tickets') else 1} {r.get('ttype') or 'Registration'}",
+                         "date": sub.strftime("%b %d, %Y").replace(" 0", " "), "email": r.get("email") or None, "phone": r.get("phone") or None})
+        out.append({**base, "title": e["title"], "hasForm": True, "registered": len(rows), "rows": rows})
+    return out
 
 
 def is_paused() -> bool:
@@ -458,8 +536,8 @@ def sync_church_events() -> list[str]:
     made = []
     with get_connection() as conn:
         for ev in conn.execute("SELECT title, start_date FROM subsplash_event_regs r "
-                               "WHERE has_form = 1 AND (start_date >= date('now','localtime') OR EXISTS (SELECT 1 FROM church_calendar_events c "
-                               "WHERE c.active = 1 AND LOWER(c.title) = LOWER(r.title) AND c.start_date >= date('now','localtime'))) "
+                               "WHERE has_form = 1 AND (start_date >= date('now','localtime') OR (start_date >= date('now','-14 days','localtime') AND EXISTS (SELECT 1 FROM church_calendar_events c "
+                               "WHERE c.active = 1 AND LOWER(c.title) = LOWER(r.title) AND c.start_date >= date('now','localtime')))) "
                                "ORDER BY start_date").fetchall():
             title, day = ev["title"], ev["start_date"]
             if conn.execute("SELECT 1 FROM church_events WHERE LOWER(event_name) = LOWER(?) AND start_date = ?", (title, day)).fetchone():
@@ -481,7 +559,13 @@ def run() -> None:
         log.info("paused (system_settings subsplash_registrations_paused); not reading Subsplash")
         return
     try:
-        result = pull()  # stores each event as it is read
+        try:
+            result = store(pull_api())  # one pass over Subsplash's own data; exact names, emails, phones and head counts
+            result["via"] = "api"
+        except Exception as api_exc:
+            log.warning("API read failed (%s); falling back to dashboard page reading", api_exc)
+            result = pull()  # stores each event as it is read
+            result["via"] = "pages"
     except Exception as exc:
         streak = _streak(1)
         log.error("registrations read failed (%d in a row): %s", streak, exc)
