@@ -34,3 +34,27 @@ def _conn(path):
     c = sqlite3.connect(path)
     c.row_factory = sqlite3.Row
     return c
+
+
+def test_failure_alert_fires_once_on_second_failure(tmp_path, monkeypatch):
+    import sqlite3
+    import pytest
+    from jobs.congregation import fluro_schedule as fs
+    p = tmp_path / "w.db"
+    c = sqlite3.connect(p)
+    c.execute("CREATE TABLE system_settings (key TEXT PRIMARY KEY, value TEXT, updated_at TEXT)")
+    c.commit(); c.close()
+    monkeypatch.setattr(fs, "get_connection", lambda: _conn(p))
+    sent = []
+    monkeypatch.setattr(fs.requests, "post", lambda url, **kw: sent.append(kw["json"]["text"]))
+    def boom(days=35):
+        raise RuntimeError("Fluro schedule read failed: not logged in")
+    monkeypatch.setattr(fs, "run", boom)
+    for _ in range(4):
+        with pytest.raises(RuntimeError):
+            fs.run_monitored()
+    assert len(sent) == 1 and "login has probably expired" in sent[0]       # 2nd failure only, then quiet
+    monkeypatch.setattr(fs, "run", lambda days=35: {"events": 1})
+    assert fs.run_monitored() == {"events": 1}
+    with _conn(p) as c:
+        assert c.execute("SELECT value FROM system_settings WHERE key='fluro_schedule_fail_streak'").fetchone()[0] == "0"

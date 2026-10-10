@@ -27,6 +27,11 @@ Tables (watson.db):
 
 Each run replaces the stored schedule for the window it read.
 
+Failure alert: run_monitored() (what cron calls) counts consecutive failed runs in system_settings
+('fluro_schedule_fail_streak'). On the 2nd failure in a row (two mornings) Bill gets ONE Telegram saying the
+schedule is not refreshing and, when the error says so, that the phone's Fluro login probably lapsed. Quiet after that
+until a run succeeds, which resets the count. A failed run never changes the stored schedule.
+
 Usage: python -m jobs.congregation.fluro_schedule [--days 35] [--show]
 """
 import argparse
@@ -39,6 +44,7 @@ from datetime import date, timedelta
 import requests
 import websockets
 
+from config.settings import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 from core.database import get_connection
 from jobs.congregation import kids_checkin_client as kc  # phone/Chrome connection helpers only
 from jobs.events.matching import find_member_id_by_name
@@ -225,6 +231,48 @@ def store(events: list[dict]) -> dict:
     return {"events": len(events), "assignments": n_assign, "dropped_stale": len(stale)}
 
 
+_FAIL_KEY = "fluro_schedule_fail_streak"
+_FAIL_ALERT_AT = 2
+
+
+def _streak(delta: int | None) -> int:
+    with get_connection() as conn:
+        row = conn.execute("SELECT value FROM system_settings WHERE key=?", (_FAIL_KEY,)).fetchone()
+        cur = int(row["value"]) if row else 0
+        new = 0 if delta is None else cur + delta
+        conn.execute("""INSERT INTO system_settings (key, value, updated_at) VALUES (?,?,datetime('now'))
+                        ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at""", (_FAIL_KEY, str(new)))
+    return new
+
+
+def _alert_text(exc: Exception) -> str:
+    base = f"Watson could not refresh the Sunday volunteer schedule {_FAIL_ALERT_AT} mornings in a row, so the Scheduled badges and \"who is serving\" answers may be out of date."
+    msg = str(exc).lower()
+    if "not logged in" in msg or "401" in msg or "403" in msg:
+        return base + " The work phone's Fluro login has probably expired and needs signing in again."
+    if "unreachable" in msg or "chrome" in msg or "adb" in msg:
+        return base + " The work phone looks unreachable (off, asleep, or Chrome not responding)."
+    return base + f" Last error: {str(exc)[:200]}"
+
+
+def run_monitored(days: int = DEFAULT_DAYS) -> dict:
+    """run() plus the failure alert. Re-raises after counting so cron's log and exit status still show the failure."""
+    try:
+        summary = run(days)
+    except Exception as exc:
+        streak = _streak(1)
+        log.error("fluro_schedule failed (%d in a row): %s", streak, exc)
+        if streak == _FAIL_ALERT_AT:
+            try:
+                requests.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage", timeout=15,
+                              json={"chat_id": TELEGRAM_CHAT_ID, "text": _alert_text(exc)})
+            except Exception:
+                log.exception("fluro_schedule: could not send the failure alert")
+        raise
+    _streak(None)
+    return summary
+
+
 def show() -> None:
     _bootstrap()
     with get_connection() as conn:
@@ -252,4 +300,4 @@ if __name__ == "__main__":
     if args.show:
         show()
     else:
-        print(run(args.days))
+        print(run_monitored(args.days))
